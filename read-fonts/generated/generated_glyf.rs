@@ -107,10 +107,14 @@ impl<'a> FontRead<'a> for SimpleGlyph<'a> {
         cursor.advance::<i16>();
         cursor.advance::<i16>();
         cursor.advance::<i16>();
-        let end_pts_of_contours_byte_len = number_of_contours as usize * u16::RAW_BYTE_LEN;
+        let end_pts_of_contours_byte_len = (number_of_contours as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(end_pts_of_contours_byte_len);
         let instruction_length: u16 = cursor.read()?;
-        let instructions_byte_len = instruction_length as usize * u8::RAW_BYTE_LEN;
+        let instructions_byte_len = (instruction_length as usize)
+            .checked_mul(u8::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(instructions_byte_len);
         let glyph_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(glyph_data_byte_len);

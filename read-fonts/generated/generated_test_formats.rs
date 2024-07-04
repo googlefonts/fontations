@@ -109,7 +109,9 @@ impl<'a> FontRead<'a> for Table2<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let value_count: u16 = cursor.read()?;
-        let values_byte_len = value_count as usize * u16::RAW_BYTE_LEN;
+        let values_byte_len = (value_count as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(values_byte_len);
         cursor.finish(Table2Marker { values_byte_len })
     }

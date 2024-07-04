@@ -19,6 +19,9 @@
 
 mod bitpage;
 mod bitset;
+mod input_bit_stream;
+mod output_bit_stream;
+pub mod sparse_bit_set;
 
 use bitset::BitSet;
 use font_types::GlyphId;
@@ -592,6 +595,18 @@ mod test {
     }
 
     #[test]
+    fn from_sparse_set() {
+        let bytes = [0b00001101, 0b00000011, 0b00110001];
+
+        let set = IntSet::<u32>::from_sparse_bit_set(&bytes).unwrap();
+
+        let mut expected: IntSet<u32> = IntSet::<u32>::empty();
+        expected.insert_range(0..=17);
+
+        assert_eq!(set, expected);
+    }
+
+    #[test]
     fn insert() {
         let mut empty = IntSet::<u32>::empty();
         let mut all = IntSet::<u32>::all();
@@ -868,7 +883,7 @@ mod test {
 
     #[test]
     fn from_iterator() {
-        let s: IntSet<u32> = [3, 8, 12, 589].iter().copied().collect();
+        let s: IntSet<u32> = [3, 8, 12, 589].into_iter().collect();
         let mut expected = IntSet::<u32>::empty();
         expected.insert(3);
         expected.insert(8);
@@ -880,7 +895,7 @@ mod test {
 
     #[test]
     fn from_int_set_iterator() {
-        let s1: IntSet<u32> = [3, 8, 12, 589].iter().copied().collect();
+        let s1: IntSet<u32> = [3, 8, 12, 589].into_iter().collect();
         let s2: IntSet<u32> = s1.iter().collect();
         assert_eq!(s1, s2);
     }
@@ -888,8 +903,8 @@ mod test {
     #[test]
     fn extend() {
         let mut s = IntSet::<u32>::empty();
-        s.extend([3, 12].iter().copied());
-        s.extend([8, 10, 589].iter().copied());
+        s.extend([3, 12]);
+        s.extend([8, 10, 589]);
 
         let mut expected = IntSet::<u32>::empty();
         expected.insert(3);
@@ -908,7 +923,7 @@ mod test {
             s.remove(i);
         }
 
-        s.extend([12, 17, 18].iter().copied());
+        s.extend([12, 17, 18]);
 
         assert!(!s.contains(11));
         assert!(s.contains(12));

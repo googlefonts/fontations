@@ -675,6 +675,14 @@ where
             .unwrap_or_default()
     }
 
+    pub fn intermediate_start(&self) -> Option<Tuple<'a>> {
+        self.header.intermediate_start_tuple()
+    }
+
+    pub fn intermediate_end(&self) -> Option<Tuple<'a>> {
+        self.header.intermediate_end_tuple()
+    }
+
     /// Compute the fixed point scalar for this tuple at the given location in
     /// variation space.
     ///

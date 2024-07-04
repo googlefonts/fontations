@@ -356,7 +356,9 @@ impl<'a> FontReadWithArgs<'a> for Sbix<'a> {
         cursor.advance::<u16>();
         cursor.advance::<HeaderFlags>();
         let num_strikes: u32 = cursor.read()?;
-        let strike_offsets_byte_len = num_strikes as usize * Offset32::RAW_BYTE_LEN;
+        let strike_offsets_byte_len = (num_strikes as usize)
+            .checked_mul(Offset32::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(strike_offsets_byte_len);
         cursor.finish(SbixMarker {
             num_glyphs,
@@ -488,7 +490,9 @@ impl<'a> FontReadWithArgs<'a> for Strike<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        let glyph_data_offsets_byte_len = transforms::add(num_glyphs, 1_usize) * u32::RAW_BYTE_LEN;
+        let glyph_data_offsets_byte_len = (transforms::add(num_glyphs, 1_usize))
+            .checked_mul(u32::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(glyph_data_offsets_byte_len);
         cursor.finish(StrikeMarker {
             glyph_data_offsets_byte_len,

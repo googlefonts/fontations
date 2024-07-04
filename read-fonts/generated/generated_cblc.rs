@@ -42,7 +42,9 @@ impl<'a> FontRead<'a> for Cblc<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         let num_sizes: u32 = cursor.read()?;
-        let bitmap_sizes_byte_len = num_sizes as usize * BitmapSize::RAW_BYTE_LEN;
+        let bitmap_sizes_byte_len = (num_sizes as usize)
+            .checked_mul(BitmapSize::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(bitmap_sizes_byte_len);
         cursor.finish(CblcMarker {
             bitmap_sizes_byte_len,

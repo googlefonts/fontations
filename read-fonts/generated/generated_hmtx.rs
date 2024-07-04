@@ -37,10 +37,13 @@ impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
     fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
         let (number_of_h_metrics, num_glyphs) = *args;
         let mut cursor = data.cursor();
-        let h_metrics_byte_len = number_of_h_metrics as usize * LongMetric::RAW_BYTE_LEN;
+        let h_metrics_byte_len = (number_of_h_metrics as usize)
+            .checked_mul(LongMetric::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(h_metrics_byte_len);
-        let left_side_bearings_byte_len =
-            transforms::subtract(num_glyphs, number_of_h_metrics) * i16::RAW_BYTE_LEN;
+        let left_side_bearings_byte_len = (transforms::subtract(num_glyphs, number_of_h_metrics))
+            .checked_mul(i16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(left_side_bearings_byte_len);
         cursor.finish(HmtxMarker {
             h_metrics_byte_len,

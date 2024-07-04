@@ -64,8 +64,8 @@ impl<'a> FontReadWithArgs<'a> for InstanceRecord<'a> {
 
 impl ComputeSize for InstanceRecord<'_> {
     #[inline]
-    fn compute_size(args: &(u16, u16)) -> usize {
-        args.1 as usize
+    fn compute_size(args: &(u16, u16)) -> Result<usize, ReadError> {
+        Ok(args.1 as usize)
     }
 }
 

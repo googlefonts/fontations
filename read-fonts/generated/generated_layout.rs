@@ -27,7 +27,9 @@ impl<'a> FontRead<'a> for ScriptList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let script_count: u16 = cursor.read()?;
-        let script_records_byte_len = script_count as usize * ScriptRecord::RAW_BYTE_LEN;
+        let script_records_byte_len = (script_count as usize)
+            .checked_mul(ScriptRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(script_records_byte_len);
         cursor.finish(ScriptListMarker {
             script_records_byte_len,
@@ -160,7 +162,9 @@ impl<'a> FontRead<'a> for Script<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
         let lang_sys_count: u16 = cursor.read()?;
-        let lang_sys_records_byte_len = lang_sys_count as usize * LangSysRecord::RAW_BYTE_LEN;
+        let lang_sys_records_byte_len = (lang_sys_count as usize)
+            .checked_mul(LangSysRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(lang_sys_records_byte_len);
         cursor.finish(ScriptMarker {
             lang_sys_records_byte_len,
@@ -315,7 +319,9 @@ impl<'a> FontRead<'a> for LangSys<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         let feature_index_count: u16 = cursor.read()?;
-        let feature_indices_byte_len = feature_index_count as usize * u16::RAW_BYTE_LEN;
+        let feature_indices_byte_len = (feature_index_count as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(feature_indices_byte_len);
         cursor.finish(LangSysMarker {
             feature_indices_byte_len,
@@ -398,7 +404,9 @@ impl<'a> FontRead<'a> for FeatureList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let feature_count: u16 = cursor.read()?;
-        let feature_records_byte_len = feature_count as usize * FeatureRecord::RAW_BYTE_LEN;
+        let feature_records_byte_len = (feature_count as usize)
+            .checked_mul(FeatureRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(feature_records_byte_len);
         cursor.finish(FeatureListMarker {
             feature_records_byte_len,
@@ -539,7 +547,9 @@ impl<'a> FontReadWithArgs<'a> for Feature<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
         let lookup_index_count: u16 = cursor.read()?;
-        let lookup_list_indices_byte_len = lookup_index_count as usize * u16::RAW_BYTE_LEN;
+        let lookup_list_indices_byte_len = (lookup_index_count as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(lookup_list_indices_byte_len);
         cursor.finish(FeatureMarker {
             feature_tag,
@@ -653,7 +663,9 @@ impl<'a, T> FontRead<'a> for LookupList<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let lookup_count: u16 = cursor.read()?;
-        let lookup_offsets_byte_len = lookup_count as usize * Offset16::RAW_BYTE_LEN;
+        let lookup_offsets_byte_len = (lookup_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(lookup_offsets_byte_len);
         cursor.finish(LookupListMarker {
             lookup_offsets_byte_len,
@@ -798,7 +810,9 @@ impl<'a, T> FontRead<'a> for Lookup<'a, T> {
         cursor.advance::<u16>();
         cursor.advance::<LookupFlag>();
         let sub_table_count: u16 = cursor.read()?;
-        let subtable_offsets_byte_len = sub_table_count as usize * Offset16::RAW_BYTE_LEN;
+        let subtable_offsets_byte_len = (sub_table_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(subtable_offsets_byte_len);
         cursor.advance::<u16>();
         cursor.finish(LookupMarker {
@@ -953,7 +967,9 @@ impl<'a> FontRead<'a> for CoverageFormat1<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let glyph_count: u16 = cursor.read()?;
-        let glyph_array_byte_len = glyph_count as usize * GlyphId::RAW_BYTE_LEN;
+        let glyph_array_byte_len = (glyph_count as usize)
+            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(glyph_array_byte_len);
         cursor.finish(CoverageFormat1Marker {
             glyph_array_byte_len,
@@ -1037,7 +1053,9 @@ impl<'a> FontRead<'a> for CoverageFormat2<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let range_count: u16 = cursor.read()?;
-        let range_records_byte_len = range_count as usize * RangeRecord::RAW_BYTE_LEN;
+        let range_records_byte_len = (range_count as usize)
+            .checked_mul(RangeRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(range_records_byte_len);
         cursor.finish(CoverageFormat2Marker {
             range_records_byte_len,
@@ -1241,7 +1259,9 @@ impl<'a> FontRead<'a> for ClassDefFormat1<'a> {
         cursor.advance::<u16>();
         cursor.advance::<GlyphId>();
         let glyph_count: u16 = cursor.read()?;
-        let class_value_array_byte_len = glyph_count as usize * u16::RAW_BYTE_LEN;
+        let class_value_array_byte_len = (glyph_count as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(class_value_array_byte_len);
         cursor.finish(ClassDefFormat1Marker {
             class_value_array_byte_len,
@@ -1332,8 +1352,9 @@ impl<'a> FontRead<'a> for ClassDefFormat2<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let class_range_count: u16 = cursor.read()?;
-        let class_range_records_byte_len =
-            class_range_count as usize * ClassRangeRecord::RAW_BYTE_LEN;
+        let class_range_records_byte_len = (class_range_count as usize)
+            .checked_mul(ClassRangeRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(class_range_records_byte_len);
         cursor.finish(ClassDefFormat2Marker {
             class_range_records_byte_len,
@@ -1576,7 +1597,9 @@ impl<'a> FontRead<'a> for SequenceContextFormat1<'a> {
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let seq_rule_set_count: u16 = cursor.read()?;
-        let seq_rule_set_offsets_byte_len = seq_rule_set_count as usize * Offset16::RAW_BYTE_LEN;
+        let seq_rule_set_offsets_byte_len = (seq_rule_set_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_rule_set_offsets_byte_len);
         cursor.finish(SequenceContextFormat1Marker {
             seq_rule_set_offsets_byte_len,
@@ -1689,7 +1712,9 @@ impl<'a> FontRead<'a> for SequenceRuleSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let seq_rule_count: u16 = cursor.read()?;
-        let seq_rule_offsets_byte_len = seq_rule_count as usize * Offset16::RAW_BYTE_LEN;
+        let seq_rule_offsets_byte_len = (seq_rule_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_rule_offsets_byte_len);
         cursor.finish(SequenceRuleSetMarker {
             seq_rule_offsets_byte_len,
@@ -1788,11 +1813,13 @@ impl<'a> FontRead<'a> for SequenceRule<'a> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
         let seq_lookup_count: u16 = cursor.read()?;
-        let input_sequence_byte_len =
-            transforms::subtract(glyph_count, 1_usize) * GlyphId::RAW_BYTE_LEN;
+        let input_sequence_byte_len = (transforms::subtract(glyph_count, 1_usize))
+            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(input_sequence_byte_len);
-        let seq_lookup_records_byte_len =
-            seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+        let seq_lookup_records_byte_len = (seq_lookup_count as usize)
+            .checked_mul(SequenceLookupRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_lookup_records_byte_len);
         cursor.finish(SequenceRuleMarker {
             input_sequence_byte_len,
@@ -1901,8 +1928,9 @@ impl<'a> FontRead<'a> for SequenceContextFormat2<'a> {
         cursor.advance::<Offset16>();
         cursor.advance::<Offset16>();
         let class_seq_rule_set_count: u16 = cursor.read()?;
-        let class_seq_rule_set_offsets_byte_len =
-            class_seq_rule_set_count as usize * Offset16::RAW_BYTE_LEN;
+        let class_seq_rule_set_offsets_byte_len = (class_seq_rule_set_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(class_seq_rule_set_offsets_byte_len);
         cursor.finish(SequenceContextFormat2Marker {
             class_seq_rule_set_offsets_byte_len,
@@ -2037,8 +2065,9 @@ impl<'a> FontRead<'a> for ClassSequenceRuleSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let class_seq_rule_count: u16 = cursor.read()?;
-        let class_seq_rule_offsets_byte_len =
-            class_seq_rule_count as usize * Offset16::RAW_BYTE_LEN;
+        let class_seq_rule_offsets_byte_len = (class_seq_rule_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(class_seq_rule_offsets_byte_len);
         cursor.finish(ClassSequenceRuleSetMarker {
             class_seq_rule_offsets_byte_len,
@@ -2140,11 +2169,13 @@ impl<'a> FontRead<'a> for ClassSequenceRule<'a> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
         let seq_lookup_count: u16 = cursor.read()?;
-        let input_sequence_byte_len =
-            transforms::subtract(glyph_count, 1_usize) * u16::RAW_BYTE_LEN;
+        let input_sequence_byte_len = (transforms::subtract(glyph_count, 1_usize))
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(input_sequence_byte_len);
-        let seq_lookup_records_byte_len =
-            seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+        let seq_lookup_records_byte_len = (seq_lookup_count as usize)
+            .checked_mul(SequenceLookupRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_lookup_records_byte_len);
         cursor.finish(ClassSequenceRuleMarker {
             input_sequence_byte_len,
@@ -2254,10 +2285,13 @@ impl<'a> FontRead<'a> for SequenceContextFormat3<'a> {
         cursor.advance::<u16>();
         let glyph_count: u16 = cursor.read()?;
         let seq_lookup_count: u16 = cursor.read()?;
-        let coverage_offsets_byte_len = glyph_count as usize * Offset16::RAW_BYTE_LEN;
+        let coverage_offsets_byte_len = (glyph_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(coverage_offsets_byte_len);
-        let seq_lookup_records_byte_len =
-            seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+        let seq_lookup_records_byte_len = (seq_lookup_count as usize)
+            .checked_mul(SequenceLookupRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_lookup_records_byte_len);
         cursor.finish(SequenceContextFormat3Marker {
             coverage_offsets_byte_len,
@@ -2447,8 +2481,9 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat1<'a> {
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let chained_seq_rule_set_count: u16 = cursor.read()?;
-        let chained_seq_rule_set_offsets_byte_len =
-            chained_seq_rule_set_count as usize * Offset16::RAW_BYTE_LEN;
+        let chained_seq_rule_set_offsets_byte_len = (chained_seq_rule_set_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(chained_seq_rule_set_offsets_byte_len);
         cursor.finish(ChainedSequenceContextFormat1Marker {
             chained_seq_rule_set_offsets_byte_len,
@@ -2566,8 +2601,9 @@ impl<'a> FontRead<'a> for ChainedSequenceRuleSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let chained_seq_rule_count: u16 = cursor.read()?;
-        let chained_seq_rule_offsets_byte_len =
-            chained_seq_rule_count as usize * Offset16::RAW_BYTE_LEN;
+        let chained_seq_rule_offsets_byte_len = (chained_seq_rule_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(chained_seq_rule_offsets_byte_len);
         cursor.finish(ChainedSequenceRuleSetMarker {
             chained_seq_rule_offsets_byte_len,
@@ -2686,18 +2722,24 @@ impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let backtrack_glyph_count: u16 = cursor.read()?;
-        let backtrack_sequence_byte_len = backtrack_glyph_count as usize * GlyphId::RAW_BYTE_LEN;
+        let backtrack_sequence_byte_len = (backtrack_glyph_count as usize)
+            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(backtrack_sequence_byte_len);
         let input_glyph_count: u16 = cursor.read()?;
-        let input_sequence_byte_len =
-            transforms::subtract(input_glyph_count, 1_usize) * GlyphId::RAW_BYTE_LEN;
+        let input_sequence_byte_len = (transforms::subtract(input_glyph_count, 1_usize))
+            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(input_sequence_byte_len);
         let lookahead_glyph_count: u16 = cursor.read()?;
-        let lookahead_sequence_byte_len = lookahead_glyph_count as usize * GlyphId::RAW_BYTE_LEN;
+        let lookahead_sequence_byte_len = (lookahead_glyph_count as usize)
+            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(lookahead_sequence_byte_len);
         let seq_lookup_count: u16 = cursor.read()?;
-        let seq_lookup_records_byte_len =
-            seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+        let seq_lookup_records_byte_len = (seq_lookup_count as usize)
+            .checked_mul(SequenceLookupRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_lookup_records_byte_len);
         cursor.finish(ChainedSequenceRuleMarker {
             backtrack_sequence_byte_len,
@@ -2852,8 +2894,10 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat2<'a> {
         cursor.advance::<Offset16>();
         cursor.advance::<Offset16>();
         let chained_class_seq_rule_set_count: u16 = cursor.read()?;
-        let chained_class_seq_rule_set_offsets_byte_len =
-            chained_class_seq_rule_set_count as usize * Offset16::RAW_BYTE_LEN;
+        let chained_class_seq_rule_set_offsets_byte_len = (chained_class_seq_rule_set_count
+            as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(chained_class_seq_rule_set_offsets_byte_len);
         cursor.finish(ChainedSequenceContextFormat2Marker {
             chained_class_seq_rule_set_offsets_byte_len,
@@ -3028,8 +3072,9 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let chained_class_seq_rule_count: u16 = cursor.read()?;
-        let chained_class_seq_rule_offsets_byte_len =
-            chained_class_seq_rule_count as usize * Offset16::RAW_BYTE_LEN;
+        let chained_class_seq_rule_offsets_byte_len = (chained_class_seq_rule_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(chained_class_seq_rule_offsets_byte_len);
         cursor.finish(ChainedClassSequenceRuleSetMarker {
             chained_class_seq_rule_offsets_byte_len,
@@ -3150,18 +3195,24 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRule<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let backtrack_glyph_count: u16 = cursor.read()?;
-        let backtrack_sequence_byte_len = backtrack_glyph_count as usize * u16::RAW_BYTE_LEN;
+        let backtrack_sequence_byte_len = (backtrack_glyph_count as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(backtrack_sequence_byte_len);
         let input_glyph_count: u16 = cursor.read()?;
-        let input_sequence_byte_len =
-            transforms::subtract(input_glyph_count, 1_usize) * u16::RAW_BYTE_LEN;
+        let input_sequence_byte_len = (transforms::subtract(input_glyph_count, 1_usize))
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(input_sequence_byte_len);
         let lookahead_glyph_count: u16 = cursor.read()?;
-        let lookahead_sequence_byte_len = lookahead_glyph_count as usize * u16::RAW_BYTE_LEN;
+        let lookahead_sequence_byte_len = (lookahead_glyph_count as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(lookahead_sequence_byte_len);
         let seq_lookup_count: u16 = cursor.read()?;
-        let seq_lookup_records_byte_len =
-            seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+        let seq_lookup_records_byte_len = (seq_lookup_count as usize)
+            .checked_mul(SequenceLookupRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_lookup_records_byte_len);
         cursor.finish(ChainedClassSequenceRuleMarker {
             backtrack_sequence_byte_len,
@@ -3324,19 +3375,24 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat3<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let backtrack_glyph_count: u16 = cursor.read()?;
-        let backtrack_coverage_offsets_byte_len =
-            backtrack_glyph_count as usize * Offset16::RAW_BYTE_LEN;
+        let backtrack_coverage_offsets_byte_len = (backtrack_glyph_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(backtrack_coverage_offsets_byte_len);
         let input_glyph_count: u16 = cursor.read()?;
-        let input_coverage_offsets_byte_len = input_glyph_count as usize * Offset16::RAW_BYTE_LEN;
+        let input_coverage_offsets_byte_len = (input_glyph_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(input_coverage_offsets_byte_len);
         let lookahead_glyph_count: u16 = cursor.read()?;
-        let lookahead_coverage_offsets_byte_len =
-            lookahead_glyph_count as usize * Offset16::RAW_BYTE_LEN;
+        let lookahead_coverage_offsets_byte_len = (lookahead_glyph_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(lookahead_coverage_offsets_byte_len);
         let seq_lookup_count: u16 = cursor.read()?;
-        let seq_lookup_records_byte_len =
-            seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+        let seq_lookup_records_byte_len = (seq_lookup_count as usize)
+            .checked_mul(SequenceLookupRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_lookup_records_byte_len);
         cursor.finish(ChainedSequenceContextFormat3Marker {
             backtrack_coverage_offsets_byte_len,
@@ -3651,8 +3707,9 @@ impl<'a> FontRead<'a> for Device<'a> {
         let start_size: u16 = cursor.read()?;
         let end_size: u16 = cursor.read()?;
         let delta_format: DeltaFormat = cursor.read()?;
-        let delta_value_byte_len =
-            DeltaFormat::value_count(delta_format, start_size, end_size) * u16::RAW_BYTE_LEN;
+        let delta_value_byte_len = (DeltaFormat::value_count(delta_format, start_size, end_size))
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(delta_value_byte_len);
         cursor.finish(DeviceMarker {
             delta_value_byte_len,
@@ -3873,8 +3930,9 @@ impl<'a> FontRead<'a> for FeatureVariations<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
         let feature_variation_record_count: u32 = cursor.read()?;
-        let feature_variation_records_byte_len =
-            feature_variation_record_count as usize * FeatureVariationRecord::RAW_BYTE_LEN;
+        let feature_variation_records_byte_len = (feature_variation_record_count as usize)
+            .checked_mul(FeatureVariationRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(feature_variation_records_byte_len);
         cursor.finish(FeatureVariationsMarker {
             feature_variation_records_byte_len,
@@ -4037,7 +4095,9 @@ impl<'a> FontRead<'a> for ConditionSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let condition_count: u16 = cursor.read()?;
-        let condition_offsets_byte_len = condition_count as usize * Offset32::RAW_BYTE_LEN;
+        let condition_offsets_byte_len = (condition_count as usize)
+            .checked_mul(Offset32::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(condition_offsets_byte_len);
         cursor.finish(ConditionSetMarker {
             condition_offsets_byte_len,
@@ -4384,7 +4444,9 @@ impl<'a> FontRead<'a> for ConditionFormat3<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let condition_count: u8 = cursor.read()?;
-        let condition_offsets_byte_len = condition_count as usize * Offset24::RAW_BYTE_LEN;
+        let condition_offsets_byte_len = (condition_count as usize)
+            .checked_mul(Offset24::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(condition_offsets_byte_len);
         cursor.finish(ConditionFormat3Marker {
             condition_offsets_byte_len,
@@ -4488,7 +4550,9 @@ impl<'a> FontRead<'a> for ConditionFormat4<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let condition_count: u8 = cursor.read()?;
-        let condition_offsets_byte_len = condition_count as usize * Offset24::RAW_BYTE_LEN;
+        let condition_offsets_byte_len = (condition_count as usize)
+            .checked_mul(Offset24::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(condition_offsets_byte_len);
         cursor.finish(ConditionFormat4Marker {
             condition_offsets_byte_len,
@@ -4664,8 +4728,9 @@ impl<'a> FontRead<'a> for FeatureTableSubstitution<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
         let substitution_count: u16 = cursor.read()?;
-        let substitutions_byte_len =
-            substitution_count as usize * FeatureTableSubstitutionRecord::RAW_BYTE_LEN;
+        let substitutions_byte_len = (substitution_count as usize)
+            .checked_mul(FeatureTableSubstitutionRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(substitutions_byte_len);
         cursor.finish(FeatureTableSubstitutionMarker {
             substitutions_byte_len,
@@ -5016,7 +5081,9 @@ impl<'a> FontRead<'a> for CharacterVariantParams<'a> {
         cursor.advance::<u16>();
         cursor.advance::<NameId>();
         let char_count: u16 = cursor.read()?;
-        let character_byte_len = char_count as usize * Uint24::RAW_BYTE_LEN;
+        let character_byte_len = (char_count as usize)
+            .checked_mul(Uint24::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(character_byte_len);
         cursor.finish(CharacterVariantParamsMarker { character_byte_len })
     }

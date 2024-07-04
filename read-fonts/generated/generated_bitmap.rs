@@ -1251,8 +1251,9 @@ impl<'a> FontRead<'a> for IndexSubtable4<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u32>();
         let num_glyphs: u32 = cursor.read()?;
-        let glyph_array_byte_len =
-            transforms::add(num_glyphs, 1_usize) * GlyphIdOffsetPair::RAW_BYTE_LEN;
+        let glyph_array_byte_len = (transforms::add(num_glyphs, 1_usize))
+            .checked_mul(GlyphIdOffsetPair::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(glyph_array_byte_len);
         cursor.finish(IndexSubtable4Marker {
             glyph_array_byte_len,
@@ -1421,7 +1422,9 @@ impl<'a> FontRead<'a> for IndexSubtable5<'a> {
         let big_metrics_byte_len = BigGlyphMetrics::RAW_BYTE_LEN;
         cursor.advance_by(big_metrics_byte_len);
         let num_glyphs: u32 = cursor.read()?;
-        let glyph_array_byte_len = num_glyphs as usize * GlyphId::RAW_BYTE_LEN;
+        let glyph_array_byte_len = (num_glyphs as usize)
+            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(glyph_array_byte_len);
         cursor.finish(IndexSubtable5Marker {
             big_metrics_byte_len,

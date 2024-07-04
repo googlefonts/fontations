@@ -4,1157 +4,119 @@
   <GlyphOrder>
     <!-- The 'id' attribute is only for humans; it is ignored when parsed. -->
     <GlyphID id="0" name=".notdef"/>
-    <GlyphID id="1" name="space"/>
-    <GlyphID id="2" name="question"/>
-    <GlyphID id="3" name="bracketright"/>
-    <GlyphID id="4" name="asciicircum"/>
-    <GlyphID id="5" name="underscore"/>
-    <GlyphID id="6" name="grave"/>
-    <GlyphID id="7" name="a"/>
-    <GlyphID id="8" name="o"/>
-    <GlyphID id="9" name="braceright"/>
-    <GlyphID id="10" name="asciitilde"/>
-    <GlyphID id="11" name="uni007F"/>
-    <GlyphID id="12" name="uni00A0"/>
-    <GlyphID id="13" name="currency"/>
-    <GlyphID id="14" name="section"/>
-    <GlyphID id="15" name="dieresis"/>
-    <GlyphID id="16" name="copyright"/>
-    <GlyphID id="17" name="ordfeminine"/>
-    <GlyphID id="18" name="guillemotleft"/>
-    <GlyphID id="19" name="logicalnot"/>
-    <GlyphID id="20" name="uni00AD"/>
-    <GlyphID id="21" name="registered"/>
-    <GlyphID id="22" name="macron"/>
-    <GlyphID id="23" name="degree"/>
-    <GlyphID id="24" name="plusminus"/>
-    <GlyphID id="25" name="uni00B2"/>
-    <GlyphID id="26" name="uni00B3"/>
-    <GlyphID id="27" name="acute"/>
-    <GlyphID id="28" name="mu"/>
-    <GlyphID id="29" name="paragraph"/>
-    <GlyphID id="30" name="periodcentered"/>
-    <GlyphID id="31" name="cedilla"/>
-    <GlyphID id="32" name="uni00B9"/>
-    <GlyphID id="33" name="ordmasculine"/>
-    <GlyphID id="34" name="guillemotright"/>
-    <GlyphID id="35" name="onequarter"/>
-    <GlyphID id="36" name="onehalf"/>
-    <GlyphID id="37" name="threequarters"/>
-    <GlyphID id="38" name="questiondown"/>
-    <GlyphID id="39" name="germandbls"/>
-    <GlyphID id="40" name="ydieresis"/>
-    <GlyphID id="41" name="Amacron"/>
-    <GlyphID id="42" name="ldot"/>
-    <GlyphID id="43" name="longs"/>
-    <GlyphID id="44" name="uni0180"/>
-    <GlyphID id="45" name="uni01E8"/>
-    <GlyphID id="46" name="uni024F"/>
-    <GlyphID id="47" name="uni0250"/>
-    <GlyphID id="48" name="uni0280"/>
-    <GlyphID id="49" name="uni02AF"/>
-    <GlyphID id="50" name="uni02B0"/>
-    <GlyphID id="51" name="uni02B4"/>
-    <GlyphID id="52" name="uni02B8"/>
-    <GlyphID id="53" name="uni02B9"/>
-    <GlyphID id="54" name="uni02CC"/>
-    <GlyphID id="55" name="uni02DF"/>
-    <GlyphID id="56" name="uni02E0"/>
-    <GlyphID id="57" name="uni02E2"/>
-    <GlyphID id="58" name="uni02E4"/>
-    <GlyphID id="59" name="uni02E5"/>
-    <GlyphID id="60" name="uni02F2"/>
-    <GlyphID id="61" name="uni02FF"/>
-    <GlyphID id="62" name="gravecomb"/>
-    <GlyphID id="63" name="uni0338"/>
-    <GlyphID id="64" name="uni036F"/>
-    <GlyphID id="65" name="uni0370"/>
-    <GlyphID id="66" name="uni0375"/>
-    <GlyphID id="67" name="uni0379"/>
-    <GlyphID id="68" name="uni037A"/>
-    <GlyphID id="69" name="uni037B"/>
-    <GlyphID id="70" name="uni037F"/>
-    <GlyphID id="71" name="uni0383"/>
-    <GlyphID id="72" name="tonos"/>
-    <GlyphID id="73" name="dieresistonos"/>
-    <GlyphID id="74" name="Alphatonos"/>
-    <GlyphID id="75" name="sigma"/>
-    <GlyphID id="76" name="uni03FF"/>
-    <GlyphID id="77" name="uni0400"/>
-    <GlyphID id="78" name="uni0441"/>
-    <GlyphID id="79" name="uni0482"/>
-    <GlyphID id="80" name="uni0483"/>
-    <GlyphID id="81" name="uni0486"/>
-    <GlyphID id="82" name="uni0489"/>
-    <GlyphID id="83" name="uni048A"/>
-    <GlyphID id="84" name="uni04C5"/>
-    <GlyphID id="85" name="uni04FF"/>
-    <GlyphID id="86" name="uni0500"/>
-    <GlyphID id="87" name="uni0518"/>
-    <GlyphID id="88" name="uni052F"/>
-    <GlyphID id="89" name="uni0530"/>
-    <GlyphID id="90" name="uni0544"/>
-    <GlyphID id="91" name="uni0558"/>
-    <GlyphID id="92" name="uni0559"/>
-    <GlyphID id="93" name="uni055C"/>
-    <GlyphID id="94" name="uni055F"/>
-    <GlyphID id="95" name="uni0560"/>
-    <GlyphID id="96" name="uni0578"/>
-    <GlyphID id="97" name="uni058F"/>
-    <GlyphID id="98" name="uni0590"/>
-    <GlyphID id="99" name="uni0591"/>
-    <GlyphID id="100" name="uni05A8"/>
-    <GlyphID id="101" name="uni05BF"/>
-    <GlyphID id="102" name="uni05C0"/>
-    <GlyphID id="103" name="uni05C1"/>
-    <GlyphID id="104" name="uni05C2"/>
-    <GlyphID id="105" name="uni05C3"/>
-    <GlyphID id="106" name="uni05C4"/>
-    <GlyphID id="107" name="uni05C5"/>
-    <GlyphID id="108" name="uni05C6"/>
-    <GlyphID id="109" name="uni05C7"/>
-    <GlyphID id="110" name="uni05C8"/>
-    <GlyphID id="111" name="uni05E4"/>
-    <GlyphID id="112" name="uni05FF"/>
-    <GlyphID id="113" name="uni0600"/>
-    <GlyphID id="114" name="uni0603"/>
-    <GlyphID id="115" name="uni0605"/>
-    <GlyphID id="116" name="uni0606"/>
-    <GlyphID id="117" name="uni060B"/>
-    <GlyphID id="118" name="uni060F"/>
-    <GlyphID id="119" name="uni0610"/>
-    <GlyphID id="120" name="uni0615"/>
-    <GlyphID id="121" name="uni061A"/>
-    <GlyphID id="122" name="uni061B"/>
-    <GlyphID id="123" name="uni0633"/>
-    <GlyphID id="124" name="uni064A"/>
-    <GlyphID id="125" name="uni064B"/>
-    <GlyphID id="126" name="uni0655"/>
-    <GlyphID id="127" name="uni065F"/>
-    <GlyphID id="128" name="uni0660"/>
-    <GlyphID id="129" name="uni0668"/>
-    <GlyphID id="130" name="uni066F"/>
-    <GlyphID id="131" name="uni0670"/>
-    <GlyphID id="132" name="uni0671"/>
-    <GlyphID id="133" name="uni06A3"/>
-    <GlyphID id="134" name="uni06D5"/>
-    <GlyphID id="135" name="uni06D6"/>
-    <GlyphID id="136" name="uni06D9"/>
-    <GlyphID id="137" name="uni06DC"/>
-    <GlyphID id="138" name="uni06DD"/>
-    <GlyphID id="139" name="uni06DE"/>
-    <GlyphID id="140" name="uni06DF"/>
-    <GlyphID id="141" name="uni06E2"/>
-    <GlyphID id="142" name="uni06E4"/>
-    <GlyphID id="143" name="uni06E5"/>
-    <GlyphID id="144" name="uni06E6"/>
-    <GlyphID id="145" name="uni06E7"/>
-    <GlyphID id="146" name="uni06E8"/>
-    <GlyphID id="147" name="uni06E9"/>
-    <GlyphID id="148" name="uni06EA"/>
-    <GlyphID id="149" name="uni06EC"/>
-    <GlyphID id="150" name="uni06ED"/>
-    <GlyphID id="151" name="uni06EE"/>
-    <GlyphID id="152" name="uni06F7"/>
-    <GlyphID id="153" name="uni06FF"/>
-    <GlyphID id="154" name="uni0750"/>
-    <GlyphID id="155" name="uni07A8"/>
-    <GlyphID id="156" name="uni07C0"/>
-    <GlyphID id="157" name="uni07D5"/>
-    <GlyphID id="158" name="uni07EA"/>
-    <GlyphID id="159" name="uni07EB"/>
-    <GlyphID id="160" name="uni07F0"/>
-    <GlyphID id="161" name="uni07F5"/>
-    <GlyphID id="162" name="uni07F6"/>
-    <GlyphID id="163" name="uni07F9"/>
-    <GlyphID id="164" name="uni07FC"/>
-    <GlyphID id="165" name="uni07FD"/>
-    <GlyphID id="166" name="uni07FE"/>
-    <GlyphID id="167" name="glyph00167"/>
-    <GlyphID id="168" name="uni07FF"/>
-    <GlyphID id="169" name="uni08A0"/>
-    <GlyphID id="170" name="uni08B9"/>
-    <GlyphID id="171" name="uni08D2"/>
-    <GlyphID id="172" name="uni08D3"/>
-    <GlyphID id="173" name="uni08D4"/>
-    <GlyphID id="174" name="uni08DB"/>
-    <GlyphID id="175" name="uni08E1"/>
-    <GlyphID id="176" name="uni08E9"/>
-    <GlyphID id="177" name="uni08FF"/>
-    <GlyphID id="178" name="uni0900"/>
-    <GlyphID id="179" name="uni0901"/>
-    <GlyphID id="180" name="uni0902"/>
-    <GlyphID id="181" name="uni0903"/>
-    <GlyphID id="182" name="uni091E"/>
-    <GlyphID id="183" name="uni0939"/>
-    <GlyphID id="184" name="uni093A"/>
-    <GlyphID id="185" name="uni093B"/>
-    <GlyphID id="186" name="uni093D"/>
-    <GlyphID id="187" name="uni093F"/>
-    <GlyphID id="188" name="uni0940"/>
-    <GlyphID id="189" name="uni0941"/>
-    <GlyphID id="190" name="uni0945"/>
-    <GlyphID id="191" name="uni0948"/>
-    <GlyphID id="192" name="uni0949"/>
-    <GlyphID id="193" name="uni094B"/>
-    <GlyphID id="194" name="uni094C"/>
-    <GlyphID id="195" name="uni094D"/>
-    <GlyphID id="196" name="uni094E"/>
-    <GlyphID id="197" name="uni094F"/>
-    <GlyphID id="198" name="uni0950"/>
-    <GlyphID id="199" name="uni0953"/>
-    <GlyphID id="200" name="uni0955"/>
-    <GlyphID id="201" name="uni0957"/>
-    <GlyphID id="202" name="uni0958"/>
-    <GlyphID id="203" name="uni095D"/>
-    <GlyphID id="204" name="uni0961"/>
-    <GlyphID id="205" name="uni0962"/>
-    <GlyphID id="206" name="uni0963"/>
-    <GlyphID id="207" name="uni0966"/>
-    <GlyphID id="208" name="uni0973"/>
-    <GlyphID id="209" name="uni097F"/>
-    <GlyphID id="210" name="uni0980"/>
-    <GlyphID id="211" name="uni0981"/>
-    <GlyphID id="212" name="uni0982"/>
-    <GlyphID id="213" name="uni099F"/>
-    <GlyphID id="214" name="uni09BB"/>
-    <GlyphID id="215" name="uni09BC"/>
-    <GlyphID id="216" name="uni09BD"/>
-    <GlyphID id="217" name="uni09BF"/>
-    <GlyphID id="218" name="uni09C0"/>
-    <GlyphID id="219" name="uni09C1"/>
-    <GlyphID id="220" name="uni09C3"/>
-    <GlyphID id="221" name="uni09C4"/>
-    <GlyphID id="222" name="uni09C5"/>
-    <GlyphID id="223" name="uni09C9"/>
-    <GlyphID id="224" name="uni09CC"/>
-    <GlyphID id="225" name="uni09CD"/>
-    <GlyphID id="226" name="uni09CE"/>
-    <GlyphID id="227" name="uni09D8"/>
-    <GlyphID id="228" name="uni09E1"/>
-    <GlyphID id="229" name="uni09E2"/>
-    <GlyphID id="230" name="uni09E3"/>
-    <GlyphID id="231" name="uni09E4"/>
-    <GlyphID id="232" name="uni09F1"/>
-    <GlyphID id="233" name="uni09FD"/>
-    <GlyphID id="234" name="uni09FE"/>
-    <GlyphID id="235" name="uni09FF"/>
-    <GlyphID id="236" name="uni0A00"/>
-    <GlyphID id="237" name="uni0A01"/>
-    <GlyphID id="238" name="uni0A02"/>
-    <GlyphID id="239" name="uni0A03"/>
-    <GlyphID id="240" name="uni0A1F"/>
-    <GlyphID id="241" name="uni0A3B"/>
-    <GlyphID id="242" name="uni0A3C"/>
-    <GlyphID id="243" name="uni0A3D"/>
-    <GlyphID id="244" name="uni0A3F"/>
-    <GlyphID id="245" name="uni0A40"/>
-    <GlyphID id="246" name="uni0A41"/>
-    <GlyphID id="247" name="uni0A49"/>
-    <GlyphID id="248" name="uni0A51"/>
-    <GlyphID id="249" name="uni0A52"/>
-    <GlyphID id="250" name="uni0A61"/>
-    <GlyphID id="251" name="uni0A6F"/>
-    <GlyphID id="252" name="uni0A70"/>
-    <GlyphID id="253" name="uni0A71"/>
-    <GlyphID id="254" name="uni0A72"/>
-    <GlyphID id="255" name="uni0A73"/>
-    <GlyphID id="256" name="uni0A74"/>
-    <GlyphID id="257" name="uni0A75"/>
-    <GlyphID id="258" name="uni0A76"/>
-    <GlyphID id="259" name="uni0A7B"/>
-    <GlyphID id="260" name="uni0A7F"/>
-    <GlyphID id="261" name="uni0A80"/>
-    <GlyphID id="262" name="uni0A81"/>
-    <GlyphID id="263" name="uni0A82"/>
-    <GlyphID id="264" name="uni0A83"/>
-    <GlyphID id="265" name="uni0A9F"/>
-    <GlyphID id="266" name="uni0ABB"/>
-    <GlyphID id="267" name="uni0ABC"/>
-    <GlyphID id="268" name="uni0ABD"/>
-    <GlyphID id="269" name="uni0ABF"/>
-    <GlyphID id="270" name="uni0AC0"/>
-    <GlyphID id="271" name="uni0AC1"/>
-    <GlyphID id="272" name="uni0AC5"/>
-    <GlyphID id="273" name="uni0AC8"/>
-    <GlyphID id="274" name="uni0AC9"/>
-    <GlyphID id="275" name="uni0ACB"/>
-    <GlyphID id="276" name="uni0ACC"/>
-    <GlyphID id="277" name="uni0ACD"/>
-    <GlyphID id="278" name="uni0ACE"/>
-    <GlyphID id="279" name="uni0AD8"/>
-    <GlyphID id="280" name="uni0AE1"/>
-    <GlyphID id="281" name="uni0AE2"/>
-    <GlyphID id="282" name="uni0AE3"/>
-    <GlyphID id="283" name="uni0AE4"/>
-    <GlyphID id="284" name="uni0AEF"/>
-    <GlyphID id="285" name="uni0AF9"/>
-    <GlyphID id="286" name="uni0AFA"/>
-    <GlyphID id="287" name="uni0AFD"/>
-    <GlyphID id="288" name="uni0AFF"/>
-    <GlyphID id="289" name="uni0B00"/>
-    <GlyphID id="290" name="uni0B01"/>
-    <GlyphID id="291" name="uni0B02"/>
-    <GlyphID id="292" name="uni0B03"/>
-    <GlyphID id="293" name="uni0B1F"/>
-    <GlyphID id="294" name="uni0B3B"/>
-    <GlyphID id="295" name="uni0B3C"/>
-    <GlyphID id="296" name="uni0B3D"/>
-    <GlyphID id="297" name="uni0B3E"/>
-    <GlyphID id="298" name="uni0B3F"/>
-    <GlyphID id="299" name="uni0B40"/>
-    <GlyphID id="300" name="uni0B41"/>
-    <GlyphID id="301" name="uni0B43"/>
-    <GlyphID id="302" name="uni0B44"/>
-    <GlyphID id="303" name="uni0B45"/>
-    <GlyphID id="304" name="uni0B49"/>
-    <GlyphID id="305" name="uni0B4C"/>
-    <GlyphID id="306" name="uni0B4D"/>
-    <GlyphID id="307" name="uni0B52"/>
-    <GlyphID id="308" name="uni0B56"/>
-    <GlyphID id="309" name="uni0B57"/>
-    <GlyphID id="310" name="uni0B5C"/>
-    <GlyphID id="311" name="uni0B61"/>
-    <GlyphID id="312" name="uni0B62"/>
-    <GlyphID id="313" name="uni0B63"/>
-    <GlyphID id="314" name="uni0B64"/>
-    <GlyphID id="315" name="uni0B72"/>
-    <GlyphID id="316" name="uni0B7F"/>
-    <GlyphID id="317" name="uni0B80"/>
-    <GlyphID id="318" name="uni0B81"/>
-    <GlyphID id="319" name="uni0B82"/>
-    <GlyphID id="320" name="uni0B83"/>
-    <GlyphID id="321" name="uni0BA1"/>
-    <GlyphID id="322" name="uni0BBF"/>
-    <GlyphID id="323" name="uni0BC0"/>
-    <GlyphID id="324" name="uni0BC1"/>
-    <GlyphID id="325" name="uni0BC2"/>
-    <GlyphID id="326" name="uni0BC3"/>
-    <GlyphID id="327" name="uni0BC8"/>
-    <GlyphID id="328" name="uni0BCC"/>
-    <GlyphID id="329" name="uni0BCD"/>
-    <GlyphID id="330" name="uni0BCE"/>
-    <GlyphID id="331" name="uni0BE7"/>
-    <GlyphID id="332" name="uni0BFF"/>
-    <GlyphID id="333" name="uni0C00"/>
-    <GlyphID id="334" name="uni0C01"/>
-    <GlyphID id="335" name="uni0C02"/>
-    <GlyphID id="336" name="uni0C03"/>
-    <GlyphID id="337" name="uni0C04"/>
-    <GlyphID id="338" name="uni0C05"/>
-    <GlyphID id="339" name="uni0C21"/>
-    <GlyphID id="340" name="uni0C3D"/>
-    <GlyphID id="341" name="uni0C3E"/>
-    <GlyphID id="342" name="uni0C3F"/>
-    <GlyphID id="343" name="uni0C40"/>
-    <GlyphID id="344" name="uni0C41"/>
-    <GlyphID id="345" name="uni0C43"/>
-    <GlyphID id="346" name="uni0C45"/>
-    <GlyphID id="347" name="uni0C46"/>
-    <GlyphID id="348" name="uni0C4E"/>
-    <GlyphID id="349" name="uni0C56"/>
-    <GlyphID id="350" name="uni0C57"/>
-    <GlyphID id="351" name="uni0C5C"/>
-    <GlyphID id="352" name="uni0C61"/>
-    <GlyphID id="353" name="uni0C62"/>
-    <GlyphID id="354" name="uni0C63"/>
-    <GlyphID id="355" name="uni0C64"/>
-    <GlyphID id="356" name="uni0C72"/>
-    <GlyphID id="357" name="uni0C7F"/>
-    <GlyphID id="358" name="uni0C80"/>
-    <GlyphID id="359" name="uni0C81"/>
-    <GlyphID id="360" name="uni0C82"/>
-    <GlyphID id="361" name="uni0C9F"/>
-    <GlyphID id="362" name="uni0CBB"/>
-    <GlyphID id="363" name="uni0CBC"/>
-    <GlyphID id="364" name="uni0CBD"/>
-    <GlyphID id="365" name="uni0CBE"/>
-    <GlyphID id="366" name="uni0CBF"/>
-    <GlyphID id="367" name="uni0CC0"/>
-    <GlyphID id="368" name="uni0CC3"/>
-    <GlyphID id="369" name="uni0CC5"/>
-    <GlyphID id="370" name="uni0CC6"/>
-    <GlyphID id="371" name="uni0CC7"/>
-    <GlyphID id="372" name="uni0CC9"/>
-    <GlyphID id="373" name="uni0CCB"/>
-    <GlyphID id="374" name="uni0CCC"/>
-    <GlyphID id="375" name="uni0CCD"/>
-    <GlyphID id="376" name="uni0CCE"/>
-    <GlyphID id="377" name="uni0CD8"/>
-    <GlyphID id="378" name="uni0CE1"/>
-    <GlyphID id="379" name="uni0CE2"/>
-    <GlyphID id="380" name="uni0CE3"/>
-    <GlyphID id="381" name="uni0CE4"/>
-    <GlyphID id="382" name="uni0CF2"/>
-    <GlyphID id="383" name="uni0CFF"/>
-    <GlyphID id="384" name="uni0D00"/>
-    <GlyphID id="385" name="uni0D01"/>
-    <GlyphID id="386" name="uni0D02"/>
-    <GlyphID id="387" name="uni0D1E"/>
-    <GlyphID id="388" name="uni0D3A"/>
-    <GlyphID id="389" name="uni0D3B"/>
-    <GlyphID id="390" name="uni0D3C"/>
-    <GlyphID id="391" name="uni0D3D"/>
-    <GlyphID id="392" name="uni0D45"/>
-    <GlyphID id="393" name="uni0D4C"/>
-    <GlyphID id="394" name="uni0D4D"/>
-    <GlyphID id="395" name="uni0D4E"/>
-    <GlyphID id="396" name="uni0D4F"/>
-    <GlyphID id="397" name="uni0D58"/>
-    <GlyphID id="398" name="uni0D61"/>
-    <GlyphID id="399" name="uni0D62"/>
-    <GlyphID id="400" name="uni0D63"/>
-    <GlyphID id="401" name="uni0D64"/>
-    <GlyphID id="402" name="uni0D72"/>
-    <GlyphID id="403" name="uni0D7F"/>
-    <GlyphID id="404" name="uni0D80"/>
-    <GlyphID id="405" name="uni0DA5"/>
-    <GlyphID id="406" name="uni0DC9"/>
-    <GlyphID id="407" name="uni0DCA"/>
-    <GlyphID id="408" name="uni0DCB"/>
-    <GlyphID id="409" name="uni0DCE"/>
-    <GlyphID id="410" name="uni0DD1"/>
-    <GlyphID id="411" name="uni0DD2"/>
-    <GlyphID id="412" name="uni0DD4"/>
-    <GlyphID id="413" name="uni0DD6"/>
-    <GlyphID id="414" name="uni0DD7"/>
-    <GlyphID id="415" name="uni0DEB"/>
-    <GlyphID id="416" name="uni0DFF"/>
-    <GlyphID id="417" name="uni0E00"/>
-    <GlyphID id="418" name="uni0E18"/>
-    <GlyphID id="419" name="uni0E30"/>
-    <GlyphID id="420" name="uni0E31"/>
-    <GlyphID id="421" name="uni0E32"/>
-    <GlyphID id="422" name="uni0E33"/>
-    <GlyphID id="423" name="uni0E34"/>
-    <GlyphID id="424" name="uni0E37"/>
-    <GlyphID id="425" name="uni0E3A"/>
-    <GlyphID id="426" name="uni0E3B"/>
-    <GlyphID id="427" name="uni0E41"/>
-    <GlyphID id="428" name="uni0E46"/>
-    <GlyphID id="429" name="uni0E47"/>
-    <GlyphID id="430" name="uni0E4B"/>
-    <GlyphID id="431" name="uni0E4E"/>
-    <GlyphID id="432" name="uni0E4F"/>
-    <GlyphID id="433" name="uni0E67"/>
-    <GlyphID id="434" name="uni0E7F"/>
-    <GlyphID id="435" name="uni0E80"/>
-    <GlyphID id="436" name="uni0E98"/>
-    <GlyphID id="437" name="uni0EB0"/>
-    <GlyphID id="438" name="uni0EB1"/>
-    <GlyphID id="439" name="uni0EB2"/>
-    <GlyphID id="440" name="uni0EB3"/>
-    <GlyphID id="441" name="uni0EB4"/>
-    <GlyphID id="442" name="uni0EB8"/>
-    <GlyphID id="443" name="uni0EBC"/>
-    <GlyphID id="444" name="uni0EBD"/>
-    <GlyphID id="445" name="uni0EC2"/>
-    <GlyphID id="446" name="uni0EC7"/>
-    <GlyphID id="447" name="uni0EC8"/>
-    <GlyphID id="448" name="uni0ECB"/>
-    <GlyphID id="449" name="uni0ECD"/>
-    <GlyphID id="450" name="uni0ECE"/>
-    <GlyphID id="451" name="uni0EE7"/>
-    <GlyphID id="452" name="uni0EFF"/>
-    <GlyphID id="453" name="uni0F00"/>
-    <GlyphID id="454" name="uni0F0C"/>
-    <GlyphID id="455" name="uni0F17"/>
-    <GlyphID id="456" name="uni0F18"/>
-    <GlyphID id="457" name="uni0F19"/>
-    <GlyphID id="458" name="uni0F1A"/>
-    <GlyphID id="459" name="uni0F27"/>
-    <GlyphID id="460" name="uni0F34"/>
-    <GlyphID id="461" name="uni0F35"/>
-    <GlyphID id="462" name="uni0F36"/>
-    <GlyphID id="463" name="uni0F37"/>
-    <GlyphID id="464" name="uni0F38"/>
-    <GlyphID id="465" name="uni0F39"/>
-    <GlyphID id="466" name="uni0F3A"/>
-    <GlyphID id="467" name="uni0F3C"/>
-    <GlyphID id="468" name="uni0F3D"/>
-    <GlyphID id="469" name="uni0F3E"/>
-    <GlyphID id="470" name="uni0F3F"/>
-    <GlyphID id="471" name="uni0F40"/>
-    <GlyphID id="472" name="uni0F58"/>
-    <GlyphID id="473" name="uni0F70"/>
-    <GlyphID id="474" name="uni0F71"/>
-    <GlyphID id="475" name="uni0F78"/>
-    <GlyphID id="476" name="uni0F7E"/>
-    <GlyphID id="477" name="uni0F7F"/>
-    <GlyphID id="478" name="uni0F80"/>
-    <GlyphID id="479" name="uni0F82"/>
-    <GlyphID id="480" name="uni0F84"/>
-    <GlyphID id="481" name="uni0F85"/>
-    <GlyphID id="482" name="uni0F86"/>
-    <GlyphID id="483" name="uni0F87"/>
-    <GlyphID id="484" name="uni0F88"/>
-    <GlyphID id="485" name="uni0F8A"/>
-    <GlyphID id="486" name="uni0F8C"/>
-    <GlyphID id="487" name="uni0F8D"/>
-    <GlyphID id="488" name="uni0FA5"/>
-    <GlyphID id="489" name="uni0FBC"/>
-    <GlyphID id="490" name="uni0FBD"/>
-    <GlyphID id="491" name="uni0FDE"/>
-    <GlyphID id="492" name="uni0FFF"/>
-    <GlyphID id="493" name="uni1000"/>
-    <GlyphID id="494" name="uni1016"/>
-    <GlyphID id="495" name="uni102C"/>
-    <GlyphID id="496" name="uni102D"/>
-    <GlyphID id="497" name="uni102F"/>
-    <GlyphID id="498" name="uni1030"/>
-    <GlyphID id="499" name="uni1031"/>
-    <GlyphID id="500" name="uni1032"/>
-    <GlyphID id="501" name="uni1035"/>
-    <GlyphID id="502" name="uni1037"/>
-    <GlyphID id="503" name="uni1038"/>
-    <GlyphID id="504" name="uni1039"/>
-    <GlyphID id="505" name="uni103A"/>
-    <GlyphID id="506" name="uni103B"/>
-    <GlyphID id="507" name="uni103C"/>
-    <GlyphID id="508" name="uni103D"/>
-    <GlyphID id="509" name="uni103E"/>
-    <GlyphID id="510" name="uni103F"/>
-    <GlyphID id="511" name="uni104B"/>
-    <GlyphID id="512" name="uni1057"/>
-    <GlyphID id="513" name="uni1058"/>
-    <GlyphID id="514" name="uni1059"/>
-    <GlyphID id="515" name="uni105A"/>
-    <GlyphID id="516" name="uni105C"/>
-    <GlyphID id="517" name="uni105D"/>
-    <GlyphID id="518" name="uni105E"/>
-    <GlyphID id="519" name="uni105F"/>
-    <GlyphID id="520" name="uni1060"/>
-    <GlyphID id="521" name="uni1061"/>
-    <GlyphID id="522" name="uni1069"/>
-    <GlyphID id="523" name="uni1070"/>
-    <GlyphID id="524" name="uni1071"/>
-    <GlyphID id="525" name="uni1073"/>
-    <GlyphID id="526" name="uni1074"/>
-    <GlyphID id="527" name="uni1075"/>
-    <GlyphID id="528" name="uni107B"/>
-    <GlyphID id="529" name="uni1081"/>
-    <GlyphID id="530" name="uni1082"/>
-    <GlyphID id="531" name="uni1083"/>
-    <GlyphID id="532" name="uni1084"/>
-    <GlyphID id="533" name="uni1085"/>
-    <GlyphID id="534" name="uni1086"/>
-    <GlyphID id="535" name="uni1087"/>
-    <GlyphID id="536" name="uni108A"/>
-    <GlyphID id="537" name="uni108C"/>
-    <GlyphID id="538" name="uni108D"/>
-    <GlyphID id="539" name="uni108E"/>
-    <GlyphID id="540" name="uni1097"/>
-    <GlyphID id="541" name="uni109F"/>
-    <GlyphID id="542" name="uni10A0"/>
-    <GlyphID id="543" name="uni10B7"/>
-    <GlyphID id="544" name="uni10CD"/>
-    <GlyphID id="545" name="uni10D0"/>
-    <GlyphID id="546" name="uni10E8"/>
-    <GlyphID id="547" name="uni10FF"/>
-    <GlyphID id="548" name="uni1100"/>
-    <GlyphID id="549" name="uni1180"/>
-    <GlyphID id="550" name="uni11FF"/>
-    <GlyphID id="551" name="uni1200"/>
-    <GlyphID id="552" name="uni12AE"/>
-    <GlyphID id="553" name="uni135C"/>
-    <GlyphID id="554" name="uni135D"/>
-    <GlyphID id="555" name="uni135E"/>
-    <GlyphID id="556" name="uni135F"/>
-    <GlyphID id="557" name="uni1360"/>
-    <GlyphID id="558" name="uni1370"/>
-    <GlyphID id="559" name="uni137F"/>
-    <GlyphID id="560" name="uni1380"/>
-    <GlyphID id="561" name="uni1390"/>
-    <GlyphID id="562" name="uni139F"/>
-    <GlyphID id="563" name="uni13A0"/>
-    <GlyphID id="564" name="uni13D0"/>
-    <GlyphID id="565" name="uni13FF"/>
-    <GlyphID id="566" name="uni1400"/>
-    <GlyphID id="567" name="uni1540"/>
-    <GlyphID id="568" name="uni167F"/>
-    <GlyphID id="569" name="uni1740"/>
-    <GlyphID id="570" name="uni1749"/>
-    <GlyphID id="571" name="uni1751"/>
-    <GlyphID id="572" name="uni1752"/>
-    <GlyphID id="573" name="uni1753"/>
-    <GlyphID id="574" name="uni1754"/>
-    <GlyphID id="575" name="uni175A"/>
-    <GlyphID id="576" name="uni175F"/>
-    <GlyphID id="577" name="uni1780"/>
-    <GlyphID id="578" name="uni179B"/>
-    <GlyphID id="579" name="uni17B6"/>
-    <GlyphID id="580" name="uni17B7"/>
-    <GlyphID id="581" name="uni17BA"/>
-    <GlyphID id="582" name="uni17BD"/>
-    <GlyphID id="583" name="uni17BE"/>
-    <GlyphID id="584" name="uni17C2"/>
-    <GlyphID id="585" name="uni17C5"/>
-    <GlyphID id="586" name="uni17C6"/>
-    <GlyphID id="587" name="uni17C7"/>
-    <GlyphID id="588" name="uni17C8"/>
-    <GlyphID id="589" name="uni17C9"/>
-    <GlyphID id="590" name="uni17CE"/>
-    <GlyphID id="591" name="uni17D3"/>
-    <GlyphID id="592" name="uni17D4"/>
-    <GlyphID id="593" name="uni17D8"/>
-    <GlyphID id="594" name="uni17DC"/>
-    <GlyphID id="595" name="uni17DD"/>
-    <GlyphID id="596" name="uni17DE"/>
-    <GlyphID id="597" name="uni17EF"/>
-    <GlyphID id="598" name="uni17FF"/>
-    <GlyphID id="599" name="uni1800"/>
-    <GlyphID id="600" name="uni1842"/>
-    <GlyphID id="601" name="uni1884"/>
-    <GlyphID id="602" name="uni1885"/>
-    <GlyphID id="603" name="uni1886"/>
-    <GlyphID id="604" name="uni1887"/>
-    <GlyphID id="605" name="uni1898"/>
-    <GlyphID id="606" name="uni18A8"/>
-    <GlyphID id="607" name="uni18A9"/>
-    <GlyphID id="608" name="uni18AA"/>
-    <GlyphID id="609" name="uni18AD"/>
-    <GlyphID id="610" name="uni18AF"/>
-    <GlyphID id="611" name="uni18B0"/>
-    <GlyphID id="612" name="uni18D8"/>
-    <GlyphID id="613" name="uni18FF"/>
-    <GlyphID id="614" name="uni1900"/>
-    <GlyphID id="615" name="uni1910"/>
-    <GlyphID id="616" name="uni191F"/>
-    <GlyphID id="617" name="uni1920"/>
-    <GlyphID id="618" name="uni1921"/>
-    <GlyphID id="619" name="uni1922"/>
-    <GlyphID id="620" name="uni1923"/>
-    <GlyphID id="621" name="uni1925"/>
-    <GlyphID id="622" name="uni1926"/>
-    <GlyphID id="623" name="uni1927"/>
-    <GlyphID id="624" name="uni192E"/>
-    <GlyphID id="625" name="uni1934"/>
-    <GlyphID id="626" name="uni1935"/>
-    <GlyphID id="627" name="uni1936"/>
-    <GlyphID id="628" name="uni1937"/>
-    <GlyphID id="629" name="uni1939"/>
-    <GlyphID id="630" name="uni193B"/>
-    <GlyphID id="631" name="uni193C"/>
-    <GlyphID id="632" name="uni1946"/>
-    <GlyphID id="633" name="uni194F"/>
-    <GlyphID id="634" name="uni19E0"/>
-    <GlyphID id="635" name="uni19F0"/>
-    <GlyphID id="636" name="uni19FF"/>
-    <GlyphID id="637" name="uni1AB0"/>
-    <GlyphID id="638" name="uni1AB7"/>
-    <GlyphID id="639" name="uni1ABE"/>
-    <GlyphID id="640" name="uni1B80"/>
-    <GlyphID id="641" name="uni1B81"/>
-    <GlyphID id="642" name="uni1B82"/>
-    <GlyphID id="643" name="uni1B83"/>
-    <GlyphID id="644" name="uni1B92"/>
-    <GlyphID id="645" name="uni1BA0"/>
-    <GlyphID id="646" name="uni1BA1"/>
-    <GlyphID id="647" name="uni1BA7"/>
-    <GlyphID id="648" name="uni1BAD"/>
-    <GlyphID id="649" name="uni1BAE"/>
-    <GlyphID id="650" name="uni1BB7"/>
-    <GlyphID id="651" name="uni1BBF"/>
-    <GlyphID id="652" name="uni1C50"/>
-    <GlyphID id="653" name="uni1C68"/>
-    <GlyphID id="654" name="uni1C7F"/>
-    <GlyphID id="655" name="uni1C80"/>
-    <GlyphID id="656" name="uni1C88"/>
-    <GlyphID id="657" name="uni1C8F"/>
-    <GlyphID id="658" name="uni1C90"/>
-    <GlyphID id="659" name="uni1CA8"/>
-    <GlyphID id="660" name="uni1CBF"/>
-    <GlyphID id="661" name="uni1CC0"/>
-    <GlyphID id="662" name="uni1CC8"/>
-    <GlyphID id="663" name="uni1CCF"/>
-    <GlyphID id="664" name="uni1D00"/>
-    <GlyphID id="665" name="uni1D16"/>
-    <GlyphID id="666" name="uni1D2B"/>
-    <GlyphID id="667" name="uni1D2C"/>
-    <GlyphID id="668" name="uni1D47"/>
-    <GlyphID id="669" name="uni1D61"/>
-    <GlyphID id="670" name="uni1D62"/>
-    <GlyphID id="671" name="uni1D66"/>
-    <GlyphID id="672" name="uni1D6A"/>
-    <GlyphID id="673" name="uni1D6B"/>
-    <GlyphID id="674" name="uni1D71"/>
-    <GlyphID id="675" name="uni1D77"/>
-    <GlyphID id="676" name="uni1D78"/>
-    <GlyphID id="677" name="uni1D79"/>
-    <GlyphID id="678" name="uni1D7C"/>
-    <GlyphID id="679" name="uni1D7F"/>
-    <GlyphID id="680" name="uni1D80"/>
-    <GlyphID id="681" name="uni1D8D"/>
-    <GlyphID id="682" name="uni1D9A"/>
-    <GlyphID id="683" name="uni1D9B"/>
-    <GlyphID id="684" name="uni1DAD"/>
-    <GlyphID id="685" name="uni1DBF"/>
-    <GlyphID id="686" name="uni1DC0"/>
-    <GlyphID id="687" name="uni1DE0"/>
-    <GlyphID id="688" name="uni1DFF"/>
-    <GlyphID id="689" name="uni1E00"/>
-    <GlyphID id="690" name="Wgrave"/>
-    <GlyphID id="691" name="uni1EFF"/>
-    <GlyphID id="692" name="uni1F00"/>
-    <GlyphID id="693" name="uni1F5E"/>
-    <GlyphID id="694" name="uni1FBC"/>
-    <GlyphID id="695" name="uni1FBD"/>
-    <GlyphID id="696" name="uni1FBF"/>
-    <GlyphID id="697" name="uni1FC1"/>
-    <GlyphID id="698" name="uni1FC2"/>
-    <GlyphID id="699" name="uni1FC7"/>
-    <GlyphID id="700" name="uni1FCC"/>
-    <GlyphID id="701" name="uni1FCD"/>
-    <GlyphID id="702" name="uni1FCE"/>
-    <GlyphID id="703" name="uni1FCF"/>
-    <GlyphID id="704" name="uni1FD0"/>
-    <GlyphID id="705" name="uni1FD6"/>
-    <GlyphID id="706" name="uni1FDC"/>
-    <GlyphID id="707" name="uni1FDD"/>
-    <GlyphID id="708" name="uni1FDE"/>
-    <GlyphID id="709" name="uni1FDF"/>
-    <GlyphID id="710" name="uni1FE0"/>
-    <GlyphID id="711" name="uni1FE6"/>
-    <GlyphID id="712" name="uni1FEC"/>
-    <GlyphID id="713" name="uni1FED"/>
-    <GlyphID id="714" name="uni1FEE"/>
-    <GlyphID id="715" name="uni1FEF"/>
-    <GlyphID id="716" name="uni1FF0"/>
-    <GlyphID id="717" name="uni1FF6"/>
-    <GlyphID id="718" name="uni1FFC"/>
-    <GlyphID id="719" name="uni1FFD"/>
-    <GlyphID id="720" name="uni1FFE"/>
-    <GlyphID id="721" name="uni1FFF"/>
-    <GlyphID id="722" name="uni2000"/>
-    <GlyphID id="723" name="uni200B"/>
-    <GlyphID id="724" name="uni2016"/>
-    <GlyphID id="725" name="underscoredbl"/>
-    <GlyphID id="726" name="quoteleft"/>
-    <GlyphID id="727" name="uni202B"/>
-    <GlyphID id="728" name="uni203D"/>
-    <GlyphID id="729" name="uni203E"/>
-    <GlyphID id="730" name="uni203F"/>
-    <GlyphID id="731" name="uni2057"/>
-    <GlyphID id="732" name="uni206F"/>
-    <GlyphID id="733" name="uni2070"/>
-    <GlyphID id="734" name="uni2078"/>
-    <GlyphID id="735" name="uni207F"/>
-    <GlyphID id="736" name="uni2080"/>
-    <GlyphID id="737" name="uni208E"/>
-    <GlyphID id="738" name="uni209C"/>
-    <GlyphID id="739" name="uni20A0"/>
-    <GlyphID id="740" name="Euro"/>
-    <GlyphID id="741" name="uni20B8"/>
-    <GlyphID id="742" name="uni20B9"/>
-    <GlyphID id="743" name="uni20BA"/>
-    <GlyphID id="744" name="uni20C5"/>
-    <GlyphID id="745" name="uni20CF"/>
-    <GlyphID id="746" name="uni2150"/>
-    <GlyphID id="747" name="uni2170"/>
-    <GlyphID id="748" name="uni218F"/>
-    <GlyphID id="749" name="uni2C00"/>
-    <GlyphID id="750" name="uni2C30"/>
-    <GlyphID id="751" name="uni2C5F"/>
-    <GlyphID id="752" name="uni2C60"/>
-    <GlyphID id="753" name="uni2C6E"/>
-    <GlyphID id="754" name="uni2C7B"/>
-    <GlyphID id="755" name="uni2C7C"/>
-    <GlyphID id="756" name="uni2C7D"/>
-    <GlyphID id="757" name="uni2C7E"/>
-    <GlyphID id="758" name="uni2C7F"/>
-    <GlyphID id="759" name="uni2C80"/>
-    <GlyphID id="760" name="uni2CB7"/>
-    <GlyphID id="761" name="uni2CEE"/>
-    <GlyphID id="762" name="uni2CEF"/>
-    <GlyphID id="763" name="uni2CF0"/>
-    <GlyphID id="764" name="uni2CF1"/>
-    <GlyphID id="765" name="uni2CF2"/>
-    <GlyphID id="766" name="uni2CF9"/>
-    <GlyphID id="767" name="uni2CFF"/>
-    <GlyphID id="768" name="uni2D00"/>
-    <GlyphID id="769" name="uni2D17"/>
-    <GlyphID id="770" name="uni2D2D"/>
-    <GlyphID id="771" name="uni2D30"/>
-    <GlyphID id="772" name="uni2D58"/>
-    <GlyphID id="773" name="uni2D7F"/>
-    <GlyphID id="774" name="uni2D80"/>
-    <GlyphID id="775" name="uni2DB0"/>
-    <GlyphID id="776" name="uni2DDF"/>
-    <GlyphID id="777" name="uni2DE0"/>
-    <GlyphID id="778" name="uni2DF0"/>
-    <GlyphID id="779" name="uni2DFF"/>
-    <GlyphID id="780" name="uni2E00"/>
-    <GlyphID id="781" name="uni2E40"/>
-    <GlyphID id="782" name="uni2E7F"/>
-    <GlyphID id="783" name="uni2E80"/>
-    <GlyphID id="784" name="uni2EC0"/>
-    <GlyphID id="785" name="uni2EFF"/>
-    <GlyphID id="786" name="uni2F00"/>
-    <GlyphID id="787" name="uni2F70"/>
-    <GlyphID id="788" name="uni2FDF"/>
-    <GlyphID id="789" name="uni2FF0"/>
-    <GlyphID id="790" name="uni2FF8"/>
-    <GlyphID id="791" name="uni2FFF"/>
-    <GlyphID id="792" name="uni3000"/>
-    <GlyphID id="793" name="uni3015"/>
-    <GlyphID id="794" name="uni3029"/>
-    <GlyphID id="795" name="uni302A"/>
-    <GlyphID id="796" name="uni302D"/>
-    <GlyphID id="797" name="uni302F"/>
-    <GlyphID id="798" name="uni3030"/>
-    <GlyphID id="799" name="uni3038"/>
-    <GlyphID id="800" name="uni303F"/>
-    <GlyphID id="801" name="uni3040"/>
-    <GlyphID id="802" name="uni3070"/>
-    <GlyphID id="803" name="uni309F"/>
-    <GlyphID id="804" name="uni30A0"/>
-    <GlyphID id="805" name="uni30D0"/>
-    <GlyphID id="806" name="uni30FF"/>
-    <GlyphID id="807" name="uni3100"/>
-    <GlyphID id="808" name="uni3118"/>
-    <GlyphID id="809" name="uni312F"/>
-    <GlyphID id="810" name="uni3130"/>
-    <GlyphID id="811" name="uni3160"/>
-    <GlyphID id="812" name="uni318F"/>
-    <GlyphID id="813" name="uni3190"/>
-    <GlyphID id="814" name="uni3198"/>
-    <GlyphID id="815" name="uni319F"/>
-    <GlyphID id="816" name="uni31A0"/>
-    <GlyphID id="817" name="uni31B0"/>
-    <GlyphID id="818" name="uni31BF"/>
-    <GlyphID id="819" name="uni31C0"/>
-    <GlyphID id="820" name="uni31D8"/>
-    <GlyphID id="821" name="uni31EF"/>
-    <GlyphID id="822" name="uni31F0"/>
-    <GlyphID id="823" name="uni31F8"/>
-    <GlyphID id="824" name="uni31FF"/>
-    <GlyphID id="825" name="uni3300"/>
-    <GlyphID id="826" name="uni3380"/>
-    <GlyphID id="827" name="uni33FF"/>
-    <GlyphID id="828" name="uni3400"/>
-    <GlyphID id="829" name="uni40E0"/>
-    <GlyphID id="830" name="uni4DBF"/>
-    <GlyphID id="831" name="uni4DC0"/>
-    <GlyphID id="832" name="uni4DE0"/>
-    <GlyphID id="833" name="uni4DFF"/>
-    <GlyphID id="834" name="uni4E00"/>
-    <GlyphID id="835" name="uni7700"/>
-    <GlyphID id="836" name="uni9FFF"/>
-    <GlyphID id="837" name="uniA4D0"/>
-    <GlyphID id="838" name="uniA4E8"/>
-    <GlyphID id="839" name="uniA4FF"/>
-    <GlyphID id="840" name="uniA500"/>
-    <GlyphID id="841" name="uniA5A0"/>
-    <GlyphID id="842" name="uniA63F"/>
-    <GlyphID id="843" name="uniA640"/>
-    <GlyphID id="844" name="uniA657"/>
-    <GlyphID id="845" name="uniA66E"/>
-    <GlyphID id="846" name="uniA66F"/>
-    <GlyphID id="847" name="uniA677"/>
-    <GlyphID id="848" name="uniA67F"/>
-    <GlyphID id="849" name="uniA680"/>
-    <GlyphID id="850" name="uniA68F"/>
-    <GlyphID id="851" name="uniA69D"/>
-    <GlyphID id="852" name="uniA69E"/>
-    <GlyphID id="853" name="uniA69F"/>
-    <GlyphID id="854" name="uniA6A0"/>
-    <GlyphID id="855" name="uniA6C8"/>
-    <GlyphID id="856" name="uniA6EF"/>
-    <GlyphID id="857" name="uniA6F0"/>
-    <GlyphID id="858" name="uniA6F1"/>
-    <GlyphID id="859" name="uniA6F2"/>
-    <GlyphID id="860" name="uniA6F9"/>
-    <GlyphID id="861" name="uniA6FF"/>
-    <GlyphID id="862" name="uniA720"/>
-    <GlyphID id="863" name="uniA748"/>
-    <GlyphID id="864" name="uniA76F"/>
-    <GlyphID id="865" name="uniA770"/>
-    <GlyphID id="866" name="uniA771"/>
-    <GlyphID id="867" name="uniA77C"/>
-    <GlyphID id="868" name="uniA787"/>
-    <GlyphID id="869" name="uniA788"/>
-    <GlyphID id="870" name="uniA789"/>
-    <GlyphID id="871" name="uniA7C0"/>
-    <GlyphID id="872" name="uniA7F7"/>
-    <GlyphID id="873" name="glyph00873"/>
-    <GlyphID id="874" name="uniA7F8"/>
-    <GlyphID id="875" name="glyph00875"/>
-    <GlyphID id="876" name="uniA7F9"/>
-    <GlyphID id="877" name="uniA7FA"/>
-    <GlyphID id="878" name="uniA7FB"/>
-    <GlyphID id="879" name="uniA7FD"/>
-    <GlyphID id="880" name="uniA7FF"/>
-    <GlyphID id="881" name="uniA800"/>
-    <GlyphID id="882" name="uniA801"/>
-    <GlyphID id="883" name="uniA802"/>
-    <GlyphID id="884" name="uniA803"/>
-    <GlyphID id="885" name="uniA804"/>
-    <GlyphID id="886" name="uniA805"/>
-    <GlyphID id="887" name="uniA806"/>
-    <GlyphID id="888" name="uniA807"/>
-    <GlyphID id="889" name="uniA809"/>
-    <GlyphID id="890" name="uniA80A"/>
-    <GlyphID id="891" name="uniA80B"/>
-    <GlyphID id="892" name="uniA80C"/>
-    <GlyphID id="893" name="uniA818"/>
-    <GlyphID id="894" name="uniA824"/>
-    <GlyphID id="895" name="uniA825"/>
-    <GlyphID id="896" name="uniA826"/>
-    <GlyphID id="897" name="uniA827"/>
-    <GlyphID id="898" name="uniA82B"/>
-    <GlyphID id="899" name="uniA82F"/>
-    <GlyphID id="900" name="uniA880"/>
-    <GlyphID id="901" name="uniA881"/>
-    <GlyphID id="902" name="uniA882"/>
-    <GlyphID id="903" name="uniA89B"/>
-    <GlyphID id="904" name="uniA8B3"/>
-    <GlyphID id="905" name="uniA8B4"/>
-    <GlyphID id="906" name="uniA8BD"/>
-    <GlyphID id="907" name="uniA8C5"/>
-    <GlyphID id="908" name="uniA8C6"/>
-    <GlyphID id="909" name="uniA8D3"/>
-    <GlyphID id="910" name="uniA8DF"/>
-    <GlyphID id="911" name="uniA8E0"/>
-    <GlyphID id="912" name="uniA8E9"/>
-    <GlyphID id="913" name="uniA8F1"/>
-    <GlyphID id="914" name="uniA8F2"/>
-    <GlyphID id="915" name="uniA8F8"/>
-    <GlyphID id="916" name="uniA8FE"/>
-    <GlyphID id="917" name="uniA8FF"/>
-    <GlyphID id="918" name="uniA900"/>
-    <GlyphID id="919" name="uniA913"/>
-    <GlyphID id="920" name="uniA925"/>
-    <GlyphID id="921" name="uniA926"/>
-    <GlyphID id="922" name="uniA92A"/>
-    <GlyphID id="923" name="uniA92D"/>
-    <GlyphID id="924" name="uniA92E"/>
-    <GlyphID id="925" name="uniA92F"/>
-    <GlyphID id="926" name="uniA960"/>
-    <GlyphID id="927" name="uniA970"/>
-    <GlyphID id="928" name="uniA97F"/>
-    <GlyphID id="929" name="uniA9E0"/>
-    <GlyphID id="930" name="uniA9E2"/>
-    <GlyphID id="931" name="uniA9E4"/>
-    <GlyphID id="932" name="uniA9E5"/>
-    <GlyphID id="933" name="uniA9E6"/>
-    <GlyphID id="934" name="uniA9F3"/>
-    <GlyphID id="935" name="uniA9FF"/>
-    <GlyphID id="936" name="uniAA60"/>
-    <GlyphID id="937" name="uniAA6E"/>
-    <GlyphID id="938" name="uniAA7B"/>
-    <GlyphID id="939" name="uniAA7C"/>
-    <GlyphID id="940" name="uniAA7D"/>
-    <GlyphID id="941" name="uniAA7E"/>
-    <GlyphID id="942" name="uniAA7F"/>
-    <GlyphID id="943" name="uniAA80"/>
-    <GlyphID id="944" name="uniAA98"/>
-    <GlyphID id="945" name="uniAAAF"/>
-    <GlyphID id="946" name="uniAAB0"/>
-    <GlyphID id="947" name="uniAAB1"/>
-    <GlyphID id="948" name="uniAAB2"/>
-    <GlyphID id="949" name="uniAAB3"/>
-    <GlyphID id="950" name="uniAAB4"/>
-    <GlyphID id="951" name="uniAAB5"/>
-    <GlyphID id="952" name="uniAAB6"/>
-    <GlyphID id="953" name="uniAAB7"/>
-    <GlyphID id="954" name="uniAAB8"/>
-    <GlyphID id="955" name="uniAAB9"/>
-    <GlyphID id="956" name="uniAABB"/>
-    <GlyphID id="957" name="uniAABD"/>
-    <GlyphID id="958" name="uniAABE"/>
-    <GlyphID id="959" name="uniAABF"/>
-    <GlyphID id="960" name="uniAAC0"/>
-    <GlyphID id="961" name="uniAAC1"/>
-    <GlyphID id="962" name="uniAAC2"/>
-    <GlyphID id="963" name="uniAAD1"/>
-    <GlyphID id="964" name="uniAADF"/>
-    <GlyphID id="965" name="uniAB00"/>
-    <GlyphID id="966" name="uniAB18"/>
-    <GlyphID id="967" name="uniAB2F"/>
-    <GlyphID id="968" name="uniAB30"/>
-    <GlyphID id="969" name="uniAB46"/>
-    <GlyphID id="970" name="uniAB5B"/>
-    <GlyphID id="971" name="uniAB5C"/>
-    <GlyphID id="972" name="uniAB5E"/>
-    <GlyphID id="973" name="uniAB5F"/>
-    <GlyphID id="974" name="uniAB60"/>
-    <GlyphID id="975" name="uniAB68"/>
-    <GlyphID id="976" name="uniAB6F"/>
-    <GlyphID id="977" name="uniAB70"/>
-    <GlyphID id="978" name="uniAB98"/>
-    <GlyphID id="979" name="uniABBF"/>
-    <GlyphID id="980" name="uniAC00"/>
-    <GlyphID id="981" name="uniC1D8"/>
-    <GlyphID id="982" name="uniD7AF"/>
-    <GlyphID id="983" name="uniD7B0"/>
-    <GlyphID id="984" name="uniD7D8"/>
-    <GlyphID id="985" name="uniD7FF"/>
-    <GlyphID id="986" name="uniF900"/>
-    <GlyphID id="987" name="uniFA00"/>
-    <GlyphID id="988" name="uniFAFF"/>
-    <GlyphID id="989" name="uniFB00"/>
-    <GlyphID id="990" name="uniFB03"/>
-    <GlyphID id="991" name="uniFB06"/>
-    <GlyphID id="992" name="uniFB13"/>
-    <GlyphID id="993" name="uniFB15"/>
-    <GlyphID id="994" name="uniFB17"/>
-    <GlyphID id="995" name="uniFB1D"/>
-    <GlyphID id="996" name="uniFB1E"/>
-    <GlyphID id="997" name="uniFB1F"/>
-    <GlyphID id="998" name="uniFB37"/>
-    <GlyphID id="999" name="uniFB4F"/>
-    <GlyphID id="1000" name="uniFB50"/>
-    <GlyphID id="1001" name="uniFB81"/>
-    <GlyphID id="1002" name="uniFBB1"/>
-    <GlyphID id="1003" name="uniFBB2"/>
-    <GlyphID id="1004" name="uniFBBA"/>
-    <GlyphID id="1005" name="uniFBC1"/>
-    <GlyphID id="1006" name="uniFBC2"/>
-    <GlyphID id="1007" name="uniFCE1"/>
-    <GlyphID id="1008" name="uniFDFF"/>
-    <GlyphID id="1009" name="uniFE10"/>
-    <GlyphID id="1010" name="uniFE18"/>
-    <GlyphID id="1011" name="uniFE1F"/>
-    <GlyphID id="1012" name="uniFE30"/>
-    <GlyphID id="1013" name="uniFE40"/>
-    <GlyphID id="1014" name="uniFE4F"/>
-    <GlyphID id="1015" name="uniFE70"/>
-    <GlyphID id="1016" name="uniFE71"/>
-    <GlyphID id="1017" name="uniFE72"/>
-    <GlyphID id="1018" name="uniFE73"/>
-    <GlyphID id="1019" name="uniFE74"/>
-    <GlyphID id="1020" name="uniFE75"/>
-    <GlyphID id="1021" name="uniFE76"/>
-    <GlyphID id="1022" name="uniFE77"/>
-    <GlyphID id="1023" name="uniFE78"/>
-    <GlyphID id="1024" name="uniFE79"/>
-    <GlyphID id="1025" name="uniFE7A"/>
-    <GlyphID id="1026" name="uniFE7B"/>
-    <GlyphID id="1027" name="uniFE7C"/>
-    <GlyphID id="1028" name="uniFE7D"/>
-    <GlyphID id="1029" name="uniFE7E"/>
-    <GlyphID id="1030" name="uniFE7F"/>
-    <GlyphID id="1031" name="uniFEBF"/>
-    <GlyphID id="1032" name="uniFEFF"/>
-    <GlyphID id="1033" name="uniFF00"/>
-    <GlyphID id="1034" name="uniFF78"/>
-    <GlyphID id="1035" name="uniFFEF"/>
-    <GlyphID id="1036" name="u102A0"/>
-    <GlyphID id="1037" name="u102C0"/>
-    <GlyphID id="1038" name="u102DF"/>
-    <GlyphID id="1039" name="u10330"/>
-    <GlyphID id="1040" name="u10340"/>
-    <GlyphID id="1041" name="u1034F"/>
-    <GlyphID id="1042" name="u10400"/>
-    <GlyphID id="1043" name="u10428"/>
-    <GlyphID id="1044" name="u1044F"/>
-    <GlyphID id="1045" name="u10450"/>
-    <GlyphID id="1046" name="u10468"/>
-    <GlyphID id="1047" name="u1047F"/>
-    <GlyphID id="1048" name="u10480"/>
-    <GlyphID id="1049" name="u10498"/>
-    <GlyphID id="1050" name="u104AF"/>
-    <GlyphID id="1051" name="u104B0"/>
-    <GlyphID id="1052" name="u104D8"/>
-    <GlyphID id="1053" name="u104FF"/>
-    <GlyphID id="1054" name="u10800"/>
-    <GlyphID id="1055" name="u10820"/>
-    <GlyphID id="1056" name="u1083F"/>
-    <GlyphID id="1057" name="u10B00"/>
-    <GlyphID id="1058" name="u10B1C"/>
-    <GlyphID id="1059" name="u10B38"/>
-    <GlyphID id="1060" name="u10B39"/>
-    <GlyphID id="1061" name="u10B3C"/>
-    <GlyphID id="1062" name="u10B3F"/>
-    <GlyphID id="1063" name="u10C00"/>
-    <GlyphID id="1064" name="u10C28"/>
-    <GlyphID id="1065" name="u10C4F"/>
-    <GlyphID id="1066" name="u10D00"/>
-    <GlyphID id="1067" name="u10D20"/>
-    <GlyphID id="1068" name="u10D3F"/>
-    <GlyphID id="1069" name="u11100"/>
-    <GlyphID id="1070" name="u11101"/>
-    <GlyphID id="1071" name="u11102"/>
-    <GlyphID id="1072" name="u11103"/>
-    <GlyphID id="1073" name="u11115"/>
-    <GlyphID id="1074" name="u11126"/>
-    <GlyphID id="1075" name="u11127"/>
-    <GlyphID id="1076" name="u1112E"/>
-    <GlyphID id="1077" name="u11134"/>
-    <GlyphID id="1078" name="u11135"/>
-    <GlyphID id="1079" name="u1113D"/>
-    <GlyphID id="1080" name="u11145"/>
-    <GlyphID id="1081" name="u11146"/>
-    <GlyphID id="1082" name="u11147"/>
-    <GlyphID id="1083" name="u1114B"/>
-    <GlyphID id="1084" name="u1114F"/>
-    <GlyphID id="1085" name="u11660"/>
-    <GlyphID id="1086" name="u11670"/>
-    <GlyphID id="1087" name="u1167F"/>
-    <GlyphID id="1088" name="u16800"/>
-    <GlyphID id="1089" name="u16920"/>
-    <GlyphID id="1090" name="u16A3F"/>
-    <GlyphID id="1091" name="u16E40"/>
-    <GlyphID id="1092" name="u16E70"/>
-    <GlyphID id="1093" name="u16E9F"/>
-    <GlyphID id="1094" name="u1B000"/>
-    <GlyphID id="1095" name="u1B080"/>
-    <GlyphID id="1096" name="u1B0FF"/>
-    <GlyphID id="1097" name="u1B100"/>
-    <GlyphID id="1098" name="u1B118"/>
-    <GlyphID id="1099" name="u1B12F"/>
-    <GlyphID id="1100" name="u1D300"/>
-    <GlyphID id="1101" name="u1D330"/>
-    <GlyphID id="1102" name="u1D35F"/>
-    <GlyphID id="1103" name="u1D400"/>
-    <GlyphID id="1104" name="u1D600"/>
-    <GlyphID id="1105" name="u1D7FF"/>
-    <GlyphID id="1106" name="u1D944"/>
-    <GlyphID id="1107" name="u1E000"/>
-    <GlyphID id="1108" name="u1E018"/>
-    <GlyphID id="1109" name="u1E02F"/>
-    <GlyphID id="1110" name="u1E147"/>
-    <GlyphID id="1111" name="u1E94A"/>
-    <GlyphID id="1112" name="u1E94B"/>
-    <GlyphID id="1113" name="u1E955"/>
-    <GlyphID id="1114" name="u1E95F"/>
-    <GlyphID id="1115" name="u1EE00"/>
-    <GlyphID id="1116" name="u1EE80"/>
-    <GlyphID id="1117" name="u1EEFF"/>
-    <GlyphID id="1118" name="u20000"/>
-    <GlyphID id="1119" name="u25370"/>
-    <GlyphID id="1120" name="u2A6DF"/>
-    <GlyphID id="1121" name="u2A700"/>
-    <GlyphID id="1122" name="u2AF20"/>
-    <GlyphID id="1123" name="u2B73F"/>
-    <GlyphID id="1124" name="u2B740"/>
-    <GlyphID id="1125" name="u2B7B0"/>
-    <GlyphID id="1126" name="u2B81F"/>
-    <GlyphID id="1127" name="u2B820"/>
-    <GlyphID id="1128" name="u2C368"/>
-    <GlyphID id="1129" name="u2CEAF"/>
-    <GlyphID id="1130" name="u2CEB0"/>
-    <GlyphID id="1131" name="u2DD50"/>
-    <GlyphID id="1132" name="u2EBEF"/>
-    <GlyphID id="1133" name="u2F800"/>
-    <GlyphID id="1134" name="u2F910"/>
-    <GlyphID id="1135" name="u2FA1F"/>
+    <GlyphID id="1" name="uni02FF"/>
+    <GlyphID id="2" name="uni055F"/>
+    <GlyphID id="3" name="uni05C5"/>
+    <GlyphID id="4" name="uni07FD"/>
+    <GlyphID id="5" name="uni07FF"/>
+    <GlyphID id="6" name="uni08FF"/>
+    <GlyphID id="7" name="uni0957"/>
+    <GlyphID id="8" name="uni097F"/>
+    <GlyphID id="9" name="uni09CD"/>
+    <GlyphID id="10" name="uni09FF"/>
+    <GlyphID id="11" name="uni0A51"/>
+    <GlyphID id="12" name="uni0A7F"/>
+    <GlyphID id="13" name="uni0ACD"/>
+    <GlyphID id="14" name="uni0AFF"/>
+    <GlyphID id="15" name="uni0B44"/>
+    <GlyphID id="16" name="uni0B7F"/>
+    <GlyphID id="17" name="uni0BC2"/>
+    <GlyphID id="18" name="uni0BFF"/>
+    <GlyphID id="19" name="uni0C40"/>
+    <GlyphID id="20" name="uni0C7F"/>
+    <GlyphID id="21" name="uni0CC6"/>
+    <GlyphID id="22" name="uni0CFF"/>
+    <GlyphID id="23" name="uni0D4E"/>
+    <GlyphID id="24" name="uni0D7F"/>
+    <GlyphID id="25" name="uni0DD6"/>
+    <GlyphID id="26" name="uni0DFF"/>
+    <GlyphID id="27" name="uni0E3A"/>
+    <GlyphID id="28" name="uni0E7F"/>
+    <GlyphID id="29" name="uni0EBC"/>
+    <GlyphID id="30" name="uni0EFF"/>
+    <GlyphID id="31" name="uni0F3F"/>
+    <GlyphID id="32" name="uni0FFF"/>
+    <GlyphID id="33" name="uni1074"/>
+    <GlyphID id="34" name="uni135F"/>
+    <GlyphID id="35" name="uni1753"/>
+    <GlyphID id="36" name="uni175F"/>
+    <GlyphID id="37" name="uni17D3"/>
+    <GlyphID id="38" name="uni17FF"/>
+    <GlyphID id="39" name="uni18A9"/>
+    <GlyphID id="40" name="uni18FF"/>
+    <GlyphID id="41" name="uni1934"/>
+    <GlyphID id="42" name="uni194F"/>
+    <GlyphID id="43" name="uni19FF"/>
+    <GlyphID id="44" name="uni1BAD"/>
+    <GlyphID id="45" name="uni1C7F"/>
+    <GlyphID id="46" name="uni1CBF"/>
+    <GlyphID id="47" name="uni1CCF"/>
+    <GlyphID id="48" name="uni1D78"/>
+    <GlyphID id="49" name="uni1DFF"/>
+    <GlyphID id="50" name="uni1FCF"/>
+    <GlyphID id="51" name="uni1FFF"/>
+    <GlyphID id="52" name="uni209C"/>
+    <GlyphID id="53" name="uni2CF1"/>
+    <GlyphID id="54" name="uni2CFF"/>
+    <GlyphID id="55" name="uni2D2D"/>
+    <GlyphID id="56" name="uni2D7F"/>
+    <GlyphID id="57" name="uni2DDF"/>
+    <GlyphID id="58" name="uni2DFF"/>
+    <GlyphID id="59" name="uni319F"/>
+    <GlyphID id="60" name="uni9FFF"/>
+    <GlyphID id="61" name="uniA4FF"/>
+    <GlyphID id="62" name="uniA63F"/>
+    <GlyphID id="63" name="uniA67F"/>
+    <GlyphID id="64" name="uniA6F1"/>
+    <GlyphID id="65" name="uniA80B"/>
+    <GlyphID id="66" name="uniA82F"/>
+    <GlyphID id="67" name="uniA8C5"/>
+    <GlyphID id="68" name="uniA8DF"/>
+    <GlyphID id="69" name="uniA92D"/>
+    <GlyphID id="70" name="uniA92F"/>
+    <GlyphID id="71" name="uniA9FF"/>
+    <GlyphID id="72" name="uniAAB8"/>
+    <GlyphID id="73" name="uniAADF"/>
+    <GlyphID id="74" name="uniABBF"/>
+    <GlyphID id="75" name="uniFB17"/>
+    <GlyphID id="76" name="uniFB4F"/>
+    <GlyphID id="77" name="uniFDFF"/>
+    <GlyphID id="78" name="u102DF"/>
+    <GlyphID id="79" name="u1034F"/>
+    <GlyphID id="80" name="u1044F"/>
+    <GlyphID id="81" name="u1047F"/>
+    <GlyphID id="82" name="u104AF"/>
+    <GlyphID id="83" name="u104FF"/>
+    <GlyphID id="84" name="u1083F"/>
+    <GlyphID id="85" name="u10B3E"/>
+    <GlyphID id="86" name="u10B3F"/>
+    <GlyphID id="87" name="u10C4F"/>
+    <GlyphID id="88" name="u10D3F"/>
+    <GlyphID id="89" name="u11134"/>
+    <GlyphID id="90" name="u1114F"/>
+    <GlyphID id="91" name="u1167F"/>
+    <GlyphID id="92" name="u16A3F"/>
+    <GlyphID id="93" name="u16E9F"/>
+    <GlyphID id="94" name="u1E02E"/>
+    <GlyphID id="95" name="u1E02F"/>
+    <GlyphID id="96" name="u1E94A"/>
+    <GlyphID id="97" name="u1E95F"/>
   </GlyphOrder>
 
   <head>
     <!-- Most of this table will be recalculated by the compiler -->
     <tableVersion value="1.0"/>
     <fontRevision value="1.0"/>
-    <checkSumAdjustment value="0x21577d66"/>
+    <checkSumAdjustment value="0x706bf56d"/>
     <magicNumber value="0x5f0f3cf5"/>
     <flags value="00000000 00000011"/>
     <unitsPerEm value="1024"/>
     <created value="Sat Nov  5 18:46:15 2022"/>
-    <modified value="Mon May  6 15:43:01 2024"/>
-    <xMin value="51"/>
-    <yMin value="-250"/>
-    <xMax value="998"/>
-    <yMax value="950"/>
+    <modified value="Thu Jun 20 19:06:09 2024"/>
+    <xMin value="0"/>
+    <yMin value="0"/>
+    <xMax value="0"/>
+    <yMax value="0"/>
     <macStyle value="00000000 00000011"/>
     <lowestRecPPEM value="6"/>
     <fontDirectionHint value="2"/>
@@ -1162,1146 +124,440 @@
     <glyphDataFormat value="0"/>
   </head>
 
+  <hhea>
+    <tableVersion value="0x00010000"/>
+    <ascent value="2100"/>
+    <descent value="-1100"/>
+    <lineGap value="0"/>
+    <advanceWidthMax value="1000"/>
+    <minLeftSideBearing value="0"/>
+    <minRightSideBearing value="0"/>
+    <xMaxExtent value="0"/>
+    <caretSlopeRise value="1"/>
+    <caretSlopeRun value="0"/>
+    <caretOffset value="0"/>
+    <reserved0 value="0"/>
+    <reserved1 value="0"/>
+    <reserved2 value="0"/>
+    <reserved3 value="0"/>
+    <metricDataFormat value="0"/>
+    <numberOfHMetrics value="2"/>
+  </hhea>
+
   <maxp>
     <tableVersion value="0x5000"/>
-    <numGlyphs value="1136"/>
+    <numGlyphs value="98"/>
   </maxp>
+
+  <hmtx>
+    <mtx name=".notdef" width="908" lsb="100"/>
+    <mtx name="u102DF" width="1000" lsb="0"/>
+    <mtx name="u1034F" width="1000" lsb="0"/>
+    <mtx name="u1044F" width="1000" lsb="0"/>
+    <mtx name="u1047F" width="1000" lsb="0"/>
+    <mtx name="u104AF" width="1000" lsb="0"/>
+    <mtx name="u104FF" width="1000" lsb="0"/>
+    <mtx name="u1083F" width="1000" lsb="0"/>
+    <mtx name="u10B3E" width="1000" lsb="0"/>
+    <mtx name="u10B3F" width="1000" lsb="0"/>
+    <mtx name="u10C4F" width="1000" lsb="0"/>
+    <mtx name="u10D3F" width="1000" lsb="0"/>
+    <mtx name="u11134" width="1000" lsb="0"/>
+    <mtx name="u1114F" width="1000" lsb="0"/>
+    <mtx name="u1167F" width="1000" lsb="0"/>
+    <mtx name="u16A3F" width="1000" lsb="0"/>
+    <mtx name="u16E9F" width="1000" lsb="0"/>
+    <mtx name="u1E02E" width="1000" lsb="0"/>
+    <mtx name="u1E02F" width="1000" lsb="0"/>
+    <mtx name="u1E94A" width="1000" lsb="0"/>
+    <mtx name="u1E95F" width="1000" lsb="0"/>
+    <mtx name="uni02FF" width="1000" lsb="0"/>
+    <mtx name="uni055F" width="1000" lsb="0"/>
+    <mtx name="uni05C5" width="1000" lsb="0"/>
+    <mtx name="uni07FD" width="1000" lsb="0"/>
+    <mtx name="uni07FF" width="1000" lsb="0"/>
+    <mtx name="uni08FF" width="1000" lsb="0"/>
+    <mtx name="uni0957" width="1000" lsb="0"/>
+    <mtx name="uni097F" width="1000" lsb="0"/>
+    <mtx name="uni09CD" width="1000" lsb="0"/>
+    <mtx name="uni09FF" width="1000" lsb="0"/>
+    <mtx name="uni0A51" width="1000" lsb="0"/>
+    <mtx name="uni0A7F" width="1000" lsb="0"/>
+    <mtx name="uni0ACD" width="1000" lsb="0"/>
+    <mtx name="uni0AFF" width="1000" lsb="0"/>
+    <mtx name="uni0B44" width="1000" lsb="0"/>
+    <mtx name="uni0B7F" width="1000" lsb="0"/>
+    <mtx name="uni0BC2" width="1000" lsb="0"/>
+    <mtx name="uni0BFF" width="1000" lsb="0"/>
+    <mtx name="uni0C40" width="1000" lsb="0"/>
+    <mtx name="uni0C7F" width="1000" lsb="0"/>
+    <mtx name="uni0CC6" width="1000" lsb="0"/>
+    <mtx name="uni0CFF" width="1000" lsb="0"/>
+    <mtx name="uni0D4E" width="1000" lsb="0"/>
+    <mtx name="uni0D7F" width="1000" lsb="0"/>
+    <mtx name="uni0DD6" width="1000" lsb="0"/>
+    <mtx name="uni0DFF" width="1000" lsb="0"/>
+    <mtx name="uni0E3A" width="1000" lsb="0"/>
+    <mtx name="uni0E7F" width="1000" lsb="0"/>
+    <mtx name="uni0EBC" width="1000" lsb="0"/>
+    <mtx name="uni0EFF" width="1000" lsb="0"/>
+    <mtx name="uni0F3F" width="1000" lsb="0"/>
+    <mtx name="uni0FFF" width="1000" lsb="0"/>
+    <mtx name="uni1074" width="1000" lsb="0"/>
+    <mtx name="uni135F" width="1000" lsb="0"/>
+    <mtx name="uni1753" width="1000" lsb="0"/>
+    <mtx name="uni175F" width="1000" lsb="0"/>
+    <mtx name="uni17D3" width="1000" lsb="0"/>
+    <mtx name="uni17FF" width="1000" lsb="0"/>
+    <mtx name="uni18A9" width="1000" lsb="0"/>
+    <mtx name="uni18FF" width="1000" lsb="0"/>
+    <mtx name="uni1934" width="1000" lsb="0"/>
+    <mtx name="uni194F" width="1000" lsb="0"/>
+    <mtx name="uni19FF" width="1000" lsb="0"/>
+    <mtx name="uni1BAD" width="1000" lsb="0"/>
+    <mtx name="uni1C7F" width="1000" lsb="0"/>
+    <mtx name="uni1CBF" width="1000" lsb="0"/>
+    <mtx name="uni1CCF" width="1000" lsb="0"/>
+    <mtx name="uni1D78" width="1000" lsb="0"/>
+    <mtx name="uni1DFF" width="1000" lsb="0"/>
+    <mtx name="uni1FCF" width="1000" lsb="0"/>
+    <mtx name="uni1FFF" width="1000" lsb="0"/>
+    <mtx name="uni209C" width="1000" lsb="0"/>
+    <mtx name="uni2CF1" width="1000" lsb="0"/>
+    <mtx name="uni2CFF" width="1000" lsb="0"/>
+    <mtx name="uni2D2D" width="1000" lsb="0"/>
+    <mtx name="uni2D7F" width="1000" lsb="0"/>
+    <mtx name="uni2DDF" width="1000" lsb="0"/>
+    <mtx name="uni2DFF" width="1000" lsb="0"/>
+    <mtx name="uni319F" width="1000" lsb="0"/>
+    <mtx name="uni9FFF" width="1000" lsb="0"/>
+    <mtx name="uniA4FF" width="1000" lsb="0"/>
+    <mtx name="uniA63F" width="1000" lsb="0"/>
+    <mtx name="uniA67F" width="1000" lsb="0"/>
+    <mtx name="uniA6F1" width="1000" lsb="0"/>
+    <mtx name="uniA80B" width="1000" lsb="0"/>
+    <mtx name="uniA82F" width="1000" lsb="0"/>
+    <mtx name="uniA8C5" width="1000" lsb="0"/>
+    <mtx name="uniA8DF" width="1000" lsb="0"/>
+    <mtx name="uniA92D" width="1000" lsb="0"/>
+    <mtx name="uniA92F" width="1000" lsb="0"/>
+    <mtx name="uniA9FF" width="1000" lsb="0"/>
+    <mtx name="uniAAB8" width="1000" lsb="0"/>
+    <mtx name="uniAADF" width="1000" lsb="0"/>
+    <mtx name="uniABBF" width="1000" lsb="0"/>
+    <mtx name="uniFB17" width="1000" lsb="0"/>
+    <mtx name="uniFB4F" width="1000" lsb="0"/>
+    <mtx name="uniFDFF" width="1000" lsb="0"/>
+  </hmtx>
 
   <cmap>
     <tableVersion version="0"/>
-    <cmap_format_12 platformID="3" platEncID="1" format="12" reserved="0" length="7360" language="0" nGroups="612">
-      <map code="0x20" name="space"/><!-- SPACE -->
-      <map code="0x3f" name="question"/><!-- QUESTION MARK -->
-      <map code="0x5d" name="bracketright"/><!-- RIGHT SQUARE BRACKET -->
-      <map code="0x5e" name="asciicircum"/><!-- CIRCUMFLEX ACCENT -->
-      <map code="0x5f" name="underscore"/><!-- LOW LINE -->
-      <map code="0x60" name="grave"/><!-- GRAVE ACCENT -->
-      <map code="0x61" name="a"/><!-- LATIN SMALL LETTER A -->
-      <map code="0x6f" name="o"/><!-- LATIN SMALL LETTER O -->
-      <map code="0x7d" name="braceright"/><!-- RIGHT CURLY BRACKET -->
-      <map code="0x7e" name="asciitilde"/><!-- TILDE -->
-      <map code="0x7f" name="uni007F"/><!-- ???? -->
-      <map code="0xa0" name="uni00A0"/><!-- NO-BREAK SPACE -->
-      <map code="0xa4" name="currency"/><!-- CURRENCY SIGN -->
-      <map code="0xa7" name="section"/><!-- SECTION SIGN -->
-      <map code="0xa8" name="dieresis"/><!-- DIAERESIS -->
-      <map code="0xa9" name="copyright"/><!-- COPYRIGHT SIGN -->
-      <map code="0xaa" name="ordfeminine"/><!-- FEMININE ORDINAL INDICATOR -->
-      <map code="0xab" name="guillemotleft"/><!-- LEFT-POINTING DOUBLE ANGLE QUOTATION MARK -->
-      <map code="0xac" name="logicalnot"/><!-- NOT SIGN -->
-      <map code="0xad" name="uni00AD"/><!-- SOFT HYPHEN -->
-      <map code="0xae" name="registered"/><!-- REGISTERED SIGN -->
-      <map code="0xaf" name="macron"/><!-- MACRON -->
-      <map code="0xb0" name="degree"/><!-- DEGREE SIGN -->
-      <map code="0xb1" name="plusminus"/><!-- PLUS-MINUS SIGN -->
-      <map code="0xb2" name="uni00B2"/><!-- SUPERSCRIPT TWO -->
-      <map code="0xb3" name="uni00B3"/><!-- SUPERSCRIPT THREE -->
-      <map code="0xb4" name="acute"/><!-- ACUTE ACCENT -->
-      <map code="0xb5" name="mu"/><!-- MICRO SIGN -->
-      <map code="0xb6" name="paragraph"/><!-- PILCROW SIGN -->
-      <map code="0xb7" name="periodcentered"/><!-- MIDDLE DOT -->
-      <map code="0xb8" name="cedilla"/><!-- CEDILLA -->
-      <map code="0xb9" name="uni00B9"/><!-- SUPERSCRIPT ONE -->
-      <map code="0xba" name="ordmasculine"/><!-- MASCULINE ORDINAL INDICATOR -->
-      <map code="0xbb" name="guillemotright"/><!-- RIGHT-POINTING DOUBLE ANGLE QUOTATION MARK -->
-      <map code="0xbc" name="onequarter"/><!-- VULGAR FRACTION ONE QUARTER -->
-      <map code="0xbd" name="onehalf"/><!-- VULGAR FRACTION ONE HALF -->
-      <map code="0xbe" name="threequarters"/><!-- VULGAR FRACTION THREE QUARTERS -->
-      <map code="0xbf" name="questiondown"/><!-- INVERTED QUESTION MARK -->
-      <map code="0xdf" name="germandbls"/><!-- LATIN SMALL LETTER SHARP S -->
-      <map code="0xff" name="ydieresis"/><!-- LATIN SMALL LETTER Y WITH DIAERESIS -->
-      <map code="0x100" name="Amacron"/><!-- LATIN CAPITAL LETTER A WITH MACRON -->
-      <map code="0x140" name="ldot"/><!-- LATIN SMALL LETTER L WITH MIDDLE DOT -->
-      <map code="0x17f" name="longs"/><!-- LATIN SMALL LETTER LONG S -->
-      <map code="0x180" name="uni0180"/><!-- LATIN SMALL LETTER B WITH STROKE -->
-      <map code="0x1e8" name="uni01E8"/><!-- LATIN CAPITAL LETTER K WITH CARON -->
-      <map code="0x24f" name="uni024F"/><!-- LATIN SMALL LETTER Y WITH STROKE -->
-      <map code="0x250" name="uni0250"/><!-- LATIN SMALL LETTER TURNED A -->
-      <map code="0x280" name="uni0280"/><!-- LATIN LETTER SMALL CAPITAL R -->
-      <map code="0x2af" name="uni02AF"/><!-- LATIN SMALL LETTER TURNED H WITH FISHHOOK AND TAIL -->
-      <map code="0x2b0" name="uni02B0"/><!-- MODIFIER LETTER SMALL H -->
-      <map code="0x2b4" name="uni02B4"/><!-- MODIFIER LETTER SMALL TURNED R -->
-      <map code="0x2b8" name="uni02B8"/><!-- MODIFIER LETTER SMALL Y -->
-      <map code="0x2b9" name="uni02B9"/><!-- MODIFIER LETTER PRIME -->
-      <map code="0x2cc" name="uni02CC"/><!-- MODIFIER LETTER LOW VERTICAL LINE -->
-      <map code="0x2df" name="uni02DF"/><!-- MODIFIER LETTER CROSS ACCENT -->
-      <map code="0x2e0" name="uni02E0"/><!-- MODIFIER LETTER SMALL GAMMA -->
-      <map code="0x2e2" name="uni02E2"/><!-- MODIFIER LETTER SMALL S -->
-      <map code="0x2e4" name="uni02E4"/><!-- MODIFIER LETTER SMALL REVERSED GLOTTAL STOP -->
-      <map code="0x2e5" name="uni02E5"/><!-- MODIFIER LETTER EXTRA-HIGH TONE BAR -->
-      <map code="0x2f2" name="uni02F2"/><!-- MODIFIER LETTER LOW RIGHT ARROWHEAD -->
+    <cmap_format_12 platformID="3" platEncID="1" format="12" reserved="0" length="1156" language="0" nGroups="95">
       <map code="0x2ff" name="uni02FF"/><!-- MODIFIER LETTER LOW LEFT ARROW -->
-      <map code="0x300" name="gravecomb"/><!-- COMBINING GRAVE ACCENT -->
-      <map code="0x338" name="uni0338"/><!-- COMBINING LONG SOLIDUS OVERLAY -->
-      <map code="0x36f" name="uni036F"/><!-- COMBINING LATIN SMALL LETTER X -->
-      <map code="0x370" name="uni0370"/><!-- GREEK CAPITAL LETTER HETA -->
-      <map code="0x375" name="uni0375"/><!-- GREEK LOWER NUMERAL SIGN -->
-      <map code="0x379" name="uni0379"/><!-- ???? -->
-      <map code="0x37a" name="uni037A"/><!-- GREEK YPOGEGRAMMENI -->
-      <map code="0x37b" name="uni037B"/><!-- GREEK SMALL REVERSED LUNATE SIGMA SYMBOL -->
-      <map code="0x37f" name="uni037F"/><!-- GREEK CAPITAL LETTER YOT -->
-      <map code="0x383" name="uni0383"/><!-- ???? -->
-      <map code="0x384" name="tonos"/><!-- GREEK TONOS -->
-      <map code="0x385" name="dieresistonos"/><!-- GREEK DIALYTIKA TONOS -->
-      <map code="0x386" name="Alphatonos"/><!-- GREEK CAPITAL LETTER ALPHA WITH TONOS -->
-      <map code="0x3c3" name="sigma"/><!-- GREEK SMALL LETTER SIGMA -->
-      <map code="0x3ff" name="uni03FF"/><!-- GREEK CAPITAL REVERSED DOTTED LUNATE SIGMA SYMBOL -->
-      <map code="0x400" name="uni0400"/><!-- CYRILLIC CAPITAL LETTER IE WITH GRAVE -->
-      <map code="0x441" name="uni0441"/><!-- CYRILLIC SMALL LETTER ES -->
-      <map code="0x482" name="uni0482"/><!-- CYRILLIC THOUSANDS SIGN -->
-      <map code="0x483" name="uni0483"/><!-- COMBINING CYRILLIC TITLO -->
-      <map code="0x486" name="uni0486"/><!-- COMBINING CYRILLIC PSILI PNEUMATA -->
-      <map code="0x489" name="uni0489"/><!-- COMBINING CYRILLIC MILLIONS SIGN -->
-      <map code="0x48a" name="uni048A"/><!-- CYRILLIC CAPITAL LETTER SHORT I WITH TAIL -->
-      <map code="0x4c5" name="uni04C5"/><!-- CYRILLIC CAPITAL LETTER EL WITH TAIL -->
-      <map code="0x4ff" name="uni04FF"/><!-- CYRILLIC SMALL LETTER HA WITH STROKE -->
-      <map code="0x500" name="uni0500"/><!-- CYRILLIC CAPITAL LETTER KOMI DE -->
-      <map code="0x518" name="uni0518"/><!-- CYRILLIC CAPITAL LETTER YAE -->
-      <map code="0x52f" name="uni052F"/><!-- CYRILLIC SMALL LETTER EL WITH DESCENDER -->
-      <map code="0x530" name="uni0530"/><!-- ???? -->
-      <map code="0x544" name="uni0544"/><!-- ARMENIAN CAPITAL LETTER MEN -->
-      <map code="0x558" name="uni0558"/><!-- ???? -->
-      <map code="0x559" name="uni0559"/><!-- ARMENIAN MODIFIER LETTER LEFT HALF RING -->
-      <map code="0x55c" name="uni055C"/><!-- ARMENIAN EXCLAMATION MARK -->
       <map code="0x55f" name="uni055F"/><!-- ARMENIAN ABBREVIATION MARK -->
-      <map code="0x560" name="uni0560"/><!-- ARMENIAN SMALL LETTER TURNED AYB -->
-      <map code="0x578" name="uni0578"/><!-- ARMENIAN SMALL LETTER VO -->
-      <map code="0x58f" name="uni058F"/><!-- ARMENIAN DRAM SIGN -->
-      <map code="0x590" name="uni0590"/><!-- ???? -->
-      <map code="0x591" name="uni0591"/><!-- HEBREW ACCENT ETNAHTA -->
-      <map code="0x5a8" name="uni05A8"/><!-- HEBREW ACCENT QADMA -->
-      <map code="0x5bf" name="uni05BF"/><!-- HEBREW POINT RAFE -->
-      <map code="0x5c0" name="uni05C0"/><!-- HEBREW PUNCTUATION PASEQ -->
-      <map code="0x5c1" name="uni05C1"/><!-- HEBREW POINT SHIN DOT -->
-      <map code="0x5c2" name="uni05C2"/><!-- HEBREW POINT SIN DOT -->
-      <map code="0x5c3" name="uni05C3"/><!-- HEBREW PUNCTUATION SOF PASUQ -->
-      <map code="0x5c4" name="uni05C4"/><!-- HEBREW MARK UPPER DOT -->
       <map code="0x5c5" name="uni05C5"/><!-- HEBREW MARK LOWER DOT -->
-      <map code="0x5c6" name="uni05C6"/><!-- HEBREW PUNCTUATION NUN HAFUKHA -->
-      <map code="0x5c7" name="uni05C7"/><!-- HEBREW POINT QAMATS QATAN -->
-      <map code="0x5c8" name="uni05C8"/><!-- ???? -->
-      <map code="0x5e4" name="uni05E4"/><!-- HEBREW LETTER PE -->
-      <map code="0x5ff" name="uni05FF"/><!-- ???? -->
-      <map code="0x600" name="uni0600"/><!-- ARABIC NUMBER SIGN -->
-      <map code="0x603" name="uni0603"/><!-- ARABIC SIGN SAFHA -->
-      <map code="0x605" name="uni0605"/><!-- ARABIC NUMBER MARK ABOVE -->
-      <map code="0x606" name="uni0606"/><!-- ARABIC-INDIC CUBE ROOT -->
-      <map code="0x60b" name="uni060B"/><!-- AFGHANI SIGN -->
-      <map code="0x60f" name="uni060F"/><!-- ARABIC SIGN MISRA -->
-      <map code="0x610" name="uni0610"/><!-- ARABIC SIGN SALLALLAHOU ALAYHE WASSALLAM -->
-      <map code="0x615" name="uni0615"/><!-- ARABIC SMALL HIGH TAH -->
-      <map code="0x61a" name="uni061A"/><!-- ARABIC SMALL KASRA -->
-      <map code="0x61b" name="uni061B"/><!-- ARABIC SEMICOLON -->
-      <map code="0x633" name="uni0633"/><!-- ARABIC LETTER SEEN -->
-      <map code="0x64a" name="uni064A"/><!-- ARABIC LETTER YEH -->
-      <map code="0x64b" name="uni064B"/><!-- ARABIC FATHATAN -->
-      <map code="0x655" name="uni0655"/><!-- ARABIC HAMZA BELOW -->
-      <map code="0x65f" name="uni065F"/><!-- ARABIC WAVY HAMZA BELOW -->
-      <map code="0x660" name="uni0660"/><!-- ARABIC-INDIC DIGIT ZERO -->
-      <map code="0x668" name="uni0668"/><!-- ARABIC-INDIC DIGIT EIGHT -->
-      <map code="0x66f" name="uni066F"/><!-- ARABIC LETTER DOTLESS QAF -->
-      <map code="0x670" name="uni0670"/><!-- ARABIC LETTER SUPERSCRIPT ALEF -->
-      <map code="0x671" name="uni0671"/><!-- ARABIC LETTER ALEF WASLA -->
-      <map code="0x6a3" name="uni06A3"/><!-- ARABIC LETTER FEH WITH DOT BELOW -->
-      <map code="0x6d5" name="uni06D5"/><!-- ARABIC LETTER AE -->
-      <map code="0x6d6" name="uni06D6"/><!-- ARABIC SMALL HIGH LIGATURE SAD WITH LAM WITH ALEF MAKSURA -->
-      <map code="0x6d9" name="uni06D9"/><!-- ARABIC SMALL HIGH LAM ALEF -->
-      <map code="0x6dc" name="uni06DC"/><!-- ARABIC SMALL HIGH SEEN -->
-      <map code="0x6dd" name="uni06DD"/><!-- ARABIC END OF AYAH -->
-      <map code="0x6de" name="uni06DE"/><!-- ARABIC START OF RUB EL HIZB -->
-      <map code="0x6df" name="uni06DF"/><!-- ARABIC SMALL HIGH ROUNDED ZERO -->
-      <map code="0x6e2" name="uni06E2"/><!-- ARABIC SMALL HIGH MEEM ISOLATED FORM -->
-      <map code="0x6e4" name="uni06E4"/><!-- ARABIC SMALL HIGH MADDA -->
-      <map code="0x6e5" name="uni06E5"/><!-- ARABIC SMALL WAW -->
-      <map code="0x6e6" name="uni06E6"/><!-- ARABIC SMALL YEH -->
-      <map code="0x6e7" name="uni06E7"/><!-- ARABIC SMALL HIGH YEH -->
-      <map code="0x6e8" name="uni06E8"/><!-- ARABIC SMALL HIGH NOON -->
-      <map code="0x6e9" name="uni06E9"/><!-- ARABIC PLACE OF SAJDAH -->
-      <map code="0x6ea" name="uni06EA"/><!-- ARABIC EMPTY CENTRE LOW STOP -->
-      <map code="0x6ec" name="uni06EC"/><!-- ARABIC ROUNDED HIGH STOP WITH FILLED CENTRE -->
-      <map code="0x6ed" name="uni06ED"/><!-- ARABIC SMALL LOW MEEM -->
-      <map code="0x6ee" name="uni06EE"/><!-- ARABIC LETTER DAL WITH INVERTED V -->
-      <map code="0x6f7" name="uni06F7"/><!-- EXTENDED ARABIC-INDIC DIGIT SEVEN -->
-      <map code="0x6ff" name="uni06FF"/><!-- ARABIC LETTER HEH WITH INVERTED V -->
-      <map code="0x750" name="uni0750"/><!-- ARABIC LETTER BEH WITH THREE DOTS HORIZONTALLY BELOW -->
-      <map code="0x7a8" name="uni07A8"/><!-- THAANA IBIFILI -->
-      <map code="0x7c0" name="uni07C0"/><!-- NKO DIGIT ZERO -->
-      <map code="0x7d5" name="uni07D5"/><!-- NKO LETTER TA -->
-      <map code="0x7ea" name="uni07EA"/><!-- NKO LETTER JONA RA -->
-      <map code="0x7eb" name="uni07EB"/><!-- NKO COMBINING SHORT HIGH TONE -->
-      <map code="0x7f0" name="uni07F0"/><!-- NKO COMBINING LONG LOW TONE -->
-      <map code="0x7f5" name="uni07F5"/><!-- NKO LOW TONE APOSTROPHE -->
-      <map code="0x7f6" name="uni07F6"/><!-- NKO SYMBOL OO DENNEN -->
-      <map code="0x7f9" name="uni07F9"/><!-- NKO EXCLAMATION MARK -->
-      <map code="0x7fc" name="uni07FC"/><!-- ???? -->
       <map code="0x7fd" name="uni07FD"/><!-- NKO DANTAYALAN -->
-      <map code="0x7fe" name="uni07FE"/><!-- NKO DOROME SIGN -->
       <map code="0x7ff" name="uni07FF"/><!-- NKO TAMAN SIGN -->
-      <map code="0x8a0" name="uni08A0"/><!-- ARABIC LETTER BEH WITH SMALL V BELOW -->
-      <map code="0x8b9" name="uni08B9"/><!-- ARABIC LETTER REH WITH SMALL NOON ABOVE -->
-      <map code="0x8d2" name="uni08D2"/><!-- ARABIC LARGE ROUND DOT INSIDE CIRCLE BELOW -->
-      <map code="0x8d3" name="uni08D3"/><!-- ARABIC SMALL LOW WAW -->
-      <map code="0x8d4" name="uni08D4"/><!-- ARABIC SMALL HIGH WORD AR-RUB -->
-      <map code="0x8db" name="uni08DB"/><!-- ARABIC SMALL HIGH WORD AS-SAJDA -->
-      <map code="0x8e1" name="uni08E1"/><!-- ARABIC SMALL HIGH SIGN SAFHA -->
-      <map code="0x8e9" name="uni08E9"/><!-- ARABIC CURLY KASRATAN -->
       <map code="0x8ff" name="uni08FF"/><!-- ARABIC MARK SIDEWAYS NOON GHUNNA -->
-      <map code="0x900" name="uni0900"/><!-- DEVANAGARI SIGN INVERTED CANDRABINDU -->
-      <map code="0x901" name="uni0901"/><!-- DEVANAGARI SIGN CANDRABINDU -->
-      <map code="0x902" name="uni0902"/><!-- DEVANAGARI SIGN ANUSVARA -->
-      <map code="0x903" name="uni0903"/><!-- DEVANAGARI SIGN VISARGA -->
-      <map code="0x91e" name="uni091E"/><!-- DEVANAGARI LETTER NYA -->
-      <map code="0x939" name="uni0939"/><!-- DEVANAGARI LETTER HA -->
-      <map code="0x93a" name="uni093A"/><!-- DEVANAGARI VOWEL SIGN OE -->
-      <map code="0x93b" name="uni093B"/><!-- DEVANAGARI VOWEL SIGN OOE -->
-      <map code="0x93d" name="uni093D"/><!-- DEVANAGARI SIGN AVAGRAHA -->
-      <map code="0x93f" name="uni093F"/><!-- DEVANAGARI VOWEL SIGN I -->
-      <map code="0x940" name="uni0940"/><!-- DEVANAGARI VOWEL SIGN II -->
-      <map code="0x941" name="uni0941"/><!-- DEVANAGARI VOWEL SIGN U -->
-      <map code="0x945" name="uni0945"/><!-- DEVANAGARI VOWEL SIGN CANDRA E -->
-      <map code="0x948" name="uni0948"/><!-- DEVANAGARI VOWEL SIGN AI -->
-      <map code="0x949" name="uni0949"/><!-- DEVANAGARI VOWEL SIGN CANDRA O -->
-      <map code="0x94b" name="uni094B"/><!-- DEVANAGARI VOWEL SIGN O -->
-      <map code="0x94c" name="uni094C"/><!-- DEVANAGARI VOWEL SIGN AU -->
-      <map code="0x94d" name="uni094D"/><!-- DEVANAGARI SIGN VIRAMA -->
-      <map code="0x94e" name="uni094E"/><!-- DEVANAGARI VOWEL SIGN PRISHTHAMATRA E -->
-      <map code="0x94f" name="uni094F"/><!-- DEVANAGARI VOWEL SIGN AW -->
-      <map code="0x950" name="uni0950"/><!-- DEVANAGARI OM -->
-      <map code="0x953" name="uni0953"/><!-- DEVANAGARI GRAVE ACCENT -->
-      <map code="0x955" name="uni0955"/><!-- DEVANAGARI VOWEL SIGN CANDRA LONG E -->
       <map code="0x957" name="uni0957"/><!-- DEVANAGARI VOWEL SIGN UUE -->
-      <map code="0x958" name="uni0958"/><!-- DEVANAGARI LETTER QA -->
-      <map code="0x95d" name="uni095D"/><!-- DEVANAGARI LETTER RHA -->
-      <map code="0x961" name="uni0961"/><!-- DEVANAGARI LETTER VOCALIC LL -->
-      <map code="0x962" name="uni0962"/><!-- DEVANAGARI VOWEL SIGN VOCALIC L -->
-      <map code="0x963" name="uni0963"/><!-- DEVANAGARI VOWEL SIGN VOCALIC LL -->
-      <map code="0x966" name="uni0966"/><!-- DEVANAGARI DIGIT ZERO -->
-      <map code="0x973" name="uni0973"/><!-- DEVANAGARI LETTER OE -->
       <map code="0x97f" name="uni097F"/><!-- DEVANAGARI LETTER BBA -->
-      <map code="0x980" name="uni0980"/><!-- BENGALI ANJI -->
-      <map code="0x981" name="uni0981"/><!-- BENGALI SIGN CANDRABINDU -->
-      <map code="0x982" name="uni0982"/><!-- BENGALI SIGN ANUSVARA -->
-      <map code="0x99f" name="uni099F"/><!-- BENGALI LETTER TTA -->
-      <map code="0x9bb" name="uni09BB"/><!-- ???? -->
-      <map code="0x9bc" name="uni09BC"/><!-- BENGALI SIGN NUKTA -->
-      <map code="0x9bd" name="uni09BD"/><!-- BENGALI SIGN AVAGRAHA -->
-      <map code="0x9bf" name="uni09BF"/><!-- BENGALI VOWEL SIGN I -->
-      <map code="0x9c0" name="uni09C0"/><!-- BENGALI VOWEL SIGN II -->
-      <map code="0x9c1" name="uni09C1"/><!-- BENGALI VOWEL SIGN U -->
-      <map code="0x9c3" name="uni09C3"/><!-- BENGALI VOWEL SIGN VOCALIC R -->
-      <map code="0x9c4" name="uni09C4"/><!-- BENGALI VOWEL SIGN VOCALIC RR -->
-      <map code="0x9c5" name="uni09C5"/><!-- ???? -->
-      <map code="0x9c9" name="uni09C9"/><!-- ???? -->
-      <map code="0x9cc" name="uni09CC"/><!-- BENGALI VOWEL SIGN AU -->
       <map code="0x9cd" name="uni09CD"/><!-- BENGALI SIGN VIRAMA -->
-      <map code="0x9ce" name="uni09CE"/><!-- BENGALI LETTER KHANDA TA -->
-      <map code="0x9d8" name="uni09D8"/><!-- ???? -->
-      <map code="0x9e1" name="uni09E1"/><!-- BENGALI LETTER VOCALIC LL -->
-      <map code="0x9e2" name="uni09E2"/><!-- BENGALI VOWEL SIGN VOCALIC L -->
-      <map code="0x9e3" name="uni09E3"/><!-- BENGALI VOWEL SIGN VOCALIC LL -->
-      <map code="0x9e4" name="uni09E4"/><!-- ???? -->
-      <map code="0x9f1" name="uni09F1"/><!-- BENGALI LETTER RA WITH LOWER DIAGONAL -->
-      <map code="0x9fd" name="uni09FD"/><!-- BENGALI ABBREVIATION SIGN -->
-      <map code="0x9fe" name="uni09FE"/><!-- BENGALI SANDHI MARK -->
       <map code="0x9ff" name="uni09FF"/><!-- ???? -->
-      <map code="0xa00" name="uni0A00"/><!-- ???? -->
-      <map code="0xa01" name="uni0A01"/><!-- GURMUKHI SIGN ADAK BINDI -->
-      <map code="0xa02" name="uni0A02"/><!-- GURMUKHI SIGN BINDI -->
-      <map code="0xa03" name="uni0A03"/><!-- GURMUKHI SIGN VISARGA -->
-      <map code="0xa1f" name="uni0A1F"/><!-- GURMUKHI LETTER TTA -->
-      <map code="0xa3b" name="uni0A3B"/><!-- ???? -->
-      <map code="0xa3c" name="uni0A3C"/><!-- GURMUKHI SIGN NUKTA -->
-      <map code="0xa3d" name="uni0A3D"/><!-- ???? -->
-      <map code="0xa3f" name="uni0A3F"/><!-- GURMUKHI VOWEL SIGN I -->
-      <map code="0xa40" name="uni0A40"/><!-- GURMUKHI VOWEL SIGN II -->
-      <map code="0xa41" name="uni0A41"/><!-- GURMUKHI VOWEL SIGN U -->
-      <map code="0xa49" name="uni0A49"/><!-- ???? -->
       <map code="0xa51" name="uni0A51"/><!-- GURMUKHI SIGN UDAAT -->
-      <map code="0xa52" name="uni0A52"/><!-- ???? -->
-      <map code="0xa61" name="uni0A61"/><!-- ???? -->
-      <map code="0xa6f" name="uni0A6F"/><!-- GURMUKHI DIGIT NINE -->
-      <map code="0xa70" name="uni0A70"/><!-- GURMUKHI TIPPI -->
-      <map code="0xa71" name="uni0A71"/><!-- GURMUKHI ADDAK -->
-      <map code="0xa72" name="uni0A72"/><!-- GURMUKHI IRI -->
-      <map code="0xa73" name="uni0A73"/><!-- GURMUKHI URA -->
-      <map code="0xa74" name="uni0A74"/><!-- GURMUKHI EK ONKAR -->
-      <map code="0xa75" name="uni0A75"/><!-- GURMUKHI SIGN YAKASH -->
-      <map code="0xa76" name="uni0A76"/><!-- GURMUKHI ABBREVIATION SIGN -->
-      <map code="0xa7b" name="uni0A7B"/><!-- ???? -->
       <map code="0xa7f" name="uni0A7F"/><!-- ???? -->
-      <map code="0xa80" name="uni0A80"/><!-- ???? -->
-      <map code="0xa81" name="uni0A81"/><!-- GUJARATI SIGN CANDRABINDU -->
-      <map code="0xa82" name="uni0A82"/><!-- GUJARATI SIGN ANUSVARA -->
-      <map code="0xa83" name="uni0A83"/><!-- GUJARATI SIGN VISARGA -->
-      <map code="0xa9f" name="uni0A9F"/><!-- GUJARATI LETTER TTA -->
-      <map code="0xabb" name="uni0ABB"/><!-- ???? -->
-      <map code="0xabc" name="uni0ABC"/><!-- GUJARATI SIGN NUKTA -->
-      <map code="0xabd" name="uni0ABD"/><!-- GUJARATI SIGN AVAGRAHA -->
-      <map code="0xabf" name="uni0ABF"/><!-- GUJARATI VOWEL SIGN I -->
-      <map code="0xac0" name="uni0AC0"/><!-- GUJARATI VOWEL SIGN II -->
-      <map code="0xac1" name="uni0AC1"/><!-- GUJARATI VOWEL SIGN U -->
-      <map code="0xac5" name="uni0AC5"/><!-- GUJARATI VOWEL SIGN CANDRA E -->
-      <map code="0xac8" name="uni0AC8"/><!-- GUJARATI VOWEL SIGN AI -->
-      <map code="0xac9" name="uni0AC9"/><!-- GUJARATI VOWEL SIGN CANDRA O -->
-      <map code="0xacb" name="uni0ACB"/><!-- GUJARATI VOWEL SIGN O -->
-      <map code="0xacc" name="uni0ACC"/><!-- GUJARATI VOWEL SIGN AU -->
       <map code="0xacd" name="uni0ACD"/><!-- GUJARATI SIGN VIRAMA -->
-      <map code="0xace" name="uni0ACE"/><!-- ???? -->
-      <map code="0xad8" name="uni0AD8"/><!-- ???? -->
-      <map code="0xae1" name="uni0AE1"/><!-- GUJARATI LETTER VOCALIC LL -->
-      <map code="0xae2" name="uni0AE2"/><!-- GUJARATI VOWEL SIGN VOCALIC L -->
-      <map code="0xae3" name="uni0AE3"/><!-- GUJARATI VOWEL SIGN VOCALIC LL -->
-      <map code="0xae4" name="uni0AE4"/><!-- ???? -->
-      <map code="0xaef" name="uni0AEF"/><!-- GUJARATI DIGIT NINE -->
-      <map code="0xaf9" name="uni0AF9"/><!-- GUJARATI LETTER ZHA -->
-      <map code="0xafa" name="uni0AFA"/><!-- GUJARATI SIGN SUKUN -->
-      <map code="0xafd" name="uni0AFD"/><!-- GUJARATI SIGN THREE-DOT NUKTA ABOVE -->
       <map code="0xaff" name="uni0AFF"/><!-- GUJARATI SIGN TWO-CIRCLE NUKTA ABOVE -->
-      <map code="0xb00" name="uni0B00"/><!-- ???? -->
-      <map code="0xb01" name="uni0B01"/><!-- ORIYA SIGN CANDRABINDU -->
-      <map code="0xb02" name="uni0B02"/><!-- ORIYA SIGN ANUSVARA -->
-      <map code="0xb03" name="uni0B03"/><!-- ORIYA SIGN VISARGA -->
-      <map code="0xb1f" name="uni0B1F"/><!-- ORIYA LETTER TTA -->
-      <map code="0xb3b" name="uni0B3B"/><!-- ???? -->
-      <map code="0xb3c" name="uni0B3C"/><!-- ORIYA SIGN NUKTA -->
-      <map code="0xb3d" name="uni0B3D"/><!-- ORIYA SIGN AVAGRAHA -->
-      <map code="0xb3e" name="uni0B3E"/><!-- ORIYA VOWEL SIGN AA -->
-      <map code="0xb3f" name="uni0B3F"/><!-- ORIYA VOWEL SIGN I -->
-      <map code="0xb40" name="uni0B40"/><!-- ORIYA VOWEL SIGN II -->
-      <map code="0xb41" name="uni0B41"/><!-- ORIYA VOWEL SIGN U -->
-      <map code="0xb43" name="uni0B43"/><!-- ORIYA VOWEL SIGN VOCALIC R -->
       <map code="0xb44" name="uni0B44"/><!-- ORIYA VOWEL SIGN VOCALIC RR -->
-      <map code="0xb45" name="uni0B45"/><!-- ???? -->
-      <map code="0xb49" name="uni0B49"/><!-- ???? -->
-      <map code="0xb4c" name="uni0B4C"/><!-- ORIYA VOWEL SIGN AU -->
-      <map code="0xb4d" name="uni0B4D"/><!-- ORIYA SIGN VIRAMA -->
-      <map code="0xb52" name="uni0B52"/><!-- ???? -->
-      <map code="0xb56" name="uni0B56"/><!-- ORIYA AI LENGTH MARK -->
-      <map code="0xb57" name="uni0B57"/><!-- ORIYA AU LENGTH MARK -->
-      <map code="0xb5c" name="uni0B5C"/><!-- ORIYA LETTER RRA -->
-      <map code="0xb61" name="uni0B61"/><!-- ORIYA LETTER VOCALIC LL -->
-      <map code="0xb62" name="uni0B62"/><!-- ORIYA VOWEL SIGN VOCALIC L -->
-      <map code="0xb63" name="uni0B63"/><!-- ORIYA VOWEL SIGN VOCALIC LL -->
-      <map code="0xb64" name="uni0B64"/><!-- ???? -->
-      <map code="0xb72" name="uni0B72"/><!-- ORIYA FRACTION ONE QUARTER -->
       <map code="0xb7f" name="uni0B7F"/><!-- ???? -->
-      <map code="0xb80" name="uni0B80"/><!-- ???? -->
-      <map code="0xb81" name="uni0B81"/><!-- ???? -->
-      <map code="0xb82" name="uni0B82"/><!-- TAMIL SIGN ANUSVARA -->
-      <map code="0xb83" name="uni0B83"/><!-- TAMIL SIGN VISARGA -->
-      <map code="0xba1" name="uni0BA1"/><!-- ???? -->
-      <map code="0xbbf" name="uni0BBF"/><!-- TAMIL VOWEL SIGN I -->
-      <map code="0xbc0" name="uni0BC0"/><!-- TAMIL VOWEL SIGN II -->
-      <map code="0xbc1" name="uni0BC1"/><!-- TAMIL VOWEL SIGN U -->
       <map code="0xbc2" name="uni0BC2"/><!-- TAMIL VOWEL SIGN UU -->
-      <map code="0xbc3" name="uni0BC3"/><!-- ???? -->
-      <map code="0xbc8" name="uni0BC8"/><!-- TAMIL VOWEL SIGN AI -->
-      <map code="0xbcc" name="uni0BCC"/><!-- TAMIL VOWEL SIGN AU -->
-      <map code="0xbcd" name="uni0BCD"/><!-- TAMIL SIGN VIRAMA -->
-      <map code="0xbce" name="uni0BCE"/><!-- ???? -->
-      <map code="0xbe7" name="uni0BE7"/><!-- TAMIL DIGIT ONE -->
       <map code="0xbff" name="uni0BFF"/><!-- ???? -->
-      <map code="0xc00" name="uni0C00"/><!-- TELUGU SIGN COMBINING CANDRABINDU ABOVE -->
-      <map code="0xc01" name="uni0C01"/><!-- TELUGU SIGN CANDRABINDU -->
-      <map code="0xc02" name="uni0C02"/><!-- TELUGU SIGN ANUSVARA -->
-      <map code="0xc03" name="uni0C03"/><!-- TELUGU SIGN VISARGA -->
-      <map code="0xc04" name="uni0C04"/><!-- TELUGU SIGN COMBINING ANUSVARA ABOVE -->
-      <map code="0xc05" name="uni0C05"/><!-- TELUGU LETTER A -->
-      <map code="0xc21" name="uni0C21"/><!-- TELUGU LETTER DDA -->
-      <map code="0xc3d" name="uni0C3D"/><!-- TELUGU SIGN AVAGRAHA -->
-      <map code="0xc3e" name="uni0C3E"/><!-- TELUGU VOWEL SIGN AA -->
-      <map code="0xc3f" name="uni0C3F"/><!-- TELUGU VOWEL SIGN I -->
       <map code="0xc40" name="uni0C40"/><!-- TELUGU VOWEL SIGN II -->
-      <map code="0xc41" name="uni0C41"/><!-- TELUGU VOWEL SIGN U -->
-      <map code="0xc43" name="uni0C43"/><!-- TELUGU VOWEL SIGN VOCALIC R -->
-      <map code="0xc45" name="uni0C45"/><!-- ???? -->
-      <map code="0xc46" name="uni0C46"/><!-- TELUGU VOWEL SIGN E -->
-      <map code="0xc4e" name="uni0C4E"/><!-- ???? -->
-      <map code="0xc56" name="uni0C56"/><!-- TELUGU AI LENGTH MARK -->
-      <map code="0xc57" name="uni0C57"/><!-- ???? -->
-      <map code="0xc5c" name="uni0C5C"/><!-- ???? -->
-      <map code="0xc61" name="uni0C61"/><!-- TELUGU LETTER VOCALIC LL -->
-      <map code="0xc62" name="uni0C62"/><!-- TELUGU VOWEL SIGN VOCALIC L -->
-      <map code="0xc63" name="uni0C63"/><!-- TELUGU VOWEL SIGN VOCALIC LL -->
-      <map code="0xc64" name="uni0C64"/><!-- ???? -->
-      <map code="0xc72" name="uni0C72"/><!-- ???? -->
       <map code="0xc7f" name="uni0C7F"/><!-- TELUGU SIGN TUUMU -->
-      <map code="0xc80" name="uni0C80"/><!-- KANNADA SIGN SPACING CANDRABINDU -->
-      <map code="0xc81" name="uni0C81"/><!-- KANNADA SIGN CANDRABINDU -->
-      <map code="0xc82" name="uni0C82"/><!-- KANNADA SIGN ANUSVARA -->
-      <map code="0xc9f" name="uni0C9F"/><!-- KANNADA LETTER TTA -->
-      <map code="0xcbb" name="uni0CBB"/><!-- ???? -->
-      <map code="0xcbc" name="uni0CBC"/><!-- KANNADA SIGN NUKTA -->
-      <map code="0xcbd" name="uni0CBD"/><!-- KANNADA SIGN AVAGRAHA -->
-      <map code="0xcbe" name="uni0CBE"/><!-- KANNADA VOWEL SIGN AA -->
-      <map code="0xcbf" name="uni0CBF"/><!-- KANNADA VOWEL SIGN I -->
-      <map code="0xcc0" name="uni0CC0"/><!-- KANNADA VOWEL SIGN II -->
-      <map code="0xcc3" name="uni0CC3"/><!-- KANNADA VOWEL SIGN VOCALIC R -->
-      <map code="0xcc5" name="uni0CC5"/><!-- ???? -->
       <map code="0xcc6" name="uni0CC6"/><!-- KANNADA VOWEL SIGN E -->
-      <map code="0xcc7" name="uni0CC7"/><!-- KANNADA VOWEL SIGN EE -->
-      <map code="0xcc9" name="uni0CC9"/><!-- ???? -->
-      <map code="0xccb" name="uni0CCB"/><!-- KANNADA VOWEL SIGN OO -->
-      <map code="0xccc" name="uni0CCC"/><!-- KANNADA VOWEL SIGN AU -->
-      <map code="0xccd" name="uni0CCD"/><!-- KANNADA SIGN VIRAMA -->
-      <map code="0xcce" name="uni0CCE"/><!-- ???? -->
-      <map code="0xcd8" name="uni0CD8"/><!-- ???? -->
-      <map code="0xce1" name="uni0CE1"/><!-- KANNADA LETTER VOCALIC LL -->
-      <map code="0xce2" name="uni0CE2"/><!-- KANNADA VOWEL SIGN VOCALIC L -->
-      <map code="0xce3" name="uni0CE3"/><!-- KANNADA VOWEL SIGN VOCALIC LL -->
-      <map code="0xce4" name="uni0CE4"/><!-- ???? -->
-      <map code="0xcf2" name="uni0CF2"/><!-- KANNADA SIGN UPADHMANIYA -->
       <map code="0xcff" name="uni0CFF"/><!-- ???? -->
-      <map code="0xd00" name="uni0D00"/><!-- MALAYALAM SIGN COMBINING ANUSVARA ABOVE -->
-      <map code="0xd01" name="uni0D01"/><!-- MALAYALAM SIGN CANDRABINDU -->
-      <map code="0xd02" name="uni0D02"/><!-- MALAYALAM SIGN ANUSVARA -->
-      <map code="0xd1e" name="uni0D1E"/><!-- MALAYALAM LETTER NYA -->
-      <map code="0xd3a" name="uni0D3A"/><!-- MALAYALAM LETTER TTTA -->
-      <map code="0xd3b" name="uni0D3B"/><!-- MALAYALAM SIGN VERTICAL BAR VIRAMA -->
-      <map code="0xd3c" name="uni0D3C"/><!-- MALAYALAM SIGN CIRCULAR VIRAMA -->
-      <map code="0xd3d" name="uni0D3D"/><!-- MALAYALAM SIGN AVAGRAHA -->
-      <map code="0xd45" name="uni0D45"/><!-- ???? -->
-      <map code="0xd4c" name="uni0D4C"/><!-- MALAYALAM VOWEL SIGN AU -->
-      <map code="0xd4d" name="uni0D4D"/><!-- MALAYALAM SIGN VIRAMA -->
       <map code="0xd4e" name="uni0D4E"/><!-- MALAYALAM LETTER DOT REPH -->
-      <map code="0xd4f" name="uni0D4F"/><!-- MALAYALAM SIGN PARA -->
-      <map code="0xd58" name="uni0D58"/><!-- MALAYALAM FRACTION ONE ONE-HUNDRED-AND-SIXTIETH -->
-      <map code="0xd61" name="uni0D61"/><!-- MALAYALAM LETTER VOCALIC LL -->
-      <map code="0xd62" name="uni0D62"/><!-- MALAYALAM VOWEL SIGN VOCALIC L -->
-      <map code="0xd63" name="uni0D63"/><!-- MALAYALAM VOWEL SIGN VOCALIC LL -->
-      <map code="0xd64" name="uni0D64"/><!-- ???? -->
-      <map code="0xd72" name="uni0D72"/><!-- MALAYALAM NUMBER ONE THOUSAND -->
       <map code="0xd7f" name="uni0D7F"/><!-- MALAYALAM LETTER CHILLU K -->
-      <map code="0xd80" name="uni0D80"/><!-- ???? -->
-      <map code="0xda5" name="uni0DA5"/><!-- SINHALA LETTER TAALUJA SANYOOGA NAAKSIKYAYA -->
-      <map code="0xdc9" name="uni0DC9"/><!-- ???? -->
-      <map code="0xdca" name="uni0DCA"/><!-- SINHALA SIGN AL-LAKUNA -->
-      <map code="0xdcb" name="uni0DCB"/><!-- ???? -->
-      <map code="0xdce" name="uni0DCE"/><!-- ???? -->
-      <map code="0xdd1" name="uni0DD1"/><!-- SINHALA VOWEL SIGN DIGA AEDA-PILLA -->
-      <map code="0xdd2" name="uni0DD2"/><!-- SINHALA VOWEL SIGN KETTI IS-PILLA -->
-      <map code="0xdd4" name="uni0DD4"/><!-- SINHALA VOWEL SIGN KETTI PAA-PILLA -->
       <map code="0xdd6" name="uni0DD6"/><!-- SINHALA VOWEL SIGN DIGA PAA-PILLA -->
-      <map code="0xdd7" name="uni0DD7"/><!-- ???? -->
-      <map code="0xdeb" name="uni0DEB"/><!-- SINHALA LITH DIGIT FIVE -->
       <map code="0xdff" name="uni0DFF"/><!-- ???? -->
-      <map code="0xe00" name="uni0E00"/><!-- ???? -->
-      <map code="0xe18" name="uni0E18"/><!-- THAI CHARACTER THO THONG -->
-      <map code="0xe30" name="uni0E30"/><!-- THAI CHARACTER SARA A -->
-      <map code="0xe31" name="uni0E31"/><!-- THAI CHARACTER MAI HAN-AKAT -->
-      <map code="0xe32" name="uni0E32"/><!-- THAI CHARACTER SARA AA -->
-      <map code="0xe33" name="uni0E33"/><!-- THAI CHARACTER SARA AM -->
-      <map code="0xe34" name="uni0E34"/><!-- THAI CHARACTER SARA I -->
-      <map code="0xe37" name="uni0E37"/><!-- THAI CHARACTER SARA UEE -->
       <map code="0xe3a" name="uni0E3A"/><!-- THAI CHARACTER PHINTHU -->
-      <map code="0xe3b" name="uni0E3B"/><!-- ???? -->
-      <map code="0xe41" name="uni0E41"/><!-- THAI CHARACTER SARA AE -->
-      <map code="0xe46" name="uni0E46"/><!-- THAI CHARACTER MAIYAMOK -->
-      <map code="0xe47" name="uni0E47"/><!-- THAI CHARACTER MAITAIKHU -->
-      <map code="0xe4b" name="uni0E4B"/><!-- THAI CHARACTER MAI CHATTAWA -->
-      <map code="0xe4e" name="uni0E4E"/><!-- THAI CHARACTER YAMAKKAN -->
-      <map code="0xe4f" name="uni0E4F"/><!-- THAI CHARACTER FONGMAN -->
-      <map code="0xe67" name="uni0E67"/><!-- ???? -->
       <map code="0xe7f" name="uni0E7F"/><!-- ???? -->
-      <map code="0xe80" name="uni0E80"/><!-- ???? -->
-      <map code="0xe98" name="uni0E98"/><!-- LAO LETTER PALI DHA -->
-      <map code="0xeb0" name="uni0EB0"/><!-- LAO VOWEL SIGN A -->
-      <map code="0xeb1" name="uni0EB1"/><!-- LAO VOWEL SIGN MAI KAN -->
-      <map code="0xeb2" name="uni0EB2"/><!-- LAO VOWEL SIGN AA -->
-      <map code="0xeb3" name="uni0EB3"/><!-- LAO VOWEL SIGN AM -->
-      <map code="0xeb4" name="uni0EB4"/><!-- LAO VOWEL SIGN I -->
-      <map code="0xeb8" name="uni0EB8"/><!-- LAO VOWEL SIGN U -->
       <map code="0xebc" name="uni0EBC"/><!-- LAO SEMIVOWEL SIGN LO -->
-      <map code="0xebd" name="uni0EBD"/><!-- LAO SEMIVOWEL SIGN NYO -->
-      <map code="0xec2" name="uni0EC2"/><!-- LAO VOWEL SIGN O -->
-      <map code="0xec7" name="uni0EC7"/><!-- ???? -->
-      <map code="0xec8" name="uni0EC8"/><!-- LAO TONE MAI EK -->
-      <map code="0xecb" name="uni0ECB"/><!-- LAO TONE MAI CATAWA -->
-      <map code="0xecd" name="uni0ECD"/><!-- LAO NIGGAHITA -->
-      <map code="0xece" name="uni0ECE"/><!-- LAO YAMAKKAN -->
-      <map code="0xee7" name="uni0EE7"/><!-- ???? -->
       <map code="0xeff" name="uni0EFF"/><!-- ???? -->
-      <map code="0xf00" name="uni0F00"/><!-- TIBETAN SYLLABLE OM -->
-      <map code="0xf0c" name="uni0F0C"/><!-- TIBETAN MARK DELIMITER TSHEG BSTAR -->
-      <map code="0xf17" name="uni0F17"/><!-- TIBETAN ASTROLOGICAL SIGN SGRA GCAN -CHAR RTAGS -->
-      <map code="0xf18" name="uni0F18"/><!-- TIBETAN ASTROLOGICAL SIGN -KHYUD PA -->
-      <map code="0xf19" name="uni0F19"/><!-- TIBETAN ASTROLOGICAL SIGN SDONG TSHUGS -->
-      <map code="0xf1a" name="uni0F1A"/><!-- TIBETAN SIGN RDEL DKAR GCIG -->
-      <map code="0xf27" name="uni0F27"/><!-- TIBETAN DIGIT SEVEN -->
-      <map code="0xf34" name="uni0F34"/><!-- TIBETAN MARK BSDUS RTAGS -->
-      <map code="0xf35" name="uni0F35"/><!-- TIBETAN MARK NGAS BZUNG NYI ZLA -->
-      <map code="0xf36" name="uni0F36"/><!-- TIBETAN MARK CARET -DZUD RTAGS BZHI MIG CAN -->
-      <map code="0xf37" name="uni0F37"/><!-- TIBETAN MARK NGAS BZUNG SGOR RTAGS -->
-      <map code="0xf38" name="uni0F38"/><!-- TIBETAN MARK CHE MGO -->
-      <map code="0xf39" name="uni0F39"/><!-- TIBETAN MARK TSA -PHRU -->
-      <map code="0xf3a" name="uni0F3A"/><!-- TIBETAN MARK GUG RTAGS GYON -->
-      <map code="0xf3c" name="uni0F3C"/><!-- TIBETAN MARK ANG KHANG GYON -->
-      <map code="0xf3d" name="uni0F3D"/><!-- TIBETAN MARK ANG KHANG GYAS -->
-      <map code="0xf3e" name="uni0F3E"/><!-- TIBETAN SIGN YAR TSHES -->
       <map code="0xf3f" name="uni0F3F"/><!-- TIBETAN SIGN MAR TSHES -->
-      <map code="0xf40" name="uni0F40"/><!-- TIBETAN LETTER KA -->
-      <map code="0xf58" name="uni0F58"/><!-- TIBETAN LETTER MA -->
-      <map code="0xf70" name="uni0F70"/><!-- ???? -->
-      <map code="0xf71" name="uni0F71"/><!-- TIBETAN VOWEL SIGN AA -->
-      <map code="0xf78" name="uni0F78"/><!-- TIBETAN VOWEL SIGN VOCALIC L -->
-      <map code="0xf7e" name="uni0F7E"/><!-- TIBETAN SIGN RJES SU NGA RO -->
-      <map code="0xf7f" name="uni0F7F"/><!-- TIBETAN SIGN RNAM BCAD -->
-      <map code="0xf80" name="uni0F80"/><!-- TIBETAN VOWEL SIGN REVERSED I -->
-      <map code="0xf82" name="uni0F82"/><!-- TIBETAN SIGN NYI ZLA NAA DA -->
-      <map code="0xf84" name="uni0F84"/><!-- TIBETAN MARK HALANTA -->
-      <map code="0xf85" name="uni0F85"/><!-- TIBETAN MARK PALUTA -->
-      <map code="0xf86" name="uni0F86"/><!-- TIBETAN SIGN LCI RTAGS -->
-      <map code="0xf87" name="uni0F87"/><!-- TIBETAN SIGN YANG RTAGS -->
-      <map code="0xf88" name="uni0F88"/><!-- TIBETAN SIGN LCE TSA CAN -->
-      <map code="0xf8a" name="uni0F8A"/><!-- TIBETAN SIGN GRU CAN RGYINGS -->
-      <map code="0xf8c" name="uni0F8C"/><!-- TIBETAN SIGN INVERTED MCHU CAN -->
-      <map code="0xf8d" name="uni0F8D"/><!-- TIBETAN SUBJOINED SIGN LCE TSA CAN -->
-      <map code="0xfa5" name="uni0FA5"/><!-- TIBETAN SUBJOINED LETTER PHA -->
-      <map code="0xfbc" name="uni0FBC"/><!-- TIBETAN SUBJOINED LETTER FIXED-FORM RA -->
-      <map code="0xfbd" name="uni0FBD"/><!-- ???? -->
-      <map code="0xfde" name="uni0FDE"/><!-- ???? -->
       <map code="0xfff" name="uni0FFF"/><!-- ???? -->
-      <map code="0x1000" name="uni1000"/><!-- MYANMAR LETTER KA -->
-      <map code="0x1016" name="uni1016"/><!-- MYANMAR LETTER PHA -->
-      <map code="0x102c" name="uni102C"/><!-- MYANMAR VOWEL SIGN AA -->
-      <map code="0x102d" name="uni102D"/><!-- MYANMAR VOWEL SIGN I -->
-      <map code="0x102f" name="uni102F"/><!-- MYANMAR VOWEL SIGN U -->
-      <map code="0x1030" name="uni1030"/><!-- MYANMAR VOWEL SIGN UU -->
-      <map code="0x1031" name="uni1031"/><!-- MYANMAR VOWEL SIGN E -->
-      <map code="0x1032" name="uni1032"/><!-- MYANMAR VOWEL SIGN AI -->
-      <map code="0x1035" name="uni1035"/><!-- MYANMAR VOWEL SIGN E ABOVE -->
-      <map code="0x1037" name="uni1037"/><!-- MYANMAR SIGN DOT BELOW -->
-      <map code="0x1038" name="uni1038"/><!-- MYANMAR SIGN VISARGA -->
-      <map code="0x1039" name="uni1039"/><!-- MYANMAR SIGN VIRAMA -->
-      <map code="0x103a" name="uni103A"/><!-- MYANMAR SIGN ASAT -->
-      <map code="0x103b" name="uni103B"/><!-- MYANMAR CONSONANT SIGN MEDIAL YA -->
-      <map code="0x103c" name="uni103C"/><!-- MYANMAR CONSONANT SIGN MEDIAL RA -->
-      <map code="0x103d" name="uni103D"/><!-- MYANMAR CONSONANT SIGN MEDIAL WA -->
-      <map code="0x103e" name="uni103E"/><!-- MYANMAR CONSONANT SIGN MEDIAL HA -->
-      <map code="0x103f" name="uni103F"/><!-- MYANMAR LETTER GREAT SA -->
-      <map code="0x104b" name="uni104B"/><!-- MYANMAR SIGN SECTION -->
-      <map code="0x1057" name="uni1057"/><!-- MYANMAR VOWEL SIGN VOCALIC RR -->
-      <map code="0x1058" name="uni1058"/><!-- MYANMAR VOWEL SIGN VOCALIC L -->
-      <map code="0x1059" name="uni1059"/><!-- MYANMAR VOWEL SIGN VOCALIC LL -->
-      <map code="0x105a" name="uni105A"/><!-- MYANMAR LETTER MON NGA -->
-      <map code="0x105c" name="uni105C"/><!-- MYANMAR LETTER MON BBA -->
-      <map code="0x105d" name="uni105D"/><!-- MYANMAR LETTER MON BBE -->
-      <map code="0x105e" name="uni105E"/><!-- MYANMAR CONSONANT SIGN MON MEDIAL NA -->
-      <map code="0x105f" name="uni105F"/><!-- MYANMAR CONSONANT SIGN MON MEDIAL MA -->
-      <map code="0x1060" name="uni1060"/><!-- MYANMAR CONSONANT SIGN MON MEDIAL LA -->
-      <map code="0x1061" name="uni1061"/><!-- MYANMAR LETTER SGAW KAREN SHA -->
-      <map code="0x1069" name="uni1069"/><!-- MYANMAR SIGN WESTERN PWO KAREN TONE-1 -->
-      <map code="0x1070" name="uni1070"/><!-- MYANMAR LETTER EASTERN PWO KAREN GHWA -->
-      <map code="0x1071" name="uni1071"/><!-- MYANMAR VOWEL SIGN GEBA KAREN I -->
-      <map code="0x1073" name="uni1073"/><!-- MYANMAR VOWEL SIGN KAYAH U -->
       <map code="0x1074" name="uni1074"/><!-- MYANMAR VOWEL SIGN KAYAH EE -->
-      <map code="0x1075" name="uni1075"/><!-- MYANMAR LETTER SHAN KA -->
-      <map code="0x107b" name="uni107B"/><!-- MYANMAR LETTER SHAN DA -->
-      <map code="0x1081" name="uni1081"/><!-- MYANMAR LETTER SHAN HA -->
-      <map code="0x1082" name="uni1082"/><!-- MYANMAR CONSONANT SIGN SHAN MEDIAL WA -->
-      <map code="0x1083" name="uni1083"/><!-- MYANMAR VOWEL SIGN SHAN AA -->
-      <map code="0x1084" name="uni1084"/><!-- MYANMAR VOWEL SIGN SHAN E -->
-      <map code="0x1085" name="uni1085"/><!-- MYANMAR VOWEL SIGN SHAN E ABOVE -->
-      <map code="0x1086" name="uni1086"/><!-- MYANMAR VOWEL SIGN SHAN FINAL Y -->
-      <map code="0x1087" name="uni1087"/><!-- MYANMAR SIGN SHAN TONE-2 -->
-      <map code="0x108a" name="uni108A"/><!-- MYANMAR SIGN SHAN TONE-6 -->
-      <map code="0x108c" name="uni108C"/><!-- MYANMAR SIGN SHAN COUNCIL TONE-3 -->
-      <map code="0x108d" name="uni108D"/><!-- MYANMAR SIGN SHAN COUNCIL EMPHATIC TONE -->
-      <map code="0x108e" name="uni108E"/><!-- MYANMAR LETTER RUMAI PALAUNG FA -->
-      <map code="0x1097" name="uni1097"/><!-- MYANMAR SHAN DIGIT SEVEN -->
-      <map code="0x109f" name="uni109F"/><!-- MYANMAR SYMBOL SHAN EXCLAMATION -->
-      <map code="0x10a0" name="uni10A0"/><!-- GEORGIAN CAPITAL LETTER AN -->
-      <map code="0x10b7" name="uni10B7"/><!-- GEORGIAN CAPITAL LETTER QAR -->
-      <map code="0x10cd" name="uni10CD"/><!-- GEORGIAN CAPITAL LETTER AEN -->
-      <map code="0x10d0" name="uni10D0"/><!-- GEORGIAN LETTER AN -->
-      <map code="0x10e8" name="uni10E8"/><!-- GEORGIAN LETTER SHIN -->
-      <map code="0x10ff" name="uni10FF"/><!-- GEORGIAN LETTER LABIAL SIGN -->
-      <map code="0x1100" name="uni1100"/><!-- HANGUL CHOSEONG KIYEOK -->
-      <map code="0x1180" name="uni1180"/><!-- HANGUL JUNGSEONG O-E -->
-      <map code="0x11ff" name="uni11FF"/><!-- HANGUL JONGSEONG SSANGNIEUN -->
-      <map code="0x1200" name="uni1200"/><!-- ETHIOPIC SYLLABLE HA -->
-      <map code="0x12ae" name="uni12AE"/><!-- ETHIOPIC SYLLABLE KO -->
-      <map code="0x135c" name="uni135C"/><!-- ???? -->
-      <map code="0x135d" name="uni135D"/><!-- ETHIOPIC COMBINING GEMINATION AND VOWEL LENGTH MARK -->
-      <map code="0x135e" name="uni135E"/><!-- ETHIOPIC COMBINING VOWEL LENGTH MARK -->
       <map code="0x135f" name="uni135F"/><!-- ETHIOPIC COMBINING GEMINATION MARK -->
-      <map code="0x1360" name="uni1360"/><!-- ETHIOPIC SECTION MARK -->
-      <map code="0x1370" name="uni1370"/><!-- ETHIOPIC DIGIT EIGHT -->
-      <map code="0x137f" name="uni137F"/><!-- ???? -->
-      <map code="0x1380" name="uni1380"/><!-- ETHIOPIC SYLLABLE SEBATBEIT MWA -->
-      <map code="0x1390" name="uni1390"/><!-- ETHIOPIC TONAL MARK YIZET -->
-      <map code="0x139f" name="uni139F"/><!-- ???? -->
-      <map code="0x13a0" name="uni13A0"/><!-- CHEROKEE LETTER A -->
-      <map code="0x13d0" name="uni13D0"/><!-- CHEROKEE LETTER SO -->
-      <map code="0x13ff" name="uni13FF"/><!-- ???? -->
-      <map code="0x1400" name="uni1400"/><!-- CANADIAN SYLLABICS HYPHEN -->
-      <map code="0x1540" name="uni1540"/><!-- CANADIAN SYLLABICS WEST-CREE Y -->
-      <map code="0x167f" name="uni167F"/><!-- CANADIAN SYLLABICS BLACKFOOT W -->
-      <map code="0x1740" name="uni1740"/><!-- BUHID LETTER A -->
-      <map code="0x1749" name="uni1749"/><!-- BUHID LETTER PA -->
-      <map code="0x1751" name="uni1751"/><!-- BUHID LETTER HA -->
-      <map code="0x1752" name="uni1752"/><!-- BUHID VOWEL SIGN I -->
       <map code="0x1753" name="uni1753"/><!-- BUHID VOWEL SIGN U -->
-      <map code="0x1754" name="uni1754"/><!-- ???? -->
-      <map code="0x175a" name="uni175A"/><!-- ???? -->
       <map code="0x175f" name="uni175F"/><!-- ???? -->
-      <map code="0x1780" name="uni1780"/><!-- KHMER LETTER KA -->
-      <map code="0x179b" name="uni179B"/><!-- KHMER LETTER LO -->
-      <map code="0x17b6" name="uni17B6"/><!-- KHMER VOWEL SIGN AA -->
-      <map code="0x17b7" name="uni17B7"/><!-- KHMER VOWEL SIGN I -->
-      <map code="0x17ba" name="uni17BA"/><!-- KHMER VOWEL SIGN YY -->
-      <map code="0x17bd" name="uni17BD"/><!-- KHMER VOWEL SIGN UA -->
-      <map code="0x17be" name="uni17BE"/><!-- KHMER VOWEL SIGN OE -->
-      <map code="0x17c2" name="uni17C2"/><!-- KHMER VOWEL SIGN AE -->
-      <map code="0x17c5" name="uni17C5"/><!-- KHMER VOWEL SIGN AU -->
-      <map code="0x17c6" name="uni17C6"/><!-- KHMER SIGN NIKAHIT -->
-      <map code="0x17c7" name="uni17C7"/><!-- KHMER SIGN REAHMUK -->
-      <map code="0x17c8" name="uni17C8"/><!-- KHMER SIGN YUUKALEAPINTU -->
-      <map code="0x17c9" name="uni17C9"/><!-- KHMER SIGN MUUSIKATOAN -->
-      <map code="0x17ce" name="uni17CE"/><!-- KHMER SIGN KAKABAT -->
       <map code="0x17d3" name="uni17D3"/><!-- KHMER SIGN BATHAMASAT -->
-      <map code="0x17d4" name="uni17D4"/><!-- KHMER SIGN KHAN -->
-      <map code="0x17d8" name="uni17D8"/><!-- KHMER SIGN BEYYAL -->
-      <map code="0x17dc" name="uni17DC"/><!-- KHMER SIGN AVAKRAHASANYA -->
-      <map code="0x17dd" name="uni17DD"/><!-- KHMER SIGN ATTHACAN -->
-      <map code="0x17de" name="uni17DE"/><!-- ???? -->
-      <map code="0x17ef" name="uni17EF"/><!-- ???? -->
       <map code="0x17ff" name="uni17FF"/><!-- ???? -->
-      <map code="0x1800" name="uni1800"/><!-- MONGOLIAN BIRGA -->
-      <map code="0x1842" name="uni1842"/><!-- MONGOLIAN LETTER CHI -->
-      <map code="0x1884" name="uni1884"/><!-- MONGOLIAN LETTER ALI GALI INVERTED UBADAMA -->
-      <map code="0x1885" name="uni1885"/><!-- MONGOLIAN LETTER ALI GALI BALUDA -->
-      <map code="0x1886" name="uni1886"/><!-- MONGOLIAN LETTER ALI GALI THREE BALUDA -->
-      <map code="0x1887" name="uni1887"/><!-- MONGOLIAN LETTER ALI GALI A -->
-      <map code="0x1898" name="uni1898"/><!-- MONGOLIAN LETTER TODO ALI GALI TA -->
-      <map code="0x18a8" name="uni18A8"/><!-- MONGOLIAN LETTER MANCHU ALI GALI BHA -->
       <map code="0x18a9" name="uni18A9"/><!-- MONGOLIAN LETTER ALI GALI DAGALGA -->
-      <map code="0x18aa" name="uni18AA"/><!-- MONGOLIAN LETTER MANCHU ALI GALI LHA -->
-      <map code="0x18ad" name="uni18AD"/><!-- ???? -->
-      <map code="0x18af" name="uni18AF"/><!-- ???? -->
-      <map code="0x18b0" name="uni18B0"/><!-- CANADIAN SYLLABICS OY -->
-      <map code="0x18d8" name="uni18D8"/><!-- CANADIAN SYLLABICS OJIBWAY M -->
       <map code="0x18ff" name="uni18FF"/><!-- ???? -->
-      <map code="0x1900" name="uni1900"/><!-- LIMBU VOWEL-CARRIER LETTER -->
-      <map code="0x1910" name="uni1910"/><!-- LIMBU LETTER PA -->
-      <map code="0x191f" name="uni191F"/><!-- ???? -->
-      <map code="0x1920" name="uni1920"/><!-- LIMBU VOWEL SIGN A -->
-      <map code="0x1921" name="uni1921"/><!-- LIMBU VOWEL SIGN I -->
-      <map code="0x1922" name="uni1922"/><!-- LIMBU VOWEL SIGN U -->
-      <map code="0x1923" name="uni1923"/><!-- LIMBU VOWEL SIGN EE -->
-      <map code="0x1925" name="uni1925"/><!-- LIMBU VOWEL SIGN OO -->
-      <map code="0x1926" name="uni1926"/><!-- LIMBU VOWEL SIGN AU -->
-      <map code="0x1927" name="uni1927"/><!-- LIMBU VOWEL SIGN E -->
-      <map code="0x192e" name="uni192E"/><!-- ???? -->
       <map code="0x1934" name="uni1934"/><!-- LIMBU SMALL LETTER NA -->
-      <map code="0x1935" name="uni1935"/><!-- LIMBU SMALL LETTER PA -->
-      <map code="0x1936" name="uni1936"/><!-- LIMBU SMALL LETTER MA -->
-      <map code="0x1937" name="uni1937"/><!-- LIMBU SMALL LETTER RA -->
-      <map code="0x1939" name="uni1939"/><!-- LIMBU SIGN MUKPHRENG -->
-      <map code="0x193b" name="uni193B"/><!-- LIMBU SIGN SA-I -->
-      <map code="0x193c" name="uni193C"/><!-- ???? -->
-      <map code="0x1946" name="uni1946"/><!-- LIMBU DIGIT ZERO -->
       <map code="0x194f" name="uni194F"/><!-- LIMBU DIGIT NINE -->
-      <map code="0x19e0" name="uni19E0"/><!-- KHMER SYMBOL PATHAMASAT -->
-      <map code="0x19f0" name="uni19F0"/><!-- KHMER SYMBOL TUTEYASAT -->
       <map code="0x19ff" name="uni19FF"/><!-- KHMER SYMBOL DAP-PRAM ROC -->
-      <map code="0x1ab0" name="uni1AB0"/><!-- COMBINING DOUBLED CIRCUMFLEX ACCENT -->
-      <map code="0x1ab7" name="uni1AB7"/><!-- COMBINING OPEN MARK BELOW -->
-      <map code="0x1abe" name="uni1ABE"/><!-- COMBINING PARENTHESES OVERLAY -->
-      <map code="0x1b80" name="uni1B80"/><!-- SUNDANESE SIGN PANYECEK -->
-      <map code="0x1b81" name="uni1B81"/><!-- SUNDANESE SIGN PANGLAYAR -->
-      <map code="0x1b82" name="uni1B82"/><!-- SUNDANESE SIGN PANGWISAD -->
-      <map code="0x1b83" name="uni1B83"/><!-- SUNDANESE LETTER A -->
-      <map code="0x1b92" name="uni1B92"/><!-- SUNDANESE LETTER TA -->
-      <map code="0x1ba0" name="uni1BA0"/><!-- SUNDANESE LETTER HA -->
-      <map code="0x1ba1" name="uni1BA1"/><!-- SUNDANESE CONSONANT SIGN PAMINGKAL -->
-      <map code="0x1ba7" name="uni1BA7"/><!-- SUNDANESE VOWEL SIGN PANOLONG -->
       <map code="0x1bad" name="uni1BAD"/><!-- SUNDANESE CONSONANT SIGN PASANGAN WA -->
-      <map code="0x1bae" name="uni1BAE"/><!-- SUNDANESE LETTER KHA -->
-      <map code="0x1bb7" name="uni1BB7"/><!-- SUNDANESE DIGIT SEVEN -->
-      <map code="0x1bbf" name="uni1BBF"/><!-- SUNDANESE LETTER FINAL M -->
-      <map code="0x1c50" name="uni1C50"/><!-- OL CHIKI DIGIT ZERO -->
-      <map code="0x1c68" name="uni1C68"/><!-- OL CHIKI LETTER IR -->
       <map code="0x1c7f" name="uni1C7F"/><!-- OL CHIKI PUNCTUATION DOUBLE MUCAAD -->
-      <map code="0x1c80" name="uni1C80"/><!-- CYRILLIC SMALL LETTER ROUNDED VE -->
-      <map code="0x1c88" name="uni1C88"/><!-- CYRILLIC SMALL LETTER UNBLENDED UK -->
-      <map code="0x1c8f" name="uni1C8F"/><!-- ???? -->
-      <map code="0x1c90" name="uni1C90"/><!-- GEORGIAN MTAVRULI CAPITAL LETTER AN -->
-      <map code="0x1ca8" name="uni1CA8"/><!-- GEORGIAN MTAVRULI CAPITAL LETTER SHIN -->
       <map code="0x1cbf" name="uni1CBF"/><!-- GEORGIAN MTAVRULI CAPITAL LETTER LABIAL SIGN -->
-      <map code="0x1cc0" name="uni1CC0"/><!-- SUNDANESE PUNCTUATION BINDU SURYA -->
-      <map code="0x1cc8" name="uni1CC8"/><!-- ???? -->
       <map code="0x1ccf" name="uni1CCF"/><!-- ???? -->
-      <map code="0x1d00" name="uni1D00"/><!-- LATIN LETTER SMALL CAPITAL A -->
-      <map code="0x1d16" name="uni1D16"/><!-- LATIN SMALL LETTER TOP HALF O -->
-      <map code="0x1d2b" name="uni1D2B"/><!-- CYRILLIC LETTER SMALL CAPITAL EL -->
-      <map code="0x1d2c" name="uni1D2C"/><!-- MODIFIER LETTER CAPITAL A -->
-      <map code="0x1d47" name="uni1D47"/><!-- MODIFIER LETTER SMALL B -->
-      <map code="0x1d61" name="uni1D61"/><!-- MODIFIER LETTER SMALL CHI -->
-      <map code="0x1d62" name="uni1D62"/><!-- LATIN SUBSCRIPT SMALL LETTER I -->
-      <map code="0x1d66" name="uni1D66"/><!-- GREEK SUBSCRIPT SMALL LETTER BETA -->
-      <map code="0x1d6a" name="uni1D6A"/><!-- GREEK SUBSCRIPT SMALL LETTER CHI -->
-      <map code="0x1d6b" name="uni1D6B"/><!-- LATIN SMALL LETTER UE -->
-      <map code="0x1d71" name="uni1D71"/><!-- LATIN SMALL LETTER P WITH MIDDLE TILDE -->
-      <map code="0x1d77" name="uni1D77"/><!-- LATIN SMALL LETTER TURNED G -->
       <map code="0x1d78" name="uni1D78"/><!-- MODIFIER LETTER CYRILLIC EN -->
-      <map code="0x1d79" name="uni1D79"/><!-- LATIN SMALL LETTER INSULAR G -->
-      <map code="0x1d7c" name="uni1D7C"/><!-- LATIN SMALL LETTER IOTA WITH STROKE -->
-      <map code="0x1d7f" name="uni1D7F"/><!-- LATIN SMALL LETTER UPSILON WITH STROKE -->
-      <map code="0x1d80" name="uni1D80"/><!-- LATIN SMALL LETTER B WITH PALATAL HOOK -->
-      <map code="0x1d8d" name="uni1D8D"/><!-- LATIN SMALL LETTER X WITH PALATAL HOOK -->
-      <map code="0x1d9a" name="uni1D9A"/><!-- LATIN SMALL LETTER EZH WITH RETROFLEX HOOK -->
-      <map code="0x1d9b" name="uni1D9B"/><!-- MODIFIER LETTER SMALL TURNED ALPHA -->
-      <map code="0x1dad" name="uni1DAD"/><!-- MODIFIER LETTER SMALL TURNED M WITH LONG LEG -->
-      <map code="0x1dbf" name="uni1DBF"/><!-- MODIFIER LETTER SMALL THETA -->
-      <map code="0x1dc0" name="uni1DC0"/><!-- COMBINING DOTTED GRAVE ACCENT -->
-      <map code="0x1de0" name="uni1DE0"/><!-- COMBINING LATIN SMALL LETTER N -->
       <map code="0x1dff" name="uni1DFF"/><!-- COMBINING RIGHT ARROWHEAD AND DOWN ARROWHEAD BELOW -->
-      <map code="0x1e00" name="uni1E00"/><!-- LATIN CAPITAL LETTER A WITH RING BELOW -->
-      <map code="0x1e80" name="Wgrave"/><!-- LATIN CAPITAL LETTER W WITH GRAVE -->
-      <map code="0x1eff" name="uni1EFF"/><!-- LATIN SMALL LETTER Y WITH LOOP -->
-      <map code="0x1f00" name="uni1F00"/><!-- GREEK SMALL LETTER ALPHA WITH PSILI -->
-      <map code="0x1f5e" name="uni1F5E"/><!-- ???? -->
-      <map code="0x1fbc" name="uni1FBC"/><!-- GREEK CAPITAL LETTER ALPHA WITH PROSGEGRAMMENI -->
-      <map code="0x1fbd" name="uni1FBD"/><!-- GREEK KORONIS -->
-      <map code="0x1fbf" name="uni1FBF"/><!-- GREEK PSILI -->
-      <map code="0x1fc1" name="uni1FC1"/><!-- GREEK DIALYTIKA AND PERISPOMENI -->
-      <map code="0x1fc2" name="uni1FC2"/><!-- GREEK SMALL LETTER ETA WITH VARIA AND YPOGEGRAMMENI -->
-      <map code="0x1fc7" name="uni1FC7"/><!-- GREEK SMALL LETTER ETA WITH PERISPOMENI AND YPOGEGRAMMENI -->
-      <map code="0x1fcc" name="uni1FCC"/><!-- GREEK CAPITAL LETTER ETA WITH PROSGEGRAMMENI -->
-      <map code="0x1fcd" name="uni1FCD"/><!-- GREEK PSILI AND VARIA -->
-      <map code="0x1fce" name="uni1FCE"/><!-- GREEK PSILI AND OXIA -->
       <map code="0x1fcf" name="uni1FCF"/><!-- GREEK PSILI AND PERISPOMENI -->
-      <map code="0x1fd0" name="uni1FD0"/><!-- GREEK SMALL LETTER IOTA WITH VRACHY -->
-      <map code="0x1fd6" name="uni1FD6"/><!-- GREEK SMALL LETTER IOTA WITH PERISPOMENI -->
-      <map code="0x1fdc" name="uni1FDC"/><!-- ???? -->
-      <map code="0x1fdd" name="uni1FDD"/><!-- GREEK DASIA AND VARIA -->
-      <map code="0x1fde" name="uni1FDE"/><!-- GREEK DASIA AND OXIA -->
-      <map code="0x1fdf" name="uni1FDF"/><!-- GREEK DASIA AND PERISPOMENI -->
-      <map code="0x1fe0" name="uni1FE0"/><!-- GREEK SMALL LETTER UPSILON WITH VRACHY -->
-      <map code="0x1fe6" name="uni1FE6"/><!-- GREEK SMALL LETTER UPSILON WITH PERISPOMENI -->
-      <map code="0x1fec" name="uni1FEC"/><!-- GREEK CAPITAL LETTER RHO WITH DASIA -->
-      <map code="0x1fed" name="uni1FED"/><!-- GREEK DIALYTIKA AND VARIA -->
-      <map code="0x1fee" name="uni1FEE"/><!-- GREEK DIALYTIKA AND OXIA -->
-      <map code="0x1fef" name="uni1FEF"/><!-- GREEK VARIA -->
-      <map code="0x1ff0" name="uni1FF0"/><!-- ???? -->
-      <map code="0x1ff6" name="uni1FF6"/><!-- GREEK SMALL LETTER OMEGA WITH PERISPOMENI -->
-      <map code="0x1ffc" name="uni1FFC"/><!-- GREEK CAPITAL LETTER OMEGA WITH PROSGEGRAMMENI -->
-      <map code="0x1ffd" name="uni1FFD"/><!-- GREEK OXIA -->
-      <map code="0x1ffe" name="uni1FFE"/><!-- GREEK DASIA -->
       <map code="0x1fff" name="uni1FFF"/><!-- ???? -->
-      <map code="0x2000" name="uni2000"/><!-- EN QUAD -->
-      <map code="0x200b" name="uni200B"/><!-- ZERO WIDTH SPACE -->
-      <map code="0x2016" name="uni2016"/><!-- DOUBLE VERTICAL LINE -->
-      <map code="0x2017" name="underscoredbl"/><!-- DOUBLE LOW LINE -->
-      <map code="0x2018" name="quoteleft"/><!-- LEFT SINGLE QUOTATION MARK -->
-      <map code="0x202b" name="uni202B"/><!-- RIGHT-TO-LEFT EMBEDDING -->
-      <map code="0x203d" name="uni203D"/><!-- INTERROBANG -->
-      <map code="0x203e" name="uni203E"/><!-- OVERLINE -->
-      <map code="0x203f" name="uni203F"/><!-- UNDERTIE -->
-      <map code="0x2057" name="uni2057"/><!-- QUADRUPLE PRIME -->
-      <map code="0x206f" name="uni206F"/><!-- NOMINAL DIGIT SHAPES -->
-      <map code="0x2070" name="uni2070"/><!-- SUPERSCRIPT ZERO -->
-      <map code="0x2078" name="uni2078"/><!-- SUPERSCRIPT EIGHT -->
-      <map code="0x207f" name="uni207F"/><!-- SUPERSCRIPT LATIN SMALL LETTER N -->
-      <map code="0x2080" name="uni2080"/><!-- SUBSCRIPT ZERO -->
-      <map code="0x208e" name="uni208E"/><!-- SUBSCRIPT RIGHT PARENTHESIS -->
       <map code="0x209c" name="uni209C"/><!-- LATIN SUBSCRIPT SMALL LETTER T -->
-      <map code="0x20a0" name="uni20A0"/><!-- EURO-CURRENCY SIGN -->
-      <map code="0x20ac" name="Euro"/><!-- EURO SIGN -->
-      <map code="0x20b8" name="uni20B8"/><!-- TENGE SIGN -->
-      <map code="0x20b9" name="uni20B9"/><!-- INDIAN RUPEE SIGN -->
-      <map code="0x20ba" name="uni20BA"/><!-- TURKISH LIRA SIGN -->
-      <map code="0x20c5" name="uni20C5"/><!-- ???? -->
-      <map code="0x20cf" name="uni20CF"/><!-- ???? -->
-      <map code="0x2150" name="uni2150"/><!-- VULGAR FRACTION ONE SEVENTH -->
-      <map code="0x2170" name="uni2170"/><!-- SMALL ROMAN NUMERAL ONE -->
-      <map code="0x218f" name="uni218F"/><!-- ???? -->
-      <map code="0x2c00" name="uni2C00"/><!-- GLAGOLITIC CAPITAL LETTER AZU -->
-      <map code="0x2c30" name="uni2C30"/><!-- GLAGOLITIC SMALL LETTER AZU -->
-      <map code="0x2c5f" name="uni2C5F"/><!-- GLAGOLITIC SMALL LETTER CAUDATE CHRIVI -->
-      <map code="0x2c60" name="uni2C60"/><!-- LATIN CAPITAL LETTER L WITH DOUBLE BAR -->
-      <map code="0x2c6e" name="uni2C6E"/><!-- LATIN CAPITAL LETTER M WITH HOOK -->
-      <map code="0x2c7b" name="uni2C7B"/><!-- LATIN LETTER SMALL CAPITAL TURNED E -->
-      <map code="0x2c7c" name="uni2C7C"/><!-- LATIN SUBSCRIPT SMALL LETTER J -->
-      <map code="0x2c7d" name="uni2C7D"/><!-- MODIFIER LETTER CAPITAL V -->
-      <map code="0x2c7e" name="uni2C7E"/><!-- LATIN CAPITAL LETTER S WITH SWASH TAIL -->
-      <map code="0x2c7f" name="uni2C7F"/><!-- LATIN CAPITAL LETTER Z WITH SWASH TAIL -->
-      <map code="0x2c80" name="uni2C80"/><!-- COPTIC CAPITAL LETTER ALFA -->
-      <map code="0x2cb7" name="uni2CB7"/><!-- COPTIC SMALL LETTER CRYPTOGRAMMIC EIE -->
-      <map code="0x2cee" name="uni2CEE"/><!-- COPTIC SMALL LETTER CRYPTOGRAMMIC GANGIA -->
-      <map code="0x2cef" name="uni2CEF"/><!-- COPTIC COMBINING NI ABOVE -->
-      <map code="0x2cf0" name="uni2CF0"/><!-- COPTIC COMBINING SPIRITUS ASPER -->
       <map code="0x2cf1" name="uni2CF1"/><!-- COPTIC COMBINING SPIRITUS LENIS -->
-      <map code="0x2cf2" name="uni2CF2"/><!-- COPTIC CAPITAL LETTER BOHAIRIC KHEI -->
-      <map code="0x2cf9" name="uni2CF9"/><!-- COPTIC OLD NUBIAN FULL STOP -->
       <map code="0x2cff" name="uni2CFF"/><!-- COPTIC MORPHOLOGICAL DIVIDER -->
-      <map code="0x2d00" name="uni2D00"/><!-- GEORGIAN SMALL LETTER AN -->
-      <map code="0x2d17" name="uni2D17"/><!-- GEORGIAN SMALL LETTER QAR -->
       <map code="0x2d2d" name="uni2D2D"/><!-- GEORGIAN SMALL LETTER AEN -->
-      <map code="0x2d30" name="uni2D30"/><!-- TIFINAGH LETTER YA -->
-      <map code="0x2d58" name="uni2D58"/><!-- TIFINAGH LETTER AYER YAGH -->
       <map code="0x2d7f" name="uni2D7F"/><!-- TIFINAGH CONSONANT JOINER -->
-      <map code="0x2d80" name="uni2D80"/><!-- ETHIOPIC SYLLABLE LOA -->
-      <map code="0x2db0" name="uni2DB0"/><!-- ETHIOPIC SYLLABLE ZZA -->
       <map code="0x2ddf" name="uni2DDF"/><!-- ???? -->
-      <map code="0x2de0" name="uni2DE0"/><!-- COMBINING CYRILLIC LETTER BE -->
-      <map code="0x2df0" name="uni2DF0"/><!-- COMBINING CYRILLIC LETTER TSE -->
       <map code="0x2dff" name="uni2DFF"/><!-- COMBINING CYRILLIC LETTER IOTIFIED BIG YUS -->
-      <map code="0x2e00" name="uni2E00"/><!-- RIGHT ANGLE SUBSTITUTION MARKER -->
-      <map code="0x2e40" name="uni2E40"/><!-- DOUBLE HYPHEN -->
-      <map code="0x2e7f" name="uni2E7F"/><!-- ???? -->
-      <map code="0x2e80" name="uni2E80"/><!-- CJK RADICAL REPEAT -->
-      <map code="0x2ec0" name="uni2EC0"/><!-- CJK RADICAL GRASS THREE -->
-      <map code="0x2eff" name="uni2EFF"/><!-- ???? -->
-      <map code="0x2f00" name="uni2F00"/><!-- KANGXI RADICAL ONE -->
-      <map code="0x2f70" name="uni2F70"/><!-- KANGXI RADICAL SPIRIT -->
-      <map code="0x2fdf" name="uni2FDF"/><!-- ???? -->
-      <map code="0x2ff0" name="uni2FF0"/><!-- IDEOGRAPHIC DESCRIPTION CHARACTER LEFT TO RIGHT -->
-      <map code="0x2ff8" name="uni2FF8"/><!-- IDEOGRAPHIC DESCRIPTION CHARACTER SURROUND FROM UPPER LEFT -->
-      <map code="0x2fff" name="uni2FFF"/><!-- ???? -->
-      <map code="0x3000" name="uni3000"/><!-- IDEOGRAPHIC SPACE -->
-      <map code="0x3015" name="uni3015"/><!-- RIGHT TORTOISE SHELL BRACKET -->
-      <map code="0x3029" name="uni3029"/><!-- HANGZHOU NUMERAL NINE -->
-      <map code="0x302a" name="uni302A"/><!-- IDEOGRAPHIC LEVEL TONE MARK -->
-      <map code="0x302d" name="uni302D"/><!-- IDEOGRAPHIC ENTERING TONE MARK -->
-      <map code="0x302f" name="uni302F"/><!-- HANGUL DOUBLE DOT TONE MARK -->
-      <map code="0x3030" name="uni3030"/><!-- WAVY DASH -->
-      <map code="0x3038" name="uni3038"/><!-- HANGZHOU NUMERAL TEN -->
-      <map code="0x303f" name="uni303F"/><!-- IDEOGRAPHIC HALF FILL SPACE -->
-      <map code="0x3040" name="uni3040"/><!-- ???? -->
-      <map code="0x3070" name="uni3070"/><!-- HIRAGANA LETTER BA -->
-      <map code="0x309f" name="uni309F"/><!-- HIRAGANA DIGRAPH YORI -->
-      <map code="0x30a0" name="uni30A0"/><!-- KATAKANA-HIRAGANA DOUBLE HYPHEN -->
-      <map code="0x30d0" name="uni30D0"/><!-- KATAKANA LETTER BA -->
-      <map code="0x30ff" name="uni30FF"/><!-- KATAKANA DIGRAPH KOTO -->
-      <map code="0x3100" name="uni3100"/><!-- ???? -->
-      <map code="0x3118" name="uni3118"/><!-- BOPOMOFO LETTER C -->
-      <map code="0x312f" name="uni312F"/><!-- BOPOMOFO LETTER NN -->
-      <map code="0x3130" name="uni3130"/><!-- ???? -->
-      <map code="0x3160" name="uni3160"/><!-- HANGUL LETTER YU -->
-      <map code="0x318f" name="uni318F"/><!-- ???? -->
-      <map code="0x3190" name="uni3190"/><!-- IDEOGRAPHIC ANNOTATION LINKING MARK -->
-      <map code="0x3198" name="uni3198"/><!-- IDEOGRAPHIC ANNOTATION BOTTOM MARK -->
       <map code="0x319f" name="uni319F"/><!-- IDEOGRAPHIC ANNOTATION MAN MARK -->
-      <map code="0x31a0" name="uni31A0"/><!-- BOPOMOFO LETTER BU -->
-      <map code="0x31b0" name="uni31B0"/><!-- BOPOMOFO LETTER AM -->
-      <map code="0x31bf" name="uni31BF"/><!-- BOPOMOFO LETTER AH -->
-      <map code="0x31c0" name="uni31C0"/><!-- CJK STROKE T -->
-      <map code="0x31d8" name="uni31D8"/><!-- CJK STROKE SWZ -->
-      <map code="0x31ef" name="uni31EF"/><!-- ???? -->
-      <map code="0x31f0" name="uni31F0"/><!-- KATAKANA LETTER SMALL KU -->
-      <map code="0x31f8" name="uni31F8"/><!-- KATAKANA LETTER SMALL HE -->
-      <map code="0x31ff" name="uni31FF"/><!-- KATAKANA LETTER SMALL RO -->
-      <map code="0x3300" name="uni3300"/><!-- SQUARE APAATO -->
-      <map code="0x3380" name="uni3380"/><!-- SQUARE PA AMPS -->
-      <map code="0x33ff" name="uni33FF"/><!-- SQUARE GAL -->
-      <map code="0x3400" name="uni3400"/><!-- CJK UNIFIED IDEOGRAPH-3400 -->
-      <map code="0x40e0" name="uni40E0"/><!-- CJK UNIFIED IDEOGRAPH-40E0 -->
-      <map code="0x4dbf" name="uni4DBF"/><!-- CJK UNIFIED IDEOGRAPH-4DBF -->
-      <map code="0x4dc0" name="uni4DC0"/><!-- HEXAGRAM FOR THE CREATIVE HEAVEN -->
-      <map code="0x4de0" name="uni4DE0"/><!-- HEXAGRAM FOR RETREAT -->
-      <map code="0x4dff" name="uni4DFF"/><!-- HEXAGRAM FOR BEFORE COMPLETION -->
-      <map code="0x4e00" name="uni4E00"/><!-- CJK UNIFIED IDEOGRAPH-4E00 -->
-      <map code="0x7700" name="uni7700"/><!-- CJK UNIFIED IDEOGRAPH-7700 -->
       <map code="0x9fff" name="uni9FFF"/><!-- CJK UNIFIED IDEOGRAPH-9FFF -->
-      <map code="0xa4d0" name="uniA4D0"/><!-- LISU LETTER BA -->
-      <map code="0xa4e8" name="uniA4E8"/><!-- LISU LETTER HHA -->
       <map code="0xa4ff" name="uniA4FF"/><!-- LISU PUNCTUATION FULL STOP -->
-      <map code="0xa500" name="uniA500"/><!-- VAI SYLLABLE EE -->
-      <map code="0xa5a0" name="uniA5A0"/><!-- VAI SYLLABLE MGBU -->
       <map code="0xa63f" name="uniA63F"/><!-- ???? -->
-      <map code="0xa640" name="uniA640"/><!-- CYRILLIC CAPITAL LETTER ZEMLYA -->
-      <map code="0xa657" name="uniA657"/><!-- CYRILLIC SMALL LETTER IOTIFIED A -->
-      <map code="0xa66e" name="uniA66E"/><!-- CYRILLIC LETTER MULTIOCULAR O -->
-      <map code="0xa66f" name="uniA66F"/><!-- COMBINING CYRILLIC VZMET -->
-      <map code="0xa677" name="uniA677"/><!-- COMBINING CYRILLIC LETTER U -->
       <map code="0xa67f" name="uniA67F"/><!-- CYRILLIC PAYEROK -->
-      <map code="0xa680" name="uniA680"/><!-- CYRILLIC CAPITAL LETTER DWE -->
-      <map code="0xa68f" name="uniA68F"/><!-- CYRILLIC SMALL LETTER TSWE -->
-      <map code="0xa69d" name="uniA69D"/><!-- MODIFIER LETTER CYRILLIC SOFT SIGN -->
-      <map code="0xa69e" name="uniA69E"/><!-- COMBINING CYRILLIC LETTER EF -->
-      <map code="0xa69f" name="uniA69F"/><!-- COMBINING CYRILLIC LETTER IOTIFIED E -->
-      <map code="0xa6a0" name="uniA6A0"/><!-- BAMUM LETTER A -->
-      <map code="0xa6c8" name="uniA6C8"/><!-- BAMUM LETTER PUE -->
-      <map code="0xa6ef" name="uniA6EF"/><!-- BAMUM LETTER KOGHOM -->
-      <map code="0xa6f0" name="uniA6F0"/><!-- BAMUM COMBINING MARK KOQNDON -->
       <map code="0xa6f1" name="uniA6F1"/><!-- BAMUM COMBINING MARK TUKWENTIS -->
-      <map code="0xa6f2" name="uniA6F2"/><!-- BAMUM NJAEMLI -->
-      <map code="0xa6f9" name="uniA6F9"/><!-- ???? -->
-      <map code="0xa6ff" name="uniA6FF"/><!-- ???? -->
-      <map code="0xa720" name="uniA720"/><!-- MODIFIER LETTER STRESS AND HIGH TONE -->
-      <map code="0xa748" name="uniA748"/><!-- LATIN CAPITAL LETTER L WITH HIGH STROKE -->
-      <map code="0xa76f" name="uniA76F"/><!-- LATIN SMALL LETTER CON -->
-      <map code="0xa770" name="uniA770"/><!-- MODIFIER LETTER US -->
-      <map code="0xa771" name="uniA771"/><!-- LATIN SMALL LETTER DUM -->
-      <map code="0xa77c" name="uniA77C"/><!-- LATIN SMALL LETTER INSULAR F -->
-      <map code="0xa787" name="uniA787"/><!-- LATIN SMALL LETTER INSULAR T -->
-      <map code="0xa788" name="uniA788"/><!-- MODIFIER LETTER LOW CIRCUMFLEX ACCENT -->
-      <map code="0xa789" name="uniA789"/><!-- MODIFIER LETTER COLON -->
-      <map code="0xa7c0" name="uniA7C0"/><!-- LATIN CAPITAL LETTER OLD POLISH O -->
-      <map code="0xa7f7" name="uniA7F7"/><!-- LATIN EPIGRAPHIC LETTER SIDEWAYS I -->
-      <map code="0xa7f8" name="uniA7F8"/><!-- MODIFIER LETTER CAPITAL H WITH STROKE -->
-      <map code="0xa7f9" name="uniA7F9"/><!-- MODIFIER LETTER SMALL LIGATURE OE -->
-      <map code="0xa7fa" name="uniA7FA"/><!-- LATIN LETTER SMALL CAPITAL TURNED M -->
-      <map code="0xa7fb" name="uniA7FB"/><!-- LATIN EPIGRAPHIC LETTER REVERSED F -->
-      <map code="0xa7fd" name="uniA7FD"/><!-- LATIN EPIGRAPHIC LETTER INVERTED M -->
-      <map code="0xa7ff" name="uniA7FF"/><!-- LATIN EPIGRAPHIC LETTER ARCHAIC M -->
-      <map code="0xa800" name="uniA800"/><!-- SYLOTI NAGRI LETTER A -->
-      <map code="0xa801" name="uniA801"/><!-- SYLOTI NAGRI LETTER I -->
-      <map code="0xa802" name="uniA802"/><!-- SYLOTI NAGRI SIGN DVISVARA -->
-      <map code="0xa803" name="uniA803"/><!-- SYLOTI NAGRI LETTER U -->
-      <map code="0xa804" name="uniA804"/><!-- SYLOTI NAGRI LETTER E -->
-      <map code="0xa805" name="uniA805"/><!-- SYLOTI NAGRI LETTER O -->
-      <map code="0xa806" name="uniA806"/><!-- SYLOTI NAGRI SIGN HASANTA -->
-      <map code="0xa807" name="uniA807"/><!-- SYLOTI NAGRI LETTER KO -->
-      <map code="0xa809" name="uniA809"/><!-- SYLOTI NAGRI LETTER GO -->
-      <map code="0xa80a" name="uniA80A"/><!-- SYLOTI NAGRI LETTER GHO -->
       <map code="0xa80b" name="uniA80B"/><!-- SYLOTI NAGRI SIGN ANUSVARA -->
-      <map code="0xa80c" name="uniA80C"/><!-- SYLOTI NAGRI LETTER CO -->
-      <map code="0xa818" name="uniA818"/><!-- SYLOTI NAGRI LETTER NO -->
-      <map code="0xa824" name="uniA824"/><!-- SYLOTI NAGRI VOWEL SIGN I -->
-      <map code="0xa825" name="uniA825"/><!-- SYLOTI NAGRI VOWEL SIGN U -->
-      <map code="0xa826" name="uniA826"/><!-- SYLOTI NAGRI VOWEL SIGN E -->
-      <map code="0xa827" name="uniA827"/><!-- SYLOTI NAGRI VOWEL SIGN OO -->
-      <map code="0xa82b" name="uniA82B"/><!-- SYLOTI NAGRI POETRY MARK-4 -->
       <map code="0xa82f" name="uniA82F"/><!-- ???? -->
-      <map code="0xa880" name="uniA880"/><!-- SAURASHTRA SIGN ANUSVARA -->
-      <map code="0xa881" name="uniA881"/><!-- SAURASHTRA SIGN VISARGA -->
-      <map code="0xa882" name="uniA882"/><!-- SAURASHTRA LETTER A -->
-      <map code="0xa89b" name="uniA89B"/><!-- SAURASHTRA LETTER NYA -->
-      <map code="0xa8b3" name="uniA8B3"/><!-- SAURASHTRA LETTER LLA -->
-      <map code="0xa8b4" name="uniA8B4"/><!-- SAURASHTRA CONSONANT SIGN HAARU -->
-      <map code="0xa8bd" name="uniA8BD"/><!-- SAURASHTRA VOWEL SIGN VOCALIC LL -->
       <map code="0xa8c5" name="uniA8C5"/><!-- SAURASHTRA SIGN CANDRABINDU -->
-      <map code="0xa8c6" name="uniA8C6"/><!-- ???? -->
-      <map code="0xa8d3" name="uniA8D3"/><!-- SAURASHTRA DIGIT THREE -->
       <map code="0xa8df" name="uniA8DF"/><!-- ???? -->
-      <map code="0xa8e0" name="uniA8E0"/><!-- COMBINING DEVANAGARI DIGIT ZERO -->
-      <map code="0xa8e9" name="uniA8E9"/><!-- COMBINING DEVANAGARI DIGIT NINE -->
-      <map code="0xa8f1" name="uniA8F1"/><!-- COMBINING DEVANAGARI SIGN AVAGRAHA -->
-      <map code="0xa8f2" name="uniA8F2"/><!-- DEVANAGARI SIGN SPACING CANDRABINDU -->
-      <map code="0xa8f8" name="uniA8F8"/><!-- DEVANAGARI SIGN PUSHPIKA -->
-      <map code="0xa8fe" name="uniA8FE"/><!-- DEVANAGARI LETTER AY -->
-      <map code="0xa8ff" name="uniA8FF"/><!-- DEVANAGARI VOWEL SIGN AY -->
-      <map code="0xa900" name="uniA900"/><!-- KAYAH LI DIGIT ZERO -->
-      <map code="0xa913" name="uniA913"/><!-- KAYAH LI LETTER HTA -->
-      <map code="0xa925" name="uniA925"/><!-- KAYAH LI LETTER OO -->
-      <map code="0xa926" name="uniA926"/><!-- KAYAH LI VOWEL UE -->
-      <map code="0xa92a" name="uniA92A"/><!-- KAYAH LI VOWEL O -->
       <map code="0xa92d" name="uniA92D"/><!-- KAYAH LI TONE CALYA PLOPHU -->
-      <map code="0xa92e" name="uniA92E"/><!-- KAYAH LI SIGN CWI -->
       <map code="0xa92f" name="uniA92F"/><!-- KAYAH LI SIGN SHYA -->
-      <map code="0xa960" name="uniA960"/><!-- HANGUL CHOSEONG TIKEUT-MIEUM -->
-      <map code="0xa970" name="uniA970"/><!-- HANGUL CHOSEONG MIEUM-TIKEUT -->
-      <map code="0xa97f" name="uniA97F"/><!-- ???? -->
-      <map code="0xa9e0" name="uniA9E0"/><!-- MYANMAR LETTER SHAN GHA -->
-      <map code="0xa9e2" name="uniA9E2"/><!-- MYANMAR LETTER SHAN JHA -->
-      <map code="0xa9e4" name="uniA9E4"/><!-- MYANMAR LETTER SHAN BHA -->
-      <map code="0xa9e5" name="uniA9E5"/><!-- MYANMAR SIGN SHAN SAW -->
-      <map code="0xa9e6" name="uniA9E6"/><!-- MYANMAR MODIFIER LETTER SHAN REDUPLICATION -->
-      <map code="0xa9f3" name="uniA9F3"/><!-- MYANMAR TAI LAING DIGIT THREE -->
       <map code="0xa9ff" name="uniA9FF"/><!-- ???? -->
-      <map code="0xaa60" name="uniAA60"/><!-- MYANMAR LETTER KHAMTI GA -->
-      <map code="0xaa6e" name="uniAA6E"/><!-- MYANMAR LETTER KHAMTI HHA -->
-      <map code="0xaa7b" name="uniAA7B"/><!-- MYANMAR SIGN PAO KAREN TONE -->
-      <map code="0xaa7c" name="uniAA7C"/><!-- MYANMAR SIGN TAI LAING TONE-2 -->
-      <map code="0xaa7d" name="uniAA7D"/><!-- MYANMAR SIGN TAI LAING TONE-5 -->
-      <map code="0xaa7e" name="uniAA7E"/><!-- MYANMAR LETTER SHWE PALAUNG CHA -->
-      <map code="0xaa7f" name="uniAA7F"/><!-- MYANMAR LETTER SHWE PALAUNG SHA -->
-      <map code="0xaa80" name="uniAA80"/><!-- TAI VIET LETTER LOW KO -->
-      <map code="0xaa98" name="uniAA98"/><!-- TAI VIET LETTER LOW NO -->
-      <map code="0xaaaf" name="uniAAAF"/><!-- TAI VIET LETTER HIGH O -->
-      <map code="0xaab0" name="uniAAB0"/><!-- TAI VIET MAI KANG -->
-      <map code="0xaab1" name="uniAAB1"/><!-- TAI VIET VOWEL AA -->
-      <map code="0xaab2" name="uniAAB2"/><!-- TAI VIET VOWEL I -->
-      <map code="0xaab3" name="uniAAB3"/><!-- TAI VIET VOWEL UE -->
-      <map code="0xaab4" name="uniAAB4"/><!-- TAI VIET VOWEL U -->
-      <map code="0xaab5" name="uniAAB5"/><!-- TAI VIET VOWEL E -->
-      <map code="0xaab6" name="uniAAB6"/><!-- TAI VIET VOWEL O -->
-      <map code="0xaab7" name="uniAAB7"/><!-- TAI VIET MAI KHIT -->
       <map code="0xaab8" name="uniAAB8"/><!-- TAI VIET VOWEL IA -->
-      <map code="0xaab9" name="uniAAB9"/><!-- TAI VIET VOWEL UEA -->
-      <map code="0xaabb" name="uniAABB"/><!-- TAI VIET VOWEL AUE -->
-      <map code="0xaabd" name="uniAABD"/><!-- TAI VIET VOWEL AN -->
-      <map code="0xaabe" name="uniAABE"/><!-- TAI VIET VOWEL AM -->
-      <map code="0xaabf" name="uniAABF"/><!-- TAI VIET TONE MAI EK -->
-      <map code="0xaac0" name="uniAAC0"/><!-- TAI VIET TONE MAI NUENG -->
-      <map code="0xaac1" name="uniAAC1"/><!-- TAI VIET TONE MAI THO -->
-      <map code="0xaac2" name="uniAAC2"/><!-- TAI VIET TONE MAI SONG -->
-      <map code="0xaad1" name="uniAAD1"/><!-- ???? -->
       <map code="0xaadf" name="uniAADF"/><!-- TAI VIET SYMBOL KOI KOI -->
-      <map code="0xab00" name="uniAB00"/><!-- ???? -->
-      <map code="0xab18" name="uniAB18"/><!-- ???? -->
-      <map code="0xab2f" name="uniAB2F"/><!-- ???? -->
-      <map code="0xab30" name="uniAB30"/><!-- LATIN SMALL LETTER BARRED ALPHA -->
-      <map code="0xab46" name="uniAB46"/><!-- LATIN LETTER SMALL CAPITAL R WITH RIGHT LEG -->
-      <map code="0xab5b" name="uniAB5B"/><!-- MODIFIER BREVE WITH INVERTED BREVE -->
-      <map code="0xab5c" name="uniAB5C"/><!-- MODIFIER LETTER SMALL HENG -->
-      <map code="0xab5e" name="uniAB5E"/><!-- MODIFIER LETTER SMALL L WITH MIDDLE TILDE -->
-      <map code="0xab5f" name="uniAB5F"/><!-- MODIFIER LETTER SMALL U WITH LEFT HOOK -->
-      <map code="0xab60" name="uniAB60"/><!-- LATIN SMALL LETTER SAKHA YAT -->
-      <map code="0xab68" name="uniAB68"/><!-- LATIN SMALL LETTER TURNED R WITH MIDDLE TILDE -->
-      <map code="0xab6f" name="uniAB6F"/><!-- ???? -->
-      <map code="0xab70" name="uniAB70"/><!-- CHEROKEE SMALL LETTER A -->
-      <map code="0xab98" name="uniAB98"/><!-- CHEROKEE SMALL LETTER QUI -->
       <map code="0xabbf" name="uniABBF"/><!-- CHEROKEE SMALL LETTER YA -->
-      <map code="0xac00" name="uniAC00"/><!-- HANGUL SYLLABLE GA -->
-      <map code="0xc1d8" name="uniC1D8"/><!-- HANGUL SYLLABLE SWAESS -->
-      <map code="0xd7af" name="uniD7AF"/><!-- ???? -->
-      <map code="0xd7b0" name="uniD7B0"/><!-- HANGUL JUNGSEONG O-YEO -->
-      <map code="0xd7d8" name="uniD7D8"/><!-- HANGUL JONGSEONG RIEUL-MIEUM-HIEUH -->
-      <map code="0xd7ff" name="uniD7FF"/><!-- ???? -->
-      <map code="0xf900" name="uniF900"/><!-- CJK COMPATIBILITY IDEOGRAPH-F900 -->
-      <map code="0xfa00" name="uniFA00"/><!-- CJK COMPATIBILITY IDEOGRAPH-FA00 -->
-      <map code="0xfaff" name="uniFAFF"/><!-- ???? -->
-      <map code="0xfb00" name="uniFB00"/><!-- LATIN SMALL LIGATURE FF -->
-      <map code="0xfb03" name="uniFB03"/><!-- LATIN SMALL LIGATURE FFI -->
-      <map code="0xfb06" name="uniFB06"/><!-- LATIN SMALL LIGATURE ST -->
-      <map code="0xfb13" name="uniFB13"/><!-- ARMENIAN SMALL LIGATURE MEN NOW -->
-      <map code="0xfb15" name="uniFB15"/><!-- ARMENIAN SMALL LIGATURE MEN INI -->
       <map code="0xfb17" name="uniFB17"/><!-- ARMENIAN SMALL LIGATURE MEN XEH -->
-      <map code="0xfb1d" name="uniFB1D"/><!-- HEBREW LETTER YOD WITH HIRIQ -->
-      <map code="0xfb1e" name="uniFB1E"/><!-- HEBREW POINT JUDEO-SPANISH VARIKA -->
-      <map code="0xfb1f" name="uniFB1F"/><!-- HEBREW LIGATURE YIDDISH YOD YOD PATAH -->
-      <map code="0xfb37" name="uniFB37"/><!-- ???? -->
       <map code="0xfb4f" name="uniFB4F"/><!-- HEBREW LIGATURE ALEF LAMED -->
-      <map code="0xfb50" name="uniFB50"/><!-- ARABIC LETTER ALEF WASLA ISOLATED FORM -->
-      <map code="0xfb81" name="uniFB81"/><!-- ARABIC LETTER TCHEHEH MEDIAL FORM -->
-      <map code="0xfbb1" name="uniFBB1"/><!-- ARABIC LETTER YEH BARREE WITH HAMZA ABOVE FINAL FORM -->
-      <map code="0xfbb2" name="uniFBB2"/><!-- ARABIC SYMBOL DOT ABOVE -->
-      <map code="0xfbba" name="uniFBBA"/><!-- ARABIC SYMBOL FOUR DOTS ABOVE -->
-      <map code="0xfbc1" name="uniFBC1"/><!-- ARABIC SYMBOL SMALL TAH BELOW -->
-      <map code="0xfbc2" name="uniFBC2"/><!-- ARABIC SYMBOL WASLA ABOVE -->
-      <map code="0xfce1" name="uniFCE1"/><!-- ARABIC LIGATURE BEH WITH MEEM MEDIAL FORM -->
       <map code="0xfdff" name="uniFDFF"/><!-- ARABIC LIGATURE AZZA WA JALL -->
-      <map code="0xfe10" name="uniFE10"/><!-- PRESENTATION FORM FOR VERTICAL COMMA -->
-      <map code="0xfe18" name="uniFE18"/><!-- PRESENTATION FORM FOR VERTICAL RIGHT WHITE LENTICULAR BRAKCET -->
-      <map code="0xfe1f" name="uniFE1F"/><!-- ???? -->
-      <map code="0xfe30" name="uniFE30"/><!-- PRESENTATION FORM FOR VERTICAL TWO DOT LEADER -->
-      <map code="0xfe40" name="uniFE40"/><!-- PRESENTATION FORM FOR VERTICAL RIGHT ANGLE BRACKET -->
-      <map code="0xfe4f" name="uniFE4F"/><!-- WAVY LOW LINE -->
-      <map code="0xfe70" name="uniFE70"/><!-- ARABIC FATHATAN ISOLATED FORM -->
-      <map code="0xfe71" name="uniFE71"/><!-- ARABIC TATWEEL WITH FATHATAN ABOVE -->
-      <map code="0xfe72" name="uniFE72"/><!-- ARABIC DAMMATAN ISOLATED FORM -->
-      <map code="0xfe73" name="uniFE73"/><!-- ARABIC TAIL FRAGMENT -->
-      <map code="0xfe74" name="uniFE74"/><!-- ARABIC KASRATAN ISOLATED FORM -->
-      <map code="0xfe75" name="uniFE75"/><!-- ???? -->
-      <map code="0xfe76" name="uniFE76"/><!-- ARABIC FATHA ISOLATED FORM -->
-      <map code="0xfe77" name="uniFE77"/><!-- ARABIC FATHA MEDIAL FORM -->
-      <map code="0xfe78" name="uniFE78"/><!-- ARABIC DAMMA ISOLATED FORM -->
-      <map code="0xfe79" name="uniFE79"/><!-- ARABIC DAMMA MEDIAL FORM -->
-      <map code="0xfe7a" name="uniFE7A"/><!-- ARABIC KASRA ISOLATED FORM -->
-      <map code="0xfe7b" name="uniFE7B"/><!-- ARABIC KASRA MEDIAL FORM -->
-      <map code="0xfe7c" name="uniFE7C"/><!-- ARABIC SHADDA ISOLATED FORM -->
-      <map code="0xfe7d" name="uniFE7D"/><!-- ARABIC SHADDA MEDIAL FORM -->
-      <map code="0xfe7e" name="uniFE7E"/><!-- ARABIC SUKUN ISOLATED FORM -->
-      <map code="0xfe7f" name="uniFE7F"/><!-- ARABIC SUKUN MEDIAL FORM -->
-      <map code="0xfebf" name="uniFEBF"/><!-- ARABIC LETTER DAD INITIAL FORM -->
-      <map code="0xfeff" name="uniFEFF"/><!-- ZERO WIDTH NO-BREAK SPACE -->
-      <map code="0xff00" name="uniFF00"/><!-- ???? -->
-      <map code="0xff78" name="uniFF78"/><!-- HALFWIDTH KATAKANA LETTER KU -->
-      <map code="0xffef" name="uniFFEF"/><!-- ???? -->
-      <map code="0x102a0" name="u102A0"/><!-- CARIAN LETTER A -->
-      <map code="0x102c0" name="u102C0"/><!-- CARIAN LETTER G -->
       <map code="0x102df" name="u102DF"/><!-- ???? -->
-      <map code="0x10330" name="u10330"/><!-- GOTHIC LETTER AHSA -->
-      <map code="0x10340" name="u10340"/><!-- GOTHIC LETTER PAIRTHRA -->
       <map code="0x1034f" name="u1034F"/><!-- ???? -->
-      <map code="0x10400" name="u10400"/><!-- DESERET CAPITAL LETTER LONG I -->
-      <map code="0x10428" name="u10428"/><!-- DESERET SMALL LETTER LONG I -->
       <map code="0x1044f" name="u1044F"/><!-- DESERET SMALL LETTER EW -->
-      <map code="0x10450" name="u10450"/><!-- SHAVIAN LETTER PEEP -->
-      <map code="0x10468" name="u10468"/><!-- SHAVIAN LETTER ASH -->
       <map code="0x1047f" name="u1047F"/><!-- SHAVIAN LETTER YEW -->
-      <map code="0x10480" name="u10480"/><!-- OSMANYA LETTER ALEF -->
-      <map code="0x10498" name="u10498"/><!-- OSMANYA LETTER I -->
       <map code="0x104af" name="u104AF"/><!-- ???? -->
-      <map code="0x104b0" name="u104B0"/><!-- OSAGE CAPITAL LETTER A -->
-      <map code="0x104d8" name="u104D8"/><!-- OSAGE SMALL LETTER A -->
       <map code="0x104ff" name="u104FF"/><!-- ???? -->
-      <map code="0x10800" name="u10800"/><!-- CYPRIOT SYLLABLE A -->
-      <map code="0x10820" name="u10820"/><!-- CYPRIOT SYLLABLE PI -->
       <map code="0x1083f" name="u1083F"/><!-- CYPRIOT SYLLABLE ZO -->
-      <map code="0x10b00" name="u10B00"/><!-- AVESTAN LETTER A -->
-      <map code="0x10b1c" name="u10B1C"/><!-- AVESTAN LETTER DHE -->
-      <map code="0x10b38" name="u10B38"/><!-- ???? -->
-      <map code="0x10b39" name="u10B39"/><!-- AVESTAN ABBREVIATION MARK -->
-      <map code="0x10b3c" name="u10B3C"/><!-- LARGE TWO DOTS OVER ONE DOT PUNCTUATION -->
+      <map code="0x10b3e" name="u10B3E"/><!-- LARGE TWO RINGS OVER ONE RING PUNCTUATION -->
       <map code="0x10b3f" name="u10B3F"/><!-- LARGE ONE RING OVER TWO RINGS PUNCTUATION -->
-      <map code="0x10c00" name="u10C00"/><!-- OLD TURKIC LETTER ORKHON A -->
-      <map code="0x10c28" name="u10C28"/><!-- OLD TURKIC LETTER ORKHON ENC -->
       <map code="0x10c4f" name="u10C4F"/><!-- ???? -->
-      <map code="0x10d00" name="u10D00"/><!-- HANIFI ROHINGYA LETTER A -->
-      <map code="0x10d20" name="u10D20"/><!-- HANIFI ROHINGYA VOWEL E -->
       <map code="0x10d3f" name="u10D3F"/><!-- ???? -->
-      <map code="0x11100" name="u11100"/><!-- CHAKMA SIGN CANDRABINDU -->
-      <map code="0x11101" name="u11101"/><!-- CHAKMA SIGN ANUSVARA -->
-      <map code="0x11102" name="u11102"/><!-- CHAKMA SIGN VISARGA -->
-      <map code="0x11103" name="u11103"/><!-- CHAKMA LETTER AA -->
-      <map code="0x11115" name="u11115"/><!-- CHAKMA LETTER NNAA -->
-      <map code="0x11126" name="u11126"/><!-- CHAKMA LETTER HAA -->
-      <map code="0x11127" name="u11127"/><!-- CHAKMA VOWEL SIGN A -->
-      <map code="0x1112e" name="u1112E"/><!-- CHAKMA VOWEL SIGN O -->
       <map code="0x11134" name="u11134"/><!-- CHAKMA MAAYYAA -->
-      <map code="0x11135" name="u11135"/><!-- ???? -->
-      <map code="0x1113d" name="u1113D"/><!-- CHAKMA DIGIT SEVEN -->
-      <map code="0x11145" name="u11145"/><!-- CHAKMA VOWEL SIGN AA -->
-      <map code="0x11146" name="u11146"/><!-- CHAKMA VOWEL SIGN EI -->
-      <map code="0x11147" name="u11147"/><!-- CHAKMA LETTER VAA -->
-      <map code="0x1114b" name="u1114B"/><!-- ???? -->
       <map code="0x1114f" name="u1114F"/><!-- ???? -->
-      <map code="0x11660" name="u11660"/><!-- MONGOLIAN BIRGA WITH ORNAMENT -->
-      <map code="0x11670" name="u11670"/><!-- ???? -->
       <map code="0x1167f" name="u1167F"/><!-- ???? -->
-      <map code="0x16800" name="u16800"/><!-- BAMUM LETTER PHASE-A NGKUE MFON -->
-      <map code="0x16920" name="u16920"/><!-- BAMUM LETTER PHASE-D MBAA -->
       <map code="0x16a3f" name="u16A3F"/><!-- ???? -->
-      <map code="0x16e40" name="u16E40"/><!-- MEDEFAIDRIN CAPITAL LETTER M -->
-      <map code="0x16e70" name="u16E70"/><!-- MEDEFAIDRIN SMALL LETTER B -->
       <map code="0x16e9f" name="u16E9F"/><!-- ???? -->
-      <map code="0x1b000" name="u1B000"/><!-- KATAKANA LETTER ARCHAIC E -->
-      <map code="0x1b080" name="u1B080"/><!-- HENTAIGANA LETTER NA-3 -->
-      <map code="0x1b0ff" name="u1B0FF"/><!-- HENTAIGANA LETTER RE-2 -->
-      <map code="0x1b100" name="u1B100"/><!-- HENTAIGANA LETTER RE-3 -->
-      <map code="0x1b118" name="u1B118"/><!-- HENTAIGANA LETTER WO-3 -->
-      <map code="0x1b12f" name="u1B12F"/><!-- ???? -->
-      <map code="0x1d300" name="u1D300"/><!-- MONOGRAM FOR EARTH -->
-      <map code="0x1d330" name="u1D330"/><!-- TETRAGRAM FOR ENCOUNTERS -->
-      <map code="0x1d35f" name="u1D35F"/><!-- ???? -->
-      <map code="0x1d400" name="u1D400"/><!-- MATHEMATICAL BOLD CAPITAL A -->
-      <map code="0x1d600" name="u1D600"/><!-- MATHEMATICAL SANS-SERIF BOLD SMALL S -->
-      <map code="0x1d7ff" name="u1D7FF"/><!-- MATHEMATICAL MONOSPACE DIGIT NINE -->
-      <map code="0x1d944" name="u1D944"/><!-- SIGNWRITING MOVEMENT-WALLPLANE BOX LARGE -->
-      <map code="0x1e000" name="u1E000"/><!-- COMBINING GLAGOLITIC LETTER AZU -->
-      <map code="0x1e018" name="u1E018"/><!-- COMBINING GLAGOLITIC LETTER HERU -->
+      <map code="0x1e02e" name="u1E02E"/><!-- ???? -->
       <map code="0x1e02f" name="u1E02F"/><!-- ???? -->
-      <map code="0x1e147" name="u1E147"/><!-- NYIAKENG PUACHUE HMONG DIGIT SEVEN -->
       <map code="0x1e94a" name="u1E94A"/><!-- ADLAM NUKTA -->
-      <map code="0x1e94b" name="u1E94B"/><!-- ADLAM NASALIZATION MARK -->
-      <map code="0x1e955" name="u1E955"/><!-- ADLAM DIGIT FIVE -->
       <map code="0x1e95f" name="u1E95F"/><!-- ADLAM INITIAL QUESTION MARK -->
-      <map code="0x1ee00" name="u1EE00"/><!-- ARABIC MATHEMATICAL ALEF -->
-      <map code="0x1ee80" name="u1EE80"/><!-- ARABIC MATHEMATICAL LOOPED ALEF -->
-      <map code="0x1eeff" name="u1EEFF"/><!-- ???? -->
-      <map code="0x20000" name="u20000"/><!-- CJK UNIFIED IDEOGRAPH-20000 -->
-      <map code="0x25370" name="u25370"/><!-- CJK UNIFIED IDEOGRAPH-25370 -->
-      <map code="0x2a6df" name="u2A6DF"/><!-- CJK UNIFIED IDEOGRAPH-2A6DF -->
-      <map code="0x2a700" name="u2A700"/><!-- CJK UNIFIED IDEOGRAPH-2A700 -->
-      <map code="0x2af20" name="u2AF20"/><!-- CJK UNIFIED IDEOGRAPH-2AF20 -->
-      <map code="0x2b73f" name="u2B73F"/><!-- ???? -->
-      <map code="0x2b740" name="u2B740"/><!-- CJK UNIFIED IDEOGRAPH-2B740 -->
-      <map code="0x2b7b0" name="u2B7B0"/><!-- CJK UNIFIED IDEOGRAPH-2B7B0 -->
-      <map code="0x2b81f" name="u2B81F"/><!-- ???? -->
-      <map code="0x2b820" name="u2B820"/><!-- CJK UNIFIED IDEOGRAPH-2B820 -->
-      <map code="0x2c368" name="u2C368"/><!-- CJK UNIFIED IDEOGRAPH-2C368 -->
-      <map code="0x2ceaf" name="u2CEAF"/><!-- ???? -->
-      <map code="0x2ceb0" name="u2CEB0"/><!-- CJK UNIFIED IDEOGRAPH-2CEB0 -->
-      <map code="0x2dd50" name="u2DD50"/><!-- CJK UNIFIED IDEOGRAPH-2DD50 -->
-      <map code="0x2ebef" name="u2EBEF"/><!-- ???? -->
-      <map code="0x2f800" name="u2F800"/><!-- CJK COMPATIBILITY IDEOGRAPH-2F800 -->
-      <map code="0x2f910" name="u2F910"/><!-- CJK COMPATIBILITY IDEOGRAPH-2F910 -->
-      <map code="0x2fa1f" name="u2FA1F"/><!-- ???? -->
     </cmap_format_12>
   </cmap>
+
+  <loca>
+    <!-- The 'loca' table will be calculated by the compiler -->
+  </loca>
+
+  <glyf>
+
+    <!-- The xMin, yMin, xMax and yMax values
+         will be recalculated by the compiler. -->
+
+    <TTGlyph name=".notdef"/><!-- contains no outline data -->
+
+    <TTGlyph name="u102DF"/><!-- contains no outline data -->
+
+    <TTGlyph name="u1034F"/><!-- contains no outline data -->
+
+    <TTGlyph name="u1044F"/><!-- contains no outline data -->
+
+    <TTGlyph name="u1047F"/><!-- contains no outline data -->
+
+    <TTGlyph name="u104AF"/><!-- contains no outline data -->
+
+    <TTGlyph name="u104FF"/><!-- contains no outline data -->
+
+    <TTGlyph name="u1083F"/><!-- contains no outline data -->
+
+    <TTGlyph name="u10B3E"/><!-- contains no outline data -->
+
+    <TTGlyph name="u10B3F"/><!-- contains no outline data -->
+
+    <TTGlyph name="u10C4F"/><!-- contains no outline data -->
+
+    <TTGlyph name="u10D3F"/><!-- contains no outline data -->
+
+    <TTGlyph name="u11134"/><!-- contains no outline data -->
+
+    <TTGlyph name="u1114F"/><!-- contains no outline data -->
+
+    <TTGlyph name="u1167F"/><!-- contains no outline data -->
+
+    <TTGlyph name="u16A3F"/><!-- contains no outline data -->
+
+    <TTGlyph name="u16E9F"/><!-- contains no outline data -->
+
+    <TTGlyph name="u1E02E"/><!-- contains no outline data -->
+
+    <TTGlyph name="u1E02F"/><!-- contains no outline data -->
+
+    <TTGlyph name="u1E94A"/><!-- contains no outline data -->
+
+    <TTGlyph name="u1E95F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni02FF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni055F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni05C5"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni07FD"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni07FF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni08FF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0957"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni097F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni09CD"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni09FF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0A51"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0A7F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0ACD"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0AFF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0B44"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0B7F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0BC2"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0BFF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0C40"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0C7F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0CC6"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0CFF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0D4E"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0D7F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0DD6"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0DFF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0E3A"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0E7F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0EBC"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0EFF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0F3F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni0FFF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni1074"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni135F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni1753"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni175F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni17D3"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni17FF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni18A9"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni18FF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni1934"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni194F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni19FF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni1BAD"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni1C7F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni1CBF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni1CCF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni1D78"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni1DFF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni1FCF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni1FFF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni209C"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni2CF1"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni2CFF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni2D2D"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni2D7F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni2DDF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni2DFF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni319F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uni9FFF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniA4FF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniA63F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniA67F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniA6F1"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniA80B"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniA82F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniA8C5"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniA8DF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniA92D"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniA92F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniA9FF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniAAB8"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniAADF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniABBF"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniFB17"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniFB4F"/><!-- contains no outline data -->
+
+    <TTGlyph name="uniFDFF"/><!-- contains no outline data -->
+
+  </glyf>
+
 </ttFont>

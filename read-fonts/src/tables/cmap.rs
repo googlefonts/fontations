@@ -2,6 +2,7 @@
 
 include!("../../generated/generated_cmap.rs");
 
+use int_set::IntSet;
 use std::ops::{Range, RangeInclusive};
 
 /// Result of mapping a codepoint with a variation selector.
@@ -38,6 +39,22 @@ impl<'a> Cmap<'a> {
             }
         }
         None
+    }
+
+    pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
+        for record in self.encoding_records() {
+            if let Ok(subtable) = record.subtable(self.offset_data()) {
+                match subtable {
+                    CmapSubtable::Format14(format14) => {
+                        format14.closure_glyphs(unicodes, glyph_set);
+                        return;
+                    }
+                    _ => {
+                        continue;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -360,6 +377,25 @@ impl<'a> Cmap14<'a> {
         });
         (selector, default_uvs, non_default_uvs)
     }
+
+    pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
+        for selector in self.var_selector() {
+            if let Some(non_default_uvs) = selector
+                .non_default_uvs(self.offset_data())
+                .transpose()
+                .ok()
+                .flatten()
+            {
+                glyph_set.extend(
+                    non_default_uvs
+                        .uvs_mapping()
+                        .iter()
+                        .filter(|m| unicodes.contains(m.unicode_value().to_u32()))
+                        .map(|m| GlyphId::new(m.glyph_id())),
+                );
+            }
+        }
+    }
 }
 
 /// Iterator over all (codepoint, selector, mapping variant) triples
@@ -512,6 +548,22 @@ mod tests {
             cmap14.map_variant('\u{4e09}', selector),
             Some(Variant(GlyphId::new(26)))
         );
+    }
+
+    #[test]
+    fn cmap14_closure_glyphs() {
+        let font = FontRef::new(font_test_data::CMAP14_FONT1).unwrap();
+        let cmap = font.cmap().unwrap();
+        let mut unicodes = IntSet::empty();
+        unicodes.insert(0x4e08_u32);
+
+        let mut glyph_set = IntSet::empty();
+        glyph_set.insert(GlyphId::new(18));
+        cmap.closure_glyphs(&unicodes, &mut glyph_set);
+
+        assert_eq!(glyph_set.len(), 2);
+        assert!(glyph_set.contains(GlyphId::new(18)));
+        assert!(glyph_set.contains(GlyphId::new(25)));
     }
 
     #[test]

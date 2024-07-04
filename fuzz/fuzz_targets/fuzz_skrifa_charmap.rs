@@ -2,20 +2,33 @@
 use std::error::Error;
 
 use libfuzzer_sys::fuzz_target;
-use skrifa::{FontRef, MetadataProvider};
+use skrifa::{
+    charmap::{Charmap, MappingIndex},
+    FontRef, MetadataProvider,
+};
 
-fn do_skrifa_things(data: &[u8]) -> Result<(), Box<dyn Error>> {
-    let font = FontRef::new(data)?;
-    let charmap = font.charmap();
+const CJK_VARIATION_1: u32 = 0xFE00;
+const CJK_VARIATION_2: u32 = 0xFE01;
 
-    // we don't care about the result, just that we don't panic, hang, etc
-
+fn do_charmap_things(charmap: Charmap<'_>) {
     let _ = charmap.has_map();
     let _ = charmap.is_symbol();
     let _ = charmap.has_variant_map();
 
-    let _ = charmap.mappings().count();
+    for (cp, _) in charmap.mappings() {
+        let _ = charmap.map(cp);
+        let _ = charmap.map_variant(cp, CJK_VARIATION_1);
+        let _ = charmap.map_variant(cp, CJK_VARIATION_2);
+    }
     let _ = charmap.variant_mappings().count();
+}
+
+fn do_skrifa_things(data: &[u8]) -> Result<(), Box<dyn Error>> {
+    let font = FontRef::new(data)?;
+
+    // we don't care about the result, just that we don't panic, hang, etc
+    do_charmap_things(font.charmap());
+    do_charmap_things(MappingIndex::new(&font).charmap(&font));
 
     Ok(())
 }
