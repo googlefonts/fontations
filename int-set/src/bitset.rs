@@ -497,6 +497,10 @@ impl Extend<u32> for BitSet {
     }
 }
 
+/// This helper is used to construct BitSet's from a stream of possibly sorted values.
+/// It remembers the last page index to reduce the amount of page lookups needed when inserting
+/// sorted data. If given unsorted values it will still work correctly, but may be slower then just
+/// repeatedly calling insert() on the bitset.
 pub(crate) struct BitSetBuilder<'a> {
     pub(crate) set: &'a mut BitSet,
     last_page_index: usize,

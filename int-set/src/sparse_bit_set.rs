@@ -54,7 +54,7 @@ impl IntSet<u32> {
             BranchFactor::ThirtyTwo => Self::decode_sparse_bit_set_nodes::<32>(data, height),
         };
 
-        result.map(|set| IntSet::<u32>::from_bitset(set))
+        result.map(IntSet::<u32>::from_bitset)
     }
 
     fn decode_sparse_bit_set_nodes<const BF: u8>(
