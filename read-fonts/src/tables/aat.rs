@@ -13,6 +13,21 @@ pub mod class {
     pub const DELETED_GLYPH: u8 = 2;
 }
 
+impl<'a> Lookup0<'a> {
+    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
+        let data = self.values_data();
+        let data_len = data.len();
+        let n_elems = data_len / T::RAW_BYTE_LEN;
+        let len_in_bytes = n_elems * T::RAW_BYTE_LEN;
+        FontData::new(&data[..len_in_bytes])
+            .cursor()
+            .read_array::<BigEndian<T>>(n_elems)?
+            .get(index as usize)
+            .map(|val| val.get())
+            .ok_or(ReadError::OutOfBounds)
+    }
+}
+
 /// Lookup segment for format 2.
 #[derive(Copy, Clone, bytemuck::AnyBitPattern)]
 #[repr(packed)]
@@ -28,15 +43,51 @@ where
     pub value: BigEndian<T>,
 }
 
+/// Note: this requires `LookupSegment2` to be `repr(packed)`.
 impl<T: LookupValue> FixedSize for LookupSegment2<T> {
     const RAW_BYTE_LEN: usize = std::mem::size_of::<Self>();
 }
 
 impl<'a> Lookup2<'a> {
+    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
+        let segments = self.segments::<T>()?;
+        let ix = match segments.binary_search_by(|segment| segment.first_glyph.get().cmp(&index)) {
+            Ok(ix) => ix,
+            Err(ix) => ix.saturating_sub(1),
+        };
+        let segment = segments.get(ix).ok_or(ReadError::OutOfBounds)?;
+        if (segment.first_glyph.get()..=segment.last_glyph.get()).contains(&index) {
+            let value = segment.value;
+            return Ok(value.get());
+        }
+        Err(ReadError::OutOfBounds)
+    }
+
     fn segments<T: LookupValue>(&self) -> Result<&[LookupSegment2<T>], ReadError> {
         FontData::new(self.segments_data())
             .cursor()
             .read_array(self.n_units() as usize)
+    }
+}
+
+impl<'a> Lookup4<'a> {
+    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
+        let segments = self.segments();
+        let ix = match segments.binary_search_by(|segment| segment.first_glyph.get().cmp(&index)) {
+            Ok(ix) => ix,
+            Err(ix) => ix.saturating_sub(1),
+        };
+        let segment = segments.get(ix).ok_or(ReadError::OutOfBounds)?;
+        if (segment.first_glyph.get()..=segment.last_glyph.get()).contains(&index) {
+            let base_offset = segment.value_offset() as usize;
+            let offset = base_offset
+                + index
+                    .checked_sub(segment.first_glyph())
+                    .ok_or(ReadError::OutOfBounds)? as usize
+                    * T::RAW_BYTE_LEN;
+            return self.offset_data().read_at(offset);
+        }
+        Err(ReadError::OutOfBounds)
     }
 }
 
@@ -53,7 +104,22 @@ where
     pub value: BigEndian<T>,
 }
 
+/// Note: this requires `LookupSingle` to be `repr(packed)`.
+impl<T: LookupValue> FixedSize for LookupSingle<T> {
+    const RAW_BYTE_LEN: usize = std::mem::size_of::<Self>();
+}
+
 impl<'a> Lookup6<'a> {
+    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
+        let entries = self.entries::<T>()?;
+        if let Ok(ix) = entries.binary_search_by_key(&index, |entry| entry.glyph.get()) {
+            let entry = &entries[ix];
+            let value = entry.value;
+            return Ok(value.get());
+        }
+        Err(ReadError::OutOfBounds)
+    }
+
     fn entries<T: LookupValue>(&self) -> Result<&[LookupSingle<T>], ReadError> {
         FontData::new(self.entries_data())
             .cursor()
@@ -61,8 +127,53 @@ impl<'a> Lookup6<'a> {
     }
 }
 
-impl<T: LookupValue> FixedSize for LookupSingle<T> {
-    const RAW_BYTE_LEN: usize = std::mem::size_of::<Self>();
+impl<'a> Lookup8<'a> {
+    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
+        index
+            .checked_sub(self.first_glyph())
+            .and_then(|ix| {
+                self.value_array()
+                    .get(ix as usize)
+                    .map(|val| T::from_u16(val.get()))
+            })
+            .ok_or(ReadError::OutOfBounds)
+    }
+}
+
+impl<'a> Lookup10<'a> {
+    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
+        let ix = index
+            .checked_sub(self.first_glyph())
+            .ok_or(ReadError::OutOfBounds)? as usize;
+        let unit_size = self.unit_size() as usize;
+        let offset = ix * unit_size;
+        let mut cursor = FontData::new(self.values_data()).cursor();
+        cursor.advance_by(offset);
+        let val = match unit_size {
+            1 => cursor.read::<u8>()? as u32,
+            2 => cursor.read::<u16>()? as u32,
+            4 => cursor.read::<u32>()?,
+            _ => {
+                return Err(ReadError::MalformedData(
+                    "invalid unit_size in format 10 AAT lookup table",
+                ))
+            }
+        };
+        Ok(T::from_u32(val))
+    }
+}
+
+impl<'a> Lookup<'a> {
+    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
+        match self {
+            Lookup::Format0(lookup) => lookup.value::<T>(index),
+            Lookup::Format2(lookup) => lookup.value::<T>(index),
+            Lookup::Format4(lookup) => lookup.value::<T>(index),
+            Lookup::Format6(lookup) => lookup.value::<T>(index),
+            Lookup::Format8(lookup) => lookup.value::<T>(index),
+            Lookup::Format10(lookup) => lookup.value::<T>(index),
+        }
+    }
 }
 
 pub struct TypedLookup<'a, T> {
@@ -73,86 +184,7 @@ pub struct TypedLookup<'a, T> {
 impl<'a, T: LookupValue> TypedLookup<'a, T> {
     /// Returns the value associated with the given index.
     pub fn value(&self, index: u16) -> Result<T, ReadError> {
-        match &self.lookup {
-            Lookup::Format0(lookup) => {
-                let data = lookup.values_data();
-                let data_len = data.len();
-                let n_elems = data_len / T::RAW_BYTE_LEN;
-                let len_in_bytes = n_elems * T::RAW_BYTE_LEN;
-                FontData::new(&data[..len_in_bytes])
-                    .cursor()
-                    .read_array::<BigEndian<T>>(n_elems)?
-                    .get(index as usize)
-                    .map(|val| val.get())
-                    .ok_or(ReadError::OutOfBounds)
-            }
-            Lookup::Format2(lookup) => {
-                let segments = lookup.segments::<T>()?;
-                // TODO: binary search
-                for segment in segments {
-                    if (segment.first_glyph.get()..=segment.last_glyph.get()).contains(&index) {
-                        let value = segment.value;
-                        return Ok(value.get());
-                    }
-                }
-                Err(ReadError::OutOfBounds)
-            }
-            Lookup::Format4(lookup) => {
-                let segments = lookup.segments();
-                // TODO: binary search
-                for segment in segments {
-                    if (segment.first_glyph.get()..=segment.last_glyph.get()).contains(&index) {
-                        let base_offset = segment.value_offset() as usize;
-                        let offset = base_offset
-                            + index
-                                .checked_sub(segment.first_glyph())
-                                .ok_or(ReadError::OutOfBounds)?
-                                as usize
-                                * T::RAW_BYTE_LEN;
-                        return lookup.offset_data().read_at(offset);
-                    }
-                }
-                Err(ReadError::OutOfBounds)
-            }
-            Lookup::Format6(lookup) => {
-                let entries = lookup.entries::<T>()?;
-                if let Ok(ix) = entries.binary_search_by_key(&index, |entry| entry.glyph.get()) {
-                    let entry = &entries[ix];
-                    let value = entry.value;
-                    return Ok(value.get());
-                }
-                Err(ReadError::OutOfBounds)
-            }
-            Lookup::Format8(lookup) => index
-                .checked_sub(lookup.first_glyph())
-                .and_then(|ix| {
-                    lookup
-                        .value_array()
-                        .get(ix as usize)
-                        .map(|val| T::from_u16(val.get()))
-                })
-                .ok_or(ReadError::OutOfBounds),
-            Lookup::Format10(lookup) => {
-                let ix = index
-                    .checked_sub(lookup.first_glyph())
-                    .ok_or(ReadError::OutOfBounds)? as usize;
-                let unit_size = lookup.unit_size() as usize;
-                let offset = ix * unit_size;
-                let mut cursor = FontData::new(lookup.values_data()).cursor();
-                cursor.advance_by(offset);
-                let val = match unit_size {
-                    1 => cursor.read::<u8>()? as u32,
-                    2 => cursor.read::<u16>()? as u32,
-                    4 => cursor.read::<u32>()?,
-                    _ => {
-                        return Err(ReadError::MalformedData(
-                            "invalid unit_size in format 10 AAT lookup table",
-                        ))
-                    }
-                };
-                Ok(T::from_u32(val))
-            }
-        }
+        self.lookup.value::<T>(index)
     }
 }
 
@@ -218,8 +250,15 @@ pub type LookupU16<'a> = TypedLookup<'a, u16>;
 pub type LookupU32<'a> = TypedLookup<'a, u32>;
 pub type LookupGlyphId<'a> = TypedLookup<'a, GlyphId>;
 
+#[derive(Copy, Clone, bytemuck::AnyBitPattern)]
+pub struct NoPayload(());
+
+impl FixedSize for NoPayload {
+    const RAW_BYTE_LEN: usize = 0;
+}
+
 /// Entry in an (extended) state table.
-pub struct StateEntry<T = ()> {
+pub struct StateEntry<T = NoPayload> {
     /// Index of the next state.
     pub new_state: u16,
     /// Flag values are table specific.
@@ -248,7 +287,7 @@ where
     T: FixedSize,
 {
     // Two u16 fields + payload
-    const RAW_BYTE_LEN: usize = 4 + T::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + T::RAW_BYTE_LEN;
 }
 
 pub struct StateTable<'a> {
@@ -273,13 +312,22 @@ impl<'a> StateTable<'a> {
     pub fn entry(&self, state: u16, class: u8) -> Result<StateEntry, ReadError> {
         // Each state has a 1-byte entry per class so state_size == n_classes
         let n_classes = self.header.state_size() as usize;
+        if n_classes == 0 {
+            // Avoid potential divide by zero below
+            return Err(ReadError::MalformedData("empty AAT state table"));
+        }
         let mut class = class as usize;
         if class >= n_classes {
             class = class::OUT_OF_BOUNDS as usize;
         }
         let state_array = self.header.state_array()?.data();
         let entry_ix = state_array
-            .get(state as usize * n_classes + class)
+            .get(
+                (state as usize)
+                    .checked_mul(n_classes)
+                    .ok_or(ReadError::OutOfBounds)?
+                    + class,
+            )
             .copied()
             .ok_or(ReadError::OutOfBounds)? as usize;
         let entry_offset = entry_ix * 4;
@@ -292,8 +340,9 @@ impl<'a> StateTable<'a> {
         let mut entry = StateEntry::read(FontData::new(entry_data))?;
         // For legacy state tables, the newState is a byte offset into
         // the state array. Convert this to an index for consistency.
-        let new_state = ((entry.new_state as i32)
-            - (self.header.state_array_offset().to_u32() as i32))
+        let new_state = (entry.new_state as i32)
+            .checked_sub(self.header.state_array_offset().to_u32() as i32)
+            .ok_or(ReadError::OutOfBounds)?
             / n_classes as i32;
         entry.new_state = new_state.try_into().map_err(|_| ReadError::OutOfBounds)?;
         Ok(entry)
