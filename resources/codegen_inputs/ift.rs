@@ -1,10 +1,14 @@
 #![parse_module(read_fonts::tables::ift)]
 
 #[tag = "IFT "]
+#[skip_font_write]
+#[skip_from_obj]
 table IFT {
 }
 
 #[tag = "IFTX"]
+#[skip_font_write]
+#[skip_from_obj]
 table IFTX {
 }
 
@@ -33,7 +37,7 @@ table PatchMapFormat1 {
   glyph_count: u32,
 
   /// Sub table that maps glyph ids to entry indices.
-  #[read_offset_with($entry_count, $glyph_count)]
+  #[read_offset_with($glyph_count)]
   glyph_map_offset: Offset32<GlyphMap>,
 
   /// Sub table that maps feature and glyph ids to entry indices.
@@ -52,7 +56,7 @@ table PatchMapFormat1 {
   patch_encoding: u8,
 }
 
-#[read_args(entry_count: u32, glyph_count: u32)]
+#[read_args(glyph_count: u32)]
 table GlyphMap {
   first_mapped_glyph: u16,
 
@@ -82,9 +86,7 @@ table PatchMapFormat2 {
   #[format = 2]
   format: u8,
 
-  #[skip_getter]
-  #[compile(0)]
-  _reserved: u32,
+  todo: u32,
 
   // TODO(garretrieger): write me.
 }

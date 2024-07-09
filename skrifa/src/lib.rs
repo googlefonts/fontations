@@ -34,6 +34,7 @@ pub mod font;
 pub mod instance;
 pub mod metrics;
 pub mod outline;
+pub mod patchmap;
 pub mod setting;
 pub mod string;
 

@@ -8,7 +8,16 @@ use std::str;
 // TODO(garretrieger): fail validation if entry count is == 0.
 
 impl<'a> PatchMapFormat1<'a> {
-    pub fn gid_to_entry_iter(&'a self) -> impl Iterator<Item = (u32, u32)> + 'a {
+    pub fn get_compatibility_id(&self) -> [u32; 4] {
+        [
+            self.compatibility_id().first().unwrap().get(),
+            self.compatibility_id().get(1).unwrap().get(),
+            self.compatibility_id().get(2).unwrap().get(),
+            self.compatibility_id().get(3).unwrap().get(),
+        ]
+    }
+
+    pub fn gid_to_entry_iter(&'a self) -> impl Iterator<Item = (GlyphId, u32)> + 'a {
         GidToEntryIter {
             glyph_map: self.glyph_map().ok(),
             glyph_count: self.glyph_count(),
@@ -20,11 +29,11 @@ impl<'a> PatchMapFormat1<'a> {
         str::from_utf8(self.uri_template())
     }
 
-    pub fn is_entry_applied(&self, entry_index: usize) -> bool {
+    pub fn is_entry_applied(&self, entry_index: u32) -> bool {
         let byte_index = entry_index / 8;
         let bit_mask = 1 << (entry_index % 8);
         self.applied_entries_bitmap()
-            .get(byte_index)
+            .get(byte_index as usize)
             .map(|byte| byte & bit_mask != 0)
             .unwrap_or(false)
     }
@@ -37,12 +46,10 @@ struct GidToEntryIter<'a> {
 }
 
 impl<'a> Iterator for GidToEntryIter<'a> {
-    type Item = (u32, u32);
+    type Item = (GlyphId, u32);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let Some(glyph_map) = &self.glyph_map else {
-            return None;
-        };
+        let glyph_map = self.glyph_map.as_ref()?;
 
         let cur_gid = self.gid;
         self.gid += 1;
@@ -52,15 +59,20 @@ impl<'a> Iterator for GidToEntryIter<'a> {
         }
 
         if cur_gid < glyph_map.first_mapped_glyph().into() {
-            return Some((cur_gid, 0));
+            // TODO(garretrieger): this cast may overflow, GlyphId is going to become u32
+            //   in the near future (https://github.com/googlefonts/fontations/issues/784)
+            //   once it is, this cast should be removed.
+            return Some(((cur_gid as u16).into(), 0));
         }
 
         let index = cur_gid as usize - glyph_map.first_mapped_glyph() as usize;
-
         glyph_map
             .entry_index()
             .get(index)
-            .map(|entry_index| (cur_gid, *entry_index as u32))
+            // TODO(garretrieger): this cast may overflow, GlyphId is going to become u32
+            //   in the near future (https://github.com/googlefonts/fontations/issues/784)
+            //   once it is, this cast should be removed.
+            .map(|entry_index| ((cur_gid as u16).into(), *entry_index as u32))
     }
 }
 
@@ -77,6 +89,7 @@ mod tests {
     // - Test where entryIndex is a u16.
     // - Invalid table (too short).
     // - Invalid UTF8 sequence in uri template.
+    // - Compat ID is to short.
 
     #[test]
     fn format_1_gid_to_entry_iter() {
@@ -84,9 +97,22 @@ mod tests {
         let Ift::Format1(map) = table else {
             panic!("Not format 1.");
         };
-        let entries: Vec<(u32, u32)> = map.gid_to_entry_iter().collect();
+        let entries: Vec<(GlyphId, u32)> = map.gid_to_entry_iter().collect();
 
-        assert_eq!(entries, vec![(0, 0), (1, 0), (2, 1), (3, 0),]);
+        assert_eq!(
+            entries,
+            vec![(0.into(), 0), (1.into(), 0), (2.into(), 1), (3.into(), 0),]
+        );
+    }
+
+    #[test]
+    fn compatibility_id() {
+        let table = Ift::read(test_data::SIMPLE_FORMAT1.into()).unwrap();
+        let Ift::Format1(map) = table else {
+            panic!("Not format 1.");
+        };
+
+        assert_eq!(map.get_compatibility_id(), [1, 2, 3, 4]);
     }
 
     #[test]
