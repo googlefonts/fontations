@@ -274,7 +274,7 @@ impl<'a> PatchMapFormat1<'a> {
     /// Attempt to resolve [`glyph_map_offset`][Self::glyph_map_offset].
     pub fn glyph_map(&self) -> Result<GlyphMap<'a>, ReadError> {
         let data = self.data;
-        let args = (self.entry_count(), self.glyph_count());
+        let args = self.glyph_count();
         self.glyph_map_offset().resolve_with_args(data, &args)
     }
 
@@ -371,12 +371,12 @@ impl GlyphMapMarker {
 }
 
 impl ReadArgs for GlyphMap<'_> {
-    type Args = (u32, u32);
+    type Args = u32;
 }
 
 impl<'a> FontReadWithArgs<'a> for GlyphMap<'a> {
-    fn read_with_args(data: FontData<'a>, args: &(u32, u32)) -> Result<Self, ReadError> {
-        let (entry_count, glyph_count) = *args;
+    fn read_with_args(data: FontData<'a>, args: &u32) -> Result<Self, ReadError> {
+        let glyph_count = *args;
         let mut cursor = data.cursor();
         let first_mapped_glyph: u16 = cursor.read()?;
         let entry_index_byte_len = (transforms::subtract(glyph_count, first_mapped_glyph))
@@ -394,8 +394,8 @@ impl<'a> GlyphMap<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
-    pub fn read(data: FontData<'a>, entry_count: u32, glyph_count: u32) -> Result<Self, ReadError> {
-        let args = (entry_count, glyph_count);
+    pub fn read(data: FontData<'a>, glyph_count: u32) -> Result<Self, ReadError> {
+        let args = glyph_count;
         Self::read_with_args(data, &args)
     }
 }
@@ -559,7 +559,7 @@ impl PatchMapFormat2Marker {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn _reserved_byte_range(&self) -> Range<usize> {
+    fn todo_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
@@ -583,6 +583,11 @@ impl<'a> PatchMapFormat2<'a> {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
+
+    pub fn todo(&self) -> u32 {
+        let range = self.shape.todo_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
 }
 
 #[cfg(feature = "traversal")]
@@ -593,6 +598,7 @@ impl<'a> SomeTable<'a> for PatchMapFormat2<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("todo", self.todo())),
             _ => None,
         }
     }

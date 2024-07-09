@@ -236,7 +236,7 @@ pub mod ift {
         0x00, 0x00, 0x00, 0x31,  // 29: glyph map offset (0x31 = 49)
         0x00, 0x00, 0x00, 0x00,  // 33: feature map offset
 
-        0x02,                    // 37: applied entry bitmap (glyph 2)
+        0x02,                    // 37: applied entry bitmap (entry 1)
 
         0x00, 0x08,              // 38: uriTemplateLength
         b'A', b'B', b'C', b'D',

@@ -16,33 +16,12 @@ impl IFT {
     }
 }
 
-impl FontWrite for IFT {
-    fn write_into(&self, writer: &mut TableWriter) {}
-    fn table_type(&self) -> TableType {
-        TableType::TopLevel(IFT::TAG)
-    }
-}
-
 impl Validate for IFT {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
 impl TopLevelTable for IFT {
     const TAG: Tag = Tag::new(b"IFT ");
-}
-
-impl<'a> FromObjRef<read_fonts::tables::ift::IFT<'a>> for IFT {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::IFT<'a>, _: FontData) -> Self {
-        IFT {}
-    }
-}
-
-impl<'a> FromTableRef<read_fonts::tables::ift::IFT<'a>> for IFT {}
-
-impl<'a> FontRead<'a> for IFT {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::tables::ift::IFT as FontRead>::read(data).map(|x| x.to_owned_table())
-    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -56,33 +35,12 @@ impl IFTX {
     }
 }
 
-impl FontWrite for IFTX {
-    fn write_into(&self, writer: &mut TableWriter) {}
-    fn table_type(&self) -> TableType {
-        TableType::TopLevel(IFTX::TAG)
-    }
-}
-
 impl Validate for IFTX {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
 impl TopLevelTable for IFTX {
     const TAG: Tag = Tag::new(b"IFTX");
-}
-
-impl<'a> FromObjRef<read_fonts::tables::ift::IFTX<'a>> for IFTX {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::IFTX<'a>, _: FontData) -> Self {
-        IFTX {}
-    }
-}
-
-impl<'a> FromTableRef<read_fonts::tables::ift::IFTX<'a>> for IFTX {}
-
-impl<'a> FontRead<'a> for IFTX {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::tables::ift::IFTX as FontRead>::read(data).map(|x| x.to_owned_table())
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -120,8 +78,8 @@ impl Ift {
     }
 
     /// Construct a new `PatchMapFormat2` subtable
-    pub fn format_2() -> Self {
-        Self::Format2(PatchMapFormat2::new())
+    pub fn format_2(todo: u32) -> Self {
+        Self::Format2(PatchMapFormat2::new(todo))
     }
 }
 
@@ -449,12 +407,14 @@ impl FromObjRef<read_fonts::tables::ift::EntryMapRecord> for EntryMapRecord {
 /// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct PatchMapFormat2 {}
+pub struct PatchMapFormat2 {
+    pub todo: u32,
+}
 
 impl PatchMapFormat2 {
     /// Construct a new `PatchMapFormat2`
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(todo: u32) -> Self {
+        Self { todo }
     }
 }
 
@@ -462,7 +422,7 @@ impl FontWrite for PatchMapFormat2 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u8).write_into(writer);
-        (0 as u32).write_into(writer);
+        self.todo.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("PatchMapFormat2")
@@ -475,7 +435,7 @@ impl Validate for PatchMapFormat2 {
 
 impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat2<'a>> for PatchMapFormat2 {
     fn from_obj_ref(obj: &read_fonts::tables::ift::PatchMapFormat2<'a>, _: FontData) -> Self {
-        PatchMapFormat2 {}
+        PatchMapFormat2 { todo: obj.todo() }
     }
 }
 
