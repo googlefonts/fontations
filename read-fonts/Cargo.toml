@@ -17,12 +17,21 @@ default = ["traversal"]
 serde = ["dep:serde", "font-types/serde"]
 libm = ["dep:core_maths"]
 
+[[bench]]
+name = "int_set_benchmark"
+harness = false
+
+[[bench]]
+name = "sparse_bit_set_benchmark"
+harness = false
+
 [dependencies]
 font-types = { version = "0.5.5", path = "../font-types", features = ["bytemuck"] }
 serde = { version = "1.0", features = ["derive"], optional = true }
 core_maths = { workspace = true, optional = true }
 bytemuck = { workspace = true }
-int-set = { path = "../int-set" }
 
 [dev-dependencies]
 font-test-data = { path = "../font-test-data" }
+criterion = "0.5.1"
+rand = "0.8.5"

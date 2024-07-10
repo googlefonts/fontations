@@ -1,5 +1,5 @@
 //! subsetter input parsing util functions
-use int_set::IntSet;
+use write_fonts::read::intset::IntSet;
 use write_fonts::types::GlyphId;
 
 use crate::SubsetError;

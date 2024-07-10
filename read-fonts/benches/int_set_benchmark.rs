@@ -1,7 +1,7 @@
 mod bench_helper;
 use bench_helper::random_set;
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
-use int_set::IntSet;
+use read_fonts::intset::IntSet;
 
 struct SetTest {
     set_size: u32,

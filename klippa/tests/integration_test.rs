@@ -6,7 +6,6 @@
 //! To generate the expected output files, pass GEN_EXPECTED_OUTPUTS=1 as an
 //! environment variable.
 
-use int_set::IntSet;
 use klippa::{parse_unicodes, subset_font, Plan};
 use std::fmt::Write;
 use std::fs;
@@ -14,6 +13,7 @@ use std::iter::Peekable;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tempdir::TempDir;
+use write_fonts::read::intset::IntSet;
 use write_fonts::read::FontRef;
 
 static TEST_DATA_DIR: &str = "./test-data";

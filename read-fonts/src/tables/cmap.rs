@@ -2,7 +2,9 @@
 
 include!("../../generated/generated_cmap.rs");
 
-use int_set::IntSet;
+#[cfg(feature = "std")]
+use crate::intset::IntSet;
+
 use std::ops::{Range, RangeInclusive};
 
 /// Result of mapping a codepoint with a variation selector.
@@ -41,6 +43,7 @@ impl<'a> Cmap<'a> {
         None
     }
 
+    #[cfg(feature = "std")]
     pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
         for record in self.encoding_records() {
             if let Ok(subtable) = record.subtable(self.offset_data()) {
@@ -378,6 +381,7 @@ impl<'a> Cmap14<'a> {
         (selector, default_uvs, non_default_uvs)
     }
 
+    #[cfg(feature = "std")]
     pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
         for selector in self.var_selector() {
             if let Some(non_default_uvs) = selector

@@ -1,6 +1,6 @@
 //! Reads individual bits from a array of bytes.
 
-use crate::sparse_bit_set::BranchFactor;
+use crate::intset::sparse_bit_set::BranchFactor;
 
 pub(crate) struct InputBitStream<'a, const BF: u8> {
     data: &'a [u8],

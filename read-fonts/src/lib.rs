@@ -70,6 +70,10 @@ extern crate core as std;
 
 pub mod array;
 mod font_data;
+
+#[cfg(feature = "std")]
+pub mod intset;
+
 mod offset;
 mod offset_array;
 mod read;

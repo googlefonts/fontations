@@ -2,8 +2,8 @@ mod bench_helper;
 
 use bench_helper::random_set;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use int_set::sparse_bit_set::to_sparse_bit_set_with_bf;
-use int_set::IntSet;
+use read_fonts::intset::sparse_bit_set::to_sparse_bit_set_with_bf;
+use read_fonts::intset::IntSet;
 
 struct SparseSetTest {
     set_size: u32,
