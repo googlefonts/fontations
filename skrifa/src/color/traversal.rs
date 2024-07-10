@@ -526,7 +526,7 @@ pub(crate) fn traverse_with_callbacks(
                     visited_set.remove(&base_glyph_paint_id);
                     result
                 }
-                None => Err(PaintError::GlyphNotFound((glyph_id).into())),
+                None => Err(PaintError::GlyphNotFound(glyph_id)),
             }
         }
         ResolvedPaint::Transform {

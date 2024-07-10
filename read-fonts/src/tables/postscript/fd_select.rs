@@ -26,7 +26,7 @@ impl<'a> FdSelect<'a> {
             // See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-14-fdselect-format-4>
             Self::Format4(fds) => {
                 let ranges = fds.ranges();
-                let gid = glyph_id.to_u32() as u32;
+                let gid = glyph_id.to_u32();
                 let ix = match ranges.binary_search_by(|range| range.first().cmp(&gid)) {
                     Ok(ix) => ix,
                     Err(ix) => ix.saturating_sub(1),
