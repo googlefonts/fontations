@@ -250,6 +250,11 @@ pub type LookupU16<'a> = TypedLookup<'a, u16>;
 pub type LookupU32<'a> = TypedLookup<'a, u32>;
 pub type LookupGlyphId<'a> = TypedLookup<'a, GlyphId>;
 
+/// Empty data type for a state table entry with no payload.
+///
+/// Note: this type is only intended for use as the type parameter for
+/// `StateEntry`. The inner field is private and this type cannot be
+/// constructed outside of this module.
 #[derive(Copy, Clone, bytemuck::AnyBitPattern)]
 pub struct NoPayload(());
 
@@ -664,5 +669,73 @@ mod tests {
 
     impl FixedSize for ContextualData {
         const RAW_BYTE_LEN: usize = 4;
+    }
+
+    // Take from example at <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html>
+    // with class table trimmed to 4 glyphs
+    #[test]
+    fn state_table() {
+        #[rustfmt::skip]
+        let header = [
+            7_u16, // number of classes
+            10, // byte offset to class table
+            18, // byte offset to state array
+            40, // byte offset to entry array
+            64, // byte offset to value array (unused here)
+        ];
+        #[rustfmt::skip]
+        let class_table = [
+            3_u16, // first glyph
+            4, // number of glyphs
+        ];
+        let classes = [1u8, 2, 3, 4];
+        #[rustfmt::skip]
+        let state_array: [u8; 22] = [
+            2, 0, 0, 2, 1, 0, 0,
+            2, 0, 0, 2, 1, 0, 0,
+            2, 3, 3, 2, 3, 4, 5,
+            0, // padding
+        ];
+        #[rustfmt::skip]
+        let entry_table: [u16; 10] = [
+            // The first column are offsets from the beginning of the state
+            // table to some position in the state array
+            18, 0x8112,
+            32, 0x8112,
+            18, 0x0000,
+            32, 0x8114,
+            18, 0x8116,
+        ];
+        let buf = BeBuffer::new()
+            .extend(header)
+            .extend(class_table)
+            .extend(classes)
+            .extend(state_array)
+            .extend(entry_table);
+        let table = StateTable::read(buf.font_data()).unwrap();
+        // check class lookups
+        for i in 0..4u8 {
+            assert_eq!(table.class(GlyphId::from(i as u16 + 3)).unwrap(), i + 1);
+        }
+        // (state, class) -> (new_state, flags)
+        let cases = [
+            ((0, 4), (2, 0x8112)),
+            ((2, 1), (2, 0x8114)),
+            ((1, 3), (0, 0x0000)),
+            ((2, 5), (0, 0x8116)),
+        ];
+        for ((state, class), (new_state, flags)) in cases {
+            let entry = table.entry(state, class).unwrap();
+            assert_eq!(
+                entry.new_state, new_state,
+                "state {state}, class {class} should map to new state {new_state} (got {})",
+                entry.new_state
+            );
+            assert_eq!(
+                entry.flags, flags,
+                "state {state}, class {class} should map to flags 0x{flags:X} (got 0x{:X})",
+                entry.flags
+            );
+        }
     }
 }
