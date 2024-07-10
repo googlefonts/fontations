@@ -24,7 +24,7 @@ use write_fonts::{
 
 const MAX_COMPOSITE_OPERATIONS_PER_GLYPH: u8 = 64;
 const MAX_NESTING_LEVEL: u8 = 64;
-const MAX_GID: GlyphId = GlyphId::new(u16::MAX);
+const MAX_GID: GlyphId = GlyphId::new(u16::MAX as _);
 
 #[allow(dead_code)]
 #[derive(Default)]
@@ -185,7 +185,7 @@ fn glyf_closure_glyphs(
             operation_count = glyf_closure_glyphs(
                 loca,
                 glyf,
-                child.glyph,
+                child.glyph.into(),
                 gids_to_retain,
                 operation_count,
                 depth,
@@ -196,7 +196,7 @@ fn glyf_closure_glyphs(
 }
 
 fn remove_invalid_gids(gids: &mut IntSet<GlyphId>, num_glyphs: usize) {
-    gids.remove_range(GlyphId::new(num_glyphs as u16)..=MAX_GID);
+    gids.remove_range(GlyphId::new(num_glyphs as u32)..=MAX_GID);
 }
 
 fn get_font_num_glyphs(font: &FontRef) -> usize {
@@ -211,7 +211,7 @@ fn compute_new_num_h_metrics(hmtx_table: &Hmtx, glyph_ids: &IntSet<GlyphId>) -> 
     let num_long_metrics = glyph_ids.len().min(0xFFFF);
     //TODO: we still need a BTreeSet here because we currently don't have max() and Iterator::rev() for IntSet
     let gids: BTreeSet<GlyphId> = glyph_ids.iter().collect();
-    let last_gid = gids.last().unwrap().to_u16() as usize;
+    let last_gid = gids.last().unwrap().to_u32() as usize;
     let last_advance = hmtx_table
         .h_metrics
         .get(last_gid)
@@ -225,7 +225,7 @@ fn compute_new_num_h_metrics(hmtx_table: &Hmtx, glyph_ids: &IntSet<GlyphId>) -> 
         .take_while(|gid| {
             hmtx_table
                 .h_metrics
-                .get(gid.to_u16() as usize)
+                .get(gid.to_u32() as usize)
                 .or_else(|| hmtx_table.h_metrics.last())
                 .unwrap()
                 .advance
@@ -241,7 +241,7 @@ pub enum SubsetError {
     InvalidGid(String),
 
     #[error("Invalid gid range {start}-{end}")]
-    InvalidGidRange { start: u16, end: u16 },
+    InvalidGidRange { start: u32, end: u32 },
 
     #[error("Invalid input unicode {0}")]
     InvalidUnicode(String),

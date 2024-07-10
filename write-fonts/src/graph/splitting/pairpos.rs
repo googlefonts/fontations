@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use font_types::{FixedSize, GlyphId, Offset16};
+use font_types::{FixedSize, GlyphId16, Offset16};
 use read_fonts::tables::{
     gpos::{self as rgpos, ValueFormat},
     layout as rlayout,
@@ -385,7 +385,7 @@ fn copy_value_rec(
 struct ClassDefSizeEstimator {
     consecutive_gids: bool,
     num_ranges_per_class: HashMap<u16, u16>,
-    glyphs_per_class: HashMap<u16, BTreeSet<GlyphId>>,
+    glyphs_per_class: HashMap<u16, BTreeSet<GlyphId16>>,
 }
 
 const GLYPH_SIZE: usize = std::mem::size_of::<u16>();
@@ -449,7 +449,7 @@ impl ClassDefSizeEstimator {
     }
 }
 
-fn count_num_ranges(glyphs: &BTreeSet<GlyphId>) -> u16 {
+fn count_num_ranges(glyphs: &BTreeSet<GlyphId16>) -> u16 {
     let mut count = 0;
     let mut last = None;
     for gid in glyphs {
@@ -518,7 +518,7 @@ mod tests {
     fn split_pair_pos1() {
         let _ = env_logger::builder().is_test(true).try_init();
 
-        struct KernPair(GlyphId, GlyphId, i16);
+        struct KernPair(GlyphId16, GlyphId16, i16);
         fn make_pair_pos(pairs: Vec<KernPair>) -> PairPos {
             let mut records = BTreeMap::new();
             for KernPair(one, two, kern) in pairs {
@@ -548,10 +548,26 @@ mod tests {
 
         let mut pairs = Vec::new();
         for (advance, g1) in (0u16..N_GLYPHS).enumerate() {
-            pairs.push(KernPair(GlyphId::new(g1), GlyphId::new(5), advance as _));
-            pairs.push(KernPair(GlyphId::new(g1), GlyphId::new(6), advance as _));
-            pairs.push(KernPair(GlyphId::new(g1), GlyphId::new(7), advance as _));
-            pairs.push(KernPair(GlyphId::new(g1), GlyphId::new(8), advance as _));
+            pairs.push(KernPair(
+                GlyphId16::new(g1),
+                GlyphId16::new(5),
+                advance as _,
+            ));
+            pairs.push(KernPair(
+                GlyphId16::new(g1),
+                GlyphId16::new(6),
+                advance as _,
+            ));
+            pairs.push(KernPair(
+                GlyphId16::new(g1),
+                GlyphId16::new(7),
+                advance as _,
+            ));
+            pairs.push(KernPair(
+                GlyphId16::new(g1),
+                GlyphId16::new(8),
+                advance as _,
+            ));
         }
 
         let table = make_pair_pos(pairs);
@@ -576,7 +592,7 @@ mod tests {
             .unwrap()
             .iter()
             .chain(sub2.coverage().unwrap().iter())
-            .map(GlyphId::to_u16)
+            .map(GlyphId16::to_u16)
             .collect::<Vec<_>>();
         assert_eq!(gids.len(), N_GLYPHS as _);
 
@@ -608,13 +624,13 @@ mod tests {
                             u16::MAX - val - 1,
                         ))
                         .with_x_advance_device(VariationIndex::new(u16::MAX - val, u16::MAX - val));
-                    PairValueRecord::new(GlyphId::new(gid2), valrec, valrec2)
+                    PairValueRecord::new(GlyphId16::new(gid2), valrec, valrec2)
                 })
                 .collect();
             pairsets.push(PairSet::new(records));
         }
 
-        let coverage = (1u16..=g1_count).map(GlyphId::new).collect();
+        let coverage = (1u16..=g1_count).map(GlyphId16::new).collect();
         PairPos::format_1(coverage, pairsets)
     }
 
@@ -670,8 +686,8 @@ mod tests {
 
     #[test]
     fn count_glyph_ranges() {
-        fn make_input(glyphs: &[u16]) -> BTreeSet<GlyphId> {
-            glyphs.iter().copied().map(GlyphId::new).collect()
+        fn make_input(glyphs: &[u16]) -> BTreeSet<GlyphId16> {
+            glyphs.iter().copied().map(GlyphId16::new).collect()
         }
 
         assert_eq!(count_num_ranges(&make_input(&[])), 0);
@@ -691,7 +707,7 @@ mod tests {
         (first_gid..first_gid + n_glyphs)
             .map(|gid| {
                 let class = (gid - 1) / n_glyphs_per_class;
-                (GlyphId::new(gid), class)
+                (GlyphId16::new(gid), class)
             })
             .collect()
     }

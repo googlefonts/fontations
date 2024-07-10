@@ -208,7 +208,7 @@ impl SingleSubst {
     }
 
     /// Construct a new `SingleSubstFormat2` subtable
-    pub fn format_2(coverage: CoverageTable, substitute_glyph_ids: Vec<GlyphId>) -> Self {
+    pub fn format_2(coverage: CoverageTable, substitute_glyph_ids: Vec<GlyphId16>) -> Self {
         Self::Format2(SingleSubstFormat2::new(coverage, substitute_glyph_ids))
     }
 }
@@ -342,12 +342,12 @@ pub struct SingleSubstFormat2 {
     /// subtable
     pub coverage: OffsetMarker<CoverageTable>,
     /// Array of substitute glyph IDs — ordered by Coverage index
-    pub substitute_glyph_ids: Vec<GlyphId>,
+    pub substitute_glyph_ids: Vec<GlyphId16>,
 }
 
 impl SingleSubstFormat2 {
     /// Construct a new `SingleSubstFormat2`
-    pub fn new(coverage: CoverageTable, substitute_glyph_ids: Vec<GlyphId>) -> Self {
+    pub fn new(coverage: CoverageTable, substitute_glyph_ids: Vec<GlyphId16>) -> Self {
         Self {
             coverage: coverage.into(),
             substitute_glyph_ids: substitute_glyph_ids.into_iter().map(Into::into).collect(),
@@ -476,12 +476,12 @@ impl<'a> FontRead<'a> for MultipleSubstFormat1 {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Sequence {
     /// String of glyph IDs to substitute
-    pub substitute_glyph_ids: Vec<GlyphId>,
+    pub substitute_glyph_ids: Vec<GlyphId16>,
 }
 
 impl Sequence {
     /// Construct a new `Sequence`
-    pub fn new(substitute_glyph_ids: Vec<GlyphId>) -> Self {
+    pub fn new(substitute_glyph_ids: Vec<GlyphId16>) -> Self {
         Self {
             substitute_glyph_ids: substitute_glyph_ids.into_iter().map(Into::into).collect(),
         }
@@ -608,12 +608,12 @@ impl<'a> FontRead<'a> for AlternateSubstFormat1 {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AlternateSet {
     /// Array of alternate glyph IDs, in arbitrary order
-    pub alternate_glyph_ids: Vec<GlyphId>,
+    pub alternate_glyph_ids: Vec<GlyphId16>,
 }
 
 impl AlternateSet {
     /// Construct a new `AlternateSet`
-    pub fn new(alternate_glyph_ids: Vec<GlyphId>) -> Self {
+    pub fn new(alternate_glyph_ids: Vec<GlyphId16>) -> Self {
         Self {
             alternate_glyph_ids: alternate_glyph_ids.into_iter().map(Into::into).collect(),
         }
@@ -792,15 +792,15 @@ impl<'a> FontRead<'a> for LigatureSet {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ligature {
     /// glyph ID of ligature to substitute
-    pub ligature_glyph: GlyphId,
+    pub ligature_glyph: GlyphId16,
     /// Array of component glyph IDs — start with the second
     /// component, ordered in writing direction
-    pub component_glyph_ids: Vec<GlyphId>,
+    pub component_glyph_ids: Vec<GlyphId16>,
 }
 
 impl Ligature {
     /// Construct a new `Ligature`
-    pub fn new(ligature_glyph: GlyphId, component_glyph_ids: Vec<GlyphId>) -> Self {
+    pub fn new(ligature_glyph: GlyphId16, component_glyph_ids: Vec<GlyphId16>) -> Self {
         Self {
             ligature_glyph,
             component_glyph_ids: component_glyph_ids.into_iter().map(Into::into).collect(),
@@ -1005,7 +1005,7 @@ pub struct ReverseChainSingleSubstFormat1 {
     /// glyph sequence order.
     pub lookahead_coverages: Vec<OffsetMarker<CoverageTable>>,
     /// Array of substitute glyph IDs — ordered by Coverage index.
-    pub substitute_glyph_ids: Vec<GlyphId>,
+    pub substitute_glyph_ids: Vec<GlyphId16>,
 }
 
 impl ReverseChainSingleSubstFormat1 {
@@ -1014,7 +1014,7 @@ impl ReverseChainSingleSubstFormat1 {
         coverage: CoverageTable,
         backtrack_coverages: Vec<CoverageTable>,
         lookahead_coverages: Vec<CoverageTable>,
-        substitute_glyph_ids: Vec<GlyphId>,
+        substitute_glyph_ids: Vec<GlyphId16>,
     ) -> Self {
         Self {
             coverage: coverage.into(),

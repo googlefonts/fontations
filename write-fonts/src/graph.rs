@@ -1187,7 +1187,7 @@ impl Default for Priority {
 mod tests {
     use std::ops::Range;
 
-    use font_types::GlyphId;
+    use font_types::GlyphId16;
 
     use crate::TableWriter;
 
@@ -1621,13 +1621,13 @@ mod tests {
         let rsub_rules = (0u16..NUM_SUBTABLES as u16)
             .map(|id| {
                 // Each rule will use unique coverage tables, so nothing is shared.
-                let coverage = std::iter::once(GlyphId::new(id)).collect();
-                let backtrack = [id + 1, id + 3].into_iter().map(GlyphId::new).collect();
+                let coverage = std::iter::once(GlyphId16::new(id)).collect();
+                let backtrack = [id + 1, id + 3].into_iter().map(GlyphId16::new).collect();
                 gsub::ReverseChainSingleSubstFormat1::new(
                     coverage,
                     vec![backtrack],
                     vec![],
-                    vec![GlyphId::new(id + 1)],
+                    vec![GlyphId16::new(id + 1)],
                 )
             })
             .collect();
@@ -1677,7 +1677,7 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
 
         fn make_big_pair_pos(glyph_range: Range<u16>) -> gpos::PositionLookup {
-            let coverage = glyph_range.clone().map(GlyphId::new).collect();
+            let coverage = glyph_range.clone().map(GlyphId16::new).collect();
             let pair_sets = glyph_range
                 .map(|id| {
                     let value_rec = gpos::ValueRecord::new().with_x_advance(id as _);
@@ -1685,7 +1685,7 @@ mod tests {
                         (id..id + 165)
                             .map(|id2| {
                                 gpos::PairValueRecord::new(
-                                    GlyphId::new(id2),
+                                    GlyphId16::new(id2),
                                     value_rec.clone(),
                                     gpos::ValueRecord::default(),
                                 )

@@ -5,7 +5,7 @@ use crate::{
     FontWrite,
 };
 
-use read_fonts::{tables::glyf::CompositeGlyphFlags, types::GlyphId, FontRead};
+use read_fonts::{tables::glyf::CompositeGlyphFlags, types::GlyphId16, FontRead};
 
 use super::Bbox;
 
@@ -22,7 +22,7 @@ pub struct CompositeGlyph {
 /// A single component glyph (part of a [`CompositeGlyph`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Component {
-    pub glyph: GlyphId,
+    pub glyph: GlyphId16,
     pub anchor: Anchor,
     pub flags: ComponentFlags,
     pub transform: Transform,
@@ -95,7 +95,7 @@ impl<'a> FontRead<'a> for CompositeGlyph {
 impl Component {
     /// Create a new component.
     pub fn new(
-        glyph: GlyphId,
+        glyph: GlyphId16,
         anchor: Anchor,
         transform: Transform,
         flags: impl Into<ComponentFlags>,

@@ -13,7 +13,10 @@ impl<'a> Cbdt<'a> {
 #[cfg(test)]
 mod tests {
     use super::super::bitmap::{BitmapDataFormat, SmallGlyphMetrics};
-    use crate::{types::GlyphId, FontRef, TableProvider};
+    use crate::{
+        types::{GlyphId, GlyphId16},
+        FontRef, TableProvider,
+    };
 
     #[test]
     fn read_cblc_1_cbdt_17() {
@@ -29,8 +32,8 @@ mod tests {
                 && size.vert.ascender() == 101
                 && size.vert.descender() == -27
                 && size.vert.width_max() == 136
-                && size.start_glyph_index() == GlyphId::new(4)
-                && size.end_glyph_index() == GlyphId::new(4)
+                && size.start_glyph_index() == GlyphId16::new(4)
+                && size.end_glyph_index() == GlyphId16::new(4)
                 && size.ppem_x() == 109
                 && size.ppem_y() == 109
                 && size.bit_depth() == 32

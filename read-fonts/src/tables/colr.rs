@@ -15,6 +15,9 @@ impl<'a> Colr<'a> {
     /// and palette color indices.
     pub fn v0_base_glyph(&self, glyph_id: GlyphId) -> Result<Option<Range<usize>>, ReadError> {
         let records = self.base_glyph_records().ok_or(ReadError::NullOffset)??;
+        let Ok(glyph_id) = glyph_id.try_into() else {
+            return Ok(None);
+        };
         let record = match records.binary_search_by(|rec| rec.glyph_id().cmp(&glyph_id)) {
             Ok(ix) => &records[ix],
             _ => return Ok(None),
@@ -28,7 +31,7 @@ impl<'a> Colr<'a> {
     ///
     /// The layer is represented by a tuple containing the glyph identifier of
     /// the associated outline and the palette color index.
-    pub fn v0_layer(&self, index: usize) -> Result<(GlyphId, u16), ReadError> {
+    pub fn v0_layer(&self, index: usize) -> Result<(GlyphId16, u16), ReadError> {
         let layers = self.layer_records().ok_or(ReadError::NullOffset)??;
         let layer = layers.get(index).ok_or(ReadError::OutOfBounds)?;
         Ok((layer.glyph_id(), layer.palette_index()))
@@ -42,6 +45,9 @@ impl<'a> Colr<'a> {
         &self,
         glyph_id: GlyphId,
     ) -> Result<Option<(Paint<'a>, PaintId)>, ReadError> {
+        let Ok(glyph_id) = glyph_id.try_into() else {
+            return Ok(None);
+        };
         let list = self.base_glyph_list().ok_or(ReadError::NullOffset)??;
         let records = list.base_glyph_paint_records();
         let record = match records.binary_search_by(|rec| rec.glyph_id().cmp(&glyph_id)) {
@@ -75,7 +81,10 @@ impl<'a> Colr<'a> {
 
     /// Returns the COLRv1 clip box for the given glyph identifier.
     pub fn v1_clip_box(&self, glyph_id: GlyphId) -> Result<Option<ClipBox<'a>>, ReadError> {
-        use std::cmp::Ordering;
+        use core::cmp::Ordering;
+        let Ok(glyph_id): Result<GlyphId16, _> = glyph_id.try_into() else {
+            return Ok(None);
+        };
         let list = self.clip_list().ok_or(ReadError::NullOffset)??;
         let clips = list.clips();
         let clip = match clips.binary_search_by(|clip| {

@@ -54,7 +54,7 @@ impl<'a> Loca<'a> {
         gid: GlyphId,
         glyf: &super::glyf::Glyf<'a>,
     ) -> Result<Option<super::glyf::Glyph<'a>>, ReadError> {
-        let idx = gid.to_u16() as usize;
+        let idx = gid.to_u32() as usize;
         let start = self.get_raw(idx).ok_or(ReadError::OutOfBounds)?;
         let end = self.get_raw(idx + 1).ok_or(ReadError::OutOfBounds)?;
         if start == end {

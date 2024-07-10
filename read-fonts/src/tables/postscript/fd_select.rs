@@ -11,13 +11,13 @@ impl<'a> FdSelect<'a> {
             // See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-11-fdselect-format-0>
             Self::Format0(fds) => fds
                 .fds()
-                .get(glyph_id.to_u16() as usize)
+                .get(glyph_id.to_u32() as usize)
                 .map(|fd| *fd as u16),
             // See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-12-fdselect-format-3>
             Self::Format3(fds) => {
                 let ranges = fds.ranges();
-                let gid = glyph_id.to_u16();
-                let ix = match ranges.binary_search_by(|range| range.first().cmp(&gid)) {
+                let gid = glyph_id.to_u32();
+                let ix = match ranges.binary_search_by(|range| (range.first() as u32).cmp(&gid)) {
                     Ok(ix) => ix,
                     Err(ix) => ix.saturating_sub(1),
                 };
@@ -26,7 +26,7 @@ impl<'a> FdSelect<'a> {
             // See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-14-fdselect-format-4>
             Self::Format4(fds) => {
                 let ranges = fds.ranges();
-                let gid = glyph_id.to_u16() as u32;
+                let gid = glyph_id.to_u32() as u32;
                 let ix = match ranges.binary_search_by(|range| range.first().cmp(&gid)) {
                     Ok(ix) => ix,
                     Err(ix) => ix.saturating_sub(1),
@@ -59,7 +59,7 @@ mod tests {
             for (range, font_index) in map {
                 for gid in range.clone() {
                     assert_eq!(
-                        fd_select.font_index(GlyphId::new(gid)).unwrap() as u8,
+                        fd_select.font_index(GlyphId::from(gid)).unwrap() as u8,
                         *font_index
                     )
                 }

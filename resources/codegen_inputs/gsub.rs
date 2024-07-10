@@ -64,7 +64,7 @@ table SingleSubstFormat2 {
     glyph_count: u16,
     /// Array of substitute glyph IDs — ordered by Coverage index
     #[count($glyph_count)]
-    substitute_glyph_ids: [GlyphId],
+    substitute_glyph_ids: [GlyphId16],
 }
 
 /// [Multiple Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#21-multiple-substitution-format-1)
@@ -92,7 +92,7 @@ table Sequence {
     glyph_count: u16,
     /// String of glyph IDs to substitute
     #[count($glyph_count)]
-    substitute_glyph_ids: [GlyphId],
+    substitute_glyph_ids: [GlyphId16],
 }
 
 /// [Alternate Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#31-alternate-substitution-format-1)
@@ -119,7 +119,7 @@ table AlternateSet {
     glyph_count: u16,
     /// Array of alternate glyph IDs, in arbitrary order
     #[count($glyph_count)]
-    alternate_glyph_ids: [GlyphId],
+    alternate_glyph_ids: [GlyphId16],
 }
 
 /// [Ligature Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#41-ligature-substitution-format-1)
@@ -153,14 +153,14 @@ table LigatureSet {
 /// Part of [LigatureSubstFormat1]
 table Ligature {
     /// glyph ID of ligature to substitute
-    ligature_glyph: GlyphId,
+    ligature_glyph: GlyphId16,
     /// Number of components in the ligature
     #[compile(plus_one($component_glyph_ids.len()))]
     component_count: u16,
     /// Array of component glyph IDs — start with the second
     /// component, ordered in writing direction
     #[count(subtract($component_count, 1))]
-    component_glyph_ids: [GlyphId],
+    component_glyph_ids: [GlyphId16],
 }
 
 /// [Extension Substitution Subtable Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#71-extension-substitution-subtable-format-1)
@@ -217,6 +217,6 @@ table ReverseChainSingleSubstFormat1 {
     glyph_count: u16,
     /// Array of substitute glyph IDs — ordered by Coverage index.
     #[count($glyph_count)]
-    substitute_glyph_ids: [GlyphId],
+    substitute_glyph_ids: [GlyphId16],
 }
 

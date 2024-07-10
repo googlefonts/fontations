@@ -171,7 +171,7 @@ fn field_type_name(field_type: &FieldType) -> Cow<'static, str> {
         FieldType::F2Dot14(_) => "F2Dot14".into(),
         FieldType::Fixed(_) => "Fixed".into(),
         FieldType::LongDateTime(_) => "LongDateTime".into(),
-        FieldType::GlyphId(_) => "GlyphId".into(),
+        FieldType::GlyphId16(_) => "GlyphId".into(),
         FieldType::NameId(_) => "NameId".into(),
         FieldType::Array(arr) => format!("[{}]", arr.type_name()).into(),
         FieldType::Record(record) => record.type_name().to_string().into(),

@@ -1219,7 +1219,7 @@ mod tests {
 
         let test_data = make_31_bytes_of_variation_data();
         let a_small_number_of_variations = (0..n_glyphs)
-            .map(|i| GlyphVariations::new(GlyphId::new(i), test_data.clone()))
+            .map(|i| GlyphVariations::new(GlyphId::from(i), test_data.clone()))
             .collect();
 
         let gvar = Gvar::new(a_small_number_of_variations, 2).unwrap();

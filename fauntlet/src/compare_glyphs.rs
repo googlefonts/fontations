@@ -22,7 +22,7 @@ pub fn compare_glyphs(
     let mut ok = true;
 
     for gid in 0..glyph_count {
-        let gid = GlyphId::new(gid);
+        let gid = GlyphId::from(gid);
         // Restore this when <https://github.com/googlefonts/fontations/issues/790>
         // is completed.
         //
@@ -81,7 +81,7 @@ pub fn compare_glyphs(
                 options.index,
                 options.ppem,
                 options.coords,
-                gid.to_u16(),
+                gid.to_u32(),
             )
             .unwrap();
             if exit_on_fail {

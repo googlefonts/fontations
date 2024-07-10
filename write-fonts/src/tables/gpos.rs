@@ -408,8 +408,8 @@ mod tests {
     // adapted from/motivated by https://github.com/fonttools/fonttools/issues/471
     #[test]
     fn gpos_1_zero() {
-        let cov_one = CoverageTable::format_1(vec![GlyphId::new(2)]);
-        let cov_two = CoverageTable::format_1(vec![GlyphId::new(4)]);
+        let cov_one = CoverageTable::format_1(vec![GlyphId16::new(2)]);
+        let cov_two = CoverageTable::format_1(vec![GlyphId16::new(4)]);
         let sub1 = SinglePos::format_1(cov_one, ValueRecord::default());
         let sub2 = SinglePos::format_1(cov_two, ValueRecord::default().with_x_advance(500));
         let lookup = Lookup::new(LookupFlag::default(), vec![sub1, sub2]);
@@ -453,9 +453,9 @@ mod tests {
 
     #[test]
     fn compile_devices_pairpos2() {
-        let class1 = ClassDef::from_iter([(GlyphId::new(5), 0), (GlyphId::new(6), 1)]);
+        let class1 = ClassDef::from_iter([(GlyphId16::new(5), 0), (GlyphId16::new(6), 1)]);
         // class 0 is 'all the rest', here, always implicitly present
-        let class2 = ClassDef::from_iter([(GlyphId::new(8), 1)]);
+        let class2 = ClassDef::from_iter([(GlyphId16::new(8), 1)]);
 
         // two c1recs, each with two c2recs
         let class1recs = vec![
@@ -498,9 +498,9 @@ mod tests {
     #[should_panic(expected = "all value records should report the same format")]
     #[test]
     fn validate_bad_pairpos2() {
-        let class1 = ClassDef::from_iter([(GlyphId::new(5), 0), (GlyphId::new(6), 1)]);
+        let class1 = ClassDef::from_iter([(GlyphId16::new(5), 0), (GlyphId16::new(6), 1)]);
         // class 0 is 'all the rest', here, always implicitly present
-        let class2 = ClassDef::from_iter([(GlyphId::new(8), 1)]);
+        let class2 = ClassDef::from_iter([(GlyphId16::new(8), 1)]);
         let coverage = class1.iter().map(|(gid, _)| gid).collect();
 
         // two c1recs, each with two c2recs
@@ -521,17 +521,17 @@ mod tests {
 
     #[test]
     fn validate_pairpos1() {
-        let coverage: CoverageTable = [1, 2].into_iter().map(GlyphId::new).collect();
+        let coverage: CoverageTable = [1, 2].into_iter().map(GlyphId16::new).collect();
         let good_table = PairPosFormat1::new(
             coverage.clone(),
             vec![
                 PairSet::new(vec![PairValueRecord::new(
-                    GlyphId::new(5),
+                    GlyphId16::new(5),
                     ValueRecord::new().with_x_advance(5),
                     ValueRecord::new(),
                 )]),
                 PairSet::new(vec![PairValueRecord::new(
-                    GlyphId::new(1),
+                    GlyphId16::new(1),
                     ValueRecord::new().with_x_advance(42),
                     ValueRecord::new(),
                 )]),
@@ -542,12 +542,12 @@ mod tests {
             coverage,
             vec![
                 PairSet::new(vec![PairValueRecord::new(
-                    GlyphId::new(5),
+                    GlyphId16::new(5),
                     ValueRecord::new().with_x_advance(5),
                     ValueRecord::new(),
                 )]),
                 PairSet::new(vec![PairValueRecord::new(
-                    GlyphId::new(1),
+                    GlyphId16::new(1),
                     //this is a different format, which is not okay
                     ValueRecord::new().with_x_placement(42),
                     ValueRecord::new(),

@@ -226,7 +226,7 @@ impl FromObjRef<read_fonts::tables::gpos::ValueRecord> for ValueRecord {
 
 #[cfg(test)]
 mod tests {
-    use font_types::GlyphId;
+    use font_types::GlyphId16;
     use read_fonts::FontRead;
 
     use crate::tables::{
@@ -254,7 +254,7 @@ mod tests {
     fn compile_devices() {
         let my_record = ValueRecord::new().with_x_advance_device(VariationIndex::new(0xff, 0xee));
         let a_table = SinglePos::format_1(
-            CoverageTableBuilder::from_glyphs(vec![GlyphId::new(42)]).build(),
+            CoverageTableBuilder::from_glyphs(vec![GlyphId16::new(42)]).build(),
             my_record,
         );
 
@@ -288,7 +288,7 @@ mod tests {
         let format = ValueFormat::X_ADVANCE | ValueFormat::X_ADVANCE_DEVICE;
 
         let a_table = SinglePos::format_2(
-            [GlyphId::new(7), GlyphId::new(9)].into_iter().collect(),
+            [GlyphId16::new(7), GlyphId16::new(9)].into_iter().collect(),
             vec![
                 ValueRecord::new()
                     .with_explicit_value_format(format)

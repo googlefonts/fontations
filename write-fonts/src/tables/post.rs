@@ -95,8 +95,8 @@ mod tests {
         let dumped = crate::dump_table(&post).unwrap();
         let loaded = read_fonts::tables::post::Post::read(FontData::new(&dumped)).unwrap();
         assert_eq!(loaded.version(), Version16Dot16::VERSION_2_0);
-        assert_eq!(loaded.glyph_name(GlyphId::new(1)), Some("A"));
-        assert_eq!(loaded.glyph_name(GlyphId::new(4)), Some("flarb"));
-        assert_eq!(loaded.glyph_name(GlyphId::new(5)), Some("C"));
+        assert_eq!(loaded.glyph_name(GlyphId16::new(1)), Some("A"));
+        assert_eq!(loaded.glyph_name(GlyphId16::new(4)), Some("flarb"));
+        assert_eq!(loaded.glyph_name(GlyphId16::new(5)), Some("C"));
     }
 }
