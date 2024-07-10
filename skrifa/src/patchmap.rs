@@ -11,7 +11,7 @@ use read_fonts::{
     TableProvider,
 };
 
-use int_set::IntSet;
+use read_fonts::intset::IntSet;
 
 use crate::charmap::Charmap;
 

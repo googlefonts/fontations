@@ -18,7 +18,6 @@ libm = ["dep:core_maths", "read-fonts/libm"]
 read-fonts = { version = "0.20.0", path = "../read-fonts", default-features = false }
 core_maths = { workspace = true, optional = true }
 bytemuck = { workspace = true }
-int-set = { path = "../int-set" }
 
 [dev-dependencies]
 font-test-data = { path = "../font-test-data" }
