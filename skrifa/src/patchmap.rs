@@ -1,4 +1,4 @@
-//! Loads incremental font transfer (https://w3c.github.io/IFT/Overview.html) patch mappings.
+//! Loads incremental font transfer <https://w3c.github.io/IFT/Overview.html> patch mappings.
 //!
 //! The IFT and IFTX tables encode mappings from subset definitions to URL's which host patches
 //! that can be applied to the font to add support for the corresponding subset definition.
@@ -24,6 +24,7 @@ pub enum PatchEncoding {
 
 impl PatchEncoding {
     fn from_format_number(format: u8) -> Option<Self> {
+        // Based on https://w3c.github.io/IFT/Overview.html#font-patch-formats-summary
         match format {
             1 => Some(Self::Brotli),
             2 => Some(Self::PerTableBrotli {
@@ -115,7 +116,7 @@ impl PatchMap {
             };
         }
 
-        // TODO(garretrieger): some entries may not have had an codepoints added and will have empty codepoint sets
+        // TODO(garretrieger): some entries may not have had any codepoints added and will have empty codepoint sets
         //                     (matching all). We should clarify in the spec text whether this is allowed or not.
         self.entry_list.extend(
             entries
