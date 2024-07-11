@@ -209,7 +209,7 @@ impl<'a> Cmap12<'a> {
         start_char_code: u32,
         start_glyph_id: u32,
     ) -> GlyphId {
-        GlyphId::from(start_glyph_id.wrapping_add(codepoint.wrapping_sub(start_char_code)) as u16)
+        GlyphId::new(start_glyph_id.wrapping_add(codepoint.wrapping_sub(start_char_code)))
     }
 
     /// Returns the codepoint range and start glyph id for the group
@@ -280,7 +280,7 @@ impl<'a> Iterator for Cmap12Iter<'a> {
                 // that the start code of next group is at least
                 // current_end + 1.
                 // This ensures we only ever generate a maximum of
-                // 0..=char::MAX results.
+                // char::MAX + 1 results.
                 if next_group.range.start() <= group.range.end() {
                     next_group.range = *group.range.end() + 1..=*next_group.range.end();
                 }
@@ -677,7 +677,7 @@ mod tests {
         let cmap = font.cmap().unwrap();
         // ranges: [SequentialMapGroup { start_char_code: 170, end_char_code: 1330926671, start_glyph_id: 328960 }]
         let cmap12 = find_cmap12(&cmap).unwrap();
-        assert!(cmap12.iter().count() <= char::MAX as usize);
+        assert!(cmap12.iter().count() <= char::MAX as usize + 1);
     }
 
     #[test]
@@ -700,8 +700,8 @@ mod tests {
             .collect::<Vec<_>>();
         // These groups overlap and extend to the whole u32 range
         assert_eq!(ranges, &[(0, 16777215), (255, u32::MAX)]);
-        // But we produce fewer than char::MAX results (some codepoints map to 0)
-        assert!(cmap12.iter().count() < char::MAX as usize);
+        // But we produce at most char::MAX + 1 results
+        assert!(cmap12.iter().count() <= char::MAX as usize + 1);
     }
 
     #[test]
