@@ -107,7 +107,7 @@ impl BitSet {
 
         for major in major_start..=major_end {
             let page_start = start.max(self.major_start(major));
-            let page_end = end.min(self.major_start(major + 1) - 1);
+            let page_end = end.min(self.major_start(major + 1).wrapping_sub(1));
             if let Some(page) = self.page_for_major_mut(major) {
                 page.remove_range(page_start, page_end);
             }
@@ -883,6 +883,25 @@ mod test {
         bitset.remove_range(7..=620);
         assert_eq!(bitset.len(), 2);
         assert_eq!(bitset.iter().collect::<Vec<u32>>(), vec![5, 2000]);
+    }
+
+    #[test]
+    fn remove_range_boundary() {
+        let mut set = BitSet::empty();
+
+        set.remove_range(u32::MAX - 10..=u32::MAX);
+        assert!(!set.contains(u32::MAX));
+        set.insert_range(u32::MAX - 10..=u32::MAX);
+        assert!(set.contains(u32::MAX));
+        set.remove_range(u32::MAX - 10..=u32::MAX);
+        assert!(!set.contains(u32::MAX));
+
+        set.remove_range(0..=10);
+        assert!(!set.contains(0));
+        set.insert_range(0..=10);
+        assert!(set.contains(0));
+        set.remove_range(0..=10);
+        assert!(!set.contains(0));
     }
 
     #[test]

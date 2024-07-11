@@ -1345,6 +1345,44 @@ mod test {
         assert!(all.contains(4));
     }
 
+    #[test]
+    fn insert_remove_range_boundary() {
+        let mut set = IntSet::<u32>::empty();
+
+        set.remove_range(u32::MAX - 10..=u32::MAX);
+        assert!(!set.contains(u32::MAX));
+        set.insert_range(u32::MAX - 10..=u32::MAX);
+        assert!(set.contains(u32::MAX));
+        set.remove_range(u32::MAX - 10..=u32::MAX);
+        assert!(!set.contains(u32::MAX));
+
+        set.remove_range(0..=10);
+        assert!(!set.contains(0));
+        set.insert_range(0..=10);
+        assert!(set.contains(0));
+        set.remove_range(0..=10);
+        assert!(!set.contains(0));
+    }
+
+    #[test]
+    fn insert_remove_range_exclusive_boundary() {
+        let mut set = IntSet::<u32>::all();
+
+        set.remove_range(u32::MAX - 10..=u32::MAX);
+        assert!(!set.contains(u32::MAX));
+        set.insert_range(u32::MAX - 10..=u32::MAX);
+        assert!(set.contains(u32::MAX));
+        set.remove_range(u32::MAX - 10..=u32::MAX);
+        assert!(!set.contains(u32::MAX));
+
+        set.remove_range(0..=10);
+        assert!(!set.contains(0));
+        set.insert_range(0..=10);
+        assert!(set.contains(0));
+        set.remove_range(0..=10);
+        assert!(!set.contains(0));
+    }
+
     struct SetOpInput {
         has_x: bool,
         inverted: bool,
