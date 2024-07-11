@@ -164,3 +164,6 @@ impl core::fmt::Display for TryFromGlyphIdError {
         write!(f, "glyph identifier {} too large for conversion", self.0)
     }
 }
+
+#[cfg(feature = "std")]
+impl std::error::Error for TryFromGlyphIdError {}

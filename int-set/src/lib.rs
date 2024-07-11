@@ -1621,7 +1621,7 @@ mod test {
             panic!("should have a max");
         };
 
-        assert_eq!(max, GlyphId::new(u16::MAX as _));
+        assert_eq!(max, GlyphId16::new(u16::MAX));
 
         let mut it = set.iter();
         assert_eq!(it.next(), Some(GlyphId16::new(0)));
