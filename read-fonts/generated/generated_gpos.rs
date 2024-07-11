@@ -1763,7 +1763,7 @@ impl<'a> std::fmt::Debug for PairSet<'a> {
 pub struct PairValueRecord {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
-    pub second_glyph: BigEndian<GlyphId>,
+    pub second_glyph: BigEndian<GlyphId16>,
     /// Positioning data for the first glyph in the pair.
     pub value_record1: ValueRecord,
     /// Positioning data for the second glyph in the pair.
@@ -1773,7 +1773,7 @@ pub struct PairValueRecord {
 impl PairValueRecord {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
-    pub fn second_glyph(&self) -> GlyphId {
+    pub fn second_glyph(&self) -> GlyphId16 {
         self.second_glyph.get()
     }
 
@@ -1798,7 +1798,7 @@ impl ComputeSize for PairValueRecord {
         let (value_format1, value_format2) = *args;
         let mut result = 0usize;
         result = result
-            .checked_add(GlyphId::RAW_BYTE_LEN)
+            .checked_add(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         result = result
             .checked_add(<ValueRecord as ComputeSize>::compute_size(&value_format1)?)

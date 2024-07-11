@@ -24,7 +24,7 @@ mod output_bit_stream;
 pub mod sparse_bit_set;
 
 use bitset::BitSet;
-use font_types::GlyphId;
+use font_types::{GlyphId, GlyphId16};
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
@@ -700,13 +700,13 @@ impl Domain<u8> for u8 {
     }
 }
 
-impl Domain<GlyphId> for GlyphId {
+impl Domain<GlyphId16> for GlyphId16 {
     fn to_u32(&self) -> u32 {
         self.to_u16() as u32
     }
 
-    fn from_u32(member: InDomain) -> GlyphId {
-        GlyphId::from(member.value() as u16)
+    fn from_u32(member: InDomain) -> GlyphId16 {
+        GlyphId16::new(member.value() as u16)
     }
 
     fn is_continous() -> bool {
@@ -715,6 +715,30 @@ impl Domain<GlyphId> for GlyphId {
 
     fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
         (u16::MIN as u32)..=(u16::MAX as u32)
+    }
+
+    fn ordered_values_range(
+        range: RangeInclusive<GlyphId16>,
+    ) -> impl DoubleEndedIterator<Item = u32> {
+        range.start().to_u32()..=range.end().to_u32()
+    }
+}
+
+impl Domain<GlyphId> for GlyphId {
+    fn to_u32(&self) -> u32 {
+        GlyphId::to_u32(*self)
+    }
+
+    fn from_u32(member: InDomain) -> GlyphId {
+        GlyphId::from(member.value())
+    }
+
+    fn is_continous() -> bool {
+        true
+    }
+
+    fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
+        u32::MIN..=u32::MAX
     }
 
     fn ordered_values_range(
@@ -1570,6 +1594,45 @@ mod test {
     }
 
     #[test]
+    fn with_glyph_id_16() {
+        let mut set = IntSet::<font_types::GlyphId16>::empty();
+
+        set.insert(GlyphId16::new(5));
+        set.insert(GlyphId16::new(8));
+        set.insert(GlyphId16::new(12));
+        set.insert_range(GlyphId16::new(200)..=GlyphId16::new(210));
+
+        assert!(set.contains(GlyphId16::new(5)));
+        assert!(!set.contains(GlyphId16::new(6)));
+        assert!(!set.contains(GlyphId16::new(199)));
+        assert!(set.contains(GlyphId16::new(200)));
+        assert!(set.contains(GlyphId16::new(210)));
+        assert!(!set.contains(GlyphId16::new(211)));
+
+        let copy: IntSet<GlyphId16> = set.iter().collect();
+        assert_eq!(set, copy);
+
+        set.invert();
+
+        assert!(!set.contains(GlyphId16::new(5)));
+        assert!(set.contains(GlyphId16::new(6)));
+
+        let Some(max) = set.iter().max() else {
+            panic!("should have a max");
+        };
+
+        assert_eq!(max, GlyphId16::new(u16::MAX));
+
+        let mut it = set.iter();
+        assert_eq!(it.next(), Some(GlyphId16::new(0)));
+        assert_eq!(it.next(), Some(GlyphId16::new(1)));
+        assert_eq!(it.next(), Some(GlyphId16::new(2)));
+        assert_eq!(it.next(), Some(GlyphId16::new(3)));
+        assert_eq!(it.next(), Some(GlyphId16::new(4)));
+        assert_eq!(it.next(), Some(GlyphId16::new(6)));
+    }
+
+    #[test]
     fn with_glyph_id() {
         let mut set = IntSet::<font_types::GlyphId>::empty();
 
@@ -1592,12 +1655,6 @@ mod test {
 
         assert!(!set.contains(GlyphId::new(5)));
         assert!(set.contains(GlyphId::new(6)));
-
-        let Some(max) = set.iter().max() else {
-            panic!("should have a max");
-        };
-
-        assert_eq!(max, GlyphId::new(u16::MAX));
 
         let mut it = set.iter();
         assert_eq!(it.next(), Some(GlyphId::new(0)));

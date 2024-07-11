@@ -23,9 +23,9 @@ pub struct BitmapSize {
     /// Line metrics for text rendered vertically.
     pub vert: SbitLineMetrics,
     /// Lowest glyph index for this size.
-    pub start_glyph_index: BigEndian<GlyphId>,
+    pub start_glyph_index: BigEndian<GlyphId16>,
     /// Highest glyph index for this size.
-    pub end_glyph_index: BigEndian<GlyphId>,
+    pub end_glyph_index: BigEndian<GlyphId16>,
     /// Horizontal pixels per em.
     pub ppem_x: u8,
     /// Vertical pixels per em.
@@ -69,12 +69,12 @@ impl BitmapSize {
     }
 
     /// Lowest glyph index for this size.
-    pub fn start_glyph_index(&self) -> GlyphId {
+    pub fn start_glyph_index(&self) -> GlyphId16 {
         self.start_glyph_index.get()
     }
 
     /// Highest glyph index for this size.
-    pub fn end_glyph_index(&self) -> GlyphId {
+    pub fn end_glyph_index(&self) -> GlyphId16 {
         self.end_glyph_index.get()
     }
 
@@ -107,8 +107,8 @@ impl FixedSize for BitmapSize {
         + u32::RAW_BYTE_LEN
         + SbitLineMetrics::RAW_BYTE_LEN
         + SbitLineMetrics::RAW_BYTE_LEN
-        + GlyphId::RAW_BYTE_LEN
-        + GlyphId::RAW_BYTE_LEN
+        + GlyphId16::RAW_BYTE_LEN
+        + GlyphId16::RAW_BYTE_LEN
         + u8::RAW_BYTE_LEN
         + u8::RAW_BYTE_LEN
         + u8::RAW_BYTE_LEN
@@ -744,11 +744,11 @@ pub struct IndexSubtableArrayMarker {}
 impl IndexSubtableArrayMarker {
     fn first_glyph_index_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + GlyphId::RAW_BYTE_LEN
+        start..start + GlyphId16::RAW_BYTE_LEN
     }
     fn last_glyph_index_byte_range(&self) -> Range<usize> {
         let start = self.first_glyph_index_byte_range().end;
-        start..start + GlyphId::RAW_BYTE_LEN
+        start..start + GlyphId16::RAW_BYTE_LEN
     }
     fn additional_offset_to_index_subtable_byte_range(&self) -> Range<usize> {
         let start = self.last_glyph_index_byte_range().end;
@@ -759,8 +759,8 @@ impl IndexSubtableArrayMarker {
 impl<'a> FontRead<'a> for IndexSubtableArray<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<GlyphId>();
-        cursor.advance::<GlyphId>();
+        cursor.advance::<GlyphId16>();
+        cursor.advance::<GlyphId16>();
         cursor.advance::<u32>();
         cursor.finish(IndexSubtableArrayMarker {})
     }
@@ -771,13 +771,13 @@ pub type IndexSubtableArray<'a> = TableRef<'a, IndexSubtableArrayMarker>;
 
 impl<'a> IndexSubtableArray<'a> {
     /// First glyph ID of this range.
-    pub fn first_glyph_index(&self) -> GlyphId {
+    pub fn first_glyph_index(&self) -> GlyphId16 {
         let range = self.shape.first_glyph_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Last glyph ID of this range (inclusive).
-    pub fn last_glyph_index(&self) -> GlyphId {
+    pub fn last_glyph_index(&self) -> GlyphId16 {
         let range = self.shape.last_glyph_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -1333,14 +1333,14 @@ impl<'a> std::fmt::Debug for IndexSubtable4<'a> {
 #[repr(packed)]
 pub struct GlyphIdOffsetPair {
     /// Glyph ID of glyph present.
-    pub glyph_id: BigEndian<GlyphId>,
+    pub glyph_id: BigEndian<GlyphId16>,
     /// Location in EBDT.
     pub sbit_offset: BigEndian<u16>,
 }
 
 impl GlyphIdOffsetPair {
     /// Glyph ID of glyph present.
-    pub fn glyph_id(&self) -> GlyphId {
+    pub fn glyph_id(&self) -> GlyphId16 {
         self.glyph_id.get()
     }
 
@@ -1351,7 +1351,7 @@ impl GlyphIdOffsetPair {
 }
 
 impl FixedSize for GlyphIdOffsetPair {
-    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -1423,7 +1423,7 @@ impl<'a> FontRead<'a> for IndexSubtable5<'a> {
         cursor.advance_by(big_metrics_byte_len);
         let num_glyphs: u32 = cursor.read()?;
         let glyph_array_byte_len = (num_glyphs as usize)
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(glyph_array_byte_len);
         cursor.finish(IndexSubtable5Marker {
@@ -1474,7 +1474,7 @@ impl<'a> IndexSubtable5<'a> {
     }
 
     /// One per glyph, sorted by glyhph ID.
-    pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.glyph_array_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1519,7 +1519,7 @@ impl<'a> std::fmt::Debug for IndexSubtable5<'a> {
 #[repr(packed)]
 pub struct BdtComponent {
     /// Component glyph ID.
-    pub glyph_id: BigEndian<GlyphId>,
+    pub glyph_id: BigEndian<GlyphId16>,
     /// Position of component left.
     pub x_offset: BigEndian<i8>,
     /// Position of component top.
@@ -1528,7 +1528,7 @@ pub struct BdtComponent {
 
 impl BdtComponent {
     /// Component glyph ID.
-    pub fn glyph_id(&self) -> GlyphId {
+    pub fn glyph_id(&self) -> GlyphId16 {
         self.glyph_id.get()
     }
 
@@ -1544,7 +1544,7 @@ impl BdtComponent {
 }
 
 impl FixedSize for BdtComponent {
-    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + i8::RAW_BYTE_LEN + i8::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + i8::RAW_BYTE_LEN + i8::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]

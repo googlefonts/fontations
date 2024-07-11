@@ -1149,12 +1149,12 @@ pub(crate) fn advance_delta(
     glyph_id: GlyphId,
     coords: &[F2Dot14],
 ) -> Result<Fixed, ReadError> {
-    let gid = glyph_id.to_u16();
+    let gid = glyph_id.to_u32();
     let ix = match dsim {
-        Some(Ok(dsim)) => dsim.get(gid as u32)?,
+        Some(Ok(dsim)) => dsim.get(gid)?,
         _ => DeltaSetIndex {
             outer: 0,
-            inner: gid,
+            inner: gid as _,
         },
     };
     Ok(Fixed::from_i32(ivs?.compute_delta(ix, coords)?))
@@ -1166,9 +1166,9 @@ pub(crate) fn item_delta(
     glyph_id: GlyphId,
     coords: &[F2Dot14],
 ) -> Result<Fixed, ReadError> {
-    let gid = glyph_id.to_u16();
+    let gid = glyph_id.to_u32();
     let ix = match dsim {
-        Some(Ok(dsim)) => dsim.get(gid as u32)?,
+        Some(Ok(dsim)) => dsim.get(gid)?,
         _ => return Err(ReadError::NullOffset),
     };
     Ok(Fixed::from_i32(ivs?.compute_delta(ix, coords)?))

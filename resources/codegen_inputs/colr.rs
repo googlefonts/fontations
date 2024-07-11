@@ -44,7 +44,7 @@ table Colr {
 /// [BaseGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
 record BaseGlyph {
     /// Glyph ID of the base glyph.
-    glyph_id: GlyphId,
+    glyph_id: GlyphId16,
     /// Index (base 0) into the layerRecords array.
     first_layer_index: u16,
     /// Number of color layers associated with this glyph.
@@ -54,7 +54,7 @@ record BaseGlyph {
 /// [Layer](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
 record Layer {
     /// Glyph ID of the glyph used for a given layer.
-    glyph_id: GlyphId,
+    glyph_id: GlyphId16,
     /// Index (base 0) for a palette entry in the CPAL table.
     palette_index: u16,
 }
@@ -69,7 +69,7 @@ table BaseGlyphList {
 /// [BaseGlyphPaint](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
 record BaseGlyphPaint {
     /// Glyph ID of the base glyph.
-    glyph_id: GlyphId,
+    glyph_id: GlyphId16,
     /// Offset to a Paint table, from the beginning of the [`BaseGlyphList`] table.
     paint_offset: Offset32<Paint>,
 }
@@ -96,9 +96,9 @@ table ClipList {
 /// [Clip](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
 record Clip {
     /// First glyph ID in the range.
-    start_glyph_id: GlyphId,
+    start_glyph_id: GlyphId16,
     /// Last glyph ID in the range.
-    end_glyph_id: GlyphId,
+    end_glyph_id: GlyphId16,
     /// Offset to a ClipBox table, from the beginning of the [`ClipList`] table.
     clip_box_offset: Offset24<ClipBox>,
 }
@@ -429,7 +429,7 @@ table PaintGlyph {
     /// Offset to a Paint table.
     paint_offset: Offset24<Paint>,
     /// Glyph ID for the source outline.
-    glyph_id: GlyphId,
+    glyph_id: GlyphId16,
 }
 
 /// [PaintColrGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-11-paintcolrglyph) table
@@ -438,7 +438,7 @@ table PaintColrGlyph {
     #[format = 11]
     format: u8,
     /// Glyph ID for a BaseGlyphList base glyph.
-    glyph_id: GlyphId,
+    glyph_id: GlyphId16,
 }
 
 /// [PaintTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table

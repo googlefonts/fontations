@@ -12,7 +12,7 @@ impl<'a> Post<'a> {
         }
     }
 
-    pub fn glyph_name(&self, glyph_id: GlyphId) -> Option<&str> {
+    pub fn glyph_name(&self, glyph_id: GlyphId16) -> Option<&str> {
         let glyph_id = glyph_id.to_u16() as usize;
         match self.version() {
             Version16Dot16::VERSION_1_0 => DEFAULT_GLYPH_NAMES.get(glyph_id).copied(),
@@ -132,11 +132,11 @@ mod tests {
         let table = Post::read(test_data::SIMPLE.into()).unwrap();
         assert_eq!(table.version(), Version16Dot16::VERSION_2_0);
         assert_eq!(table.underline_position(), FWord::new(-75));
-        assert_eq!(table.glyph_name(GlyphId::new(1)), Some(".notdef"));
-        assert_eq!(table.glyph_name(GlyphId::new(2)), Some("space"));
-        assert_eq!(table.glyph_name(GlyphId::new(7)), Some("hello"));
-        assert_eq!(table.glyph_name(GlyphId::new(8)), Some("hi"));
-        assert_eq!(table.glyph_name(GlyphId::new(9)), Some("hola"));
+        assert_eq!(table.glyph_name(GlyphId16::new(1)), Some(".notdef"));
+        assert_eq!(table.glyph_name(GlyphId16::new(2)), Some("space"));
+        assert_eq!(table.glyph_name(GlyphId16::new(7)), Some("hello"));
+        assert_eq!(table.glyph_name(GlyphId16::new(8)), Some("hi"));
+        assert_eq!(table.glyph_name(GlyphId16::new(9)), Some("hola"));
     }
 
     #[test]

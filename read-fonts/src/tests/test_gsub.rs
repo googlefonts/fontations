@@ -15,10 +15,10 @@ fn singlesubstformat2() {
     assert_eq!(
         table.substitute_glyph_ids(),
         &[
-            GlyphId::new(305),
-            GlyphId::new(309),
-            GlyphId::new(318),
-            GlyphId::new(323)
+            GlyphId16::new(305),
+            GlyphId16::new(309),
+            GlyphId16::new(318),
+            GlyphId16::new(323)
         ],
     );
 }
@@ -31,7 +31,7 @@ fn multiplesubstformat1() {
     let seq0 = table.sequences().get(0).unwrap();
     assert_eq!(
         seq0.substitute_glyph_ids(),
-        &[GlyphId::new(26), GlyphId::new(26), GlyphId::new(29)]
+        &[GlyphId16::new(26), GlyphId16::new(26), GlyphId16::new(29)]
     );
 }
 
@@ -43,7 +43,7 @@ fn alternatesubstformat1() {
     let altset0 = table.alternate_sets().get(0).unwrap();
     assert_eq!(
         altset0.alternate_glyph_ids(),
-        &[GlyphId::new(0xc9), GlyphId::new(0xca)]
+        &[GlyphId16::new(0xc9), GlyphId16::new(0xca)]
     );
 }
 
@@ -56,18 +56,18 @@ fn ligaturesubstformat1() {
 
     assert_eq!(ligset0.ligatures().len(), 1);
     let lig0 = ligset0.ligatures().get(0).unwrap();
-    assert_eq!(lig0.ligature_glyph(), GlyphId::new(347));
+    assert_eq!(lig0.ligature_glyph(), GlyphId16::new(347));
     assert_eq!(
         lig0.component_glyph_ids(),
-        &[GlyphId::new(0x28), GlyphId::new(0x17)]
+        &[GlyphId16::new(0x28), GlyphId16::new(0x17)]
     );
 
     let ligset1 = table.ligature_sets().get(1).unwrap();
     let lig0 = ligset1.ligatures().get(0).unwrap();
-    assert_eq!(lig0.ligature_glyph(), GlyphId::new(0xf1));
+    assert_eq!(lig0.ligature_glyph(), GlyphId16::new(0xf1));
     assert_eq!(
         lig0.component_glyph_ids(),
-        &[GlyphId::new(0x1a), GlyphId::new(0x1d)]
+        &[GlyphId16::new(0x1a), GlyphId16::new(0x1d)]
     );
 }
 

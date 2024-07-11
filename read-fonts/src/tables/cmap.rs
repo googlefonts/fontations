@@ -99,12 +99,12 @@ impl<'a> Cmap4<'a> {
         let delta = deltas.get(index)?.get() as i32;
         let range_offset = range_offsets.get(index)?.get() as usize;
         if range_offset == 0 {
-            return Some(GlyphId::new((codepoint as i32 + delta) as u16));
+            return Some(GlyphId::from((codepoint as i32 + delta) as u16));
         }
         let mut offset = range_offset / 2 + (codepoint - start_code) as usize;
         offset = offset.saturating_sub(range_offsets.len() - index);
         let gid = self.glyph_id_array().get(offset)?.get();
-        (gid != 0).then_some(GlyphId::new((gid as i32 + delta) as u16))
+        (gid != 0).then_some(GlyphId::from((gid as i32 + delta) as u16))
     }
 
     /// Returns the [start_code, end_code] range at the given index.
@@ -209,7 +209,7 @@ impl<'a> Cmap12<'a> {
         start_char_code: u32,
         start_glyph_id: u32,
     ) -> GlyphId {
-        GlyphId::new(start_glyph_id.wrapping_add(codepoint.wrapping_sub(start_char_code)) as u16)
+        GlyphId::new(start_glyph_id.wrapping_add(codepoint.wrapping_sub(start_char_code)))
     }
 
     /// Returns the codepoint range and start glyph id for the group
@@ -280,7 +280,7 @@ impl<'a> Iterator for Cmap12Iter<'a> {
                 // that the start code of next group is at least
                 // current_end + 1.
                 // This ensures we only ever generate a maximum of
-                // 0..=char::MAX results.
+                // char::MAX + 1 results.
                 if next_group.range.start() <= group.range.end() {
                     next_group.range = *group.range.end() + 1..=*next_group.range.end();
                 }
@@ -341,7 +341,7 @@ impl<'a> Cmap14<'a> {
                 map_codepoint.cmp(&codepoint)
             })
             .ok()?;
-        Some(MapVariant::Variant(GlyphId::new(
+        Some(MapVariant::Variant(GlyphId::from(
             mapping.get(ix)?.glyph_id(),
         )))
     }
@@ -391,7 +391,7 @@ impl<'a> Cmap14<'a> {
                         .uvs_mapping()
                         .iter()
                         .filter(|m| unicodes.contains(m.unicode_value().to_u32()))
-                        .map(|m| GlyphId::new(m.glyph_id())),
+                        .map(|m| m.glyph_id().into()),
                 );
             }
         }
@@ -436,7 +436,7 @@ impl<'a> Iterator for Cmap14Iter<'a> {
             }
             if let Some(non_default_uvs) = self.non_default_uvs.as_mut() {
                 if let Some((codepoint, variant)) = non_default_uvs.next() {
-                    return Some((codepoint, selector, MapVariant::Variant(variant)));
+                    return Some((codepoint, selector, MapVariant::Variant(variant.into())));
                 }
             }
             self.cur_selector_ix += 1;
@@ -499,12 +499,12 @@ impl<'a> NonDefaultUvsIter<'a> {
 }
 
 impl<'a> Iterator for NonDefaultUvsIter<'a> {
-    type Item = (u32, GlyphId);
+    type Item = (u32, GlyphId16);
 
     fn next(&mut self) -> Option<Self::Item> {
         let mapping = self.iter.next()?;
         let codepoint: u32 = mapping.unicode_value().into();
-        let glyph_id = GlyphId::new(mapping.glyph_id());
+        let glyph_id = GlyphId16::new(mapping.glyph_id());
         Some((codepoint, glyph_id))
     }
 }
@@ -677,7 +677,7 @@ mod tests {
         let cmap = font.cmap().unwrap();
         // ranges: [SequentialMapGroup { start_char_code: 170, end_char_code: 1330926671, start_glyph_id: 328960 }]
         let cmap12 = find_cmap12(&cmap).unwrap();
-        assert!(cmap12.iter().count() <= char::MAX as usize);
+        assert!(cmap12.iter().count() <= char::MAX as usize + 1);
     }
 
     #[test]
@@ -700,8 +700,8 @@ mod tests {
             .collect::<Vec<_>>();
         // These groups overlap and extend to the whole u32 range
         assert_eq!(ranges, &[(0, 16777215), (255, u32::MAX)]);
-        // But we produce fewer than char::MAX results (some codepoints map to 0)
-        assert!(cmap12.iter().count() < char::MAX as usize);
+        // But we produce at most char::MAX + 1 results
+        assert!(cmap12.iter().count() <= char::MAX as usize + 1);
     }
 
     #[test]

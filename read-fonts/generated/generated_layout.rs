@@ -982,7 +982,7 @@ impl<'a> FontRead<'a> for CoverageFormat1<'a> {
         cursor.advance::<u16>();
         let glyph_count: u16 = cursor.read()?;
         let glyph_array_byte_len = (glyph_count as usize)
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(glyph_array_byte_len);
         cursor.finish(CoverageFormat1Marker {
@@ -1008,7 +1008,7 @@ impl<'a> CoverageFormat1<'a> {
     }
 
     /// Array of glyph IDs — in numerical order
-    pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.glyph_array_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1135,21 +1135,21 @@ impl<'a> std::fmt::Debug for CoverageFormat2<'a> {
 #[repr(packed)]
 pub struct RangeRecord {
     /// First glyph ID in the range
-    pub start_glyph_id: BigEndian<GlyphId>,
+    pub start_glyph_id: BigEndian<GlyphId16>,
     /// Last glyph ID in the range
-    pub end_glyph_id: BigEndian<GlyphId>,
+    pub end_glyph_id: BigEndian<GlyphId16>,
     /// Coverage Index of first glyph ID in range
     pub start_coverage_index: BigEndian<u16>,
 }
 
 impl RangeRecord {
     /// First glyph ID in the range
-    pub fn start_glyph_id(&self) -> GlyphId {
+    pub fn start_glyph_id(&self) -> GlyphId16 {
         self.start_glyph_id.get()
     }
 
     /// Last glyph ID in the range
-    pub fn end_glyph_id(&self) -> GlyphId {
+    pub fn end_glyph_id(&self) -> GlyphId16 {
         self.end_glyph_id.get()
     }
 
@@ -1160,7 +1160,8 @@ impl RangeRecord {
 }
 
 impl FixedSize for RangeRecord {
-    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize =
+        GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -1255,7 +1256,7 @@ impl ClassDefFormat1Marker {
     }
     fn start_glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.class_format_byte_range().end;
-        start..start + GlyphId::RAW_BYTE_LEN
+        start..start + GlyphId16::RAW_BYTE_LEN
     }
     fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.start_glyph_id_byte_range().end;
@@ -1271,7 +1272,7 @@ impl<'a> FontRead<'a> for ClassDefFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
-        cursor.advance::<GlyphId>();
+        cursor.advance::<GlyphId16>();
         let glyph_count: u16 = cursor.read()?;
         let class_value_array_byte_len = (glyph_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
@@ -1294,7 +1295,7 @@ impl<'a> ClassDefFormat1<'a> {
     }
 
     /// First glyph ID of the classValueArray
-    pub fn start_glyph_id(&self) -> GlyphId {
+    pub fn start_glyph_id(&self) -> GlyphId16 {
         let range = self.shape.start_glyph_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -1434,21 +1435,21 @@ impl<'a> std::fmt::Debug for ClassDefFormat2<'a> {
 #[repr(packed)]
 pub struct ClassRangeRecord {
     /// First glyph ID in the range
-    pub start_glyph_id: BigEndian<GlyphId>,
+    pub start_glyph_id: BigEndian<GlyphId16>,
     /// Last glyph ID in the range
-    pub end_glyph_id: BigEndian<GlyphId>,
+    pub end_glyph_id: BigEndian<GlyphId16>,
     /// Applied to all glyphs in the range
     pub class: BigEndian<u16>,
 }
 
 impl ClassRangeRecord {
     /// First glyph ID in the range
-    pub fn start_glyph_id(&self) -> GlyphId {
+    pub fn start_glyph_id(&self) -> GlyphId16 {
         self.start_glyph_id.get()
     }
 
     /// Last glyph ID in the range
-    pub fn end_glyph_id(&self) -> GlyphId {
+    pub fn end_glyph_id(&self) -> GlyphId16 {
         self.end_glyph_id.get()
     }
 
@@ -1459,7 +1460,8 @@ impl ClassRangeRecord {
 }
 
 impl FixedSize for ClassRangeRecord {
-    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize =
+        GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -1828,7 +1830,7 @@ impl<'a> FontRead<'a> for SequenceRule<'a> {
         let glyph_count: u16 = cursor.read()?;
         let seq_lookup_count: u16 = cursor.read()?;
         let input_sequence_byte_len = (transforms::subtract(glyph_count, 1_usize))
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(input_sequence_byte_len);
         let seq_lookup_records_byte_len = (seq_lookup_count as usize)
@@ -1859,7 +1861,7 @@ impl<'a> SequenceRule<'a> {
     }
 
     /// Array of input glyph IDs—starting with the second glyph
-    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -2737,17 +2739,17 @@ impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
         let mut cursor = data.cursor();
         let backtrack_glyph_count: u16 = cursor.read()?;
         let backtrack_sequence_byte_len = (backtrack_glyph_count as usize)
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(backtrack_sequence_byte_len);
         let input_glyph_count: u16 = cursor.read()?;
         let input_sequence_byte_len = (transforms::subtract(input_glyph_count, 1_usize))
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(input_sequence_byte_len);
         let lookahead_glyph_count: u16 = cursor.read()?;
         let lookahead_sequence_byte_len = (lookahead_glyph_count as usize)
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(lookahead_sequence_byte_len);
         let seq_lookup_count: u16 = cursor.read()?;
@@ -2775,7 +2777,7 @@ impl<'a> ChainedSequenceRule<'a> {
     }
 
     /// Array of backtrack glyph IDs
-    pub fn backtrack_sequence(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn backtrack_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.backtrack_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -2787,7 +2789,7 @@ impl<'a> ChainedSequenceRule<'a> {
     }
 
     /// Array of input glyph IDs—start with second glyph
-    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -2799,7 +2801,7 @@ impl<'a> ChainedSequenceRule<'a> {
     }
 
     /// Array of lookahead glyph IDs
-    pub fn lookahead_sequence(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn lookahead_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.lookahead_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }

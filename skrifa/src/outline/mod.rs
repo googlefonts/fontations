@@ -504,7 +504,7 @@ impl<'a> OutlineGlyphCollection<'a> {
         } as u16;
         let copy = self.clone();
         (0..len).filter_map(move |gid| {
-            let gid = GlyphId::new(gid);
+            let gid = GlyphId::from(gid);
             let glyph = copy.get(gid)?;
             Some((gid, glyph))
         })
@@ -632,7 +632,7 @@ mod tests {
             expected_gids_with_overlap,
             (0..glyph_count)
                 .filter(
-                    |gid| outlines.get(GlyphId::new(*gid)).unwrap().has_overlaps() == Some(true)
+                    |gid| outlines.get(GlyphId::from(*gid)).unwrap().has_overlaps() == Some(true)
                 )
                 .collect::<Vec<_>>()
         );

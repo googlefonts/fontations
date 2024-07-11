@@ -235,20 +235,20 @@ impl LookupValue for u32 {
     }
 }
 
-impl LookupValue for GlyphId {
+impl LookupValue for GlyphId16 {
     fn from_u16(v: u16) -> Self {
-        GlyphId::from(v)
+        GlyphId16::from(v)
     }
 
     fn from_u32(v: u32) -> Self {
         // intentionally truncates
-        GlyphId::from(v as u16)
+        GlyphId16::from(v as u16)
     }
 }
 
 pub type LookupU16<'a> = TypedLookup<'a, u16>;
 pub type LookupU32<'a> = TypedLookup<'a, u32>;
-pub type LookupGlyphId<'a> = TypedLookup<'a, GlyphId>;
+pub type LookupGlyphId<'a> = TypedLookup<'a, GlyphId16>;
 
 /// Empty data type for a state table entry with no payload.
 ///
@@ -301,7 +301,7 @@ pub struct StateTable<'a> {
 
 impl<'a> StateTable<'a> {
     /// Returns the class table entry for the given glyph identifier.
-    pub fn class(&self, glyph_id: GlyphId) -> Result<u8, ReadError> {
+    pub fn class(&self, glyph_id: GlyphId16) -> Result<u8, ReadError> {
         let glyph_id = glyph_id.to_u16();
         if glyph_id == 0xFFFF {
             return Ok(class::DELETED_GLYPH);
@@ -380,7 +380,7 @@ pub struct ExtendedStateTable<'a, T = ()> {
 
 impl<'a, T: bytemuck::AnyBitPattern + FixedSize> ExtendedStateTable<'a, T> {
     /// Returns the class table entry for the given glyph identifier.
-    pub fn class(&self, glyph_id: GlyphId) -> Result<u16, ReadError> {
+    pub fn class(&self, glyph_id: GlyphId16) -> Result<u16, ReadError> {
         let glyph_id = glyph_id.to_u16();
         if glyph_id == 0xFFFF {
             return Ok(class::DELETED_GLYPH as u16);
@@ -642,7 +642,7 @@ mod tests {
         let table = ExtendedStateTable::<ContextualData>::read(buf.font_data()).unwrap();
         // check class lookups
         let [class_50, class_80, class_201] =
-            [50, 80, 201].map(|gid| table.class(GlyphId::from(gid)).unwrap());
+            [50, 80, 201].map(|gid| table.class(GlyphId16::from(gid)).unwrap());
         assert_eq!(class_50, 4);
         assert_eq!(class_80, 5);
         assert_eq!(class_201, 4);
@@ -715,7 +715,7 @@ mod tests {
         let table = StateTable::read(buf.font_data()).unwrap();
         // check class lookups
         for i in 0..4u8 {
-            assert_eq!(table.class(GlyphId::from(i as u16 + 3)).unwrap(), i + 1);
+            assert_eq!(table.class(GlyphId16::from(i as u16 + 3)).unwrap(), i + 1);
         }
         // (state, class) -> (new_state, flags)
         let cases = [

@@ -616,12 +616,12 @@ where
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CoverageFormat1 {
     /// Array of glyph IDs — in numerical order
-    pub glyph_array: Vec<GlyphId>,
+    pub glyph_array: Vec<GlyphId16>,
 }
 
 impl CoverageFormat1 {
     /// Construct a new `CoverageFormat1`
-    pub fn new(glyph_array: Vec<GlyphId>) -> Self {
+    pub fn new(glyph_array: Vec<GlyphId16>) -> Self {
         Self {
             glyph_array: glyph_array.into_iter().map(Into::into).collect(),
         }
@@ -735,16 +735,20 @@ impl<'a> FontRead<'a> for CoverageFormat2 {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RangeRecord {
     /// First glyph ID in the range
-    pub start_glyph_id: GlyphId,
+    pub start_glyph_id: GlyphId16,
     /// Last glyph ID in the range
-    pub end_glyph_id: GlyphId,
+    pub end_glyph_id: GlyphId16,
     /// Coverage Index of first glyph ID in range
     pub start_coverage_index: u16,
 }
 
 impl RangeRecord {
     /// Construct a new `RangeRecord`
-    pub fn new(start_glyph_id: GlyphId, end_glyph_id: GlyphId, start_coverage_index: u16) -> Self {
+    pub fn new(
+        start_glyph_id: GlyphId16,
+        end_glyph_id: GlyphId16,
+        start_coverage_index: u16,
+    ) -> Self {
         Self {
             start_glyph_id,
             end_glyph_id,
@@ -788,7 +792,7 @@ pub enum CoverageTable {
 
 impl CoverageTable {
     /// Construct a new `CoverageFormat1` subtable
-    pub fn format_1(glyph_array: Vec<GlyphId>) -> Self {
+    pub fn format_1(glyph_array: Vec<GlyphId16>) -> Self {
         Self::Format1(CoverageFormat1::new(glyph_array))
     }
 
@@ -864,14 +868,14 @@ impl From<CoverageFormat2> for CoverageTable {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ClassDefFormat1 {
     /// First glyph ID of the classValueArray
-    pub start_glyph_id: GlyphId,
+    pub start_glyph_id: GlyphId16,
     /// Array of Class Values — one per glyph ID
     pub class_value_array: Vec<u16>,
 }
 
 impl ClassDefFormat1 {
     /// Construct a new `ClassDefFormat1`
-    pub fn new(start_glyph_id: GlyphId, class_value_array: Vec<u16>) -> Self {
+    pub fn new(start_glyph_id: GlyphId16, class_value_array: Vec<u16>) -> Self {
         Self {
             start_glyph_id,
             class_value_array: class_value_array.into_iter().map(Into::into).collect(),
@@ -988,16 +992,16 @@ impl<'a> FontRead<'a> for ClassDefFormat2 {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ClassRangeRecord {
     /// First glyph ID in the range
-    pub start_glyph_id: GlyphId,
+    pub start_glyph_id: GlyphId16,
     /// Last glyph ID in the range
-    pub end_glyph_id: GlyphId,
+    pub end_glyph_id: GlyphId16,
     /// Applied to all glyphs in the range
     pub class: u16,
 }
 
 impl ClassRangeRecord {
     /// Construct a new `ClassRangeRecord`
-    pub fn new(start_glyph_id: GlyphId, end_glyph_id: GlyphId, class: u16) -> Self {
+    pub fn new(start_glyph_id: GlyphId16, end_glyph_id: GlyphId16, class: u16) -> Self {
         Self {
             start_glyph_id,
             end_glyph_id,
@@ -1047,7 +1051,7 @@ pub enum ClassDef {
 
 impl ClassDef {
     /// Construct a new `ClassDefFormat1` subtable
-    pub fn format_1(start_glyph_id: GlyphId, class_value_array: Vec<u16>) -> Self {
+    pub fn format_1(start_glyph_id: GlyphId16, class_value_array: Vec<u16>) -> Self {
         Self::Format1(ClassDefFormat1::new(start_glyph_id, class_value_array))
     }
 
@@ -1301,7 +1305,7 @@ impl<'a> FontRead<'a> for SequenceRuleSet {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SequenceRule {
     /// Array of input glyph IDs—starting with the second glyph
-    pub input_sequence: Vec<GlyphId>,
+    pub input_sequence: Vec<GlyphId16>,
     /// Array of Sequence lookup records
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
 }
@@ -1309,7 +1313,7 @@ pub struct SequenceRule {
 impl SequenceRule {
     /// Construct a new `SequenceRule`
     pub fn new(
-        input_sequence: Vec<GlyphId>,
+        input_sequence: Vec<GlyphId16>,
         seq_lookup_records: Vec<SequenceLookupRecord>,
     ) -> Self {
         Self {
@@ -1928,11 +1932,11 @@ impl<'a> FontRead<'a> for ChainedSequenceRuleSet {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ChainedSequenceRule {
     /// Array of backtrack glyph IDs
-    pub backtrack_sequence: Vec<GlyphId>,
+    pub backtrack_sequence: Vec<GlyphId16>,
     /// Array of input glyph IDs—start with second glyph
-    pub input_sequence: Vec<GlyphId>,
+    pub input_sequence: Vec<GlyphId16>,
     /// Array of lookahead glyph IDs
-    pub lookahead_sequence: Vec<GlyphId>,
+    pub lookahead_sequence: Vec<GlyphId16>,
     /// Array of SequenceLookupRecords
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
 }
@@ -1940,9 +1944,9 @@ pub struct ChainedSequenceRule {
 impl ChainedSequenceRule {
     /// Construct a new `ChainedSequenceRule`
     pub fn new(
-        backtrack_sequence: Vec<GlyphId>,
-        input_sequence: Vec<GlyphId>,
-        lookahead_sequence: Vec<GlyphId>,
+        backtrack_sequence: Vec<GlyphId16>,
+        input_sequence: Vec<GlyphId16>,
+        lookahead_sequence: Vec<GlyphId16>,
         seq_lookup_records: Vec<SequenceLookupRecord>,
     ) -> Self {
         Self {

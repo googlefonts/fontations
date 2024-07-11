@@ -310,7 +310,7 @@ impl<'a> std::fmt::Debug for Colr<'a> {
 #[repr(packed)]
 pub struct BaseGlyph {
     /// Glyph ID of the base glyph.
-    pub glyph_id: BigEndian<GlyphId>,
+    pub glyph_id: BigEndian<GlyphId16>,
     /// Index (base 0) into the layerRecords array.
     pub first_layer_index: BigEndian<u16>,
     /// Number of color layers associated with this glyph.
@@ -319,7 +319,7 @@ pub struct BaseGlyph {
 
 impl BaseGlyph {
     /// Glyph ID of the base glyph.
-    pub fn glyph_id(&self) -> GlyphId {
+    pub fn glyph_id(&self) -> GlyphId16 {
         self.glyph_id.get()
     }
 
@@ -335,7 +335,7 @@ impl BaseGlyph {
 }
 
 impl FixedSize for BaseGlyph {
-    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -360,14 +360,14 @@ impl<'a> SomeRecord<'a> for BaseGlyph {
 #[repr(packed)]
 pub struct Layer {
     /// Glyph ID of the glyph used for a given layer.
-    pub glyph_id: BigEndian<GlyphId>,
+    pub glyph_id: BigEndian<GlyphId16>,
     /// Index (base 0) for a palette entry in the CPAL table.
     pub palette_index: BigEndian<u16>,
 }
 
 impl Layer {
     /// Glyph ID of the glyph used for a given layer.
-    pub fn glyph_id(&self) -> GlyphId {
+    pub fn glyph_id(&self) -> GlyphId16 {
         self.glyph_id.get()
     }
 
@@ -378,7 +378,7 @@ impl Layer {
 }
 
 impl FixedSize for Layer {
-    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -480,14 +480,14 @@ impl<'a> std::fmt::Debug for BaseGlyphList<'a> {
 #[repr(packed)]
 pub struct BaseGlyphPaint {
     /// Glyph ID of the base glyph.
-    pub glyph_id: BigEndian<GlyphId>,
+    pub glyph_id: BigEndian<GlyphId16>,
     /// Offset to a Paint table, from the beginning of the [`BaseGlyphList`] table.
     pub paint_offset: BigEndian<Offset32>,
 }
 
 impl BaseGlyphPaint {
     /// Glyph ID of the base glyph.
-    pub fn glyph_id(&self) -> GlyphId {
+    pub fn glyph_id(&self) -> GlyphId16 {
         self.glyph_id.get()
     }
 
@@ -506,7 +506,7 @@ impl BaseGlyphPaint {
 }
 
 impl FixedSize for BaseGlyphPaint {
-    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -709,21 +709,21 @@ impl<'a> std::fmt::Debug for ClipList<'a> {
 #[repr(packed)]
 pub struct Clip {
     /// First glyph ID in the range.
-    pub start_glyph_id: BigEndian<GlyphId>,
+    pub start_glyph_id: BigEndian<GlyphId16>,
     /// Last glyph ID in the range.
-    pub end_glyph_id: BigEndian<GlyphId>,
+    pub end_glyph_id: BigEndian<GlyphId16>,
     /// Offset to a ClipBox table, from the beginning of the [`ClipList`] table.
     pub clip_box_offset: BigEndian<Offset24>,
 }
 
 impl Clip {
     /// First glyph ID in the range.
-    pub fn start_glyph_id(&self) -> GlyphId {
+    pub fn start_glyph_id(&self) -> GlyphId16 {
         self.start_glyph_id.get()
     }
 
     /// Last glyph ID in the range.
-    pub fn end_glyph_id(&self) -> GlyphId {
+    pub fn end_glyph_id(&self) -> GlyphId16 {
         self.end_glyph_id.get()
     }
 
@@ -743,7 +743,7 @@ impl Clip {
 
 impl FixedSize for Clip {
     const RAW_BYTE_LEN: usize =
-        GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
+        GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -2853,7 +2853,7 @@ impl PaintGlyphMarker {
     }
     fn glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + GlyphId::RAW_BYTE_LEN
+        start..start + GlyphId16::RAW_BYTE_LEN
     }
 }
 
@@ -2862,7 +2862,7 @@ impl<'a> FontRead<'a> for PaintGlyph<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
         cursor.advance::<Offset24>();
-        cursor.advance::<GlyphId>();
+        cursor.advance::<GlyphId16>();
         cursor.finish(PaintGlyphMarker {})
     }
 }
@@ -2890,7 +2890,7 @@ impl<'a> PaintGlyph<'a> {
     }
 
     /// Glyph ID for the source outline.
-    pub fn glyph_id(&self) -> GlyphId {
+    pub fn glyph_id(&self) -> GlyphId16 {
         let range = self.shape.glyph_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -2937,7 +2937,7 @@ impl PaintColrGlyphMarker {
     }
     fn glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + GlyphId::RAW_BYTE_LEN
+        start..start + GlyphId16::RAW_BYTE_LEN
     }
 }
 
@@ -2945,7 +2945,7 @@ impl<'a> FontRead<'a> for PaintColrGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
-        cursor.advance::<GlyphId>();
+        cursor.advance::<GlyphId16>();
         cursor.finish(PaintColrGlyphMarker {})
     }
 }
@@ -2961,7 +2961,7 @@ impl<'a> PaintColrGlyph<'a> {
     }
 
     /// Glyph ID for a BaseGlyphList base glyph.
-    pub fn glyph_id(&self) -> GlyphId {
+    pub fn glyph_id(&self) -> GlyphId16 {
         let range = self.shape.glyph_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }

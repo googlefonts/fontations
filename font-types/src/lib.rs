@@ -33,7 +33,7 @@ mod serde_test;
 pub use bbox::BoundingBox;
 pub use fixed::{F26Dot6, F2Dot14, F4Dot12, F6Dot10, Fixed};
 pub use fword::{FWord, UfWord};
-pub use glyph_id::GlyphId;
+pub use glyph_id::{GlyphId, GlyphId16, TryFromGlyphIdError};
 pub use longdatetime::LongDateTime;
 pub use name_id::NameId;
 pub use offset::{Nullable, Offset16, Offset24, Offset32};

@@ -5,8 +5,7 @@
 //!
 //! ```
 //! # use core::result::Result;
-//! # use skrifa::{instance::{Size, Location}, color::{ColorGlyphFormat, ColorPainter, PaintError}, MetadataProvider};
-//! # use read_fonts::types::GlyphId;
+//! # use skrifa::{instance::{Size, Location}, color::{ColorGlyphFormat, ColorPainter, PaintError}, GlyphId, MetadataProvider};
 //! # fn get_colr_bb(font: read_fonts::FontRef, color_painter_impl : &mut impl ColorPainter, glyph_id : GlyphId, size: Size) -> Result<(), PaintError> {
 //! match font.color_glyphs()
 //!       .get_with_format(glyph_id, ColorGlyphFormat::ColrV1)
@@ -27,8 +26,7 @@
 //! ## Paint a COLRv1 glyph given a font, and a glyph id and a [`ColorPainter`] implementation:
 //! ```
 //! # use core::result::Result;
-//! # use skrifa::{instance::{Size, Location}, color::{ColorGlyphFormat, ColorPainter, PaintError}, MetadataProvider};
-//! # use read_fonts::types::GlyphId;
+//! # use skrifa::{instance::{Size, Location}, color::{ColorGlyphFormat, ColorPainter, PaintError}, GlyphId, MetadataProvider};
 //! # fn paint_colr(font: read_fonts::FontRef, color_painter_impl : &mut impl ColorPainter, glyph_id : GlyphId) -> Result<(), PaintError> {
 //! let color_glyph = font.color_glyphs()
 //!                     .get_with_format(glyph_id, ColorGlyphFormat::ColrV1)
@@ -204,14 +202,17 @@ pub trait ColorPainter {
     /// Push the specified transform by concatenating it to the current
     /// transformation matrix.
     fn push_transform(&mut self, transform: Transform);
+
     /// Restore the transformation matrix to the state before the previous
     /// [`push_transform`](ColorPainter::push_transform) call.
     fn pop_transform(&mut self);
 
     /// Apply a clip path in the shape of glyph specified by `glyph_id`.
     fn push_clip_glyph(&mut self, glyph_id: GlyphId);
+
     /// Apply a clip rectangle specified by `clip_rect`.
     fn push_clip_box(&mut self, clip_box: BoundingBox<f32>);
+
     /// Restore the clip state to the state before a previous
     /// [`push_clip_glyph`](ColorPainter::push_clip_glyph) or
     /// [`push_clip_box`](ColorPainter::push_clip_box) call.

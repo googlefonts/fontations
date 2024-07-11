@@ -287,7 +287,7 @@ fn get_class_info(graph: &Graph, subtable: ObjectId) -> Vec<Mark2BaseClassInfo> 
 mod tests {
     use std::ops::Range;
 
-    use font_types::GlyphId;
+    use font_types::GlyphId16;
     use read_fonts::{
         tables::{gpos::PositionSubtables, layout::LookupFlag},
         FontRead,
@@ -383,10 +383,10 @@ mod tests {
         const FIRST_MARK_GLYPH: u16 = 2000;
 
         let mark_coverage = (FIRST_MARK_GLYPH..FIRST_MARK_GLYPH + N_MARKS)
-            .map(GlyphId::new)
+            .map(GlyphId16::new)
             .collect();
         let base_coverage = (FIRST_BASE_GLYPH..FIRST_BASE_GLYPH + N_BASES)
-            .map(GlyphId::new)
+            .map(GlyphId16::new)
             .collect();
         let mark_array = make_mark_array(MARK_CLASS_COUNT, MARKS_PER_CLASS, false);
         let base_array = make_base_array(N_BASES, MARK_CLASS_COUNT, false);
@@ -429,8 +429,8 @@ mod tests {
         // this is a closure for comparing the pre-and-post split values
         let compare_old_and_new = |base_gid, mark_gid| {
             // now let's manually check one of the records.
-            let base_gid = GlyphId::new(base_gid);
-            let mark_gid = GlyphId::new(mark_gid);
+            let base_gid = GlyphId16::new(base_gid);
+            let mark_gid = GlyphId16::new(mark_gid);
 
             // find the values in the original table:
             let old_subtable = &lookup.subtables[0];
@@ -513,10 +513,10 @@ mod tests {
         const FIRST_MARK_GLYPH: u16 = 2000;
 
         let mark_coverage = (FIRST_MARK_GLYPH..FIRST_MARK_GLYPH + N_MARKS)
-            .map(GlyphId::new)
+            .map(GlyphId16::new)
             .collect();
         let base_coverage = (FIRST_BASE_GLYPH..FIRST_BASE_GLYPH + N_BASES)
-            .map(GlyphId::new)
+            .map(GlyphId16::new)
             .collect();
         let mark_array = make_mark_array(MARK_CLASS_COUNT, MARKS_PER_CLASS, true);
         let base_array = make_base_array(N_BASES, MARK_CLASS_COUNT, true);
@@ -554,7 +554,7 @@ mod tests {
             _ => panic!("very bad assumptions"),
         };
 
-        let gid = GlyphId::new(FIRST_MARK_GLYPH + mark_cov_idx_to_test as u16);
+        let gid = GlyphId16::new(FIRST_MARK_GLYPH + mark_cov_idx_to_test as u16);
         let subtable = subtables
             .iter()
             .find(|sub| sub.mark_coverage().unwrap().get(gid).is_some())

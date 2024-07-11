@@ -175,7 +175,7 @@ impl<'a> PrettyPrinter<'a> {
             FieldType::F2Dot14(val) => write!(self, "{val}")?,
             FieldType::Fixed(val) => write!(self, "{val}")?,
             FieldType::LongDateTime(val) => write!(self, "{val:?}")?,
-            FieldType::GlyphId(val) => self.print_with_style(Color::Yellow.into(), |this| {
+            FieldType::GlyphId16(val) => self.print_with_style(Color::Yellow.into(), |this| {
                 write!(this, "{}", val.to_u16())
             })?,
             FieldType::NameId(val) => write!(self, "{val:?}")?,
@@ -247,7 +247,7 @@ impl<'a> PrettyPrinter<'a> {
             FieldType::F2Dot14(val) => self.print_hex(&val.to_be_bytes())?,
             FieldType::Fixed(val) => self.print_hex(&val.to_be_bytes())?,
             FieldType::LongDateTime(val) => self.print_hex(&val.to_be_bytes())?,
-            FieldType::GlyphId(val) => self.print_hex(&val.to_be_bytes())?,
+            FieldType::GlyphId16(val) => self.print_hex(&val.to_be_bytes())?,
             FieldType::BareOffset(offset) => self.print_offset_hex(*offset)?,
             _ => (),
         }
@@ -355,6 +355,6 @@ fn is_scalar(field_type: &FieldType) -> bool {
             | FieldType::F2Dot14(_)
             | FieldType::Fixed(_)
             | FieldType::LongDateTime(_)
-            | FieldType::GlyphId(_)
+            | FieldType::GlyphId16(_)
     )
 }

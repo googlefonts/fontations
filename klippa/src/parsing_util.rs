@@ -11,19 +11,19 @@ pub fn populate_gids(gid_str: &str) -> Result<IntSet<GlyphId>, SubsetError> {
     }
     for gid in gid_str.split(',') {
         if let Some((start, end)) = gid.split_once('-') {
-            let start: u16 = start
-                .parse::<u16>()
+            let start: u32 = start
+                .parse::<u32>()
                 .map_err(|_| SubsetError::InvalidGid(start.to_owned()))?;
-            let end: u16 = end
-                .parse::<u16>()
+            let end: u32 = end
+                .parse::<u32>()
                 .map_err(|_| SubsetError::InvalidGid(end.to_owned()))?;
             if start > end {
                 return Err(SubsetError::InvalidGidRange { start, end });
             }
             result.extend((start..=end).map(GlyphId::new));
         } else {
-            let glyph_id: u16 = gid
-                .parse::<u16>()
+            let glyph_id: u32 = gid
+                .parse::<u32>()
                 .map_err(|_| SubsetError::InvalidGid(gid.to_owned()))?;
             result.insert(GlyphId::new(glyph_id));
         }

@@ -195,7 +195,7 @@ impl<'a> Outlines<'a> {
                 let point_base = outline.points;
                 for (component, flags) in composite.component_glyphs_and_flags() {
                     outline.has_overlaps |= flags.contains(CompositeGlyphFlags::OVERLAP_COMPOUND);
-                    let component_glyph = self.loca.get_glyf(component, &self.glyf)?;
+                    let component_glyph = self.loca.get_glyf(component.into(), &self.glyf)?;
                     let Some(component_glyph) = component_glyph else {
                         continue;
                     };
@@ -724,8 +724,8 @@ impl<'a> Scaler for FreeTypeScaler<'a> {
             let component_glyph = self
                 .outlines
                 .loca
-                .get_glyf(component.glyph, &self.outlines.glyf)?;
-            self.load(&component_glyph, component.glyph, recurse_depth + 1)?;
+                .get_glyf(component.glyph.into(), &self.outlines.glyf)?;
+            self.load(&component_glyph, component.glyph.into(), recurse_depth + 1)?;
             let end_point = self.point_count;
             if !component
                 .flags
@@ -1106,8 +1106,8 @@ impl<'a> Scaler for HarfBuzzScaler<'a> {
             let component_glyph = self
                 .outlines
                 .loca
-                .get_glyf(component.glyph, &self.outlines.glyf)?;
-            self.load(&component_glyph, component.glyph, recurse_depth + 1)?;
+                .get_glyf(component.glyph.into(), &self.outlines.glyf)?;
+            self.load(&component_glyph, component.glyph.into(), recurse_depth + 1)?;
             let end_point = self.point_count;
             if !component
                 .flags
@@ -1217,7 +1217,7 @@ mod tests {
         assert_eq!(
             expected_gids_with_overlap,
             (0..glyph_count)
-                .filter(|gid| scaler.outline(GlyphId::new(*gid)).unwrap().has_overlaps)
+                .filter(|gid| scaler.outline(GlyphId::from(*gid)).unwrap().has_overlaps)
                 .collect::<Vec<_>>()
         );
     }
