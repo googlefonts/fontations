@@ -773,6 +773,14 @@ pub enum ClipBox<'a> {
 }
 
 impl<'a> ClipBox<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
     /// Set to 1.
     pub fn format(&self) -> u8 {
         match self {
@@ -1533,6 +1541,44 @@ pub enum Paint<'a> {
 }
 
 impl<'a> Paint<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::ColrLayers(item) => item.offset_data(),
+            Self::Solid(item) => item.offset_data(),
+            Self::VarSolid(item) => item.offset_data(),
+            Self::LinearGradient(item) => item.offset_data(),
+            Self::VarLinearGradient(item) => item.offset_data(),
+            Self::RadialGradient(item) => item.offset_data(),
+            Self::VarRadialGradient(item) => item.offset_data(),
+            Self::SweepGradient(item) => item.offset_data(),
+            Self::VarSweepGradient(item) => item.offset_data(),
+            Self::Glyph(item) => item.offset_data(),
+            Self::ColrGlyph(item) => item.offset_data(),
+            Self::Transform(item) => item.offset_data(),
+            Self::VarTransform(item) => item.offset_data(),
+            Self::Translate(item) => item.offset_data(),
+            Self::VarTranslate(item) => item.offset_data(),
+            Self::Scale(item) => item.offset_data(),
+            Self::VarScale(item) => item.offset_data(),
+            Self::ScaleAroundCenter(item) => item.offset_data(),
+            Self::VarScaleAroundCenter(item) => item.offset_data(),
+            Self::ScaleUniform(item) => item.offset_data(),
+            Self::VarScaleUniform(item) => item.offset_data(),
+            Self::ScaleUniformAroundCenter(item) => item.offset_data(),
+            Self::VarScaleUniformAroundCenter(item) => item.offset_data(),
+            Self::Rotate(item) => item.offset_data(),
+            Self::VarRotate(item) => item.offset_data(),
+            Self::RotateAroundCenter(item) => item.offset_data(),
+            Self::VarRotateAroundCenter(item) => item.offset_data(),
+            Self::Skew(item) => item.offset_data(),
+            Self::VarSkew(item) => item.offset_data(),
+            Self::SkewAroundCenter(item) => item.offset_data(),
+            Self::VarSkewAroundCenter(item) => item.offset_data(),
+            Self::Composite(item) => item.offset_data(),
+        }
+    }
+
     /// Set to 1.
     pub fn format(&self) -> u8 {
         match self {

@@ -598,6 +598,15 @@ pub enum AnchorTable<'a> {
 }
 
 impl<'a> AnchorTable<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier, = 1
     pub fn anchor_format(&self) -> u16 {
         match self {
@@ -1100,6 +1109,14 @@ pub enum SinglePos<'a> {
 }
 
 impl<'a> SinglePos<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
         match self {
@@ -1411,6 +1428,14 @@ pub enum PairPos<'a> {
 }
 
 impl<'a> PairPos<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
         match self {

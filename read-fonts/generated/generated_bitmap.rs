@@ -825,6 +825,17 @@ pub enum IndexSubtable<'a> {
 }
 
 impl<'a> IndexSubtable<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+            Self::Format4(item) => item.offset_data(),
+            Self::Format5(item) => item.offset_data(),
+        }
+    }
+
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
         match self {

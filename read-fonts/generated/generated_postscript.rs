@@ -208,6 +208,15 @@ pub enum FdSelect<'a> {
 }
 
 impl<'a> FdSelect<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format0(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+            Self::Format4(item) => item.offset_data(),
+        }
+    }
+
     /// Format = 0.
     pub fn format(&self) -> u8 {
         match self {

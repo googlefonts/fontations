@@ -229,6 +229,21 @@ pub enum CmapSubtable<'a> {
 }
 
 impl<'a> CmapSubtable<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format0(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+            Self::Format4(item) => item.offset_data(),
+            Self::Format6(item) => item.offset_data(),
+            Self::Format8(item) => item.offset_data(),
+            Self::Format10(item) => item.offset_data(),
+            Self::Format12(item) => item.offset_data(),
+            Self::Format13(item) => item.offset_data(),
+            Self::Format14(item) => item.offset_data(),
+        }
+    }
+
     /// Format number is set to 0.
     pub fn format(&self) -> u16 {
         match self {

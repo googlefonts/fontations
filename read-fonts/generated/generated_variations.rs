@@ -398,6 +398,14 @@ pub enum DeltaSetIndexMap<'a> {
 }
 
 impl<'a> DeltaSetIndexMap<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format0(item) => item.offset_data(),
+            Self::Format1(item) => item.offset_data(),
+        }
+    }
+
     /// DeltaSetIndexMap format: set to 0.
     pub fn format(&self) -> u8 {
         match self {
