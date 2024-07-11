@@ -1126,6 +1126,14 @@ pub enum Glyph<'a> {
 }
 
 impl<'a> Glyph<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Simple(item) => item.offset_data(),
+            Self::Composite(item) => item.offset_data(),
+        }
+    }
+
     /// If the number of contours is greater than or equal to zero,
     /// this is a simple glyph. If negative, this is a composite glyph
     /// — the value -1 should be used for composite glyphs.

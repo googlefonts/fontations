@@ -1191,6 +1191,14 @@ pub enum CoverageTable<'a> {
 }
 
 impl<'a> CoverageTable<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier — format = 1
     pub fn coverage_format(&self) -> u16 {
         match self {
@@ -1488,6 +1496,14 @@ pub enum ClassDef<'a> {
 }
 
 impl<'a> ClassDef<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier — format = 1
     pub fn class_format(&self) -> u16 {
         match self {
@@ -2411,6 +2427,15 @@ pub enum SequenceContext<'a> {
 }
 
 impl<'a> SequenceContext<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier: format = 1
     pub fn format(&self) -> u16 {
         match self {
@@ -3587,6 +3612,15 @@ pub enum ChainedSequenceContext<'a> {
 }
 
 impl<'a> ChainedSequenceContext<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier: format = 1
     pub fn format(&self) -> u16 {
         match self {
@@ -3873,6 +3907,16 @@ impl<'a> std::fmt::Debug for VariationIndex<'a> {
 pub enum DeviceOrVariationIndex<'a> {
     Device(Device<'a>),
     VariationIndex(VariationIndex<'a>),
+}
+
+impl<'a> DeviceOrVariationIndex<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Device(item) => item.offset_data(),
+            Self::VariationIndex(item) => item.offset_data(),
+        }
+    }
 }
 
 impl<'a> FontRead<'a> for DeviceOrVariationIndex<'a> {
@@ -4194,6 +4238,17 @@ pub enum Condition<'a> {
 }
 
 impl<'a> Condition<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1AxisRange(item) => item.offset_data(),
+            Self::Format2VariableValue(item) => item.offset_data(),
+            Self::Format3And(item) => item.offset_data(),
+            Self::Format4Or(item) => item.offset_data(),
+            Self::Format5Negate(item) => item.offset_data(),
+        }
+    }
+
     /// Format, = 1
     pub fn format(&self) -> u16 {
         match self {
