@@ -24,7 +24,10 @@
 //! ```
 
 use read_fonts::{
-    tables::name::{CharIter, Name, NameRecord, NameString},
+    tables::{
+        name::{CharIter, Name, NameRecord, NameString},
+        os2::SelectionFlags,
+    },
     TableProvider,
 };
 
@@ -33,7 +36,251 @@ use core::fmt;
 #[doc(inline)]
 pub use read_fonts::types::NameId as StringId;
 
+/// Access to names and other textual metadata contained in a font.
+#[derive(Clone)]
+pub struct Strings<'a> {
+    table: Option<Name<'a>>,
+    /// True if OS/2.fs_selection does not have the WWS bit set, specifying that
+    /// name ids 21 and 22 should not be used.
+    /// See documentation for bit 8 at
+    /// <https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fsselection>
+    use_wws: bool,
+}
+
+impl<'a> Strings<'a> {
+    /// Creates an object for accessing strings in the given font.
+    pub fn new(font: &impl TableProvider<'a>) -> Self {
+        let use_wws = !font
+            .os2()
+            .map(|os2| os2.fs_selection().contains(SelectionFlags::WWS))
+            .unwrap_or_default();
+        Self {
+            table: font.name().ok(),
+            use_wws,
+        }
+    }
+
+    /// Returns the number of available strings.
+    pub fn len(&self) -> usize {
+        self.table
+            .as_ref()
+            .map(|table| table.name_record().len())
+            .unwrap_or_default()
+    }
+
+    /// Returns true if the font contains no strings.
+    pub fn is_empty(&self) -> bool {
+        self.table
+            .as_ref()
+            .map(|table| table.name_record().is_empty())
+            .unwrap_or(true)
+    }
+
+    /// Returns the string at the given index.
+    pub fn get(&self, index: usize) -> Option<LocalizedString<'a>> {
+        let table = self.table.as_ref()?;
+        let record = table.name_record().get(index)?;
+        LocalizedString::new(table, record)
+    }
+
+    /// Returns the string with the given identifier, optionally for a specific
+    /// locale.
+    ///
+    /// # Search priority for locales
+    /// 1. The `locale` if not `None`
+    /// 2. "en-US"
+    /// 3. "en"
+    /// 4. The first Unicode encoded string
+    /// 5. The first string
+    ///
+    /// Otherwise, returns `None`.
+    pub fn get_by_id(&self, id: StringId, locale: Option<&str>) -> Option<LocalizedString<'a>> {
+        let mut best_rank = -1;
+        let mut best_string = None;
+        let table = self.table.as_ref()?;
+        for (i, rec) in table
+            .name_record()
+            .iter()
+            .filter(|rec| rec.name_id() == id)
+            .enumerate()
+        {
+            let Some(string) = LocalizedString::new(table, rec) else {
+                continue;
+            };
+            let rank = match (i, string.language()) {
+                (_, lang) if lang == locale => return Some(string),
+                (_, Some("en-US")) => 3,
+                (_, Some("en")) => 2,
+                (_, None) => 1,
+                (0, _) => 0,
+                _ => continue,
+            };
+            if rank > best_rank {
+                best_rank = rank;
+                best_string = Some(string);
+            }
+        }
+        best_string
+    }
+
+    /// Returns the family name, optionally for a specific locale.
+    ///
+    /// See [`get_by_id`](Self::get_by_id) for locale search priority.
+    pub fn family_name(&self, locale: Option<&str>) -> Option<LocalizedString<'a>> {
+        self.maybe_wws_name(
+            [
+                StringId::WWS_FAMILY_NAME,
+                StringId::TYPOGRAPHIC_FAMILY_NAME,
+                StringId::FAMILY_NAME,
+            ],
+            locale,
+        )
+    }
+
+    /// Returns the style name, optionally for a specific locale.
+    ///
+    /// See [`get_by_id`](Self::get_by_id) for locale search priority.    
+    pub fn style_name(&self, locale: Option<&str>) -> Option<LocalizedString<'a>> {
+        self.maybe_wws_name(
+            [
+                StringId::WWS_SUBFAMILY_NAME,
+                StringId::TYPOGRAPHIC_SUBFAMILY_NAME,
+                StringId::SUBFAMILY_NAME,
+            ],
+            locale,
+        )
+    }
+
+    /// Returns the PostScript name.
+    pub fn postscript_name(&self) -> Option<LocalizedString<'a>> {
+        self.get_by_id(StringId::POSTSCRIPT_NAME, None)
+    }
+
+    fn maybe_wws_name(
+        &self,
+        ids: [StringId; 3],
+        locale: Option<&str>,
+    ) -> Option<LocalizedString<'a>> {
+        self.use_wws
+            .then(|| self.get_by_id(ids[0], locale))
+            .flatten()
+            .or_else(|| self.get_by_id(ids[1], locale))
+            .or_else(|| self.get_by_id(ids[2], locale))
+    }
+
+    /// Returns an iterator over all available strings.
+    pub fn iter(&self) -> impl Iterator<Item = LocalizedString<'a>> + 'a + Clone {
+        let this = self.clone();
+        (0..self.len()).filter_map(move |ix| this.get(ix))
+    }
+}
+
+/// String containing a name or other font metadata in a specific language.
+#[derive(Clone, Debug)]
+pub struct LocalizedString<'a> {
+    /// The identifier that defines the content of the string.
+    pub id: StringId,
+    /// The locale that represents the language of the string.
+    pub locale: Option<Locale>,
+    /// The encoded string data.
+    pub string: EncodedString<'a>,
+}
+
+impl<'a> LocalizedString<'a> {
+    fn new(name: &Name<'a>, record: &NameRecord) -> Option<Self> {
+        let locale = LocaleInner::new(name, record).map(Locale);
+        let string = EncodedString(record.string(name.string_data()).ok()?);
+        Some(Self {
+            id: record.name_id(),
+            locale,
+            string,
+        })
+    }
+
+    /// Returns the BCP-47 language identifier for the localized string.
+    pub fn language(&self) -> Option<&str> {
+        self.locale.as_deref()
+    }
+
+    /// Returns an iterator over the characters of the localized string.
+    pub fn chars(&self) -> impl Iterator<Item = char> + 'a {
+        self.string.chars()
+    }
+}
+
+impl fmt::Display for LocalizedString<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for ch in self.chars() {
+            ch.fmt(f)?;
+        }
+        Ok(())
+    }
+}
+
+/// Encoded data for a string.
+#[derive(Copy, Clone)]
+pub struct EncodedString<'a>(NameString<'a>);
+
+impl<'a> EncodedString<'a> {
+    /// Returns an iterator over the decoded characters of the string.
+    pub fn chars(&self) -> impl Iterator<Item = char> + 'a {
+        self.0.chars()
+    }
+}
+
+impl PartialEq for EncodedString<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.chars().eq(other.0.chars())
+    }
+}
+
+impl Eq for EncodedString<'_> {}
+
+impl PartialEq<str> for EncodedString<'_> {
+    fn eq(&self, other: &str) -> bool {
+        self.0.chars().eq(other.chars())
+    }
+}
+
+impl fmt::Display for EncodedString<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for ch in self.0.chars() {
+            ch.fmt(f)?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for EncodedString<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\"")?;
+        for ch in self.0.chars() {
+            write!(f, "{:?}", ch)?;
+        }
+        write!(f, "\"")
+    }
+}
+
+/// The [BCP-47](https://www.rfc-editor.org/info/rfc5646) language identifier associated with a string.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct Locale(LocaleInner);
+
+impl core::ops::Deref for Locale {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_str()
+    }
+}
+
+impl fmt::Display for Locale {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0.as_str())
+    }
+}
+
 /// Iterator over the characters of a string.
+#[doc(hidden)]
 #[derive(Clone)]
 pub struct Chars<'a> {
     inner: Option<CharIter<'a>>,
@@ -48,6 +295,7 @@ impl<'a> Iterator for Chars<'a> {
 }
 
 /// Iterator over a collection of localized strings for a specific identifier.
+#[doc(hidden)]
 #[derive(Clone)]
 pub struct LocalizedStrings<'a> {
     name: Option<Name<'a>>,
@@ -107,7 +355,9 @@ impl<'a> Iterator for LocalizedStrings<'a> {
         loop {
             let record = self.records.next()?;
             if record.name_id() == self.id {
-                return Some(LocalizedString::new(name, record));
+                if let Some(string) = LocalizedString::new(name, record) {
+                    return Some(string);
+                }
             }
         }
     }
@@ -123,51 +373,15 @@ impl Default for LocalizedStrings<'_> {
     }
 }
 
-/// String containing a name or other font metadata in a specific language.
-#[derive(Clone, Debug)]
-pub struct LocalizedString<'a> {
-    language: Option<Language>,
-    value: Option<NameString<'a>>,
-}
-
-impl<'a> LocalizedString<'a> {
-    fn new(name: &Name<'a>, record: &NameRecord) -> Self {
-        let language = Language::new(name, record);
-        let value = record.string(name.string_data()).ok();
-        Self { language, value }
-    }
-
-    /// Returns the BCP-47 language identifier for the localized string.
-    pub fn language(&self) -> Option<&str> {
-        self.language.as_ref().map(|language| language.as_str())
-    }
-
-    /// Returns an iterator over the characters of the localized string.
-    pub fn chars(&self) -> Chars<'a> {
-        Chars {
-            inner: self.value.map(|value| value.chars()),
-        }
-    }
-}
-
-impl fmt::Display for LocalizedString<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for ch in self.chars() {
-            ch.fmt(f)?;
-        }
-        Ok(())
-    }
-}
-
 /// This value is chosen arbitrarily to accommodate common language tags that
 /// are almost always <= 11 bytes (LLL-SSSS-RR where L is primary language, S
 /// is script and R is region) and to keep the Language enum at a reasonable
 /// 32 bytes in size.
 const MAX_INLINE_LANGUAGE_LEN: usize = 30;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u8)]
-enum Language {
+enum LocaleInner {
     Inline {
         buf: [u8; MAX_INLINE_LANGUAGE_LEN],
         len: u8,
@@ -175,7 +389,7 @@ enum Language {
     Static(&'static str),
 }
 
-impl Language {
+impl LocaleInner {
     fn new(name: &Name, record: &NameRecord) -> Option<Self> {
         let language_id = record.language_id();
         // For version 1 name tables, prefer language tags:
@@ -232,6 +446,12 @@ impl Language {
             }
             Self::Static(str) => str,
         }
+    }
+}
+
+impl fmt::Debug for LocaleInner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.as_str())
     }
 }
 
@@ -632,6 +852,26 @@ mod tests {
                 .unwrap()
                 .to_string(),
             "Normalny"
+        );
+    }
+
+    #[test]
+    fn find_locale() {
+        let font = FontRef::new(font_test_data::NAMES_ONLY).unwrap();
+        let strings = Strings::new(&font);
+        assert_eq!(
+            strings
+                .get_by_id(StringId::SUBFAMILY_NAME, Some("pl-PL"))
+                .unwrap()
+                .to_string(),
+            "Normalny"
+        );
+        assert_eq!(
+            strings
+                .get_by_id(StringId::SUBFAMILY_NAME, Some("ru"))
+                .unwrap()
+                .to_string(),
+            "Regular"
         );
     }
 
