@@ -28,6 +28,7 @@ extern crate alloc;
 pub extern crate read_fonts as raw;
 
 pub mod attribute;
+pub mod bitmap;
 pub mod charmap;
 pub mod color;
 pub mod font;

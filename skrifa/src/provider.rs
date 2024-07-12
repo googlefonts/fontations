@@ -1,5 +1,6 @@
 use super::{
     attribute::Attributes,
+    bitmap::BitmapStrikes,
     charmap::Charmap,
     color::ColorGlyphCollection,
     instance::{LocationRef, Size},
@@ -62,6 +63,15 @@ pub trait MetadataProvider<'a>: raw::TableProvider<'a> + Sized {
     // Returns a collection of paintable color glyphs.
     fn color_glyphs(&self) -> ColorGlyphCollection<'a> {
         ColorGlyphCollection::new(self)
+    }
+
+    /// Returns the set of embedded bitmap strikes.
+    ///
+    /// If the font contains multiple bitmap strike sources, this method
+    /// prioritizes `sbix`, `CBDT`, and `EBDT` in that order. To select a
+    /// specific bitmap source, use the [`BitmapStrikes::with_format`] method.
+    fn bitmap_strikes(&self) -> BitmapStrikes<'a> {
+        BitmapStrikes::new(self)
     }
 }
 
