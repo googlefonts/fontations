@@ -16,7 +16,10 @@ mod tests {
         BigGlyphMetrics, BitmapContent, BitmapData, BitmapDataFormat, BitmapMetrics,
         SmallGlyphMetrics,
     };
-    use crate::{types::GlyphId, FontRef, TableProvider};
+    use crate::{
+        types::{GlyphId, GlyphId16},
+        FontRef, TableProvider,
+    };
 
     impl<'a> BitmapContent<'a> {
         pub(crate) fn extract_data(&self) -> (BitmapDataFormat, &'a [u8]) {
@@ -51,8 +54,8 @@ mod tests {
                 && size.hori.min_after_bl() == -2
                 && size.vert.ascender() == 6
                 && size.vert.descender() == 2
-                && size.start_glyph_index() == GlyphId::new(1)
-                && size.end_glyph_index() == GlyphId::new(2)
+                && size.start_glyph_index() == GlyphId16::new(1)
+                && size.end_glyph_index() == GlyphId16::new(2)
                 && size.ppem_x() == 7
                 && size.ppem_y() == 7
                 && size.bit_depth() == 1
@@ -108,8 +111,8 @@ mod tests {
                 && size.hori.min_after_bl() == -5
                 && size.vert.ascender() == 12
                 && size.vert.descender() == 5
-                && size.start_glyph_index() == GlyphId::new(3)
-                && size.end_glyph_index() == GlyphId::new(3)
+                && size.start_glyph_index() == GlyphId16::new(3)
+                && size.end_glyph_index() == GlyphId16::new(3)
                 && size.ppem_x() == 15
                 && size.ppem_y() == 15
                 && size.bit_depth() == 1

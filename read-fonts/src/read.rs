@@ -1,5 +1,7 @@
 //! Traits for interpreting font data
 
+#![deny(clippy::arithmetic_side_effects)]
+
 use types::{FixedSize, Scalar, Tag};
 
 use crate::font_data::FontData;
@@ -71,7 +73,7 @@ pub trait Format<T> {
 /// for types which store their size inline, see [`VarSize`].
 pub trait ComputeSize: ReadArgs {
     /// Compute the number of bytes required to represent this type.
-    fn compute_size(args: &Self::Args) -> usize;
+    fn compute_size(args: &Self::Args) -> Result<usize, ReadError>;
 }
 
 /// A trait for types that have variable length.
@@ -90,7 +92,7 @@ pub trait VarSize {
     #[doc(hidden)]
     fn read_len_at(data: FontData, pos: usize) -> Option<usize> {
         let asu32 = data.read_at::<Self::Size>(pos).ok()?.into();
-        Some(asu32 as usize + Self::Size::RAW_BYTE_LEN)
+        (asu32 as usize).checked_add(Self::Size::RAW_BYTE_LEN)
     }
 }
 
@@ -109,7 +111,6 @@ pub enum ReadError {
     TableIsMissing(Tag),
     MetricIsMissing(Tag),
     MalformedData(&'static str),
-    BigGlyphIdsNotSupported(u32),
 }
 
 impl std::fmt::Display for ReadError {
@@ -130,9 +131,6 @@ impl std::fmt::Display for ReadError {
             ReadError::TableIsMissing(tag) => write!(f, "the {tag} table is missing"),
             ReadError::MetricIsMissing(tag) => write!(f, "the {tag} metric is missing"),
             ReadError::MalformedData(msg) => write!(f, "Malformed data: '{msg}'"),
-            ReadError::BigGlyphIdsNotSupported(gid) => {
-                write!(f, "{gid} is too big! Implement fontations#784")
-            }
         }
     }
 }

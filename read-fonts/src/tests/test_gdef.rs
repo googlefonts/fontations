@@ -1,4 +1,4 @@
-use types::{GlyphId, MajorMinor};
+use types::{GlyphId16, MajorMinor};
 
 use super::*;
 use crate::tables::layout::{ClassDefFormat2, DeltaFormat, DeviceOrVariationIndex};
@@ -16,8 +16,8 @@ fn glyph_class_def_table() {
     let table = ClassDefFormat2::read(test_data::GLYPHCLASSDEF_TABLE.into()).unwrap();
     assert_eq!(table.class_range_count(), 4);
     let last_record = &table.class_range_records()[3];
-    assert_eq!(last_record.start_glyph_id(), GlyphId::new(0x18f));
-    assert_eq!(last_record.end_glyph_id(), GlyphId::new(0x18f));
+    assert_eq!(last_record.start_glyph_id(), GlyphId16::new(0x18f));
+    assert_eq!(last_record.end_glyph_id(), GlyphId16::new(0x18f));
 }
 
 #[test]

@@ -40,7 +40,12 @@ impl CmapSubtable {
 
         let mut prev = (u16::MAX - 1, u16::MAX - 1);
         for (cp, gid) in mappings {
-            let gid = gid.to_u16();
+            let gid = gid.to_u32();
+            if gid > 0xFFFF {
+                // Should we just fail here?
+                continue;
+            }
+            let gid = gid as u16;
             if *cp > '\u{FFFF}' {
                 // mappings is sorted, so the rest will be beyond the BMP too.
                 break;
@@ -126,7 +131,7 @@ impl CmapSubtable {
     fn create_format_12(mappings: &[(char, GlyphId)]) -> Self {
         let (mut char_codes, gids): (Vec<u32>, Vec<u32>) = mappings
             .iter()
-            .map(|(cp, gid)| (*cp as u32, gid.to_u16() as u32))
+            .map(|(cp, gid)| (*cp as u32, gid.to_u32()))
             .unzip();
         let cmap: HashMap<_, _> = char_codes.iter().cloned().zip(gids).collect();
         char_codes.dedup();
@@ -329,7 +334,7 @@ mod tests {
             .chain(30..=90)
             .chain(153..=480)
             .enumerate()
-            .map(|(idx, codepoint)| (char::from_u32(codepoint).unwrap(), GlyphId::new(idx as u16)))
+            .map(|(idx, codepoint)| (char::from_u32(codepoint).unwrap(), GlyphId::new(idx as u32)))
             .collect()
     }
 
@@ -519,7 +524,7 @@ mod tests {
         let mut mappings = non_bmp_cmap_mappings();
         // add an additional mapping to a different glyphId
         let (ch, gid1) = mappings[0];
-        let gid2 = GlyphId::new(gid1.to_u16() + 1);
+        let gid2 = GlyphId::new(gid1.to_u32() + 1);
         mappings.push((ch, gid2));
 
         let result = write::Cmap::from_mappings(mappings);

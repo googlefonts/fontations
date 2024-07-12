@@ -214,7 +214,7 @@ impl<'a> Outlines<'a> {
             .charstrings
             .as_ref()
             .ok_or(Error::MissingCharstrings)?
-            .get(glyph_id.to_u16() as usize)?;
+            .get(glyph_id.to_u32() as usize)?;
         let subrs = subfont.subrs(self)?;
         let blend_state = subfont.blend_state(self, coords)?;
         let mut pen_sink = charstring::PenSink::new(pen);

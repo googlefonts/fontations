@@ -1,6 +1,7 @@
 //! Codepoint to script mapping.
 
 use super::style::GlyphStyle;
+use raw::types::Tag;
 
 /// Defines the basic properties for each script supported by the
 /// autohinter.
@@ -8,7 +9,7 @@ use super::style::GlyphStyle;
 pub(super) struct ScriptClass {
     pub name: &'static str,
     /// Unicode tag for the script.
-    pub tag: [u8; 4],
+    pub tag: Tag,
     /// Index of self in the SCRIPT_CLASSES array.
     pub index: usize,
     /// True if outline edges are processed top to bottom.

@@ -675,6 +675,14 @@ where
             .unwrap_or_default()
     }
 
+    pub fn intermediate_start(&self) -> Option<Tuple<'a>> {
+        self.header.intermediate_start_tuple()
+    }
+
+    pub fn intermediate_end(&self) -> Option<Tuple<'a>> {
+        self.header.intermediate_end_tuple()
+    }
+
     /// Compute the fixed point scalar for this tuple at the given location in
     /// variation space.
     ///
@@ -1141,12 +1149,12 @@ pub(crate) fn advance_delta(
     glyph_id: GlyphId,
     coords: &[F2Dot14],
 ) -> Result<Fixed, ReadError> {
-    let gid = glyph_id.to_u16();
+    let gid = glyph_id.to_u32();
     let ix = match dsim {
-        Some(Ok(dsim)) => dsim.get(gid as u32)?,
+        Some(Ok(dsim)) => dsim.get(gid)?,
         _ => DeltaSetIndex {
             outer: 0,
-            inner: gid,
+            inner: gid as _,
         },
     };
     Ok(Fixed::from_i32(ivs?.compute_delta(ix, coords)?))
@@ -1158,9 +1166,9 @@ pub(crate) fn item_delta(
     glyph_id: GlyphId,
     coords: &[F2Dot14],
 ) -> Result<Fixed, ReadError> {
-    let gid = glyph_id.to_u16();
+    let gid = glyph_id.to_u32();
     let ix = match dsim {
-        Some(Ok(dsim)) => dsim.get(gid as u32)?,
+        Some(Ok(dsim)) => dsim.get(gid)?,
         _ => return Err(ReadError::NullOffset),
     };
     Ok(Fixed::from_i32(ivs?.compute_delta(ix, coords)?))

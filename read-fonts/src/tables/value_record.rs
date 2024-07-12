@@ -172,8 +172,8 @@ impl std::fmt::Debug for ValueRecord {
 
 impl ComputeSize for ValueRecord {
     #[inline]
-    fn compute_size(args: &ValueFormat) -> usize {
-        args.record_byte_len()
+    fn compute_size(args: &ValueFormat) -> Result<usize, ReadError> {
+        Ok(args.record_byte_len())
     }
 }
 

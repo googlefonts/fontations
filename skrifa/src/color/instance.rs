@@ -8,7 +8,7 @@ use read_fonts::{
             ItemVariationStore,
         },
     },
-    types::{BoundingBox, F2Dot14, GlyphId, Point},
+    types::{BoundingBox, F2Dot14, GlyphId16, Point},
     ReadError,
 };
 
@@ -234,11 +234,11 @@ pub enum ResolvedPaint<'a> {
         extend: Extend,
     },
     Glyph {
-        glyph_id: GlyphId,
+        glyph_id: GlyphId16,
         paint: Paint<'a>,
     },
     ColrGlyph {
-        glyph_id: GlyphId,
+        glyph_id: GlyphId16,
     },
     Transform {
         xx: f32,

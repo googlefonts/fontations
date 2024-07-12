@@ -1096,7 +1096,7 @@ impl Field {
             .map(FieldReadArgs::to_tokens_for_validation);
 
         if let FieldType::Struct { typ } = &self.typ {
-            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args)));
+            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args)? ));
         }
         if let FieldType::PendingResolution { .. } = &self.typ {
             panic!("Should have resolved {self:?}")
@@ -1123,7 +1123,7 @@ impl Field {
                     }
                     FieldType::ComputedArray(array) => {
                         let inner = array.raw_inner_type();
-                        quote!( <#inner as ComputeSize>::compute_size(&#read_args) )
+                        quote!( <#inner as ComputeSize>::compute_size(&#read_args)? )
                     }
                     _ => unreachable!("count not valid here"),
                 };
@@ -1132,7 +1132,9 @@ impl Field {
                         // Prevent identity-op clippy error with `1 * size`
                         size_expr
                     }
-                    _ => quote!(  #count_expr * #size_expr ),
+                    _ => {
+                        quote!(  (#count_expr).checked_mul(#size_expr).ok_or(ReadError::OutOfBounds)? )
+                    }
                 }
             }
             None => quote!(compile_error!("missing count attribute?")),

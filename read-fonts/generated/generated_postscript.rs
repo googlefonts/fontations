@@ -37,8 +37,9 @@ impl<'a> FontRead<'a> for Index1<'a> {
         let mut cursor = data.cursor();
         let count: u16 = cursor.read()?;
         let off_size: u8 = cursor.read()?;
-        let offsets_byte_len =
-            transforms::add_multiply(count, 1_usize, off_size) * u8::RAW_BYTE_LEN;
+        let offsets_byte_len = (transforms::add_multiply(count, 1_usize, off_size))
+            .checked_mul(u8::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(offsets_byte_len);
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
@@ -133,8 +134,9 @@ impl<'a> FontRead<'a> for Index2<'a> {
         let mut cursor = data.cursor();
         let count: u32 = cursor.read()?;
         let off_size: u8 = cursor.read()?;
-        let offsets_byte_len =
-            transforms::add_multiply(count, 1_usize, off_size) * u8::RAW_BYTE_LEN;
+        let offsets_byte_len = (transforms::add_multiply(count, 1_usize, off_size))
+            .checked_mul(u8::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(offsets_byte_len);
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
@@ -206,6 +208,15 @@ pub enum FdSelect<'a> {
 }
 
 impl<'a> FdSelect<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format0(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+            Self::Format4(item) => item.offset_data(),
+        }
+    }
+
     /// Format = 0.
     pub fn format(&self) -> u8 {
         match self {
@@ -361,7 +372,9 @@ impl<'a> FontRead<'a> for FdSelectFormat3<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
         let n_ranges: u16 = cursor.read()?;
-        let ranges_byte_len = n_ranges as usize * FdSelectRange3::RAW_BYTE_LEN;
+        let ranges_byte_len = (n_ranges as usize)
+            .checked_mul(FdSelectRange3::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(ranges_byte_len);
         cursor.advance::<u16>();
         cursor.finish(FdSelectFormat3Marker { ranges_byte_len })
@@ -504,7 +517,9 @@ impl<'a> FontRead<'a> for FdSelectFormat4<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
         let n_ranges: u32 = cursor.read()?;
-        let ranges_byte_len = n_ranges as usize * FdSelectRange4::RAW_BYTE_LEN;
+        let ranges_byte_len = (n_ranges as usize)
+            .checked_mul(FdSelectRange4::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(ranges_byte_len);
         cursor.advance::<u32>();
         cursor.finish(FdSelectFormat4Marker { ranges_byte_len })

@@ -1,6 +1,6 @@
 //! Stores a page of bits, used inside of bitset's.
 
-use std::{cell::Cell, hash::Hash};
+use std::{cell::Cell, hash::Hash, ops::RangeInclusive};
 
 // the integer type underlying our bit set
 type Element = u64;
@@ -62,6 +62,14 @@ impl BitPage {
                 let base = i as u32 * ELEM_BITS;
                 Iter::new(*elem).map(move |idx| base + idx)
             })
+    }
+
+    /// Iterator over the ranges in this page.
+    pub(crate) fn iter_ranges(&self) -> RangeIter<'_> {
+        RangeIter {
+            page: self,
+            next_value_to_check: 0,
+        }
     }
 
     /// Marks (val % page width) a member of this set and returns true if it is newly added.
@@ -234,6 +242,71 @@ impl DoubleEndedIterator for Iter {
         }
         self.backward_index = next_index - 1;
         Some(next_index as u32)
+    }
+}
+
+pub(crate) struct RangeIter<'a> {
+    page: &'a BitPage,
+    next_value_to_check: u32,
+}
+
+impl<'a> RangeIter<'a> {
+    fn next_range_in_element(&self) -> Option<RangeInclusive<u32>> {
+        if self.next_value_to_check >= PAGE_BITS {
+            return None;
+        }
+
+        let element = self.page.element(self.next_value_to_check);
+        let element_bit = (self.next_value_to_check & ELEM_MASK) as u64;
+        let major = self.next_value_to_check & !ELEM_MASK;
+
+        let mask = !((1 << element_bit) - 1);
+        let range_start = (element & mask).trailing_zeros();
+        if range_start == ELEM_BITS {
+            // There's no remaining values in this element.
+            return None;
+        }
+
+        let mask = (1 << range_start) - 1;
+        let range_end = (element | mask).trailing_ones() - 1;
+
+        Some((major + range_start)..=(major + range_end))
+    }
+}
+
+impl<'a> Iterator for RangeIter<'a> {
+    type Item = RangeInclusive<u32>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut current_range = self.next_range_in_element();
+        loop {
+            let element_end = (self.next_value_to_check & !ELEM_MASK) + ELEM_BITS - 1;
+            let Some(range) = current_range.clone() else {
+                // No more ranges in the current element, move to the next one.
+                self.next_value_to_check = element_end + 1;
+                if self.next_value_to_check < PAGE_BITS {
+                    current_range = self.next_range_in_element();
+                    continue;
+                } else {
+                    return None;
+                }
+            };
+
+            self.next_value_to_check = range.end() + 1;
+            if *range.end() == element_end {
+                let continuation = self.next_range_in_element();
+                if let Some(continuation) = continuation {
+                    if *continuation.start() == element_end + 1 {
+                        current_range = Some(*range.start()..=*continuation.end());
+                        continue;
+                    }
+                }
+            }
+
+            break;
+        }
+
+        current_range
     }
 }
 
@@ -493,6 +566,41 @@ mod test {
 
         let items: Vec<_> = page.iter().collect();
         assert_eq!(items, vec![0, 12, 13, 23, 63, 64, 78, 400, 511,])
+    }
+
+    fn check_iter_ranges(ranges: Vec<RangeInclusive<u32>>) {
+        let mut page = BitPage::new_zeroes();
+        for range in ranges.iter() {
+            page.insert_range(*range.start(), *range.end());
+        }
+        let items: Vec<_> = page.iter_ranges().collect();
+        assert_eq!(items, ranges);
+    }
+
+    #[test]
+    fn iter_ranges() {
+        // basic
+        check_iter_ranges(vec![]);
+        check_iter_ranges(vec![0..=5]);
+        check_iter_ranges(vec![0..=0, 5..=5, 10..=10]);
+        check_iter_ranges(vec![0..=5, 12..=31]);
+        check_iter_ranges(vec![12..=31]);
+        check_iter_ranges(vec![71..=84]);
+        check_iter_ranges(vec![273..=284]);
+        check_iter_ranges(vec![0..=511]);
+
+        // end of boundary
+        check_iter_ranges(vec![511..=511]);
+        check_iter_ranges(vec![500..=511]);
+        check_iter_ranges(vec![400..=511]);
+        check_iter_ranges(vec![0..=511]);
+
+        // continutation ranges
+        check_iter_ranges(vec![64..=127]);
+        check_iter_ranges(vec![64..=127, 129..=135]);
+        check_iter_ranges(vec![64..=135]);
+        check_iter_ranges(vec![71..=135]);
+        check_iter_ranges(vec![71..=435]);
     }
 
     #[test]

@@ -255,10 +255,10 @@ impl FromObjRef<read_fonts::tables::layout::FeatureParams<'_>> for FeatureParams
 impl FromTableRef<read_fonts::tables::layout::FeatureParams<'_>> for FeatureParams {}
 
 impl ClassDefFormat1 {
-    fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
+    fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + '_ {
         self.class_value_array.iter().enumerate().map(|(i, cls)| {
             (
-                GlyphId::new(self.start_glyph_id.to_u16().saturating_add(i as u16)),
+                GlyphId16::new(self.start_glyph_id.to_u16().saturating_add(i as u16)),
                 *cls,
             )
         })
@@ -277,16 +277,16 @@ impl ClassRangeRecord {
 }
 
 impl ClassDefFormat2 {
-    fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
+    fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + '_ {
         self.class_range_records.iter().flat_map(|rcd| {
             (rcd.start_glyph_id.to_u16()..=rcd.end_glyph_id.to_u16())
-                .map(|gid| (GlyphId::new(gid), rcd.class))
+                .map(|gid| (GlyphId16::new(gid), rcd.class))
         })
     }
 }
 
 impl ClassDef {
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + '_ {
         let (one, two) = match self {
             Self::Format1(table) => (Some(table.iter()), None),
             Self::Format2(table) => (None, Some(table.iter())),
@@ -298,12 +298,12 @@ impl ClassDef {
     /// Return the glyph class for the provided glyph.
     ///
     /// Glyphs which have not been assigned a class are given class 0
-    pub fn get(&self, glyph: GlyphId) -> u16 {
+    pub fn get(&self, glyph: GlyphId16) -> u16 {
         self.get_raw(glyph).unwrap_or(0)
     }
 
     // exposed for testing
-    fn get_raw(&self, glyph: GlyphId) -> Option<u16> {
+    fn get_raw(&self, glyph: GlyphId16) -> Option<u16> {
         match self {
             ClassDef::Format1(table) => glyph
                 .to_u16()
@@ -329,7 +329,7 @@ impl ClassDef {
 }
 
 impl CoverageFormat1 {
-    fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+    fn iter(&self) -> impl Iterator<Item = GlyphId16> + '_ {
         self.glyph_array.iter().copied()
     }
 
@@ -339,7 +339,7 @@ impl CoverageFormat1 {
 }
 
 impl CoverageFormat2 {
-    fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+    fn iter(&self) -> impl Iterator<Item = GlyphId16> + '_ {
         self.range_records
             .iter()
             .flat_map(|rcd| iter_gids(rcd.start_glyph_id, rcd.end_glyph_id))
@@ -359,7 +359,7 @@ impl CoverageFormat2 {
 }
 
 impl CoverageTable {
-    pub fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + '_ {
         let (one, two) = match self {
             Self::Format1(table) => (Some(table.iter()), None),
             Self::Format2(table) => (None, Some(table.iter())),
@@ -385,7 +385,7 @@ impl CoverageTable {
 /// This will choose the best format based for the included glyphs.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ClassDefBuilder {
-    pub items: BTreeMap<GlyphId, u16>,
+    pub items: BTreeMap<GlyphId16, u16>,
 }
 
 /// A builder for [CoverageTable] tables.
@@ -394,18 +394,18 @@ pub struct ClassDefBuilder {
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct CoverageTableBuilder {
     // invariant: is always sorted
-    glyphs: Vec<GlyphId>,
+    glyphs: Vec<GlyphId16>,
 }
 
-impl FromIterator<GlyphId> for CoverageTableBuilder {
-    fn from_iter<T: IntoIterator<Item = GlyphId>>(iter: T) -> Self {
+impl FromIterator<GlyphId16> for CoverageTableBuilder {
+    fn from_iter<T: IntoIterator<Item = GlyphId16>>(iter: T) -> Self {
         let glyphs = iter.into_iter().collect::<Vec<_>>();
         CoverageTableBuilder::from_glyphs(glyphs)
     }
 }
 
-impl FromIterator<GlyphId> for CoverageTable {
-    fn from_iter<T: IntoIterator<Item = GlyphId>>(iter: T) -> Self {
+impl FromIterator<GlyphId16> for CoverageTable {
+    fn from_iter<T: IntoIterator<Item = GlyphId16>>(iter: T) -> Self {
         let glyphs = iter.into_iter().collect::<Vec<_>>();
         CoverageTableBuilder::from_glyphs(glyphs).build()
     }
@@ -413,7 +413,7 @@ impl FromIterator<GlyphId> for CoverageTable {
 
 impl CoverageTableBuilder {
     /// Create a new builder from a vec of `GlyphId`.
-    pub fn from_glyphs(mut glyphs: Vec<GlyphId>) -> Self {
+    pub fn from_glyphs(mut glyphs: Vec<GlyphId16>) -> Self {
         glyphs.sort_unstable();
         glyphs.dedup();
         CoverageTableBuilder { glyphs }
@@ -424,7 +424,7 @@ impl CoverageTableBuilder {
     /// Returns the coverage index of the added glyph.
     ///
     /// If the glyph already exists, this returns its current index.
-    pub fn add(&mut self, glyph: GlyphId) -> u16 {
+    pub fn add(&mut self, glyph: GlyphId16) -> u16 {
         match self.glyphs.binary_search(&glyph) {
             Ok(ix) => ix as u16,
             Err(ix) => {
@@ -451,16 +451,16 @@ impl CoverageTableBuilder {
     }
 }
 
-impl FromIterator<(GlyphId, u16)> for ClassDefBuilder {
-    fn from_iter<T: IntoIterator<Item = (GlyphId, u16)>>(iter: T) -> Self {
+impl FromIterator<(GlyphId16, u16)> for ClassDefBuilder {
+    fn from_iter<T: IntoIterator<Item = (GlyphId16, u16)>>(iter: T) -> Self {
         Self {
             items: iter.into_iter().filter(|(_, cls)| *cls != 0).collect(),
         }
     }
 }
 
-impl FromIterator<(GlyphId, u16)> for ClassDef {
-    fn from_iter<T: IntoIterator<Item = (GlyphId, u16)>>(iter: T) -> Self {
+impl FromIterator<(GlyphId16, u16)> for ClassDef {
+    fn from_iter<T: IntoIterator<Item = (GlyphId16, u16)>>(iter: T) -> Self {
         ClassDefBuilder::from_iter(iter).build()
     }
 }
@@ -491,10 +491,15 @@ impl ClassDefBuilder {
             let first = self.items.keys().next().map(|g| g.to_u16()).unwrap_or(0);
             let last = self.items.keys().next_back().map(|g| g.to_u16());
             let class_value_array = (first..=last.unwrap_or_default())
-                .map(|g| self.items.get(&GlyphId::new(g)).copied().unwrap_or(0))
+                .map(|g| self.items.get(&GlyphId16::new(g)).copied().unwrap_or(0))
                 .collect();
             ClassDef::Format1(ClassDefFormat1 {
-                start_glyph_id: self.items.keys().next().copied().unwrap_or(GlyphId::NOTDEF),
+                start_glyph_id: self
+                    .items
+                    .keys()
+                    .next()
+                    .copied()
+                    .unwrap_or(GlyphId16::NOTDEF),
                 class_value_array,
             })
         } else {
@@ -506,7 +511,7 @@ impl ClassDefBuilder {
 }
 
 fn iter_class_ranges(
-    values: &BTreeMap<GlyphId, u16>,
+    values: &BTreeMap<GlyphId16, u16>,
 ) -> impl Iterator<Item = ClassRangeRecord> + '_ {
     let mut iter = values.iter();
     let mut prev = None;
@@ -538,7 +543,7 @@ fn iter_class_ranges(
     })
 }
 
-fn should_choose_coverage_format_2(glyphs: &[GlyphId]) -> bool {
+fn should_choose_coverage_format_2(glyphs: &[GlyphId16]) -> bool {
     let format2_len = 4 + RangeRecord::iter_for_glyphs(glyphs).count() * 6;
     let format1_len = 4 + glyphs.len() * 2;
     format2_len < format1_len
@@ -550,7 +555,7 @@ impl RangeRecord {
     /// # Note
     ///
     /// this function expects that glyphs are already sorted.
-    pub fn iter_for_glyphs(glyphs: &[GlyphId]) -> impl Iterator<Item = RangeRecord> + '_ {
+    pub fn iter_for_glyphs(glyphs: &[GlyphId16]) -> impl Iterator<Item = RangeRecord> + '_ {
         let mut cur_range = glyphs.first().copied().map(|g| (g, g));
         let mut len = 0u16;
         let mut iter = glyphs.iter().skip(1).copied();
@@ -584,11 +589,11 @@ impl RangeRecord {
     }
 }
 
-fn iter_gids(gid1: GlyphId, gid2: GlyphId) -> impl Iterator<Item = GlyphId> {
-    (gid1.to_u16()..=gid2.to_u16()).map(GlyphId::new)
+fn iter_gids(gid1: GlyphId16, gid2: GlyphId16) -> impl Iterator<Item = GlyphId16> {
+    (gid1.to_u16()..=gid2.to_u16()).map(GlyphId16::new)
 }
 
-fn are_sequential(gid1: GlyphId, gid2: GlyphId) -> bool {
+fn are_sequential(gid1: GlyphId16, gid2: GlyphId16) -> bool {
     gid2.to_u16().saturating_sub(gid1.to_u16()) == 1
 }
 
@@ -693,8 +698,8 @@ mod tests {
     #[should_panic(expected = "larger than end_glyph_id")]
     fn validate_classdef_ranges() {
         let classdef = ClassDefFormat2::new(vec![ClassRangeRecord::new(
-            GlyphId::new(12),
-            GlyphId::new(3),
+            GlyphId16::new(12),
+            GlyphId16::new(3),
             7,
         )]);
 
@@ -704,14 +709,14 @@ mod tests {
     #[test]
     fn classdef_format() {
         let builder: ClassDefBuilder = [(3u16, 4u16), (4, 6), (5, 1), (9, 5), (10, 2), (11, 3)]
-            .map(|(gid, cls)| (GlyphId::new(gid), cls))
+            .map(|(gid, cls)| (GlyphId16::new(gid), cls))
             .into_iter()
             .collect();
 
         assert!(builder.prefer_format_1());
 
         let builder: ClassDefBuilder = [(1u16, 1u16), (3, 4), (9, 5), (10, 2), (11, 3)]
-            .map(|(gid, cls)| (GlyphId::new(gid), cls))
+            .map(|(gid, cls)| (GlyphId16::new(gid), cls))
             .into_iter()
             .collect();
 
@@ -724,8 +729,8 @@ mod tests {
             start: u16,
             end: u16,
             cls: u16,
-        ) -> impl Iterator<Item = (GlyphId, u16)> {
-            (start..=end).map(move |gid| (GlyphId::new(gid), cls))
+        ) -> impl Iterator<Item = (GlyphId16, u16)> {
+            (start..=end).map(move |gid| (GlyphId16::new(gid), cls))
         }
 
         // 3 ranges of 4 glyphs at 6 bytes a range should be smaller than writing
@@ -757,8 +762,8 @@ mod tests {
         assert_eq!(result[0], 0x5540_u16);
     }
 
-    fn make_glyph_vec<const N: usize>(gids: [u16; N]) -> Vec<GlyphId> {
-        gids.into_iter().map(GlyphId::new).collect()
+    fn make_glyph_vec<const N: usize>(gids: [u16; N]) -> Vec<GlyphId16> {
+        gids.into_iter().map(GlyphId16::new).collect()
     }
 
     #[test]
@@ -772,7 +777,7 @@ mod tests {
     fn make_class<const N: usize>(gid_class_pairs: [(u16, u16); N]) -> ClassDef {
         gid_class_pairs
             .iter()
-            .map(|(gid, cls)| (GlyphId::new(*gid), *cls))
+            .map(|(gid, cls)| (GlyphId16::new(*gid), *cls))
             .collect::<ClassDefBuilder>()
             .build()
     }
@@ -781,9 +786,9 @@ mod tests {
     fn class_def_builder_zero() {
         // even if class 0 is provided, we don't need to assign explicit entries for it
         let class = make_class([(4, 0), (5, 1)]);
-        assert!(class.get_raw(GlyphId::new(4)).is_none());
-        assert_eq!(class.get_raw(GlyphId::new(5)), Some(1));
-        assert!(class.get_raw(GlyphId::new(100)).is_none());
+        assert!(class.get_raw(GlyphId16::new(4)).is_none());
+        assert_eq!(class.get_raw(GlyphId16::new(5)), Some(1));
+        assert!(class.get_raw(GlyphId16::new(100)).is_none());
     }
 
     // https://github.com/googlefonts/fontations/issues/923
@@ -809,8 +814,8 @@ mod tests {
             class,
             ClassDef::Format2(ClassDefFormat2 {
                 class_range_records: vec![ClassRangeRecord {
-                    start_glyph_id: GlyphId::new(1),
-                    end_glyph_id: GlyphId::new(3),
+                    start_glyph_id: GlyphId16::new(1),
+                    end_glyph_id: GlyphId16::new(3),
                     class: 1
                 }]
             })

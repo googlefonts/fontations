@@ -242,7 +242,9 @@ impl<'a> FontRead<'a> for BaseTagList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let base_tag_count: u16 = cursor.read()?;
-        let baseline_tags_byte_len = base_tag_count as usize * Tag::RAW_BYTE_LEN;
+        let baseline_tags_byte_len = (base_tag_count as usize)
+            .checked_mul(Tag::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(baseline_tags_byte_len);
         cursor.finish(BaseTagListMarker {
             baseline_tags_byte_len,
@@ -312,8 +314,9 @@ impl<'a> FontRead<'a> for BaseScriptList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let base_script_count: u16 = cursor.read()?;
-        let base_script_records_byte_len =
-            base_script_count as usize * BaseScriptRecord::RAW_BYTE_LEN;
+        let base_script_records_byte_len = (base_script_count as usize)
+            .checked_mul(BaseScriptRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(base_script_records_byte_len);
         cursor.finish(BaseScriptListMarker {
             base_script_records_byte_len,
@@ -452,8 +455,9 @@ impl<'a> FontRead<'a> for BaseScript<'a> {
         cursor.advance::<Offset16>();
         cursor.advance::<Offset16>();
         let base_lang_sys_count: u16 = cursor.read()?;
-        let base_lang_sys_records_byte_len =
-            base_lang_sys_count as usize * BaseLangSysRecord::RAW_BYTE_LEN;
+        let base_lang_sys_records_byte_len = (base_lang_sys_count as usize)
+            .checked_mul(BaseLangSysRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(base_lang_sys_records_byte_len);
         cursor.finish(BaseScriptMarker {
             base_lang_sys_records_byte_len,
@@ -622,7 +626,9 @@ impl<'a> FontRead<'a> for BaseValues<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let base_coord_count: u16 = cursor.read()?;
-        let base_coord_offsets_byte_len = base_coord_count as usize * Offset16::RAW_BYTE_LEN;
+        let base_coord_offsets_byte_len = (base_coord_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(base_coord_offsets_byte_len);
         cursor.finish(BaseValuesMarker {
             base_coord_offsets_byte_len,
@@ -735,8 +741,9 @@ impl<'a> FontRead<'a> for MinMax<'a> {
         cursor.advance::<Offset16>();
         cursor.advance::<Offset16>();
         let feat_min_max_count: u16 = cursor.read()?;
-        let feat_min_max_records_byte_len =
-            feat_min_max_count as usize * FeatMinMaxRecord::RAW_BYTE_LEN;
+        let feat_min_max_records_byte_len = (feat_min_max_count as usize)
+            .checked_mul(FeatMinMaxRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(feat_min_max_records_byte_len);
         cursor.finish(MinMaxMarker {
             feat_min_max_records_byte_len,
@@ -912,6 +919,15 @@ pub enum BaseCoord<'a> {
 }
 
 impl<'a> BaseCoord<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier — format = 1
     pub fn base_coord_format(&self) -> u16 {
         match self {

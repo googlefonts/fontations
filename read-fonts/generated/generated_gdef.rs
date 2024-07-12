@@ -297,7 +297,9 @@ impl<'a> FontRead<'a> for AttachList<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
         let glyph_count: u16 = cursor.read()?;
-        let attach_point_offsets_byte_len = glyph_count as usize * Offset16::RAW_BYTE_LEN;
+        let attach_point_offsets_byte_len = (glyph_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(attach_point_offsets_byte_len);
         cursor.finish(AttachListMarker {
             attach_point_offsets_byte_len,
@@ -402,7 +404,9 @@ impl<'a> FontRead<'a> for AttachPoint<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let point_count: u16 = cursor.read()?;
-        let point_indices_byte_len = point_count as usize * u16::RAW_BYTE_LEN;
+        let point_indices_byte_len = (point_count as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(point_indices_byte_len);
         cursor.finish(AttachPointMarker {
             point_indices_byte_len,
@@ -475,7 +479,9 @@ impl<'a> FontRead<'a> for LigCaretList<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
         let lig_glyph_count: u16 = cursor.read()?;
-        let lig_glyph_offsets_byte_len = lig_glyph_count as usize * Offset16::RAW_BYTE_LEN;
+        let lig_glyph_offsets_byte_len = (lig_glyph_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(lig_glyph_offsets_byte_len);
         cursor.finish(LigCaretListMarker {
             lig_glyph_offsets_byte_len,
@@ -580,7 +586,9 @@ impl<'a> FontRead<'a> for LigGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let caret_count: u16 = cursor.read()?;
-        let caret_value_offsets_byte_len = caret_count as usize * Offset16::RAW_BYTE_LEN;
+        let caret_value_offsets_byte_len = (caret_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(caret_value_offsets_byte_len);
         cursor.finish(LigGlyphMarker {
             caret_value_offsets_byte_len,
@@ -656,6 +664,15 @@ pub enum CaretValue<'a> {
 }
 
 impl<'a> CaretValue<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier: format = 1
     pub fn caret_value_format(&self) -> u16 {
         match self {
@@ -964,7 +981,9 @@ impl<'a> FontRead<'a> for MarkGlyphSets<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let mark_glyph_set_count: u16 = cursor.read()?;
-        let coverage_offsets_byte_len = mark_glyph_set_count as usize * Offset32::RAW_BYTE_LEN;
+        let coverage_offsets_byte_len = (mark_glyph_set_count as usize)
+            .checked_mul(Offset32::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(coverage_offsets_byte_len);
         cursor.finish(MarkGlyphSetsMarker {
             coverage_offsets_byte_len,

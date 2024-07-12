@@ -47,7 +47,9 @@ impl<'a> FontRead<'a> for TableDirectory<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        let table_records_byte_len = num_tables as usize * TableRecord::RAW_BYTE_LEN;
+        let table_records_byte_len = (num_tables as usize)
+            .checked_mul(TableRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(table_records_byte_len);
         cursor.finish(TableDirectoryMarker {
             table_records_byte_len,
@@ -231,7 +233,9 @@ impl<'a> FontRead<'a> for TTCHeader<'a> {
         cursor.advance::<Tag>();
         let version: MajorMinor = cursor.read()?;
         let num_fonts: u32 = cursor.read()?;
-        let table_directory_offsets_byte_len = num_fonts as usize * u32::RAW_BYTE_LEN;
+        let table_directory_offsets_byte_len = (num_fonts as usize)
+            .checked_mul(u32::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(table_directory_offsets_byte_len);
         let dsig_tag_byte_start = version
             .compatible((2u16, 0u16))

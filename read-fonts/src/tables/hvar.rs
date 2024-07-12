@@ -102,7 +102,7 @@ mod tests {
         // We expect the last 10 glyphs to have the same advance width delta as the last mapped glyph.
         // Crucially, hvar.advance_width_delta() should not return OutOfBounds for these glyphs.
         for idx in last_mapped_gid..num_glyphs {
-            let gid = GlyphId::new(idx);
+            let gid = GlyphId::new(idx as _);
             assert_eq!(
                 hvar.advance_width_delta(gid, &[F2Dot14::from_f32(1.0)])
                     .unwrap(),

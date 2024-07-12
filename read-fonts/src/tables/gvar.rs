@@ -22,12 +22,12 @@ impl ReadArgs for U16Or32 {
 }
 
 impl ComputeSize for U16Or32 {
-    fn compute_size(args: &GvarFlags) -> usize {
-        if args.contains(GvarFlags::LONG_OFFSETS) {
+    fn compute_size(args: &GvarFlags) -> Result<usize, ReadError> {
+        Ok(if args.contains(GvarFlags::LONG_OFFSETS) {
             4
         } else {
             2
-        }
+        })
     }
 }
 
@@ -57,7 +57,7 @@ impl<'a> GlyphVariationDataHeader<'a> {
 
 impl<'a> Gvar<'a> {
     fn data_for_gid(&self, gid: GlyphId) -> Result<FontData<'a>, ReadError> {
-        let start_idx = gid.to_u16() as usize;
+        let start_idx = gid.to_u32() as usize;
         let end_idx = start_idx + 1;
         let data_start = self.glyph_variation_data_array_offset();
         let start = data_start + self.glyph_variation_data_offsets().get(start_idx)?.get();

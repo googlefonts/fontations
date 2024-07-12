@@ -776,7 +776,7 @@ enum WellKnownScalar {
     LongDateTime,
     Tag,
     Version16Dot16,
-    GlyphId,
+    GlyphId16,
     NameId,
     MajorMinor,
 }
@@ -802,7 +802,7 @@ impl FromStr for WellKnownScalar {
             "LongDateTime" => Ok(WellKnownScalar::LongDateTime),
             "Tag" => Ok(WellKnownScalar::Tag),
             "Version16Dot16" => Ok(WellKnownScalar::Version16Dot16),
-            "GlyphId" => Ok(WellKnownScalar::GlyphId),
+            "GlyphId16" => Ok(WellKnownScalar::GlyphId16),
             "NameId" => Ok(WellKnownScalar::NameId),
             "MajorMinor" => Ok(WellKnownScalar::MajorMinor),
             _ => Err(()),

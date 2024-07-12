@@ -64,7 +64,7 @@ pub(super) fn compute_mapped_styles(
     // avoid a binary search per character
     let mut last_range: Option<(usize, ScriptRange)> = None;
     for (ch, gid) in charmap {
-        let Some(style) = styles.get_mut(gid.to_u16() as usize) else {
+        let Some(style) = styles.get_mut(gid.to_u32() as usize) else {
             continue;
         };
         // Charmaps enumerate in order so we're likely to encounter at least

@@ -19,9 +19,12 @@
 
 mod bitpage;
 mod bitset;
+mod input_bit_stream;
+mod output_bit_stream;
+pub mod sparse_bit_set;
 
 use bitset::BitSet;
-use font_types::GlyphId;
+use font_types::{GlyphId, GlyphId16};
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
@@ -106,7 +109,7 @@ impl<T: Domain<T>> IntSet<T> {
     // - Intersects range and intersects iter.
     // - min()/max()
 
-    /// Returns an iterator over all members of the set.
+    /// Returns an iterator over all members of the set in sorted ascending order.
     ///
     /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
     /// care should be taken when using .iter() in combination with an inverted set.
@@ -116,6 +119,33 @@ impl<T: Domain<T>> IntSet<T> {
             Membership::Exclusive(s) => Iter::new(s.iter(), Some(T::ordered_values())),
         };
         u32_iter.map(|v| T::from_u32(InDomain(v)))
+    }
+
+    /// Returns an iterator over all disjoint ranges of values within the set in sorted ascending order.
+    pub fn iter_ranges(&self) -> impl Iterator<Item = RangeInclusive<T>> + '_ {
+        let u32_iter = match &self.0 {
+            Membership::Inclusive(s) => RangeIter::Inclusive {
+                ranges: s.iter_ranges(),
+            },
+            Membership::Exclusive(s) => {
+                if T::is_continous() {
+                    RangeIter::Exclusive {
+                        ranges: s.iter_ranges(),
+                        min: T::ordered_values().next().unwrap(),
+                        max: T::ordered_values().next_back().unwrap(),
+                        done: false,
+                    }
+                } else {
+                    RangeIter::ExclusiveDiscontinous {
+                        all_values: Some(T::ordered_values()),
+                        set: s,
+                        next_value: None,
+                    }
+                }
+            }
+        };
+
+        u32_iter.map(|r| T::from_u32(InDomain(*r.start()))..=T::from_u32(InDomain(*r.end())))
     }
 
     /// Adds a value to the set.
@@ -233,6 +263,12 @@ impl<T: Domain<T>> IntSet<T> {
             Membership::Inclusive(s) => s.contains(val),
             Membership::Exclusive(s) => !s.contains(val),
         }
+    }
+}
+
+impl IntSet<u32> {
+    pub(crate) fn from_bitset(set: BitSet) -> IntSet<u32> {
+        IntSet(Membership::Inclusive(set), PhantomData::<u32>)
     }
 }
 
@@ -462,6 +498,142 @@ where
     }
 }
 
+enum RangeIter<'a, InclusiveRangeIter, AllValuesIter>
+where
+    InclusiveRangeIter: Iterator<Item = RangeInclusive<u32>>,
+    AllValuesIter: Iterator<Item = u32>,
+{
+    Inclusive {
+        ranges: InclusiveRangeIter,
+    },
+    Exclusive {
+        ranges: InclusiveRangeIter,
+        min: u32,
+        max: u32,
+        done: bool,
+    },
+    ExclusiveDiscontinous {
+        all_values: Option<AllValuesIter>,
+        set: &'a BitSet,
+        next_value: Option<u32>,
+    },
+}
+
+impl<'a, InclusiveRangeIter, AllValuesIter> Iterator
+    for RangeIter<'a, InclusiveRangeIter, AllValuesIter>
+where
+    InclusiveRangeIter: Iterator<Item = RangeInclusive<u32>>,
+    AllValuesIter: Iterator<Item = u32>,
+{
+    type Item = RangeInclusive<u32>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            RangeIter::Inclusive { ranges } => ranges.next(),
+            RangeIter::Exclusive {
+                ranges,
+                min,
+                max,
+                done,
+            } => RangeIter::<InclusiveRangeIter, AllValuesIter>::next_exclusive(
+                ranges, min, max, done,
+            ),
+            RangeIter::ExclusiveDiscontinous {
+                all_values,
+                set,
+                next_value,
+            } => RangeIter::<InclusiveRangeIter, AllValuesIter>::next_discontinous(
+                all_values, set, next_value,
+            ),
+        }
+    }
+}
+
+impl<'a, InclusiveRangeIter, AllValuesIter> RangeIter<'a, InclusiveRangeIter, AllValuesIter>
+where
+    InclusiveRangeIter: Iterator<Item = RangeInclusive<u32>>,
+    AllValuesIter: Iterator<Item = u32>,
+{
+    /// Iterate the ranges of an exclusive set where the domain is continous.
+    fn next_exclusive(
+        ranges: &mut InclusiveRangeIter,
+        min: &mut u32,
+        max: &mut u32,
+        done: &mut bool,
+    ) -> Option<RangeInclusive<u32>> {
+        if *done {
+            return None;
+        }
+
+        loop {
+            let next_range = ranges.next();
+
+            let Some(next_range) = next_range else {
+                *done = true;
+                return Some(*min..=*max);
+            };
+
+            if next_range.contains(min) {
+                if *next_range.end() >= *max {
+                    break;
+                }
+                *min = next_range.end() + 1;
+                continue;
+            }
+
+            let result = *min..=(next_range.start() - 1);
+            if *next_range.end() < *max {
+                *min = next_range.end() + 1;
+            } else {
+                *done = true;
+            }
+            return Some(result);
+        }
+
+        *done = true;
+        None
+    }
+
+    /// Iterate the ranges of an exclusive set where the domain is discontinous.
+    fn next_discontinous(
+        all_values: &mut Option<AllValuesIter>,
+        set: &'a BitSet,
+        next_value: &mut Option<u32>,
+    ) -> Option<RangeInclusive<u32>> {
+        let all_values_iter = all_values.as_mut().unwrap();
+
+        let mut current_range: Option<RangeInclusive<u32>> = None;
+        loop {
+            let next = next_value.take().or_else(|| all_values_iter.next());
+            let Some(next) = next else {
+                // No more values, so the current range is over, return it.
+                return current_range;
+            };
+
+            if set.contains(next) {
+                if let Some(range) = current_range {
+                    // current range has ended, return it. No need to save 'next' as it's not in the set.
+                    return Some(range);
+                }
+                continue;
+            }
+
+            let Some(range) = current_range.as_ref() else {
+                current_range = Some(next..=next);
+                continue;
+            };
+
+            if range.end() + 1 == next {
+                current_range = Some(*range.start()..=next);
+                continue;
+            }
+
+            *next_value = Some(next);
+            return Some(range.clone());
+        }
+    }
+}
+
 impl Domain<u32> for u32 {
     fn to_u32(&self) -> u32 {
         *self
@@ -528,13 +700,13 @@ impl Domain<u8> for u8 {
     }
 }
 
-impl Domain<GlyphId> for GlyphId {
+impl Domain<GlyphId16> for GlyphId16 {
     fn to_u32(&self) -> u32 {
         self.to_u16() as u32
     }
 
-    fn from_u32(member: InDomain) -> GlyphId {
-        GlyphId::from(member.value() as u16)
+    fn from_u32(member: InDomain) -> GlyphId16 {
+        GlyphId16::new(member.value() as u16)
     }
 
     fn is_continous() -> bool {
@@ -543,6 +715,30 @@ impl Domain<GlyphId> for GlyphId {
 
     fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
         (u16::MIN as u32)..=(u16::MAX as u32)
+    }
+
+    fn ordered_values_range(
+        range: RangeInclusive<GlyphId16>,
+    ) -> impl DoubleEndedIterator<Item = u32> {
+        range.start().to_u32()..=range.end().to_u32()
+    }
+}
+
+impl Domain<GlyphId> for GlyphId {
+    fn to_u32(&self) -> u32 {
+        GlyphId::to_u32(*self)
+    }
+
+    fn from_u32(member: InDomain) -> GlyphId {
+        GlyphId::from(member.value())
+    }
+
+    fn is_continous() -> bool {
+        true
+    }
+
+    fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
+        u32::MIN..=u32::MAX
     }
 
     fn ordered_values_range(
@@ -589,6 +785,76 @@ mod test {
             Self::ordered_values()
                 .filter(move |v| *v >= range.start().to_u32() && *v <= range.end().to_u32())
         }
+    }
+
+    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord)]
+    struct TwoParts(u16);
+
+    impl Domain<TwoParts> for TwoParts {
+        fn to_u32(&self) -> u32 {
+            self.0 as u32
+        }
+
+        fn from_u32(member: InDomain) -> TwoParts {
+            TwoParts(member.0 as u16)
+        }
+
+        fn is_continous() -> bool {
+            false
+        }
+
+        fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
+            [2..=5, 8..=16].into_iter().flat_map(|it| it.into_iter())
+        }
+
+        fn ordered_values_range(
+            range: RangeInclusive<TwoParts>,
+        ) -> impl DoubleEndedIterator<Item = u32> {
+            Self::ordered_values()
+                .filter(move |v| *v >= range.start().to_u32() && *v <= range.end().to_u32())
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord)]
+    struct TwoPartsBounds(u32);
+
+    impl Domain<TwoPartsBounds> for TwoPartsBounds {
+        fn to_u32(&self) -> u32 {
+            self.0
+        }
+
+        fn from_u32(member: InDomain) -> TwoPartsBounds {
+            TwoPartsBounds(member.0)
+        }
+
+        fn is_continous() -> bool {
+            false
+        }
+
+        fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
+            [0..=1, u32::MAX - 1..=u32::MAX]
+                .into_iter()
+                .flat_map(|it| it.into_iter())
+        }
+
+        fn ordered_values_range(
+            range: RangeInclusive<TwoPartsBounds>,
+        ) -> impl DoubleEndedIterator<Item = u32> {
+            Self::ordered_values()
+                .filter(move |v| *v >= range.start().to_u32() && *v <= range.end().to_u32())
+        }
+    }
+
+    #[test]
+    fn from_sparse_set() {
+        let bytes = [0b00001101, 0b00000011, 0b00110001];
+
+        let set = IntSet::<u32>::from_sparse_bit_set(&bytes).unwrap();
+
+        let mut expected: IntSet<u32> = IntSet::<u32>::empty();
+        expected.insert_range(0..=17);
+
+        assert_eq!(set, expected);
     }
 
     #[test]
@@ -867,8 +1133,124 @@ mod test {
     }
 
     #[test]
+    fn iter_ranges_inclusive() {
+        let mut set = IntSet::<u32>::empty();
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![]);
+
+        set.insert_range(200..=700);
+        set.insert(5);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![5..=5, 200..=700]);
+
+        let mut set = IntSet::<u32>::empty();
+        set.insert_range(0..=0);
+        set.insert_range(u32::MAX..=u32::MAX);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![0..=0, u32::MAX..=u32::MAX]);
+
+        let mut set = IntSet::<u32>::empty();
+        set.insert_range(0..=5);
+        set.insert_range(u32::MAX - 5..=u32::MAX);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![0..=5, u32::MAX - 5..=u32::MAX]);
+    }
+
+    #[test]
+    fn iter_ranges_exclusive() {
+        let mut set = IntSet::<u32>::all();
+        set.remove_range(200..=700);
+        set.remove(5);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![0..=4, 6..=199, 701..=u32::MAX]);
+
+        let mut set = IntSet::<u32>::all();
+        set.remove_range(0..=700);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![701..=u32::MAX]);
+
+        let mut set = IntSet::<u32>::all();
+        set.remove_range(u32::MAX - 10..=u32::MAX);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![0..=u32::MAX - 11]);
+
+        let mut set = IntSet::<u16>::all();
+        set.remove_range(0..=u16::MAX);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![]);
+
+        let mut set = IntSet::<u16>::all();
+        set.remove_range(0..=u16::MAX - 1);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![u16::MAX..=u16::MAX]);
+
+        let mut set = IntSet::<u16>::all();
+        set.remove_range(1..=u16::MAX);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![0..=0]);
+
+        let set = IntSet::<u32>::all();
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![0..=u32::MAX]);
+    }
+
+    #[test]
+    fn iter_ranges_exclusive_discontinous() {
+        let mut set = IntSet::<EvenInts>::all();
+        set.remove_range(EvenInts(0)..=EvenInts(8));
+        set.remove_range(EvenInts(16)..=EvenInts(u16::MAX - 1));
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(
+            items,
+            vec![
+                EvenInts(10)..=EvenInts(10),
+                EvenInts(12)..=EvenInts(12),
+                EvenInts(14)..=EvenInts(14)
+            ]
+        );
+
+        let mut set = IntSet::<TwoParts>::all();
+        set.remove_range(TwoParts(11)..=TwoParts(13));
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(
+            items,
+            vec![
+                TwoParts(2)..=TwoParts(5),
+                TwoParts(8)..=TwoParts(10),
+                TwoParts(14)..=TwoParts(16),
+            ]
+        );
+
+        let mut set = IntSet::<TwoParts>::all();
+        set.remove_range(TwoParts(2)..=TwoParts(16));
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![]);
+
+        let mut set = IntSet::<TwoParts>::all();
+        set.remove_range(TwoParts(2)..=TwoParts(5));
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![TwoParts(8)..=TwoParts(16),]);
+
+        let mut set = IntSet::<TwoParts>::all();
+        set.remove_range(TwoParts(6)..=TwoParts(16));
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![TwoParts(2)..=TwoParts(5),]);
+
+        // Check we can safely iterate to the limits of u32.
+        let set = IntSet::<TwoPartsBounds>::all();
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(
+            items,
+            vec![
+                TwoPartsBounds(0)..=TwoPartsBounds(1),
+                TwoPartsBounds(u32::MAX - 1)..=TwoPartsBounds(u32::MAX),
+            ]
+        );
+    }
+
+    #[test]
     fn from_iterator() {
-        let s: IntSet<u32> = [3, 8, 12, 589].iter().copied().collect();
+        let s: IntSet<u32> = [3, 8, 12, 589].into_iter().collect();
         let mut expected = IntSet::<u32>::empty();
         expected.insert(3);
         expected.insert(8);
@@ -880,7 +1262,7 @@ mod test {
 
     #[test]
     fn from_int_set_iterator() {
-        let s1: IntSet<u32> = [3, 8, 12, 589].iter().copied().collect();
+        let s1: IntSet<u32> = [3, 8, 12, 589].into_iter().collect();
         let s2: IntSet<u32> = s1.iter().collect();
         assert_eq!(s1, s2);
     }
@@ -888,8 +1270,8 @@ mod test {
     #[test]
     fn extend() {
         let mut s = IntSet::<u32>::empty();
-        s.extend([3, 12].iter().copied());
-        s.extend([8, 10, 589].iter().copied());
+        s.extend([3, 12]);
+        s.extend([8, 10, 589]);
 
         let mut expected = IntSet::<u32>::empty();
         expected.insert(3);
@@ -908,7 +1290,7 @@ mod test {
             s.remove(i);
         }
 
-        s.extend([12, 17, 18].iter().copied());
+        s.extend([12, 17, 18]);
 
         assert!(!s.contains(11));
         assert!(s.contains(12));
@@ -961,6 +1343,44 @@ mod test {
         assert!(!all.contains(2));
         assert!(!all.contains(3));
         assert!(all.contains(4));
+    }
+
+    #[test]
+    fn insert_remove_range_boundary() {
+        let mut set = IntSet::<u32>::empty();
+
+        set.remove_range(u32::MAX - 10..=u32::MAX);
+        assert!(!set.contains(u32::MAX));
+        set.insert_range(u32::MAX - 10..=u32::MAX);
+        assert!(set.contains(u32::MAX));
+        set.remove_range(u32::MAX - 10..=u32::MAX);
+        assert!(!set.contains(u32::MAX));
+
+        set.remove_range(0..=10);
+        assert!(!set.contains(0));
+        set.insert_range(0..=10);
+        assert!(set.contains(0));
+        set.remove_range(0..=10);
+        assert!(!set.contains(0));
+    }
+
+    #[test]
+    fn insert_remove_range_exclusive_boundary() {
+        let mut set = IntSet::<u32>::all();
+
+        set.remove_range(u32::MAX - 10..=u32::MAX);
+        assert!(!set.contains(u32::MAX));
+        set.insert_range(u32::MAX - 10..=u32::MAX);
+        assert!(set.contains(u32::MAX));
+        set.remove_range(u32::MAX - 10..=u32::MAX);
+        assert!(!set.contains(u32::MAX));
+
+        set.remove_range(0..=10);
+        assert!(!set.contains(0));
+        set.insert_range(0..=10);
+        assert!(set.contains(0));
+        set.remove_range(0..=10);
+        assert!(!set.contains(0));
     }
 
     struct SetOpInput {
@@ -1212,6 +1632,45 @@ mod test {
     }
 
     #[test]
+    fn with_glyph_id_16() {
+        let mut set = IntSet::<font_types::GlyphId16>::empty();
+
+        set.insert(GlyphId16::new(5));
+        set.insert(GlyphId16::new(8));
+        set.insert(GlyphId16::new(12));
+        set.insert_range(GlyphId16::new(200)..=GlyphId16::new(210));
+
+        assert!(set.contains(GlyphId16::new(5)));
+        assert!(!set.contains(GlyphId16::new(6)));
+        assert!(!set.contains(GlyphId16::new(199)));
+        assert!(set.contains(GlyphId16::new(200)));
+        assert!(set.contains(GlyphId16::new(210)));
+        assert!(!set.contains(GlyphId16::new(211)));
+
+        let copy: IntSet<GlyphId16> = set.iter().collect();
+        assert_eq!(set, copy);
+
+        set.invert();
+
+        assert!(!set.contains(GlyphId16::new(5)));
+        assert!(set.contains(GlyphId16::new(6)));
+
+        let Some(max) = set.iter().max() else {
+            panic!("should have a max");
+        };
+
+        assert_eq!(max, GlyphId16::new(u16::MAX));
+
+        let mut it = set.iter();
+        assert_eq!(it.next(), Some(GlyphId16::new(0)));
+        assert_eq!(it.next(), Some(GlyphId16::new(1)));
+        assert_eq!(it.next(), Some(GlyphId16::new(2)));
+        assert_eq!(it.next(), Some(GlyphId16::new(3)));
+        assert_eq!(it.next(), Some(GlyphId16::new(4)));
+        assert_eq!(it.next(), Some(GlyphId16::new(6)));
+    }
+
+    #[test]
     fn with_glyph_id() {
         let mut set = IntSet::<font_types::GlyphId>::empty();
 
@@ -1234,12 +1693,6 @@ mod test {
 
         assert!(!set.contains(GlyphId::new(5)));
         assert!(set.contains(GlyphId::new(6)));
-
-        let Some(max) = set.iter().max() else {
-            panic!("should have a max");
-        };
-
-        assert_eq!(max, GlyphId::new(u16::MAX));
 
         let mut it = set.iter();
         assert_eq!(it.next(), Some(GlyphId::new(0)));

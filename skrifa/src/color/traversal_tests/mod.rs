@@ -26,7 +26,7 @@ use crate::{
 
 #[derive(Serialize, Deserialize, Default, PartialEq)]
 struct PaintDump {
-    glyph_id: u16,
+    glyph_id: u32,
     ops: Vec<PaintOps>,
 }
 
@@ -153,7 +153,7 @@ enum PaintOps {
     },
     PopTransform,
     PushClipGlyph {
-        gid: u16,
+        gid: u32,
     },
     PushClipBox {
         clip_box: BoundingBox<f32>,
@@ -163,7 +163,7 @@ enum PaintOps {
         brush: BrushParams,
     },
     FillGlyph {
-        gid: u16,
+        gid: u32,
         transform: DumpTransform,
         brush: BrushParams,
     },
@@ -185,7 +185,7 @@ impl ColorPainter for PaintDump {
 
     fn push_clip_glyph(&mut self, glyph: GlyphId) {
         self.ops.push(PaintOps::PushClipGlyph {
-            gid: glyph.to_u16(),
+            gid: glyph.to_u32(),
         });
     }
 
@@ -205,7 +205,7 @@ impl ColorPainter for PaintDump {
 
     fn fill_glyph(&mut self, glyph_id: GlyphId, transform: Option<Transform>, brush: Brush) {
         self.ops.push(PaintOps::FillGlyph {
-            gid: glyph_id.to_u16(),
+            gid: glyph_id.to_u32(),
             transform: transform.unwrap_or_default().into(),
             brush: brush.into(),
         });
@@ -222,7 +222,7 @@ impl ColorPainter for PaintDump {
 }
 
 impl PaintDump {
-    pub fn new(gid: u16) -> Self {
+    pub fn new(gid: u32) -> Self {
         Self {
             glyph_id: gid,
             ..Default::default()
@@ -277,7 +277,7 @@ fn colrv1_traversal_test(
         .map(|codepoint| font.charmap().map(*codepoint).unwrap());
 
     let paint_dumps_iter = test_gids.map(|gid| {
-        let mut color_painter = PaintDump::new(gid.to_u16());
+        let mut color_painter = PaintDump::new(gid.to_u32());
 
         let color_glyph = font.color_glyphs().get_with_format(gid, required_format);
 

@@ -11,7 +11,7 @@
 
 use std::collections::HashMap;
 
-use font_types::GlyphId;
+use font_types::GlyphId16;
 use read_fonts::tables::{
     gpos::{self as rgpos},
     layout as rlayout,
@@ -143,8 +143,8 @@ fn split_range_record(
 
     let end_glyph = start_glyph + range_len;
     Some(wlayout::RangeRecord::new(
-        GlyphId::new(start_glyph),
-        GlyphId::new(end_glyph),
+        GlyphId16::new(start_glyph),
+        GlyphId16::new(end_glyph),
         new_cov_start,
     ))
 }
@@ -169,8 +169,8 @@ mod tests {
 
     fn make_read_record(start_coverage_index: u16, glyphs: Range<u16>) -> rlayout::RangeRecord {
         rlayout::RangeRecord {
-            start_glyph_id: GlyphId::new(glyphs.start).into(),
-            end_glyph_id: GlyphId::new(glyphs.end).into(),
+            start_glyph_id: GlyphId16::new(glyphs.start).into(),
+            end_glyph_id: GlyphId16::new(glyphs.end).into(),
             start_coverage_index: start_coverage_index.into(),
         }
     }

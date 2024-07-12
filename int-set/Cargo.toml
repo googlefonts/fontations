@@ -15,3 +15,7 @@ rand = "0.8.5"
 [[bench]]
 name = "int_set_benchmark"
 harness = false
+
+[[bench]]
+name = "sparse_bit_set_benchmark"
+harness = false

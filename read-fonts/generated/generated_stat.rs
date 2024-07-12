@@ -265,7 +265,9 @@ impl<'a> FontReadWithArgs<'a> for AxisValueArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let axis_value_count = *args;
         let mut cursor = data.cursor();
-        let axis_value_offsets_byte_len = axis_value_count as usize * Offset16::RAW_BYTE_LEN;
+        let axis_value_offsets_byte_len = (axis_value_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(axis_value_offsets_byte_len);
         cursor.finish(AxisValueArrayMarker {
             axis_value_offsets_byte_len,
@@ -346,6 +348,16 @@ pub enum AxisValue<'a> {
 }
 
 impl<'a> AxisValue<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+            Self::Format4(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier — set to 1.
     pub fn format(&self) -> u16 {
         match self {
@@ -817,7 +829,9 @@ impl<'a> FontRead<'a> for AxisValueFormat4<'a> {
         let axis_count: u16 = cursor.read()?;
         cursor.advance::<AxisValueTableFlags>();
         cursor.advance::<NameId>();
-        let axis_values_byte_len = axis_count as usize * AxisValueRecord::RAW_BYTE_LEN;
+        let axis_values_byte_len = (axis_count as usize)
+            .checked_mul(AxisValueRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(axis_values_byte_len);
         cursor.finish(AxisValueFormat4Marker {
             axis_values_byte_len,
