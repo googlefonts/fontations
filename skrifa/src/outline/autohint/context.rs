@@ -3,7 +3,9 @@
 use raw::{FontRef, TableProvider};
 
 use super::super::unscaled;
-use crate::{charmap::Charmap, outline::OutlineGlyphCollection, prelude::NormalizedCoord, MetadataProvider};
+use crate::{
+    charmap::Charmap, outline::OutlineGlyphCollection, prelude::NormalizedCoord, MetadataProvider,
+};
 
 const INLINE_OUTLINE_POINTS: usize = 64;
 
