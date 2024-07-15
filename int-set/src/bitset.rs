@@ -6,6 +6,7 @@ use super::bitpage::PAGE_BITS;
 use std::cell::Cell;
 use std::cmp::Ordering;
 use std::hash::Hash;
+
 use std::ops::RangeInclusive;
 
 // log_2(PAGE_BITS)
@@ -165,6 +166,11 @@ impl BitSet {
         self.process(BitPage::intersect, other);
     }
 
+    pub(crate) fn intersects(&mut self, range: RangeInclusive<u32>) -> bool {
+        // TODO: use iter_after and check for existence of a value in 'range'.
+        todo!()
+    }
+
     /// Sets the members of this set to self - other.
     pub(crate) fn subtract(&mut self, other: &BitSet) {
         self.process(BitPage::subtract, other);
@@ -180,6 +186,57 @@ impl BitSet {
             let base = self.major_start(major);
             page.iter().map(move |v| base + v)
         })
+    }
+
+    /// Iterator over the members of this set that come after 'value'.
+    pub(crate) fn iter_after(&self, value: u32) -> impl Iterator<Item = u32> + '_ {
+        let major_value = self.get_major_value(value);
+        let result = self
+            .page_map
+            .binary_search_by(|probe| probe.major_value.cmp(&major_value));
+
+        let (page_map_index, partial_first_page) = match result {
+            Ok(page_map_index) => (page_map_index, true),
+            Err(page_map_index) => (page_map_index, false),
+        };
+
+        let page = self
+            .page_map
+            .get(page_map_index)
+            .and_then(move |page_info| {
+                self.pages
+                    .get(page_info.index as usize)
+                    .map(|page| (page, page_info.major_value))
+            });
+
+        let init_it =
+            page.filter(|_| partial_first_page)
+                .into_iter()
+                .flat_map(move |(page, major)| {
+                    let base = self.major_start(major);
+                    page.iter_after(value).map(move |v| base + v)
+                });
+
+        let follow_on_page_map_index = if partial_first_page {
+            page_map_index + 1
+        } else {
+            page_map_index
+        };
+
+        let follow_on_it = self.page_map[follow_on_page_map_index..]
+            .iter()
+            .flat_map(|info| {
+                self.pages
+                    .get(info.index as usize)
+                    .map(|page| (info.major_value, page))
+            })
+            .filter(|(_, page)| !page.is_empty())
+            .flat_map(|(major, page)| {
+                let base = self.major_start(major);
+                page.iter().map(move |v| base + v)
+            });
+
+        init_it.chain(follow_on_it)
     }
 
     pub(crate) fn iter_ranges(&self) -> impl Iterator<Item = RangeInclusive<u32>> + '_ {
@@ -786,6 +843,54 @@ mod test {
 
         let v: Vec<u32> = bitset.iter().rev().collect();
         assert_eq!(vec![701, 700, 6, 5, 4, 3, 2, 1], v);
+    }
+
+    #[test]
+    fn iter_after() {
+        let mut bitset = BitSet::empty();
+        bitset.extend([5, 7, 10, 1250, 1300, 3001]);
+
+        assert_eq!(
+            bitset.iter_after(0).collect::<Vec<u32>>(),
+            vec![5, 7, 10, 1250, 1300, 3001]
+        );
+
+        assert_eq!(
+            bitset.iter_after(5).collect::<Vec<u32>>(),
+            vec![7, 10, 1250, 1300, 3001]
+        );
+        assert_eq!(
+            bitset.iter_after(6).collect::<Vec<u32>>(),
+            vec![7, 10, 1250, 1300, 3001]
+        );
+
+        assert_eq!(
+            bitset.iter_after(10).collect::<Vec<u32>>(),
+            vec![1250, 1300, 3001]
+        );
+
+        assert_eq!(
+            bitset.iter_after(700).collect::<Vec<u32>>(),
+            vec![1250, 1300, 3001]
+        );
+
+        assert_eq!(
+            bitset.iter_after(1250).collect::<Vec<u32>>(),
+            vec![1300, 3001]
+        );
+
+        assert_eq!(bitset.iter_after(3000).collect::<Vec<u32>>(), vec![3001]);
+        assert_eq!(bitset.iter_after(3001).collect::<Vec<u32>>(), vec![]);
+        assert_eq!(bitset.iter_after(3002).collect::<Vec<u32>>(), vec![]);
+        assert_eq!(bitset.iter_after(5000).collect::<Vec<u32>>(), vec![]);
+        assert_eq!(bitset.iter_after(u32::MAX).collect::<Vec<u32>>(), vec![]);
+
+        bitset.insert(u32::MAX);
+        assert_eq!(bitset.iter_after(u32::MAX).collect::<Vec<u32>>(), vec![]);
+        assert_eq!(
+            bitset.iter_after(u32::MAX - 1).collect::<Vec<u32>>(),
+            vec![u32::MAX]
+        );
     }
 
     #[test]
