@@ -166,22 +166,6 @@ impl BitSet {
         self.process(BitPage::intersect, other);
     }
 
-    pub(crate) fn intersects(&mut self, range: RangeInclusive<u32>) -> bool {
-        let start = range.start().checked_sub(1);
-        let next = if let Some(start) = start {
-            self.iter_after(start).next()
-        } else {
-            self.iter().next()
-        };
-
-        let Some(next) = next else {
-            return false;
-        };
-
-        // If next is <= end then there is at least one value in the input range.
-        return next <= *range.end();
-    }
-
     /// Sets the members of this set to self - other.
     pub(crate) fn subtract(&mut self, other: &BitSet) {
         self.process(BitPage::subtract, other);
@@ -1077,28 +1061,6 @@ mod test {
         check_process([1, 1000, 2000], [1000], [1000], |a, b| a.intersect(b));
         check_process([1000], [1, 1000, 2000], [1000], |a, b| a.intersect(b));
         check_process([1, 1000, 2000], [1000, 5000], [1000], |a, b| a.intersect(b));
-    }
-
-    #[test]
-    fn intersects_range() {
-        let mut bitset = BitSet::empty();
-        assert!(!bitset.intersects(0..=0));
-        assert!(!bitset.intersects(0..=100));
-        assert!(!bitset.intersects(0..=u32::MAX));
-        assert!(!bitset.intersects(u32::MAX..=u32::MAX));
-
-        bitset.insert(1234);
-        assert!(!bitset.intersects(0..=1233));
-        assert!(!bitset.intersects(1235..=1240));
-
-        assert!(bitset.intersects(1234..=1234));
-        assert!(bitset.intersects(1230..=1240));
-        assert!(bitset.intersects(0..=1234));
-        assert!(bitset.intersects(1234..=u32::MAX));
-
-        bitset.insert(0);
-        assert!(bitset.intersects(0..=0));
-        assert!(!bitset.intersects(1..=1));
     }
 
     #[test]

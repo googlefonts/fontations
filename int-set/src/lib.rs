@@ -272,6 +272,34 @@ impl<T: Domain<T>> IntSet<T> {
         }
     }
 
+    /// Returns true if this set contains at least one element in 'range'.
+    pub fn intersects(&mut self, range: RangeInclusive<T>) -> bool {
+        let domain_min = T::ordered_values()
+            .next()
+            .map(|v_u32| T::from_u32(InDomain(v_u32)));
+        let Some(domain_min) = domain_min else {
+            return false;
+        };
+
+        let start_u32 = range.start().to_u32();
+        let mut it = T::ordered_values_range(domain_min..=T::from_u32(InDomain(start_u32)));
+        it.next_back();
+        let before_start = it.next_back();
+
+        let next = if let Some(before_start) = before_start {
+            self.iter_after(T::from_u32(InDomain(before_start))).next()
+        } else {
+            self.iter().next()
+        };
+
+        let Some(next) = next else {
+            return false;
+        };
+
+        // If next is <= end then there is at least one value in the input range.
+        return next.to_u32() <= range.end().to_u32();
+    }
+
     /// Returns first element in the set, if any. This element is always the minimum of all elements in the set.
     pub fn first(&self) -> Option<T> {
         return self.iter().next();
@@ -1905,5 +1933,105 @@ mod test {
         assert_eq!(it.next(), Some(GlyphId::new(3)));
         assert_eq!(it.next(), Some(GlyphId::new(4)));
         assert_eq!(it.next(), Some(GlyphId::new(6)));
+    }
+
+    #[test]
+    fn intersects_range() {
+        let mut set = IntSet::<u32>::empty();
+        assert!(!set.intersects(0..=0));
+        assert!(!set.intersects(0..=100));
+        assert!(!set.intersects(0..=u32::MAX));
+        assert!(!set.intersects(u32::MAX..=u32::MAX));
+
+        set.insert(1234);
+        assert!(!set.intersects(0..=1233));
+        assert!(!set.intersects(1235..=1240));
+
+        assert!(set.intersects(1234..=1234));
+        assert!(set.intersects(1230..=1240));
+        assert!(set.intersects(0..=1234));
+        assert!(set.intersects(1234..=u32::MAX));
+
+        set.insert(0);
+        assert!(set.intersects(0..=0));
+        assert!(!set.intersects(1..=1));
+    }
+
+    #[test]
+    fn intersects_range_discontinous() {
+        let mut set = IntSet::<EvenInts>::empty();
+        assert!(!set.intersects(EvenInts(0)..=EvenInts(0)));
+        assert!(!set.intersects(EvenInts(0)..=EvenInts(100)));
+        assert!(!set.intersects(EvenInts(0)..=EvenInts(u16::MAX - 1)));
+        assert!(!set.intersects(EvenInts(u16::MAX - 1)..=EvenInts(u16::MAX - 1)));
+
+        set.insert(EvenInts(1234));
+        assert!(!set.intersects(EvenInts(0)..=EvenInts(1232)));
+        assert!(!set.intersects(EvenInts(1236)..=EvenInts(1240)));
+
+        assert!(set.intersects(EvenInts(1234)..=EvenInts(1234)));
+        assert!(set.intersects(EvenInts(1230)..=EvenInts(1240)));
+        assert!(set.intersects(EvenInts(0)..=EvenInts(1234)));
+        assert!(set.intersects(EvenInts(1234)..=EvenInts(u16::MAX - 1)));
+
+        set.insert(EvenInts(0));
+        assert!(set.intersects(EvenInts(0)..=EvenInts(0)));
+        assert!(!set.intersects(EvenInts(2)..=EvenInts(2)));
+    }
+
+    #[test]
+    fn intersects_range_exclusive() {
+        let mut set = IntSet::<u32>::all();
+        assert!(set.intersects(0..=0));
+        assert!(set.intersects(0..=100));
+        assert!(set.intersects(0..=u32::MAX));
+        assert!(set.intersects(u32::MAX..=u32::MAX));
+
+        set.remove(1234);
+        assert!(set.intersects(0..=1233));
+        assert!(set.intersects(1235..=1240));
+
+        assert!(!set.intersects(1234..=1234));
+        assert!(set.intersects(1230..=1240));
+        assert!(set.intersects(0..=1234));
+        assert!(set.intersects(1234..=u32::MAX));
+
+        set.remove(0);
+        assert!(!set.intersects(0..=0));
+        assert!(set.intersects(1..=1));
+
+        set.remove_range(5000..=5200);
+        assert!(!set.intersects(5000..=5200));
+        assert!(!set.intersects(5100..=5150));
+        assert!(set.intersects(4999..=5200));
+        assert!(set.intersects(5000..=5201));
+    }
+
+    #[test]
+    fn intersects_range_exclusive_discontinous() {
+        let mut set = IntSet::<EvenInts>::all();
+        assert!(set.intersects(EvenInts(0)..=EvenInts(0)));
+        assert!(set.intersects(EvenInts(0)..=EvenInts(100)));
+        assert!(set.intersects(EvenInts(0)..=EvenInts(u16::MAX - 1)));
+        assert!(set.intersects(EvenInts(u16::MAX - 1)..=EvenInts(u16::MAX - 1)));
+
+        set.remove(EvenInts(1234));
+        assert!(set.intersects(EvenInts(0)..=EvenInts(1232)));
+        assert!(set.intersects(EvenInts(1236)..=EvenInts(1240)));
+
+        assert!(!set.intersects(EvenInts(1234)..=EvenInts(1234)));
+        assert!(set.intersects(EvenInts(1230)..=EvenInts(1240)));
+        assert!(set.intersects(EvenInts(0)..=EvenInts(1234)));
+        assert!(set.intersects(EvenInts(1234)..=EvenInts(u16::MAX - 1)));
+
+        set.remove(EvenInts(0));
+        assert!(!set.intersects(EvenInts(0)..=EvenInts(0)));
+        assert!(set.intersects(EvenInts(2)..=EvenInts(2)));
+
+        set.remove_range(EvenInts(5000)..=EvenInts(5200));
+        assert!(!set.intersects(EvenInts(5000)..=EvenInts(5200)));
+        assert!(!set.intersects(EvenInts(5100)..=EvenInts(5150)));
+        assert!(set.intersects(EvenInts(4998)..=EvenInts(5200)));
+        assert!(set.intersects(EvenInts(5000)..=EvenInts(5202)));
     }
 }
