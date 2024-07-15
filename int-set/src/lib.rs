@@ -102,13 +102,6 @@ impl<T: Domain<T>> Default for IntSet<T> {
 }
 
 impl<T: Domain<T>> IntSet<T> {
-    // TODO(garretrieger): add additional functionality that the harfbuzz version has:
-    // - Iteration in reverse.
-    // - Iteration starting from some value (and before some value for reverse).
-    // - Set operations (union, subtract, intersect, sym diff).
-    // - Intersects range and intersects iter.
-    // - min()/max()
-
     /// Returns an iterator over all members of the set in sorted ascending order.
     ///
     /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
@@ -117,6 +110,39 @@ impl<T: Domain<T>> IntSet<T> {
         let u32_iter = match &self.0 {
             Membership::Inclusive(s) => Iter::new(s.iter(), None),
             Membership::Exclusive(s) => Iter::new(s.iter(), Some(T::ordered_values())),
+        };
+        u32_iter.map(|v| T::from_u32(InDomain(v)))
+    }
+
+    /// Returns and iterator over the members of this set that come after 'value' in ascending order.
+    ///
+    /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
+    /// care should be taken when using .iter() in combination with an inverted set.
+    pub(crate) fn iter_after(&self, value: T) -> impl Iterator<Item = T> + '_ {
+        let u32_iter = match &self.0 {
+            Membership::Inclusive(s) => IterAfter::new(s.iter_after(value.to_u32()), None),
+            Membership::Exclusive(s) => {
+                let value_u32 = value.to_u32();
+                let max = T::ordered_values().next_back();
+                let it = max.map(|max| {
+                    let mut it = T::ordered_values_range(value..=T::from_u32(InDomain(max)));
+                    it.next(); // skip ahead one value.
+                    it
+                });
+                let min = it.and_then(|mut it| it.next());
+
+                if let (Some(min), Some(max)) = (min, max) {
+                    IterAfter::new(
+                        s.iter_after(value_u32),
+                        Some(T::ordered_values_range(
+                            T::from_u32(InDomain(min))..=T::from_u32(InDomain(max)),
+                        )),
+                    )
+                } else {
+                    // either min or max doesn't exist, so just return an iterator that has no values.
+                    IterAfter::new(s.iter_after(u32::MAX), None)
+                }
+            }
         };
         u32_iter.map(|v| T::from_u32(InDomain(v)))
     }
@@ -486,6 +512,79 @@ where
 
                 self.next_skipped_backward = self.set_values.next_back();
                 if index < skip {
+                    // We've passed the skip value, need to check the next one.
+                    continue;
+                }
+
+                // index == skip, so we need to skip this index.
+                break;
+            }
+        }
+        None
+    }
+}
+
+struct IterAfter<SetIter, AllValuesIter>
+where
+    SetIter: Iterator<Item = u32>,
+    AllValuesIter: Iterator<Item = u32>,
+{
+    set_values: SetIter,
+    all_values: Option<AllValuesIter>,
+    next_skipped_forward: Option<u32>,
+}
+
+impl<SetIter, AllValuesIter> IterAfter<SetIter, AllValuesIter>
+where
+    SetIter: Iterator<Item = u32>,
+    AllValuesIter: Iterator<Item = u32>,
+{
+    fn new(
+        mut set_values: SetIter,
+        all_values: Option<AllValuesIter>,
+    ) -> IterAfter<SetIter, AllValuesIter> {
+        match all_values {
+            Some(_) => IterAfter {
+                next_skipped_forward: set_values.next(),
+                set_values,
+                all_values,
+            },
+            None => IterAfter {
+                next_skipped_forward: None,
+                set_values,
+                all_values,
+            },
+        }
+    }
+}
+
+impl<SetIter, AllValuesIter> Iterator for IterAfter<SetIter, AllValuesIter>
+where
+    SetIter: Iterator<Item = u32>,
+    AllValuesIter: Iterator<Item = u32>,
+{
+    type Item = u32;
+
+    fn next(&mut self) -> Option<u32> {
+        let Some(all_values_it) = &mut self.all_values else {
+            return self.set_values.next();
+        };
+
+        for index in all_values_it.by_ref() {
+            let index = index.to_u32();
+            loop {
+                let Some(skip) = self.next_skipped_forward else {
+                    // No-longer any values to skip, can freely return index
+                    return Some(index);
+                };
+
+                if index < skip {
+                    // Not a skipped value
+                    return Some(index);
+                }
+
+                self.next_skipped_forward = self.set_values.next();
+                if index > skip {
                     // We've passed the skip value, need to check the next one.
                     continue;
                 }
@@ -1245,6 +1344,111 @@ mod test {
                 TwoPartsBounds(0)..=TwoPartsBounds(1),
                 TwoPartsBounds(u32::MAX - 1)..=TwoPartsBounds(u32::MAX),
             ]
+        );
+    }
+
+    #[test]
+    fn iter_after() {
+        let mut set = IntSet::<u32>::empty();
+        assert_eq!(set.iter_after(0).collect::<Vec<u32>>(), vec![]);
+
+        set.extend([5, 7, 10, 1250, 1300, 3001]);
+
+        assert_eq!(
+            set.iter_after(0).collect::<Vec<u32>>(),
+            vec![5, 7, 10, 1250, 1300, 3001]
+        );
+
+        assert_eq!(
+            set.iter_after(5).collect::<Vec<u32>>(),
+            vec![7, 10, 1250, 1300, 3001]
+        );
+        assert_eq!(
+            set.iter_after(700).collect::<Vec<u32>>(),
+            vec![1250, 1300, 3001]
+        );
+    }
+
+    #[test]
+    fn iter_after_exclusive() {
+        let mut set = IntSet::<u32>::empty();
+        set.extend([5, 7, 10, 1250, 1300, 3001]);
+        set.invert();
+
+        assert_eq!(
+            set.iter_after(3).take(5).collect::<Vec<u32>>(),
+            vec![4, 6, 8, 9, 11]
+        );
+
+        assert_eq!(
+            set.iter_after(0).take(5).collect::<Vec<u32>>(),
+            vec![1, 2, 3, 4, 6]
+        );
+
+        assert_eq!(
+            set.iter_after(u32::MAX - 1).take(1).collect::<Vec<u32>>(),
+            vec![u32::MAX]
+        );
+        assert_eq!(
+            set.iter_after(u32::MAX).take(1).collect::<Vec<u32>>(),
+            vec![]
+        );
+        set.remove(u32::MAX);
+        assert_eq!(
+            set.iter_after(u32::MAX - 1).take(1).collect::<Vec<u32>>(),
+            vec![]
+        );
+    }
+
+    #[test]
+    fn iter_after_discontinous() {
+        let mut set = IntSet::<EvenInts>::empty();
+        set.extend([EvenInts(6), EvenInts(10)]);
+        set.invert();
+
+        assert_eq!(
+            set.iter_after(EvenInts(2))
+                .take(5)
+                .collect::<Vec<EvenInts>>(),
+            vec![
+                EvenInts(4),
+                EvenInts(8),
+                EvenInts(12),
+                EvenInts(14),
+                EvenInts(16)
+            ]
+        );
+
+        assert_eq!(
+            set.iter_after(EvenInts(4))
+                .take(5)
+                .collect::<Vec<EvenInts>>(),
+            vec![
+                EvenInts(8),
+                EvenInts(12),
+                EvenInts(14),
+                EvenInts(16),
+                EvenInts(18)
+            ]
+        );
+
+        assert_eq!(
+            set.iter_after(EvenInts(u16::MAX - 1))
+                .collect::<Vec<EvenInts>>(),
+            vec![]
+        );
+
+        assert_eq!(
+            set.iter_after(EvenInts(u16::MAX - 5))
+                .collect::<Vec<EvenInts>>(),
+            vec![EvenInts(u16::MAX - 3), EvenInts(u16::MAX - 1)]
+        );
+
+        set.remove(EvenInts(u16::MAX - 1));
+        assert_eq!(
+            set.iter_after(EvenInts(u16::MAX - 5))
+                .collect::<Vec<EvenInts>>(),
+            vec![EvenInts(u16::MAX - 3),]
         );
     }
 
