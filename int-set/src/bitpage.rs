@@ -196,11 +196,11 @@ impl BitPage {
     }
 
     fn element(&self, value: u32) -> &Element {
-        &self.storage[self.element_index(value) as usize]
+        &self.storage[self.element_index(value)]
     }
 
     fn element_mut(&mut self, value: u32) -> &mut Element {
-        &mut self.storage[self.element_index(value) as usize]
+        &mut self.storage[self.element_index(value)]
     }
 
     fn element_index(&self, value: u32) -> usize {
