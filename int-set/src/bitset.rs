@@ -886,6 +886,13 @@ mod test {
             bitset.iter_after(u32::MAX - 1).collect::<Vec<u32>>(),
             vec![u32::MAX]
         );
+
+        let mut bitset = BitSet::empty();
+        bitset.extend([510, 511, 512]);
+
+        assert_eq!(bitset.iter_after(510).collect::<Vec<u32>>(), vec![511, 512]);
+        assert_eq!(bitset.iter_after(511).collect::<Vec<u32>>(), vec![512]);
+        assert_eq!(bitset.iter_after(512).collect::<Vec<u32>>(), vec![]);
     }
 
     #[test]
