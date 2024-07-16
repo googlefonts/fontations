@@ -3,6 +3,7 @@
 use std::cmp::max;
 use std::ops::Bound::Excluded;
 use std::ops::Bound::Included;
+use std::ops::RangeInclusive;
 use std::{collections::BTreeSet, error::Error};
 
 use int_set::IntSet;
@@ -311,6 +312,45 @@ impl Operation for IterOp {
     }
 }
 
+/* ### Iter Ranges ### */
+
+struct IterRangesOp();
+
+impl IterRangesOp {
+    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+        (Some(Box::new(Self())), data)
+    }
+}
+
+impl Operation for IterRangesOp {
+    fn operate(&self, int_set: &mut IntSet<u32>, btree_set: &mut BTreeSet<u32>) {
+        let mut btree_ranges: Vec<RangeInclusive<u32>> = vec![];
+        let mut cur_range: Option<RangeInclusive<u32>> = None;
+
+        for v in btree_set.iter().copied() {
+            if let Some(range) = cur_range {
+                if range.end() + 1 == v {
+                    cur_range = Some(*range.start()..=v);
+                    continue;
+                }
+                btree_ranges.push(range);
+            }
+
+            cur_range = Some(v..=v);
+        }
+
+        if let Some(range) = cur_range {
+            btree_ranges.push(range);
+        }
+
+        assert!(int_set.iter_ranges().eq(btree_ranges.iter().cloned()));
+    }
+
+    fn size(&self, length: usize) -> usize {
+        return length as usize;
+    }
+}
+
 /* ### Iter After ### */
 
 struct IterAfterOp(u32);
@@ -342,20 +382,9 @@ struct RemoveAllOp(Vec<u32>);
 
 impl RemoveAllOp {
     fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
-        let (Some(count), data) = read_u8(data) else {
+        let (Some(values), data) = read_u32_vec(data) else {
             return (None, data);
         };
-
-        let mut values: Vec<u32> = vec![];
-        let mut data = data;
-        for _ in 0..count {
-            let r = read_u32(data);
-            let Some(value) = r.0 else {
-                return (None, data);
-            };
-            data = r.1;
-            values.push(value);
-        }
         (Some(Box::new(Self(values))), data)
     }
 }
@@ -366,6 +395,54 @@ impl Operation for RemoveAllOp {
         for v in self.0.iter() {
             btree_set.remove(&v);
         }
+    }
+
+    fn size(&self, length: usize) -> usize {
+        return (length.ilog2() as usize) * self.0.len();
+    }
+}
+
+/* ### Extend ### */
+
+struct ExtendOp(Vec<u32>);
+
+impl ExtendOp {
+    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+        let (Some(values), data) = read_u32_vec(data) else {
+            return (None, data);
+        };
+        (Some(Box::new(Self(values))), data)
+    }
+}
+
+impl Operation for ExtendOp {
+    fn operate(&self, int_set: &mut IntSet<u32>, btree_set: &mut BTreeSet<u32>) {
+        int_set.extend(self.0.iter().copied());
+        btree_set.extend(self.0.iter().copied());
+    }
+
+    fn size(&self, length: usize) -> usize {
+        return (length.ilog2() as usize) * self.0.len();
+    }
+}
+
+/* ### Extend Unsorted ### */
+
+struct ExtendUnsortedOp(Vec<u32>);
+
+impl ExtendUnsortedOp {
+    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+        let (Some(values), data) = read_u32_vec(data) else {
+            return (None, data);
+        };
+        (Some(Box::new(Self(values))), data)
+    }
+}
+
+impl Operation for ExtendUnsortedOp {
+    fn operate(&self, int_set: &mut IntSet<u32>, btree_set: &mut BTreeSet<u32>) {
+        int_set.extend_unsorted(self.0.iter().copied());
+        btree_set.extend(self.0.iter().copied());
     }
 
     fn size(&self, length: usize) -> usize {
@@ -397,6 +474,24 @@ fn read_u32(data: &[u8]) -> (Option<u32>, &[u8]) {
     )
 }
 
+fn read_u32_vec(data: &[u8]) -> (Option<Vec<u32>>, &[u8]) {
+    let (Some(count), data) = read_u8(data) else {
+        return (None, data);
+    };
+
+    let mut values: Vec<u32> = vec![];
+    let mut data = data;
+    for _ in 0..count {
+        let r = read_u32(data);
+        let Some(value) = r.0 else {
+            return (None, data);
+        };
+        data = r.1;
+        values.push(value);
+    }
+    (Some(values), data)
+}
+
 fn next_operation(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
     let Some(op_code) = data.get(0) else {
         return (None, &data[1..]);
@@ -404,8 +499,6 @@ fn next_operation(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
 
     // TODO ops for most public api methods (have operations for iter() be what checks for
     //      iter() equality alongside the check at end):
-    // - iter ranges
-    // - extend / extend_unsorted
     // - union
     // - intersect
     let data = &data[1..];
@@ -422,8 +515,11 @@ fn next_operation(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         10 => FirstOp::new(data),
         11 => LastOp::new(data),
         12 => IterOp::new(data),
-        13 => IterAfterOp::new(data),
-        14 => RemoveAllOp::new(data),
+        13 => IterRangesOp::new(data),
+        14 => IterAfterOp::new(data),
+        15 => RemoveAllOp::new(data),
+        16 => ExtendOp::new(data),
+        17 => ExtendUnsortedOp::new(data),
         _ => (None, data),
     }
 }
