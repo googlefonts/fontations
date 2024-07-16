@@ -1,5 +1,8 @@
 #![no_main]
 
+use std::cmp::max;
+use std::ops::Bound::Excluded;
+use std::ops::Bound::Included;
 use std::{collections::BTreeSet, error::Error};
 
 use int_set::IntSet;
@@ -9,11 +12,12 @@ use libfuzzer_sys::fuzz_target;
 // TODO allow a limited domain set to be accessed.
 
 trait Operation {
-    fn size(&self) -> u64;
+    fn size(&self, set_len: usize) -> usize;
     fn operate(&self, int_set: &mut IntSet<u32>, btree_set: &mut BTreeSet<u32>);
 }
 
 /* ### Insert ### */
+
 struct InsertOp(u32);
 
 impl InsertOp {
@@ -31,8 +35,8 @@ impl Operation for InsertOp {
         btree_set.insert(self.0);
     }
 
-    fn size(&self) -> u64 {
-        1
+    fn size(&self, length: usize) -> usize {
+        length.ilog2() as usize
     }
 }
 
@@ -54,11 +58,11 @@ impl InsertRangeOp {
 }
 
 impl Operation for InsertRangeOp {
-    fn size(&self) -> u64 {
+    fn size(&self, length: usize) -> usize {
         if self.1 < self.0 {
             return 1;
         }
-        (self.1 as u64 - self.0 as u64) + 1
+        ((self.1 as usize - self.0 as usize) + 1) * (length.ilog2() as usize)
     }
 
     fn operate(&self, int_set: &mut IntSet<u32>, btree_set: &mut BTreeSet<u32>) {
@@ -83,8 +87,8 @@ impl RemoveOp {
 }
 
 impl Operation for RemoveOp {
-    fn size(&self) -> u64 {
-        1
+    fn size(&self, length: usize) -> usize {
+        length.ilog2() as usize
     }
 
     fn operate(&self, int_set: &mut IntSet<u32>, hash_set: &mut BTreeSet<u32>) {
@@ -111,11 +115,11 @@ impl RemoveRangeOp {
 }
 
 impl Operation for RemoveRangeOp {
-    fn size(&self) -> u64 {
+    fn size(&self, length: usize) -> usize {
         if self.1 < self.0 {
             return 1;
         }
-        (self.1 as u64 - self.0 as u64) + 1
+        ((self.1 as usize - self.0 as usize) + 1) * (length.ilog2() as usize)
     }
 
     fn operate(&self, int_set: &mut IntSet<u32>, btree_set: &mut BTreeSet<u32>) {
@@ -140,7 +144,7 @@ impl Operation for LengthOp {
         assert_eq!(int_set.len(), btree_set.len());
     }
 
-    fn size(&self) -> u64 {
+    fn size(&self, _: usize) -> usize {
         1
     }
 }
@@ -160,7 +164,7 @@ impl Operation for IsEmptyOp {
         assert_eq!(int_set.is_empty(), btree_set.is_empty());
     }
 
-    fn size(&self) -> u64 {
+    fn size(&self, _: usize) -> usize {
         1
     }
 }
@@ -182,8 +186,8 @@ impl Operation for ContainsOp {
         assert_eq!(int_set.contains(self.0), btree_set.contains(&self.0));
     }
 
-    fn size(&self) -> u64 {
-        1
+    fn size(&self, length: usize) -> usize {
+        length.ilog2() as usize
     }
 }
 
@@ -203,12 +207,13 @@ impl Operation for ClearOp {
         btree_set.clear();
     }
 
-    fn size(&self) -> u64 {
-        1
+    fn size(&self, length: usize) -> usize {
+        length
     }
 }
 
 /* ### Intersects Range ### */
+
 struct IntersectsRangeOp(u32, u32);
 
 impl IntersectsRangeOp {
@@ -238,11 +243,11 @@ impl Operation for IntersectsRangeOp {
         assert_eq!(int_set_intersects, btree_intersects);
     }
 
-    fn size(&self) -> u64 {
+    fn size(&self, length: usize) -> usize {
         if self.1 < self.0 {
             return 1;
         }
-        (self.1 as u64 - self.0 as u64) + 1
+        ((self.1 as usize - self.0 as usize) + 1) * (length.ilog2() as usize)
     }
 }
 
@@ -258,11 +263,11 @@ impl FirstOp {
 
 impl Operation for FirstOp {
     fn operate(&self, int_set: &mut IntSet<u32>, btree_set: &mut BTreeSet<u32>) {
-        assert_eq!(int_set.first(), btree_set.iter().next().copied());
+        assert_eq!(int_set.first(), btree_set.first().copied());
     }
 
-    fn size(&self) -> u64 {
-        1
+    fn size(&self, length: usize) -> usize {
+        length.ilog2() as usize
     }
 }
 
@@ -278,15 +283,104 @@ impl LastOp {
 
 impl Operation for LastOp {
     fn operate(&self, int_set: &mut IntSet<u32>, btree_set: &mut BTreeSet<u32>) {
-        assert_eq!(int_set.last(), btree_set.iter().next_back().copied());
+        assert_eq!(int_set.last(), btree_set.last().copied());
     }
 
-    fn size(&self) -> u64 {
-        1
+    fn size(&self, length: usize) -> usize {
+        length.ilog2() as usize
+    }
+}
+
+/* ### Iter ### */
+
+struct IterOp();
+
+impl IterOp {
+    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+        (Some(Box::new(Self())), data)
+    }
+}
+
+impl Operation for IterOp {
+    fn operate(&self, int_set: &mut IntSet<u32>, btree_set: &mut BTreeSet<u32>) {
+        assert!(int_set.iter().eq(btree_set.iter().copied()));
+    }
+
+    fn size(&self, length: usize) -> usize {
+        return length as usize;
+    }
+}
+
+/* ### Iter After ### */
+
+struct IterAfterOp(u32);
+
+impl IterAfterOp {
+    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+        let (Some(val), data) = read_u32(data) else {
+            return (None, data);
+        };
+        (Some(Box::new(Self(val))), data)
+    }
+}
+
+impl Operation for IterAfterOp {
+    fn operate(&self, int_set: &mut IntSet<u32>, btree_set: &mut BTreeSet<u32>) {
+        let it = int_set.iter_after(self.0);
+        let btree_it = btree_set.range((Excluded(self.0), Included(u32::MAX)));
+        assert!(it.eq(btree_it.copied()));
+    }
+
+    fn size(&self, length: usize) -> usize {
+        return length as usize;
+    }
+}
+
+/* ### Remove All ### */
+
+struct RemoveAllOp(Vec<u32>);
+
+impl RemoveAllOp {
+    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+        let (Some(count), data) = read_u8(data) else {
+            return (None, data);
+        };
+
+        let mut values: Vec<u32> = vec![];
+        let mut data = data;
+        for _ in 0..count {
+            let r = read_u32(data);
+            let Some(value) = r.0 else {
+                return (None, data);
+            };
+            data = r.1;
+            values.push(value);
+        }
+        (Some(Box::new(Self(values))), data)
+    }
+}
+
+impl Operation for RemoveAllOp {
+    fn operate(&self, int_set: &mut IntSet<u32>, btree_set: &mut BTreeSet<u32>) {
+        int_set.remove_all(self.0.iter().copied());
+        for v in self.0.iter() {
+            btree_set.remove(&v);
+        }
+    }
+
+    fn size(&self, length: usize) -> usize {
+        return (length.ilog2() as usize) * self.0.len();
     }
 }
 
 /* ### End of Ops ### */
+
+fn read_u8(data: &[u8]) -> (Option<u8>, &[u8]) {
+    if data.len() < 1 {
+        return (None, data);
+    }
+    (Some(data[0]), &data[1..])
+}
 
 fn read_u32(data: &[u8]) -> (Option<u32>, &[u8]) {
     if data.len() < 4 {
@@ -310,15 +404,10 @@ fn next_operation(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
 
     // TODO ops for most public api methods (have operations for iter() be what checks for
     //      iter() equality alongside the check at end):
-    // - iter
     // - iter ranges
-    // - iter after
     // - extend / extend_unsorted
-    // - remove_all
     // - union
     // - intersect
-    // - first
-    // - last
     let data = &data[1..];
     match op_code {
         1 => InsertOp::new(data),
@@ -332,6 +421,9 @@ fn next_operation(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         9 => IntersectsRangeOp::new(data),
         10 => FirstOp::new(data),
         11 => LastOp::new(data),
+        12 => IterOp::new(data),
+        13 => IterAfterOp::new(data),
+        14 => RemoveAllOp::new(data),
         _ => (None, data),
     }
 }
@@ -340,7 +432,7 @@ fn do_int_set_things(data: &[u8]) -> Result<(), Box<dyn Error>> {
     let mut int_set = IntSet::<u32>::empty();
     let mut btree_set = BTreeSet::<u32>::new();
 
-    let mut ops = 0u64;
+    let mut ops = 0usize;
     let mut data = data;
     while !data.is_empty() {
         let (op, new_data) = next_operation(data);
@@ -350,8 +442,9 @@ fn do_int_set_things(data: &[u8]) -> Result<(), Box<dyn Error>> {
             break;
         };
 
-        ops = ops.saturating_add(op.size());
-        if ops > 1000 {
+        // when computing size use minimum length of 2 to ensure minimum value of log2(length) is 1.
+        ops = ops.saturating_add(op.size(max(2, btree_set.len())));
+        if ops > 5000 {
             break;
         }
 
