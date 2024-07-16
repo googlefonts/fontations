@@ -108,8 +108,10 @@ impl<T: Domain<T>> IntSet<T> {
     /// care should be taken when using .iter() in combination with an inverted set.
     pub fn iter(&self) -> impl DoubleEndedIterator<Item = T> + '_ {
         let u32_iter = match &self.0 {
-            Membership::Inclusive(s) => Iter::new(s.iter(), None),
-            Membership::Exclusive(s) => Iter::new(s.iter(), Some(T::ordered_values())),
+            Membership::Inclusive(s) => Iter::new_bidirectional(s.iter(), None),
+            Membership::Exclusive(s) => {
+                Iter::new_bidirectional(s.iter(), Some(T::ordered_values()))
+            }
         };
         u32_iter.map(|v| T::from_u32(InDomain(v)))
     }
@@ -120,7 +122,7 @@ impl<T: Domain<T>> IntSet<T> {
     /// care should be taken when using .iter() in combination with an inverted set.
     pub fn iter_after(&self, value: T) -> impl Iterator<Item = T> + '_ {
         let u32_iter = match &self.0 {
-            Membership::Inclusive(s) => IterAfter::new(s.iter_after(value.to_u32()), None),
+            Membership::Inclusive(s) => Iter::new(s.iter_after(value.to_u32()), None),
             Membership::Exclusive(s) => {
                 let value_u32 = value.to_u32();
                 let max = T::ordered_values().next_back();
@@ -132,7 +134,7 @@ impl<T: Domain<T>> IntSet<T> {
                 let min = it.and_then(|mut it| it.next());
 
                 if let (Some(min), Some(max)) = (min, max) {
-                    IterAfter::new(
+                    Iter::new(
                         s.iter_after(value_u32),
                         Some(T::ordered_values_range(
                             T::from_u32(InDomain(min))..=T::from_u32(InDomain(max)),
@@ -140,7 +142,7 @@ impl<T: Domain<T>> IntSet<T> {
                     )
                 } else {
                     // either min or max doesn't exist, so just return an iterator that has no values.
-                    IterAfter::new(s.iter_after(u32::MAX), None)
+                    Iter::new(s.iter_after(u32::MAX), None)
                 }
             }
         };
@@ -423,11 +425,7 @@ impl<T: Domain<T>> Extend<T> for IntSet<T> {
     }
 }
 
-struct Iter<SetIter, AllValuesIter>
-where
-    SetIter: DoubleEndedIterator<Item = u32>,
-    AllValuesIter: DoubleEndedIterator<Item = u32>,
-{
+struct Iter<SetIter, AllValuesIter> {
     set_values: SetIter,
     all_values: Option<AllValuesIter>,
     next_skipped_forward: Option<u32>,
@@ -436,10 +434,36 @@ where
 
 impl<SetIter, AllValuesIter> Iter<SetIter, AllValuesIter>
 where
+    SetIter: Iterator<Item = u32>,
+    AllValuesIter: Iterator<Item = u32>,
+{
+    fn new(
+        mut set_values: SetIter,
+        all_values: Option<AllValuesIter>,
+    ) -> Iter<SetIter, AllValuesIter> {
+        match all_values {
+            Some(_) => Iter {
+                next_skipped_forward: set_values.next(),
+                next_skipped_backward: None,
+                set_values,
+                all_values,
+            },
+            None => Iter {
+                next_skipped_forward: None,
+                next_skipped_backward: None,
+                set_values,
+                all_values,
+            },
+        }
+    }
+}
+
+impl<SetIter, AllValuesIter> Iter<SetIter, AllValuesIter>
+where
     SetIter: DoubleEndedIterator<Item = u32>,
     AllValuesIter: DoubleEndedIterator<Item = u32>,
 {
-    fn new(
+    fn new_bidirectional(
         mut set_values: SetIter,
         all_values: Option<AllValuesIter>,
     ) -> Iter<SetIter, AllValuesIter> {
@@ -462,8 +486,8 @@ where
 
 impl<SetIter, AllValuesIter> Iterator for Iter<SetIter, AllValuesIter>
 where
-    SetIter: DoubleEndedIterator<Item = u32>,
-    AllValuesIter: DoubleEndedIterator<Item = u32>,
+    SetIter: Iterator<Item = u32>,
+    AllValuesIter: Iterator<Item = u32>,
 {
     type Item = u32;
 
@@ -540,79 +564,6 @@ where
 
                 self.next_skipped_backward = self.set_values.next_back();
                 if index < skip {
-                    // We've passed the skip value, need to check the next one.
-                    continue;
-                }
-
-                // index == skip, so we need to skip this index.
-                break;
-            }
-        }
-        None
-    }
-}
-
-struct IterAfter<SetIter, AllValuesIter>
-where
-    SetIter: Iterator<Item = u32>,
-    AllValuesIter: Iterator<Item = u32>,
-{
-    set_values: SetIter,
-    all_values: Option<AllValuesIter>,
-    next_skipped_forward: Option<u32>,
-}
-
-impl<SetIter, AllValuesIter> IterAfter<SetIter, AllValuesIter>
-where
-    SetIter: Iterator<Item = u32>,
-    AllValuesIter: Iterator<Item = u32>,
-{
-    fn new(
-        mut set_values: SetIter,
-        all_values: Option<AllValuesIter>,
-    ) -> IterAfter<SetIter, AllValuesIter> {
-        match all_values {
-            Some(_) => IterAfter {
-                next_skipped_forward: set_values.next(),
-                set_values,
-                all_values,
-            },
-            None => IterAfter {
-                next_skipped_forward: None,
-                set_values,
-                all_values,
-            },
-        }
-    }
-}
-
-impl<SetIter, AllValuesIter> Iterator for IterAfter<SetIter, AllValuesIter>
-where
-    SetIter: Iterator<Item = u32>,
-    AllValuesIter: Iterator<Item = u32>,
-{
-    type Item = u32;
-
-    fn next(&mut self) -> Option<u32> {
-        let Some(all_values_it) = &mut self.all_values else {
-            return self.set_values.next();
-        };
-
-        for index in all_values_it.by_ref() {
-            let index = index.to_u32();
-            loop {
-                let Some(skip) = self.next_skipped_forward else {
-                    // No-longer any values to skip, can freely return index
-                    return Some(index);
-                };
-
-                if index < skip {
-                    // Not a skipped value
-                    return Some(index);
-                }
-
-                self.next_skipped_forward = self.set_values.next();
-                if index > skip {
                     // We've passed the skip value, need to check the next one.
                     continue;
                 }
