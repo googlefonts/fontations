@@ -1,4 +1,12 @@
 #![no_main]
+//! A correctness fuzzer that checks all of the public API methods of IntSet.
+//!
+//! This fuzzer exercises the public API of IntSet and compares the results to the same operations run
+//! on a BTreeSet. Any differences in behaviour and/or set contents triggers a panic.
+//!
+//! The fuzzer input data is interpretted as a series of op codes which map to the public api methods of IntSet.
+//!
+//! Note: currently only inclusive mode IntSet's are tested.
 
 use std::cmp::max;
 use std::ops::Bound::Excluded;
@@ -9,8 +17,8 @@ use std::{collections::BTreeSet, error::Error};
 use int_set::IntSet;
 use libfuzzer_sys::fuzz_target;
 
-// TODO allow inverted sets to be accessed.
-// TODO allow a limited domain set to be accessed.
+// TODO(garretrieger): allow inverted sets to be accessed.
+// TODO(garretrieger): allow a limited domain set to be accessed.
 
 struct Input<'a> {
     // The state includes 2 of each type of sets to allow us to test out binary set operations (eg. union)
@@ -575,7 +583,9 @@ fn next_operation(data: &[u8]) -> Option<NextOperation> {
 
     // TODO ops for most public api methods (have operations for iter() be what checks for
     //      iter() equality alongside the check at end):
-    // - intersect
+    // - invert
+    // - inclusive_iter
+    // - is_inverted
     let data = &data[1..];
     let (op, data) = match op_code {
         1 => InsertOp::new(data),
@@ -608,7 +618,7 @@ fn next_operation(data: &[u8]) -> Option<NextOperation> {
     })
 }
 
-fn do_int_set_things(data: &[u8]) -> Result<(), Box<dyn Error>> {
+fn process_op_codes(data: &[u8]) -> Result<(), Box<dyn Error>> {
     let mut int_set_0 = IntSet::<u32>::empty();
     let mut int_set_1 = IntSet::<u32>::empty();
     let mut btree_set_0 = BTreeSet::<u32>::new();
@@ -616,7 +626,7 @@ fn do_int_set_things(data: &[u8]) -> Result<(), Box<dyn Error>> {
 
     let mut ops = 0usize;
     let mut data = data;
-    while !data.is_empty() {
+    loop {
         let next_op = next_operation(data);
         let Some(next_op) = next_op else {
             break;
@@ -659,5 +669,5 @@ fn do_int_set_things(data: &[u8]) -> Result<(), Box<dyn Error>> {
 }
 
 fuzz_target!(|data: &[u8]| {
-    let _ = do_int_set_things(data);
+    let _ = process_op_codes(data);
 });
