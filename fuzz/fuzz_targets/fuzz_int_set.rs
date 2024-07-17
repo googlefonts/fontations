@@ -17,6 +17,8 @@ use std::{collections::BTreeSet, error::Error};
 use int_set::IntSet;
 use libfuzzer_sys::fuzz_target;
 
+const OPERATION_COUNT: usize = 7_500;
+
 // TODO(garretrieger): allow inverted sets to be accessed.
 // TODO(garretrieger): allow a limited domain set to be accessed.
 
@@ -642,7 +644,7 @@ fn process_op_codes(data: &[u8]) -> Result<(), Box<dyn Error>> {
             };
             // when computing size use minimum length of 2 to ensure minimum value of log2(length) is 1.
             ops = ops.saturating_add(next_op.op.size(max(2, btree_set.len())));
-            if ops > 5000 {
+            if ops > OPERATION_COUNT {
                 // Operation count limit reached.
                 break;
             }
