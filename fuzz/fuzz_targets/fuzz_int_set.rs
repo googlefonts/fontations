@@ -44,7 +44,7 @@ trait Operation {
 struct InsertOp(u32);
 
 impl InsertOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         let (Some(val), data) = read_u32(data) else {
             return (None, data);
         };
@@ -68,7 +68,7 @@ impl Operation for InsertOp {
 struct InsertRangeOp(u32, u32);
 
 impl InsertRangeOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         let (Some(min), data) = read_u32(data) else {
             return (None, data);
         };
@@ -101,7 +101,7 @@ impl Operation for InsertRangeOp {
 struct RemoveOp(u32);
 
 impl RemoveOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         let (Some(val), data) = read_u32(data) else {
             return (None, data);
         };
@@ -125,7 +125,7 @@ impl Operation for RemoveOp {
 struct RemoveRangeOp(u32, u32);
 
 impl RemoveRangeOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         let (Some(min), data) = read_u32(data) else {
             return (None, data);
         };
@@ -157,7 +157,7 @@ impl Operation for RemoveRangeOp {
 struct LengthOp();
 
 impl LengthOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         (Some(Box::new(Self())), data)
     }
 }
@@ -177,7 +177,7 @@ impl Operation for LengthOp {
 struct IsEmptyOp();
 
 impl IsEmptyOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         (Some(Box::new(Self())), data)
     }
 }
@@ -196,7 +196,7 @@ impl Operation for IsEmptyOp {
 struct ContainsOp(u32);
 
 impl ContainsOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         let (Some(val), data) = read_u32(data) else {
             return (None, data);
         };
@@ -222,7 +222,7 @@ impl Operation for ContainsOp {
 struct ClearOp();
 
 impl ClearOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         (Some(Box::new(Self())), data)
     }
 }
@@ -243,7 +243,7 @@ impl Operation for ClearOp {
 struct IntersectsRangeOp(u32, u32);
 
 impl IntersectsRangeOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         let (Some(min), data) = read_u32(data) else {
             return (None, data);
         };
@@ -282,7 +282,7 @@ impl Operation for IntersectsRangeOp {
 struct FirstOp();
 
 impl FirstOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         (Some(Box::new(Self())), data)
     }
 }
@@ -302,7 +302,7 @@ impl Operation for FirstOp {
 struct LastOp();
 
 impl LastOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         (Some(Box::new(Self())), data)
     }
 }
@@ -322,7 +322,7 @@ impl Operation for LastOp {
 struct IterOp();
 
 impl IterOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         (Some(Box::new(Self())), data)
     }
 }
@@ -333,7 +333,7 @@ impl Operation for IterOp {
     }
 
     fn size(&self, length: usize) -> usize {
-        return length as usize;
+        length
     }
 }
 
@@ -342,7 +342,7 @@ impl Operation for IterOp {
 struct IterRangesOp();
 
 impl IterRangesOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         (Some(Box::new(Self())), data)
     }
 }
@@ -372,7 +372,7 @@ impl Operation for IterRangesOp {
     }
 
     fn size(&self, length: usize) -> usize {
-        return length as usize;
+        length
     }
 }
 
@@ -381,7 +381,7 @@ impl Operation for IterRangesOp {
 struct IterAfterOp(u32);
 
 impl IterAfterOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         let (Some(val), data) = read_u32(data) else {
             return (None, data);
         };
@@ -399,7 +399,7 @@ impl Operation for IterAfterOp {
     }
 
     fn size(&self, length: usize) -> usize {
-        return length as usize;
+        length
     }
 }
 
@@ -408,7 +408,7 @@ impl Operation for IterAfterOp {
 struct RemoveAllOp(Vec<u32>);
 
 impl RemoveAllOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         let (Some(values), data) = read_u32_vec(data) else {
             return (None, data);
         };
@@ -420,12 +420,12 @@ impl Operation for RemoveAllOp {
     fn operate(&self, input: Input, _: Input) {
         input.int_set.remove_all(self.0.iter().copied());
         for v in self.0.iter() {
-            input.btree_set.remove(&v);
+            input.btree_set.remove(v);
         }
     }
 
     fn size(&self, length: usize) -> usize {
-        return (length.ilog2() as usize) * self.0.len();
+        (length.ilog2() as usize) * self.0.len()
     }
 }
 
@@ -434,7 +434,7 @@ impl Operation for RemoveAllOp {
 struct ExtendOp(Vec<u32>);
 
 impl ExtendOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         let (Some(values), data) = read_u32_vec(data) else {
             return (None, data);
         };
@@ -449,7 +449,7 @@ impl Operation for ExtendOp {
     }
 
     fn size(&self, length: usize) -> usize {
-        return (length.ilog2() as usize) * self.0.len();
+        (length.ilog2() as usize) * self.0.len()
     }
 }
 
@@ -458,7 +458,7 @@ impl Operation for ExtendOp {
 struct ExtendUnsortedOp(Vec<u32>);
 
 impl ExtendUnsortedOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         let (Some(values), data) = read_u32_vec(data) else {
             return (None, data);
         };
@@ -473,7 +473,7 @@ impl Operation for ExtendUnsortedOp {
     }
 
     fn size(&self, length: usize) -> usize {
-        return (length.ilog2() as usize) * self.0.len();
+        (length.ilog2() as usize) * self.0.len()
     }
 }
 
@@ -482,14 +482,14 @@ impl Operation for ExtendUnsortedOp {
 struct UnionOp();
 
 impl UnionOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         (Some(Box::new(Self())), data)
     }
 }
 
 impl Operation for UnionOp {
     fn operate(&self, a: Input, b: Input) {
-        a.int_set.union(&b.int_set);
+        a.int_set.union(b.int_set);
         for v in b.btree_set.iter() {
             a.btree_set.insert(*v);
         }
@@ -497,7 +497,7 @@ impl Operation for UnionOp {
 
     fn size(&self, length: usize) -> usize {
         // TODO(garretrieger): should be length a + length b
-        return length;
+        length
     }
 }
 
@@ -506,29 +506,29 @@ impl Operation for UnionOp {
 struct IntersectOp();
 
 impl IntersectOp {
-    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
         (Some(Box::new(Self())), data)
     }
 }
 
 impl Operation for IntersectOp {
     fn operate(&self, a: Input, b: Input) {
-        a.int_set.intersect(&b.int_set);
+        a.int_set.intersect(b.int_set);
         let mut intersected: BTreeSet<u32> =
-            a.btree_set.intersection(&b.btree_set).copied().collect();
+            a.btree_set.intersection(b.btree_set).copied().collect();
         std::mem::swap(a.btree_set, &mut intersected);
     }
 
     fn size(&self, length: usize) -> usize {
         // TODO(garretrieger): should be length a + length b
-        return length;
+        length
     }
 }
 
 /* ### End of Ops ### */
 
 fn read_u8(data: &[u8]) -> (Option<u8>, &[u8]) {
-    if data.len() < 1 {
+    if data.is_empty() {
         return (None, data);
     }
     (Some(data[0]), &data[1..])
@@ -574,9 +574,7 @@ struct NextOperation<'a> {
 }
 
 fn next_operation(data: &[u8]) -> Option<NextOperation> {
-    let Some(op_code) = data.get(0) else {
-        return None;
-    };
+    let op_code = data.first()?;
 
     // Check the msb of op code to see which set index to use.
     const INDEX_MASK: u8 = 0b10000000;
@@ -590,25 +588,25 @@ fn next_operation(data: &[u8]) -> Option<NextOperation> {
     // - is_inverted
     let data = &data[1..];
     let (op, data) = match op_code {
-        1 => InsertOp::new(data),
-        2 => RemoveOp::new(data),
-        3 => InsertRangeOp::new(data),
-        4 => RemoveRangeOp::new(data),
-        5 => LengthOp::new(data),
-        6 => IsEmptyOp::new(data),
-        7 => ContainsOp::new(data),
-        8 => ClearOp::new(data),
-        9 => IntersectsRangeOp::new(data),
-        10 => FirstOp::new(data),
-        11 => LastOp::new(data),
-        12 => IterOp::new(data),
-        13 => IterRangesOp::new(data),
-        14 => IterAfterOp::new(data),
-        15 => RemoveAllOp::new(data),
-        16 => ExtendOp::new(data),
-        17 => ExtendUnsortedOp::new(data),
-        18 => UnionOp::new(data),
-        19 => IntersectOp::new(data),
+        1 => InsertOp::parse_args(data),
+        2 => RemoveOp::parse_args(data),
+        3 => InsertRangeOp::parse_args(data),
+        4 => RemoveRangeOp::parse_args(data),
+        5 => LengthOp::parse_args(data),
+        6 => IsEmptyOp::parse_args(data),
+        7 => ContainsOp::parse_args(data),
+        8 => ClearOp::parse_args(data),
+        9 => IntersectsRangeOp::parse_args(data),
+        10 => FirstOp::parse_args(data),
+        11 => LastOp::parse_args(data),
+        12 => IterOp::parse_args(data),
+        13 => IterRangesOp::parse_args(data),
+        14 => IterAfterOp::parse_args(data),
+        15 => RemoveAllOp::parse_args(data),
+        16 => ExtendOp::parse_args(data),
+        17 => ExtendUnsortedOp::parse_args(data),
+        18 => UnionOp::parse_args(data),
+        19 => IntersectOp::parse_args(data),
         _ => (None, data),
     };
 
