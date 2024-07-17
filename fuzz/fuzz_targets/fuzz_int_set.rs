@@ -467,6 +467,54 @@ impl Operation for ExtendUnsortedOp {
     }
 }
 
+/* ### Union ### */
+
+struct UnionOp();
+
+impl UnionOp {
+    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+        (Some(Box::new(Self())), data)
+    }
+}
+
+impl Operation for UnionOp {
+    fn operate(&self, a: Input, b: Input) {
+        a.int_set.union(&b.int_set);
+        for v in b.btree_set.iter() {
+            a.btree_set.insert(*v);
+        }
+    }
+
+    fn size(&self, length: usize) -> usize {
+        // TODO(garretrieger): should be length a + length b
+        return length;
+    }
+}
+
+/* ### Intersect ### */
+
+struct IntersectOp();
+
+impl IntersectOp {
+    fn new(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+        (Some(Box::new(Self())), data)
+    }
+}
+
+impl Operation for IntersectOp {
+    fn operate(&self, a: Input, b: Input) {
+        a.int_set.intersect(&b.int_set);
+        let mut intersected: BTreeSet<u32> =
+            a.btree_set.intersection(&b.btree_set).copied().collect();
+        std::mem::swap(a.btree_set, &mut intersected);
+    }
+
+    fn size(&self, length: usize) -> usize {
+        // TODO(garretrieger): should be length a + length b
+        return length;
+    }
+}
+
 /* ### End of Ops ### */
 
 fn read_u8(data: &[u8]) -> (Option<u8>, &[u8]) {
@@ -520,9 +568,13 @@ fn next_operation(data: &[u8]) -> Option<NextOperation> {
         return None;
     };
 
+    // Check the msb of op code to see which set index to use.
+    const INDEX_MASK: u8 = 0b10000000;
+    let set_index = if (op_code & INDEX_MASK) > 0 { 1 } else { 0 };
+    let op_code = !INDEX_MASK & op_code;
+
     // TODO ops for most public api methods (have operations for iter() be what checks for
     //      iter() equality alongside the check at end):
-    // - union
     // - intersect
     let data = &data[1..];
     let (op, data) = match op_code {
@@ -543,13 +595,15 @@ fn next_operation(data: &[u8]) -> Option<NextOperation> {
         15 => RemoveAllOp::new(data),
         16 => ExtendOp::new(data),
         17 => ExtendUnsortedOp::new(data),
+        18 => UnionOp::new(data),
+        19 => IntersectOp::new(data),
         _ => (None, data),
     };
 
     let op = op?;
     Some(NextOperation {
         op,
-        set_index: 0,
+        set_index,
         data,
     })
 }
