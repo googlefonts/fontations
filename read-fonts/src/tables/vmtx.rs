@@ -11,7 +11,7 @@ impl<'a> Vmtx<'a> {
         hmtx::advance(self.v_metrics(), glyph_id)
     }
 
-    /// Returns the top side bearing for the given glyph identifer.
+    /// Returns the top side bearing for the given glyph identifier.
     pub fn side_bearing(&self, glyph_id: GlyphId) -> Option<i16> {
         hmtx::side_bearing(self.v_metrics(), self.top_side_bearings(), glyph_id)
     }

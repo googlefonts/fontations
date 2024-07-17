@@ -17,7 +17,7 @@ impl StringId {
 
     /// Resolves the identifier as a standard string.
     ///
-    /// If the identifer represents a standard string, returns `Ok(string)`,
+    /// If the identifier represents a standard string, returns `Ok(string)`,
     /// otherwise returns `Err(index)` with the index that should be used to
     /// retrieve the string from the CFF string INDEX.
     ///
@@ -26,7 +26,7 @@ impl StringId {
     pub fn standard_string(self) -> Result<Latin1String<'static>, usize> {
         let ix = self.0 as usize;
         if let Some(string) = STANDARD_STRINGS.get(ix) {
-            // The standard strings are all ASCII so it's safe to intepret them
+            // The standard strings are all ASCII so it's safe to interpret them
             // as Latin-1. This is verified in a unit test.
             Ok(Latin1String::new(string.as_bytes()))
         } else {
