@@ -215,7 +215,7 @@ const fn elem_index_bit_mask(value: u32) -> Element {
 
 struct Iter {
     val: Element,
-    forward_index: u32,
+    forward_index: i32,
     backward_index: i32,
 }
 
@@ -234,7 +234,7 @@ impl Iter {
     fn from(elem: Element, index: u32) -> Iter {
         Iter {
             val: elem,
-            forward_index: index,
+            forward_index: index as i32, // index is at most 63
             backward_index: ELEM_BITS as i32 - 1,
         }
     }
@@ -244,23 +244,23 @@ impl Iterator for Iter {
     type Item = u32;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.forward_index > self.backward_index as u32 {
+        if self.forward_index > self.backward_index {
             return None;
         }
         let mask = (1u64 << self.forward_index) - 1;
         let masked = self.val & !mask;
-        let next_index = masked.trailing_zeros();
-        if next_index > self.backward_index as u32 {
+        let next_index = masked.trailing_zeros() as i32;
+        if next_index > self.backward_index {
             return None;
         }
         self.forward_index = next_index + 1;
-        Some(next_index)
+        Some(next_index as u32)
     }
 }
 
 impl DoubleEndedIterator for Iter {
     fn next_back(&mut self) -> Option<Self::Item> {
-        if self.backward_index < self.forward_index as i32 {
+        if self.backward_index < self.forward_index {
             return None;
         }
 
@@ -270,7 +270,7 @@ impl DoubleEndedIterator for Iter {
             .unwrap_or(Element::MAX);
         let masked = self.val & mask;
         let next_index = (ELEM_BITS as i32) - (masked.leading_zeros() as i32) - 1;
-        if next_index < self.forward_index as i32 {
+        if next_index < self.forward_index {
             return None;
         }
         self.backward_index = next_index - 1;
@@ -599,6 +599,15 @@ mod test {
 
         let items: Vec<_> = page.iter().collect();
         assert_eq!(items, vec![0, 12, 13, 23, 63, 64, 78, 400, 511,])
+    }
+
+    #[test]
+    fn page_iter_overflow() {
+        let mut page = BitPage::new_zeroes();
+        page.insert(0);
+        let mut it = page.iter();
+        assert_eq!(Some(0), it.next_back());
+        assert_eq!(None, it.next());
     }
 
     #[test]
