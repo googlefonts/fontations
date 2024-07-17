@@ -190,6 +190,10 @@ impl CompositeGlyph {
     pub fn components(&self) -> &[Component] {
         &self.components
     }
+
+    pub fn mutable_components(&mut self) -> &mut [Component] {
+        &mut self.components
+    }
 }
 
 impl FontWrite for CompositeGlyph {

@@ -9,17 +9,20 @@ pub use parsing_util::{parse_unicodes, populate_gids};
 use int_set::IntSet;
 use skrifa::MetadataProvider;
 use std::collections::{BTreeSet, HashMap};
-use std::path::PathBuf;
 use thiserror::Error;
+use write_fonts::dump_table;
 use write_fonts::read::{
     tables::glyf::{Glyf, Glyph},
     tables::loca::Loca,
     FontRef, TableProvider, TopLevelTable,
 };
-use write_fonts::types::GlyphId;
+use write_fonts::tables::glyf::GlyfLocaBuilder;
+use write_fonts::tables::loca::LocaFormat;
 use write_fonts::types::Tag;
+use write_fonts::types::{GlyphId, GlyphId16};
 use write_fonts::{
-    from_obj::FromTableRef, tables::hhea::Hhea, tables::hmtx::Hmtx, tables::maxp::Maxp, FontBuilder,
+    from_obj::FromTableRef, tables::head::Head, tables::hhea::Hhea, tables::hmtx::Hmtx,
+    tables::maxp::Maxp, FontBuilder,
 };
 
 const MAX_COMPOSITE_OPERATIONS_PER_GLYPH: u8 = 64;
@@ -286,30 +289,88 @@ pub trait Subset {
     fn subset(&mut self, plan: &Plan) -> Result<bool, SubsetError>;
 }
 
-pub fn subset_font(font: FontRef, plan: &Plan, output_file: &PathBuf) {
-    let hmtx = font.hmtx().expect("Error reading hmtx table");
-    let mut hmtx = Hmtx::from_table_ref(&hmtx);
-    hmtx.subset(plan).expect("SUbsetting failed");
-    let hmtx_bytes = write_fonts::dump_table(&hmtx).unwrap();
+fn update_components_gid(
+    glyph: &mut write_fonts::tables::glyf::Glyph,
+    gid_map: &HashMap<GlyphId, u16>,
+) {
+    match glyph {
+        write_fonts::tables::glyf::Glyph::Composite(g) => {
+            for component in g.mutable_components() {
+                let new_gid = gid_map.get(&GlyphId::from(component.glyph)).unwrap();
+                component.glyph = GlyphId16::from(*new_gid);
+            }
+        }
+        _ => {
+            return;
+        }
+    }
+}
 
-    let hhea = font.hhea().expect("Error reading hhea table");
-    let mut hhea = Hhea::from_table_ref(&hhea);
-    hhea.subset(plan).expect("Subsetting failed");
-    let hhea_bytes = write_fonts::dump_table(&hhea).unwrap();
+fn subset_glyf_and_loca(font: &FontRef, plan: &Plan) -> (Vec<u8>, Vec<u8>, i16) {
+    let glyf = font.glyf().unwrap();
+    let loca = font.loca(None).unwrap();
+    let gids = &plan.glyphset;
 
-    let maxp = font.maxp().expect("Error reading maxp table");
-    let mut maxp = Maxp::from_table_ref(&maxp);
-    maxp.subset(plan).expect("Subsetting failed");
-    let maxp_bytes = write_fonts::dump_table(&maxp).unwrap();
+    let mut builder = GlyfLocaBuilder::new();
+    let gid_map = gids.iter().zip(0u16..).collect::<HashMap<GlyphId, u16>>();
+    for gid in gids.iter() {
+        if let Ok(glyf_entry) = loca.get_glyf(gid, &glyf) {
+            let glyf_entry = glyf_entry.as_ref();
+            let mut glyph = match glyf_entry {
+                Some(_g) => write_fonts::tables::glyf::Glyph::from_table_ref(glyf_entry.unwrap()),
+                None => write_fonts::tables::glyf::Glyph::Empty,
+            };
+
+            //where should this fn live?
+            update_components_gid(&mut glyph, &gid_map);
+            let _ = builder.add_glyph(&glyph);
+        }
+    }
+    let (glyf, loca, loca_format) = builder.build();
+
+    let glyf = dump_table(&glyf).unwrap();
+    let loca = dump_table(&loca).unwrap();
+    let loca_format = match loca_format {
+        LocaFormat::Short => 0i16,
+        LocaFormat::Long => 1i16,
+    };
+
+    (glyf, loca, loca_format)
+}
+
+pub fn subset_font(font: &FontRef, plan: &Plan) -> Vec<u8> {
+    //let hmtx = font.hmtx().expect("Error reading hmtx table");
+    //let mut hmtx = Hmtx::from_table_ref(&hmtx);
+    //hmtx.subset(plan).expect("SUbsetting failed");
+    //let hmtx_bytes = write_fonts::dump_table(&hmtx).unwrap();
+
+    //let hhea = font.hhea().expect("Error reading hhea table");
+    //let mut hhea = Hhea::from_table_ref(&hhea);
+    //hhea.subset(plan).expect("Subsetting failed");
+    //let hhea_bytes = write_fonts::dump_table(&hhea).unwrap();
+
+    //let maxp = font.maxp().expect("Error reading maxp table");
+    //let mut maxp = Maxp::from_table_ref(&maxp);
+    //maxp.subset(plan).expect("Subsetting failed");
+    //let maxp_bytes = write_fonts::dump_table(&maxp).unwrap();
+
+    let (glyf_bytes, loca_bytes, loca_format) = subset_glyf_and_loca(&font, plan);
+
+    let head = font.head().expect("Error reading head table");
+    let mut head = Head::from_table_ref(&head);
+    head.index_to_loc_format = loca_format;
+    let head_bytes = write_fonts::dump_table(&head).unwrap();
 
     let mut builder = FontBuilder::default();
-    builder.add_raw(Hmtx::TAG, hmtx_bytes);
-    builder.add_raw(Hhea::TAG, hhea_bytes);
-    builder.add_raw(Maxp::TAG, maxp_bytes);
+    //builder.add_raw(Hmtx::TAG, hmtx_bytes);
+    //builder.add_raw(Hhea::TAG, hhea_bytes);
+    //builder.add_raw(Maxp::TAG, maxp_bytes);
+    builder.add_raw(Glyf::TAG, glyf_bytes);
+    builder.add_raw(Loca::TAG, loca_bytes);
+    builder.add_raw(Head::TAG, head_bytes);
 
-    builder.copy_missing_tables(font);
-
-    std::fs::write(output_file, builder.build()).unwrap();
+    //builder.copy_missing_tables(font);
+    builder.build()
 }
 
 #[cfg(test)]
