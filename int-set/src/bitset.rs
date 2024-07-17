@@ -467,7 +467,8 @@ impl BitSet {
     }
 
     fn major_end(&self, major: u32) -> u32 {
-        self.major_start(major) + PAGE_BITS - 1
+        // Note: (PAGE_BITS - 1) must be grouped to prevent overflow on addition for the largest page.
+        self.major_start(major) + (PAGE_BITS - 1)
     }
 
     /// Returns the index in self.pages (if it exists) for the page with the same major as major_value.
@@ -690,11 +691,10 @@ impl<'a> Iterator for BitSetRangeIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.page_iter.as_ref()?;
-
         let mut current_range = self.next_range();
         loop {
             let page = self.set.page_map.get(self.page_info_index)?;
-            let page_end = self.set.major_end(page.index);
+            let page_end = self.set.major_end(page.major_value);
 
             let Some(range) = current_range.clone() else {
                 // The current page has no more ranges, but there may be more pages.
@@ -779,7 +779,6 @@ mod test {
     fn iter_ranges() {
         check_iter_ranges(vec![0..=0]);
         check_iter_ranges(vec![4578..=4578]);
-
         check_iter_ranges(vec![0..=10, 4578..=4583]);
         check_iter_ranges(vec![0..=700]);
         check_iter_ranges(vec![353..=737]);
@@ -790,6 +789,8 @@ mod test {
 
         check_iter_ranges(vec![0..=511, 513..=517]);
         check_iter_ranges(vec![512..=1023, 1025..=1027]);
+
+        check_iter_ranges(vec![1792..=2650]);
     }
 
     #[test]
