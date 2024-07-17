@@ -1,59 +1,160 @@
 #![no_main]
-//! A correctness fuzzer that checks all of the public API methods of IntSet.
+//! A correctness fuzzer that checks all of the public API methods of [IntSet].
 //!
 //! This fuzzer exercises the public API of IntSet and compares the results to the same operations run
 //! on a BTreeSet. Any differences in behaviour and/or set contents triggers a panic.
 //!
-//! The fuzzer input data is interpretted as a series of op codes which map to the public api methods of IntSet.
+//! The fuzzer input data is interpreted as a series of op codes which map to the public api methods of IntSet.
 //!
 //! Note: currently only inclusive mode IntSet's are tested.
 
 use std::cmp::max;
+
+use std::cmp::min;
+use std::fmt::Debug;
+use std::ops::Add;
 use std::ops::Bound::Excluded;
 use std::ops::Bound::Included;
 use std::ops::RangeInclusive;
 use std::{collections::BTreeSet, error::Error};
 
+use int_set::Domain;
+use int_set::InDomain;
 use int_set::IntSet;
 use libfuzzer_sys::fuzz_target;
 
 const OPERATION_COUNT: usize = 7_500;
 
+// TODO(garretrieger): use "Cursor" to manage the input buffer.
 // TODO(garretrieger): allow inverted sets to be accessed.
 // TODO(garretrieger): allow a limited domain set to be accessed.
 
-struct Input<'a> {
-    // The state includes 2 of each type of sets to allow us to test out binary set operations (eg. union)
-    int_set: &'a mut IntSet<u32>,
-    btree_set: &'a mut BTreeSet<u32>,
+trait SetMember<T>: Domain<T> + Ord + Copy + Add<u32, Output = T> + Debug {
+    fn create(val: u32) -> Option<T>;
+    fn increment(&mut self);
 }
 
-impl Input<'_> {
-    fn from<'a>(int_set: &'a mut IntSet<u32>, btree_set: &'a mut BTreeSet<u32>) -> Input<'a> {
+impl SetMember<u32> for u32 {
+    fn create(val: u32) -> Option<u32> {
+        Some(val)
+    }
+
+    fn increment(&mut self) {
+        *self = self.saturating_add(1);
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
+struct SmallInt(u32);
+
+impl SmallInt {
+    const MAX_VALUE: u32 = 4 * 512;
+
+    fn new(value: u32) -> SmallInt {
+        if value > Self::MAX_VALUE {
+            panic!("Constructed SmallInt with value > MAX_VALUE");
+        }
+        SmallInt(value)
+    }
+}
+
+impl Add<u32> for SmallInt {
+    type Output = SmallInt;
+
+    fn add(self, rhs: u32) -> Self::Output {
+        SmallInt::new(self.0 + rhs)
+    }
+}
+
+impl SetMember<SmallInt> for SmallInt {
+    fn create(val: u32) -> Option<SmallInt> {
+        if val > Self::MAX_VALUE {
+            return None;
+        }
+        Some(SmallInt::new(val))
+    }
+
+    fn increment(&mut self) {
+        self.0 = min(self.0 + 1, Self::MAX_VALUE);
+    }
+}
+
+impl Domain<SmallInt> for SmallInt {
+    fn to_u32(&self) -> u32 {
+        self.0
+    }
+
+    fn from_u32(member: InDomain) -> SmallInt {
+        SmallInt::new(member.value())
+    }
+
+    fn is_continous() -> bool {
+        true
+    }
+
+    fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
+        0..=Self::MAX_VALUE
+    }
+
+    fn ordered_values_range(
+        range: RangeInclusive<SmallInt>,
+    ) -> impl DoubleEndedIterator<Item = u32> {
+        if range.start().0 > Self::MAX_VALUE || range.end().0 > Self::MAX_VALUE {
+            panic!("Invalid range of the SmallInt set.");
+        }
+        range.start().to_u32()..=range.end().to_u32()
+    }
+}
+
+struct Input<'a, T>
+where
+    T: SetMember<T>,
+{
+    // The state includes 2 of each type of sets to allow us to test out binary set operations (eg. union)
+    int_set: &'a mut IntSet<T>,
+    btree_set: &'a mut BTreeSet<T>,
+}
+
+impl<T> Input<'_, T>
+where
+    T: SetMember<T>,
+{
+    fn from<'a>(int_set: &'a mut IntSet<T>, btree_set: &'a mut BTreeSet<T>) -> Input<'a, T> {
         Input { int_set, btree_set }
     }
 }
 
-trait Operation {
+trait Operation<T>
+where
+    T: SetMember<T>,
+{
     fn size(&self, set_len: usize) -> usize;
-    fn operate(&self, input: Input, other: Input);
+    fn operate(&self, input: Input<T>, other: Input<T>);
 }
 
 /* ### Insert ### */
 
-struct InsertOp(u32);
+struct InsertOp<T>(T)
+where
+    T: SetMember<T>;
 
-impl InsertOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+impl<T> InsertOp<T>
+where
+    T: SetMember<T> + 'static,
+{
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
         let (Some(val), data) = read_u32(data) else {
             return (None, data);
         };
-        (Some(Box::new(Self(val))), data)
+        (Some(Box::new(InsertOp::<T>(val))), data)
     }
 }
 
-impl Operation for InsertOp {
-    fn operate(&self, input: Input, _: Input) {
+impl<T> Operation<T> for InsertOp<T>
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.insert(self.0);
         input.btree_set.insert(self.0);
     }
@@ -65,10 +166,15 @@ impl Operation for InsertOp {
 
 /* ### Insert Range ### */
 
-struct InsertRangeOp(u32, u32);
+struct InsertRangeOp<T>(T, T)
+where
+    T: SetMember<T>;
 
-impl InsertRangeOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+impl<T> InsertRangeOp<T>
+where
+    T: SetMember<T> + 'static,
+{
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
         let (Some(min), data) = read_u32(data) else {
             return (None, data);
         };
@@ -76,45 +182,59 @@ impl InsertRangeOp {
             return (None, data);
         };
 
-        (Some(Box::new(Self(min, max))), data)
+        (Some(Box::new(InsertRangeOp::<T>(min, max))), data)
     }
 }
 
-impl Operation for InsertRangeOp {
+impl<T> Operation<T> for InsertRangeOp<T>
+where
+    T: SetMember<T>,
+{
     fn size(&self, length: usize) -> usize {
         if self.1 < self.0 {
             return 1;
         }
-        ((self.1 as usize - self.0 as usize) + 1) * (length.ilog2() as usize)
+        ((self.1.to_u32() as usize - self.0.to_u32() as usize) + 1) * (length.ilog2() as usize)
     }
 
-    fn operate(&self, input: Input, _: Input) {
+    fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.insert_range(self.0..=self.1);
-        for v in self.0..=self.1 {
+
+        let mut v = self.0;
+        for _ in self.0.to_u32()..=self.1.to_u32() {
             input.btree_set.insert(v);
+            v.increment();
         }
     }
 }
 
 /* ### Remove ### */
 
-struct RemoveOp(u32);
+struct RemoveOp<T>(T)
+where
+    T: SetMember<T>;
 
-impl RemoveOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+impl<T> RemoveOp<T>
+where
+    T: SetMember<T> + 'static,
+{
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
         let (Some(val), data) = read_u32(data) else {
             return (None, data);
         };
-        (Some(Box::new(Self(val))), data)
+        (Some(Box::new(RemoveOp::<T>(val))), data)
     }
 }
 
-impl Operation for RemoveOp {
+impl<T> Operation<T> for RemoveOp<T>
+where
+    T: SetMember<T>,
+{
     fn size(&self, length: usize) -> usize {
         length.ilog2() as usize
     }
 
-    fn operate(&self, input: Input, _: Input) {
+    fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.remove(self.0);
         input.btree_set.remove(&self.0);
     }
@@ -122,10 +242,15 @@ impl Operation for RemoveOp {
 
 /* ### Remove Range ### */
 
-struct RemoveRangeOp(u32, u32);
+struct RemoveRangeOp<T>(T, T)
+where
+    T: SetMember<T>;
 
-impl RemoveRangeOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+impl<T> RemoveRangeOp<T>
+where
+    T: SetMember<T> + 'static,
+{
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
         let (Some(min), data) = read_u32(data) else {
             return (None, data);
         };
@@ -133,22 +258,27 @@ impl RemoveRangeOp {
             return (None, data);
         };
 
-        (Some(Box::new(Self(min, max))), data)
+        (Some(Box::new(RemoveRangeOp::<T>(min, max))), data)
     }
 }
 
-impl Operation for RemoveRangeOp {
+impl<T> Operation<T> for RemoveRangeOp<T>
+where
+    T: SetMember<T>,
+{
     fn size(&self, length: usize) -> usize {
         if self.1 < self.0 {
             return 1;
         }
-        ((self.1 as usize - self.0 as usize) + 1) * (length.ilog2() as usize)
+        ((self.1.to_u32() as usize - self.0.to_u32() as usize) + 1) * (length.ilog2() as usize)
     }
 
-    fn operate(&self, input: Input, _: Input) {
+    fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.remove_range(self.0..=self.1);
-        for v in self.0..=self.1 {
+        let mut v = self.0;
+        for _ in self.0.to_u32()..=self.1.to_u32() {
             input.btree_set.remove(&v);
+            v.increment();
         }
     }
 }
@@ -157,13 +287,19 @@ impl Operation for RemoveRangeOp {
 struct LengthOp();
 
 impl LengthOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    where
+        T: SetMember<T>,
+    {
         (Some(Box::new(Self())), data)
     }
 }
 
-impl Operation for LengthOp {
-    fn operate(&self, input: Input, _: Input) {
+impl<T> Operation<T> for LengthOp
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
         assert_eq!(input.int_set.len(), input.btree_set.len());
     }
 
@@ -177,13 +313,19 @@ impl Operation for LengthOp {
 struct IsEmptyOp();
 
 impl IsEmptyOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    where
+        T: SetMember<T>,
+    {
         (Some(Box::new(Self())), data)
     }
 }
 
-impl Operation for IsEmptyOp {
-    fn operate(&self, input: Input, _: Input) {
+impl<T> Operation<T> for IsEmptyOp
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
         assert_eq!(input.int_set.is_empty(), input.btree_set.is_empty());
     }
 
@@ -193,19 +335,27 @@ impl Operation for IsEmptyOp {
 }
 
 /* ### Contains ### */
-struct ContainsOp(u32);
+struct ContainsOp<T>(T)
+where
+    T: SetMember<T>;
 
-impl ContainsOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+impl<T> ContainsOp<T>
+where
+    T: SetMember<T> + 'static,
+{
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
         let (Some(val), data) = read_u32(data) else {
             return (None, data);
         };
-        (Some(Box::new(Self(val))), data)
+        (Some(Box::new(ContainsOp::<T>(val))), data)
     }
 }
 
-impl Operation for ContainsOp {
-    fn operate(&self, input: Input, _: Input) {
+impl<T> Operation<T> for ContainsOp<T>
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
         assert_eq!(
             input.int_set.contains(self.0),
             input.btree_set.contains(&self.0)
@@ -222,13 +372,19 @@ impl Operation for ContainsOp {
 struct ClearOp();
 
 impl ClearOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    where
+        T: SetMember<T>,
+    {
         (Some(Box::new(Self())), data)
     }
 }
 
-impl Operation for ClearOp {
-    fn operate(&self, input: Input, _: Input) {
+impl<T> Operation<T> for ClearOp
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.clear();
         input.btree_set.clear();
     }
@@ -240,30 +396,40 @@ impl Operation for ClearOp {
 
 /* ### Intersects Range ### */
 
-struct IntersectsRangeOp(u32, u32);
+struct IntersectsRangeOp<T>(T, T)
+where
+    T: SetMember<T>;
 
-impl IntersectsRangeOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+impl<T> IntersectsRangeOp<T>
+where
+    T: SetMember<T> + 'static,
+{
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
         let (Some(min), data) = read_u32(data) else {
             return (None, data);
         };
         let (Some(max), data) = read_u32(data) else {
             return (None, data);
         };
-        (Some(Box::new(Self(min, max))), data)
+        (Some(Box::new(IntersectsRangeOp::<T>(min, max))), data)
     }
 }
 
-impl Operation for IntersectsRangeOp {
-    fn operate(&self, input: Input, _: Input) {
+impl<T> Operation<T> for IntersectsRangeOp<T>
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
         let int_set_intersects = input.int_set.intersects_range(self.0..=self.1);
 
         let mut btree_intersects = false;
-        for v in self.0..=self.1 {
+        let mut v = self.0;
+        for _ in self.0.to_u32()..=self.1.to_u32() {
             if input.btree_set.contains(&v) {
                 btree_intersects = true;
                 break;
             }
+            v.increment();
         }
 
         assert_eq!(int_set_intersects, btree_intersects);
@@ -273,7 +439,7 @@ impl Operation for IntersectsRangeOp {
         if self.1 < self.0 {
             return 1;
         }
-        ((self.1 as usize - self.0 as usize) + 1) * (length.ilog2() as usize)
+        ((self.1.to_u32() as usize - self.0.to_u32() as usize) + 1) * (length.ilog2() as usize)
     }
 }
 
@@ -282,13 +448,19 @@ impl Operation for IntersectsRangeOp {
 struct FirstOp();
 
 impl FirstOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    where
+        T: SetMember<T>,
+    {
         (Some(Box::new(Self())), data)
     }
 }
 
-impl Operation for FirstOp {
-    fn operate(&self, input: Input, _: Input) {
+impl<T> Operation<T> for FirstOp
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
         assert_eq!(input.int_set.first(), input.btree_set.first().copied());
     }
 
@@ -302,13 +474,19 @@ impl Operation for FirstOp {
 struct LastOp();
 
 impl LastOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    where
+        T: SetMember<T>,
+    {
         (Some(Box::new(Self())), data)
     }
 }
 
-impl Operation for LastOp {
-    fn operate(&self, input: Input, _: Input) {
+impl<T> Operation<T> for LastOp
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
         assert_eq!(input.int_set.last(), input.btree_set.last().copied());
     }
 
@@ -322,13 +500,19 @@ impl Operation for LastOp {
 struct IterOp();
 
 impl IterOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    where
+        T: SetMember<T>,
+    {
         (Some(Box::new(Self())), data)
     }
 }
 
-impl Operation for IterOp {
-    fn operate(&self, input: Input, _: Input) {
+impl<T> Operation<T> for IterOp
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
         assert!(input.int_set.iter().eq(input.btree_set.iter().copied()));
     }
 
@@ -342,19 +526,25 @@ impl Operation for IterOp {
 struct IterRangesOp();
 
 impl IterRangesOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    where
+        T: SetMember<T>,
+    {
         (Some(Box::new(Self())), data)
     }
 }
 
-impl Operation for IterRangesOp {
-    fn operate(&self, input: Input, _: Input) {
-        let mut btree_ranges: Vec<RangeInclusive<u32>> = vec![];
-        let mut cur_range: Option<RangeInclusive<u32>> = None;
+impl<T> Operation<T> for IterRangesOp
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
+        let mut btree_ranges: Vec<RangeInclusive<T>> = vec![];
+        let mut cur_range: Option<RangeInclusive<T>> = None;
 
         for v in input.btree_set.iter().copied() {
             if let Some(range) = cur_range {
-                if range.end() + 1 == v {
+                if *range.end() + 1 == v {
                     cur_range = Some(*range.start()..=v);
                     continue;
                 }
@@ -378,23 +568,32 @@ impl Operation for IterRangesOp {
 
 /* ### Iter After ### */
 
-struct IterAfterOp(u32);
+struct IterAfterOp<T>(T)
+where
+    T: SetMember<T>;
 
-impl IterAfterOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+impl<T> IterAfterOp<T>
+where
+    T: SetMember<T> + 'static,
+{
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
         let (Some(val), data) = read_u32(data) else {
             return (None, data);
         };
-        (Some(Box::new(Self(val))), data)
+        (Some(Box::new(IterAfterOp::<T>(val))), data)
     }
 }
 
-impl Operation for IterAfterOp {
-    fn operate(&self, input: Input, _: Input) {
+impl<T> Operation<T> for IterAfterOp<T>
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
+        let domain_max = T::create(T::ordered_values().next_back().unwrap()).unwrap();
         let it = input.int_set.iter_after(self.0);
         let btree_it = input
             .btree_set
-            .range((Excluded(self.0), Included(u32::MAX)));
+            .range((Excluded(self.0), Included(domain_max)));
         assert!(it.eq(btree_it.copied()));
     }
 
@@ -405,19 +604,27 @@ impl Operation for IterAfterOp {
 
 /* ### Remove All ### */
 
-struct RemoveAllOp(Vec<u32>);
+struct RemoveAllOp<T>(Vec<T>)
+where
+    T: SetMember<T>;
 
-impl RemoveAllOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+impl<T> RemoveAllOp<T>
+where
+    T: SetMember<T> + 'static,
+{
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
         let (Some(values), data) = read_u32_vec(data) else {
             return (None, data);
         };
-        (Some(Box::new(Self(values))), data)
+        (Some(Box::new(RemoveAllOp::<T>(values))), data)
     }
 }
 
-impl Operation for RemoveAllOp {
-    fn operate(&self, input: Input, _: Input) {
+impl<T> Operation<T> for RemoveAllOp<T>
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.remove_all(self.0.iter().copied());
         for v in self.0.iter() {
             input.btree_set.remove(v);
@@ -431,10 +638,15 @@ impl Operation for RemoveAllOp {
 
 /* ### Extend ### */
 
-struct ExtendOp(Vec<u32>);
+struct ExtendOp<T>(Vec<T>)
+where
+    T: SetMember<T>;
 
-impl ExtendOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+impl<T> ExtendOp<T>
+where
+    T: SetMember<T> + 'static,
+{
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
         let (Some(values), data) = read_u32_vec(data) else {
             return (None, data);
         };
@@ -442,8 +654,11 @@ impl ExtendOp {
     }
 }
 
-impl Operation for ExtendOp {
-    fn operate(&self, input: Input, _: Input) {
+impl<T> Operation<T> for ExtendOp<T>
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.extend(self.0.iter().copied());
         input.btree_set.extend(self.0.iter().copied());
     }
@@ -455,10 +670,15 @@ impl Operation for ExtendOp {
 
 /* ### Extend Unsorted ### */
 
-struct ExtendUnsortedOp(Vec<u32>);
+struct ExtendUnsortedOp<T>(Vec<T>)
+where
+    T: SetMember<T>;
 
-impl ExtendUnsortedOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+impl<T> ExtendUnsortedOp<T>
+where
+    T: SetMember<T> + 'static,
+{
+    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
         let (Some(values), data) = read_u32_vec(data) else {
             return (None, data);
         };
@@ -466,8 +686,11 @@ impl ExtendUnsortedOp {
     }
 }
 
-impl Operation for ExtendUnsortedOp {
-    fn operate(&self, input: Input, _: Input) {
+impl<T> Operation<T> for ExtendUnsortedOp<T>
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.extend_unsorted(self.0.iter().copied());
         input.btree_set.extend(self.0.iter().copied());
     }
@@ -482,13 +705,19 @@ impl Operation for ExtendUnsortedOp {
 struct UnionOp();
 
 impl UnionOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    where
+        T: SetMember<T>,
+    {
         (Some(Box::new(Self())), data)
     }
 }
 
-impl Operation for UnionOp {
-    fn operate(&self, a: Input, b: Input) {
+impl<T> Operation<T> for UnionOp
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, a: Input<T>, b: Input<T>) {
         a.int_set.union(b.int_set);
         for v in b.btree_set.iter() {
             a.btree_set.insert(*v);
@@ -506,16 +735,21 @@ impl Operation for UnionOp {
 struct IntersectOp();
 
 impl IntersectOp {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation>>, &[u8]) {
+    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    where
+        T: SetMember<T>,
+    {
         (Some(Box::new(Self())), data)
     }
 }
 
-impl Operation for IntersectOp {
-    fn operate(&self, a: Input, b: Input) {
+impl<T> Operation<T> for IntersectOp
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, a: Input<T>, b: Input<T>) {
         a.int_set.intersect(b.int_set);
-        let mut intersected: BTreeSet<u32> =
-            a.btree_set.intersection(b.btree_set).copied().collect();
+        let mut intersected: BTreeSet<T> = a.btree_set.intersection(b.btree_set).copied().collect();
         std::mem::swap(a.btree_set, &mut intersected);
     }
 
@@ -534,27 +768,25 @@ fn read_u8(data: &[u8]) -> (Option<u8>, &[u8]) {
     (Some(data[0]), &data[1..])
 }
 
-fn read_u32(data: &[u8]) -> (Option<u32>, &[u8]) {
+fn read_u32<T: SetMember<T>>(data: &[u8]) -> (Option<T>, &[u8]) {
     if data.len() < 4 {
         return (None, data);
     }
-    (
-        Some(
-            ((data[0] as u32) << 24)
-                | ((data[1] as u32) << 16)
-                | ((data[2] as u32) << 8)
-                | (data[3] as u32),
-        ),
-        &data[4..],
-    )
+
+    let u32_val = ((data[0] as u32) << 24)
+        | ((data[1] as u32) << 16)
+        | ((data[2] as u32) << 8)
+        | (data[3] as u32);
+
+    (T::create(u32_val), &data[4..])
 }
 
-fn read_u32_vec(data: &[u8]) -> (Option<Vec<u32>>, &[u8]) {
+fn read_u32_vec<T: SetMember<T>>(data: &[u8]) -> (Option<Vec<T>>, &[u8]) {
     let (Some(count), data) = read_u8(data) else {
         return (None, data);
     };
 
-    let mut values: Vec<u32> = vec![];
+    let mut values: Vec<T> = vec![];
     let mut data = data;
     for _ in 0..count {
         let r = read_u32(data);
@@ -567,13 +799,19 @@ fn read_u32_vec(data: &[u8]) -> (Option<Vec<u32>>, &[u8]) {
     (Some(values), data)
 }
 
-struct NextOperation<'a> {
-    op: Box<dyn Operation>,
+struct NextOperation<'a, T>
+where
+    T: SetMember<T>,
+{
+    op: Box<dyn Operation<T>>,
     set_index: usize,
     data: &'a [u8],
 }
 
-fn next_operation(data: &[u8]) -> Option<NextOperation> {
+fn next_operation<T>(data: &[u8]) -> Option<NextOperation<T>>
+where
+    T: SetMember<T> + 'static,
+{
     let op_code = data.first()?;
 
     // Check the msb of op code to see which set index to use.
