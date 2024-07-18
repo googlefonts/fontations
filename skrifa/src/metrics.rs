@@ -16,7 +16,7 @@
 //! to select the desired instance of a font:
 //! * Size: represented by the [Size] type, this determines the scaling factor that is
 //! applied to all metrics.
-//! * Normalized variation coordinates: respresented by the [LocationRef] type,
+//! * Normalized variation coordinates: represented by the [LocationRef] type,
 //! these define the position in design space for a variable font. For a non-variable
 //! font, these coordinates are ignored and you can pass [LocationRef::default()]
 //! as an argument for this parameter.

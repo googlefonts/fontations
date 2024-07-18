@@ -38,7 +38,7 @@ pub struct Outline<'a> {
     /// for each component. This tracks the maximum stack depth necessary
     /// to store those values during processing.
     pub max_component_delta_stack: usize,
-    /// Number of entires in the hinting value stack.
+    /// Number of entries in the hinting value stack.
     pub max_stack: usize,
     /// Number of CVT entries for copy-on-write support.
     pub cvt_count: usize,
