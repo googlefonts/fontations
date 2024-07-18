@@ -12,6 +12,8 @@ use std::cmp::max;
 
 use std::cmp::min;
 use std::fmt::Debug;
+use std::io::Cursor;
+use std::io::Read;
 use std::ops::Add;
 use std::ops::Bound::Excluded;
 use std::ops::Bound::Included;
@@ -24,8 +26,6 @@ use int_set::IntSet;
 use libfuzzer_sys::fuzz_target;
 
 const OPERATION_COUNT: usize = 7_500;
-
-// TODO(garretrieger): use "Cursor" to manage the input buffer.
 
 trait SetMember<T>: Domain<T> + Ord + Copy + Add<u32, Output = T> + Debug {
     fn create(val: u32) -> Option<T>;
@@ -153,11 +153,8 @@ impl<T> InsertOp<T>
 where
     T: SetMember<T> + 'static,
 {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
-        let (Some(val), data) = read_u32(data) else {
-            return (None, data);
-        };
-        (Some(Box::new(InsertOp::<T>(val))), data)
+    fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
+        Some(Box::new(InsertOp::<T>(read_u32(data)?)))
     }
 }
 
@@ -185,15 +182,10 @@ impl<T> InsertRangeOp<T>
 where
     T: SetMember<T> + 'static,
 {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
-        let (Some(min), data) = read_u32(data) else {
-            return (None, data);
-        };
-        let (Some(max), data) = read_u32(data) else {
-            return (None, data);
-        };
-
-        (Some(Box::new(InsertRangeOp::<T>(min, max))), data)
+    fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
+        let min = read_u32(data)?;
+        let max = read_u32(data)?;
+        Some(Box::new(InsertRangeOp::<T>(min, max)))
     }
 }
 
@@ -229,11 +221,8 @@ impl<T> RemoveOp<T>
 where
     T: SetMember<T> + 'static,
 {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
-        let (Some(val), data) = read_u32(data) else {
-            return (None, data);
-        };
-        (Some(Box::new(RemoveOp::<T>(val))), data)
+    fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
+        Some(Box::new(RemoveOp::<T>(read_u32(data)?)))
     }
 }
 
@@ -261,15 +250,10 @@ impl<T> RemoveRangeOp<T>
 where
     T: SetMember<T> + 'static,
 {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
-        let (Some(min), data) = read_u32(data) else {
-            return (None, data);
-        };
-        let (Some(max), data) = read_u32(data) else {
-            return (None, data);
-        };
-
-        (Some(Box::new(RemoveRangeOp::<T>(min, max))), data)
+    fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
+        let min = read_u32(data)?;
+        let max = read_u32(data)?;
+        Some(Box::new(RemoveRangeOp::<T>(min, max)))
     }
 }
 
@@ -298,11 +282,11 @@ where
 struct LengthOp();
 
 impl LengthOp {
-    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        (Some(Box::new(Self())), data)
+        Some(Box::new(Self()))
     }
 }
 
@@ -324,11 +308,11 @@ where
 struct IsEmptyOp();
 
 impl IsEmptyOp {
-    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        (Some(Box::new(Self())), data)
+        Some(Box::new(Self()))
     }
 }
 
@@ -354,11 +338,8 @@ impl<T> ContainsOp<T>
 where
     T: SetMember<T> + 'static,
 {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
-        let (Some(val), data) = read_u32(data) else {
-            return (None, data);
-        };
-        (Some(Box::new(ContainsOp::<T>(val))), data)
+    fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
+        Some(Box::new(ContainsOp::<T>(read_u32(data)?)))
     }
 }
 
@@ -383,11 +364,11 @@ where
 struct ClearOp();
 
 impl ClearOp {
-    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        (Some(Box::new(Self())), data)
+        Some(Box::new(Self()))
     }
 }
 
@@ -415,14 +396,10 @@ impl<T> IntersectsRangeOp<T>
 where
     T: SetMember<T> + 'static,
 {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
-        let (Some(min), data) = read_u32(data) else {
-            return (None, data);
-        };
-        let (Some(max), data) = read_u32(data) else {
-            return (None, data);
-        };
-        (Some(Box::new(IntersectsRangeOp::<T>(min, max))), data)
+    fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
+        let min = read_u32(data)?;
+        let max = read_u32(data)?;
+        Some(Box::new(IntersectsRangeOp::<T>(min, max)))
     }
 }
 
@@ -459,11 +436,11 @@ where
 struct FirstOp();
 
 impl FirstOp {
-    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        (Some(Box::new(Self())), data)
+        Some(Box::new(Self()))
     }
 }
 
@@ -485,11 +462,11 @@ where
 struct LastOp();
 
 impl LastOp {
-    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        (Some(Box::new(Self())), data)
+        Some(Box::new(Self()))
     }
 }
 
@@ -511,11 +488,11 @@ where
 struct IterOp();
 
 impl IterOp {
-    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        (Some(Box::new(Self())), data)
+        Some(Box::new(Self()))
     }
 }
 
@@ -537,11 +514,11 @@ where
 struct InclusiveIterOp();
 
 impl InclusiveIterOp {
-    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        (Some(Box::new(Self())), data)
+        Some(Box::new(Self()))
     }
 }
 
@@ -573,11 +550,11 @@ where
 struct IterRangesOp();
 
 impl IterRangesOp {
-    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        (Some(Box::new(Self())), data)
+        Some(Box::new(Self()))
     }
 }
 
@@ -623,11 +600,8 @@ impl<T> IterAfterOp<T>
 where
     T: SetMember<T> + 'static,
 {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
-        let (Some(val), data) = read_u32(data) else {
-            return (None, data);
-        };
-        (Some(Box::new(IterAfterOp::<T>(val))), data)
+    fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
+        Some(Box::new(IterAfterOp::<T>(read_u32(data)?)))
     }
 }
 
@@ -659,11 +633,8 @@ impl<T> RemoveAllOp<T>
 where
     T: SetMember<T> + 'static,
 {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
-        let (Some(values), data) = read_u32_vec(data) else {
-            return (None, data);
-        };
-        (Some(Box::new(RemoveAllOp::<T>(values))), data)
+    fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
+        Some(Box::new(RemoveAllOp::<T>(read_u32_vec(data)?)))
     }
 }
 
@@ -693,11 +664,8 @@ impl<T> ExtendOp<T>
 where
     T: SetMember<T> + 'static,
 {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
-        let (Some(values), data) = read_u32_vec(data) else {
-            return (None, data);
-        };
-        (Some(Box::new(Self(values))), data)
+    fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
+        Some(Box::new(Self(read_u32_vec(data)?)))
     }
 }
 
@@ -725,11 +693,8 @@ impl<T> ExtendUnsortedOp<T>
 where
     T: SetMember<T> + 'static,
 {
-    fn parse_args(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8]) {
-        let (Some(values), data) = read_u32_vec(data) else {
-            return (None, data);
-        };
-        (Some(Box::new(Self(values))), data)
+    fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
+        Some(Box::new(Self(read_u32_vec(data)?)))
     }
 }
 
@@ -752,11 +717,11 @@ where
 struct UnionOp();
 
 impl UnionOp {
-    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        (Some(Box::new(Self())), data)
+        Some(Box::new(Self()))
     }
 }
 
@@ -782,11 +747,11 @@ where
 struct IntersectOp();
 
 impl IntersectOp {
-    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        (Some(Box::new(Self())), data)
+        Some(Box::new(Self()))
     }
 }
 
@@ -811,11 +776,11 @@ where
 struct InvertOp();
 
 impl InvertOp {
-    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        (Some(Box::new(Self())), data)
+        Some(Box::new(Self()))
     }
 }
 
@@ -847,11 +812,11 @@ where
 struct IsInvertedOp();
 
 impl IsInvertedOp {
-    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        (Some(Box::new(Self())), data)
+        Some(Box::new(Self()))
     }
 }
 
@@ -870,103 +835,86 @@ where
 
 /* ### End of Ops ### */
 
-fn read_u8(data: &[u8]) -> (Option<u8>, &[u8]) {
-    if data.is_empty() {
-        return (None, data);
-    }
-    (Some(data[0]), &data[1..])
+fn read_u8(data: &mut Cursor<&[u8]>) -> Option<u8> {
+    let mut byte_val = [0];
+    data.read_exact(&mut byte_val).ok()?;
+    Some(byte_val[0])
 }
 
-fn read_u32<T: SetMember<T>>(data: &[u8]) -> (Option<T>, &[u8]) {
-    if data.len() < 4 {
-        return (None, data);
-    }
+fn read_u32<T: SetMember<T>>(data: &mut Cursor<&[u8]>) -> Option<T> {
+    let mut byte_val = [0, 0, 0, 0];
+    data.read_exact(&mut byte_val).ok()?;
 
-    let u32_val = ((data[0] as u32) << 24)
-        | ((data[1] as u32) << 16)
-        | ((data[2] as u32) << 8)
-        | (data[3] as u32);
+    let u32_val = ((byte_val[0] as u32) << 24)
+        | ((byte_val[1] as u32) << 16)
+        | ((byte_val[2] as u32) << 8)
+        | (byte_val[3] as u32);
 
-    (T::create(u32_val), &data[4..])
+    T::create(u32_val)
 }
 
-fn read_u32_vec<T: SetMember<T>>(data: &[u8]) -> (Option<Vec<T>>, &[u8]) {
-    let (Some(count), data) = read_u8(data) else {
-        return (None, data);
-    };
-
+fn read_u32_vec<T: SetMember<T>>(data: &mut Cursor<&[u8]>) -> Option<Vec<T>> {
+    let count = read_u8(data)?;
     let mut values: Vec<T> = vec![];
-    let mut data = data;
     for _ in 0..count {
-        let r = read_u32(data);
-        let Some(value) = r.0 else {
-            return (None, data);
-        };
-        data = r.1;
-        values.push(value);
+        values.push(read_u32(data)?);
     }
-    (Some(values), data)
+    Some(values)
 }
 
-struct NextOperation<'a, T>
+struct NextOperation<T>
 where
     T: SetMember<T>,
 {
     op: Box<dyn Operation<T>>,
     set_index: usize,
-    data: &'a [u8],
 }
 
-fn next_operation<T>(data: &[u8]) -> Option<NextOperation<T>>
+fn next_operation<T>(data: &mut Cursor<&[u8]>) -> Option<NextOperation<T>>
 where
     T: SetMember<T> + 'static,
 {
-    let op_code = data.first()?;
+    let op_code = read_u8(data)?;
 
     // Check the msb of op code to see which set index to use.
     const INDEX_MASK: u8 = 0b10000000;
     let set_index = if (op_code & INDEX_MASK) > 0 { 1 } else { 0 };
     let op_code = !INDEX_MASK & op_code;
 
-    let data = &data[1..];
-    let (op, data) = match op_code {
+    let op = match op_code {
         1 => InsertOp::parse_args(data),
         2 => RemoveOp::parse_args(data),
         3 => InsertRangeOp::parse_args(data),
         4 => RemoveRangeOp::parse_args(data),
-        5 => LengthOp::parse_args(data),
-        6 => IsEmptyOp::parse_args(data),
+        5 => LengthOp::parse_args(),
+        6 => IsEmptyOp::parse_args(),
         7 => ContainsOp::parse_args(data),
-        8 => ClearOp::parse_args(data),
+        8 => ClearOp::parse_args(),
         9 => IntersectsRangeOp::parse_args(data),
-        10 => FirstOp::parse_args(data),
-        11 => LastOp::parse_args(data),
-        12 => IterOp::parse_args(data),
-        13 => IterRangesOp::parse_args(data),
+        10 => FirstOp::parse_args(),
+        11 => LastOp::parse_args(),
+        12 => IterOp::parse_args(),
+        13 => IterRangesOp::parse_args(),
         14 => IterAfterOp::parse_args(data),
-        15 => InclusiveIterOp::parse_args(data),
+        15 => InclusiveIterOp::parse_args(),
         16 => RemoveAllOp::parse_args(data),
         17 => ExtendOp::parse_args(data),
         18 => ExtendUnsortedOp::parse_args(data),
-        19 => UnionOp::parse_args(data),
-        20 => IntersectOp::parse_args(data),
-        21 => IsInvertedOp::parse_args(data),
+        19 => UnionOp::parse_args(),
+        20 => IntersectOp::parse_args(),
+        21 => IsInvertedOp::parse_args(),
         22 => {
             if T::can_be_inverted() {
-                InvertOp::parse_args(data)
+                InvertOp::parse_args()
             } else {
-                (None, data)
+                None
             }
         }
-        _ => (None, data),
+        _ => None,
     };
 
     let op = op?;
-    Some(NextOperation {
-        op,
-        set_index,
-        data,
-    })
+    Some(NextOperation { op, set_index })
 }
 
 fn process_op_codes<T: SetMember<T> + 'static>(data: &[u8]) -> Result<(), Box<dyn Error>> {
@@ -975,15 +923,13 @@ fn process_op_codes<T: SetMember<T> + 'static>(data: &[u8]) -> Result<(), Box<dy
     let mut btree_set_0 = BTreeSet::<T>::new();
     let mut btree_set_1 = BTreeSet::<T>::new();
 
-    let mut ops = 0usize;
-    let mut data = data;
+    let mut ops_counter = 0usize;
+    let mut data = Cursor::new(data);
     loop {
-        let next_op = next_operation::<T>(data);
+        let next_op = next_operation::<T>(&mut data);
         let Some(next_op) = next_op else {
             break;
         };
-
-        data = next_op.data;
 
         {
             let btree_set = if next_op.set_index == 0 {
@@ -992,8 +938,8 @@ fn process_op_codes<T: SetMember<T> + 'static>(data: &[u8]) -> Result<(), Box<dy
                 &btree_set_1
             };
             // when computing size use minimum length of 2 to ensure minimum value of log2(length) is 1.
-            ops = ops.saturating_add(next_op.op.size(max(2, btree_set.len())));
-            if ops > OPERATION_COUNT {
+            ops_counter = ops_counter.saturating_add(next_op.op.size(max(2, btree_set.len())));
+            if ops_counter > OPERATION_COUNT {
                 // Operation count limit reached.
                 break;
             }
