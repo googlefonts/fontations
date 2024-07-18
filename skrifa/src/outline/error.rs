@@ -21,7 +21,7 @@ pub enum DrawError {
     InsufficientMemory,
     /// Exceeded a recursion limit when loading a glyph.
     RecursionLimitExceeded(GlyphId),
-    /// Error occured during hinting.
+    /// Error occurred during hinting.
     HintingFailed(HintError),
     /// An anchor point had invalid indices.
     InvalidAnchorPoint(GlyphId, u16),
@@ -29,7 +29,7 @@ pub enum DrawError {
     PostScript(CffError),
     /// Conversion from outline to path failed.
     ToPath(ToPathError),
-    /// Error occured when reading font data.
+    /// Error occurred when reading font data.
     Read(ReadError),
     /// HarfBuzz style drawing with hints is not supported
     // Error rather than silently returning unhinted per f2f discussion.

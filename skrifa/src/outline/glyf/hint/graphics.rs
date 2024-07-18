@@ -22,7 +22,7 @@ pub enum CoordAxis {
 /// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM04/Chap4.html>
 #[derive(Debug)]
 pub struct GraphicsState<'a> {
-    /// Fields of the graphics state that persist between calls to the intepreter.
+    /// Fields of the graphics state that persist between calls to the interpreter.
     pub retained: RetainedGraphicsState,
     /// A unit vector whose direction establishes an axis along which
     /// distances are measured.
@@ -88,7 +88,7 @@ pub struct GraphicsState<'a> {
     pub zones: [Zone<'a>; 2],
     /// True if the current glyph is a composite.
     pub is_composite: bool,
-    /// If true, enables a set of backward compabitility heuristics that
+    /// If true, enables a set of backward compatibility heuristics that
     /// prevent certain modifications to the outline. The purpose is to
     /// support "modern" vertical only hinting that attempts to preserve
     /// outline shape and metrics in the horizontal direction. This is

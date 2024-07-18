@@ -47,7 +47,7 @@ pub(crate) struct Outlines<'a> {
 impl<'a> Outlines<'a> {
     /// Creates a new scaler for the given font.
     ///
-    /// This will choose an underyling CFF2 or CFF table from the font, in that
+    /// This will choose an underlying CFF2 or CFF table from the font, in that
     /// order.
     pub fn new(font: &impl TableProvider<'a>) -> Result<Self, Error> {
         let units_per_em = font.head()?.units_per_em();
@@ -467,7 +467,7 @@ impl<'a, S: CommandSink> CommandSink for ScalingSink26Dot6<'a, S> {
     }
 }
 
-/// Command sink adapter that supresses degenerate move and line commands.
+/// Command sink adapter that suppresses degenerate move and line commands.
 ///
 /// FreeType avoids emitting empty contours and zero length lines to prevent
 /// artifacts when stem darkening is enabled. We don't support stem darkening

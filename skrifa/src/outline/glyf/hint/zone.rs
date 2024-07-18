@@ -421,7 +421,7 @@ impl GraphicsState<'_> {
         distance: F26Dot6,
     ) -> Result<(), HintErrorKind> {
         // Note: we never adjust x in backward compatibility mode and we never
-        // adjust y in backward compability mode after IUP has been done in
+        // adjust y in backward compatibility mode after IUP has been done in
         // both directions.
         //
         // The primary motivation is to avoid horizontal adjustments in cases

@@ -394,7 +394,7 @@ impl<'a> NamedInstanceCollection<'a> {
         })
     }
 
-    /// Returns an iterator over the instances in the colletion.
+    /// Returns an iterator over the instances in the collection.
     pub fn iter(&self) -> impl Iterator<Item = NamedInstance<'a>> + 'a + Clone {
         let copy = self.clone();
         (0..self.len()).filter_map(move |i| copy.get(i))

@@ -253,7 +253,7 @@ fn should_rebaseline() -> bool {
     env::var("REBASELINE_COLRV1_TESTS").is_ok()
 }
 
-// To regenerate the baselines, set the enviroment variable `REBASELINE_COLRV1_TESTS`
+// To regenerate the baselines, set the environment variable `REBASELINE_COLRV1_TESTS`
 // when running tests, for example like this:
 // $ REBASELINE_COLRV1_TESTS=1 cargo test color::traversal
 fn colrv1_traversal_test(

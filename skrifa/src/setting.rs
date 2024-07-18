@@ -83,7 +83,7 @@ impl<T: Copy> From<&(&str, T)> for Setting<T> {
 /// The `selector` field should contain a tag that corresponds to a
 /// variation axis while the `value` field specifies the desired position
 /// on the axis in user coordinates (i.e. within the range defined by
-/// the mininum and maximum values of the axis).
+/// the minimum and maximum values of the axis).
 ///
 /// # Example
 /// ```
