@@ -5,7 +5,7 @@
 
 use std::collections::HashSet;
 
-use font_types::GlyphId;
+use font_types::GlyphId16;
 
 use crate::{
     tables::layout::{
@@ -25,15 +25,15 @@ use super::{
 /// A trait for tables which participate in closure
 pub(crate) trait GlyphClosure {
     /// Update the set of glyphs with any glyphs reachable via substitution.
-    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId>) -> Result<(), ReadError>;
+    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId16>) -> Result<(), ReadError>;
 }
 
 impl<'a> Gsub<'a> {
-    /// Return the set of glyphs reachable from the input set via any substituion.
+    /// Return the set of glyphs reachable from the input set via any substitution.
     pub fn closure_glyphs(
         &self,
-        mut glyphs: HashSet<GlyphId>,
-    ) -> Result<HashSet<GlyphId>, ReadError> {
+        mut glyphs: HashSet<GlyphId16>,
+    ) -> Result<HashSet<GlyphId16>, ReadError> {
         // we need to do this iteratively, since any glyph found in one pass
         // over the lookups could also be the target of substitutions.
 
@@ -52,7 +52,7 @@ impl<'a> Gsub<'a> {
         Ok(glyphs)
     }
 
-    fn closure_glyphs_once(&self, glyphs: &mut HashSet<GlyphId>) -> Result<(), ReadError> {
+    fn closure_glyphs_once(&self, glyphs: &mut HashSet<GlyphId16>) -> Result<(), ReadError> {
         let lookups_to_use = self.find_reachable_lookups(glyphs)?;
         let lookup_list = self.lookup_list()?;
         for (i, lookup) in lookup_list.lookups().iter().enumerate() {
@@ -65,7 +65,10 @@ impl<'a> Gsub<'a> {
         Ok(())
     }
 
-    fn find_reachable_lookups(&self, glyphs: &HashSet<GlyphId>) -> Result<HashSet<u16>, ReadError> {
+    fn find_reachable_lookups(
+        &self,
+        glyphs: &HashSet<GlyphId16>,
+    ) -> Result<HashSet<u16>, ReadError> {
         let feature_list = self.feature_list()?;
         let lookup_list = self.lookup_list()?;
         // first we want to get the lookups that are directly referenced by a feature
@@ -120,7 +123,7 @@ impl<'a> Gsub<'a> {
 }
 
 impl<'a> GlyphClosure for SubstitutionSubtables<'a> {
-    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId>) -> Result<(), ReadError> {
+    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId16>) -> Result<(), ReadError> {
         match self {
             SubstitutionSubtables::Single(tables) => tables.add_reachable_glyphs(glyphs),
             SubstitutionSubtables::Multiple(tables) => tables.add_reachable_glyphs(glyphs),
@@ -135,14 +138,14 @@ impl<'a> GlyphClosure for SubstitutionSubtables<'a> {
 impl<'a, T: FontRead<'a> + GlyphClosure + 'a, Ext: ExtensionLookup<'a, T> + 'a> GlyphClosure
     for Subtables<'a, T, Ext>
 {
-    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId>) -> Result<(), ReadError> {
+    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId16>) -> Result<(), ReadError> {
         self.iter()
             .try_for_each(|t| t?.add_reachable_glyphs(glyphs))
     }
 }
 
 impl<'a> GlyphClosure for SingleSubst<'a> {
-    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId>) -> Result<(), ReadError> {
+    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId16>) -> Result<(), ReadError> {
         for (target, replacement) in self.iter_subs()? {
             if glyphs.contains(&target) {
                 glyphs.insert(replacement);
@@ -153,7 +156,7 @@ impl<'a> GlyphClosure for SingleSubst<'a> {
 }
 
 impl<'a> SingleSubst<'a> {
-    fn iter_subs(&self) -> Result<impl Iterator<Item = (GlyphId, GlyphId)> + '_, ReadError> {
+    fn iter_subs(&self) -> Result<impl Iterator<Item = (GlyphId16, GlyphId16)> + '_, ReadError> {
         let (left, right) = match self {
             SingleSubst::Format1(t) => (Some(t.iter_subs()?), None),
             SingleSubst::Format2(t) => (None, Some(t.iter_subs()?)),
@@ -166,19 +169,19 @@ impl<'a> SingleSubst<'a> {
 }
 
 impl<'a> SingleSubstFormat1<'a> {
-    fn iter_subs(&self) -> Result<impl Iterator<Item = (GlyphId, GlyphId)> + '_, ReadError> {
+    fn iter_subs(&self) -> Result<impl Iterator<Item = (GlyphId16, GlyphId16)> + '_, ReadError> {
         let delta = self.delta_glyph_id();
         let coverage = self.coverage()?;
         Ok(coverage.iter().filter_map(move |gid| {
             let raw = (gid.to_u16() as i32).checked_add(delta as i32);
             let raw = raw.and_then(|raw| u16::try_from(raw).ok())?;
-            Some((gid, GlyphId::new(raw)))
+            Some((gid, GlyphId16::new(raw)))
         }))
     }
 }
 
 impl<'a> SingleSubstFormat2<'a> {
-    fn iter_subs(&self) -> Result<impl Iterator<Item = (GlyphId, GlyphId)> + '_, ReadError> {
+    fn iter_subs(&self) -> Result<impl Iterator<Item = (GlyphId16, GlyphId16)> + '_, ReadError> {
         let coverage = self.coverage()?;
         let subs = self.substitute_glyph_ids();
         Ok(coverage.iter().zip(subs.iter().map(|id| id.get())))
@@ -186,7 +189,7 @@ impl<'a> SingleSubstFormat2<'a> {
 }
 
 impl<'a> GlyphClosure for MultipleSubstFormat1<'a> {
-    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId>) -> Result<(), ReadError> {
+    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId16>) -> Result<(), ReadError> {
         let coverage = self.coverage()?;
         let sequences = self.sequences();
         for (gid, replacements) in coverage.iter().zip(sequences.iter()) {
@@ -205,7 +208,7 @@ impl<'a> GlyphClosure for MultipleSubstFormat1<'a> {
 }
 
 impl<'a> GlyphClosure for AlternateSubstFormat1<'a> {
-    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId>) -> Result<(), ReadError> {
+    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId16>) -> Result<(), ReadError> {
         let coverage = self.coverage()?;
         let alts = self.alternate_sets();
         for (gid, alts) in coverage.iter().zip(alts.iter()) {
@@ -219,7 +222,7 @@ impl<'a> GlyphClosure for AlternateSubstFormat1<'a> {
 }
 
 impl<'a> GlyphClosure for LigatureSubstFormat1<'a> {
-    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId>) -> Result<(), ReadError> {
+    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId16>) -> Result<(), ReadError> {
         let coverage = self.coverage()?;
         let ligs = self.ligature_sets();
         for (gid, lig_set) in coverage.iter().zip(ligs.iter()) {
@@ -242,7 +245,7 @@ impl<'a> GlyphClosure for LigatureSubstFormat1<'a> {
 }
 
 impl GlyphClosure for ReverseChainSingleSubstFormat1<'_> {
-    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId>) -> Result<(), ReadError> {
+    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId16>) -> Result<(), ReadError> {
         for coverage in self
             .backtrack_coverages()
             .iter()
@@ -266,7 +269,7 @@ impl GlyphClosure for ReverseChainSingleSubstFormat1<'_> {
 impl SequenceContext<'_> {
     fn add_reachable_lookups(
         &self,
-        glyphs: &HashSet<GlyphId>,
+        glyphs: &HashSet<GlyphId16>,
         lookups: &mut HashSet<u16>,
     ) -> Result<(), ReadError> {
         match self {
@@ -280,7 +283,7 @@ impl SequenceContext<'_> {
 impl SequenceContextFormat1<'_> {
     fn add_reachable_lookups(
         &self,
-        glyphs: &HashSet<GlyphId>,
+        glyphs: &HashSet<GlyphId16>,
         lookups: &mut HashSet<u16>,
     ) -> Result<(), ReadError> {
         let coverage = self.coverage()?;
@@ -311,7 +314,7 @@ impl SequenceContextFormat1<'_> {
 impl SequenceContextFormat2<'_> {
     fn add_reachable_lookups(
         &self,
-        glyphs: &HashSet<GlyphId>,
+        glyphs: &HashSet<GlyphId16>,
         lookups: &mut HashSet<u16>,
     ) -> Result<(), ReadError> {
         let classdef = self.class_def()?;
@@ -344,7 +347,7 @@ impl SequenceContextFormat2<'_> {
 impl SequenceContextFormat3<'_> {
     fn add_reachable_lookups(
         &self,
-        glyphs: &HashSet<GlyphId>,
+        glyphs: &HashSet<GlyphId16>,
         lookups: &mut HashSet<u16>,
     ) -> Result<(), ReadError> {
         for coverage in self.coverages().iter() {
@@ -364,7 +367,7 @@ impl SequenceContextFormat3<'_> {
 impl ChainedSequenceContext<'_> {
     fn add_reachable_lookups(
         &self,
-        glyphs: &HashSet<GlyphId>,
+        glyphs: &HashSet<GlyphId16>,
         lookups: &mut HashSet<u16>,
     ) -> Result<(), ReadError> {
         match self {
@@ -378,7 +381,7 @@ impl ChainedSequenceContext<'_> {
 impl ChainedSequenceContextFormat1<'_> {
     fn add_reachable_lookups(
         &self,
-        glyphs: &HashSet<GlyphId>,
+        glyphs: &HashSet<GlyphId16>,
         lookups: &mut HashSet<u16>,
     ) -> Result<(), ReadError> {
         let coverage = self.coverage()?;
@@ -411,7 +414,7 @@ impl ChainedSequenceContextFormat1<'_> {
 impl ChainedSequenceContextFormat2<'_> {
     fn add_reachable_lookups(
         &self,
-        glyphs: &HashSet<GlyphId>,
+        glyphs: &HashSet<GlyphId16>,
         lookups: &mut HashSet<u16>,
     ) -> Result<(), ReadError> {
         let input = self.input_class_def()?;
@@ -457,7 +460,7 @@ impl ChainedSequenceContextFormat2<'_> {
 impl ChainedSequenceContextFormat3<'_> {
     fn add_reachable_lookups(
         &self,
-        glyphs: &HashSet<GlyphId>,
+        glyphs: &HashSet<GlyphId16>,
         lookups: &mut HashSet<u16>,
     ) -> Result<(), ReadError> {
         for coverage in self
@@ -479,7 +482,7 @@ impl ChainedSequenceContextFormat3<'_> {
     }
 }
 
-fn make_class_set(glyphs: &HashSet<GlyphId>, classdef: &ClassDef) -> HashSet<u16> {
+fn make_class_set(glyphs: &HashSet<GlyphId16>, classdef: &ClassDef) -> HashSet<u16> {
     glyphs.iter().map(|gid| classdef.get(*gid)).collect()
 }
 
@@ -493,8 +496,8 @@ mod tests {
     use font_test_data::closure as test_data;
 
     struct GlyphMap {
-        to_gid: HashMap<&'static str, GlyphId>,
-        from_gid: HashMap<GlyphId, &'static str>,
+        to_gid: HashMap<&'static str, GlyphId16>,
+        from_gid: HashMap<GlyphId16, &'static str>,
     }
 
     impl GlyphMap {
@@ -504,17 +507,17 @@ mod tests {
                 .map(|line| line.trim())
                 .filter(|line| !(line.starts_with('#') || line.is_empty()))
                 .enumerate()
-                .map(|(gid, name)| (name, GlyphId::new(gid.try_into().unwrap())))
+                .map(|(gid, name)| (name, GlyphId16::new(gid.try_into().unwrap())))
                 .collect();
             let from_gid = to_gid.iter().map(|(name, gid)| (*gid, *name)).collect();
             GlyphMap { from_gid, to_gid }
         }
 
-        fn get_gid(&self, name: &str) -> Option<GlyphId> {
+        fn get_gid(&self, name: &str) -> Option<GlyphId16> {
             self.to_gid.get(name).copied()
         }
 
-        fn get_name(&self, gid: GlyphId) -> Option<&str> {
+        fn get_name(&self, gid: GlyphId16) -> Option<&str> {
             self.from_gid.get(&gid).copied()
         }
     }
@@ -524,7 +527,7 @@ mod tests {
         font.gsub().unwrap()
     }
 
-    fn compute_closure(gsub: &Gsub, glyph_map: &GlyphMap, input: &[&str]) -> HashSet<GlyphId> {
+    fn compute_closure(gsub: &Gsub, glyph_map: &GlyphMap, input: &[&str]) -> HashSet<GlyphId16> {
         let input_glyphs = input
             .iter()
             .map(|name| glyph_map.get_gid(name).unwrap())

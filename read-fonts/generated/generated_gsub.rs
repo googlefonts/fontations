@@ -249,6 +249,14 @@ pub enum SingleSubst<'a> {
 }
 
 impl<'a> SingleSubst<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier: format = 1
     pub fn subst_format(&self) -> u16 {
         match self {
@@ -431,7 +439,7 @@ impl<'a> FontRead<'a> for SingleSubstFormat2<'a> {
         cursor.advance::<Offset16>();
         let glyph_count: u16 = cursor.read()?;
         let substitute_glyph_ids_byte_len = (glyph_count as usize)
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(substitute_glyph_ids_byte_len);
         cursor.finish(SingleSubstFormat2Marker {
@@ -470,7 +478,7 @@ impl<'a> SingleSubstFormat2<'a> {
     }
 
     /// Array of substitute glyph IDs — ordered by Coverage index
-    pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.substitute_glyph_ids_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -657,7 +665,7 @@ impl<'a> FontRead<'a> for Sequence<'a> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
         let substitute_glyph_ids_byte_len = (glyph_count as usize)
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(substitute_glyph_ids_byte_len);
         cursor.finish(SequenceMarker {
@@ -678,7 +686,7 @@ impl<'a> Sequence<'a> {
     }
 
     /// String of glyph IDs to substitute
-    pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.substitute_glyph_ids_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -863,7 +871,7 @@ impl<'a> FontRead<'a> for AlternateSet<'a> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
         let alternate_glyph_ids_byte_len = (glyph_count as usize)
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(alternate_glyph_ids_byte_len);
         cursor.finish(AlternateSetMarker {
@@ -883,7 +891,7 @@ impl<'a> AlternateSet<'a> {
     }
 
     /// Array of alternate glyph IDs, in arbitrary order
-    pub fn alternate_glyph_ids(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn alternate_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.alternate_glyph_ids_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1143,7 +1151,7 @@ pub struct LigatureMarker {
 impl LigatureMarker {
     fn ligature_glyph_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + GlyphId::RAW_BYTE_LEN
+        start..start + GlyphId16::RAW_BYTE_LEN
     }
     fn component_count_byte_range(&self) -> Range<usize> {
         let start = self.ligature_glyph_byte_range().end;
@@ -1158,10 +1166,10 @@ impl LigatureMarker {
 impl<'a> FontRead<'a> for Ligature<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<GlyphId>();
+        cursor.advance::<GlyphId16>();
         let component_count: u16 = cursor.read()?;
         let component_glyph_ids_byte_len = (transforms::subtract(component_count, 1_usize))
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(component_glyph_ids_byte_len);
         cursor.finish(LigatureMarker {
@@ -1175,7 +1183,7 @@ pub type Ligature<'a> = TableRef<'a, LigatureMarker>;
 
 impl<'a> Ligature<'a> {
     /// glyph ID of ligature to substitute
-    pub fn ligature_glyph(&self) -> GlyphId {
+    pub fn ligature_glyph(&self) -> GlyphId16 {
         let range = self.shape.ligature_glyph_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -1188,7 +1196,7 @@ impl<'a> Ligature<'a> {
 
     /// Array of component glyph IDs — start with the second
     /// component, ordered in writing direction
-    pub fn component_glyph_ids(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn component_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.component_glyph_ids_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1497,7 +1505,7 @@ impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1<'a> {
         cursor.advance_by(lookahead_coverage_offsets_byte_len);
         let glyph_count: u16 = cursor.read()?;
         let substitute_glyph_ids_byte_len = (glyph_count as usize)
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(substitute_glyph_ids_byte_len);
         cursor.finish(ReverseChainSingleSubstFormat1Marker {
@@ -1578,7 +1586,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     }
 
     /// Array of substitute glyph IDs — ordered by Coverage index.
-    pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.substitute_glyph_ids_byte_range();
         self.data.read_array(range).unwrap()
     }

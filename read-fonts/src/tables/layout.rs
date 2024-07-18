@@ -145,7 +145,7 @@ impl FeatureTableSubstitutionRecord {
 }
 
 impl<'a> CoverageTable<'a> {
-    pub fn iter(&self) -> impl Iterator<Item = GlyphId> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + 'a {
         // all one expression so that we have a single return type
         let (iter1, iter2) = match self {
             CoverageTable::Format1(t) => (Some(t.glyph_array().iter().map(|g| g.get())), None),
@@ -162,7 +162,7 @@ impl<'a> CoverageTable<'a> {
     }
 
     /// If this glyph is in the coverage table, returns its index
-    pub fn get(&self, gid: GlyphId) -> Option<u16> {
+    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
         match self {
             CoverageTable::Format1(sub) => sub.get(gid),
             CoverageTable::Format2(sub) => sub.get(gid),
@@ -172,8 +172,9 @@ impl<'a> CoverageTable<'a> {
 
 impl CoverageFormat1<'_> {
     /// If this glyph is in the coverage table, returns its index
-    pub fn get(&self, gid: GlyphId) -> Option<u16> {
-        let be_glyph: BigEndian<GlyphId> = gid.into();
+    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
+        let gid16: GlyphId16 = gid.into().try_into().ok()?;
+        let be_glyph: BigEndian<GlyphId16> = gid16.into();
         self.glyph_array()
             .binary_search(&be_glyph)
             .ok()
@@ -183,7 +184,8 @@ impl CoverageFormat1<'_> {
 
 impl CoverageFormat2<'_> {
     /// If this glyph is in the coverage table, returns its index
-    pub fn get(&self, gid: GlyphId) -> Option<u16> {
+    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
+        let gid: GlyphId16 = gid.into().try_into().ok()?;
         self.range_records()
             .binary_search_by(|rec| {
                 if rec.end_glyph_id() < gid {
@@ -203,8 +205,8 @@ impl CoverageFormat2<'_> {
 }
 
 impl RangeRecord {
-    fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
-        (self.start_glyph_id().to_u16()..=self.end_glyph_id().to_u16()).map(GlyphId::new)
+    fn iter(&self) -> impl Iterator<Item = GlyphId16> + '_ {
+        (self.start_glyph_id().to_u16()..=self.end_glyph_id().to_u16()).map(GlyphId16::new)
     }
 }
 
@@ -234,7 +236,7 @@ impl From<DeltaFormat> for i64 {
 
 impl<'a> ClassDefFormat1<'a> {
     /// Get the class for this glyph id
-    pub fn get(&self, gid: GlyphId) -> u16 {
+    pub fn get(&self, gid: GlyphId16) -> u16 {
         if gid < self.start_glyph_id() {
             return 0;
         }
@@ -246,21 +248,21 @@ impl<'a> ClassDefFormat1<'a> {
     }
 
     /// Iterate over each glyph and its class.
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + 'a {
         let start = self.start_glyph_id();
         self.class_value_array()
             .iter()
             .enumerate()
             .map(move |(i, val)| {
                 let gid = start.to_u16().saturating_add(i as u16);
-                (GlyphId::new(gid), val.get())
+                (GlyphId16::new(gid), val.get())
             })
     }
 }
 
 impl<'a> ClassDefFormat2<'a> {
     /// Get the class for this glyph id
-    pub fn get(&self, gid: GlyphId) -> u16 {
+    pub fn get(&self, gid: GlyphId16) -> u16 {
         let records = self.class_range_records();
         let ix = match records.binary_search_by(|rec| rec.start_glyph_id().cmp(&gid)) {
             Ok(ix) => ix,
@@ -275,18 +277,18 @@ impl<'a> ClassDefFormat2<'a> {
     }
 
     /// Iterate over each glyph and its class.
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + 'a {
         self.class_range_records().iter().flat_map(|range| {
             let start = range.start_glyph_id().to_u16();
             let end = range.end_glyph_id().to_u16();
-            (start..=end).map(|gid| (GlyphId::new(gid), range.class()))
+            (start..=end).map(|gid| (GlyphId16::new(gid), range.class()))
         })
     }
 }
 
 impl ClassDef<'_> {
     /// Get the class for this glyph id
-    pub fn get(&self, gid: GlyphId) -> u16 {
+    pub fn get(&self, gid: GlyphId16) -> u16 {
         match self {
             ClassDef::Format1(table) => table.get(gid),
             ClassDef::Format2(table) => table.get(gid),
@@ -296,7 +298,7 @@ impl ClassDef<'_> {
     /// Iterate over each glyph and its class.
     ///
     /// This will not include class 0 unless it has been explicitly assigned.
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + '_ {
         let (one, two) = match self {
             ClassDef::Format1(inner) => (Some(inner.iter()), None),
             ClassDef::Format2(inner) => (None, Some(inner.iter())),
@@ -414,7 +416,7 @@ mod tests {
             (661, 2),
         ];
         for (gid, class) in gid_class_pairs {
-            assert_eq!(classdef.get(GlyphId::new(gid)), class);
+            assert_eq!(classdef.get(GlyphId16::new(gid)), class);
         }
         for (gid, class) in classdef.iter() {
             assert_eq!(classdef.get(gid), class);

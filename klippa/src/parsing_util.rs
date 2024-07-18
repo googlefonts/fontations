@@ -6,21 +6,24 @@ use crate::SubsetError;
 pub fn populate_gids(gid_str: &str) -> Result<IntSet<GlyphId>, SubsetError> {
     let mut result = IntSet::empty();
 
+    if gid_str.is_empty() {
+        return Ok(result);
+    }
     for gid in gid_str.split(',') {
         if let Some((start, end)) = gid.split_once('-') {
-            let start: u16 = start
-                .parse::<u16>()
+            let start: u32 = start
+                .parse::<u32>()
                 .map_err(|_| SubsetError::InvalidGid(start.to_owned()))?;
-            let end: u16 = end
-                .parse::<u16>()
+            let end: u32 = end
+                .parse::<u32>()
                 .map_err(|_| SubsetError::InvalidGid(end.to_owned()))?;
             if start > end {
                 return Err(SubsetError::InvalidGidRange { start, end });
             }
             result.extend((start..=end).map(GlyphId::new));
         } else {
-            let glyph_id: u16 = gid
-                .parse::<u16>()
+            let glyph_id: u32 = gid
+                .parse::<u32>()
                 .map_err(|_| SubsetError::InvalidGid(gid.to_owned()))?;
             result.insert(GlyphId::new(glyph_id));
         }
@@ -37,6 +40,9 @@ pub fn parse_unicodes(unicode_str: &str) -> Result<IntSet<u32>, SubsetError> {
         return Ok(out);
     }
     let mut result = IntSet::empty();
+    if unicode_str.is_empty() {
+        return Ok(result);
+    }
     let re = regex::Regex::new(r"[><\+,;&#}{\\xXuUnNiI\n\t\v\f\r]").unwrap();
     let s = re.replace_all(unicode_str, " ");
     for cp in s.split_whitespace() {

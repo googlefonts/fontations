@@ -130,6 +130,7 @@ table Lookup {
     /// Index (base 0) into GDEF mark glyph sets structure. This field
     /// is only present if the USE_MARK_FILTERING_SET lookup flag is
     /// set.
+    #[if_flag($lookup_flag, LookupFlag::USE_MARK_FILTERING_SET)]
     mark_filtering_set: u16,
 }
 
@@ -143,7 +144,7 @@ table CoverageFormat1 {
     glyph_count: u16,
     /// Array of glyph IDs — in numerical order
     #[count($glyph_count)]
-    glyph_array: [GlyphId],
+    glyph_array: [GlyphId16],
 }
 
 /// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
@@ -162,9 +163,9 @@ table CoverageFormat2 {
 /// Used in [CoverageFormat2]
 record RangeRecord {
     /// First glyph ID in the range
-    start_glyph_id: GlyphId,
+    start_glyph_id: GlyphId16,
     /// Last glyph ID in the range
-    end_glyph_id: GlyphId,
+    end_glyph_id: GlyphId16,
     /// Coverage Index of first glyph ID in range
     start_coverage_index: u16,
 }
@@ -181,7 +182,7 @@ table ClassDefFormat1 {
     #[format = 1]
     class_format: u16,
     /// First glyph ID of the classValueArray
-    start_glyph_id: GlyphId,
+    start_glyph_id: GlyphId16,
     /// Size of the classValueArray
     #[compile(array_len($class_value_array))]
     glyph_count: u16,
@@ -207,9 +208,9 @@ table ClassDefFormat2 {
 record ClassRangeRecord {
     /// First glyph ID in the range
     #[validate(validate_glyph_range)]
-    start_glyph_id: GlyphId,
+    start_glyph_id: GlyphId16,
     /// Last glyph ID in the range
-    end_glyph_id: GlyphId,
+    end_glyph_id: GlyphId16,
     /// Applied to all glyphs in the range
     class: u16,
 }
@@ -267,7 +268,7 @@ table SequenceRule {
     seq_lookup_count: u16,
     /// Array of input glyph IDs—starting with the second glyph
     #[count(subtract($glyph_count, 1))]
-    input_sequence: [GlyphId],
+    input_sequence: [GlyphId16],
     /// Array of Sequence lookup records
     #[count($seq_lookup_count)]
     seq_lookup_records: [SequenceLookupRecord],
@@ -384,19 +385,19 @@ table ChainedSequenceRule {
     backtrack_glyph_count: u16,
     /// Array of backtrack glyph IDs
     #[count($backtrack_glyph_count)]
-    backtrack_sequence: [GlyphId],
+    backtrack_sequence: [GlyphId16],
     /// Number of glyphs in the input sequence
     #[compile(plus_one($input_sequence.len()))]
     input_glyph_count: u16,
     /// Array of input glyph IDs—start with second glyph
     #[count(subtract($input_glyph_count, 1))]
-    input_sequence: [GlyphId],
+    input_sequence: [GlyphId16],
     /// Number of glyphs in the lookahead sequence
     #[compile(array_len($lookahead_sequence))]
     lookahead_glyph_count: u16,
     /// Array of lookahead glyph IDs
     #[count($lookahead_glyph_count)]
-    lookahead_sequence: [GlyphId],
+    lookahead_sequence: [GlyphId16],
     /// Number of SequenceLookupRecords
     #[compile(array_len($seq_lookup_records))]
     seq_lookup_count: u16,

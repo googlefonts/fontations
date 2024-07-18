@@ -770,6 +770,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for LookupList<'a
 #[doc(hidden)]
 pub struct LookupMarker<T = ()> {
     subtable_offsets_byte_len: usize,
+    mark_filtering_set_byte_start: Option<usize>,
     offset_type: std::marker::PhantomData<*const T>,
 }
 
@@ -790,9 +791,9 @@ impl<T> LookupMarker<T> {
         let start = self.sub_table_count_byte_range().end;
         start..start + self.subtable_offsets_byte_len
     }
-    fn mark_filtering_set_byte_range(&self) -> Range<usize> {
-        let start = self.subtable_offsets_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+    fn mark_filtering_set_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.mark_filtering_set_byte_start?;
+        Some(start..start + u16::RAW_BYTE_LEN)
     }
 }
 
@@ -808,15 +809,22 @@ impl<'a, T> FontRead<'a> for Lookup<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
-        cursor.advance::<LookupFlag>();
+        let lookup_flag: LookupFlag = cursor.read()?;
         let sub_table_count: u16 = cursor.read()?;
         let subtable_offsets_byte_len = (sub_table_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(subtable_offsets_byte_len);
-        cursor.advance::<u16>();
+        let mark_filtering_set_byte_start = lookup_flag
+            .contains(LookupFlag::USE_MARK_FILTERING_SET)
+            .then(|| cursor.position())
+            .transpose()?;
+        lookup_flag
+            .contains(LookupFlag::USE_MARK_FILTERING_SET)
+            .then(|| cursor.advance::<u16>());
         cursor.finish(LookupMarker {
             subtable_offsets_byte_len,
+            mark_filtering_set_byte_start,
             offset_type: std::marker::PhantomData,
         })
     }
@@ -829,6 +837,7 @@ impl<'a> Lookup<'a, ()> {
         TableRef {
             shape: LookupMarker {
                 subtable_offsets_byte_len: shape.subtable_offsets_byte_len,
+                mark_filtering_set_byte_start: shape.mark_filtering_set_byte_start,
                 offset_type: std::marker::PhantomData,
             },
             data,
@@ -844,6 +853,7 @@ impl<'a, T> Lookup<'a, T> {
         TableRef {
             shape: LookupMarker {
                 subtable_offsets_byte_len: shape.subtable_offsets_byte_len,
+                mark_filtering_set_byte_start: shape.mark_filtering_set_byte_start,
                 offset_type: std::marker::PhantomData,
             },
             data: *data,
@@ -893,9 +903,9 @@ impl<'a, T> Lookup<'a, T> {
     /// Index (base 0) into GDEF mark glyph sets structure. This field
     /// is only present if the USE_MARK_FILTERING_SET lookup flag is
     /// set.
-    pub fn mark_filtering_set(&self) -> u16 {
-        let range = self.shape.mark_filtering_set_byte_range();
-        self.data.read_at(range.start).unwrap()
+    pub fn mark_filtering_set(&self) -> Option<u16> {
+        let range = self.shape.mark_filtering_set_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
     }
 }
 
@@ -905,6 +915,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
         "Lookup"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let lookup_flag = self.lookup_flag();
         match idx {
             0usize => Some(Field::new("lookup_type", self.lookup_type())),
             1usize => Some(Field::new("lookup_flag", self.traverse_lookup_flag())),
@@ -923,7 +934,10 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
                     ),
                 )
             }),
-            4usize => Some(Field::new("mark_filtering_set", self.mark_filtering_set())),
+            4usize if lookup_flag.contains(LookupFlag::USE_MARK_FILTERING_SET) => Some(Field::new(
+                "mark_filtering_set",
+                self.mark_filtering_set().unwrap(),
+            )),
             _ => None,
         }
     }
@@ -968,7 +982,7 @@ impl<'a> FontRead<'a> for CoverageFormat1<'a> {
         cursor.advance::<u16>();
         let glyph_count: u16 = cursor.read()?;
         let glyph_array_byte_len = (glyph_count as usize)
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(glyph_array_byte_len);
         cursor.finish(CoverageFormat1Marker {
@@ -994,7 +1008,7 @@ impl<'a> CoverageFormat1<'a> {
     }
 
     /// Array of glyph IDs — in numerical order
-    pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.glyph_array_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1121,21 +1135,21 @@ impl<'a> std::fmt::Debug for CoverageFormat2<'a> {
 #[repr(packed)]
 pub struct RangeRecord {
     /// First glyph ID in the range
-    pub start_glyph_id: BigEndian<GlyphId>,
+    pub start_glyph_id: BigEndian<GlyphId16>,
     /// Last glyph ID in the range
-    pub end_glyph_id: BigEndian<GlyphId>,
+    pub end_glyph_id: BigEndian<GlyphId16>,
     /// Coverage Index of first glyph ID in range
     pub start_coverage_index: BigEndian<u16>,
 }
 
 impl RangeRecord {
     /// First glyph ID in the range
-    pub fn start_glyph_id(&self) -> GlyphId {
+    pub fn start_glyph_id(&self) -> GlyphId16 {
         self.start_glyph_id.get()
     }
 
     /// Last glyph ID in the range
-    pub fn end_glyph_id(&self) -> GlyphId {
+    pub fn end_glyph_id(&self) -> GlyphId16 {
         self.end_glyph_id.get()
     }
 
@@ -1146,7 +1160,8 @@ impl RangeRecord {
 }
 
 impl FixedSize for RangeRecord {
-    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize =
+        GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -1176,6 +1191,14 @@ pub enum CoverageTable<'a> {
 }
 
 impl<'a> CoverageTable<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier — format = 1
     pub fn coverage_format(&self) -> u16 {
         match self {
@@ -1241,7 +1264,7 @@ impl ClassDefFormat1Marker {
     }
     fn start_glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.class_format_byte_range().end;
-        start..start + GlyphId::RAW_BYTE_LEN
+        start..start + GlyphId16::RAW_BYTE_LEN
     }
     fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.start_glyph_id_byte_range().end;
@@ -1257,7 +1280,7 @@ impl<'a> FontRead<'a> for ClassDefFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
-        cursor.advance::<GlyphId>();
+        cursor.advance::<GlyphId16>();
         let glyph_count: u16 = cursor.read()?;
         let class_value_array_byte_len = (glyph_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
@@ -1280,7 +1303,7 @@ impl<'a> ClassDefFormat1<'a> {
     }
 
     /// First glyph ID of the classValueArray
-    pub fn start_glyph_id(&self) -> GlyphId {
+    pub fn start_glyph_id(&self) -> GlyphId16 {
         let range = self.shape.start_glyph_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -1420,21 +1443,21 @@ impl<'a> std::fmt::Debug for ClassDefFormat2<'a> {
 #[repr(packed)]
 pub struct ClassRangeRecord {
     /// First glyph ID in the range
-    pub start_glyph_id: BigEndian<GlyphId>,
+    pub start_glyph_id: BigEndian<GlyphId16>,
     /// Last glyph ID in the range
-    pub end_glyph_id: BigEndian<GlyphId>,
+    pub end_glyph_id: BigEndian<GlyphId16>,
     /// Applied to all glyphs in the range
     pub class: BigEndian<u16>,
 }
 
 impl ClassRangeRecord {
     /// First glyph ID in the range
-    pub fn start_glyph_id(&self) -> GlyphId {
+    pub fn start_glyph_id(&self) -> GlyphId16 {
         self.start_glyph_id.get()
     }
 
     /// Last glyph ID in the range
-    pub fn end_glyph_id(&self) -> GlyphId {
+    pub fn end_glyph_id(&self) -> GlyphId16 {
         self.end_glyph_id.get()
     }
 
@@ -1445,7 +1468,8 @@ impl ClassRangeRecord {
 }
 
 impl FixedSize for ClassRangeRecord {
-    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize =
+        GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -1472,6 +1496,14 @@ pub enum ClassDef<'a> {
 }
 
 impl<'a> ClassDef<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier — format = 1
     pub fn class_format(&self) -> u16 {
         match self {
@@ -1814,7 +1846,7 @@ impl<'a> FontRead<'a> for SequenceRule<'a> {
         let glyph_count: u16 = cursor.read()?;
         let seq_lookup_count: u16 = cursor.read()?;
         let input_sequence_byte_len = (transforms::subtract(glyph_count, 1_usize))
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(input_sequence_byte_len);
         let seq_lookup_records_byte_len = (seq_lookup_count as usize)
@@ -1845,7 +1877,7 @@ impl<'a> SequenceRule<'a> {
     }
 
     /// Array of input glyph IDs—starting with the second glyph
-    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -2395,6 +2427,15 @@ pub enum SequenceContext<'a> {
 }
 
 impl<'a> SequenceContext<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier: format = 1
     pub fn format(&self) -> u16 {
         match self {
@@ -2723,17 +2764,17 @@ impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
         let mut cursor = data.cursor();
         let backtrack_glyph_count: u16 = cursor.read()?;
         let backtrack_sequence_byte_len = (backtrack_glyph_count as usize)
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(backtrack_sequence_byte_len);
         let input_glyph_count: u16 = cursor.read()?;
         let input_sequence_byte_len = (transforms::subtract(input_glyph_count, 1_usize))
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(input_sequence_byte_len);
         let lookahead_glyph_count: u16 = cursor.read()?;
         let lookahead_sequence_byte_len = (lookahead_glyph_count as usize)
-            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(lookahead_sequence_byte_len);
         let seq_lookup_count: u16 = cursor.read()?;
@@ -2761,7 +2802,7 @@ impl<'a> ChainedSequenceRule<'a> {
     }
 
     /// Array of backtrack glyph IDs
-    pub fn backtrack_sequence(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn backtrack_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.backtrack_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -2773,7 +2814,7 @@ impl<'a> ChainedSequenceRule<'a> {
     }
 
     /// Array of input glyph IDs—start with second glyph
-    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -2785,7 +2826,7 @@ impl<'a> ChainedSequenceRule<'a> {
     }
 
     /// Array of lookahead glyph IDs
-    pub fn lookahead_sequence(&self) -> &'a [BigEndian<GlyphId>] {
+    pub fn lookahead_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.lookahead_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -3571,6 +3612,15 @@ pub enum ChainedSequenceContext<'a> {
 }
 
 impl<'a> ChainedSequenceContext<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier: format = 1
     pub fn format(&self) -> u16 {
         match self {
@@ -3857,6 +3907,16 @@ impl<'a> std::fmt::Debug for VariationIndex<'a> {
 pub enum DeviceOrVariationIndex<'a> {
     Device(Device<'a>),
     VariationIndex(VariationIndex<'a>),
+}
+
+impl<'a> DeviceOrVariationIndex<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Device(item) => item.offset_data(),
+            Self::VariationIndex(item) => item.offset_data(),
+        }
+    }
 }
 
 impl<'a> FontRead<'a> for DeviceOrVariationIndex<'a> {
@@ -4178,6 +4238,17 @@ pub enum Condition<'a> {
 }
 
 impl<'a> Condition<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1AxisRange(item) => item.offset_data(),
+            Self::Format2VariableValue(item) => item.offset_data(),
+            Self::Format3And(item) => item.offset_data(),
+            Self::Format4Or(item) => item.offset_data(),
+            Self::Format5Negate(item) => item.offset_data(),
+        }
+    }
+
     /// Format, = 1
     pub fn format(&self) -> u16 {
         match self {

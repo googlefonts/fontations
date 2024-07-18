@@ -467,7 +467,8 @@ pub(crate) fn traverse_with_callbacks(
         }
 
         ResolvedPaint::Glyph { glyph_id, paint } => {
-            let mut optimizer = CollectFillGlyphPainter::new(painter, *glyph_id);
+            let glyph_id = (*glyph_id).into();
+            let mut optimizer = CollectFillGlyphPainter::new(painter, glyph_id);
             let mut result = traverse_with_callbacks(
                 &resolve_paint(instance, paint)?,
                 instance,
@@ -478,7 +479,7 @@ pub(crate) fn traverse_with_callbacks(
 
             // In case the optimization was not successful, just push a clip, and continue unoptimized traversal.
             if !optimizer.optimization_success {
-                painter.push_clip_glyph(*glyph_id);
+                painter.push_clip_glyph(glyph_id);
                 result = traverse_with_callbacks(
                     &resolve_paint(instance, paint)?,
                     instance,
@@ -491,40 +492,43 @@ pub(crate) fn traverse_with_callbacks(
 
             result
         }
-        ResolvedPaint::ColrGlyph { glyph_id } => match (*instance).v1_base_glyph(*glyph_id)? {
-            Some((base_glyph, base_glyph_paint_id)) => {
-                if !visited_set.insert(base_glyph_paint_id) {
-                    return Err(PaintError::PaintCycleDetected);
-                }
-
-                let draw_result = painter.paint_cached_color_glyph(*glyph_id)?;
-                let result = match draw_result {
-                    PaintCachedColorGlyph::Ok => Ok(()),
-                    PaintCachedColorGlyph::Unimplemented => {
-                        let clipbox = get_clipbox_font_units(instance, *glyph_id);
-
-                        if let Some(rect) = clipbox {
-                            painter.push_clip_box(rect);
-                        }
-
-                        let result = traverse_with_callbacks(
-                            &resolve_paint(instance, &base_glyph)?,
-                            instance,
-                            painter,
-                            visited_set,
-                            recurse_depth + 1,
-                        );
-                        if clipbox.is_some() {
-                            painter.pop_clip();
-                        }
-                        result
+        ResolvedPaint::ColrGlyph { glyph_id } => {
+            let glyph_id = (*glyph_id).into();
+            match (*instance).v1_base_glyph(glyph_id)? {
+                Some((base_glyph, base_glyph_paint_id)) => {
+                    if !visited_set.insert(base_glyph_paint_id) {
+                        return Err(PaintError::PaintCycleDetected);
                     }
-                };
-                visited_set.remove(&base_glyph_paint_id);
-                result
+
+                    let draw_result = painter.paint_cached_color_glyph(glyph_id)?;
+                    let result = match draw_result {
+                        PaintCachedColorGlyph::Ok => Ok(()),
+                        PaintCachedColorGlyph::Unimplemented => {
+                            let clipbox = get_clipbox_font_units(instance, glyph_id);
+
+                            if let Some(rect) = clipbox {
+                                painter.push_clip_box(rect);
+                            }
+
+                            let result = traverse_with_callbacks(
+                                &resolve_paint(instance, &base_glyph)?,
+                                instance,
+                                painter,
+                                visited_set,
+                                recurse_depth + 1,
+                            );
+                            if clipbox.is_some() {
+                                painter.pop_clip();
+                            }
+                            result
+                        }
+                    };
+                    visited_set.remove(&base_glyph_paint_id);
+                    result
+                }
+                None => Err(PaintError::GlyphNotFound(glyph_id)),
             }
-            None => Err(PaintError::GlyphNotFound(*glyph_id)),
-        },
+        }
         ResolvedPaint::Transform {
             paint: next_paint, ..
         }
@@ -586,9 +590,9 @@ pub(crate) fn traverse_v0_range(
     painter: &mut impl ColorPainter,
 ) -> Result<(), PaintError> {
     for layer_index in range.clone() {
-        let (layer_index, palette_index) = (*instance).v0_layer(layer_index)?;
+        let (layer_glyph, palette_index) = (*instance).v0_layer(layer_index)?;
         painter.fill_glyph(
-            layer_index,
+            layer_glyph.into(),
             None,
             Brush::Solid {
                 palette_index,

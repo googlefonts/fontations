@@ -15,9 +15,9 @@ record BitmapSize {
     /// Line metrics for text rendered vertically.
     vert: SbitLineMetrics,
     /// Lowest glyph index for this size.
-    start_glyph_index: GlyphId,
+    start_glyph_index: GlyphId16,
     /// Highest glyph index for this size.
-    end_glyph_index: GlyphId,
+    end_glyph_index: GlyphId16,
     /// Horizontal pixels per em.
     ppem_x: u8,
     /// Vertical pixels per em.
@@ -90,9 +90,9 @@ record SmallGlyphMetrics {
 /// [IndexSubtableArray](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtablearray) table.
 table IndexSubtableArray {
     /// First glyph ID of this range.
-    first_glyph_index: GlyphId,
+    first_glyph_index: GlyphId16,
     /// Last glyph ID of this range (inclusive).
-    last_glyph_index: GlyphId,
+    last_glyph_index: GlyphId16,
     /// Add to indexSubTableArrayOffset to get offset from beginning of EBLC.
     additional_offset_to_index_subtable: u32,
 }
@@ -167,7 +167,7 @@ table IndexSubtable4 {
 /// [GlyphIdOffsetPair](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#glyphidoffsetpair-record) record.
 record GlyphIdOffsetPair {
     /// Glyph ID of glyph present.
-    glyph_id: GlyphId,
+    glyph_id: GlyphId16,
     /// Location in EBDT.
     sbit_offset: u16,
 }
@@ -190,13 +190,13 @@ table IndexSubtable5 {
     num_glyphs: u32,
     /// One per glyph, sorted by glyhph ID.
     #[count($num_glyphs)]
-    glyph_array: [GlyphId],
+    glyph_array: [GlyphId16],
 }
 
 /// [EbdtComponent](https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt#ebdtcomponent-record) record.
 record BdtComponent {
     /// Component glyph ID.
-    glyph_id: GlyphId,
+    glyph_id: GlyphId16,
     /// Position of component left.
     x_offset: i8,
     /// Position of component top.

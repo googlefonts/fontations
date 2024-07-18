@@ -6,7 +6,7 @@ use write_fonts::tables::{hmtx::Hmtx, hmtx::LongMetric};
 
 impl Subset for Hmtx {
     fn subset(&mut self, plan: &Plan) -> Result<bool, SubsetError> {
-        let gids = &plan.glyph_ids;
+        let gids = &plan.glyphset;
         if gids.is_empty() {
             return Err(SubsetError::SubsetTableError(Hmtx::TAG));
         }
@@ -15,7 +15,7 @@ impl Subset for Hmtx {
         let mut new_metrics = Vec::with_capacity(num_long_metrics);
         let mut new_side_bearings = Vec::new();
         for gid in gids.iter() {
-            let glyph_id = gid.to_u16() as usize;
+            let glyph_id = gid.to_u32() as usize;
             let side_bearing =
                 get_gid_side_bearing(&self.h_metrics, &self.left_side_bearings, glyph_id);
             if glyph_id < num_long_metrics {

@@ -11,6 +11,7 @@ categories = ["text-processing", "parsing", "graphics"]
 [features]
 default = []
 read = []
+dot2 = ["dep:dot2"]
 serde = ["dep:serde", "font-types/serde", "read-fonts/serde"]
 
 [dependencies]

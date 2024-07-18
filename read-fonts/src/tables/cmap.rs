@@ -2,6 +2,7 @@
 
 include!("../../generated/generated_cmap.rs");
 
+use int_set::IntSet;
 use std::ops::{Range, RangeInclusive};
 
 /// Result of mapping a codepoint with a variation selector.
@@ -38,6 +39,22 @@ impl<'a> Cmap<'a> {
             }
         }
         None
+    }
+
+    pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
+        for record in self.encoding_records() {
+            if let Ok(subtable) = record.subtable(self.offset_data()) {
+                match subtable {
+                    CmapSubtable::Format14(format14) => {
+                        format14.closure_glyphs(unicodes, glyph_set);
+                        return;
+                    }
+                    _ => {
+                        continue;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -82,12 +99,12 @@ impl<'a> Cmap4<'a> {
         let delta = deltas.get(index)?.get() as i32;
         let range_offset = range_offsets.get(index)?.get() as usize;
         if range_offset == 0 {
-            return Some(GlyphId::new((codepoint as i32 + delta) as u16));
+            return Some(GlyphId::from((codepoint as i32 + delta) as u16));
         }
         let mut offset = range_offset / 2 + (codepoint - start_code) as usize;
         offset = offset.saturating_sub(range_offsets.len() - index);
         let gid = self.glyph_id_array().get(offset)?.get();
-        (gid != 0).then_some(GlyphId::new((gid as i32 + delta) as u16))
+        (gid != 0).then_some(GlyphId::from((gid as i32 + delta) as u16))
     }
 
     /// Returns the [start_code, end_code] range at the given index.
@@ -192,7 +209,7 @@ impl<'a> Cmap12<'a> {
         start_char_code: u32,
         start_glyph_id: u32,
     ) -> GlyphId {
-        GlyphId::new(start_glyph_id.wrapping_add(codepoint.wrapping_sub(start_char_code)) as u16)
+        GlyphId::new(start_glyph_id.wrapping_add(codepoint.wrapping_sub(start_char_code)))
     }
 
     /// Returns the codepoint range and start glyph id for the group
@@ -263,7 +280,7 @@ impl<'a> Iterator for Cmap12Iter<'a> {
                 // that the start code of next group is at least
                 // current_end + 1.
                 // This ensures we only ever generate a maximum of
-                // 0..=char::MAX results.
+                // char::MAX + 1 results.
                 if next_group.range.start() <= group.range.end() {
                     next_group.range = *group.range.end() + 1..=*next_group.range.end();
                 }
@@ -324,7 +341,7 @@ impl<'a> Cmap14<'a> {
                 map_codepoint.cmp(&codepoint)
             })
             .ok()?;
-        Some(MapVariant::Variant(GlyphId::new(
+        Some(MapVariant::Variant(GlyphId::from(
             mapping.get(ix)?.glyph_id(),
         )))
     }
@@ -359,6 +376,25 @@ impl<'a> Cmap14<'a> {
                 .flatten()
         });
         (selector, default_uvs, non_default_uvs)
+    }
+
+    pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
+        for selector in self.var_selector() {
+            if let Some(non_default_uvs) = selector
+                .non_default_uvs(self.offset_data())
+                .transpose()
+                .ok()
+                .flatten()
+            {
+                glyph_set.extend(
+                    non_default_uvs
+                        .uvs_mapping()
+                        .iter()
+                        .filter(|m| unicodes.contains(m.unicode_value().to_u32()))
+                        .map(|m| m.glyph_id().into()),
+                );
+            }
+        }
     }
 }
 
@@ -400,7 +436,7 @@ impl<'a> Iterator for Cmap14Iter<'a> {
             }
             if let Some(non_default_uvs) = self.non_default_uvs.as_mut() {
                 if let Some((codepoint, variant)) = non_default_uvs.next() {
-                    return Some((codepoint, selector, MapVariant::Variant(variant)));
+                    return Some((codepoint, selector, MapVariant::Variant(variant.into())));
                 }
             }
             self.cur_selector_ix += 1;
@@ -463,12 +499,12 @@ impl<'a> NonDefaultUvsIter<'a> {
 }
 
 impl<'a> Iterator for NonDefaultUvsIter<'a> {
-    type Item = (u32, GlyphId);
+    type Item = (u32, GlyphId16);
 
     fn next(&mut self) -> Option<Self::Item> {
         let mapping = self.iter.next()?;
         let codepoint: u32 = mapping.unicode_value().into();
-        let glyph_id = GlyphId::new(mapping.glyph_id());
+        let glyph_id = GlyphId16::new(mapping.glyph_id());
         Some((codepoint, glyph_id))
     }
 }
@@ -515,6 +551,22 @@ mod tests {
     }
 
     #[test]
+    fn cmap14_closure_glyphs() {
+        let font = FontRef::new(font_test_data::CMAP14_FONT1).unwrap();
+        let cmap = font.cmap().unwrap();
+        let mut unicodes = IntSet::empty();
+        unicodes.insert(0x4e08_u32);
+
+        let mut glyph_set = IntSet::empty();
+        glyph_set.insert(GlyphId::new(18));
+        cmap.closure_glyphs(&unicodes, &mut glyph_set);
+
+        assert_eq!(glyph_set.len(), 2);
+        assert!(glyph_set.contains(GlyphId::new(18)));
+        assert!(glyph_set.contains(GlyphId::new(25)));
+    }
+
+    #[test]
     fn cmap4_iter() {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let cmap4 = find_cmap4(&font.cmap().unwrap()).unwrap();
@@ -535,7 +587,7 @@ mod tests {
     }
 
     // Make sure we don't bail early when iterating ranges with holes.
-    // Encounted with Gentium Basic and Gentium Basic Book.
+    // Encountered with Gentium Basic and Gentium Basic Book.
     // See <https://github.com/googlefonts/fontations/issues/897>
     #[test]
     fn cmap4_iter_sparse_range() {
@@ -625,7 +677,7 @@ mod tests {
         let cmap = font.cmap().unwrap();
         // ranges: [SequentialMapGroup { start_char_code: 170, end_char_code: 1330926671, start_glyph_id: 328960 }]
         let cmap12 = find_cmap12(&cmap).unwrap();
-        assert!(cmap12.iter().count() <= char::MAX as usize);
+        assert!(cmap12.iter().count() <= char::MAX as usize + 1);
     }
 
     #[test]
@@ -648,8 +700,8 @@ mod tests {
             .collect::<Vec<_>>();
         // These groups overlap and extend to the whole u32 range
         assert_eq!(ranges, &[(0, 16777215), (255, u32::MAX)]);
-        // But we produce fewer than char::MAX results (some codepoints map to 0)
-        assert!(cmap12.iter().count() < char::MAX as usize);
+        // But we produce at most char::MAX + 1 results
+        assert!(cmap12.iter().count() <= char::MAX as usize + 1);
     }
 
     #[test]

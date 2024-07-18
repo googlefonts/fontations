@@ -306,7 +306,7 @@ write_be_bytes!(types::LongDateTime);
 write_be_bytes!(types::Tag);
 write_be_bytes!(types::Version16Dot16);
 write_be_bytes!(types::MajorMinor);
-write_be_bytes!(types::GlyphId);
+write_be_bytes!(types::GlyphId16);
 write_be_bytes!(types::NameId);
 
 impl<T: FontWrite> FontWrite for [T] {

@@ -102,13 +102,9 @@ impl<'a> VarcComponent<'a> {
 
         // This is a GlyphID16 if GID_IS_24BIT bit of flags is clear, else GlyphID24.
         let gid = if flags.contains(VarcFlags::GID_IS_24BIT) {
-            let gid = cursor.read::<Uint24>()?.to_u32();
-            if gid > u16::MAX as u32 {
-                return Err(ReadError::BigGlyphIdsNotSupported(gid));
-            }
-            GlyphId::new(gid as u16)
+            GlyphId::new(cursor.read::<Uint24>()?.to_u32())
         } else {
-            GlyphId::new(cursor.read::<u16>()?)
+            GlyphId::from(cursor.read::<u16>()?)
         };
 
         let condition_index = if flags.contains(VarcFlags::HAVE_CONDITION) {
@@ -326,7 +322,7 @@ impl<'a> MultiItemVariationData<'a> {
 
 #[cfg(test)]
 mod tests {
-    use types::GlyphId;
+    use types::GlyphId16;
 
     use crate::{FontRef, ReadError, TableProvider};
 
@@ -499,7 +495,7 @@ mod tests {
 
         let glyph = table.glyph(idx as usize).unwrap();
         assert_eq!(
-            vec![GlyphId::new(2), GlyphId::new(5), GlyphId::new(7)],
+            vec![GlyphId16::new(2), GlyphId16::new(5), GlyphId16::new(7)],
             glyph
                 .components()
                 .map(|c| c.unwrap().gid)

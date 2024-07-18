@@ -91,9 +91,7 @@ impl FreeTypeInstance {
             // Without this load flag, FT applies scale to linearHoriAdvance
             load_flags |= LoadFlag::LINEAR_DESIGN;
         }
-        self.face
-            .load_glyph(glyph_id.to_u16() as u32, load_flags)
-            .ok()?;
+        self.face.load_glyph(glyph_id.to_u32(), load_flags).ok()?;
         let advance = self.face.glyph().linear_hori_advance() as f32;
         Some(if is_scaled {
             advance / 65536.0
@@ -104,7 +102,7 @@ impl FreeTypeInstance {
 
     pub fn outline(&mut self, glyph_id: GlyphId, pen: &mut impl OutlinePen) -> Option<()> {
         self.face
-            .load_glyph(glyph_id.to_u16() as u32, self.load_flags())
+            .load_glyph(glyph_id.to_u32(), self.load_flags())
             .ok()?;
         let mut ft_pen = FreeTypePen {
             inner: pen,

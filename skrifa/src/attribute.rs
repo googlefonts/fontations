@@ -127,7 +127,7 @@ impl Stretch {
 
 impl Stretch {
     /// Creates a new stretch attribute with the given ratio.
-    pub fn new(ratio: f32) -> Self {
+    pub const fn new(ratio: f32) -> Self {
         Self(ratio)
     }
 
@@ -154,7 +154,7 @@ impl Stretch {
     /// Returns the stretch attribute as a ratio.
     ///
     /// This is a linear scaling factor with 1.0 being "normal" width.
-    pub fn ratio(self) -> f32 {
+    pub const fn ratio(self) -> f32 {
         self.0
     }
 
@@ -236,12 +236,12 @@ impl Weight {
 
 impl Weight {
     /// Creates a new weight attribute with the given value.
-    pub fn new(weight: f32) -> Self {
+    pub const fn new(weight: f32) -> Self {
         Self(weight)
     }
 
     /// Returns the underlying weight value.
-    pub fn value(self) -> f32 {
+    pub const fn value(self) -> f32 {
         self.0
     }
 }

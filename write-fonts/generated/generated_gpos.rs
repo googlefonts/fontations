@@ -1051,7 +1051,7 @@ impl<'a> FromTableRef<read_fonts::tables::gpos::PairSet<'a>> for PairSet {}
 pub struct PairValueRecord {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
-    pub second_glyph: GlyphId,
+    pub second_glyph: GlyphId16,
     /// Positioning data for the first glyph in the pair.
     pub value_record1: ValueRecord,
     /// Positioning data for the second glyph in the pair.
@@ -1061,7 +1061,7 @@ pub struct PairValueRecord {
 impl PairValueRecord {
     /// Construct a new `PairValueRecord`
     pub fn new(
-        second_glyph: GlyphId,
+        second_glyph: GlyphId16,
         value_record1: ValueRecord,
         value_record2: ValueRecord,
     ) -> Self {

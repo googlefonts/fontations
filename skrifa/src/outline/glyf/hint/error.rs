@@ -109,7 +109,7 @@ impl core::fmt::Display for HintError {
             Program::Glyph => write!(f, "glyf")?,
         }
         if let Some(glyph_id) = self.glyph_id {
-            write!(f, "[{}]", glyph_id.to_u16())?;
+            write!(f, "[{}]", glyph_id.to_u32())?;
         }
         let (opcode, colon) = match self.opcode {
             Some(opcode) => (opcode.name(), ":"),

@@ -664,6 +664,15 @@ pub enum CaretValue<'a> {
 }
 
 impl<'a> CaretValue<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier: format = 1
     pub fn caret_value_format(&self) -> u16 {
         match self {

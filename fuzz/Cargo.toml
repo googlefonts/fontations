@@ -14,6 +14,7 @@ release = false
 [dependencies]
 libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
 skrifa = { path="../skrifa" }
+int-set = { path = "../int-set" }
 
 [[bin]]
 name = "fuzz_skrifa_charmap"
@@ -42,5 +43,11 @@ doc = false
 [[bin]]
 name = "fuzz_skrifa_color"
 path = "fuzz_targets/fuzz_skrifa_color.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_int_set"
+path = "fuzz_targets/fuzz_int_set.rs"
 test = false
 doc = false

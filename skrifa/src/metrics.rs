@@ -222,7 +222,7 @@ impl Metrics {
 /// Glyph specific metrics.
 #[derive(Clone)]
 pub struct GlyphMetrics<'a> {
-    glyph_count: u16,
+    glyph_count: u32,
     fixed_scale: FixedScaleFactor,
     h_metrics: &'a [LongMetric],
     default_advance_width: u16,
@@ -243,7 +243,7 @@ impl<'a> GlyphMetrics<'a> {
     ) -> Self {
         let glyph_count = font
             .maxp()
-            .map(|maxp| maxp.num_glyphs())
+            .map(|maxp| maxp.num_glyphs() as u32)
             .unwrap_or_default();
         let upem = font
             .head()
@@ -281,7 +281,7 @@ impl<'a> GlyphMetrics<'a> {
     }
 
     /// Returns the number of available glyphs in the font.
-    pub fn glyph_count(&self) -> u16 {
+    pub fn glyph_count(&self) -> u32 {
         self.glyph_count
     }
 
@@ -293,12 +293,12 @@ impl<'a> GlyphMetrics<'a> {
     /// Returns `None` if `glyph_id >= self.glyph_count()` or the underlying font
     /// data is invalid.
     pub fn advance_width(&self, glyph_id: GlyphId) -> Option<f32> {
-        if glyph_id.to_u16() >= self.glyph_count {
+        if glyph_id.to_u32() >= self.glyph_count {
             return None;
         }
         let mut advance = self
             .h_metrics
-            .get(glyph_id.to_u16() as usize)
+            .get(glyph_id.to_u32() as usize)
             .map(|metric| metric.advance())
             .unwrap_or(self.default_advance_width) as i32;
         if let Some(hvar) = &self.hvar {
@@ -322,10 +322,10 @@ impl<'a> GlyphMetrics<'a> {
     /// Returns `None` if `glyph_id >= self.glyph_count()` or the underlying font
     /// data is invalid.
     pub fn left_side_bearing(&self, glyph_id: GlyphId) -> Option<f32> {
-        if glyph_id.to_u16() >= self.glyph_count {
+        if glyph_id.to_u32() >= self.glyph_count {
             return None;
         }
-        let gid_index = glyph_id.to_u16() as usize;
+        let gid_index = glyph_id.to_u32() as usize;
         let mut lsb = self
             .h_metrics
             .get(gid_index)
@@ -471,7 +471,8 @@ impl<'a> GvarMetricDeltas<'a> {
                         .flags
                         .contains(CompositeGlyphFlags::USE_MY_METRICS)
                     {
-                        return self.find_glyph_and_point_count(component.glyph, recurse_depth + 1);
+                        return self
+                            .find_glyph_and_point_count(component.glyph.into(), recurse_depth + 1);
                     }
                 }
                 Some((glyph_id, count))
@@ -559,7 +560,7 @@ mod tests {
         ];
         let result = (0..4)
             .map(|i| {
-                let gid = GlyphId::new(i as u16);
+                let gid = GlyphId::new(i as u32);
                 let advance_width = glyph_metrics.advance_width(gid).unwrap();
                 let lsb = glyph_metrics.left_side_bearing(gid).unwrap();
                 (advance_width, lsb)
@@ -605,7 +606,7 @@ mod tests {
         ];
         let result = (0..4)
             .map(|i| {
-                let gid = GlyphId::new(i as u16);
+                let gid = GlyphId::new(i as u32);
                 let advance_width = glyph_metrics.advance_width(gid).unwrap();
                 let lsb = glyph_metrics.left_side_bearing(gid).unwrap();
                 (advance_width, lsb)
@@ -627,7 +628,7 @@ mod tests {
             // Setting hvar to None forces use of gvar for metric deltas
             glyph_metrics_no_hvar.hvar = None;
             for gid in 0..glyph_count {
-                let gid = GlyphId::new(gid);
+                let gid = GlyphId::from(gid);
                 assert_eq!(
                     glyph_metrics.advance_width(gid),
                     glyph_metrics_no_hvar.advance_width(gid)

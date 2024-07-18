@@ -29,7 +29,7 @@ impl BitmapSize {
             }
             // glyph index relative to the first glyph in the subtable
             let glyph_ix =
-                glyph_id.to_u16() as usize - subtable.first_glyph_index.to_u16() as usize;
+                glyph_id.to_u32() as usize - subtable.first_glyph_index.to_u32() as usize;
             match &subtable.kind {
                 IndexSubtable::Format1(st) => {
                     location.format = st.image_format();
@@ -77,11 +77,11 @@ impl BitmapSize {
                 IndexSubtable::Format4(st) => {
                     location.format = st.image_format();
                     let array = st.glyph_array();
-                    let array_ix = match array.binary_search_by(|x| x.glyph_id().cmp(&glyph_id)) {
+                    let array_ix = match array
+                        .binary_search_by(|x| x.glyph_id().to_u32().cmp(&glyph_id.to_u32()))
+                    {
                         Ok(ix) => ix,
-                        _ => {
-                            return Err(ReadError::InvalidCollectionIndex(glyph_id.to_u16() as u32))
-                        }
+                        _ => return Err(ReadError::InvalidCollectionIndex(glyph_id.to_u32())),
                     };
                     let start = array[array_ix].sbit_offset() as usize;
                     let end = array
@@ -97,11 +97,11 @@ impl BitmapSize {
                 IndexSubtable::Format5(st) => {
                     location.format = st.image_format();
                     let array = st.glyph_array();
-                    let array_ix = match array.binary_search_by(|gid| gid.get().cmp(&glyph_id)) {
+                    let array_ix = match array
+                        .binary_search_by(|gid| gid.get().to_u32().cmp(&glyph_id.to_u32()))
+                    {
                         Ok(ix) => ix,
-                        _ => {
-                            return Err(ReadError::InvalidCollectionIndex(glyph_id.to_u16() as u32))
-                        }
+                        _ => return Err(ReadError::InvalidCollectionIndex(glyph_id.to_u32())),
                     };
                     let data_size = st.image_size() as usize;
                     location.data_size = data_size;
@@ -140,8 +140,8 @@ impl BitmapSize {
 }
 
 struct BitmapSizeSubtable<'a> {
-    pub first_glyph_index: GlyphId,
-    pub last_glyph_index: GlyphId,
+    pub first_glyph_index: GlyphId16,
+    pub last_glyph_index: GlyphId16,
     pub kind: IndexSubtable<'a>,
 }
 

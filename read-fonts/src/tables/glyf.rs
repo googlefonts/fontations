@@ -271,9 +271,9 @@ impl<'a> SimpleGlyph<'a> {
 /// This type is a simpler representation of the data in the blob.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CurvePoint {
-    /// X cooordinate.
+    /// X coordinate.
     pub x: i16,
-    /// Y cooordinate.
+    /// Y coordinate.
     pub y: i16,
     /// True if this is an on-curve point.
     pub on_curve: bool,
@@ -476,7 +476,7 @@ pub struct Component {
     /// Component flags.
     pub flags: CompositeGlyphFlags,
     /// Glyph identifier.
-    pub glyph: GlyphId,
+    pub glyph: GlyphId16,
     /// Anchor for component placement.
     pub anchor: Anchor,
     /// Component transformation matrix.
@@ -504,7 +504,7 @@ impl<'a> CompositeGlyph<'a> {
     /// component in the composite glyph.
     pub fn component_glyphs_and_flags(
         &self,
-    ) -> impl Iterator<Item = (GlyphId, CompositeGlyphFlags)> + 'a + Clone {
+    ) -> impl Iterator<Item = (GlyphId16, CompositeGlyphFlags)> + 'a + Clone {
         ComponentGlyphIdFlagsIter {
             cur_flags: CompositeGlyphFlags::empty(),
             done: false,
@@ -561,7 +561,7 @@ impl Iterator for ComponentIter<'_> {
         }
         let flags: CompositeGlyphFlags = self.cursor.read().ok()?;
         self.cur_flags = flags;
-        let glyph = self.cursor.read::<GlyphId>().ok()?;
+        let glyph = self.cursor.read::<GlyphId16>().ok()?;
         let args_are_words = flags.contains(CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS);
         let args_are_xy_values = flags.contains(CompositeGlyphFlags::ARGS_ARE_XY_VALUES);
         let anchor = match (args_are_xy_values, args_are_words) {
@@ -618,7 +618,7 @@ struct ComponentGlyphIdFlagsIter<'a> {
 }
 
 impl Iterator for ComponentGlyphIdFlagsIter<'_> {
-    type Item = (GlyphId, CompositeGlyphFlags);
+    type Item = (GlyphId16, CompositeGlyphFlags);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.done {
@@ -626,7 +626,7 @@ impl Iterator for ComponentGlyphIdFlagsIter<'_> {
         }
         let flags: CompositeGlyphFlags = self.cursor.read().ok()?;
         self.cur_flags = flags;
-        let glyph = self.cursor.read::<GlyphId>().ok()?;
+        let glyph = self.cursor.read::<GlyphId16>().ok()?;
         let args_are_words = flags.contains(CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS);
         if args_are_words {
             self.cursor.advance_by(4);
@@ -688,7 +688,7 @@ impl fmt::Display for ToPathError {
         match self {
             Self::ContourOrder(ix) => write!(
                 f,
-                "Contour end point at index {ix} was less than preceeding end point"
+                "Contour end point at index {ix} was less than preceding end point"
             ),
             Self::ExpectedQuad(ix) => write!(f, "Expected quadatic off-curve point at index {ix}"),
             Self::ExpectedQuadOrOnCurve(ix) => write!(
@@ -1234,7 +1234,7 @@ mod tests {
         let font = FontRef::new(font_data).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
-        let glyph_count = font.maxp().unwrap().num_glyphs();
+        let glyph_count = font.maxp().unwrap().num_glyphs() as u32;
         (0..glyph_count).map(move |gid| loca.get_glyf(GlyphId::new(gid), &glyf).unwrap())
     }
 

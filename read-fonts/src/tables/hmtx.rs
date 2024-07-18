@@ -8,7 +8,7 @@ impl<'a> Hmtx<'a> {
         advance(self.h_metrics(), glyph_id)
     }
 
-    /// Returns the left side bearing for the given glyph identifer.
+    /// Returns the left side bearing for the given glyph identifier.
     pub fn side_bearing(&self, glyph_id: GlyphId) -> Option<i16> {
         side_bearing(self.h_metrics(), self.left_side_bearings(), glyph_id)
     }
@@ -16,7 +16,7 @@ impl<'a> Hmtx<'a> {
 
 pub(super) fn advance(metrics: &[LongMetric], glyph_id: GlyphId) -> Option<u16> {
     metrics
-        .get(glyph_id.to_u16() as usize)
+        .get(glyph_id.to_u32() as usize)
         .or_else(|| metrics.last())
         .map(|metric| metric.advance())
 }
@@ -26,7 +26,7 @@ pub(super) fn side_bearing(
     side_bearings: &[BigEndian<i16>],
     glyph_id: GlyphId,
 ) -> Option<i16> {
-    let ix = glyph_id.to_u16() as usize;
+    let ix = glyph_id.to_u32() as usize;
     metrics
         .get(ix)
         .map(|metric| metric.side_bearing())

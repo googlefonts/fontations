@@ -1,6 +1,6 @@
 //! Stores a page of bits, used inside of bitset's.
 
-use std::{cell::Cell, hash::Hash};
+use std::{cell::Cell, hash::Hash, ops::RangeInclusive};
 
 // the integer type underlying our bit set
 type Element = u64;
@@ -62,6 +62,34 @@ impl BitPage {
                 let base = i as u32 * ELEM_BITS;
                 Iter::new(*elem).map(move |idx| base + idx)
             })
+    }
+
+    /// Iterator over the members of this page that come after 'value'.
+    pub(crate) fn iter_after(&self, value: u32) -> impl DoubleEndedIterator<Item = u32> + '_ {
+        let start_index = self.element_index(value);
+        self.storage[start_index..]
+            .iter()
+            .enumerate()
+            .filter(|(_, elem)| **elem != 0)
+            .flat_map(move |(i, elem)| {
+                let i = i + start_index;
+                let base = i as u32 * ELEM_BITS;
+                let index_in_elem = value & ELEM_MASK;
+                let it = if start_index == i {
+                    Iter::from(*elem, index_in_elem + 1)
+                } else {
+                    Iter::new(*elem)
+                };
+                it.map(move |idx| base + idx)
+            })
+    }
+
+    /// Iterator over the ranges in this page.
+    pub(crate) fn iter_ranges(&self) -> RangeIter<'_> {
+        RangeIter {
+            page: self,
+            next_value_to_check: 0,
+        }
     }
 
     /// Marks (val % page width) a member of this set and returns true if it is newly added.
@@ -168,13 +196,15 @@ impl BitPage {
     }
 
     fn element(&self, value: u32) -> &Element {
-        let idx = (value & PAGE_MASK) / ELEM_BITS;
-        &self.storage[idx as usize]
+        &self.storage[self.element_index(value)]
     }
 
     fn element_mut(&mut self, value: u32) -> &mut Element {
-        let idx = (value & PAGE_MASK) / ELEM_BITS;
-        &mut self.storage[idx as usize]
+        &mut self.storage[self.element_index(value)]
+    }
+
+    fn element_index(&self, value: u32) -> usize {
+        (value as usize & PAGE_MASK as usize) / (ELEM_BITS as usize)
     }
 }
 
@@ -194,6 +224,17 @@ impl Iter {
         Iter {
             val: elem,
             forward_index: 0,
+            backward_index: ELEM_BITS as i32 - 1,
+        }
+    }
+
+    /// Construct an iterator that starts at 'index'
+    ///
+    /// Specifically if 'index' bit is set it will be returned on the first call to next().
+    fn from(elem: Element, index: u32) -> Iter {
+        Iter {
+            val: elem,
+            forward_index: index,
             backward_index: ELEM_BITS as i32 - 1,
         }
     }
@@ -234,6 +275,71 @@ impl DoubleEndedIterator for Iter {
         }
         self.backward_index = next_index - 1;
         Some(next_index as u32)
+    }
+}
+
+pub(crate) struct RangeIter<'a> {
+    page: &'a BitPage,
+    next_value_to_check: u32,
+}
+
+impl<'a> RangeIter<'a> {
+    fn next_range_in_element(&self) -> Option<RangeInclusive<u32>> {
+        if self.next_value_to_check >= PAGE_BITS {
+            return None;
+        }
+
+        let element = self.page.element(self.next_value_to_check);
+        let element_bit = (self.next_value_to_check & ELEM_MASK) as u64;
+        let major = self.next_value_to_check & !ELEM_MASK;
+
+        let mask = !((1 << element_bit) - 1);
+        let range_start = (element & mask).trailing_zeros();
+        if range_start == ELEM_BITS {
+            // There's no remaining values in this element.
+            return None;
+        }
+
+        let mask = (1 << range_start) - 1;
+        let range_end = (element | mask).trailing_ones() - 1;
+
+        Some((major + range_start)..=(major + range_end))
+    }
+}
+
+impl<'a> Iterator for RangeIter<'a> {
+    type Item = RangeInclusive<u32>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut current_range = self.next_range_in_element();
+        loop {
+            let element_end = (self.next_value_to_check & !ELEM_MASK) + ELEM_BITS - 1;
+            let Some(range) = current_range.clone() else {
+                // No more ranges in the current element, move to the next one.
+                self.next_value_to_check = element_end + 1;
+                if self.next_value_to_check < PAGE_BITS {
+                    current_range = self.next_range_in_element();
+                    continue;
+                } else {
+                    return None;
+                }
+            };
+
+            self.next_value_to_check = range.end() + 1;
+            if *range.end() == element_end {
+                let continuation = self.next_range_in_element();
+                if let Some(continuation) = continuation {
+                    if *continuation.start() == element_end + 1 {
+                        current_range = Some(*range.start()..=*continuation.end());
+                        continue;
+                    }
+                }
+            }
+
+            break;
+        }
+
+        current_range
     }
 }
 
@@ -493,6 +599,129 @@ mod test {
 
         let items: Vec<_> = page.iter().collect();
         assert_eq!(items, vec![0, 12, 13, 23, 63, 64, 78, 400, 511,])
+    }
+
+    #[test]
+    fn page_iter_after() {
+        let mut page = BitPage::new_zeroes();
+        let items: Vec<_> = page.iter_after(0).collect();
+        assert_eq!(items, vec![]);
+        let items: Vec<_> = page.iter_after(256).collect();
+        assert_eq!(items, vec![]);
+
+        page.insert(1);
+        page.insert(12);
+        page.insert(13);
+        page.insert(63);
+        page.insert(64);
+        page.insert(511);
+        page.insert(23);
+        page.insert(400);
+        page.insert(78);
+
+        let items: Vec<_> = page.iter_after(0).collect();
+        assert_eq!(items, vec![1, 12, 13, 23, 63, 64, 78, 400, 511,]);
+
+        page.insert(0);
+        let items: Vec<_> = page.iter_after(0).collect();
+        assert_eq!(items, vec![1, 12, 13, 23, 63, 64, 78, 400, 511,]);
+
+        let items: Vec<_> = page.iter_after(1).collect();
+        assert_eq!(items, vec![12, 13, 23, 63, 64, 78, 400, 511,]);
+
+        let items: Vec<_> = page.iter_after(63).collect();
+        assert_eq!(items, vec![64, 78, 400, 511,]);
+
+        let items: Vec<_> = page.iter_after(256).collect();
+        assert_eq!(items, vec![400, 511]);
+
+        let items: Vec<_> = page.iter_after(511).collect();
+        assert_eq!(items, vec![]);
+
+        let items: Vec<_> = page.iter_after(390).collect();
+        assert_eq!(items, vec![400, 511]);
+
+        let items: Vec<_> = page.iter_after(400).collect();
+        assert_eq!(items, vec![511]);
+    }
+
+    #[test]
+    fn page_iter_after_rev() {
+        let mut page = BitPage::new_zeroes();
+        let items: Vec<_> = page.iter_after(0).collect();
+        assert_eq!(items, vec![]);
+        let items: Vec<_> = page.iter_after(256).collect();
+        assert_eq!(items, vec![]);
+
+        page.insert(1);
+        page.insert(12);
+        page.insert(13);
+        page.insert(63);
+        page.insert(64);
+        page.insert(511);
+        page.insert(23);
+        page.insert(400);
+        page.insert(78);
+
+        let items: Vec<_> = page.iter_after(0).rev().collect();
+        assert_eq!(items, vec![511, 400, 78, 64, 63, 23, 13, 12, 1]);
+
+        page.insert(0);
+        let items: Vec<_> = page.iter_after(0).rev().collect();
+        assert_eq!(items, vec![511, 400, 78, 64, 63, 23, 13, 12, 1]);
+
+        let items: Vec<_> = page.iter_after(1).rev().collect();
+        assert_eq!(items, vec![511, 400, 78, 64, 63, 23, 13, 12,]);
+
+        let items: Vec<_> = page.iter_after(63).rev().collect();
+        assert_eq!(items, vec![511, 400, 78, 64,]);
+
+        let items: Vec<_> = page.iter_after(256).rev().collect();
+        assert_eq!(items, vec![511, 400]);
+
+        let items: Vec<_> = page.iter_after(511).rev().collect();
+        assert_eq!(items, vec![]);
+
+        let items: Vec<_> = page.iter_after(390).rev().collect();
+        assert_eq!(items, vec![511, 400]);
+
+        let items: Vec<_> = page.iter_after(400).rev().collect();
+        assert_eq!(items, vec![511]);
+    }
+
+    fn check_iter_ranges(ranges: Vec<RangeInclusive<u32>>) {
+        let mut page = BitPage::new_zeroes();
+        for range in ranges.iter() {
+            page.insert_range(*range.start(), *range.end());
+        }
+        let items: Vec<_> = page.iter_ranges().collect();
+        assert_eq!(items, ranges);
+    }
+
+    #[test]
+    fn iter_ranges() {
+        // basic
+        check_iter_ranges(vec![]);
+        check_iter_ranges(vec![0..=5]);
+        check_iter_ranges(vec![0..=0, 5..=5, 10..=10]);
+        check_iter_ranges(vec![0..=5, 12..=31]);
+        check_iter_ranges(vec![12..=31]);
+        check_iter_ranges(vec![71..=84]);
+        check_iter_ranges(vec![273..=284]);
+        check_iter_ranges(vec![0..=511]);
+
+        // end of boundary
+        check_iter_ranges(vec![511..=511]);
+        check_iter_ranges(vec![500..=511]);
+        check_iter_ranges(vec![400..=511]);
+        check_iter_ranges(vec![0..=511]);
+
+        // continutation ranges
+        check_iter_ranges(vec![64..=127]);
+        check_iter_ranges(vec![64..=127, 129..=135]);
+        check_iter_ranges(vec![64..=135]);
+        check_iter_ranges(vec![71..=135]);
+        check_iter_ranges(vec![71..=435]);
     }
 
     #[test]

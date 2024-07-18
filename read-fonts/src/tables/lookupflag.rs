@@ -45,6 +45,9 @@ impl LookupFlag {
     /// The layout engine skips over all mark glyphs not in the mark filtering set indicated.
     pub const USE_MARK_FILTERING_SET: Self = LookupFlag(0x010);
 
+    // union of all flags, above
+    const FLAG_MASK: Self = LookupFlag(0x1F);
+
     /// Return new, empty flags
     pub fn empty() -> Self {
         Self(0)
@@ -59,6 +62,14 @@ impl LookupFlag {
     /// Raw transmutation to u16.
     pub fn to_bits(self) -> u16 {
         self.0
+    }
+
+    /// Returns `true` if all of the flags in `other` are contained within `self`.
+    #[inline]
+    pub const fn contains(&self, other: Self) -> bool {
+        // only count flag bits
+        let other = other.0 & Self::FLAG_MASK.0;
+        (self.0 & other) == other
     }
 
     /// If not zero, skips over all marks of attachment type different from specified.

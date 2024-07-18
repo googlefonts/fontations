@@ -677,10 +677,28 @@ fn generate_format_shared_getters(item: &TableFormat, items: &Items) -> syn::Res
         .iter()
         .map(|fld| generate_format_getter_for_shared_field(item, fld));
 
+    // and we also want to have a wrapper for offset_data():
+    let data_arms = item
+        .variants
+        .iter()
+        .filter(|v| v.attrs.write_only.is_none())
+        .map(|variant| {
+            let var_name = &variant.name;
+            quote!(Self::#var_name(item) => item.offset_data(), )
+        });
+
     // now we have a collection of fields present on all variants, and
     // we need to actually generate the wrapping getter
 
-    Ok(quote!( #( #getters )* ))
+    Ok(quote! {
+        #[doc = "Return the `FontData` used to resolve offsets for this table."]
+        pub fn offset_data(&self) -> FontData<'a> {
+            match self {
+                #( #data_arms )*
+            }
+        }
+        #( #getters )*
+    })
 }
 
 fn generate_format_getter_for_shared_field(item: &TableFormat, field: &Field) -> TokenStream {

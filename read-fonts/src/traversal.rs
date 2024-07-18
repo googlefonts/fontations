@@ -11,7 +11,7 @@
 use std::{fmt::Debug, ops::Deref};
 
 use types::{
-    BigEndian, F2Dot14, FWord, Fixed, GlyphId, LongDateTime, MajorMinor, NameId, Nullable,
+    BigEndian, F2Dot14, FWord, Fixed, GlyphId16, LongDateTime, MajorMinor, NameId, Nullable,
     Offset16, Offset24, Offset32, Scalar, Tag, UfWord, Uint24, Version16Dot16,
 };
 
@@ -40,7 +40,7 @@ pub enum FieldType<'a> {
     F2Dot14(F2Dot14),
     Fixed(Fixed),
     LongDateTime(LongDateTime),
-    GlyphId(GlyphId),
+    GlyphId16(GlyphId16),
     NameId(NameId),
     BareOffset(OffsetType),
     ResolvedOffset(ResolvedOffset<'a>),
@@ -529,7 +529,7 @@ impl<'a> Debug for FieldType<'a> {
             Self::F2Dot14(arg0) => arg0.fmt(f),
             Self::Fixed(arg0) => arg0.fmt(f),
             Self::LongDateTime(arg0) => arg0.as_secs().fmt(f),
-            Self::GlyphId(arg0) => {
+            Self::GlyphId16(arg0) => {
                 write!(f, "g")?;
                 arg0.to_u16().fmt(f)
             }
@@ -705,9 +705,9 @@ impl<'a> From<Version16Dot16> for FieldType<'a> {
     }
 }
 
-impl<'a> From<GlyphId> for FieldType<'a> {
-    fn from(src: GlyphId) -> FieldType<'a> {
-        FieldType::GlyphId(src)
+impl<'a> From<GlyphId16> for FieldType<'a> {
+    fn from(src: GlyphId16) -> FieldType<'a> {
+        FieldType::GlyphId16(src)
     }
 }
 
