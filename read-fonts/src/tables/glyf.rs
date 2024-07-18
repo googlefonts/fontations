@@ -271,9 +271,9 @@ impl<'a> SimpleGlyph<'a> {
 /// This type is a simpler representation of the data in the blob.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CurvePoint {
-    /// X cooordinate.
+    /// X coordinate.
     pub x: i16,
-    /// Y cooordinate.
+    /// Y coordinate.
     pub y: i16,
     /// True if this is an on-curve point.
     pub on_curve: bool,
@@ -688,7 +688,7 @@ impl fmt::Display for ToPathError {
         match self {
             Self::ContourOrder(ix) => write!(
                 f,
-                "Contour end point at index {ix} was less than preceeding end point"
+                "Contour end point at index {ix} was less than preceding end point"
             ),
             Self::ExpectedQuad(ix) => write!(f, "Expected quadatic off-curve point at index {ix}"),
             Self::ExpectedQuadOrOnCurve(ix) => write!(

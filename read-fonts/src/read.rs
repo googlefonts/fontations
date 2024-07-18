@@ -13,7 +13,7 @@ use crate::font_data::FontData;
 /// underlying bytes. (Tables that require external state implement
 /// [`FontReadWithArgs`] instead)
 pub trait FontRead<'a>: Sized {
-    /// Read an instace of `Self` from the provided data, performing validation.
+    /// Read an instance of `Self` from the provided data, performing validation.
     ///
     /// In the case of a table, this method is responsible for ensuring the input
     /// data is consistent: this means ensuring that any versioned fields are
@@ -24,7 +24,7 @@ pub trait FontRead<'a>: Sized {
 
 //NOTE: this is separate so that it can be a super trait of FontReadWithArgs and
 //ComputeSize, without them needing to know about each other? I'm not sure this
-//is necessary, but I don't know the full heirarchy of traits I'm going to need
+//is necessary, but I don't know the full hierarchy of traits I'm going to need
 //yet, so this seems... okay?
 
 /// A trait for a type that needs additional arguments to be read.
@@ -126,7 +126,7 @@ impl std::fmt::Display for ReadError {
             ReadError::InvalidArrayLen => {
                 write!(f, "Specified array length not a multiple of item size")
             }
-            ReadError::ValidationError => write!(f, "A validation error occured"),
+            ReadError::ValidationError => write!(f, "A validation error occurred"),
             ReadError::NullOffset => write!(f, "An offset was unexpectedly null"),
             ReadError::TableIsMissing(tag) => write!(f, "the {tag} table is missing"),
             ReadError::MetricIsMissing(tag) => write!(f, "the {tag} metric is missing"),

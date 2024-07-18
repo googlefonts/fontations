@@ -29,7 +29,7 @@ pub(crate) trait GlyphClosure {
 }
 
 impl<'a> Gsub<'a> {
-    /// Return the set of glyphs reachable from the input set via any substituion.
+    /// Return the set of glyphs reachable from the input set via any substitution.
     pub fn closure_glyphs(
         &self,
         mut glyphs: HashSet<GlyphId16>,
