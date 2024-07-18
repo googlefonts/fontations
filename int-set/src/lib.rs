@@ -102,21 +102,49 @@ impl<T: Domain<T>> Default for IntSet<T> {
 }
 
 impl<T: Domain<T>> IntSet<T> {
-    // TODO(garretrieger): add additional functionality that the harfbuzz version has:
-    // - Iteration in reverse.
-    // - Iteration starting from some value (and before some value for reverse).
-    // - Set operations (union, subtract, intersect, sym diff).
-    // - Intersects range and intersects iter.
-    // - min()/max()
-
     /// Returns an iterator over all members of the set in sorted ascending order.
     ///
     /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
     /// care should be taken when using .iter() in combination with an inverted set.
     pub fn iter(&self) -> impl DoubleEndedIterator<Item = T> + '_ {
         let u32_iter = match &self.0 {
-            Membership::Inclusive(s) => Iter::new(s.iter(), None),
-            Membership::Exclusive(s) => Iter::new(s.iter(), Some(T::ordered_values())),
+            Membership::Inclusive(s) => Iter::new_bidirectional(s.iter(), None),
+            Membership::Exclusive(s) => {
+                Iter::new_bidirectional(s.iter(), Some(T::ordered_values()))
+            }
+        };
+        u32_iter.map(|v| T::from_u32(InDomain(v)))
+    }
+
+    /// Returns an iterator over the members of this set that come after 'value' in ascending order.
+    ///
+    /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
+    /// care should be taken when using .iter() in combination with an inverted set.
+    pub fn iter_after(&self, value: T) -> impl Iterator<Item = T> + '_ {
+        let u32_iter = match &self.0 {
+            Membership::Inclusive(s) => Iter::new(s.iter_after(value.to_u32()), None),
+            Membership::Exclusive(s) => {
+                let value_u32 = value.to_u32();
+                let max = T::ordered_values().next_back();
+                let it = max.map(|max| {
+                    let mut it = T::ordered_values_range(value..=T::from_u32(InDomain(max)));
+                    it.next(); // skip ahead one value.
+                    it
+                });
+                let min = it.and_then(|mut it| it.next());
+
+                if let (Some(min), Some(max)) = (min, max) {
+                    Iter::new(
+                        s.iter_after(value_u32),
+                        Some(T::ordered_values_range(
+                            T::from_u32(InDomain(min))..=T::from_u32(InDomain(max)),
+                        )),
+                    )
+                } else {
+                    // either min or max doesn't exist, so just return an iterator that has no values.
+                    Iter::new(s.iter_after(u32::MAX), None)
+                }
+            }
         };
         u32_iter.map(|v| T::from_u32(InDomain(v)))
     }
@@ -246,6 +274,34 @@ impl<T: Domain<T>> IntSet<T> {
         }
     }
 
+    /// Returns true if this set contains at least one element in 'range'.
+    pub fn intersects_range(&mut self, range: RangeInclusive<T>) -> bool {
+        let domain_min = T::ordered_values()
+            .next()
+            .map(|v_u32| T::from_u32(InDomain(v_u32)));
+        let Some(domain_min) = domain_min else {
+            return false;
+        };
+
+        let start_u32 = range.start().to_u32();
+        let mut it = T::ordered_values_range(domain_min..=T::from_u32(InDomain(start_u32)));
+        it.next_back();
+        let before_start = it.next_back();
+
+        let next = if let Some(before_start) = before_start {
+            self.iter_after(T::from_u32(InDomain(before_start))).next()
+        } else {
+            self.iter().next()
+        };
+
+        let Some(next) = next else {
+            return false;
+        };
+
+        // If next is <= end then there is at least one value in the input range.
+        return next.to_u32() <= range.end().to_u32();
+    }
+
     /// Returns first element in the set, if any. This element is always the minimum of all elements in the set.
     pub fn first(&self) -> Option<T> {
         return self.iter().next();
@@ -369,11 +425,7 @@ impl<T: Domain<T>> Extend<T> for IntSet<T> {
     }
 }
 
-struct Iter<SetIter, AllValuesIter>
-where
-    SetIter: DoubleEndedIterator<Item = u32>,
-    AllValuesIter: DoubleEndedIterator<Item = u32>,
-{
+struct Iter<SetIter, AllValuesIter> {
     set_values: SetIter,
     all_values: Option<AllValuesIter>,
     next_skipped_forward: Option<u32>,
@@ -382,10 +434,36 @@ where
 
 impl<SetIter, AllValuesIter> Iter<SetIter, AllValuesIter>
 where
+    SetIter: Iterator<Item = u32>,
+    AllValuesIter: Iterator<Item = u32>,
+{
+    fn new(
+        mut set_values: SetIter,
+        all_values: Option<AllValuesIter>,
+    ) -> Iter<SetIter, AllValuesIter> {
+        match all_values {
+            Some(_) => Iter {
+                next_skipped_forward: set_values.next(),
+                next_skipped_backward: None,
+                set_values,
+                all_values,
+            },
+            None => Iter {
+                next_skipped_forward: None,
+                next_skipped_backward: None,
+                set_values,
+                all_values,
+            },
+        }
+    }
+}
+
+impl<SetIter, AllValuesIter> Iter<SetIter, AllValuesIter>
+where
     SetIter: DoubleEndedIterator<Item = u32>,
     AllValuesIter: DoubleEndedIterator<Item = u32>,
 {
-    fn new(
+    fn new_bidirectional(
         mut set_values: SetIter,
         all_values: Option<AllValuesIter>,
     ) -> Iter<SetIter, AllValuesIter> {
@@ -408,8 +486,8 @@ where
 
 impl<SetIter, AllValuesIter> Iterator for Iter<SetIter, AllValuesIter>
 where
-    SetIter: DoubleEndedIterator<Item = u32>,
-    AllValuesIter: DoubleEndedIterator<Item = u32>,
+    SetIter: Iterator<Item = u32>,
+    AllValuesIter: Iterator<Item = u32>,
 {
     type Item = u32;
 
@@ -1249,6 +1327,111 @@ mod test {
     }
 
     #[test]
+    fn iter_after() {
+        let mut set = IntSet::<u32>::empty();
+        assert_eq!(set.iter_after(0).collect::<Vec<u32>>(), vec![]);
+
+        set.extend([5, 7, 10, 1250, 1300, 3001]);
+
+        assert_eq!(
+            set.iter_after(0).collect::<Vec<u32>>(),
+            vec![5, 7, 10, 1250, 1300, 3001]
+        );
+
+        assert_eq!(
+            set.iter_after(5).collect::<Vec<u32>>(),
+            vec![7, 10, 1250, 1300, 3001]
+        );
+        assert_eq!(
+            set.iter_after(700).collect::<Vec<u32>>(),
+            vec![1250, 1300, 3001]
+        );
+    }
+
+    #[test]
+    fn iter_after_exclusive() {
+        let mut set = IntSet::<u32>::empty();
+        set.extend([5, 7, 10, 1250, 1300, 3001]);
+        set.invert();
+
+        assert_eq!(
+            set.iter_after(3).take(5).collect::<Vec<u32>>(),
+            vec![4, 6, 8, 9, 11]
+        );
+
+        assert_eq!(
+            set.iter_after(0).take(5).collect::<Vec<u32>>(),
+            vec![1, 2, 3, 4, 6]
+        );
+
+        assert_eq!(
+            set.iter_after(u32::MAX - 1).take(1).collect::<Vec<u32>>(),
+            vec![u32::MAX]
+        );
+        assert_eq!(
+            set.iter_after(u32::MAX).take(1).collect::<Vec<u32>>(),
+            vec![]
+        );
+        set.remove(u32::MAX);
+        assert_eq!(
+            set.iter_after(u32::MAX - 1).take(1).collect::<Vec<u32>>(),
+            vec![]
+        );
+    }
+
+    #[test]
+    fn iter_after_discontinous() {
+        let mut set = IntSet::<EvenInts>::empty();
+        set.extend([EvenInts(6), EvenInts(10)]);
+        set.invert();
+
+        assert_eq!(
+            set.iter_after(EvenInts(2))
+                .take(5)
+                .collect::<Vec<EvenInts>>(),
+            vec![
+                EvenInts(4),
+                EvenInts(8),
+                EvenInts(12),
+                EvenInts(14),
+                EvenInts(16)
+            ]
+        );
+
+        assert_eq!(
+            set.iter_after(EvenInts(4))
+                .take(5)
+                .collect::<Vec<EvenInts>>(),
+            vec![
+                EvenInts(8),
+                EvenInts(12),
+                EvenInts(14),
+                EvenInts(16),
+                EvenInts(18)
+            ]
+        );
+
+        assert_eq!(
+            set.iter_after(EvenInts(u16::MAX - 1))
+                .collect::<Vec<EvenInts>>(),
+            vec![]
+        );
+
+        assert_eq!(
+            set.iter_after(EvenInts(u16::MAX - 5))
+                .collect::<Vec<EvenInts>>(),
+            vec![EvenInts(u16::MAX - 3), EvenInts(u16::MAX - 1)]
+        );
+
+        set.remove(EvenInts(u16::MAX - 1));
+        assert_eq!(
+            set.iter_after(EvenInts(u16::MAX - 5))
+                .collect::<Vec<EvenInts>>(),
+            vec![EvenInts(u16::MAX - 3),]
+        );
+    }
+
+    #[test]
     fn from_iterator() {
         let s: IntSet<u32> = [3, 8, 12, 589].into_iter().collect();
         let mut expected = IntSet::<u32>::empty();
@@ -1701,5 +1884,105 @@ mod test {
         assert_eq!(it.next(), Some(GlyphId::new(3)));
         assert_eq!(it.next(), Some(GlyphId::new(4)));
         assert_eq!(it.next(), Some(GlyphId::new(6)));
+    }
+
+    #[test]
+    fn intersects_range() {
+        let mut set = IntSet::<u32>::empty();
+        assert!(!set.intersects_range(0..=0));
+        assert!(!set.intersects_range(0..=100));
+        assert!(!set.intersects_range(0..=u32::MAX));
+        assert!(!set.intersects_range(u32::MAX..=u32::MAX));
+
+        set.insert(1234);
+        assert!(!set.intersects_range(0..=1233));
+        assert!(!set.intersects_range(1235..=1240));
+
+        assert!(set.intersects_range(1234..=1234));
+        assert!(set.intersects_range(1230..=1240));
+        assert!(set.intersects_range(0..=1234));
+        assert!(set.intersects_range(1234..=u32::MAX));
+
+        set.insert(0);
+        assert!(set.intersects_range(0..=0));
+        assert!(!set.intersects_range(1..=1));
+    }
+
+    #[test]
+    fn intersects_range_discontinous() {
+        let mut set = IntSet::<EvenInts>::empty();
+        assert!(!set.intersects_range(EvenInts(0)..=EvenInts(0)));
+        assert!(!set.intersects_range(EvenInts(0)..=EvenInts(100)));
+        assert!(!set.intersects_range(EvenInts(0)..=EvenInts(u16::MAX - 1)));
+        assert!(!set.intersects_range(EvenInts(u16::MAX - 1)..=EvenInts(u16::MAX - 1)));
+
+        set.insert(EvenInts(1234));
+        assert!(!set.intersects_range(EvenInts(0)..=EvenInts(1232)));
+        assert!(!set.intersects_range(EvenInts(1236)..=EvenInts(1240)));
+
+        assert!(set.intersects_range(EvenInts(1234)..=EvenInts(1234)));
+        assert!(set.intersects_range(EvenInts(1230)..=EvenInts(1240)));
+        assert!(set.intersects_range(EvenInts(0)..=EvenInts(1234)));
+        assert!(set.intersects_range(EvenInts(1234)..=EvenInts(u16::MAX - 1)));
+
+        set.insert(EvenInts(0));
+        assert!(set.intersects_range(EvenInts(0)..=EvenInts(0)));
+        assert!(!set.intersects_range(EvenInts(2)..=EvenInts(2)));
+    }
+
+    #[test]
+    fn intersects_range_exclusive() {
+        let mut set = IntSet::<u32>::all();
+        assert!(set.intersects_range(0..=0));
+        assert!(set.intersects_range(0..=100));
+        assert!(set.intersects_range(0..=u32::MAX));
+        assert!(set.intersects_range(u32::MAX..=u32::MAX));
+
+        set.remove(1234);
+        assert!(set.intersects_range(0..=1233));
+        assert!(set.intersects_range(1235..=1240));
+
+        assert!(!set.intersects_range(1234..=1234));
+        assert!(set.intersects_range(1230..=1240));
+        assert!(set.intersects_range(0..=1234));
+        assert!(set.intersects_range(1234..=u32::MAX));
+
+        set.remove(0);
+        assert!(!set.intersects_range(0..=0));
+        assert!(set.intersects_range(1..=1));
+
+        set.remove_range(5000..=5200);
+        assert!(!set.intersects_range(5000..=5200));
+        assert!(!set.intersects_range(5100..=5150));
+        assert!(set.intersects_range(4999..=5200));
+        assert!(set.intersects_range(5000..=5201));
+    }
+
+    #[test]
+    fn intersects_range_exclusive_discontinous() {
+        let mut set = IntSet::<EvenInts>::all();
+        assert!(set.intersects_range(EvenInts(0)..=EvenInts(0)));
+        assert!(set.intersects_range(EvenInts(0)..=EvenInts(100)));
+        assert!(set.intersects_range(EvenInts(0)..=EvenInts(u16::MAX - 1)));
+        assert!(set.intersects_range(EvenInts(u16::MAX - 1)..=EvenInts(u16::MAX - 1)));
+
+        set.remove(EvenInts(1234));
+        assert!(set.intersects_range(EvenInts(0)..=EvenInts(1232)));
+        assert!(set.intersects_range(EvenInts(1236)..=EvenInts(1240)));
+
+        assert!(!set.intersects_range(EvenInts(1234)..=EvenInts(1234)));
+        assert!(set.intersects_range(EvenInts(1230)..=EvenInts(1240)));
+        assert!(set.intersects_range(EvenInts(0)..=EvenInts(1234)));
+        assert!(set.intersects_range(EvenInts(1234)..=EvenInts(u16::MAX - 1)));
+
+        set.remove(EvenInts(0));
+        assert!(!set.intersects_range(EvenInts(0)..=EvenInts(0)));
+        assert!(set.intersects_range(EvenInts(2)..=EvenInts(2)));
+
+        set.remove_range(EvenInts(5000)..=EvenInts(5200));
+        assert!(!set.intersects_range(EvenInts(5000)..=EvenInts(5200)));
+        assert!(!set.intersects_range(EvenInts(5100)..=EvenInts(5150)));
+        assert!(set.intersects_range(EvenInts(4998)..=EvenInts(5200)));
+        assert!(set.intersects_range(EvenInts(5000)..=EvenInts(5202)));
     }
 }

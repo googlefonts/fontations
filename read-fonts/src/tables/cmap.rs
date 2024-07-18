@@ -587,7 +587,7 @@ mod tests {
     }
 
     // Make sure we don't bail early when iterating ranges with holes.
-    // Encounted with Gentium Basic and Gentium Basic Book.
+    // Encountered with Gentium Basic and Gentium Basic Book.
     // See <https://github.com/googlefonts/fontations/issues/897>
     #[test]
     fn cmap4_iter_sparse_range() {

@@ -10,6 +10,8 @@ categories = ["text-processing"]
 
 [features]
 std = []
+bytemuck = ["dep:bytemuck"]
+serde = ["dep:serde"]
 
 [dependencies]
 # note: bytemuck version must be available in all deployment environments

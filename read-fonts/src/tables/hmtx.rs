@@ -8,7 +8,7 @@ impl<'a> Hmtx<'a> {
         advance(self.h_metrics(), glyph_id)
     }
 
-    /// Returns the left side bearing for the given glyph identifer.
+    /// Returns the left side bearing for the given glyph identifier.
     pub fn side_bearing(&self, glyph_id: GlyphId) -> Option<i16> {
         side_bearing(self.h_metrics(), self.left_side_bearings(), glyph_id)
     }

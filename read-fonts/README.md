@@ -14,7 +14,7 @@ of the library.
 Much of the code in this crate is generated automatically. This generated code
 lives in the `generated` directory. Each file in this directory is included
 in a module in the `src` directory, using Rust's [`include!`] macro. This allows
-us to seperate the generated code from any custom implementation code, while
+us to separate the generated code from any custom implementation code, while
 allowing them to exist in the same module.
 
 ### what we generate
@@ -38,7 +38,7 @@ presence of fields the existence of which may depend on the table's version.
 
 ### variable lengths and version-dependent fields
 
-**n.b**: *the design described below has not been benchmarked agaisnt the
+**n.b**: *the design described below has not been benchmarked against the
 alternatives, and may change*
 
 For fields that have variable length, or which only exist in certain table
