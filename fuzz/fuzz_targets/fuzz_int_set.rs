@@ -26,17 +26,20 @@ use libfuzzer_sys::fuzz_target;
 const OPERATION_COUNT: usize = 7_500;
 
 // TODO(garretrieger): use "Cursor" to manage the input buffer.
-// TODO(garretrieger): allow inverted sets to be accessed.
-// TODO(garretrieger): allow a limited domain set to be accessed.
 
 trait SetMember<T>: Domain<T> + Ord + Copy + Add<u32, Output = T> + Debug {
     fn create(val: u32) -> Option<T>;
+    fn can_be_inverted() -> bool;
     fn increment(&mut self);
 }
 
 impl SetMember<u32> for u32 {
     fn create(val: u32) -> Option<u32> {
         Some(val)
+    }
+
+    fn can_be_inverted() -> bool {
+        false
     }
 
     fn increment(&mut self) {
@@ -74,6 +77,10 @@ impl SetMember<SmallInt> for SmallInt {
         Some(SmallInt::new(val))
     }
 
+    fn can_be_inverted() -> bool {
+        true
+    }
+
     fn increment(&mut self) {
         self.0 = min(self.0 + 1, Self::MAX_VALUE);
     }
@@ -103,6 +110,10 @@ impl Domain<SmallInt> for SmallInt {
             panic!("Invalid range of the SmallInt set.");
         }
         range.start().to_u32()..=range.end().to_u32()
+    }
+
+    fn count() -> usize {
+        Self::MAX_VALUE as usize + 1
     }
 }
 
@@ -521,6 +532,42 @@ where
     }
 }
 
+/* ### InclusiveIter ### */
+
+struct InclusiveIterOp();
+
+impl InclusiveIterOp {
+    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    where
+        T: SetMember<T>,
+    {
+        (Some(Box::new(Self())), data)
+    }
+}
+
+impl<T> Operation<T> for InclusiveIterOp
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
+        let int_set_it = input.int_set.inclusive_iter();
+        let btree_set_it = if input.int_set.is_inverted() {
+            None
+        } else {
+            Some(input.btree_set.iter())
+        };
+
+        assert_eq!(int_set_it.is_some(), btree_set_it.is_some());
+        if let (Some(a), Some(b)) = (int_set_it, btree_set_it) {
+            assert!(a.eq(b.copied()));
+        };
+    }
+
+    fn size(&self, length: usize) -> usize {
+        length
+    }
+}
+
 /* ### Iter Ranges ### */
 
 struct IterRangesOp();
@@ -759,6 +806,68 @@ where
     }
 }
 
+/* ### Invert ### */
+
+struct InvertOp();
+
+impl InvertOp {
+    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    where
+        T: SetMember<T>,
+    {
+        (Some(Box::new(Self())), data)
+    }
+}
+
+impl<T> Operation<T> for InvertOp
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
+        input.int_set.invert();
+
+        let mut inverted = BTreeSet::<T>::new();
+
+        for v in T::ordered_values() {
+            let v = T::create(v).unwrap();
+            if !input.btree_set.contains(&v) {
+                inverted.insert(v);
+            }
+        }
+        std::mem::swap(input.btree_set, &mut inverted);
+    }
+
+    fn size(&self, _: usize) -> usize {
+        T::count()
+    }
+}
+
+/* ### Is Inverted ### */
+
+struct IsInvertedOp();
+
+impl IsInvertedOp {
+    fn parse_args<T>(data: &[u8]) -> (Option<Box<dyn Operation<T>>>, &[u8])
+    where
+        T: SetMember<T>,
+    {
+        (Some(Box::new(Self())), data)
+    }
+}
+
+impl<T> Operation<T> for IsInvertedOp
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
+        input.int_set.is_inverted();
+    }
+
+    fn size(&self, _: usize) -> usize {
+        1
+    }
+}
+
 /* ### End of Ops ### */
 
 fn read_u8(data: &[u8]) -> (Option<u8>, &[u8]) {
@@ -819,11 +928,6 @@ where
     let set_index = if (op_code & INDEX_MASK) > 0 { 1 } else { 0 };
     let op_code = !INDEX_MASK & op_code;
 
-    // TODO ops for most public api methods (have operations for iter() be what checks for
-    //      iter() equality alongside the check at end):
-    // - invert
-    // - inclusive_iter
-    // - is_inverted
     let data = &data[1..];
     let (op, data) = match op_code {
         1 => InsertOp::parse_args(data),
@@ -840,11 +944,20 @@ where
         12 => IterOp::parse_args(data),
         13 => IterRangesOp::parse_args(data),
         14 => IterAfterOp::parse_args(data),
-        15 => RemoveAllOp::parse_args(data),
-        16 => ExtendOp::parse_args(data),
-        17 => ExtendUnsortedOp::parse_args(data),
-        18 => UnionOp::parse_args(data),
-        19 => IntersectOp::parse_args(data),
+        15 => InclusiveIterOp::parse_args(data),
+        16 => RemoveAllOp::parse_args(data),
+        17 => ExtendOp::parse_args(data),
+        18 => ExtendUnsortedOp::parse_args(data),
+        19 => UnionOp::parse_args(data),
+        20 => IntersectOp::parse_args(data),
+        21 => IsInvertedOp::parse_args(data),
+        22 => {
+            if T::can_be_inverted() {
+                InvertOp::parse_args(data)
+            } else {
+                (None, data)
+            }
+        }
         _ => (None, data),
     };
 
@@ -856,16 +969,16 @@ where
     })
 }
 
-fn process_op_codes(data: &[u8]) -> Result<(), Box<dyn Error>> {
-    let mut int_set_0 = IntSet::<u32>::empty();
-    let mut int_set_1 = IntSet::<u32>::empty();
-    let mut btree_set_0 = BTreeSet::<u32>::new();
-    let mut btree_set_1 = BTreeSet::<u32>::new();
+fn process_op_codes<T: SetMember<T> + 'static>(data: &[u8]) -> Result<(), Box<dyn Error>> {
+    let mut int_set_0 = IntSet::<T>::empty();
+    let mut int_set_1 = IntSet::<T>::empty();
+    let mut btree_set_0 = BTreeSet::<T>::new();
+    let mut btree_set_1 = BTreeSet::<T>::new();
 
     let mut ops = 0usize;
     let mut data = data;
     loop {
-        let next_op = next_operation(data);
+        let next_op = next_operation::<T>(data);
         let Some(next_op) = next_op else {
             break;
         };
@@ -907,5 +1020,16 @@ fn process_op_codes(data: &[u8]) -> Result<(), Box<dyn Error>> {
 }
 
 fuzz_target!(|data: &[u8]| {
-    let _ = process_op_codes(data);
+    let Some(mode_byte) = data.get(0) else {
+        return;
+    };
+
+    match mode_byte {
+        1 => {
+            let _ = process_op_codes::<u32>(&data[1..]);
+        }
+        2 | _ => {
+            let _ = process_op_codes::<SmallInt>(&data[1..]);
+        }
+    };
 });
