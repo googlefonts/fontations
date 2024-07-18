@@ -5,8 +5,6 @@
 //! on a BTreeSet. Any differences in behaviour and/or set contents triggers a panic.
 //!
 //! The fuzzer input data is interpreted as a series of op codes which map to the public api methods of IntSet.
-//!
-//! Note: currently only inclusive mode IntSet's are tested.
 
 use std::cmp::max;
 
@@ -14,7 +12,6 @@ use std::cmp::min;
 use std::fmt::Debug;
 use std::io::Cursor;
 use std::io::Read;
-use std::ops::Add;
 use std::ops::Bound::Excluded;
 use std::ops::Bound::Included;
 use std::ops::RangeInclusive;
@@ -27,7 +24,7 @@ use libfuzzer_sys::fuzz_target;
 
 const OPERATION_COUNT: usize = 7_500;
 
-trait SetMember<T>: Domain<T> + Ord + Copy + Add<u32, Output = T> + Debug {
+trait SetMember<T>: Domain<T> + Ord + Copy + Debug {
     fn create(val: u32) -> Option<T>;
     fn can_be_inverted() -> bool;
     fn increment(&mut self);
@@ -47,25 +44,20 @@ impl SetMember<u32> for u32 {
     }
 }
 
+/// This is an integer in the domain of [0, 2048). It's used by the fuzzer
+/// for testing inverted sets to avoid causing excessively long running operations
+/// and memory usage on the btree set kept along side the IntSet.
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
 struct SmallInt(u32);
 
 impl SmallInt {
-    const MAX_VALUE: u32 = 4 * 512;
+    const MAX_VALUE: u32 = 4 * 512 - 1;
 
     fn new(value: u32) -> SmallInt {
         if value > Self::MAX_VALUE {
             panic!("Constructed SmallInt with value > MAX_VALUE");
         }
         SmallInt(value)
-    }
-}
-
-impl Add<u32> for SmallInt {
-    type Output = SmallInt;
-
-    fn add(self, rhs: u32) -> Self::Output {
-        SmallInt::new(self.0 + rhs)
     }
 }
 
@@ -114,6 +106,73 @@ impl Domain<SmallInt> for SmallInt {
 
     fn count() -> usize {
         Self::MAX_VALUE as usize + 1
+    }
+}
+
+/// This is an even integer in the domain of [0, 2048). It's used by the fuzzer
+/// for testing inverted sets + discontinous domains.
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
+struct SmallEvenInt(u32);
+
+impl SmallEvenInt {
+    const MAX_VALUE: u32 = 4 * 512 - 2;
+
+    fn new(value: u32) -> SmallEvenInt {
+        if value > Self::MAX_VALUE {
+            panic!("Constructed SmallEvenInt with value > MAX_VALUE.");
+        }
+        if value % 2 != 0 {
+            panic!("Constructed SmallEvenInt with an odd value.");
+        }
+        SmallEvenInt(value)
+    }
+}
+
+impl SetMember<SmallEvenInt> for SmallEvenInt {
+    fn create(val: u32) -> Option<SmallEvenInt> {
+        if val > Self::MAX_VALUE || val % 2 != 0 {
+            return None;
+        }
+        Some(SmallEvenInt::new(val))
+    }
+
+    fn can_be_inverted() -> bool {
+        true
+    }
+
+    fn increment(&mut self) {
+        self.0 = min(self.0 + 2, Self::MAX_VALUE);
+    }
+}
+
+impl Domain<SmallEvenInt> for SmallEvenInt {
+    fn to_u32(&self) -> u32 {
+        self.0
+    }
+
+    fn from_u32(member: InDomain) -> SmallEvenInt {
+        SmallEvenInt::new(member.value())
+    }
+
+    fn is_continous() -> bool {
+        false
+    }
+
+    fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
+        (0..=(Self::MAX_VALUE / 2)).map(|ord| ord * 2)
+    }
+
+    fn ordered_values_range(
+        range: RangeInclusive<SmallEvenInt>,
+    ) -> impl DoubleEndedIterator<Item = u32> {
+        if range.start().0 > Self::MAX_VALUE || range.end().0 > Self::MAX_VALUE {
+            panic!("Invalid range of the SmallInt set.");
+        }
+        ((range.start().to_u32() / 2)..=(range.end().to_u32() / 2)).map(|ord| ord * 2)
+    }
+
+    fn count() -> usize {
+        ((Self::MAX_VALUE / 2) + 1) as usize
     }
 }
 
@@ -204,7 +263,7 @@ where
         input.int_set.insert_range(self.0..=self.1);
 
         let mut v = self.0;
-        for _ in self.0.to_u32()..=self.1.to_u32() {
+        for _ in T::ordered_values_range(self.0..=self.1) {
             input.btree_set.insert(v);
             v.increment();
         }
@@ -271,7 +330,7 @@ where
     fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.remove_range(self.0..=self.1);
         let mut v = self.0;
-        for _ in self.0.to_u32()..=self.1.to_u32() {
+        for _ in T::ordered_values_range(self.0..=self.1) {
             input.btree_set.remove(&v);
             v.increment();
         }
@@ -279,14 +338,14 @@ where
 }
 
 /* ### Length ### */
-struct LengthOp();
+struct LengthOp;
 
 impl LengthOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        Some(Box::new(Self()))
+        Some(Box::new(Self))
     }
 }
 
@@ -305,14 +364,14 @@ where
 
 /* ### Is Empty ### */
 
-struct IsEmptyOp();
+struct IsEmptyOp;
 
 impl IsEmptyOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        Some(Box::new(Self()))
+        Some(Box::new(Self))
     }
 }
 
@@ -361,14 +420,14 @@ where
 
 /* ### Clear  ### */
 
-struct ClearOp();
+struct ClearOp;
 
 impl ClearOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        Some(Box::new(Self()))
+        Some(Box::new(Self))
     }
 }
 
@@ -412,7 +471,7 @@ where
 
         let mut btree_intersects = false;
         let mut v = self.0;
-        for _ in self.0.to_u32()..=self.1.to_u32() {
+        for _ in T::ordered_values_range(self.0..=self.1) {
             if input.btree_set.contains(&v) {
                 btree_intersects = true;
                 break;
@@ -433,14 +492,14 @@ where
 
 /* ### First  ### */
 
-struct FirstOp();
+struct FirstOp;
 
 impl FirstOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        Some(Box::new(Self()))
+        Some(Box::new(Self))
     }
 }
 
@@ -459,14 +518,14 @@ where
 
 /* ### First  ### */
 
-struct LastOp();
+struct LastOp;
 
 impl LastOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        Some(Box::new(Self()))
+        Some(Box::new(Self))
     }
 }
 
@@ -485,14 +544,14 @@ where
 
 /* ### Iter ### */
 
-struct IterOp();
+struct IterOp;
 
 impl IterOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        Some(Box::new(Self()))
+        Some(Box::new(Self))
     }
 }
 
@@ -511,14 +570,14 @@ where
 
 /* ### InclusiveIter ### */
 
-struct InclusiveIterOp();
+struct InclusiveIterOp;
 
 impl InclusiveIterOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        Some(Box::new(Self()))
+        Some(Box::new(Self))
     }
 }
 
@@ -547,14 +606,14 @@ where
 
 /* ### Iter Ranges ### */
 
-struct IterRangesOp();
+struct IterRangesOp;
 
 impl IterRangesOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        Some(Box::new(Self()))
+        Some(Box::new(Self))
     }
 }
 
@@ -568,7 +627,9 @@ where
 
         for v in input.btree_set.iter().copied() {
             if let Some(range) = cur_range {
-                if *range.end() + 1 == v {
+                let mut end = *range.end();
+                end.increment();
+                if end == v {
                     cur_range = Some(*range.start()..=v);
                     continue;
                 }
@@ -714,14 +775,14 @@ where
 
 /* ### Union ### */
 
-struct UnionOp();
+struct UnionOp;
 
 impl UnionOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        Some(Box::new(Self()))
+        Some(Box::new(Self))
     }
 }
 
@@ -744,14 +805,14 @@ where
 
 /* ### Intersect ### */
 
-struct IntersectOp();
+struct IntersectOp;
 
 impl IntersectOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        Some(Box::new(Self()))
+        Some(Box::new(Self))
     }
 }
 
@@ -773,14 +834,14 @@ where
 
 /* ### Invert ### */
 
-struct InvertOp();
+struct InvertOp;
 
 impl InvertOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        Some(Box::new(Self()))
+        Some(Box::new(Self))
     }
 }
 
@@ -809,14 +870,14 @@ where
 
 /* ### Is Inverted ### */
 
-struct IsInvertedOp();
+struct IsInvertedOp;
 
 impl IsInvertedOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
         T: SetMember<T>,
     {
-        Some(Box::new(Self()))
+        Some(Box::new(Self))
     }
 }
 
@@ -966,7 +1027,7 @@ fn process_op_codes<T: SetMember<T> + 'static>(data: &[u8]) -> Result<(), Box<dy
 }
 
 fuzz_target!(|data: &[u8]| {
-    let Some(mode_byte) = data.get(0) else {
+    let Some(mode_byte) = data.first() else {
         return;
     };
 
@@ -974,8 +1035,12 @@ fuzz_target!(|data: &[u8]| {
         1 => {
             let _ = process_op_codes::<u32>(&data[1..]);
         }
-        2 | _ => {
+        2 => {
             let _ = process_op_codes::<SmallInt>(&data[1..]);
         }
+        3 => {
+            let _ = process_op_codes::<SmallEvenInt>(&data[1..]);
+        }
+        _ => return,
     };
 });
