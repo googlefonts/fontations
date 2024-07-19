@@ -264,7 +264,7 @@ impl GlyphVariations {
         let mut point_number_counts = IndexMap::new();
         // count how often each set of numbers occurs
         for deltas in &self.variations {
-            // for each set points, get compiled size + number of occurances
+            // for each set points, get compiled size + number of occurrences
             let (_, count) = point_number_counts
                 .entry(&deltas.best_point_packing)
                 .or_insert_with(|| {

@@ -725,7 +725,7 @@ mod test {
         check_iter_ranges(vec![400..=511]);
         check_iter_ranges(vec![0..=511]);
 
-        // continutation ranges
+        // continuation ranges
         check_iter_ranges(vec![64..=127]);
         check_iter_ranges(vec![64..=127, 129..=135]);
         check_iter_ranges(vec![64..=135]);

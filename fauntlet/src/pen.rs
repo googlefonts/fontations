@@ -9,7 +9,7 @@ use skrifa::raw::types::{Pen, PenCommand};
 ///    them with a line if the current point does not match the most recent
 ///    start point.
 ///
-/// 2. The FT CFF loader elminates some, but not all degenerate move/line
+/// 2. The FT CFF loader eliminates some, but not all degenerate move/line
 ///    elements (due to a final scaling step that may introduce new ones).
 ///    Skrifa applies this pass *after* scaling so is more aggressive about
 ///    removing degenerates. This drops unused moves and lines that end at the
@@ -188,7 +188,7 @@ mod tests {
         use PenCommand::*;
         let mut recording = RecordingPen::default();
         let mut pen = RegularizingPen::new(&mut recording, true);
-        // Dropped: superceded by following move
+        // Dropped: superseded by following move
         pen.move_to(1.0, 2.0);
         pen.move_to(4.5, 5.0);
         // Dropped: line to previous move
@@ -225,7 +225,7 @@ mod tests {
         // Two offcurve points with odd deltas
         let offcurve1 = (4.0, 4.0);
         let offcurve2 = (7.0, 9.0);
-        // Implicit oncurve at midpoint beteween offcurves
+        // Implicit oncurve at midpoint between offcurves
         let implicit_oncurve = (
             (offcurve1.0 + offcurve2.0) / 2.0,
             (offcurve1.1 + offcurve2.1) / 2.0,

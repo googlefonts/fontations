@@ -16,7 +16,7 @@ if [ $# -eq 0 ]; then
   die_with_usage "No arguments provided, must specify crate(s)"
 fi
 
-# bump is the last argument, crate list is everythign else
+# bump is the last argument, crate list is everything else
 bump="${@:$#}"
 set -- "${@:1:$(($#-1))}"
 crates=("$@")

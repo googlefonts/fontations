@@ -1257,7 +1257,7 @@ impl Field {
                 CustomCompile::Expr(inline_expr) => {
                     // this expects that the type is always some simple scalar,
                     // and does not work if there is an explicit #[compile_type]
-                    // specified; it may need to be revaluated at some point.
+                    // specified; it may need to be reevaluated at some point.
                     let typ = self.typ.cooked_type_tokens();
                     let expr = inline_expr.compile_expr();
                     if !inline_expr.referenced_fields.is_empty() {

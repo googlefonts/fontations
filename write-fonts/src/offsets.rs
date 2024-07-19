@@ -98,7 +98,7 @@ impl<const N: usize, T> NullableOffsetMarker<T, N> {
 
     /// Set the contents of the marker, replacing any existing contents.
     ///
-    /// The argument must be some value; to set the offest to null, use the
+    /// The argument must be some value; to set the offset to null, use the
     /// [`clear`] method.
     ///
     /// [`clear`]: Self::clear

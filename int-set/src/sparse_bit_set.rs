@@ -189,7 +189,7 @@ pub fn to_sparse_bit_set_with_bf<const BF: u8>(set: &IntSet<u32>) -> Vec<u8> {
 struct CreateLayerState<'a> {
     // This is the set of indices which are to be set in the layer above this one
     upper_indices: IntSet<u32>,
-    // Similarily, this is the set of indices in the layer above this one which are fully filled.
+    // Similarly, this is the set of indices in the layer above this one which are fully filled.
     upper_filled_indices: IntSet<u32>,
 
     current_node: Option<Node>,
@@ -239,7 +239,7 @@ impl<'a> CreateLayerState<'a> {
 /// Compute the nodes for a layer of the sparse bit set.
 ///
 /// Computes the nodes needed for the layer which contains the indices in
-/// 'iter'. The new nodes are appeded to 'nodes'. 'iter' must be sorted
+/// 'iter'. The new nodes are appended to 'nodes'. 'iter' must be sorted
 /// in ascending order.
 ///
 /// Returns the set of indices for the layer above.

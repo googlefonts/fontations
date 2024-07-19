@@ -29,7 +29,7 @@ macro_rules! lookup_type {
     };
 }
 
-/// A macro to define a newtype around an exisitng table, that defers all
+/// A macro to define a newtype around an existing table, that defers all
 /// impls to that table.
 ///
 /// We use this to ensure that shared lookup types (Sequence/Chain

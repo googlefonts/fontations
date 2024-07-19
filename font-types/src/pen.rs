@@ -1,6 +1,6 @@
 /// Interface for accepting a sequence of path commands.
 ///
-/// This is a general abstraction to unify ouput for processes that decode and/or
+/// This is a general abstraction to unify output for processes that decode and/or
 /// transform outlines.
 ///
 /// /// AbstractPen in Python terms.

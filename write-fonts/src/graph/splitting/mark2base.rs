@@ -356,7 +356,7 @@ mod tests {
                             let val = u16_to_i16(i * mark_class_count + j);
                             if include_var_index_tables {
                                 // we want duplicate variation index tables, since it
-                                // poses different challanges when resolving offsets
+                                // poses different challenges when resolving offsets
                                 let var_idx = VariationIndex::new(j, j);
                                 AnchorTable::format_3(val, val, Some(var_idx.into()), None)
                             } else {

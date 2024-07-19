@@ -230,7 +230,7 @@ impl Graph {
     ///
     /// This is not public API, and you are responsible for ensuring that
     /// the graph is sorted before calling (by calling `pack_objects`, and
-    /// checking that it has succeded).
+    /// checking that it has succeeded).
     pub(crate) fn serialize(&self) -> Vec<u8> {
         fn write_offset(at: &mut [u8], len: OffsetLen, resolved: u32) {
             let at = &mut at[..len as u8 as usize];
@@ -1643,7 +1643,7 @@ mod tests {
         let mut graph = TableWriter::make_graph(&table);
         assert!(
             !graph.basic_sort(),
-            "simple sorting should not resovle this graph"
+            "simple sorting should not resolve this graph"
         );
 
         const BASE_LEN: usize = 10 // GPOS header len
@@ -1719,7 +1719,7 @@ mod tests {
         let mut graph = TableWriter::make_graph(&table);
         assert!(
             !graph.basic_sort(),
-            "simple sorting should not resovle this graph",
+            "simple sorting should not resolve this graph",
         );
 
         // uncomment these two lines if you want to visualize the graph:

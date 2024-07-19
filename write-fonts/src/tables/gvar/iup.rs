@@ -437,7 +437,7 @@ fn iup_contour_optimize(
         }
 
         let (x, y) = first_delta.to_point().ot_round();
-        // if all deltas are equal than the first is explict and the rest
+        // if all deltas are equal than the first is explicit and the rest
         // are interpolatable
         return Ok(std::iter::once(GlyphDelta::required(x, y))
             .chain(std::iter::repeat(GlyphDelta::optional(x, y)))

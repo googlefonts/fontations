@@ -105,14 +105,14 @@ where
     }
 }
 
-// A blanket impl to cover converting any Option<T> if T is convertable
+// A blanket impl to cover converting any Option<T> if T is convertible
 impl<T: FromObjRef<U>, U> FromObjRef<Option<U>> for Option<T> {
     fn from_obj_ref(from: &Option<U>, data: FontData) -> Self {
         from.as_ref().map(|inner| T::from_obj_ref(inner, data))
     }
 }
 
-// A blanket impl to cover converting any Option<T> if T is convertable
+// A blanket impl to cover converting any Option<T> if T is convertible
 impl<T: FromTableRef<U>, U> FromTableRef<Option<U>> for Option<T> {
     fn from_table_ref(from: &Option<U>) -> Self {
         from.as_ref().map(ToOwnedTable::to_owned_table)

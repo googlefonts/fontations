@@ -968,7 +968,7 @@ impl Parse for VariantAttrs {
             let ident = attr.path().get_ident().ok_or_else(|| {
                 syn::Error::new(
                     attr.path().span(),
-                    "attr paths should be a single identifer",
+                    "attr paths should be a single identifier",
                 )
             })?;
             if ident == DOC {
@@ -1041,7 +1041,7 @@ impl Parse for FieldAttrs {
             let ident = attr.path().get_ident().ok_or_else(|| {
                 syn::Error::new(
                     attr.path().span(),
-                    "attr paths should be a single identifer",
+                    "attr paths should be a single identifier",
                 )
             })?;
             if ident == DOC {
@@ -1114,7 +1114,7 @@ impl Parse for TableAttrs {
             let ident = attr.path().get_ident().ok_or_else(|| {
                 syn::Error::new(
                     attr.path().span(),
-                    "attr paths should be a single identifer",
+                    "attr paths should be a single identifier",
                 )
             })?;
             if ident == DOC {
@@ -1160,7 +1160,7 @@ impl Parse for EnumVariantAttrs {
             let ident = attr.path().get_ident().ok_or_else(|| {
                 syn::Error::new(
                     attr.path().span(),
-                    "attr paths should be a single identifer",
+                    "attr paths should be a single identifier",
                 )
             })?;
             if ident == DOC {

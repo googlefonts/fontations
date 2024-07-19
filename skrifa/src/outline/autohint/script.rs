@@ -40,7 +40,7 @@ impl ScriptRange {
     }
 }
 
-// These properties ostensibily come from
+// These properties ostensibly come from
 // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afblue.h#L317>
 // but are modified to match those at
 // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L68>

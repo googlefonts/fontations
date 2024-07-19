@@ -169,7 +169,7 @@ fn split_pair_pos_format_2(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<
         .intersects(rgpos::ValueFormat::ANY_DEVICE_OR_VARIDX);
 
     let mut visited = HashSet::new();
-    let mut next_device_offset = 3; // start after coverage + classs defs
+    let mut next_device_offset = 3; // start after coverage + class defs
     for (idx, class1rec) in pp2.class1_records().iter().enumerate() {
         let mut accumulated_delta = class1_record_size;
         coverage_size += estimator.increment_coverage_size(idx as _);

@@ -204,7 +204,7 @@ mod flags {
     xflags::xflags! {
         /// Explore the contents of binary font files
         ///
-        /// otexplorer can print a textual representation of the the tables in
+        /// otexplorer can print a textual representation of the tables in
         /// a font file, or some subset of those tables.
         ///
         /// In addition to this, the -q option allows the user to provide a query,
