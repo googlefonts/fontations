@@ -47,6 +47,12 @@ impl IntSet<u32> {
             return Err(DecodingError);
         };
 
+        if height > branch_factor.max_height() {
+            // TODO(garretrieger): the spec says nothing about this depth limit, we need to update the spec
+            // to match.
+            return Err(DecodingError);
+        }
+
         let result = match branch_factor {
             BranchFactor::Two => Self::decode_sparse_bit_set_nodes::<2>(data, height),
             BranchFactor::Four => Self::decode_sparse_bit_set_nodes::<4>(data, height),
@@ -74,31 +80,37 @@ impl IntSet<u32> {
 
         while let Some(next) = queue.pop_front() {
             let mut bits = bits.next().ok_or(DecodingError)?;
-
             if bits == 0 {
                 // all bits were zeroes which is a special command to completely fill in
                 // all integers covered by this node.
                 let exp = (height as u32) - next.depth + 1;
+                let node_size = (BF as u64).pow(exp);
                 // TODO(garretrieger): implement special insert_range on the builder as well.
-                builder
-                    .set
-                    .insert_range(next.start..=next.start + (BF as u32).pow(exp) - 1);
+                let start = u32::try_from(next.start).or(Err(DecodingError))?;
+                let end = u32::try_from(next.start + node_size - 1).or(Err(DecodingError))?;
+                builder.set.insert_range(start..=end);
                 continue;
             }
 
+            let exp = height as u32 - next.depth;
+            let next_node_size = (BF as u64).pow(exp);
             loop {
                 let bit_index = bits.trailing_zeros();
                 if bit_index == 32 {
                     break;
                 }
 
+                // TODO(garretrieger): possible optimization by having two versions of this loop
+                //                     as next.depth == height has the same value for each of the outer iterations.
                 if next.depth == height as u32 {
                     // TODO(garretrieger): further optimize by inserting entire nodes at once (as a bit field).
-                    builder.insert(next.start + bit_index);
+                    let start =
+                        u32::try_from(next.start + bit_index as u64).or(Err(DecodingError))?;
+                    builder.insert(start);
                 } else {
-                    let exp = height as u32 - next.depth;
+                    let start_delta = bit_index as u64 * next_node_size;
                     queue.push_back(NextNode {
-                        start: next.start + bit_index * (BF as u32).pow(exp),
+                        start: next.start + start_delta,
                         depth: next.depth + 1,
                     });
                 }
@@ -126,19 +138,21 @@ impl IntSet<u32> {
             return OutputBitStream::new(BranchFactor::Two, 0).into_bytes();
         };
 
-        if BranchFactor::Two.tree_height_for(max_value) < OutputBitStream::MAX_HEIGHT {
+        if BranchFactor::Two.tree_height_for(max_value) <= BranchFactor::Two.max_height() {
             candidates.push(to_sparse_bit_set_with_bf::<2>(self));
         }
 
-        if BranchFactor::Four.tree_height_for(max_value) < OutputBitStream::MAX_HEIGHT {
+        if BranchFactor::Four.tree_height_for(max_value) <= BranchFactor::Four.max_height() {
             candidates.push(to_sparse_bit_set_with_bf::<4>(self));
         }
 
-        if BranchFactor::Eight.tree_height_for(max_value) < OutputBitStream::MAX_HEIGHT {
+        if BranchFactor::Eight.tree_height_for(max_value) <= BranchFactor::Eight.max_height() {
             candidates.push(to_sparse_bit_set_with_bf::<8>(self));
         }
 
-        if BranchFactor::ThirtyTwo.tree_height_for(max_value) < OutputBitStream::MAX_HEIGHT {
+        if BranchFactor::ThirtyTwo.tree_height_for(max_value)
+            <= BranchFactor::ThirtyTwo.max_height()
+        {
             candidates.push(to_sparse_bit_set_with_bf::<32>(self));
         }
 
@@ -159,6 +173,14 @@ pub fn to_sparse_bit_set_with_bf<const BF: u8>(set: &IntSet<u32>) -> Vec<u8> {
         return OutputBitStream::new(branch_factor, 0).into_bytes();
     };
     let mut height = branch_factor.tree_height_for(max_value);
+    if height > branch_factor.max_height() {
+        if BF == 2 {
+            // Branch factor 2 cannot encode all possible u32 values, so upgrade to a BF4 set in that case.
+            return to_sparse_bit_set_with_bf::<4>(set);
+        }
+        // This shouldn't be reachable for any possible u32 values.
+        panic!("Height value exceeds the maximum for this branch factor.");
+    }
     let mut os = OutputBitStream::new(branch_factor, height);
     let mut nodes: Vec<Node> = vec![];
 
@@ -310,6 +332,16 @@ impl BranchFactor {
         }
     }
 
+    /// The maximum height that can be used for a given branch factor without the risk of encountering overflows
+    pub(crate) fn max_height(&self) -> u8 {
+        match self {
+            BranchFactor::Two => 31,
+            BranchFactor::Four => 16,
+            BranchFactor::Eight => 11,
+            BranchFactor::ThirtyTwo => 7,
+        }
+    }
+
     fn tree_height_for(&self, max_value: u32) -> u8 {
         // height H, can represent up to (BF^height) - 1
         let mut height: u32 = 0;
@@ -363,7 +395,7 @@ impl BranchFactor {
 }
 
 struct NextNode {
-    start: u32,
+    start: u64,
     depth: u32,
 }
 
@@ -415,6 +447,88 @@ mod test {
         // Spec example 2 with one byte missing.
         let bytes = [
             0b00001110, 0b00100001, 0b00010001, 0b00000001, 0b00000100, 0b00000010,
+        ];
+        assert!(IntSet::<u32>::from_sparse_bit_set(&bytes).is_err());
+
+        // Set with values beyond u32
+        let bytes = [
+            0b0_01000_11, // BF 32, Depth 8
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b10000000, // L1
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b10000000, // L2
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b10000000, // L3
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b10000000, // L4
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b10000000, // L5
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b10000000, // L6
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b00000001, // L7
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b10000000, // L8
+        ];
+        assert!(IntSet::<u32>::from_sparse_bit_set(&bytes).is_err());
+
+        // Set with values beyond u32
+        let bytes = [
+            0b0_00111_11, // BF 32, Depth 8
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b10000000, // L1
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b10000000, // L2
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b10000000, // L3
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b10000000, // L4
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b10000000, // L5
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b10000000, // L6
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b00000001, // L7
+        ];
+        assert!(IntSet::<u32>::from_sparse_bit_set(&bytes).is_err());
+
+        // Set with filled node values beyond u32
+        let bytes = [
+            0b0_00111_11, // BF 32, Depth 8
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b00000000,
         ];
         assert!(IntSet::<u32>::from_sparse_bit_set(&bytes).is_err());
     }
@@ -606,7 +720,28 @@ mod test {
     #[test]
     fn encode_maxu32() {
         let s: IntSet<u32> = [1, u32::MAX].iter().copied().collect();
+
         let bytes = s.to_sparse_bit_set();
+        let s_prime = IntSet::<u32>::from_sparse_bit_set(&bytes);
+        assert_eq!(s, s_prime.unwrap());
+
+        let s: IntSet<u32> = [1, u32::MAX].iter().copied().collect();
+        let bytes = to_sparse_bit_set_with_bf::<2>(&s);
+        let s_prime = IntSet::<u32>::from_sparse_bit_set(&bytes);
+        assert_eq!(s, s_prime.unwrap());
+
+        let s: IntSet<u32> = [1, u32::MAX].iter().copied().collect();
+        let bytes = to_sparse_bit_set_with_bf::<4>(&s);
+        let s_prime = IntSet::<u32>::from_sparse_bit_set(&bytes);
+        assert_eq!(s, s_prime.unwrap());
+
+        let s: IntSet<u32> = [1, u32::MAX].iter().copied().collect();
+        let bytes = to_sparse_bit_set_with_bf::<8>(&s);
+        let s_prime = IntSet::<u32>::from_sparse_bit_set(&bytes);
+        assert_eq!(s, s_prime.unwrap());
+
+        let s: IntSet<u32> = [1, u32::MAX].iter().copied().collect();
+        let bytes = to_sparse_bit_set_with_bf::<32>(&s);
         let s_prime = IntSet::<u32>::from_sparse_bit_set(&bytes);
         assert_eq!(s, s_prime.unwrap());
     }
