@@ -51,3 +51,9 @@ name = "fuzz_int_set"
 path = "fuzz_targets/fuzz_int_set.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "fuzz_sparse_bit_set_decode"
+path = "fuzz_targets/fuzz_sparse_bit_set_decode.rs"
+test = false
+doc = false
