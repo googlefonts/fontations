@@ -9,7 +9,7 @@ pub(crate) struct OutputBitStream {
 }
 
 impl OutputBitStream {
-    pub(crate) const MAX_HEIGHT: u8 = 32;
+    pub(crate) const MAX_HEIGHT: u8 = 31;
 
     pub(crate) fn new(branch_factor: BranchFactor, height: u8) -> OutputBitStream {
         let mut out = OutputBitStream {
@@ -17,8 +17,8 @@ impl OutputBitStream {
             sub_index: 0,
             branch_factor,
         };
-        if height >= OutputBitStream::MAX_HEIGHT {
-            panic!("Height value exceeds 5 bits.");
+        if height > Self::MAX_HEIGHT {
+            panic!("Height value exceeds maximum for the branch factor.");
         }
         out.write_header(height);
         out
