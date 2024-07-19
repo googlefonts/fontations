@@ -14,7 +14,7 @@ pub type NormalizedCoord = read_fonts::types::F2Dot14;
 /// in CSS (assuming a DPI scale factor of 1.0).
 ///
 /// To retrieve metrics and outlines in font units, use the [unscaled](Self::unscaled)
-/// construtor on this type.
+/// constructor on this type.
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
 pub struct Size(Option<f32>);
 

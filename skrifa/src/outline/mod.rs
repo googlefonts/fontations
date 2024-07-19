@@ -1117,7 +1117,7 @@ mod tests {
         let bez = Affine::FLIP_Y * pen.path; // like an icon svg
         let actual_path_start = &bez.elements()[..expected_path_start.len()];
         // round2 can still leave very small differences from the typed 2-decimal value
-        // and the diff isn't pleasent so just compare as svg string fragments
+        // and the diff isn't pleasant so just compare as svg string fragments
         assert_eq!(
             svg_commands(expected_path_start),
             svg_commands(actual_path_start)

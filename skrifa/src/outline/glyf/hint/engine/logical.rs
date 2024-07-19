@@ -42,7 +42,7 @@ impl<'a> Engine<'a> {
         self.value_stack.apply_binary(|a, b| Ok((a <= b) as i32))
     }
 
-    /// Greather than.
+    /// Greater than.
     ///
     /// GT[] (0x52)
     ///

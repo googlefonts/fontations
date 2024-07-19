@@ -81,7 +81,7 @@ pub(crate) struct HintState {
     blue_shift: Fixed,
     blue_fuzz: Fixed,
     language_group: i32,
-    supress_overshoot: bool,
+    suppress_overshoot: bool,
     do_em_box_hints: bool,
     boost: Fixed,
     darken_y: Fixed,
@@ -97,7 +97,7 @@ impl HintState {
             blue_shift: params.blue_shift,
             blue_fuzz: params.blue_fuzz,
             language_group: params.language_group,
-            supress_overshoot: false,
+            suppress_overshoot: false,
             do_em_box_hints: false,
             boost: Fixed::ZERO,
             darken_y: Fixed::ZERO,
@@ -242,7 +242,7 @@ impl HintState {
         }
         // Suppress overshoot and boost blue zones at small sizes
         if self.scale < self.blue_scale {
-            self.supress_overshoot = true;
+            self.suppress_overshoot = true;
             self.boost =
                 Fixed::from_f64(0.6) - Fixed::from_f64(0.6).mul_div(self.scale, self.blue_scale);
             // boost must remain less than 0.5, or baseline could go negative
@@ -277,7 +277,7 @@ impl HintState {
                 && bottom_edge.cs_coord <= (zone.cs_top_edge + fuzz)
             {
                 // Bottom edge captured by bottom zone.
-                adjustment = if self.supress_overshoot {
+                adjustment = if self.suppress_overshoot {
                     zone.ds_flat_edge
                 } else if zone.cs_top_edge - bottom_edge.cs_coord >= self.blue_shift {
                     // Guarantee minimum of 1 pixel overshoot
@@ -298,7 +298,7 @@ impl HintState {
                 && top_edge.cs_coord <= (zone.cs_top_edge + fuzz)
             {
                 // Top edge captured by top zone.
-                adjustment = if self.supress_overshoot {
+                adjustment = if self.suppress_overshoot {
                     zone.ds_flat_edge
                 } else if top_edge.cs_coord - zone.cs_bottom_edge >= self.blue_shift {
                     // Guarantee minimum of 1 pixel overshoot
@@ -1137,7 +1137,7 @@ mod tests {
         assert!(!state.do_em_box_hints);
         assert_eq!(state.zone_count, 6);
         assert_eq!(state.boost, Fixed::from_bits(27035));
-        assert!(state.supress_overshoot);
+        assert!(state.suppress_overshoot);
         // FreeType generates the following zones:
         let expected_zones = &[
             // csBottomEdge	-983040	int
