@@ -1250,3 +1250,4 @@ pub(super) const SCRIPT_RANGES: &[ScriptRange] = &[
     base_range(173824, 191471, ScriptClass::HANI),
     base_range(194560, 195103, ScriptClass::HANI),
 ];
+
