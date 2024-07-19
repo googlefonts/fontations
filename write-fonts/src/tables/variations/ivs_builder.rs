@@ -345,7 +345,7 @@ impl<'a> Encoder<'a> {
                 continue;
             }
             // as items are combined, we leave `None` in the to_process list.
-            // This ensures that indicies are stable.
+            // This ensures that indices are stable.
             let (Some(mut to_update), Some(to_add)) = (
                 to_process.get_mut(i).and_then(Option::take),
                 to_process.get_mut(j).and_then(Option::take),
@@ -509,7 +509,7 @@ impl RowShape {
             })
     }
 
-    /// Returns a struct that maps the canonical regions to the column indicies
+    /// Returns a struct that maps the canonical regions to the column indices
     /// used in this ItemVariationData.
     fn region_map(&self) -> RegionMap {
         let mut with_idx = self.0.iter().copied().enumerate().collect::<Vec<_>>();

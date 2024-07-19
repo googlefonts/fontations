@@ -677,7 +677,7 @@ where
     AllValuesIter: Iterator<Item = u32>,
     T: Domain<T>,
 {
-    /// Iterate the ranges of an exclusive set where the domain is continous.
+    /// Iterate the ranges of an exclusive set where the domain is continuous.
     fn next_exclusive(
         ranges: &mut InclusiveRangeIter,
         min: &mut u32,
@@ -717,7 +717,7 @@ where
         None
     }
 
-    /// Iterate the ranges of an exclusive set where the domain is discontinous.
+    /// Iterate the ranges of an exclusive set where the domain is discontinuous.
     fn next_discontinous(
         all_values: &mut Option<AllValuesIter>,
         set: &'a BitSet,

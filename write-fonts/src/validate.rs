@@ -92,7 +92,7 @@ enum LocationElem {
 impl ValidationCtx {
     /// Run the provided closer in the context of a new table.
     ///
-    /// Errors reported in the closure will include the provided identifer
+    /// Errors reported in the closure will include the provided identifier
     /// in their path.
     pub fn in_table(&mut self, name: &'static str, f: impl FnOnce(&mut ValidationCtx)) {
         self.with_elem(LocationElem::Table(name), f);

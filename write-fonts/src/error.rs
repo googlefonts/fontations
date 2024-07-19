@@ -17,7 +17,7 @@ pub struct PackingError {
     pub(crate) graph: Arc<Graph>,
 }
 
-/// An error occured while writing this table
+/// An error occurred while writing this table
 #[derive(Debug, Clone)]
 pub enum Error {
     /// The table failed a validation check

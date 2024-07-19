@@ -66,7 +66,7 @@ generated code.
 
 All of the types which are used in codegen are reexported in the
 [`codegen_prelude`][read-prelude] module; this is glob imported at the top of
-evey generated file.
+every generated file.
 
 We will describe various of these manually implemented types as we encounter
 them throughout this document, but before we get started it is worth touching on
@@ -148,11 +148,11 @@ trait Scalar {
 ```
 
 But this is not currently something we can express with Rust's generics,
-although [it should become possible eventaully](generic-const-exprs).
+although [it should become possible eventually](generic-const-exprs).
 
 In any case: what this lets us do is avoid having two separate sets of types for
 the 'raw' and 'native' cases; we have a single wrapper type that we use anytime
-we want to indicate that a type is in its raw form. This has the additonal
+we want to indicate that a type is in its raw form. This has the additional
 advantage that we can define new types in our generated code that implement
 `Scalar`, and then those types can automatically work with `BigEndian`; this is
 useful for things like custom enums and flags that are defined at various points
@@ -710,7 +710,7 @@ the size and contents of the array:
   specific associated `ValueFormat`.
   ```rust
   table SinglePosFormat2 {
-      // some fields omited
+      // some fields omitted
       value_format: BigEndian<ValueFormat>,
       value_count: BigEndian<u16>,
       #[count($value_count)]
@@ -730,7 +730,7 @@ the size and contents of the array:
 
   ```rust
   table Post {
-      // some fields omited
+      // some fields omitted
       #[count(..)]
       #[since_version(2.0)]
       string_data: VarLenArray<PString<'a>>,
@@ -803,7 +803,7 @@ which we can choose based on the fields present on the table.
 
 In these cases, the `#[compile(..)]` attribute can be used to provide a computed
 value to be written in the place of this field. The provided value can be a
-literal or an expression that evalutes to a value of the field's type.
+literal or an expression that evaluates to a value of the field's type.
 
 If a field has a `#[compile(..)]` attribute, then that field will be omitted in
 the generated struct.
@@ -869,7 +869,7 @@ or that the number of items in a table does not overflow the integer type that
 stores that table's length. Additional validation can be performed on a
 per-field basis by providing a method name to the `#[validate(..)]` attribute;
 this should be an instance method (having a `&self` param) and should also
-accept an additonal 'ctx' argument, of type [`&mut ValidateCtx`][validation-ctx] which is used
+accept an additional 'ctx' argument, of type [`&mut ValidateCtx`][validation-ctx] which is used
 to report errors.
 
 ### <a id="compilation"></a> compilation and [`FontWrite`][]

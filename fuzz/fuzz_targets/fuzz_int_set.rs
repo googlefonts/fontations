@@ -110,7 +110,7 @@ impl Domain<SmallInt> for SmallInt {
 }
 
 /// This is an even integer in the domain of [0, 2048). It's used by the fuzzer
-/// for testing inverted sets + discontinous domains.
+/// for testing inverted sets + discontinuous domains.
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
 struct SmallEvenInt(u32);
 

@@ -23,7 +23,7 @@ pub struct FontBuilder<'a> {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct BuilderError {
-    /// The tag of the root table where the error occured
+    /// The tag of the root table where the error occurred
     pub tag: Tag,
     /// The underlying error
     pub inner: crate::error::Error,

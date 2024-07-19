@@ -4,7 +4,7 @@
 ///
 /// This is an internal trait for encoding and decoding big-endian bytes.
 ///
-/// You do not need to implement this trait directly; it is an implemention
+/// You do not need to implement this trait directly; it is an implementation
 /// detail of the [`BigEndian`] wrapper.
 pub trait Scalar: Sized {
     /// The raw byte representation of this type.

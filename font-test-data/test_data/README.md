@@ -33,7 +33,7 @@ c <points>
 -
 ```
 With the following values:
-* `glyph-id`: the glyph indentifier
+* `glyph-id`: the glyph identifier
 * `font-size`: size in pixels per em. A size of 0 means unscaled
 * `hint-mode`: one of `none`, `full`, `light`, or `light-subpixel`
 * `points`: space separated list of points in `x, y` format

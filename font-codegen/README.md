@@ -201,7 +201,7 @@ The following annotations are supported on top-level objects:
   'delta_value_count'.
 - `#[compile(arg)]`: If present, this field will not be included in the compile
   type. The value may be either the literal 'skip', or an expression that
-  evalutes to the field's type: the skip case is only expected in cases where
+  evaluates to the field's type: the skip case is only expected in cases where
   there is a manual `FontWrite` impl, and the field does not make sense on the
   compile type.
 - `#[compile_with(method_name)]`: Specify custom compilation behaviour. This

@@ -989,7 +989,7 @@ mod tests {
                         path.close_path();
                         start_pt = None;
                     }
-                    _ => panic!("Usupported element type {:?}", el_type),
+                    _ => panic!("Unsupported element type {:?}", el_type),
                 }
             }
             paths.push(path);
@@ -1085,7 +1085,7 @@ mod tests {
     }
 
     #[test]
-    fn simple_glyphs_from_kurbo_2_quads_1_line_implictly_closed() {
+    fn simple_glyphs_from_kurbo_2_quads_1_line_implicitly_closed() {
         // same path elements as above 'MQQZ' but with the last_pt_equal_move=false
         // thus this actually contains three segments: 2 quads plus the last implied
         // closing line. There is an additional on-curve point at the end of the path.

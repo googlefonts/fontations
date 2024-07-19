@@ -1,6 +1,6 @@
 //! binary subset tool
 //!
-//! Takes a font file and a subset input which describes the desired subset, and ouput is a new
+//! Takes a font file and a subset input which describes the desired subset, and output is a new
 //! font file containing only the data specified in the input.
 //!
 
