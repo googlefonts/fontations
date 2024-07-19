@@ -4,22 +4,22 @@
 //! characteristics for a font. They come in two flavors:
 //!
 //! * Global metrics: these are applicable to all glyphs in a font and generally
-//! define values that are used for the layout of a collection of glyphs. For example,
-//! the ascent, descent and leading values determine the position of the baseline where
-//! a glyph should be rendered as well as the suggested spacing above and below it.
+//!   define values that are used for the layout of a collection of glyphs. For example,
+//!   the ascent, descent and leading values determine the position of the baseline where
+//!   a glyph should be rendered as well as the suggested spacing above and below it.
 //!
 //! * Glyph metrics: these apply to single glyphs. For example, the advance
-//! width value describes the distance between two consecutive glyphs on a line.
+//!   width value describes the distance between two consecutive glyphs on a line.
 //!
 //! ### Selecting an "instance"
 //! Both global and glyph specific metrics accept two additional pieces of information
 //! to select the desired instance of a font:
 //! * Size: represented by the [Size] type, this determines the scaling factor that is
-//! applied to all metrics.
+//!   applied to all metrics.
 //! * Normalized variation coordinates: represented by the [LocationRef] type,
-//! these define the position in design space for a variable font. For a non-variable
-//! font, these coordinates are ignored and you can pass [LocationRef::default()]
-//! as an argument for this parameter.
+//!   these define the position in design space for a variable font. For a non-variable
+//!   font, these coordinates are ignored and you can pass [LocationRef::default()]
+//!   as an argument for this parameter.
 //!
 
 use read_fonts::{
@@ -61,10 +61,10 @@ pub struct Decoration {
 /// * [maxp](https://learn.microsoft.com/en-us/typography/opentype/spec/maxp): `glyph_count`
 /// * [post](https://learn.microsoft.com/en-us/typography/opentype/spec/post): `is_monospace`, `italic_angle`, `underline`
 /// * [OS/2](https://learn.microsoft.com/en-us/typography/opentype/spec/os2): `average_width`, `cap_height`,
-/// `x_height`, `strikeout`, as well as the line metrics: `ascent`, `descent`, `leading` if the `USE_TYPOGRAPHIC_METRICS`
-/// flag is set or the `hhea` line metrics are zero (the Windows metrics are used as a last resort).
+///   `x_height`, `strikeout`, as well as the line metrics: `ascent`, `descent`, `leading` if the `USE_TYPOGRAPHIC_METRICS`
+///   flag is set or the `hhea` line metrics are zero (the Windows metrics are used as a last resort).
 /// * [hhea](https://learn.microsoft.com/en-us/typography/opentype/spec/hhea): `max_width`, as well as the line metrics:
-/// `ascent`, `descent`, `leading` if they are non-zero and the `USE_TYPOGRAHIC_METRICS` flag is not set in the OS/2 table
+///   `ascent`, `descent`, `leading` if they are non-zero and the `USE_TYPOGRAHIC_METRICS` flag is not set in the OS/2 table
 ///
 /// For variable fonts, deltas are computed using the  [MVAR](https://learn.microsoft.com/en-us/typography/opentype/spec/MVAR)
 /// table.

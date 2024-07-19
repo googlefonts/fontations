@@ -146,8 +146,8 @@ pub enum Brush<'a> {
         color_stops: &'a [ColorStop],
         extend: Extend,
     },
-    /// A radial gradient, with color stops normalized to the range of 0 to
-    /// 1. Caution: This normalization can mean that negative radii occur. It is
+    /// A radial gradient, with color stops normalized to the range of 0 to 1.
+    /// Caution: This normalization can mean that negative radii occur. It is
     /// the client's responsibility to truncate the color line at the 0
     /// position, interpolating between `r0` and `r1` and compute an
     /// interpolated color at that position.

@@ -4,8 +4,8 @@
 //! with a few minor differences:
 //!
 //! - we don't use a context/interface for the tables, instead using a generic
-//! 'split_subtables' method similar to 'actuate_subtable_split' and passing
-//! it a method for each lookup type
+//!   'split_subtables' method similar to 'actuate_subtable_split' and passing
+//!   it a method for each lookup type
 //! - harfbuzz splits off new subtables but retains the original subtable,
 //!   shrinking it to fit. We skip this step, and generate all new subtables.
 

@@ -41,14 +41,14 @@ pub use read_fonts::tables::cmap::MapVariant;
 /// coverage:
 ///
 /// * Unicode characters: a symbol mapping subtable is selected if available. Otherwise, subtables supporting
-/// the Unicode full repertoire or Basic Multilingual Plane (BMP) are preferred, in that order. Formats
-/// [4](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values)
-/// and [12](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage) are
-/// supported.
+///   the Unicode full repertoire or Basic Multilingual Plane (BMP) are preferred, in that order. Formats
+///   [4](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values)
+///   and [12](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage) are
+///   supported.
 ///
 /// * Unicode variation sequences: these are provided by a format
-/// [14](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences)
-/// subtable.
+///   [14](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences)
+///   subtable.
 ///
 #[derive(Clone, Default)]
 pub struct Charmap<'a> {
