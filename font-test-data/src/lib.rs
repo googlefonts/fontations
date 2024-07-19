@@ -68,6 +68,9 @@ pub static GLYF_COMPONENTS: &[u8] = include_bytes!("../test_data/ttf/glyf_compon
 
 pub static AUTOHINT_CMAP: &[u8] = include_bytes!("../test_data/ttf/autohint_cmap.ttf");
 
+pub static NOTOSERIFHEBREW_AUTOHINT_METRICS: &[u8] =
+    include_bytes!("../test_data/ttf/notoserifhebrew_autohint_metrics.ttf");
+
 pub mod varc {
     pub static CJK_6868: &[u8] = include_bytes!("../test_data/ttf/varc-6868.ttf");
     pub static CONDITIONALS: &[u8] = include_bytes!("../test_data/ttf/varc-ac01-conditional.ttf");
