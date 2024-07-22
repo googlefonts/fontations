@@ -16,6 +16,7 @@ use int_set::IntSet;
 #[derive(PartialEq, Clone, Copy)]
 pub enum OperationSet {
     Standard,
+    #[allow(dead_code)]
     SparseBitSetEncoding,
 }
 
