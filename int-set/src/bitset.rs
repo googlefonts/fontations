@@ -4,6 +4,7 @@ use super::bitpage::BitPage;
 use super::bitpage::RangeIter;
 use super::bitpage::PAGE_BITS;
 use std::cell::Cell;
+use std::cmp::min;
 use std::cmp::Ordering;
 use std::hash::Hash;
 
@@ -42,8 +43,8 @@ impl BitSet {
         let major_end = self.get_major_value(end);
 
         for major in major_start..=major_end {
-            let page_start = start.max(self.major_start(major));
-            let page_end = end.min(self.major_start(major) + (PAGE_BITS - 1));
+            let page_start = start.max(Self::major_start(major));
+            let page_end = end.min(Self::major_start(major) + (PAGE_BITS - 1));
             let page = self.ensure_page_for_major_mut(major);
             page.insert_range(page_start, page_end);
         }
@@ -103,16 +104,37 @@ impl BitSet {
             return;
         }
 
-        let major_start = self.get_major_value(start);
-        let major_end = self.get_major_value(end);
+        let start_major = self.get_major_value(start);
+        let end_major = self.get_major_value(end);
+        let mut info_index = match self
+            .page_map
+            .binary_search_by(|probe| probe.major_value.cmp(&start_major))
+        {
+            Ok(info_index) => info_index,
+            Err(info_index) => info_index,
+        };
 
-        for major in major_start..=major_end {
-            let page_start = start.max(self.major_start(major));
-            let page_end = end.min(self.major_start(major + 1).wrapping_sub(1));
-            if let Some(page) = self.page_for_major_mut(major) {
-                page.remove_range(page_start, page_end);
+        loop {
+            let Some(info) = self.page_map.get(info_index) else {
+                break;
+            };
+            let Some(page) = self.pages.get_mut(info.index as usize) else {
+                break;
+            };
+
+            if info.major_value > end_major {
+                break;
+            } else if info.major_value == start_major {
+                page.remove_range(start, min(Self::major_end(start_major), end));
+            } else if info.major_value == end_major {
+                page.remove_range(Self::major_start(end_major), end);
+                break;
+            } else {
+                page.clear();
             }
+            info_index += 1;
         }
+
         self.mark_dirty();
     }
 
@@ -178,7 +200,7 @@ impl BitSet {
 
     pub(crate) fn iter(&self) -> impl DoubleEndedIterator<Item = u32> + '_ {
         self.iter_non_empty_pages().flat_map(|(major, page)| {
-            let base = self.major_start(major);
+            let base = Self::major_start(major);
             page.iter().map(move |v| base + v)
         })
     }
@@ -208,7 +230,7 @@ impl BitSet {
             page.filter(|_| partial_first_page)
                 .into_iter()
                 .flat_map(move |(page, major)| {
-                    let base = self.major_start(major);
+                    let base = Self::major_start(major);
                     page.iter_after(value).map(move |v| base + v)
                 });
 
@@ -227,7 +249,7 @@ impl BitSet {
             })
             .filter(|(_, page)| !page.is_empty())
             .flat_map(|(major, page)| {
-                let base = self.major_start(major);
+                let base = Self::major_start(major);
                 page.iter().map(move |v| base + v)
             });
 
@@ -462,13 +484,13 @@ impl BitSet {
         value >> PAGE_BITS_LOG_2
     }
 
-    fn major_start(&self, major: u32) -> u32 {
+    fn major_start(major: u32) -> u32 {
         major << PAGE_BITS_LOG_2
     }
 
-    fn major_end(&self, major: u32) -> u32 {
+    fn major_end(major: u32) -> u32 {
         // Note: (PAGE_BITS - 1) must be grouped to prevent overflow on addition for the largest page.
-        self.major_start(major) + (PAGE_BITS - 1)
+        Self::major_start(major) + (PAGE_BITS - 1)
     }
 
     /// Returns the index in self.pages (if it exists) for the page with the same major as major_value.
@@ -678,7 +700,7 @@ impl<'a> BitSetRangeIter<'a> {
     fn next_range(&mut self) -> Option<RangeInclusive<u32>> {
         // TODO(garretrieger): don't recompute page start on each call.
         let page = self.set.page_map.get(self.page_info_index)?;
-        let page_start = self.set.major_start(page.major_value);
+        let page_start = BitSet::major_start(page.major_value);
         self.page_iter
             .as_mut()?
             .next()
@@ -694,7 +716,7 @@ impl<'a> Iterator for BitSetRangeIter<'a> {
         let mut current_range = self.next_range();
         loop {
             let page = self.set.page_map.get(self.page_info_index)?;
-            let page_end = self.set.major_end(page.major_value);
+            let page_end = BitSet::major_end(page.major_value);
 
             let Some(range) = current_range.clone() else {
                 // The current page has no more ranges, but there may be more pages.
@@ -984,13 +1006,50 @@ mod test {
     #[test]
     fn remove_range() {
         let mut bitset = BitSet::empty();
-        bitset.extend([5, 7, 11, 18, 620, 2000]);
-
-        assert_eq!(bitset.len(), 6);
-
+        bitset.extend([5, 7, 11, 18, 511, 620, 1023, 1024, 1200]);
+        assert_eq!(bitset.len(), 9);
         bitset.remove_range(7..=620);
+        assert_eq!(bitset.len(), 4);
+        assert_eq!(
+            bitset.iter().collect::<Vec<u32>>(),
+            vec![5, 1023, 1024, 1200]
+        );
+
+        let mut bitset = BitSet::empty();
+        bitset.extend([5, 7, 11, 18, 511, 620, 1023, 1024, 1200]);
+        bitset.remove_range(7..=1024);
         assert_eq!(bitset.len(), 2);
-        assert_eq!(bitset.iter().collect::<Vec<u32>>(), vec![5, 2000]);
+        assert_eq!(bitset.iter().collect::<Vec<u32>>(), vec![5, 1200]);
+
+        let mut bitset = BitSet::empty();
+        bitset.extend([5, 7, 11, 18, 511, 620, 1023, 1024, 1200]);
+        bitset.remove_range(2000..=2100);
+        assert_eq!(bitset.len(), 9);
+        assert_eq!(
+            bitset.iter().collect::<Vec<u32>>(),
+            vec![5, 7, 11, 18, 511, 620, 1023, 1024, 1200]
+        );
+
+        // Remove all from one page
+        let mut bitset = BitSet::empty();
+        bitset.extend([1001, 1002, 1003, 1004]);
+        bitset.remove_range(1002..=1003);
+        assert!(bitset.contains(1001));
+        assert!(!bitset.contains(1002));
+        assert!(!bitset.contains(1003));
+        assert!(bitset.contains(1004));
+
+        bitset.remove_range(100..=200);
+        assert!(bitset.contains(1001));
+        assert!(!bitset.contains(1002));
+        assert!(!bitset.contains(1003));
+        assert!(bitset.contains(1004));
+
+        bitset.remove_range(100..=1001);
+        assert!(!bitset.contains(1001));
+        assert!(!bitset.contains(1002));
+        assert!(!bitset.contains(1003));
+        assert!(bitset.contains(1004));
     }
 
     #[test]
