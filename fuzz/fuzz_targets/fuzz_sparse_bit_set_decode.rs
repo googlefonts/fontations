@@ -5,5 +5,5 @@ use int_set::IntSet;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
-    let _ = IntSet::<u32>::from_sparse_bit_set(data);
+    let _ = IntSet::<u32>::from_sparse_bit_set_bounded(data, 10_000);
 });
