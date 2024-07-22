@@ -37,8 +37,15 @@ pub struct Plan {
     glyphset_gsub: IntSet<GlyphId>,
     glyphset_colred: IntSet<GlyphId>,
     glyphset: IntSet<GlyphId>,
+    //Old->New glyph id mapping,
+    glyph_map: HashMap<GlyphId, GlyphId>,
+    //New->old glyph id mapping,
+    reverse_glyph_map: HashMap<GlyphId, GlyphId>,
+
+    new_to_old_gid_list: Vec<(GlyphId, GlyphId)>,
+
     num_h_metrics: u16,
-    num_output_glyphs: u16,
+    num_output_glyphs: usize,
     font_num_glyphs: usize,
     unicode_to_new_gid_list: Vec<(u32, GlyphId)>,
     codepoint_to_glyph: HashMap<u32, GlyphId>,
@@ -53,7 +60,7 @@ impl Plan {
 
         this.populate_unicodes_to_retain(input_gids, input_unicodes, font);
         this.populate_gids_to_retain(font);
-        this.num_output_glyphs = this.glyphset.len() as u16;
+        this.create_old_gid_to_new_gid_map();
 
         // compute new h_metrics
         let hmtx = font.hmtx().expect("Error reading hmtx table");
@@ -63,7 +70,7 @@ impl Plan {
         this
     }
 
-    pub fn populate_unicodes_to_retain(
+    fn populate_unicodes_to_retain(
         &mut self,
         input_gids: &IntSet<GlyphId>,
         input_unicodes: &IntSet<u32>,
@@ -130,7 +137,7 @@ impl Plan {
             .extend(self.unicode_to_new_gid_list.iter().map(|t| t.0));
     }
 
-    pub fn populate_gids_to_retain(&mut self, font: &FontRef) {
+    fn populate_gids_to_retain(&mut self, font: &FontRef) {
         //not-def
         self.glyphset_gsub.insert(GlyphId::NOTDEF);
 
@@ -161,6 +168,22 @@ impl Plan {
             );
         }
         remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
+    }
+
+    fn create_old_gid_to_new_gid_map(&mut self) {
+        let pop = self.glyphset.len();
+        self.glyph_map.reserve(pop);
+        self.reverse_glyph_map.reserve(pop);
+        self.new_to_old_gid_list.reserve(pop);
+
+        //TODO: Add support for requested_glyph_map, command line option --gid-map
+        //TODO: Add support for retain_gids
+        self.new_to_old_gid_list.extend(self.glyphset.iter().zip(0u16..).map(|x| (x.0, GlyphId::from(x.1))));
+        self.num_output_glyphs = self.new_to_old_gid_list.len();
+
+        self.reverse_glyph_map.extend(self.new_to_old_gid_list.iter().map(|x| (x.0, x.1)));
+        self.glyph_map.extend(self.new_to_old_gid_list.iter().map(|x| (x.1, x.0)));
+
     }
 
     fn colr_closure(&mut self, font: &FontRef) {
