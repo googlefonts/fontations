@@ -150,6 +150,13 @@ impl BitPage {
         self.mark_dirty();
     }
 
+    pub(crate) fn clear(&mut self) {
+        for elem in self.storage.iter_mut() {
+            *elem = 0;
+        }
+        self.len.set(0);
+    }
+
     /// Removes (val % page width) from this set.
     pub(crate) fn remove(&mut self, val: u32) -> bool {
         let ret = self.contains(val);
@@ -570,6 +577,25 @@ mod test {
                 "{exclude_range:?}"
             );
         }
+    }
+
+    #[test]
+    fn clear() {
+        let mut zeroes = BitPage::new_zeroes();
+        let mut ones = BitPage::new_ones();
+
+        zeroes.clear();
+        assert_eq!(zeroes.len(), 0);
+        assert_eq!(zeroes.iter().next(), None);
+
+        zeroes.insert_range(10, 300);
+        zeroes.clear();
+        assert_eq!(zeroes.len(), 0);
+        assert_eq!(zeroes.iter().next(), None);
+
+        ones.clear();
+        assert_eq!(ones.len(), 0);
+        assert_eq!(ones.iter().next(), None);
     }
 
     #[test]
