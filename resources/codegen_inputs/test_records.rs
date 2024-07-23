@@ -35,7 +35,7 @@ record ContainsArrays<'a> {
     records: [SimpleRecord],
 }
 
-record ContainsOffests {
+record ContainsOffsets {
     #[compile(array_len($array_offset))]
     off_array_count: u16,
     #[read_offset_with($off_array_count)]

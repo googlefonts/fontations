@@ -175,13 +175,13 @@ impl FromObjRef<read_fonts::codegen_test::records::ContainsArrays<'_>> for Conta
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct ContainsOffests {
+pub struct ContainsOffsets {
     pub array: OffsetMarker<Vec<SimpleRecord>>,
     pub other: OffsetMarker<BasicTable, WIDTH_32>,
 }
 
-impl ContainsOffests {
-    /// Construct a new `ContainsOffests`
+impl ContainsOffsets {
+    /// Construct a new `ContainsOffsets`
     pub fn new(array: Vec<SimpleRecord>, other: BasicTable) -> Self {
         Self {
             array: array.into(),
@@ -190,7 +190,7 @@ impl ContainsOffests {
     }
 }
 
-impl FontWrite for ContainsOffests {
+impl FontWrite for ContainsOffsets {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.array).unwrap() as u16).write_into(writer);
@@ -198,13 +198,13 @@ impl FontWrite for ContainsOffests {
         self.other.write_into(writer);
     }
     fn table_type(&self) -> TableType {
-        TableType::Named("ContainsOffests")
+        TableType::Named("ContainsOffsets")
     }
 }
 
-impl Validate for ContainsOffests {
+impl Validate for ContainsOffsets {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("ContainsOffests", |ctx| {
+        ctx.in_table("ContainsOffsets", |ctx| {
             ctx.in_field("array", |ctx| {
                 self.array.validate_impl(ctx);
             });
@@ -215,12 +215,12 @@ impl Validate for ContainsOffests {
     }
 }
 
-impl FromObjRef<read_fonts::codegen_test::records::ContainsOffests> for ContainsOffests {
+impl FromObjRef<read_fonts::codegen_test::records::ContainsOffsets> for ContainsOffsets {
     fn from_obj_ref(
-        obj: &read_fonts::codegen_test::records::ContainsOffests,
+        obj: &read_fonts::codegen_test::records::ContainsOffsets,
         offset_data: FontData,
     ) -> Self {
-        ContainsOffests {
+        ContainsOffsets {
             array: obj.array(offset_data).to_owned_obj(offset_data),
             other: obj.other(offset_data).to_owned_table(),
         }

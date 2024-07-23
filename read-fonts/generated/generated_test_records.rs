@@ -257,13 +257,13 @@ impl<'a> SomeRecord<'a> for ContainsArrays<'a> {
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
-pub struct ContainsOffests {
+pub struct ContainsOffsets {
     pub off_array_count: BigEndian<u16>,
     pub array_offset: BigEndian<Offset16>,
     pub other_offset: BigEndian<Offset32>,
 }
 
-impl ContainsOffests {
+impl ContainsOffsets {
     pub fn off_array_count(&self) -> u16 {
         self.off_array_count.get()
     }
@@ -292,15 +292,15 @@ impl ContainsOffests {
     }
 }
 
-impl FixedSize for ContainsOffests {
+impl FixedSize for ContainsOffsets {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> SomeRecord<'a> for ContainsOffests {
+impl<'a> SomeRecord<'a> for ContainsOffsets {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
-            name: "ContainsOffests",
+            name: "ContainsOffsets",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("off_array_count", self.off_array_count())),
                 1usize => Some(Field::new(
