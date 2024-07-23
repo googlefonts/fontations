@@ -181,12 +181,12 @@ impl PatchMapFormat1Marker {
         let start = self._reserved_byte_range().end;
         start..start + self.compatibility_id_byte_len
     }
-    fn entry_count_byte_range(&self) -> Range<usize> {
+    fn max_entry_index_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        start..start + u16::RAW_BYTE_LEN
     }
     fn glyph_count_byte_range(&self) -> Range<usize> {
-        let start = self.entry_count_byte_range().end;
+        let start = self.max_entry_index_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
     fn glyph_map_offset_byte_range(&self) -> Range<usize> {
@@ -224,11 +224,11 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
             .checked_mul(u32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(compatibility_id_byte_len);
-        let entry_count: u32 = cursor.read()?;
+        let max_entry_index: u16 = cursor.read()?;
         cursor.advance::<u32>();
         cursor.advance::<Offset32>();
         cursor.advance::<Offset32>();
-        let applied_entries_bitmap_byte_len = (transforms::bitmap(entry_count))
+        let applied_entries_bitmap_byte_len = (transforms::bitmap(max_entry_index + 1))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(applied_entries_bitmap_byte_len);
@@ -263,8 +263,8 @@ impl<'a> PatchMapFormat1<'a> {
     }
 
     /// Number of entries and glyphs that are mapped.
-    pub fn entry_count(&self) -> u32 {
-        let range = self.shape.entry_count_byte_range();
+    pub fn max_entry_index(&self) -> u16 {
+        let range = self.shape.max_entry_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -329,7 +329,7 @@ impl<'a> SomeTable<'a> for PatchMapFormat1<'a> {
         match idx {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("compatibility_id", self.compatibility_id())),
-            2usize => Some(Field::new("entry_count", self.entry_count())),
+            2usize => Some(Field::new("max_entry_index", self.max_entry_index())),
             3usize => Some(Field::new("glyph_count", self.glyph_count())),
             4usize => Some(Field::new(
                 "glyph_map_offset",

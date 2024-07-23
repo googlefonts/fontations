@@ -33,7 +33,7 @@ table PatchMapFormat1 {
   compatibility_id: [u32],
 
   /// Number of entries and glyphs that are mapped.
-  entry_count: u32,
+  max_entry_index: u16,
   glyph_count: u32,
 
   /// Sub table that maps glyph ids to entry indices.
@@ -44,7 +44,7 @@ table PatchMapFormat1 {
   #[nullable] // TODO(garretrieger): this does not currently match the spec, update spec to allow feature map to be nullable.
   feature_map_offset: Offset32<FeatureMap>,
 
-  #[count(bitmap($entry_count))]
+  #[count(max_value_bitmap($max_entry_index))]
   applied_entries_bitmap: [u8],
 
   // URI Template String (UTF-8 Encoded)

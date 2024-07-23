@@ -5,8 +5,6 @@ include!("../../generated/generated_ift.rs");
 use core::str::Utf8Error;
 use std::str;
 
-// TODO(garretrieger): fail validation if entry count is == 0.
-
 impl<'a> PatchMapFormat1<'a> {
     pub fn get_compatibility_id(&self) -> [u32; 4] {
         [
@@ -17,12 +15,20 @@ impl<'a> PatchMapFormat1<'a> {
         ]
     }
 
-    pub fn gid_to_entry_iter(&'a self) -> impl Iterator<Item = (GlyphId, u32)> + 'a {
+    pub fn gid_to_entry_iter(&'a self) -> impl Iterator<Item = (GlyphId, u16)> + 'a {
         GidToEntryIter {
             glyph_map: self.glyph_map().ok(),
             glyph_count: self.glyph_count(),
-            gid: 0,
+            gid: self
+                .glyph_map()
+                .map(|glyph_map| glyph_map.first_mapped_glyph() as u32)
+                .unwrap_or(0),
         }
+        .filter(|(_, entry_index)| *entry_index > 0)
+    }
+
+    pub fn entry_count(&self) -> u32 {
+        self.max_entry_index() as u32 + 1
     }
 
     pub fn uri_template_as_string(&self) -> Result<&str, Utf8Error> {
@@ -46,7 +52,7 @@ struct GidToEntryIter<'a> {
 }
 
 impl<'a> Iterator for GidToEntryIter<'a> {
-    type Item = (GlyphId, u32);
+    type Item = (GlyphId, u16);
 
     fn next(&mut self) -> Option<Self::Item> {
         let glyph_map = self.glyph_map.as_ref()?;
@@ -58,15 +64,11 @@ impl<'a> Iterator for GidToEntryIter<'a> {
             return None;
         }
 
-        if cur_gid < glyph_map.first_mapped_glyph().into() {
-            return Some((cur_gid.into(), 0));
-        }
-
         let index = cur_gid as usize - glyph_map.first_mapped_glyph() as usize;
         glyph_map
             .entry_index()
             .get(index)
-            .map(|entry_index| (cur_gid.into(), *entry_index as u32))
+            .map(|entry_index| (cur_gid.into(), *entry_index as u16))
     }
 }
 
@@ -91,17 +93,9 @@ mod tests {
         let Ift::Format1(map) = table else {
             panic!("Not format 1.");
         };
-        let entries: Vec<(GlyphId, u32)> = map.gid_to_entry_iter().collect();
+        let entries: Vec<(GlyphId, u16)> = map.gid_to_entry_iter().collect();
 
-        assert_eq!(
-            entries,
-            vec![
-                (0u32.into(), 0),
-                (1u32.into(), 0),
-                (2u32.into(), 1),
-                (3u32.into(), 0),
-            ]
-        );
+        assert_eq!(entries, vec![(1u32.into(), 2), (2u32.into(), 1),]);
     }
 
     #[test]

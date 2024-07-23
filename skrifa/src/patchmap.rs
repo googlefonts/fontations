@@ -15,7 +15,7 @@ use int_set::IntSet;
 
 use crate::charmap::Charmap;
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, Hash)]
 pub enum PatchEncoding {
     Brotli,
     PerTableBrotli { fully_invalidating: bool },
@@ -42,7 +42,6 @@ impl PatchEncoding {
 #[derive(Default)]
 pub struct PatchMap {
     entry_list: Vec<Entry>,
-    uri_format: HashMap<String, PatchEncoding>,
     // TODO(garretrieger): store an index from URI to the bit location that can be set to mark the entry as ignored.
 }
 
@@ -62,10 +61,6 @@ impl PatchMap {
 
     pub fn iter(&self) -> impl DoubleEndedIterator<Item = &Entry> {
         self.entry_list.iter()
-    }
-
-    pub fn patch_encoding(&self, patch_uri: &str) -> Option<PatchEncoding> {
-        self.uri_format.get(patch_uri).cloned()
     }
 
     // TODO(garretrieger): add method that can be used to actuate removal of entries given a URI.
@@ -92,37 +87,43 @@ impl PatchMap {
         };
 
         let prototype = Entry {
-            patch_uri: String::new(),
+            patch_uri: PatchUri {
+                uri: String::new(),
+                encoding: patch_encoding,
+            },
             codepoints: IntSet::empty(),
             compatibility_id: mapping.get_compatibility_id(),
         };
 
+        // Assume nearly all entries up to max entry index will be present, and preallocate storage for them.
         let mut entries = vec![];
+        let mut present_entries = IntSet::<u16>::empty();
         entries.resize(mapping.entry_count() as usize, prototype);
         for (entry_index, entry) in entries.iter_mut().enumerate() {
-            entry.patch_uri = PatchMap::apply_uri_template(uri_template, entry_index);
-            self.uri_format
-                .insert(entry.patch_uri.clone(), patch_encoding.clone());
+            entry.patch_uri.uri = PatchMap::apply_uri_template(uri_template, entry_index);
         }
 
         let glyph_to_unicode = PatchMap::glyph_to_unicode_map(font);
         for (gid, entry_index) in mapping.gid_to_entry_iter() {
             let Some(entry) = entries.get_mut(entry_index as usize) else {
-                continue;
+                // Table is invalid, entry_index is out of bounds.
+                return;
             };
 
+            present_entries.insert(entry_index);
             if let Some(codepoints) = glyph_to_unicode.get(&gid) {
                 entry.codepoints.extend(codepoints.iter());
             };
         }
 
-        // TODO(garretrieger): some entries may not have had any codepoints added and will have empty codepoint sets
-        //                     (matching all). We should clarify in the spec text whether this is allowed or not.
         self.entry_list.extend(
             entries
                 .into_iter()
                 .enumerate()
                 .filter(|(index, _)| !mapping.is_entry_applied(*index as u32))
+                // Entries not referenced in the table do not exist, per the spec:
+                // <https://w3c.github.io/IFT/Overview.html#interpreting-patch-map-format-1>
+                .filter(|(index, _)| present_entries.contains(*index as u16))
                 .map(|(_, entry)| entry),
         )
     }
@@ -149,8 +150,14 @@ impl PatchMap {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
+pub struct PatchUri {
+    uri: String,
+    encoding: PatchEncoding,
+}
+
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct Entry {
-    pub patch_uri: String,
+    pub patch_uri: PatchUri,
     pub codepoints: IntSet<u32>,
     pub compatibility_id: [u32; 4],
 }
@@ -158,7 +165,7 @@ pub struct Entry {
 impl std::fmt::Debug for Entry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         let values: Vec<_> = self.codepoints.iter().collect();
-        write!(f, "Entry({values:?} => {})", self.patch_uri)
+        write!(f, "Entry({values:?} => {})", self.patch_uri.uri)
     }
 }
 
@@ -192,24 +199,7 @@ mod tests {
     // TODO(garretrieger): test which has entry that has empty codepoint array.
     // TODO(garretrieger): test which has requires URI substitution.
     // TODO(garretrieger): patch encoding lookup + URI substitution.
-
-    #[test]
-    fn patch_encoding() {
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::CMAP12_FONT1).unwrap(),
-            Some(test_data::ift::SIMPLE_FORMAT1),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-        let patch_map = PatchMap::new(&font);
-
-        assert_eq!(
-            patch_map.patch_encoding("ABCDEFɤ"),
-            Some(PatchEncoding::GlyphKeyed)
-        );
-
-        assert_eq!(patch_map.patch_encoding("ABCDEFG"), None);
-    }
+    // TODO(garretrieger): test with format 1 that has max entry = 0.
 
     #[test]
     fn format_1_patch_map() {
@@ -226,10 +216,14 @@ mod tests {
         assert_eq!(
             entries,
             vec![
-                // Entry 0
+                // Entry 1 - contains gid 2 - is applied so not present.
+                // Entry 2 - contains gid 1
                 &Entry {
-                    patch_uri: "ABCDEFɤ".to_string(),
-                    codepoints: [0x101723, 0x101725].into_iter().collect(),
+                    patch_uri: PatchUri {
+                        uri: "ABCDEFɤ".to_string(),
+                        encoding: PatchEncoding::GlyphKeyed,
+                    },
+                    codepoints: [0x101723].into_iter().collect(),
                     compatibility_id: [1, 2, 3, 4],
                 },
             ]
