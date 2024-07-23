@@ -298,6 +298,8 @@ pub(crate) enum CountTransform {
     ItemVariationDataLen,
     /// Number of bytes to hold a bitmap of N items
     Bitmap,
+    /// Number of bytes to hold a bitmap with max value N
+    MaxValueBitmap,
 }
 
 /// Attributes for specifying how to compile a field
@@ -1438,6 +1440,7 @@ static TRANSFORM_IDENTS: &[(CountTransform, &str)] = &[
         "item_variation_data_len",
     ),
     (CountTransform::Bitmap, "bitmap"),
+    (CountTransform::MaxValueBitmap, "max_value_bitmap"),
 ];
 
 impl FromStr for CountTransform {
@@ -1472,6 +1475,7 @@ impl CountTransform {
             CountTransform::TupleLen => 3,
             CountTransform::ItemVariationDataLen => 3,
             CountTransform::Bitmap => 1,
+            CountTransform::MaxValueBitmap => 1,
         }
     }
 }
@@ -1623,6 +1627,9 @@ impl Count {
                 }
                 (CountTransform::Bitmap, [a]) => {
                     quote!(transforms::bitmap(#a))
+                }
+                (CountTransform::MaxValueBitmap, [a]) => {
+                    quote!(transforms::bitmap(#a + 1))
                 }
                 _ => unreachable!("validated before now"),
             },

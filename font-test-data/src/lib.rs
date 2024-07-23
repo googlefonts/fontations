@@ -229,21 +229,21 @@ pub mod ift {
         0x00, 0x00, 0x00, 0x03,  // 13: compat id [2]
         0x00, 0x00, 0x00, 0x04,  // 17: compat id [3]
 
-        0x00, 0x00, 0x00, 0x02,  // 21: entry count
-        0x00, 0x00, 0x00, 0x04,  // 25: glyph count
-        0x00, 0x00, 0x00, 0x31,  // 29: glyph map offset (0x31 = 49)
-        0x00, 0x00, 0x00, 0x00,  // 33: feature map offset
+        0x00, 0x02,              // 21: max entry id
+        0x00, 0x00, 0x00, 0x04,  // 23: glyph count
+        0x00, 0x00, 0x00, 0x2F,  // 27: glyph map offset (0x2F = 47)
+        0x00, 0x00, 0x00, 0x00,  // 31: feature map offset
 
-        0x02,                    // 37: applied entry bitmap (entry 1)
+        0x02,                    // 35: applied entry bitmap (entry 1)
 
-        0x00, 0x08,              // 38: uriTemplateLength
+        0x00, 0x08,              // 36: uriTemplateLength
         b'A', b'B', b'C', b'D',
-        b'E', b'F', 0xc9, 0xa4,  // 40: uriTemplate[8]
+        b'E', b'F', 0xc9, 0xa4,  // 38: uriTemplate[8]
 
-        0x04,                    // 48: patch encoding = glyph keyed
+        0x04,                    // 46: patch encoding = glyph keyed
 
         // ## Glyph Map ##
-        0x00, 0x01,              // 49: first mapped glyph
-        0x00, 0x01, 0x00,        // 51: entryIndex[1..3]
+        0x00, 0x01,              // 47: first mapped glyph
+        0x02, 0x01, 0x00,        // 49: entryIndex[1..3]
     ];
 }

@@ -55,7 +55,7 @@ impl Ift {
     #[allow(clippy::too_many_arguments)]
     pub fn format_1(
         compatibility_id: Vec<u32>,
-        entry_count: u32,
+        max_entry_index: u16,
         glyph_count: u32,
         glyph_map: GlyphMap,
         feature_map: Option<FeatureMap>,
@@ -66,7 +66,7 @@ impl Ift {
     ) -> Self {
         Self::Format1(PatchMapFormat1::new(
             compatibility_id,
-            entry_count,
+            max_entry_index,
             glyph_count,
             glyph_map,
             feature_map,
@@ -150,7 +150,7 @@ pub struct PatchMapFormat1 {
     /// Unique ID that identifies compatible patches.
     pub compatibility_id: Vec<u32>,
     /// Number of entries and glyphs that are mapped.
-    pub entry_count: u32,
+    pub max_entry_index: u16,
     pub glyph_count: u32,
     /// Sub table that maps glyph ids to entry indices.
     pub glyph_map: OffsetMarker<GlyphMap, WIDTH_32>,
@@ -168,7 +168,7 @@ impl PatchMapFormat1 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         compatibility_id: Vec<u32>,
-        entry_count: u32,
+        max_entry_index: u16,
         glyph_count: u32,
         glyph_map: GlyphMap,
         feature_map: Option<FeatureMap>,
@@ -179,7 +179,7 @@ impl PatchMapFormat1 {
     ) -> Self {
         Self {
             compatibility_id: compatibility_id.into_iter().map(Into::into).collect(),
-            entry_count,
+            max_entry_index,
             glyph_count,
             glyph_map: glyph_map.into(),
             feature_map: feature_map.into(),
@@ -197,7 +197,7 @@ impl FontWrite for PatchMapFormat1 {
         (1 as u8).write_into(writer);
         (0 as u32).write_into(writer);
         self.compatibility_id.write_into(writer);
-        self.entry_count.write_into(writer);
+        self.max_entry_index.write_into(writer);
         self.glyph_count.write_into(writer);
         self.glyph_map.write_into(writer);
         self.feature_map.write_into(writer);
@@ -234,7 +234,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat1<'a>> for PatchMapFo
         let offset_data = obj.offset_data();
         PatchMapFormat1 {
             compatibility_id: obj.compatibility_id().to_owned_obj(offset_data),
-            entry_count: obj.entry_count(),
+            max_entry_index: obj.max_entry_index(),
             glyph_count: obj.glyph_count(),
             glyph_map: obj.glyph_map().to_owned_table(),
             feature_map: obj.feature_map().to_owned_table(),
