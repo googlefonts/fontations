@@ -4,7 +4,6 @@ use super::bitpage::BitPage;
 use super::bitpage::RangeIter;
 use super::bitpage::PAGE_BITS;
 use std::cell::Cell;
-use std::cmp::min;
 use std::cmp::Ordering;
 use std::hash::Hash;
 
@@ -125,7 +124,7 @@ impl BitSet {
             if info.major_value > end_major {
                 break;
             } else if info.major_value == start_major {
-                page.remove_range(start, min(Self::major_end(start_major), end));
+                page.remove_range(start, Self::major_end(start_major).min(end));
             } else if info.major_value == end_major {
                 page.remove_range(Self::major_start(end_major), end);
                 break;
