@@ -100,6 +100,14 @@ pub enum Ift<'a> {
 }
 
 impl<'a> Ift<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
     /// Format identifier: format = 1
     pub fn format(&self) -> u8 {
         match self {
