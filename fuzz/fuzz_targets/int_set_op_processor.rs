@@ -81,7 +81,7 @@ impl Domain<SmallInt> for SmallInt {
         SmallInt::new(member.value())
     }
 
-    fn is_continous() -> bool {
+    fn is_continuous() -> bool {
         true
     }
 
@@ -151,7 +151,7 @@ impl Domain<SmallEvenInt> for SmallEvenInt {
         SmallEvenInt::new(member.value())
     }
 
-    fn is_continous() -> bool {
+    fn is_continuous() -> bool {
         false
     }
 
