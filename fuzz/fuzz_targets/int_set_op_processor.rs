@@ -1,6 +1,3 @@
-use std::cmp::max;
-
-use std::cmp::min;
 use std::fmt::Debug;
 use std::io::Cursor;
 use std::io::Read;
@@ -50,9 +47,10 @@ impl SmallInt {
     const MAX_VALUE: u32 = 4 * 512 - 1;
 
     fn new(value: u32) -> SmallInt {
-        if value > Self::MAX_VALUE {
-            panic!("Constructed SmallInt with value > MAX_VALUE");
-        }
+        assert!(
+            value <= Self::MAX_VALUE,
+            "Constructed SmallInt with value > MAX_VALUE"
+        );
         SmallInt(value)
     }
 }
@@ -70,7 +68,7 @@ impl SetMember<SmallInt> for SmallInt {
     }
 
     fn increment(&mut self) {
-        self.0 = min(self.0 + 1, Self::MAX_VALUE);
+        self.0 = (self.0 + 1).min(Self::MAX_VALUE);
     }
 }
 
@@ -94,9 +92,10 @@ impl Domain<SmallInt> for SmallInt {
     fn ordered_values_range(
         range: RangeInclusive<SmallInt>,
     ) -> impl DoubleEndedIterator<Item = u32> {
-        if range.start().0 > Self::MAX_VALUE || range.end().0 > Self::MAX_VALUE {
-            panic!("Invalid range of the SmallInt set.");
-        }
+        assert!(
+            range.start().0 <= Self::MAX_VALUE && range.end().0 <= Self::MAX_VALUE,
+            "Invalid range of the SmallInt set."
+        );
         range.start().to_u32()..=range.end().to_u32()
     }
 
@@ -114,12 +113,14 @@ impl SmallEvenInt {
     const MAX_VALUE: u32 = 4 * 512 - 2;
 
     fn new(value: u32) -> SmallEvenInt {
-        if value > Self::MAX_VALUE {
-            panic!("Constructed SmallEvenInt with value > MAX_VALUE.");
-        }
-        if value % 2 != 0 {
-            panic!("Constructed SmallEvenInt with an odd value.");
-        }
+        assert!(
+            value <= Self::MAX_VALUE,
+            "Constructed SmallEvenInt with value > MAX_VALUE."
+        );
+        assert!(
+            value % 2 == 0,
+            "Constructed SmallEvenInt with an odd value."
+        );
         SmallEvenInt(value)
     }
 }
@@ -137,7 +138,7 @@ impl SetMember<SmallEvenInt> for SmallEvenInt {
     }
 
     fn increment(&mut self) {
-        self.0 = min(self.0 + 2, Self::MAX_VALUE);
+        self.0 = (self.0 + 2).min(Self::MAX_VALUE);
     }
 }
 
@@ -161,9 +162,10 @@ impl Domain<SmallEvenInt> for SmallEvenInt {
     fn ordered_values_range(
         range: RangeInclusive<SmallEvenInt>,
     ) -> impl DoubleEndedIterator<Item = u32> {
-        if range.start().0 > Self::MAX_VALUE || range.end().0 > Self::MAX_VALUE {
-            panic!("Invalid range of the SmallInt set.");
-        }
+        assert!(
+            range.start().0 <= Self::MAX_VALUE && range.end().0 <= Self::MAX_VALUE,
+            "Invalid range of the SmallInt set."
+        );
         ((range.start().to_u32() / 2)..=(range.end().to_u32() / 2)).map(|ord| ord * 2)
     }
 
@@ -172,19 +174,13 @@ impl Domain<SmallEvenInt> for SmallEvenInt {
     }
 }
 
-struct Input<'a, T>
-where
-    T: SetMember<T>,
-{
+struct Input<'a, T> {
     // The state includes 2 of each type of sets to allow us to test out binary set operations (eg. union)
     int_set: &'a mut IntSet<T>,
     btree_set: &'a mut BTreeSet<T>,
 }
 
-impl<T> Input<'_, T>
-where
-    T: SetMember<T>,
-{
+impl<T> Input<'_, T> {
     fn from<'a>(int_set: &'a mut IntSet<T>, btree_set: &'a mut BTreeSet<T>) -> Input<'a, T> {
         Input { int_set, btree_set }
     }
@@ -1007,7 +1003,7 @@ pub fn process_op_codes<T: SetMember<T> + 'static>(
                 &btree_set_1
             };
             // when computing size use minimum length of 2 to ensure minimum value of log2(length) is 1.
-            ops_counter = ops_counter.saturating_add(next_op.op.size(max(2, btree_set.len())));
+            ops_counter = ops_counter.saturating_add(next_op.op.size(2.max(btree_set.len())));
             if ops_counter > op_count_limit {
                 // Operation count limit reached.
                 break;
