@@ -66,7 +66,7 @@ impl BitPage {
 
     /// Iterator over the members of this page that come after 'value'.
     pub(crate) fn iter_after(&self, value: u32) -> impl DoubleEndedIterator<Item = u32> + '_ {
-        let start_index = self.element_index(value);
+        let start_index = Self::element_index(value);
         self.storage[start_index..]
             .iter()
             .enumerate()
@@ -203,14 +203,14 @@ impl BitPage {
     }
 
     fn element(&self, value: u32) -> &Element {
-        &self.storage[self.element_index(value)]
+        &self.storage[Self::element_index(value)]
     }
 
     fn element_mut(&mut self, value: u32) -> &mut Element {
-        &mut self.storage[self.element_index(value)]
+        &mut self.storage[Self::element_index(value)]
     }
 
-    fn element_index(&self, value: u32) -> usize {
+    const fn element_index(value: u32) -> usize {
         (value as usize & PAGE_MASK as usize) / (ELEM_BITS as usize)
     }
 }

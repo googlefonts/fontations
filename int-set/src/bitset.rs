@@ -39,8 +39,8 @@ impl BitSet {
             return;
         }
 
-        let major_start = self.get_major_value(start);
-        let major_end = self.get_major_value(end);
+        let major_start = Self::get_major_value(start);
+        let major_end = Self::get_major_value(end);
 
         for major in major_start..=major_end {
             let page_start = start.max(Self::major_start(major));
@@ -55,7 +55,7 @@ impl BitSet {
     /// iterator of values.
     pub(crate) fn extend_unsorted<U: IntoIterator<Item = u32>>(&mut self, iter: U) {
         for val in iter {
-            let major_value = self.get_major_value(val);
+            let major_value = Self::get_major_value(val);
             let page = self.ensure_page_for_major_mut(major_value);
             page.insert_no_return(val);
         }
@@ -79,7 +79,7 @@ impl BitSet {
         let mut last_page_index: Option<usize> = None;
         let mut last_major_value = u32::MAX;
         for val in iter {
-            let major_value = self.get_major_value(val);
+            let major_value = Self::get_major_value(val);
             if major_value != last_major_value {
                 last_page_index = self.page_index_for_major(major_value);
                 last_major_value = major_value;
@@ -104,8 +104,8 @@ impl BitSet {
             return;
         }
 
-        let start_major = self.get_major_value(start);
-        let end_major = self.get_major_value(end);
+        let start_major = Self::get_major_value(start);
+        let end_major = Self::get_major_value(end);
         let mut info_index = match self
             .page_map
             .binary_search_by(|probe| probe.major_value.cmp(&start_major))
@@ -207,7 +207,7 @@ impl BitSet {
 
     /// Iterator over the members of this set that come after 'value'.
     pub(crate) fn iter_after(&self, value: u32) -> impl Iterator<Item = u32> + '_ {
-        let major_value = self.get_major_value(value);
+        let major_value = Self::get_major_value(value);
         let result = self
             .page_map
             .binary_search_by(|probe| probe.major_value.cmp(&major_value));
@@ -480,15 +480,15 @@ impl BitSet {
     }
 
     /// Return the major value (top 23 bits) of the page associated with value.
-    fn get_major_value(&self, value: u32) -> u32 {
+    const fn get_major_value(value: u32) -> u32 {
         value >> PAGE_BITS_LOG_2
     }
 
-    fn major_start(major: u32) -> u32 {
+    const fn major_start(major: u32) -> u32 {
         major << PAGE_BITS_LOG_2
     }
 
-    fn major_end(major: u32) -> u32 {
+    const fn major_end(major: u32) -> u32 {
         // Note: (PAGE_BITS - 1) must be grouped to prevent overflow on addition for the largest page.
         Self::major_start(major) + (PAGE_BITS - 1)
     }
@@ -524,7 +524,7 @@ impl BitSet {
 
     /// Return a reference to the page that 'value' resides in.
     fn page_for(&self, value: u32) -> Option<&BitPage> {
-        let major_value = self.get_major_value(value);
+        let major_value = Self::get_major_value(value);
         let pages_index = self.page_index_for_major(major_value)?;
         self.pages.get(pages_index)
     }
@@ -533,7 +533,7 @@ impl BitSet {
     ///
     /// Insert a new page if it doesn't exist.
     fn page_for_mut(&mut self, value: u32) -> Option<&mut BitPage> {
-        let major_value = self.get_major_value(value);
+        let major_value = Self::get_major_value(value);
         return self.page_for_major_mut(major_value);
     }
 
@@ -547,7 +547,7 @@ impl BitSet {
     ///
     /// Insert a new page if it doesn't exist.
     fn ensure_page_for_mut(&mut self, value: u32) -> &mut BitPage {
-        self.ensure_page_for_major_mut(self.get_major_value(value))
+        self.ensure_page_for_major_mut(Self::get_major_value(value))
     }
 
     // Return a mutable reference to the page with major value equal to major_value.
@@ -604,7 +604,7 @@ impl<'a> BitSetBuilder<'a> {
         // TODO(garretrieger): additional optimization ideas:
         // - Assuming data is sorted accumulate a single element mask and only commit it to the element
         //   once the next value passes the end of the element.
-        let major_value = self.set.get_major_value(val);
+        let major_value = BitSet::get_major_value(val);
         if major_value != self.last_major_value {
             self.last_page_index = self.set.ensure_page_index_for_major(major_value);
             self.last_major_value = major_value;
