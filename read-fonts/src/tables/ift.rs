@@ -59,20 +59,14 @@ impl<'a> Iterator for GidToEntryIter<'a> {
         }
 
         if cur_gid < glyph_map.first_mapped_glyph().into() {
-            // TODO(garretrieger): this cast may overflow, GlyphId is going to become u32
-            //   in the near future (https://github.com/googlefonts/fontations/issues/784)
-            //   once it is, this cast should be removed.
-            return Some(((cur_gid as u16).into(), 0));
+            return Some((cur_gid.into(), 0));
         }
 
         let index = cur_gid as usize - glyph_map.first_mapped_glyph() as usize;
         glyph_map
             .entry_index()
             .get(index)
-            // TODO(garretrieger): this cast may overflow, GlyphId is going to become u32
-            //   in the near future (https://github.com/googlefonts/fontations/issues/784)
-            //   once it is, this cast should be removed.
-            .map(|entry_index| ((cur_gid as u16).into(), *entry_index as u32))
+            .map(|entry_index| (cur_gid.into(), *entry_index as u32))
     }
 }
 
@@ -101,7 +95,12 @@ mod tests {
 
         assert_eq!(
             entries,
-            vec![(0.into(), 0), (1.into(), 0), (2.into(), 1), (3.into(), 0),]
+            vec![
+                (0u32.into(), 0),
+                (1u32.into(), 0),
+                (2u32.into(), 1),
+                (3u32.into(), 0),
+            ]
         );
     }
 
