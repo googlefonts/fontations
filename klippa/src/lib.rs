@@ -1,9 +1,11 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
+mod glyf_loca;
 mod hhea;
 mod hmtx;
 mod maxp;
 mod parsing_util;
+use glyf_loca::subset_glyf_loca;
 pub use parsing_util::{parse_unicodes, populate_gids};
 
 use skrifa::MetadataProvider;
@@ -13,15 +15,19 @@ use std::path::PathBuf;
 use thiserror::Error;
 use write_fonts::read::{
     collections::IntSet,
-    tables::glyf::{Glyf, Glyph},
-    tables::loca::Loca,
+    tables::{
+        glyf::{Glyf, Glyph},
+        gpos::Gpos,
+        gsub::Gsub,
+        loca::Loca,
+        name::Name,
+        head::Head,
+    },
     FontRef, TableProvider, TopLevelTable,
 };
 use write_fonts::types::GlyphId;
 use write_fonts::types::Tag;
-use write_fonts::{
-    from_obj::FromTableRef, tables::hhea::Hhea, tables::hmtx::Hmtx, tables::maxp::Maxp, FontBuilder,
-};
+use write_fonts::{from_obj::FromTableRef, tables::hmtx::Hmtx, tables::hhea::Hhea, tables::maxp::Maxp, FontBuilder};
 
 const MAX_COMPOSITE_OPERATIONS_PER_GLYPH: u8 = 64;
 const MAX_NESTING_LEVEL: u8 = 64;
@@ -178,12 +184,18 @@ impl Plan {
 
         //TODO: Add support for requested_glyph_map, command line option --gid-map
         //TODO: Add support for retain_gids
-        self.new_to_old_gid_list.extend(self.glyphset.iter().zip(0u16..).map(|x| (x.0, GlyphId::from(x.1))));
+        self.new_to_old_gid_list.extend(
+            self.glyphset
+                .iter()
+                .zip(0u16..)
+                .map(|x| (x.0, GlyphId::from(x.1))),
+        );
         self.num_output_glyphs = self.new_to_old_gid_list.len();
 
-        self.reverse_glyph_map.extend(self.new_to_old_gid_list.iter().map(|x| (x.0, x.1)));
-        self.glyph_map.extend(self.new_to_old_gid_list.iter().map(|x| (x.1, x.0)));
-
+        self.reverse_glyph_map
+            .extend(self.new_to_old_gid_list.iter().map(|x| (x.0, x.1)));
+        self.glyph_map
+            .extend(self.new_to_old_gid_list.iter().map(|x| (x.1, x.0)));
     }
 
     fn colr_closure(&mut self, font: &FontRef) {
@@ -333,10 +345,38 @@ pub fn subset_font(font: FontRef, plan: &Plan, output_file: &PathBuf) {
     builder.add_raw(Hmtx::TAG, hmtx_bytes);
     builder.add_raw(Hhea::TAG, hhea_bytes);
     builder.add_raw(Maxp::TAG, maxp_bytes);
+    if let Ok((glyf_bytes, loca_bytes, head_bytes)) = subset_glyf_loca(plan, &font) {
+        builder.add_raw(Glyf::TAG, glyf_bytes);
+        builder.add_raw(Loca::TAG, loca_bytes);
+        builder.add_raw(Head::TAG, head_bytes);
+    }
 
     builder.copy_missing_tables(font);
 
     std::fs::write(output_file, builder.build()).unwrap();
+}
+
+pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -> usize {
+    let Some(table_data) = font.data_for_tag(table_tag) else {
+        return 0;
+    };
+
+    let table_len = table_data.len();
+    let bulk: usize = 8192;
+    let src_glyphs = plan.font_num_glyphs;
+    let dst_glyphs = plan.num_output_glyphs;
+
+    // ported from HB: Tables that we want to allocate same space as the source table.
+    // For GSUB/GPOS it's because those are expensive to subset, so giving them more room is fine.
+    let same_size: bool =
+        table_tag == Gsub::TAG || table_tag == Gpos::TAG || table_tag == Name::TAG;
+
+    //TODO: Add extra room retain_gids
+    if src_glyphs == 0 || same_size {
+        return bulk + table_len;
+    }
+
+    bulk + table_len * ((dst_glyphs as f32 / src_glyphs as f32).sqrt() as usize)
 }
 
 #[cfg(test)]
