@@ -60,7 +60,7 @@ pub trait Domain<T> {
     fn from_u32(member: InDomain) -> T;
 
     /// Returns true if all u32 values between the mapped u32 min and mapped u32 max value of T are used.
-    fn is_continous() -> bool;
+    fn is_continuous() -> bool;
 
     /// Returns an iterator which iterates over all values in the domain of `T`
     ///
@@ -163,21 +163,21 @@ impl<T: Domain<T>> IntSet<T> {
     /// Returns an iterator over all disjoint ranges of values within the set in sorted ascending order.
     pub fn iter_ranges(&self) -> impl Iterator<Item = RangeInclusive<T>> + '_ {
         let u32_iter = match &self.0 {
-            Membership::Inclusive(s) if T::is_continous() => RangeIter::Inclusive::<_, _, T> {
+            Membership::Inclusive(s) if T::is_continuous() => RangeIter::Inclusive::<_, _, T> {
                 ranges: s.iter_ranges(),
             },
-            Membership::Inclusive(s) => RangeIter::InclusiveDiscontinous::<_, _, T> {
+            Membership::Inclusive(s) => RangeIter::InclusiveDiscontinuous::<_, _, T> {
                 ranges: s.iter_ranges(),
                 current_range: None,
                 phantom: PhantomData::<T>,
             },
-            Membership::Exclusive(s) if T::is_continous() => RangeIter::Exclusive::<_, _, T> {
+            Membership::Exclusive(s) if T::is_continuous() => RangeIter::Exclusive::<_, _, T> {
                 ranges: s.iter_ranges(),
                 min: T::ordered_values().next().unwrap(),
                 max: T::ordered_values().next_back().unwrap(),
                 done: false,
             },
-            Membership::Exclusive(s) => RangeIter::ExclusiveDiscontinous::<_, _, T> {
+            Membership::Exclusive(s) => RangeIter::ExclusiveDiscontinuous::<_, _, T> {
                 all_values: Some(T::ordered_values()),
                 set: s,
                 next_value: None,
@@ -200,7 +200,7 @@ impl<T: Domain<T>> IntSet<T> {
 
     /// Add all values in range as members of this set.
     pub fn insert_range(&mut self, range: RangeInclusive<T>) {
-        if T::is_continous() {
+        if T::is_continuous() {
             let range = range.start().to_u32()..=range.end().to_u32();
             match &mut self.0 {
                 Membership::Inclusive(s) => s.insert_range(range),
@@ -244,7 +244,7 @@ impl<T: Domain<T>> IntSet<T> {
 
     /// Removes all values in range as members of this set.
     pub fn remove_range(&mut self, range: RangeInclusive<T>) {
-        if T::is_continous() {
+        if T::is_continuous() {
             let range = range.start().to_u32()..=range.end().to_u32();
             match &mut self.0 {
                 Membership::Inclusive(s) => s.remove_range(range),
@@ -588,7 +588,7 @@ where
     Inclusive {
         ranges: InclusiveRangeIter,
     },
-    InclusiveDiscontinous {
+    InclusiveDiscontinuous {
         ranges: InclusiveRangeIter,
         current_range: Option<RangeInclusive<u32>>,
         phantom: PhantomData<T>,
@@ -599,7 +599,7 @@ where
         max: u32,
         done: bool,
     },
-    ExclusiveDiscontinous {
+    ExclusiveDiscontinuous {
         all_values: Option<AllValuesIter>,
         set: &'a BitSet,
         next_value: Option<u32>,
@@ -618,12 +618,12 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             RangeIter::Inclusive { ranges } => ranges.next(),
-            RangeIter::InclusiveDiscontinous {
+            RangeIter::InclusiveDiscontinuous {
                 ranges,
                 current_range,
                 phantom: _,
             } => loop {
-                // Discontinous domains need special handling since members of the domain may be adjacent
+                // Discontinuous domains need special handling since members of the domain may be adjacent
                 // while their u32 representations may not be. So this iterator implementation compares successive
                 // ranges from the underlying u32 range iterator and merges any ranges that are found to be adjacent
                 // in the domain of type T.
@@ -660,11 +660,11 @@ where
             } => RangeIter::<InclusiveRangeIter, AllValuesIter, T>::next_exclusive(
                 ranges, min, max, done,
             ),
-            RangeIter::ExclusiveDiscontinous {
+            RangeIter::ExclusiveDiscontinuous {
                 all_values,
                 set,
                 next_value,
-            } => RangeIter::<InclusiveRangeIter, AllValuesIter, T>::next_discontinous(
+            } => RangeIter::<InclusiveRangeIter, AllValuesIter, T>::next_discontinuous(
                 all_values, set, next_value,
             ),
         }
@@ -718,7 +718,7 @@ where
     }
 
     /// Iterate the ranges of an exclusive set where the domain is discontinuous.
-    fn next_discontinous(
+    fn next_discontinuous(
         all_values: &mut Option<AllValuesIter>,
         set: &'a BitSet,
         next_value: &mut Option<u32>,
@@ -770,7 +770,7 @@ impl Domain<u32> for u32 {
         member.value()
     }
 
-    fn is_continous() -> bool {
+    fn is_continuous() -> bool {
         true
     }
 
@@ -796,7 +796,7 @@ impl Domain<u16> for u16 {
         member.value() as u16
     }
 
-    fn is_continous() -> bool {
+    fn is_continuous() -> bool {
         true
     }
 
@@ -822,7 +822,7 @@ impl Domain<u8> for u8 {
         member.value() as u8
     }
 
-    fn is_continous() -> bool {
+    fn is_continuous() -> bool {
         true
     }
 
@@ -848,7 +848,7 @@ impl Domain<GlyphId16> for GlyphId16 {
         GlyphId16::new(member.value() as u16)
     }
 
-    fn is_continous() -> bool {
+    fn is_continuous() -> bool {
         true
     }
 
@@ -876,7 +876,7 @@ impl Domain<GlyphId> for GlyphId {
         GlyphId::from(member.value())
     }
 
-    fn is_continous() -> bool {
+    fn is_continuous() -> bool {
         true
     }
 
@@ -916,7 +916,7 @@ mod test {
             EvenInts(member.0 as u16)
         }
 
-        fn is_continous() -> bool {
+        fn is_continuous() -> bool {
             false
         }
 
@@ -950,7 +950,7 @@ mod test {
             TwoParts(member.0 as u16)
         }
 
-        fn is_continous() -> bool {
+        fn is_continuous() -> bool {
             false
         }
 
@@ -982,7 +982,7 @@ mod test {
             TwoPartsBounds(member.0)
         }
 
-        fn is_continous() -> bool {
+        fn is_continuous() -> bool {
             false
         }
 
@@ -1316,7 +1316,7 @@ mod test {
     }
 
     #[test]
-    fn iter_ranges_inclusive_discontinous() {
+    fn iter_ranges_inclusive_discontinuous() {
         let mut set = IntSet::<EvenInts>::empty();
         let items: Vec<_> = set.iter_ranges().collect();
         assert_eq!(items, vec![]);
@@ -1370,7 +1370,7 @@ mod test {
     }
 
     #[test]
-    fn iter_ranges_exclusive_discontinous() {
+    fn iter_ranges_exclusive_discontinuous() {
         let mut set = IntSet::<EvenInts>::all();
         set.remove_range(EvenInts(0)..=EvenInts(8));
         set.remove_range(EvenInts(16)..=EvenInts(u16::MAX - 1));
@@ -1460,7 +1460,7 @@ mod test {
     }
 
     #[test]
-    fn iter_after_discontinous() {
+    fn iter_after_discontinuous() {
         let mut set = IntSet::<EvenInts>::empty();
         set.extend([EvenInts(6), EvenInts(10)]);
         set.invert();
@@ -1989,7 +1989,7 @@ mod test {
     }
 
     #[test]
-    fn intersects_range_discontinous() {
+    fn intersects_range_discontinuous() {
         let mut set = IntSet::<EvenInts>::empty();
         assert!(!set.intersects_range(EvenInts(0)..=EvenInts(0)));
         assert!(!set.intersects_range(EvenInts(0)..=EvenInts(100)));
@@ -2039,7 +2039,7 @@ mod test {
     }
 
     #[test]
-    fn intersects_range_exclusive_discontinous() {
+    fn intersects_range_exclusive_discontinuous() {
         let mut set = IntSet::<EvenInts>::all();
         assert!(set.intersects_range(EvenInts(0)..=EvenInts(0)));
         assert!(set.intersects_range(EvenInts(0)..=EvenInts(100)));
