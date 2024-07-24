@@ -1,5 +1,8 @@
 use font_types::{GlyphId, GlyphId16};
 use std::fmt::Debug;
+use std::hash::DefaultHasher;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::io::Cursor;
 use std::io::Read;
 use std::ops::Bound::Excluded;
@@ -18,7 +21,7 @@ pub enum OperationSet {
     SparseBitSetEncoding,
 }
 
-pub trait SetMember<T>: Domain<T> + Ord + Copy + Debug {
+pub trait SetMember<T>: Domain<T> + Ord + Copy + Debug + Hash {
     fn create(val: u32) -> Option<T>;
     fn can_be_inverted() -> bool;
     fn increment(&mut self);
@@ -98,7 +101,7 @@ impl SetMember<GlyphId> for GlyphId {
 /// This is an integer in the domain of [0, 2048). It's used by the fuzzer
 /// for testing inverted sets to avoid causing excessively long running operations
 /// and memory usage on the btree set kept along side the IntSet.
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct SmallInt(u32);
 
 impl SmallInt {
@@ -164,7 +167,7 @@ impl Domain<SmallInt> for SmallInt {
 
 /// This is an even integer in the domain of [0, 2048). It's used by the fuzzer
 /// for testing inverted sets + discontinuous domains.
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct SmallEvenInt(u32);
 
 impl SmallEvenInt {
@@ -944,6 +947,68 @@ where
     }
 }
 
+/* ### Hash ### */
+
+struct HashOp;
+
+impl HashOp {
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
+    where
+        T: SetMember<T>,
+    {
+        Some(Box::new(Self))
+    }
+}
+
+impl HashOp {
+    fn hash<T: SetMember<T>>(a: Input<T>) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        a.int_set.hash(&mut hasher);
+        hasher.finish()
+    }
+}
+
+impl<T> Operation<T> for HashOp
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, a: Input<T>, b: Input<T>) {
+        if a.int_set == b.int_set {
+            assert_eq!(Self::hash(a), Self::hash(b));
+        }
+    }
+
+    fn size(&self, length: usize) -> usize {
+        length
+    }
+}
+
+/* ### Equal ### */
+
+struct EqualOp;
+
+impl EqualOp {
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
+    where
+        T: SetMember<T>,
+    {
+        Some(Box::new(Self))
+    }
+}
+
+impl<T> Operation<T> for EqualOp
+where
+    T: SetMember<T>,
+{
+    fn operate(&self, a: Input<T>, b: Input<T>) {
+        assert_eq!(a.int_set == b.int_set, a.btree_set == b.btree_set);
+    }
+
+    fn size(&self, length: usize) -> usize {
+        length
+    }
+}
+
 /* ### End of Ops ### */
 
 fn read_u8(data: &mut Cursor<&[u8]>) -> Option<u8> {
@@ -1029,6 +1094,8 @@ where
                 None
             }
         }
+        23 if is_standard => HashOp::parse_args(),
+        24 if is_standard => EqualOp::parse_args(),
         _ => None,
     };
 
