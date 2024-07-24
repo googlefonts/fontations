@@ -5,7 +5,7 @@ include!("../../generated/generated_ift.rs");
 use core::str::Utf8Error;
 use std::str;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct U8Or16(u16);
 
 impl ReadArgs for U8Or16 {
@@ -23,7 +23,7 @@ impl FontReadWithArgs<'_> for U8Or16 {
         if *max_entry_index < 256 {
             data.read_at::<u8>(0).map(|v| Self(v as u16))
         } else {
-            data.read_at::<u16>(0).map(|v| Self(v as u16))
+            data.read_at::<u16>(0).map(Self)
         }
     }
 }
@@ -147,6 +147,34 @@ mod tests {
                 (6u32.into(), 0x50)
             ]
         );
+    }
+
+    #[test]
+    fn format_1_feature_map() {
+        let table = Ift::read(test_data::FEATURE_MAP_FORMAT1.into()).unwrap();
+        let Ift::Format1(map) = table else {
+            panic!("Not format 1.");
+        };
+
+        let Some(feature_map_result) = map.feature_map() else {
+            panic!("should have a non null feature map.");
+        };
+
+        let Ok(feature_map) = feature_map_result else {
+            panic!("should have a valid feature map.");
+        };
+
+        assert_eq!(feature_map.feature_records().len(), 2);
+
+        let fr0 = feature_map.feature_records().get(0).unwrap();
+        assert_eq!(fr0.feature_tag(), Tag::new(&[b'l', b'i', b'g', b'a']));
+        assert_eq!(*fr0.first_new_entry_index(), U8Or16(0x70));
+        assert_eq!(*fr0.entry_map_count(), U8Or16(0x02));
+
+        let fr1 = feature_map.feature_records().get(1).unwrap();
+        assert_eq!(fr1.feature_tag(), Tag::new(&[b'd', b'l', b'i', b'g']));
+        assert_eq!(*fr1.first_new_entry_index(), U8Or16(0x190));
+        assert_eq!(*fr1.entry_map_count(), U8Or16(0x01));
     }
 
     #[test]

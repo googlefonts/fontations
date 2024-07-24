@@ -295,7 +295,8 @@ impl<'a> PatchMapFormat1<'a> {
     /// Attempt to resolve [`feature_map_offset`][Self::feature_map_offset].
     pub fn feature_map(&self) -> Option<Result<FeatureMap<'a>, ReadError>> {
         let data = self.data;
-        self.feature_map_offset().resolve(data)
+        let args = self.max_entry_index();
+        self.feature_map_offset().resolve_with_args(data, &args)
     }
 
     pub fn applied_entries_bitmap(&self) -> &'a [u8] {
@@ -457,20 +458,52 @@ impl<'a> std::fmt::Debug for GlyphMap<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct FeatureMapMarker {}
+pub struct FeatureMapMarker {
+    max_entry_index: u16,
+    feature_records_byte_len: usize,
+}
 
 impl FeatureMapMarker {
     fn feature_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
+    fn feature_records_byte_range(&self) -> Range<usize> {
+        let start = self.feature_count_byte_range().end;
+        start..start + self.feature_records_byte_len
+    }
 }
 
-impl<'a> FontRead<'a> for FeatureMap<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+impl ReadArgs for FeatureMap<'_> {
+    type Args = u16;
+}
+
+impl<'a> FontReadWithArgs<'a> for FeatureMap<'a> {
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let max_entry_index = *args;
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.finish(FeatureMapMarker {})
+        let feature_count: u16 = cursor.read()?;
+        let feature_records_byte_len = (feature_count as usize)
+            .checked_mul(<FeatureRecord as ComputeSize>::compute_size(
+                &max_entry_index,
+            )?)
+            .ok_or(ReadError::OutOfBounds)?;
+        cursor.advance_by(feature_records_byte_len);
+        cursor.finish(FeatureMapMarker {
+            max_entry_index,
+            feature_records_byte_len,
+        })
+    }
+}
+
+impl<'a> FeatureMap<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, max_entry_index: u16) -> Result<Self, ReadError> {
+        let args = max_entry_index;
+        Self::read_with_args(data, &args)
     }
 }
 
@@ -480,6 +513,17 @@ impl<'a> FeatureMap<'a> {
     pub fn feature_count(&self) -> u16 {
         let range = self.shape.feature_count_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn feature_records(&self) -> ComputedArray<'a, FeatureRecord> {
+        let range = self.shape.feature_records_byte_range();
+        self.data
+            .read_with_args(range, &self.max_entry_index())
+            .unwrap()
+    }
+
+    pub(crate) fn max_entry_index(&self) -> u16 {
+        self.shape.max_entry_index
     }
 }
 
@@ -491,6 +535,7 @@ impl<'a> SomeTable<'a> for FeatureMap<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("feature_count", self.feature_count())),
+            1usize => Some(Field::new("feature_records", traversal::FieldType::Unknown)),
             _ => None,
         }
     }
@@ -503,21 +548,70 @@ impl<'a> std::fmt::Debug for FeatureMap<'a> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
-#[repr(C)]
-#[repr(packed)]
+#[derive(Clone, Debug)]
 pub struct FeatureRecord {
-    pub todo: u8,
+    pub feature_tag: BigEndian<Tag>,
+    pub first_new_entry_index: U8Or16,
+    pub entry_map_count: U8Or16,
 }
 
 impl FeatureRecord {
-    pub fn todo(&self) -> u8 {
-        self.todo
+    pub fn feature_tag(&self) -> Tag {
+        self.feature_tag.get()
+    }
+
+    pub fn first_new_entry_index(&self) -> &U8Or16 {
+        &self.first_new_entry_index
+    }
+
+    pub fn entry_map_count(&self) -> &U8Or16 {
+        &self.entry_map_count
     }
 }
 
-impl FixedSize for FeatureRecord {
-    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN;
+impl ReadArgs for FeatureRecord {
+    type Args = u16;
+}
+
+impl ComputeSize for FeatureRecord {
+    #[allow(clippy::needless_question_mark)]
+    fn compute_size(args: &u16) -> Result<usize, ReadError> {
+        let max_entry_index = *args;
+        let mut result = 0usize;
+        result = result
+            .checked_add(Tag::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        result = result
+            .checked_add(<U8Or16 as ComputeSize>::compute_size(&max_entry_index)?)
+            .ok_or(ReadError::OutOfBounds)?;
+        result = result
+            .checked_add(<U8Or16 as ComputeSize>::compute_size(&max_entry_index)?)
+            .ok_or(ReadError::OutOfBounds)?;
+        Ok(result)
+    }
+}
+
+impl<'a> FontReadWithArgs<'a> for FeatureRecord {
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let max_entry_index = *args;
+        Ok(Self {
+            feature_tag: cursor.read_be()?,
+            first_new_entry_index: cursor.read_with_args(&max_entry_index)?,
+            entry_map_count: cursor.read_with_args(&max_entry_index)?,
+        })
+    }
+}
+
+impl<'a> FeatureRecord {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, max_entry_index: u16) -> Result<Self, ReadError> {
+        let args = max_entry_index;
+        Self::read_with_args(data, &args)
+    }
 }
 
 #[cfg(feature = "traversal")]
@@ -526,7 +620,12 @@ impl<'a> SomeRecord<'a> for FeatureRecord {
         RecordResolver {
             name: "FeatureRecord",
             get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("todo", self.todo())),
+                0usize => Some(Field::new("feature_tag", self.feature_tag())),
+                1usize => Some(Field::new(
+                    "first_new_entry_index",
+                    traversal::FieldType::Unknown,
+                )),
+                2usize => Some(Field::new("entry_map_count", traversal::FieldType::Unknown)),
                 _ => None,
             }),
             data,

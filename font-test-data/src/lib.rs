@@ -289,4 +289,61 @@ pub mod ift {
         0x01, 0x2c, // gid 5
         0x00, 0x50, // gid 6
     ];
+
+    #[rustfmt::skip]
+    pub static FEATURE_MAP_FORMAT1: &[u8] = &[
+        0x01,                    // 0: format
+
+        0x00, 0x00, 0x00, 0x00,  // 1: reserved
+
+        0x00, 0x00, 0x00, 0x01,  // 5: compat id [0]
+        0x00, 0x00, 0x00, 0x02,  // 9: compat id [1]
+        0x00, 0x00, 0x00, 0x03,  // 13: compat id [2]
+        0x00, 0x00, 0x00, 0x04,  // 17: compat id [3]
+
+        0x01, 0x2C,              // 21: max entry id = 300
+        0x00, 0x00, 0x00, 0x07,  // 23: glyph count
+        0x00, 0x00, 0x00, 0x54,  // 27: glyph map offset (0x54 = 84)
+        0x00, 0x00, 0x00, 0x60,  // 31: feature map offset (0x60 = 96)
+
+        // 35: applied entry bitmap (38 bytes)
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00,
+
+        0x00, 0x08,              // 73: uriTemplateLength
+        b'A', b'B', b'C', b'D',
+        b'E', b'F', 0xc9, 0xa4,  // 75: uriTemplate[8]
+
+        0x04,                    // 83: patch encoding = glyph keyed
+
+        // ## Glyph Map ##
+        0x00, 0x02,              // 84: first mapped glyph
+        // 86: entryIndex[2..6]
+        0x00, 0x50, // gid 2
+        0x00, 0x51, // gid 3
+        0x01, 0x2c, // gid 4
+        0x01, 0x2c, // gid 5
+        0x00, 0x50, // gid 6
+
+        // ## Feature Map ##
+        0x00, 0x02,               // 96: feature count (2)
+
+        // FeatureRecord[0]
+        b'l', b'i', b'g', b'a',   // 98: feature tag
+        0x00, 0x70,               // 102: first new entry index
+        0x00, 0x02,               // 104: entry map count
+
+        // FeatureRecord[1]
+        b'd', b'l', b'i', b'g',   // 98: feature tag
+        0x01, 0x90,               // 102: first new entry index (0x190 = 400)
+        0x00, 0x01,               // 104: entry map count
+
+        // 106
+        // TODO(garretrieger): add EntryMapRecord's
+    ];
 }

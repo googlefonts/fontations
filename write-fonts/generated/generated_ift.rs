@@ -307,6 +307,7 @@ impl FeatureMap {
 }
 
 impl FontWrite for FeatureMap {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.feature_count.write_into(writer);
     }
@@ -321,6 +322,7 @@ impl Validate for FeatureMap {
 
 impl<'a> FromObjRef<read_fonts::tables::ift::FeatureMap<'a>> for FeatureMap {
     fn from_obj_ref(obj: &read_fonts::tables::ift::FeatureMap<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
         FeatureMap {
             feature_count: obj.feature_count(),
         }
@@ -329,28 +331,23 @@ impl<'a> FromObjRef<read_fonts::tables::ift::FeatureMap<'a>> for FeatureMap {
 
 impl<'a> FromTableRef<read_fonts::tables::ift::FeatureMap<'a>> for FeatureMap {}
 
-impl<'a> FontRead<'a> for FeatureMap {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::tables::ift::FeatureMap as FontRead>::read(data).map(|x| x.to_owned_table())
-    }
-}
-
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct FeatureRecord {
-    pub todo: u8,
+    pub feature_tag: Tag,
 }
 
 impl FeatureRecord {
     /// Construct a new `FeatureRecord`
-    pub fn new(todo: u8) -> Self {
-        Self { todo }
+    pub fn new(feature_tag: Tag) -> Self {
+        Self { feature_tag }
     }
 }
 
 impl FontWrite for FeatureRecord {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        self.todo.write_into(writer);
+        self.feature_tag.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("FeatureRecord")
@@ -362,8 +359,10 @@ impl Validate for FeatureRecord {
 }
 
 impl FromObjRef<read_fonts::tables::ift::FeatureRecord> for FeatureRecord {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::FeatureRecord, _: FontData) -> Self {
-        FeatureRecord { todo: obj.todo() }
+    fn from_obj_ref(obj: &read_fonts::tables::ift::FeatureRecord, offset_data: FontData) -> Self {
+        FeatureRecord {
+            feature_tag: obj.feature_tag(),
+        }
     }
 }
 
