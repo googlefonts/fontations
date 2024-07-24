@@ -1,5 +1,7 @@
 #![parse_module(read_fonts::tables::ift)]
 
+extern record U8Or16;
+
 #[tag = "IFT "]
 #[skip_font_write]
 #[skip_from_obj]
@@ -42,6 +44,7 @@ table PatchMapFormat1 {
 
   /// Sub table that maps feature and glyph ids to entry indices.
   #[nullable] // TODO(garretrieger): this does not currently match the spec, update spec to allow feature map to be nullable.
+  #[read_offset_with($max_entry_index)]
   feature_map_offset: Offset32<FeatureMap>,
 
   #[count(max_value_bitmap($max_entry_index))]
@@ -67,14 +70,35 @@ table GlyphMap {
   entry_index: ComputedArray<U8Or16>,
 }
 
+#[read_args(max_entry_index: u16)]
 table FeatureMap {
   feature_count: u16,
+
+  #[count($feature_count)]
+  #[read_with($max_entry_index)]
+  #[traverse_with(skip)]
+  #[compile(skip)] // TODO remove this once write fonts side is implemented.
+  feature_records: ComputedArray<FeatureRecord>,
+
   // TODO(garretrieger): write me.
+  //#[count(..)]
+  //#[read_with($feature_records, $max_entry_index)]
+  //entry_map_record: ComputedArray<EntryMapRecord>,
 }
 
+#[read_args(max_entry_index: u16)]
 record FeatureRecord {
-  // TODO(garretrieger): write me.
-  todo: u8,
+  feature_tag: Tag,
+
+  #[read_with($max_entry_index)]
+  #[traverse_with(skip)]
+  #[compile(skip)] // TODO remove this once write fonts side is implemented.
+  first_new_entry_index: U8Or16,
+
+  #[read_with($max_entry_index)]
+  #[traverse_with(skip)]
+  #[compile(skip)] // TODO remove this once write fonts side is implemented.
+  entry_map_count: U8Or16,
 }
 
 record EntryMapRecord {
