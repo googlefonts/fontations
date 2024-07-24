@@ -651,18 +651,6 @@ impl std::cmp::PartialEq for BitSet {
 
 impl std::cmp::Eq for BitSet {}
 
-impl std::cmp::Ord for PageInfo {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.major_value.cmp(&other.major_value)
-    }
-}
-
-impl std::cmp::PartialOrd for PageInfo {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
 struct BitSetRangeIter<'a> {
     set: &'a BitSet,
     page_info_index: usize,
