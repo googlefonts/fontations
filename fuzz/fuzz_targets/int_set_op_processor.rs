@@ -1,3 +1,4 @@
+use font_types::{GlyphId, GlyphId16};
 use std::fmt::Debug;
 use std::io::Cursor;
 use std::io::Read;
@@ -34,6 +35,63 @@ impl SetMember<u32> for u32 {
 
     fn increment(&mut self) {
         *self = self.saturating_add(1);
+    }
+}
+
+impl SetMember<u16> for u16 {
+    fn create(val: u32) -> Option<u16> {
+        val.try_into().ok()
+    }
+
+    fn can_be_inverted() -> bool {
+        false
+    }
+
+    fn increment(&mut self) {
+        *self = self.saturating_add(1);
+    }
+}
+
+impl SetMember<u8> for u8 {
+    fn create(val: u32) -> Option<u8> {
+        val.try_into().ok()
+    }
+
+    fn can_be_inverted() -> bool {
+        false
+    }
+
+    fn increment(&mut self) {
+        *self = self.saturating_add(1);
+    }
+}
+
+impl SetMember<GlyphId16> for GlyphId16 {
+    fn create(val: u32) -> Option<GlyphId16> {
+        let val: u16 = val.try_into().ok()?;
+        Some(GlyphId16::new(val))
+    }
+
+    fn can_be_inverted() -> bool {
+        false
+    }
+
+    fn increment(&mut self) {
+        *self = GlyphId16::new(self.to_u16().saturating_add(1));
+    }
+}
+
+impl SetMember<GlyphId> for GlyphId {
+    fn create(val: u32) -> Option<GlyphId> {
+        Some(GlyphId::new(val))
+    }
+
+    fn can_be_inverted() -> bool {
+        false
+    }
+
+    fn increment(&mut self) {
+        *self = GlyphId::new(self.to_u32().saturating_add(1));
     }
 }
 
