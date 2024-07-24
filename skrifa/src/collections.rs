@@ -98,6 +98,15 @@ impl<T, const N: usize> SmallVec<T, N> {
     }
 }
 
+impl<T, const N: usize> Default for SmallVec<T, N>
+where
+    T: Copy + Default,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T, const N: usize> core::ops::Deref for SmallVec<T, N> {
     type Target = [T];
 
@@ -118,6 +127,15 @@ where
 {
     fn eq(&self, other: &Self) -> bool {
         self.as_slice() == other.as_slice()
+    }
+}
+
+impl<T, const N: usize> PartialEq<[T]> for SmallVec<T, N>
+where
+    T: PartialEq,
+{
+    fn eq(&self, other: &[T]) -> bool {
+        self.as_slice() == other
     }
 }
 
