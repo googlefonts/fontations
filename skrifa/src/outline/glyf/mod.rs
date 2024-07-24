@@ -127,6 +127,10 @@ impl<'a> Outlines<'a> {
         })
     }
 
+    pub fn units_per_em(&self) -> u16 {
+        self.units_per_em
+    }
+
     pub fn glyph_count(&self) -> usize {
         self.glyph_count as usize
     }
