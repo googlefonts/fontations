@@ -3,7 +3,7 @@
 #![allow(dead_code)]
 
 use super::DrawError;
-use alloc::vec::Vec;
+use crate::collections::SmallVec;
 use core::ops::Range;
 use raw::{
     tables::glyf::PointFlags,
@@ -70,75 +70,35 @@ pub(super) trait UnscaledOutlineSink {
 }
 
 // please can I have smallvec?
-pub(super) struct UnscaledOutlineBuf<const INLINE_CAP: usize> {
-    inline: [UnscaledPoint; INLINE_CAP],
-    inline_len: usize,
-    use_heap: bool,
-    heap: Vec<UnscaledPoint>,
-}
+pub(super) struct UnscaledOutlineBuf<const INLINE_CAP: usize>(SmallVec<UnscaledPoint, INLINE_CAP>);
 
 impl<const INLINE_CAP: usize> UnscaledOutlineBuf<INLINE_CAP> {
     pub fn new() -> Self {
-        Self {
-            inline: [Default::default(); INLINE_CAP],
-            inline_len: 0,
-            use_heap: false,
-            heap: vec![],
-        }
-    }
-
-    pub fn push(&mut self, point: UnscaledPoint) {
-        if !self.use_heap {
-            if self.inline_len < INLINE_CAP {
-                self.inline[self.inline_len] = point;
-                self.inline_len += 1;
-                return;
-            } else {
-                self.use_heap = true;
-                self.heap.extend(&self.inline);
-                self.inline_len = 0;
-            }
-        }
-        self.heap.push(point);
+        Self(SmallVec::new())
     }
 
     pub fn clear(&mut self) {
-        self.inline_len = 0;
-        self.heap.clear();
+        self.0.clear();
     }
 
     pub fn as_ref(&self) -> UnscaledOutlineRef {
-        let points = if self.use_heap {
-            &self.heap
-        } else {
-            &self.inline[..self.inline_len]
-        };
-        UnscaledOutlineRef { points }
+        UnscaledOutlineRef {
+            points: self.0.as_slice(),
+        }
     }
 }
 
 impl<const INLINE_CAP: usize> UnscaledOutlineSink for UnscaledOutlineBuf<INLINE_CAP> {
     fn try_reserve(&mut self, additional: usize) -> Result<(), DrawError> {
-        if !self.use_heap {
-            let new_len = self
-                .inline_len
-                .checked_add(additional)
-                .ok_or(DrawError::InsufficientMemory)?;
-            if new_len <= INLINE_CAP {
-                return Ok(());
-            }
-            self.heap.reserve(new_len);
-            self.heap.extend(&self.inline[..self.inline_len]);
-            self.use_heap = true;
-            self.inline_len = 0;
+        if !self.0.try_reserve(additional) {
+            Err(DrawError::InsufficientMemory)
         } else {
-            self.heap.reserve(additional);
+            Ok(())
         }
-        Ok(())
     }
 
     fn push(&mut self, point: UnscaledPoint) -> Result<(), DrawError> {
-        self.push(point);
+        self.0.push(point);
         Ok(())
     }
 }
@@ -374,24 +334,6 @@ mod tests {
             .map(|point| (point.x, point.y, point.flags))
             .collect::<Vec<_>>();
         assert_eq!(points, expected);
-    }
-
-    #[test]
-    fn buf_inline_and_heap() {
-        let font = FontRef::new(font_test_data::MATERIAL_SYMBOLS_SUBSET).unwrap();
-        let glyph = font.outline_glyphs().get(GlyphId::new(5)).unwrap();
-        // This glyph has 26 points so should fit in the inline buffer
-        let mut inline_outline = UnscaledOutlineBuf::<26>::new();
-        glyph
-            .draw_unscaled(LocationRef::default(), None, &mut inline_outline)
-            .unwrap();
-        assert!(!inline_outline.use_heap);
-        // Force overflow to heap
-        let mut heap_outline = UnscaledOutlineBuf::<8>::new();
-        glyph
-            .draw_unscaled(LocationRef::default(), None, &mut heap_outline)
-            .unwrap();
-        assert!(heap_outline.use_heap);
     }
 
     #[test]

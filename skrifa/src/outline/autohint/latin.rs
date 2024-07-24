@@ -23,7 +23,7 @@ impl UnscaledBlues {
     pub fn new_latin(font: &FontRef, coords: &[F2Dot14], script: &ScriptClass) -> Self {
         const MAX_INLINE_POINTS: usize = 64;
         const BLUE_STRING_MAX_LEN: usize = 51;
-        let mut blues = Self::default();
+        let mut blues = Self::new();
         let mut outline_buf = UnscaledOutlineBuf::<MAX_INLINE_POINTS>::new();
         let mut flats = [0; BLUE_STRING_MAX_LEN];
         let mut rounds = [0; BLUE_STRING_MAX_LEN];
@@ -365,7 +365,7 @@ impl UnscaledBlues {
         }
         // sort bottoms
         let mut sorted_indices: [usize; MAX_BLUES] = core::array::from_fn(|ix| ix);
-        let blue_values = blues.values_mut();
+        let blue_values = blues.as_mut_slice();
         let len = blue_values.len();
         if len == 0 {
             return blues;
@@ -429,7 +429,7 @@ mod tests {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
         let script = &super::super::script::SCRIPT_CLASSES[super::ScriptClass::LATN];
         let blues = super::UnscaledBlues::new_latin(&font, &[], script);
-        let values = blues.values();
+        let values = blues.as_slice();
         let expected = [
             UnscaledBlue {
                 position: 714,
@@ -483,7 +483,7 @@ mod tests {
         // Hebrew triggers "long" blue code path
         let script = &super::super::script::SCRIPT_CLASSES[super::ScriptClass::HEBR];
         let blues = super::UnscaledBlues::new_latin(&font, &[], script);
-        let values = blues.values();
+        let values = blues.as_slice();
         assert_eq!(values.len(), 3);
         let expected = [
             UnscaledBlue {

@@ -37,8 +37,8 @@ pub mod outline;
 pub mod setting;
 pub mod string;
 
+mod collections;
 mod provider;
-mod small_array;
 mod variation;
 
 #[doc(inline)]
