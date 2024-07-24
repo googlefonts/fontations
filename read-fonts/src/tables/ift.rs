@@ -5,6 +5,36 @@ include!("../../generated/generated_ift.rs");
 use core::str::Utf8Error;
 use std::str;
 
+#[derive(Clone, Copy, Debug)]
+pub struct U8Or16(u16);
+
+impl ReadArgs for U8Or16 {
+    type Args = u16;
+}
+
+impl ComputeSize for U8Or16 {
+    fn compute_size(max_entry_index: &u16) -> Result<usize, ReadError> {
+        Ok(if *max_entry_index < 256 { 1 } else { 2 })
+    }
+}
+
+impl FontReadWithArgs<'_> for U8Or16 {
+    fn read_with_args(data: FontData<'_>, max_entry_index: &Self::Args) -> Result<Self, ReadError> {
+        if *max_entry_index < 256 {
+            data.read_at::<u8>(0).map(|v| Self(v as u16))
+        } else {
+            data.read_at::<u16>(0).map(|v| Self(v as u16))
+        }
+    }
+}
+
+impl U8Or16 {
+    #[inline]
+    pub fn get(self) -> u16 {
+        self.0
+    }
+}
+
 impl<'a> PatchMapFormat1<'a> {
     pub fn get_compatibility_id(&self) -> [u32; 4] {
         [
@@ -68,7 +98,8 @@ impl<'a> Iterator for GidToEntryIter<'a> {
         glyph_map
             .entry_index()
             .get(index)
-            .map(|entry_index| (cur_gid.into(), *entry_index as u16))
+            .ok()
+            .map(|entry_index| (cur_gid.into(), entry_index.0))
     }
 }
 
@@ -88,7 +119,7 @@ mod tests {
     // - Compat ID is to short.
 
     #[test]
-    fn format_1_gid_to_entry_iter() {
+    fn format_1_gid_to_u8_entry_iter() {
         let table = Ift::read(test_data::SIMPLE_FORMAT1.into()).unwrap();
         let Ift::Format1(map) = table else {
             panic!("Not format 1.");
@@ -96,6 +127,26 @@ mod tests {
         let entries: Vec<(GlyphId, u16)> = map.gid_to_entry_iter().collect();
 
         assert_eq!(entries, vec![(1u32.into(), 2), (2u32.into(), 1),]);
+    }
+
+    #[test]
+    fn format_1_gid_to_u16_entry_iter() {
+        let table = Ift::read(test_data::U16_ENTRIES_FORMAT1.into()).unwrap();
+        let Ift::Format1(map) = table else {
+            panic!("Not format 1.");
+        };
+        let entries: Vec<(GlyphId, u16)> = map.gid_to_entry_iter().collect();
+
+        assert_eq!(
+            entries,
+            vec![
+                (2u32.into(), 0x50),
+                (3u32.into(), 0x51),
+                (4u32.into(), 0x12c),
+                (5u32.into(), 0x12c),
+                (6u32.into(), 0x50)
+            ]
+        );
     }
 
     #[test]

@@ -282,7 +282,7 @@ impl<'a> PatchMapFormat1<'a> {
     /// Attempt to resolve [`glyph_map_offset`][Self::glyph_map_offset].
     pub fn glyph_map(&self) -> Result<GlyphMap<'a>, ReadError> {
         let data = self.data;
-        let args = self.glyph_count();
+        let args = (self.glyph_count(), self.max_entry_index());
         self.glyph_map_offset().resolve_with_args(data, &args)
     }
 
@@ -364,6 +364,7 @@ impl<'a> std::fmt::Debug for PatchMapFormat1<'a> {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct GlyphMapMarker {
+    max_entry_index: u16,
     entry_index_byte_len: usize,
 }
 
@@ -379,19 +380,20 @@ impl GlyphMapMarker {
 }
 
 impl ReadArgs for GlyphMap<'_> {
-    type Args = u32;
+    type Args = (u32, u16);
 }
 
 impl<'a> FontReadWithArgs<'a> for GlyphMap<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u32) -> Result<Self, ReadError> {
-        let glyph_count = *args;
+    fn read_with_args(data: FontData<'a>, args: &(u32, u16)) -> Result<Self, ReadError> {
+        let (glyph_count, max_entry_index) = *args;
         let mut cursor = data.cursor();
         let first_mapped_glyph: u16 = cursor.read()?;
         let entry_index_byte_len = (transforms::subtract(glyph_count, first_mapped_glyph))
-            .checked_mul(u8::RAW_BYTE_LEN)
+            .checked_mul(<U8Or16 as ComputeSize>::compute_size(&max_entry_index)?)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(entry_index_byte_len);
         cursor.finish(GlyphMapMarker {
+            max_entry_index,
             entry_index_byte_len,
         })
     }
@@ -402,8 +404,12 @@ impl<'a> GlyphMap<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
-    pub fn read(data: FontData<'a>, glyph_count: u32) -> Result<Self, ReadError> {
-        let args = glyph_count;
+    pub fn read(
+        data: FontData<'a>,
+        glyph_count: u32,
+        max_entry_index: u16,
+    ) -> Result<Self, ReadError> {
+        let args = (glyph_count, max_entry_index);
         Self::read_with_args(data, &args)
     }
 }
@@ -416,9 +422,15 @@ impl<'a> GlyphMap<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    pub fn entry_index(&self) -> &'a [u8] {
+    pub fn entry_index(&self) -> ComputedArray<'a, U8Or16> {
         let range = self.shape.entry_index_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data
+            .read_with_args(range, &self.max_entry_index())
+            .unwrap()
+    }
+
+    pub(crate) fn max_entry_index(&self) -> u16 {
+        self.shape.max_entry_index
     }
 }
 
@@ -430,7 +442,7 @@ impl<'a> SomeTable<'a> for GlyphMap<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("first_mapped_glyph", self.first_mapped_glyph())),
-            1usize => Some(Field::new("entry_index", self.entry_index())),
+            1usize => Some(Field::new("entry_index", traversal::FieldType::Unknown)),
             _ => None,
         }
     }
