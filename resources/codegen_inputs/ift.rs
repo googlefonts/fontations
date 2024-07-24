@@ -37,7 +37,7 @@ table PatchMapFormat1 {
   glyph_count: u32,
 
   /// Sub table that maps glyph ids to entry indices.
-  #[read_offset_with($glyph_count)]
+  #[read_offset_with($glyph_count, $max_entry_index)]
   glyph_map_offset: Offset32<GlyphMap>,
 
   /// Sub table that maps feature and glyph ids to entry indices.
@@ -56,13 +56,15 @@ table PatchMapFormat1 {
   patch_encoding: u8,
 }
 
-#[read_args(glyph_count: u32)]
+#[read_args(glyph_count: u32, max_entry_index: u16)]
 table GlyphMap {
   first_mapped_glyph: u16,
 
-  // TODO(garretrieger): this is a variable sized field (u8 or u16 depending on entry count).
   #[count(subtract($glyph_count, $first_mapped_glyph))]
-  entry_index: [u8],
+  #[read_with($max_entry_index)]
+  #[traverse_with(skip)]
+  #[compile(skip)] // TODO remove this once write fonts side is implemented.
+  entry_index: ComputedArray<U8Or16>,
 }
 
 table FeatureMap {

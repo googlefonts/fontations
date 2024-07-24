@@ -202,7 +202,7 @@ mod tests {
     // TODO(garretrieger): test with format 1 that has max entry = 0.
 
     #[test]
-    fn format_1_patch_map() {
+    fn format_1_patch_map_u8_entries() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::CMAP12_FONT1).unwrap(),
             Some(test_data::ift::SIMPLE_FORMAT1),
@@ -224,6 +224,52 @@ mod tests {
                         encoding: PatchEncoding::GlyphKeyed,
                     },
                     codepoints: [0x101723].into_iter().collect(),
+                    compatibility_id: [1, 2, 3, 4],
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn format_1_patch_map_u16_entries() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::CMAP12_FONT1).unwrap(),
+            Some(test_data::ift::U16_ENTRIES_FORMAT1),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let patch_map = PatchMap::new(&font);
+        let entries: Vec<&Entry> = patch_map.iter().collect();
+
+        assert_eq!(
+            entries,
+            vec![
+                // Entry 0x50 - gid 2, 6
+                &Entry {
+                    patch_uri: PatchUri {
+                        uri: "ABCDEFɤ".to_string(),
+                        encoding: PatchEncoding::GlyphKeyed,
+                    },
+                    codepoints: [0x101724, 0x102523].into_iter().collect(),
+                    compatibility_id: [1, 2, 3, 4],
+                },
+                // Entry 0x51 - gid 3
+                &Entry {
+                    patch_uri: PatchUri {
+                        uri: "ABCDEFɤ".to_string(),
+                        encoding: PatchEncoding::GlyphKeyed,
+                    },
+                    codepoints: [0x101725].into_iter().collect(),
+                    compatibility_id: [1, 2, 3, 4],
+                },
+                // Entry 0x12c - gid 4, 5
+                &Entry {
+                    patch_uri: PatchUri {
+                        uri: "ABCDEFɤ".to_string(),
+                        encoding: PatchEncoding::GlyphKeyed,
+                    },
+                    codepoints: [0x101726, 0x101727].into_iter().collect(),
                     compatibility_id: [1, 2, 3, 4],
                 },
             ]

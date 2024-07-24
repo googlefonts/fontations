@@ -259,23 +259,19 @@ impl<'a> FontRead<'a> for PatchMapFormat1 {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GlyphMap {
     pub first_mapped_glyph: u16,
-    pub entry_index: Vec<u8>,
 }
 
 impl GlyphMap {
     /// Construct a new `GlyphMap`
-    pub fn new(first_mapped_glyph: u16, entry_index: Vec<u8>) -> Self {
-        Self {
-            first_mapped_glyph,
-            entry_index: entry_index.into_iter().map(Into::into).collect(),
-        }
+    pub fn new(first_mapped_glyph: u16) -> Self {
+        Self { first_mapped_glyph }
     }
 }
 
 impl FontWrite for GlyphMap {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.first_mapped_glyph.write_into(writer);
-        self.entry_index.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("GlyphMap")
@@ -291,7 +287,6 @@ impl<'a> FromObjRef<read_fonts::tables::ift::GlyphMap<'a>> for GlyphMap {
         let offset_data = obj.offset_data();
         GlyphMap {
             first_mapped_glyph: obj.first_mapped_glyph(),
-            entry_index: obj.entry_index().to_owned_obj(offset_data),
         }
     }
 }
