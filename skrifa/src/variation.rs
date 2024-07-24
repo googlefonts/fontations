@@ -8,9 +8,9 @@ use read_fonts::{
 };
 
 use crate::{
+    collections::SmallVec,
     instance::{Location, NormalizedCoord},
     setting::VariationSetting,
-    small_array::SmallArray,
     string::StringId,
 };
 
@@ -255,7 +255,7 @@ impl<'a> AxisCollection<'a> {
             value: f32,
             present: bool,
         }
-        let mut results = SmallArray::<_, 8>::new(Entry::default(), self.len());
+        let mut results = SmallVec::<_, 8>::with_len(self.len(), Entry::default());
         for (axis, result) in self.iter().zip(results.as_mut_slice()) {
             result.tag = axis.tag();
             result.min = axis.min_value();

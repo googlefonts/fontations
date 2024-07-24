@@ -2,7 +2,7 @@
 
 use read_fonts::types::Fixed;
 
-use crate::small_array::SmallArray;
+use crate::collections::SmallVec;
 
 /// Type for a normalized variation coordinate.
 pub type NormalizedCoord = read_fonts::types::F2Dot14;
@@ -132,7 +132,7 @@ impl<'a> IntoIterator for &'_ LocationRef<'a> {
 /// Maximum number of coords to store inline in a `Location` object.
 ///
 /// This value was chosen to maximize use of space in the underlying
-/// `SmallArray` storage.
+/// `SmallVec` storage.
 const MAX_INLINE_COORDS: usize = 8;
 
 /// Ordered sequence of normalized variation coordinates.
@@ -143,7 +143,7 @@ const MAX_INLINE_COORDS: usize = 8;
 /// type for more detail.
 #[derive(Clone, Debug)]
 pub struct Location {
-    coords: SmallArray<NormalizedCoord, MAX_INLINE_COORDS>,
+    coords: SmallVec<NormalizedCoord, MAX_INLINE_COORDS>,
 }
 
 impl Location {
@@ -152,7 +152,7 @@ impl Location {
     /// Each element will be initialized to the default value (0.0).
     pub fn new(len: usize) -> Self {
         Self {
-            coords: SmallArray::new(NormalizedCoord::default(), len),
+            coords: SmallVec::with_len(len, NormalizedCoord::default()),
         }
     }
 
@@ -171,7 +171,7 @@ impl Location {
 impl Default for Location {
     fn default() -> Self {
         Self {
-            coords: SmallArray::new(NormalizedCoord::default(), 0),
+            coords: SmallVec::new(),
         }
     }
 }
