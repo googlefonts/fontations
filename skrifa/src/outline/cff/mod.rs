@@ -91,6 +91,10 @@ impl<'a> Outlines<'a> {
         matches!(self.version, Version::Version2(_))
     }
 
+    pub fn units_per_em(&self) -> u16 {
+        self.units_per_em
+    }
+
     /// Returns the number of available glyphs.
     pub fn glyph_count(&self) -> usize {
         self.top_dict

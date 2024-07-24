@@ -459,6 +459,13 @@ impl<'a> OutlineGlyph<'a> {
             }
         }
     }
+
+    fn units_per_em(&self) -> u16 {
+        match &self.kind {
+            OutlineKind::Cff(cff, ..) => cff.units_per_em(),
+            OutlineKind::Glyf(glyf, ..) => glyf.units_per_em(),
+        }
+    }
 }
 
 #[derive(Clone)]
