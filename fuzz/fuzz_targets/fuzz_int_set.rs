@@ -6,6 +6,7 @@
 //!
 //! The fuzzer input data is interpreted as a series of op codes which map to the public api methods of IntSet.
 
+use font_types::{GlyphId, GlyphId16};
 use libfuzzer_sys::fuzz_target;
 mod int_set_op_processor;
 use int_set_op_processor::process_op_codes;
@@ -21,6 +22,7 @@ fuzz_target!(|data: &[u8]| {
     };
 
     match mode_byte {
+        // These variants provide the primary testing of functionality.
         1 => {
             let _ = process_op_codes::<u32>(OperationSet::Standard, OPERATION_COUNT, &data[1..]);
         }
@@ -34,6 +36,22 @@ fuzz_target!(|data: &[u8]| {
                 OPERATION_COUNT,
                 &data[1..],
             );
+        }
+
+        // And these provide coverage of remaining default supported domains
+        4 => {
+            let _ = process_op_codes::<u8>(OperationSet::Standard, OPERATION_COUNT, &data[1..]);
+        }
+        5 => {
+            let _ = process_op_codes::<u16>(OperationSet::Standard, OPERATION_COUNT, &data[1..]);
+        }
+        6 => {
+            let _ =
+                process_op_codes::<GlyphId>(OperationSet::Standard, OPERATION_COUNT, &data[1..]);
+        }
+        7 => {
+            let _ =
+                process_op_codes::<GlyphId16>(OperationSet::Standard, OPERATION_COUNT, &data[1..]);
         }
         _ => return,
     };
