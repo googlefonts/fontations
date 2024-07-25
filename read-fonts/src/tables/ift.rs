@@ -3,7 +3,7 @@
 include!("../../generated/generated_ift.rs");
 
 use core::str::Utf8Error;
-use std::str;
+use std::{ops::RangeInclusive, str};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct U8Or16(u16);
@@ -73,6 +73,20 @@ impl<'a> PatchMapFormat1<'a> {
             .map(|byte| byte & bit_mask != 0)
             .unwrap_or(false)
     }
+
+    pub fn entry_map_records(&self) -> impl Iterator<Item = FeatureEntryMapping> + 'a {
+        let Some(Ok(feature_map)) = self.feature_map() else {
+            return EntryMapIter::empty(&[]);
+        };
+
+        EntryMapIter {
+            data: feature_map.entry_map_data(),
+            feature_record_it: Some(feature_map.feature_records().iter()),
+            current_feature_record: None,
+            remaining: 0,
+            max_entry_index: self.max_entry_index(),
+        }
+    }
 }
 
 struct GidToEntryIter<'a> {
@@ -103,6 +117,83 @@ impl<'a> Iterator for GidToEntryIter<'a> {
     }
 }
 
+#[derive(PartialEq, Debug)]
+pub struct FeatureEntryMapping {
+    matched_entries: RangeInclusive<u16>,
+    new_entry_index: u16,
+    feature_tag: Tag,
+}
+
+struct EntryMapIter<'a, T>
+where
+    T: Iterator<Item = Result<FeatureRecord, ReadError>>,
+{
+    data: &'a [u8],
+    feature_record_it: Option<T>,
+    current_feature_record: Option<FeatureRecord>,
+    remaining: u16,
+    max_entry_index: u16,
+}
+
+impl<'a, T> EntryMapIter<'a, T>
+where
+    T: Iterator<Item = Result<FeatureRecord, ReadError>>,
+{
+    fn empty(data: &'a [u8]) -> Self {
+        EntryMapIter {
+            data,
+            feature_record_it: None,
+            current_feature_record: None,
+            remaining: 0,
+            max_entry_index: 0,
+        }
+    }
+}
+
+impl<T> Iterator for EntryMapIter<'_, T>
+where
+    T: Iterator<Item = Result<FeatureRecord, ReadError>>,
+{
+    type Item = FeatureEntryMapping;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let feature_record_it = self.feature_record_it.as_mut()?;
+
+        if self.current_feature_record.is_none() || self.remaining == 0 {
+            let Some(Ok(feature_record)) = feature_record_it.next() else {
+                self.feature_record_it = None;
+                return None;
+            };
+
+            self.remaining = feature_record.entry_map_count().get();
+            self.current_feature_record = Some(feature_record);
+        }
+
+        let data = FontData::new(self.data);
+        let (Some(feature_record), Ok(entry_record)) = (
+            self.current_feature_record.clone(),
+            EntryMapRecord::read(data, self.max_entry_index),
+        ) else {
+            self.feature_record_it = None;
+            return None;
+        };
+
+        let new_entry_index = feature_record.first_new_entry_index.get()
+            + (feature_record.entry_map_count().get() - self.remaining);
+        self.remaining -= 1;
+
+        let size = U8Or16::compute_size(&self.max_entry_index).ok()? * 2;
+        self.data = &self.data[size..];
+
+        Some(FeatureEntryMapping {
+            matched_entries: entry_record.first_entry_index().get()
+                ..=entry_record.last_entry_index().get(),
+            new_entry_index,
+            feature_tag: feature_record.feature_tag(),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -117,6 +208,8 @@ mod tests {
     // - Invalid table (too short).
     // - Invalid UTF8 sequence in uri template.
     // - Compat ID is to short.
+    // - invalid entry map array (too short)
+    // - feature map with short entry indices.
 
     #[test]
     fn format_1_gid_to_u8_entry_iter() {
@@ -175,6 +268,45 @@ mod tests {
         assert_eq!(fr1.feature_tag(), Tag::new(&[b'd', b'l', b'i', b'g']));
         assert_eq!(*fr1.first_new_entry_index(), U8Or16(0x190));
         assert_eq!(*fr1.entry_map_count(), U8Or16(0x01));
+    }
+
+    #[test]
+    fn format_1_feature_entry_map() {
+        let table = Ift::read(test_data::FEATURE_MAP_FORMAT1.into()).unwrap();
+        let Ift::Format1(map) = table else {
+            panic!("Not format 1.");
+        };
+
+        let mut it = map.entry_map_records();
+
+        assert_eq!(
+            it.next(),
+            Some(FeatureEntryMapping {
+                matched_entries: 0x50..=0x51,
+                new_entry_index: 0x70,
+                feature_tag: Tag::new(&[b'l', b'i', b'g', b'a']),
+            })
+        );
+
+        assert_eq!(
+            it.next(),
+            Some(FeatureEntryMapping {
+                matched_entries: 0x12c..=0x12c,
+                new_entry_index: 0x71,
+                feature_tag: Tag::new(&[b'l', b'i', b'g', b'a']),
+            })
+        );
+
+        assert_eq!(
+            it.next(),
+            Some(FeatureEntryMapping {
+                matched_entries: 0x51..=0x51,
+                new_entry_index: 0x190,
+                feature_tag: Tag::new(&[b'd', b'l', b'i', b'g']),
+            })
+        );
+
+        assert_eq!(it.next(), None);
     }
 
     #[test]

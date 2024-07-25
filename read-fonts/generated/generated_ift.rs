@@ -461,6 +461,7 @@ impl<'a> std::fmt::Debug for GlyphMap<'a> {
 pub struct FeatureMapMarker {
     max_entry_index: u16,
     feature_records_byte_len: usize,
+    entry_map_data_byte_len: usize,
 }
 
 impl FeatureMapMarker {
@@ -471,6 +472,10 @@ impl FeatureMapMarker {
     fn feature_records_byte_range(&self) -> Range<usize> {
         let start = self.feature_count_byte_range().end;
         start..start + self.feature_records_byte_len
+    }
+    fn entry_map_data_byte_range(&self) -> Range<usize> {
+        let start = self.feature_records_byte_range().end;
+        start..start + self.entry_map_data_byte_len
     }
 }
 
@@ -489,9 +494,13 @@ impl<'a> FontReadWithArgs<'a> for FeatureMap<'a> {
             )?)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(feature_records_byte_len);
+        let entry_map_data_byte_len =
+            cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        cursor.advance_by(entry_map_data_byte_len);
         cursor.finish(FeatureMapMarker {
             max_entry_index,
             feature_records_byte_len,
+            entry_map_data_byte_len,
         })
     }
 }
@@ -522,6 +531,11 @@ impl<'a> FeatureMap<'a> {
             .unwrap()
     }
 
+    pub fn entry_map_data(&self) -> &'a [u8] {
+        let range = self.shape.entry_map_data_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
     pub(crate) fn max_entry_index(&self) -> u16 {
         self.shape.max_entry_index
     }
@@ -536,6 +550,7 @@ impl<'a> SomeTable<'a> for FeatureMap<'a> {
         match idx {
             0usize => Some(Field::new("feature_count", self.feature_count())),
             1usize => Some(Field::new("feature_records", traversal::FieldType::Unknown)),
+            2usize => Some(Field::new("entry_map_data", self.entry_map_data())),
             _ => None,
         }
     }
@@ -633,21 +648,61 @@ impl<'a> SomeRecord<'a> for FeatureRecord {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
-#[repr(C)]
-#[repr(packed)]
+#[derive(Clone, Debug)]
 pub struct EntryMapRecord {
-    pub todo: u8,
+    pub first_entry_index: U8Or16,
+    pub last_entry_index: U8Or16,
 }
 
 impl EntryMapRecord {
-    pub fn todo(&self) -> u8 {
-        self.todo
+    pub fn first_entry_index(&self) -> &U8Or16 {
+        &self.first_entry_index
+    }
+
+    pub fn last_entry_index(&self) -> &U8Or16 {
+        &self.last_entry_index
     }
 }
 
-impl FixedSize for EntryMapRecord {
-    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN;
+impl ReadArgs for EntryMapRecord {
+    type Args = u16;
+}
+
+impl ComputeSize for EntryMapRecord {
+    #[allow(clippy::needless_question_mark)]
+    fn compute_size(args: &u16) -> Result<usize, ReadError> {
+        let max_entry_index = *args;
+        let mut result = 0usize;
+        result = result
+            .checked_add(<U8Or16 as ComputeSize>::compute_size(&max_entry_index)?)
+            .ok_or(ReadError::OutOfBounds)?;
+        result = result
+            .checked_add(<U8Or16 as ComputeSize>::compute_size(&max_entry_index)?)
+            .ok_or(ReadError::OutOfBounds)?;
+        Ok(result)
+    }
+}
+
+impl<'a> FontReadWithArgs<'a> for EntryMapRecord {
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let max_entry_index = *args;
+        Ok(Self {
+            first_entry_index: cursor.read_with_args(&max_entry_index)?,
+            last_entry_index: cursor.read_with_args(&max_entry_index)?,
+        })
+    }
+}
+
+impl<'a> EntryMapRecord {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, max_entry_index: u16) -> Result<Self, ReadError> {
+        let args = max_entry_index;
+        Self::read_with_args(data, &args)
+    }
 }
 
 #[cfg(feature = "traversal")]
@@ -656,7 +711,14 @@ impl<'a> SomeRecord<'a> for EntryMapRecord {
         RecordResolver {
             name: "EntryMapRecord",
             get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("todo", self.todo())),
+                0usize => Some(Field::new(
+                    "first_entry_index",
+                    traversal::FieldType::Unknown,
+                )),
+                1usize => Some(Field::new(
+                    "last_entry_index",
+                    traversal::FieldType::Unknown,
+                )),
                 _ => None,
             }),
             data,
