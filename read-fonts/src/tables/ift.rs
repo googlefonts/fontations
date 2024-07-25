@@ -119,9 +119,9 @@ impl<'a> Iterator for GidToEntryIter<'a> {
 
 #[derive(PartialEq, Debug)]
 pub struct FeatureEntryMapping {
-    matched_entries: RangeInclusive<u16>,
-    new_entry_index: u16,
-    feature_tag: Tag,
+    pub matched_entries: RangeInclusive<u16>,
+    pub new_entry_index: u16,
+    pub feature_tag: Tag,
 }
 
 struct EntryMapIter<'a, T>
@@ -157,6 +157,8 @@ where
     type Item = FeatureEntryMapping;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // TODO(garretrieger): current spec text for this is wrong and doesn't match what were doing here. Update
+        //                     the spec to match this implementation.
         let feature_record_it = self.feature_record_it.as_mut()?;
 
         if self.current_feature_record.is_none() || self.remaining == 0 {
