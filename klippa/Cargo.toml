@@ -13,7 +13,7 @@ categories = ["text-processing"]
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
 regex = "1.10.4"
-skrifa = { version = "0.19.3", path = "../skrifa" }
+skrifa = { version = "0.20.0", path = "../skrifa" }
 thiserror = "1.0.58"
 write-fonts = { path = "../write-fonts", features = ["read"] }
 
