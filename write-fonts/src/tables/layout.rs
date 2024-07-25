@@ -274,6 +274,10 @@ impl ClassRangeRecord {
             ));
         }
     }
+
+    fn contains(&self, gid: GlyphId16) -> bool {
+        (self.start_glyph_id..=self.end_glyph_id).contains(&gid)
+    }
 }
 
 impl ClassDefFormat2 {
@@ -310,9 +314,10 @@ impl ClassDef {
                 .checked_sub(table.start_glyph_id.to_u16())
                 .and_then(|idx| table.class_value_array.get(idx as usize))
                 .copied(),
-            ClassDef::Format2(table) => table.class_range_records.iter().find_map(|rec| {
-                (rec.start_glyph_id <= glyph && rec.end_glyph_id <= glyph).then_some(rec.class)
-            }),
+            ClassDef::Format2(table) => table
+                .class_range_records
+                .iter()
+                .find_map(|rec| rec.contains(glyph).then_some(rec.class)),
         }
     }
 
@@ -670,6 +675,8 @@ impl From<VariationIndex> for u32 {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::RangeInclusive;
+
     use super::*;
 
     #[test]
@@ -820,5 +827,29 @@ mod tests {
                 }]
             })
         )
+    }
+
+    #[test]
+    fn classdef_f2_get() {
+        fn make_f2_class<const N: usize>(range: [RangeInclusive<u16>; N]) -> ClassDef {
+            ClassDefFormat2::new(
+                range
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, range)| {
+                        ClassRangeRecord::new(
+                            GlyphId16::new(*range.start()),
+                            GlyphId16::new(*range.end()),
+                            (1 + i) as _,
+                        )
+                    })
+                    .collect(),
+            )
+            .into()
+        }
+
+        let cls = make_f2_class([1..=1, 2..=9]);
+        assert_eq!(cls.get(GlyphId16::new(2)), 2);
+        assert_eq!(cls.get(GlyphId16::new(20)), 0);
     }
 }
