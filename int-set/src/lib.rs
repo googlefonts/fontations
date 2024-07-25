@@ -24,6 +24,7 @@ mod output_bit_stream;
 pub mod sparse_bit_set;
 
 use bitset::BitSet;
+#[cfg(feature = "font_types")]
 use font_types::{GlyphId, GlyphId16};
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -700,6 +701,7 @@ impl Domain<u8> for u8 {
     }
 }
 
+#[cfg(feature = "font_types")]
 impl Domain<GlyphId16> for GlyphId16 {
     fn to_u32(&self) -> u32 {
         self.to_u16() as u32
@@ -724,6 +726,7 @@ impl Domain<GlyphId16> for GlyphId16 {
     }
 }
 
+#[cfg(feature = "font_types")]
 impl Domain<GlyphId> for GlyphId {
     fn to_u32(&self) -> u32 {
         GlyphId::to_u32(*self)
