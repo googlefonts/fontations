@@ -21,13 +21,9 @@ extend-exclude = [
 ba = "ba"
 BA = "BA"
 BENG = "BENG"
-fd_select_datas = "fd_select_datas"
 fo = "fo"
 FO = "FO"
 nd = "nd"
-ot = "ot"
-ot_round = "ot_round"
-OtRound = "OtRound"
 pn = "pn"
 Vai = "Vai"
 
@@ -35,3 +31,4 @@ Vai = "Vai"
 [default.extend-words]
 loca = "loca"
 wdth = "wdth"
+ot = "ot"

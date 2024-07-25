@@ -53,8 +53,7 @@ mod tests {
             (34..128, 12),
             (128..1024, 2),
         ];
-        let fd_select_datas = make_fd_selects(map);
-        for data in fd_select_datas {
+        for data in make_fd_selects(map) {
             let fd_select = FdSelect::read(data.font_data()).unwrap();
             for (range, font_index) in map {
                 for gid in range.clone() {
