@@ -2,7 +2,7 @@
 
 include!("../../generated/generated_cmap.rs");
 
-use int_set::IntSet;
+use crate::collections::IntSet;
 use std::ops::{Range, RangeInclusive};
 
 /// Result of mapping a codepoint with a variation selector.

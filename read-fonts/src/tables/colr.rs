@@ -1,6 +1,6 @@
 //! The [COLR](https://docs.microsoft.com/en-us/typography/opentype/spec/colr) table
 
-use int_set::IntSet;
+use crate::collections::IntSet;
 
 use super::variations::{DeltaSetIndexMap, ItemVariationStore, NO_VARIATION_INDEX};
 

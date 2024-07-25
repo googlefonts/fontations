@@ -1,4 +1,4 @@
-use int_set::IntSet;
+use read_fonts::collections::IntSet;
 
 use rand::Rng;
 
