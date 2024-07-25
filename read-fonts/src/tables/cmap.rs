@@ -2,6 +2,7 @@
 
 include!("../../generated/generated_cmap.rs");
 
+#[cfg(feature = "std")]
 use crate::collections::IntSet;
 use std::ops::{Range, RangeInclusive};
 
@@ -41,6 +42,7 @@ impl<'a> Cmap<'a> {
         None
     }
 
+    #[cfg(feature = "std")]
     pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
         for record in self.encoding_records() {
             if let Ok(subtable) = record.subtable(self.offset_data()) {
@@ -378,6 +380,7 @@ impl<'a> Cmap14<'a> {
         (selector, default_uvs, non_default_uvs)
     }
 
+    #[cfg(feature = "std")]
     pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
         for selector in self.var_selector() {
             if let Some(non_default_uvs) = selector
@@ -551,6 +554,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn cmap14_closure_glyphs() {
         let font = FontRef::new(font_test_data::CMAP14_FONT1).unwrap();
         let cmap = font.cmap().unwrap();
