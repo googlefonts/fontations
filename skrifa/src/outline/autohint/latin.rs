@@ -2,8 +2,8 @@
 
 use super::{
     super::unscaled::UnscaledOutlineBuf,
+    cycling::{cycle_backward, cycle_forward},
     metrics::{UnscaledBlue, UnscaledBlues, MAX_BLUES},
-    outline::{cycle_backward, cycle_forward},
     script::{blue_flags, ScriptClass},
 };
 use crate::{FontRef, MetadataProvider};
