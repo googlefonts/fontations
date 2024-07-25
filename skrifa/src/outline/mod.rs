@@ -1314,4 +1314,25 @@ mod tests {
             ],
         );
     }
+
+    /// Case where a font subset caused hinting to fail because execution
+    /// budget was derived from glyph count.
+    /// <https://github.com/googlefonts/fontations/issues/936>
+    #[test]
+    fn tthint_with_subset() {
+        let font = FontRef::new(font_test_data::TTHINT_SUBSET).unwrap();
+        let glyphs = font.outline_glyphs();
+        let hinting = HintingInstance::new(
+            &glyphs,
+            Size::new(16.0),
+            LocationRef::default(),
+            HintingMode::default(),
+        )
+        .unwrap();
+        let glyph = glyphs.get(GlyphId::new(1)).unwrap();
+        // Shouldn't fail in pedantic mode
+        glyph
+            .draw(DrawSettings::hinted(&hinting, true), &mut BezPen::default())
+            .unwrap();
+    }
 }
