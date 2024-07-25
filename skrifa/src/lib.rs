@@ -56,7 +56,7 @@ pub mod prelude {
 }
 
 pub use read_fonts::{
-    types::{GlyphId, Tag},
+    types::{GlyphId, GlyphId16, Tag},
     FontRef,
 };
 
