@@ -3,8 +3,9 @@
 //! The IFT and IFTX tables encode mappings from subset definitions to URL's which host patches
 //! that can be applied to the font to add support for the corresponding subset definition.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
+use crate::Tag;
 use raw::types::GlyphId;
 use read_fonts::{
     tables::ift::{Ift, PatchMapFormat1},
@@ -92,6 +93,7 @@ impl PatchMap {
                 encoding: patch_encoding,
             },
             codepoints: IntSet::empty(),
+            feature_tags: BTreeSet::new(),
             compatibility_id: mapping.get_compatibility_id(),
         };
 
@@ -116,6 +118,8 @@ impl PatchMap {
             };
         }
 
+        Self::add_format_1_feature_entries(mapping, &mut entries, &mut present_entries);
+
         self.entry_list.extend(
             entries
                 .into_iter()
@@ -126,6 +130,33 @@ impl PatchMap {
                 .filter(|(index, _)| present_entries.contains(*index as u16))
                 .map(|(_, entry)| entry),
         )
+    }
+
+    fn add_format_1_feature_entries(
+        mapping: &PatchMapFormat1,
+        entries: &mut Vec<Entry>,
+        present_entries: &mut IntSet<u16>,
+    ) {
+        for m in mapping.entry_map_records() {
+            let mut mapped_codepoints = IntSet::<u32>::empty();
+            for index in m.matched_entries {
+                let Some(entry) = entries.get(index as usize) else {
+                    // TODO(garretrieger): need to error out instead of ignoring.
+                    continue;
+                };
+
+                mapped_codepoints.union(&entry.codepoints);
+            }
+
+            let Some(new_entry) = entries.get_mut(m.new_entry_index as usize) else {
+                // TODO(garretrieger): need to error out instead of ignoring.
+                continue;
+            };
+
+            new_entry.codepoints.union(&mapped_codepoints);
+            new_entry.feature_tags.insert(m.feature_tag);
+            present_entries.insert(m.new_entry_index);
+        }
     }
 
     /// Produce a mapping from each glyph id to the codepoint(s) that map to that glyph.
@@ -159,6 +190,7 @@ pub struct PatchUri {
 pub struct Entry {
     pub patch_uri: PatchUri,
     pub codepoints: IntSet<u32>,
+    pub feature_tags: BTreeSet<Tag>,
     pub compatibility_id: [u32; 4],
 }
 
@@ -224,6 +256,7 @@ mod tests {
                         encoding: PatchEncoding::GlyphKeyed,
                     },
                     codepoints: [0x101723].into_iter().collect(),
+                    feature_tags: BTreeSet::new(),
                     compatibility_id: [1, 2, 3, 4],
                 },
             ]
@@ -251,6 +284,7 @@ mod tests {
                         uri: "ABCDEFɤ".to_string(),
                         encoding: PatchEncoding::GlyphKeyed,
                     },
+                    feature_tags: BTreeSet::new(),
                     codepoints: [0x101724, 0x102523].into_iter().collect(),
                     compatibility_id: [1, 2, 3, 4],
                 },
@@ -260,6 +294,7 @@ mod tests {
                         uri: "ABCDEFɤ".to_string(),
                         encoding: PatchEncoding::GlyphKeyed,
                     },
+                    feature_tags: BTreeSet::new(),
                     codepoints: [0x101725].into_iter().collect(),
                     compatibility_id: [1, 2, 3, 4],
                 },
@@ -269,7 +304,87 @@ mod tests {
                         uri: "ABCDEFɤ".to_string(),
                         encoding: PatchEncoding::GlyphKeyed,
                     },
+                    feature_tags: BTreeSet::new(),
                     codepoints: [0x101726, 0x101727].into_iter().collect(),
+                    compatibility_id: [1, 2, 3, 4],
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn format_1_patch_map_u16_entries_with_feature_mapping() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::CMAP12_FONT1).unwrap(),
+            Some(test_data::ift::FEATURE_MAP_FORMAT1),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let patch_map = PatchMap::new(&font);
+        let entries: Vec<&Entry> = patch_map.iter().collect();
+
+        assert_eq!(
+            entries,
+            vec![
+                // Entry 0x50 - gid 2, 6
+                &Entry {
+                    patch_uri: PatchUri {
+                        uri: "ABCDEFɤ".to_string(),
+                        encoding: PatchEncoding::GlyphKeyed,
+                    },
+                    feature_tags: BTreeSet::new(),
+                    codepoints: [0x101724, 0x102523].into_iter().collect(),
+                    compatibility_id: [1, 2, 3, 4],
+                },
+                // Entry 0x51 - gid 3
+                &Entry {
+                    patch_uri: PatchUri {
+                        uri: "ABCDEFɤ".to_string(),
+                        encoding: PatchEncoding::GlyphKeyed,
+                    },
+                    feature_tags: BTreeSet::new(),
+                    codepoints: [0x101725].into_iter().collect(),
+                    compatibility_id: [1, 2, 3, 4],
+                },
+                // Entry 0x70 (copy 0x50 U 0x51 + 'liga')
+                &Entry {
+                    patch_uri: PatchUri {
+                        uri: "ABCDEFɤ".to_string(),
+                        encoding: PatchEncoding::GlyphKeyed,
+                    },
+                    feature_tags: [Tag::new(&[b'l', b'i', b'g', b'a'])].into_iter().collect(),
+                    codepoints: [0x101724, 0x101725, 0x102523].into_iter().collect(),
+                    compatibility_id: [1, 2, 3, 4],
+                },
+                // Entry 0x71 (copy 0x12c + 'liga')
+                &Entry {
+                    patch_uri: PatchUri {
+                        uri: "ABCDEFɤ".to_string(),
+                        encoding: PatchEncoding::GlyphKeyed,
+                    },
+                    feature_tags: [Tag::new(&[b'l', b'i', b'g', b'a'])].into_iter().collect(),
+                    codepoints: [0x101726, 0x101727].into_iter().collect(),
+                    compatibility_id: [1, 2, 3, 4],
+                },
+                // Entry 0x12c - gid 4, 5
+                &Entry {
+                    patch_uri: PatchUri {
+                        uri: "ABCDEFɤ".to_string(),
+                        encoding: PatchEncoding::GlyphKeyed,
+                    },
+                    feature_tags: BTreeSet::new(),
+                    codepoints: [0x101726, 0x101727].into_iter().collect(),
+                    compatibility_id: [1, 2, 3, 4],
+                },
+                // Entry 0x190 (copy 0x51 + 'dlig')
+                &Entry {
+                    patch_uri: PatchUri {
+                        uri: "ABCDEFɤ".to_string(),
+                        encoding: PatchEncoding::GlyphKeyed,
+                    },
+                    feature_tags: [Tag::new(&[b'd', b'l', b'i', b'g'])].into_iter().collect(),
+                    codepoints: [0x101725].into_iter().collect(),
                     compatibility_id: [1, 2, 3, 4],
                 },
             ]
