@@ -43,7 +43,7 @@ table PatchMapFormat1 {
   glyph_map_offset: Offset32<GlyphMap>,
 
   /// Sub table that maps feature and glyph ids to entry indices.
-  #[nullable] // TODO(garretrieger): this does not currently match the spec, update spec to allow feature map to be nullable.
+  #[nullable]
   #[read_offset_with($max_entry_index)]
   feature_map_offset: Offset32<FeatureMap>,
 
@@ -80,10 +80,10 @@ table FeatureMap {
   #[compile(skip)] // TODO remove this once write fonts side is implemented.
   feature_records: ComputedArray<FeatureRecord>,
 
-  // TODO(garretrieger): write me.
-  //#[count(..)]
-  //#[read_with($feature_records, $max_entry_index)]
-  //entry_map_record: ComputedArray<EntryMapRecord>,
+  // Variable sized array of EntryMapRecord's which depends on the contents of 'feature_records'
+  // the array length is determined in the read-fonts impl.
+  #[count(..)]
+  entry_map_data: [u8],
 }
 
 #[read_args(max_entry_index: u16)]
@@ -101,9 +101,17 @@ record FeatureRecord {
   entry_map_count: U8Or16,
 }
 
+#[read_args(max_entry_index: u16)]
 record EntryMapRecord {
-  // TODO(garretrieger): write me.
-  todo: u8,
+  #[read_with($max_entry_index)]
+  #[traverse_with(skip)]
+  #[compile(skip)] // TODO remove this once write fonts side is implemented.
+  first_entry_index: U8Or16,
+
+  #[read_with($max_entry_index)]
+  #[traverse_with(skip)]
+  #[compile(skip)] // TODO remove this once write fonts side is implemented.
+  last_entry_index: U8Or16,
 }
 
 /// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)

@@ -297,12 +297,16 @@ impl<'a> FromTableRef<read_fonts::tables::ift::GlyphMap<'a>> for GlyphMap {}
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct FeatureMap {
     pub feature_count: u16,
+    pub entry_map_data: Vec<u8>,
 }
 
 impl FeatureMap {
     /// Construct a new `FeatureMap`
-    pub fn new(feature_count: u16) -> Self {
-        Self { feature_count }
+    pub fn new(feature_count: u16, entry_map_data: Vec<u8>) -> Self {
+        Self {
+            feature_count,
+            entry_map_data: entry_map_data.into_iter().map(Into::into).collect(),
+        }
     }
 }
 
@@ -310,6 +314,7 @@ impl FontWrite for FeatureMap {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.feature_count.write_into(writer);
+        self.entry_map_data.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("FeatureMap")
@@ -325,6 +330,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::FeatureMap<'a>> for FeatureMap {
         let offset_data = obj.offset_data();
         FeatureMap {
             feature_count: obj.feature_count(),
+            entry_map_data: obj.entry_map_data().to_owned_obj(offset_data),
         }
     }
 }
@@ -368,21 +374,18 @@ impl FromObjRef<read_fonts::tables::ift::FeatureRecord> for FeatureRecord {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct EntryMapRecord {
-    pub todo: u8,
-}
+pub struct EntryMapRecord {}
 
 impl EntryMapRecord {
     /// Construct a new `EntryMapRecord`
-    pub fn new(todo: u8) -> Self {
-        Self { todo }
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
 impl FontWrite for EntryMapRecord {
-    fn write_into(&self, writer: &mut TableWriter) {
-        self.todo.write_into(writer);
-    }
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {}
     fn table_type(&self) -> TableType {
         TableType::Named("EntryMapRecord")
     }
@@ -393,8 +396,8 @@ impl Validate for EntryMapRecord {
 }
 
 impl FromObjRef<read_fonts::tables::ift::EntryMapRecord> for EntryMapRecord {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::EntryMapRecord, _: FontData) -> Self {
-        EntryMapRecord { todo: obj.todo() }
+    fn from_obj_ref(obj: &read_fonts::tables::ift::EntryMapRecord, offset_data: FontData) -> Self {
+        EntryMapRecord {}
     }
 }
 

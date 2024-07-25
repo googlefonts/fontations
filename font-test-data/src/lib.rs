@@ -341,7 +341,16 @@ pub mod ift {
         0x01, 0x90,               // 102: first new entry index (0x190 = 400)
         0x00, 0x01,               // 104: entry map count
 
-        // 106
-        // TODO(garretrieger): add EntryMapRecord's
+        // EntryMapRecord[0]: "liga" + entry [0x50, 0x51] => entry 0x70
+        0x00, 0x50,               // first_entry_index
+        0x00, 0x51,               // last_entry_index
+
+        // EntryMapRecord[1]: "liga" + entry 0x12c => entry 0x71
+        0x01, 0x2c,               // first_entry_index
+        0x01, 0x2c,               // last_entry_index
+
+        // EntryMapRecord[2]: "dlig" + entry 0x51 => entry 0x190
+        0x00, 0x51,               // first_entry_index
+        0x00, 0x51,               // last_entry_index
     ];
 }
