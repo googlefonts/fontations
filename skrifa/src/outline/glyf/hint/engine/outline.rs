@@ -206,7 +206,7 @@ impl<'a> Engine<'a> {
     /// SHPIX (0x38)
     ///
     /// Pops: amount: magnitude of the shift (F26Dot6)
-    ///       p1, p2,.. pn: points to be shifted
+    ///       p1, p2,.. pN: points to be shifted
     ///
     /// Uses the loop counter.
     ///

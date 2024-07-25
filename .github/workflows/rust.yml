@@ -30,6 +30,15 @@ jobs:
       - name: check no println! or eprintln! statements
         run: resources/scripts/check_no_println.sh
 
+  # If this fails, consider changing your text or adding something to .typos.toml
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: check typos
+        uses: crate-ci/typos@v1.23.4
+
   clippy-lint:
     name: Clippy lints
     runs-on: ubuntu-latest
@@ -122,4 +131,3 @@ jobs:
       - run: rustup target add wasm32-unknown-unknown
       - name: cargo check wasm target
         run: cargo check --manifest-path=write-fonts/Cargo.toml --target wasm32-unknown-unknown
-
