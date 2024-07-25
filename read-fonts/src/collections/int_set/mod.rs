@@ -30,7 +30,7 @@ use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 
 /// A fast & efficient invertible ordered set for small (up to 32-bit) unsigned integer types.
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct IntSet<T>(Membership, PhantomData<T>);
 
 /// Defines the domain of `IntSet` member types.
@@ -427,6 +427,48 @@ impl<T: Domain<T>> Extend<T> for IntSet<T> {
         }
     }
 }
+
+impl<T: Domain<T>> PartialEq for IntSet<T> {
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.0, &other.0) {
+            (Membership::Inclusive(a), Membership::Inclusive(b)) => a == b,
+            (Membership::Exclusive(a), Membership::Exclusive(b)) => a == b,
+            (Membership::Inclusive(_), Membership::Exclusive(_))
+            | (Membership::Exclusive(_), Membership::Inclusive(_)) => {
+                // while these sets have different membership modes, they can still be equal if they happen to have
+                // the same effective set of members. In this case fallback to checking via iterator equality.
+                // iter_ranges() is used instead of iter() because for exclusive sets it's likely to be significantly
+                // faster and have far less items.
+                if self.len() == other.len() {
+                    let r = self
+                        .iter_ranges()
+                        .map(|r| r.start().to_u32()..=r.end().to_u32())
+                        .eq(other
+                            .iter_ranges()
+                            .map(|r| r.start().to_u32()..=r.end().to_u32()));
+                    r
+                } else {
+                    // Shortcut iteration equality check if lengths aren't the same.
+                    false
+                }
+            }
+        }
+    }
+}
+
+impl<T: Domain<T>> Hash for IntSet<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Because equality considers two sets with the same effective members (but different membership modes) as
+        // equal, hash must be based on the effective member set as well. Exclusive sets may have extremely large numbers
+        // of effective members, so here we use iter_ranges() to produce the hash, which should typically produce a more
+        // reasonable numbers elements.
+        self.iter_ranges()
+            .map(|r| r.start().to_u32()..=r.end().to_u32())
+            .for_each(|r| r.hash(state));
+    }
+}
+
+impl<T: Domain<T>> Eq for IntSet<T> {}
 
 struct Iter<SetIter, AllValuesIter> {
     set_values: SetIter,
@@ -938,7 +980,7 @@ mod test {
         }
     }
 
-    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord)]
+    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
     struct TwoParts(u16);
 
     impl Domain<TwoParts> for TwoParts {
@@ -1142,9 +1184,18 @@ mod test {
         assert!(set_inverted.is_empty());
     }
 
+    fn hash<T>(set: &IntSet<T>) -> u64
+    where
+        T: Domain<T>,
+    {
+        let mut h = DefaultHasher::new();
+        set.hash(&mut h);
+        h.finish()
+    }
+
     #[test]
     #[allow(clippy::mutable_key_type)]
-    fn equal_an_hash() {
+    fn equal_and_hash() {
         let mut inc1 = IntSet::<u32>::empty();
         inc1.insert(14);
         inc1.insert(670);
@@ -1168,15 +1219,28 @@ mod test {
         assert!(set.contains(&inc3));
         assert!(set.contains(&exc));
 
-        let mut h1 = DefaultHasher::new();
-        let mut h2 = DefaultHasher::new();
-        let mut h3 = DefaultHasher::new();
-        inc1.hash(&mut h1);
-        exc.hash(&mut h2);
-        inc2.hash(&mut h3);
+        assert_ne!(hash(&inc1), hash(&exc));
+        assert_eq!(hash(&inc1), hash(&inc2));
+    }
 
-        assert_ne!(h1.finish(), h2.finish());
-        assert_eq!(h1.finish(), h3.finish());
+    #[test]
+    #[allow(clippy::mutable_key_type)]
+    fn equal_and_hash_mixed_membership_types() {
+        let mut inverted_all = IntSet::<TwoParts>::all();
+        let mut all = IntSet::<TwoParts>::empty();
+        for v in TwoParts::ordered_values() {
+            all.insert(TwoParts(v as u16));
+        }
+
+        assert_eq!(inverted_all, all);
+        assert_eq!(hash(&all), hash(&inverted_all));
+
+        inverted_all.remove(TwoParts(5));
+        assert_ne!(inverted_all, all);
+
+        all.remove(TwoParts(5));
+        assert_eq!(inverted_all, all);
+        assert_eq!(hash(&all), hash(&inverted_all));
     }
 
     #[test]
