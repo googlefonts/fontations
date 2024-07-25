@@ -1,14 +1,19 @@
 //! Various helpers for dealing with iteration of a slice
 //! that represents a loop. Specifically, outline contours.
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub(super) struct IndexCycler {
     last: usize,
 }
 
 impl IndexCycler {
-    pub fn new(len: usize) -> Self {
-        Self { last: len - 1 }
+    /// Creates a new index cycler for a collection of the given length.
+    ///
+    /// Returns `None` if the length is 0.
+    pub fn new(len: usize) -> Option<Self> {
+        Some(Self {
+            last: len.checked_sub(1)?,
+        })
     }
 
     pub fn next(self, ix: usize) -> usize {
@@ -51,6 +56,20 @@ pub(super) fn cycle_backward<T>(items: &[T], start: usize) -> impl Iterator<Item
 
 #[cfg(test)]
 mod tests {
+    use super::IndexCycler;
+
+    #[test]
+    fn cycler() {
+        let cycler = IndexCycler::new(4).unwrap();
+        // basic ops
+        assert_eq!(cycler.next(0), 1);
+        assert_eq!(cycler.prev(2), 1);
+        // cycling ops
+        assert_eq!(cycler.next(3), 0);
+        assert_eq!(cycler.prev(0), 3);
+        assert!(IndexCycler::new(0).is_none());
+    }
+
     #[test]
     fn cycle_iter_forward() {
         let items = [0, 1, 2, 3, 4, 5, 6, 7];
@@ -62,6 +81,8 @@ mod tests {
             .map(|(_, val)| *val)
             .collect::<Vec<_>>();
         assert_eq!(from_last, &items);
+        // Don't panic on empty slice
+        let _ = super::cycle_forward::<i32>(&[], 5).count();
     }
 
     #[test]
@@ -75,5 +96,7 @@ mod tests {
             .map(|(_, val)| *val)
             .collect::<Vec<_>>();
         assert_eq!(from_0, &[7, 6, 5, 4, 3, 2, 1, 0]);
+        // Don't panic on empty slice
+        let _ = super::cycle_backward::<i32>(&[], 5).count();
     }
 }

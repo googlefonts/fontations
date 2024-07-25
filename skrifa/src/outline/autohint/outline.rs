@@ -178,10 +178,9 @@ impl Outline {
     fn compute_directions(&mut self, near_limit: i32) {
         let near_limit2 = 2 * near_limit - 1;
         for points in self.contours_mut() {
-            if points.is_empty() {
+            let Some(cycler) = IndexCycler::new(points.len()) else {
                 continue;
-            }
-            let cycler = IndexCycler::new(points.len());
+            };
             // Walk backward to find the first non-near point.
             let mut first_ix = 0;
             let mut prev_ix = cycler.prev(first_ix);
@@ -257,9 +256,6 @@ impl Outline {
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L1181>
     fn simplify_topology(&mut self) {
         for points in self.contours_mut() {
-            if points.is_empty() {
-                continue;
-            }
             for i in 0..points.len() {
                 let point = points[i];
                 if point.in_dir == Direction::None && point.out_dir == Direction::None {
@@ -287,9 +283,6 @@ impl Outline {
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L1226>
     fn check_remaining_weak_points(&mut self) {
         for points in self.contours_mut() {
-            if points.is_empty() {
-                continue;
-            }
             for i in 0..points.len() {
                 let point = points[i];
                 let mut make_weak = false;
