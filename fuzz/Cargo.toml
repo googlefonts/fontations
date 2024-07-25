@@ -15,7 +15,7 @@ release = false
 libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
 skrifa = { path="../skrifa" }
 font-types = { path= "../font-types" }
-int-set = { path = "../int-set" }
+read-fonts = { path = "../read-fonts" }
 
 [[bin]]
 name = "fuzz_skrifa_charmap"

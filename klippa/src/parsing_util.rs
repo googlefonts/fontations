@@ -1,8 +1,9 @@
 //! subsetter input parsing util functions
-use int_set::IntSet;
+use skrifa::raw::collections::IntSet;
 use write_fonts::types::GlyphId;
 
 use crate::SubsetError;
+
 pub fn populate_gids(gid_str: &str) -> Result<IntSet<GlyphId>, SubsetError> {
     let mut result = IntSet::empty();
 

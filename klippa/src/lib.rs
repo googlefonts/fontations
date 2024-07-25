@@ -6,12 +6,12 @@ mod maxp;
 mod parsing_util;
 pub use parsing_util::{parse_unicodes, populate_gids};
 
-use int_set::IntSet;
 use skrifa::MetadataProvider;
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 use thiserror::Error;
 use write_fonts::read::{
+    collections::IntSet,
     tables::glyf::{Glyf, Glyph},
     tables::loca::Loca,
     FontRef, TableProvider, TopLevelTable,

@@ -7,11 +7,11 @@ use std::collections::VecDeque;
 use std::error::Error;
 use std::fmt;
 
-use crate::bitset::BitSetBuilder;
-use crate::input_bit_stream::InputBitStream;
-use crate::output_bit_stream::OutputBitStream;
-use crate::BitSet;
-use crate::IntSet;
+use super::bitset::BitSetBuilder;
+use super::input_bit_stream::InputBitStream;
+use super::output_bit_stream::OutputBitStream;
+use super::BitSet;
+use super::IntSet;
 
 #[derive(Debug, PartialEq)]
 pub struct DecodingError;

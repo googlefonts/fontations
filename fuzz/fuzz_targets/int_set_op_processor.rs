@@ -10,9 +10,7 @@ use std::ops::Bound::Included;
 use std::ops::RangeInclusive;
 use std::{collections::BTreeSet, error::Error};
 
-use int_set::Domain;
-use int_set::InDomain;
-use int_set::IntSet;
+use read_fonts::collections::int_set::{Domain, InDomain, IntSet};
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum OperationSet {

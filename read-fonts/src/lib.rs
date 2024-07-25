@@ -69,6 +69,8 @@ extern crate std;
 extern crate core as std;
 
 pub mod array;
+#[cfg(feature = "std")]
+pub mod collections;
 mod font_data;
 mod offset;
 mod offset_array;

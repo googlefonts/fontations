@@ -12,7 +12,6 @@ categories = ["text-processing"]
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
-int-set = { path = "../int-set" }
 regex = "1.10.4"
 skrifa = { version = "0.19.3", path = "../skrifa" }
 thiserror = "1.0.58"

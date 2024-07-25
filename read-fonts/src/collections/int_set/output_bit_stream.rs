@@ -1,6 +1,6 @@
 //! Writes individual bits to a vector of bytes.
 
-use crate::sparse_bit_set::BranchFactor;
+use super::sparse_bit_set::BranchFactor;
 
 pub(crate) struct OutputBitStream {
     data: Vec<u8>,
