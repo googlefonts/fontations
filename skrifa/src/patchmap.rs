@@ -134,7 +134,7 @@ impl PatchMap {
 
     fn add_format_1_feature_entries(
         mapping: &PatchMapFormat1,
-        entries: &mut Vec<Entry>,
+        entries: &mut [Entry],
         present_entries: &mut IntSet<u16>,
     ) {
         for m in mapping.entry_map_records() {
