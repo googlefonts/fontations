@@ -123,3 +123,11 @@ jobs:
       - name: cargo check wasm target
         run: cargo check --manifest-path=write-fonts/Cargo.toml --target wasm32-unknown-unknown
 
+  # If this fails, consider changing your text or adding something to .typos.toml
+  typos:
+    name: Check for typos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: check typos
+        uses: crate-ci/typos@v1.23.2
