@@ -1,13 +1,11 @@
 //! Outline representation and helpers for autohinting.
 
-use super::{
-    super::{
-        unscaled::{UnscaledOutlineSink, UnscaledPoint},
-        DrawError, LocationRef, OutlineGlyph,
-    },
-    cycling::IndexCycler,
+use super::super::{
+    unscaled::{UnscaledOutlineSink, UnscaledPoint},
+    DrawError, LocationRef, OutlineGlyph,
 };
 use crate::collections::SmallVec;
+use core::ops::Range;
 
 /// Hinting directions.
 ///
@@ -58,6 +56,15 @@ impl Direction {
     pub fn is_same_axis(self, other: Self) -> bool {
         (self as i8).abs() == (other as i8).abs()
     }
+
+    pub fn normalize(self) -> Self {
+        // FreeType uses absolute value for this.
+        match self {
+            Self::Left => Self::Right,
+            Self::Down => Self::Up,
+            _ => self,
+        }
+    }
 }
 
 /// Outline point with a lot of context for hinting.
@@ -79,6 +86,10 @@ pub(super) struct Point {
     pub u: i32,
     /// Context dependent coordinate.
     pub v: i32,
+    /// Index of next point in contour.
+    pub next_ix: u16,
+    /// Index of previous point in contour.
+    pub prev_ix: u16,
 }
 
 /// Point type flags.
@@ -101,6 +112,22 @@ impl Point {
     pub const NEAR: u8 = 1 << 5;
 }
 
+impl Point {
+    pub fn is_on_curve(&self) -> bool {
+        self.flags & Self::CONTROL == 0
+    }
+
+    /// Returns the index of the next point in the contour.
+    pub fn next(&self) -> usize {
+        self.next_ix as usize
+    }
+
+    /// Returns the index of the previous point in the contour.
+    pub fn prev(&self) -> usize {
+        self.prev_ix as usize
+    }
+}
+
 // Matches FreeType's inline usage
 //
 // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.h#L332>
@@ -109,9 +136,9 @@ const MAX_INLINE_CONTOURS: usize = 8;
 
 #[derive(Default)]
 pub(super) struct Outline {
+    pub units_per_em: u16,
     pub points: SmallVec<Point, MAX_INLINE_POINTS>,
-    // Range isn't Copy so can't be used in our SmallVec :(
-    pub contours: SmallVec<(usize, usize), MAX_INLINE_CONTOURS>,
+    pub contours: SmallVec<Contour, MAX_INLINE_CONTOURS>,
 }
 
 impl Outline {
@@ -119,8 +146,11 @@ impl Outline {
     pub fn fill(&mut self, glyph: &OutlineGlyph) -> Result<(), DrawError> {
         self.clear();
         glyph.draw_unscaled(LocationRef::default(), None, self)?;
+        let units_per_em = glyph.units_per_em();
         // Heuristic value
-        let near_limit = 20 * glyph.units_per_em() as i32 / 2048;
+        let near_limit = 20 * units_per_em as i32 / 2048;
+        self.units_per_em = units_per_em;
+        self.link_points();
         self.mark_near_points(near_limit);
         self.compute_directions(near_limit);
         self.simplify_topology();
@@ -129,35 +159,39 @@ impl Outline {
     }
 
     pub fn clear(&mut self) {
+        self.units_per_em = 0;
         self.points.clear();
         self.contours.clear();
-    }
-
-    pub fn contours_mut(&mut self) -> impl Iterator<Item = &mut [Point]> {
-        let mut points = Some(self.points.as_mut_slice());
-        let mut consumed = 0;
-        self.contours.iter().map(move |(_, end)| {
-            let count = end - consumed;
-            consumed = *end;
-            let (contour_points, rest) = points.take().unwrap().split_at_mut(count);
-            points = Some(rest);
-            contour_points
-        })
     }
 }
 
 impl Outline {
+    /// Sets next and previous indices for each point.
+    fn link_points(&mut self) {
+        let points = self.points.as_mut_slice();
+        for contour in &self.contours {
+            let last_ix = contour.last();
+            let mut ix = contour.first();
+            let mut prev_ix = last_ix;
+            points[ix].prev_ix = last_ix as _;
+            points[last_ix].next_ix = ix as _;
+            while ix != last_ix {
+                points[ix].prev_ix = prev_ix as _;
+                points[prev_ix].next_ix = ix as _;
+                prev_ix = ix;
+                ix = contour.next(ix);
+            }
+        }
+    }
+
     /// Computes the near flag for each contour.
     ///
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L1017>
     fn mark_near_points(&mut self, near_limit: i32) {
-        for points in self.contours_mut() {
-            if points.is_empty() {
-                continue;
-            }
-            let mut prev_ix = points.len() - 1;
-            let mut ix = 0;
-            while ix < points.len() {
+        let points = self.points.as_mut_slice();
+        for contour in &self.contours {
+            let mut prev_ix = contour.last();
+            for ix in contour.range() {
                 let point = points[ix];
                 let prev = &mut points[prev_ix];
                 // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L1017>
@@ -167,7 +201,6 @@ impl Outline {
                     prev.flags |= Point::NEAR;
                 }
                 prev_ix = ix;
-                ix += 1;
             }
         }
     }
@@ -177,15 +210,14 @@ impl Outline {
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L1064>
     fn compute_directions(&mut self, near_limit: i32) {
         let near_limit2 = 2 * near_limit - 1;
-        for points in self.contours_mut() {
-            let Some(cycler) = IndexCycler::new(points.len()) else {
-                continue;
-            };
+        let points = self.points.as_mut_slice();
+        for contour in &self.contours {
             // Walk backward to find the first non-near point.
-            let mut first_ix = 0;
-            let mut prev_ix = cycler.prev(first_ix);
+            let mut first_ix = contour.first();
+            let mut ix = first_ix;
+            let mut prev_ix = contour.prev(first_ix);
             let mut point = points[0];
-            while prev_ix != 0 {
+            while prev_ix != first_ix {
                 let prev = points[prev_ix];
                 let out_x = point.fx - prev.fx;
                 let out_y = point.fy - prev.fy;
@@ -194,9 +226,10 @@ impl Outline {
                     break;
                 }
                 point = prev;
-                first_ix = prev_ix;
-                prev_ix = cycler.prev(prev_ix);
+                ix = prev_ix;
+                prev_ix = contour.prev(prev_ix);
             }
+            first_ix = ix;
             // Abuse u and v fields to store deltas to the next and previous
             // non-near points, respectively.
             let first = &mut points[first_ix];
@@ -210,7 +243,7 @@ impl Outline {
             let mut out_y = 0;
             loop {
                 let point_ix = next_ix;
-                next_ix = cycler.next(point_ix);
+                next_ix = contour.next(point_ix);
                 let point = points[point_ix];
                 let next = &mut points[next_ix];
                 // Accumulate the deltas until we surpass near_limit
@@ -232,12 +265,12 @@ impl Outline {
                 cur.u = next_ix as _;
                 cur.out_dir = out_dir;
                 // Adjust directions for all intermediate points
-                let mut inter_ix = cycler.next(ix);
+                let mut inter_ix = contour.next(ix);
                 while inter_ix != next_ix {
                     let point = &mut points[inter_ix];
                     point.in_dir = out_dir;
                     point.out_dir = out_dir;
-                    inter_ix = cycler.next(inter_ix);
+                    inter_ix = contour.next(inter_ix);
                 }
                 ix = next_ix;
                 points[ix].u = first_ix as _;
@@ -255,24 +288,23 @@ impl Outline {
     ///
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L1181>
     fn simplify_topology(&mut self) {
-        for points in self.contours_mut() {
-            for i in 0..points.len() {
-                let point = points[i];
-                if point.in_dir == Direction::None && point.out_dir == Direction::None {
-                    let u_index = point.u as usize;
-                    let v_index = point.v as usize;
-                    let next_u = points[u_index];
-                    let prev_v = points[v_index];
-                    let in_x = point.fx - prev_v.fx;
-                    let in_y = point.fy - prev_v.fy;
-                    let out_x = next_u.fx - point.fx;
-                    let out_y = next_u.fy - point.fy;
-                    if (in_x ^ out_x) >= 0 || (in_y ^ out_y) >= 0 {
-                        // Both vectors point into the same quadrant
-                        points[i].flags |= Point::WEAK_INTERPOLATION;
-                        points[v_index].u = u_index as _;
-                        points[u_index].v = v_index as _;
-                    }
+        let points = self.points.as_mut_slice();
+        for i in 0..points.len() {
+            let point = points[i];
+            if point.in_dir == Direction::None && point.out_dir == Direction::None {
+                let u_index = point.u as usize;
+                let v_index = point.v as usize;
+                let next_u = points[u_index];
+                let prev_v = points[v_index];
+                let in_x = point.fx - prev_v.fx;
+                let in_y = point.fy - prev_v.fy;
+                let out_x = next_u.fx - point.fx;
+                let out_y = next_u.fy - point.fy;
+                if (in_x ^ out_x) >= 0 || (in_y ^ out_y) >= 0 {
+                    // Both vectors point into the same quadrant
+                    points[i].flags |= Point::WEAK_INTERPOLATION;
+                    points[v_index].u = u_index as _;
+                    points[u_index].v = v_index as _;
                 }
             }
         }
@@ -282,46 +314,45 @@ impl Outline {
     ///
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L1226>
     fn check_remaining_weak_points(&mut self) {
-        for points in self.contours_mut() {
-            for i in 0..points.len() {
-                let point = points[i];
-                let mut make_weak = false;
-                if point.flags & Point::WEAK_INTERPOLATION != 0 {
-                    // Already weak
-                    continue;
-                }
-                if point.flags & Point::CONTROL != 0 {
-                    // Control points are always weak
+        let points = self.points.as_mut_slice();
+        for i in 0..points.len() {
+            let point = points[i];
+            let mut make_weak = false;
+            if point.flags & Point::WEAK_INTERPOLATION != 0 {
+                // Already weak
+                continue;
+            }
+            if point.flags & Point::CONTROL != 0 {
+                // Control points are always weak
+                make_weak = true;
+            } else if point.out_dir == point.in_dir {
+                if point.out_dir != Direction::None {
+                    // Point lies on a vertical or horizontal segment but
+                    // not at start or end
                     make_weak = true;
-                } else if point.out_dir == point.in_dir {
-                    if point.out_dir != Direction::None {
-                        // Point lies on a vertical or horizontal segment but
-                        // not at start or end
+                } else {
+                    let u_index = point.u as usize;
+                    let v_index = point.v as usize;
+                    let next_u = points[u_index];
+                    let prev_v = points[v_index];
+                    if is_corner_flat(
+                        point.fx - prev_v.fx,
+                        point.fy - prev_v.fy,
+                        next_u.fx - point.fx,
+                        next_u.fy - point.fy,
+                    ) {
+                        // One of the vectors is more dominant
                         make_weak = true;
-                    } else {
-                        let u_index = point.u as usize;
-                        let v_index = point.v as usize;
-                        let next_u = points[u_index];
-                        let prev_v = points[v_index];
-                        if is_corner_flat(
-                            point.fx - prev_v.fx,
-                            point.fy - prev_v.fy,
-                            next_u.fx - point.fx,
-                            next_u.fy - point.fy,
-                        ) {
-                            // One of the vectors is more dominant
-                            make_weak = true;
-                            points[v_index].u = u_index as _;
-                            points[u_index].v = v_index as _;
-                        }
+                        points[v_index].u = u_index as _;
+                        points[u_index].v = v_index as _;
                     }
-                } else if point.in_dir.is_opposite(point.out_dir) {
-                    // Point forms a "spike"
-                    make_weak = true;
                 }
-                if make_weak {
-                    points[i].flags |= Point::WEAK_INTERPOLATION;
-                }
+            } else if point.in_dir.is_opposite(point.out_dir) {
+                // Point forms a "spike"
+                make_weak = true;
+            }
+            if make_weak {
+                points[i].flags |= Point::WEAK_INTERPOLATION;
             }
         }
     }
@@ -344,6 +375,42 @@ fn is_corner_flat(in_x: i32, in_y: i32, out_x: i32, out_y: i32) -> bool {
     let d_out = hypot(out_x, out_y);
     let d_hypot = hypot(ax, ay);
     (d_in + d_out - d_hypot) < (d_hypot >> 4)
+}
+
+#[derive(Copy, Clone, Default, Debug)]
+pub(super) struct Contour {
+    first_ix: u16,
+    last_ix: u16,
+}
+
+impl Contour {
+    pub fn first(self) -> usize {
+        self.first_ix as usize
+    }
+
+    pub fn last(self) -> usize {
+        self.last_ix as usize
+    }
+
+    pub fn next(self, index: usize) -> usize {
+        if index >= self.last_ix as usize {
+            self.first_ix as usize
+        } else {
+            index + 1
+        }
+    }
+
+    pub fn prev(self, index: usize) -> usize {
+        if index <= self.first_ix as usize {
+            self.last_ix as usize
+        } else {
+            index - 1
+        }
+    }
+
+    pub fn range(self) -> Range<usize> {
+        self.first()..self.last() + 1
+    }
 }
 
 impl UnscaledOutlineSink for Outline {
@@ -369,15 +436,25 @@ impl UnscaledOutlineSink for Outline {
             fy: point.y as i32,
             ..Default::default()
         };
-        let new_point_ix = self.points.len();
+        let new_point_ix: u16 = self
+            .points
+            .len()
+            .try_into()
+            .map_err(|_| DrawError::InsufficientMemory)?;
         if point.is_contour_start() {
-            self.contours.push((new_point_ix, new_point_ix + 1));
+            self.contours.push(Contour {
+                first_ix: new_point_ix,
+                last_ix: new_point_ix,
+            });
         } else if let Some(last_contour) = self.contours.last_mut() {
-            last_contour.1 += 1;
+            last_contour.last_ix += 1;
         } else {
             // If our first point is not marked as contour start, just
             // create a new contour.
-            self.contours.push((new_point_ix, new_point_ix + 1));
+            self.contours.push(Contour {
+                first_ix: new_point_ix,
+                last_ix: new_point_ix,
+            });
         }
         self.points.push(new_point);
         Ok(())
