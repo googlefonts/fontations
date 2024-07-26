@@ -137,15 +137,28 @@ impl PatchMap {
         entries: &mut [Entry],
         present_entries: &mut IntSet<u16>,
     ) {
+        let mut new_entries = IntSet::<u16>::empty();
         for m in mapping.entry_map_records() {
             let mut mapped_codepoints = IntSet::<u32>::empty();
             for index in m.matched_entries {
+                if !present_entries.contains(index) {
+                    // The spec only allows entries produced by the glyph map to be referenced here.
+                    // TODO(garretrieger): need to error out instead of ignoring.
+                    continue;
+                }
                 let Some(entry) = entries.get(index as usize) else {
                     // TODO(garretrieger): need to error out instead of ignoring.
                     continue;
                 };
 
                 mapped_codepoints.union(&entry.codepoints);
+            }
+
+            if present_entries.contains(m.new_entry_index) {
+                // TODO(garretrieger): update the spec to require new entry indices to by disjoint from the glyph map
+                //                     entries.
+                // TODO(garretrieger): need to error out instead of ignoring.
+                continue;
             }
 
             let Some(new_entry) = entries.get_mut(m.new_entry_index as usize) else {
@@ -155,8 +168,10 @@ impl PatchMap {
 
             new_entry.codepoints.union(&mapped_codepoints);
             new_entry.feature_tags.insert(m.feature_tag);
-            present_entries.insert(m.new_entry_index);
+            new_entries.insert(m.new_entry_index);
         }
+
+        present_entries.union(&new_entries);
     }
 
     /// Produce a mapping from each glyph id to the codepoint(s) that map to that glyph.
