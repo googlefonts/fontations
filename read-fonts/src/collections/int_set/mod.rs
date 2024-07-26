@@ -468,6 +468,27 @@ impl<T: Domain> Hash for IntSet<T> {
     }
 }
 
+impl<T: Domain + Ord> Ord for IntSet<T> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        // there is probably room for optimization here, but it gets us working
+        for (us, them) in self.iter().zip(other.iter()) {
+            match us.cmp(&them) {
+                core::cmp::Ordering::Equal => continue,
+                other => return other,
+            }
+        }
+
+        // all items in iter are the same: is one collection longer?
+        self.len().cmp(&other.len())
+    }
+}
+
+impl<T: Domain + Ord> PartialOrd for IntSet<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 impl<T: Domain> Eq for IntSet<T> {}
 
 impl<T: Domain, const N: usize> From<[T; N]> for IntSet<T> {
@@ -945,6 +966,7 @@ impl Domain for GlyphId {
 
 #[cfg(test)]
 mod test {
+    use core::cmp::Ordering;
     use std::{
         collections::HashSet,
         hash::{DefaultHasher, Hash, Hasher},
@@ -2159,5 +2181,31 @@ mod test {
             s.remove(TwoParts::from_u32(InDomain(v)));
         }
         assert_eq!(s.len(), 0);
+    }
+
+    #[test]
+    fn ordering() {
+        macro_rules! assert_ord {
+            ($lhs:expr, $rhs:expr, $ord:path) => {
+                assert_eq!(
+                    IntSet::from($lhs.clone()).cmp(&IntSet::from($rhs.clone())),
+                    $ord,
+                    "{:?}, {:?}",
+                    $lhs,
+                    $rhs
+                )
+            };
+        }
+
+        const EMPTY: [u16; 0] = [];
+        assert_ord!(EMPTY, EMPTY, Ordering::Equal);
+        assert_ord!(EMPTY, [0], Ordering::Less);
+        assert_ord!([0u16], [0], Ordering::Equal);
+        assert_ord!([0u16, 1, 2], [1, 2, 3], Ordering::Less);
+        assert_ord!([0u16, 1, 4], [1, 2, 3], Ordering::Less);
+        assert_ord!([1u16, 2, 3], [0, 2, 4], Ordering::Greater);
+        assert_ord!([5u16, 4, 0], [1, 2, 3], Ordering::Less); // out of order
+        assert_ord!([1u16, 2, 3], [1, 2, 3, 4], Ordering::Less); // out of order
+        assert_ord!([2u16, 3, 4], [1, 2, 3, 4, 5], Ordering::Greater); // out of order
     }
 }
