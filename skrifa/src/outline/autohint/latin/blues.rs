@@ -1,6 +1,6 @@
-//! Latin specific autohinting support.
+//! Latin blue values.
 
-use super::{
+use super::super::{
     super::unscaled::UnscaledOutlineBuf,
     cycling::{cycle_backward, cycle_forward},
     metrics::{UnscaledBlue, UnscaledBlues, MAX_BLUES},
@@ -421,13 +421,13 @@ impl UnscaledBlues {
 
 #[cfg(test)]
 mod tests {
-    use super::{blue_flags, UnscaledBlue};
+    use super::{super::super::script, blue_flags, UnscaledBlue};
     use raw::FontRef;
 
     #[test]
     fn latin_blues() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let script = &super::super::script::SCRIPT_CLASSES[super::ScriptClass::LATN];
+        let script = &script::SCRIPT_CLASSES[super::ScriptClass::LATN];
         let blues = super::UnscaledBlues::new_latin(&font, &[], script);
         let values = blues.as_slice();
         let expected = [
@@ -481,7 +481,7 @@ mod tests {
     fn latin_long_blues() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
         // Hebrew triggers "long" blue code path
-        let script = &super::super::script::SCRIPT_CLASSES[super::ScriptClass::HEBR];
+        let script = &script::SCRIPT_CLASSES[super::ScriptClass::HEBR];
         let blues = super::UnscaledBlues::new_latin(&font, &[], script);
         let values = blues.as_slice();
         assert_eq!(values.len(), 3);

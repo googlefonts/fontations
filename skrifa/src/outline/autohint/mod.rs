@@ -3,6 +3,7 @@
 // Remove when the work is complete.
 #![allow(dead_code)]
 
+mod axis;
 mod cycling;
 mod latin;
 mod metrics;
