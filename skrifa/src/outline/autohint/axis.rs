@@ -55,6 +55,10 @@ pub struct Segment {
     pub height: i16,
     /// Used during stem matching.
     pub score: i32,
+    /// Index of best candidate for a stem link.
+    pub link_ix: Option<u16>,
+    /// Index of best candidate for a serif link.
+    pub serif_ix: Option<u16>,
     /// Index of first point in the outline.
     pub first_ix: u16,
     /// Index of last point in the outline.
