@@ -470,6 +470,12 @@ impl<T: Domain> Hash for IntSet<T> {
 
 impl<T: Domain> Eq for IntSet<T> {}
 
+impl<T: Domain, const N: usize> From<[T; N]> for IntSet<T> {
+    fn from(value: [T; N]) -> Self {
+        value.into_iter().collect()
+    }
+}
+
 struct Iter<SetIter, AllValuesIter> {
     set_values: SetIter,
     all_values: Option<AllValuesIter>,
