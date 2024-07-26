@@ -48,7 +48,7 @@ pub struct IntSet<T>(Membership, PhantomData<T>);
 /// `from_u32`() will only ever be called with u32 values that are part of the domain of T as defined
 /// by an implementation of this trait. So it doesn't need to correctly handle values
 /// that are outside the domain of `T`.
-pub trait Domain<T> {
+pub trait Domain: Sized {
     /// Converts this value of `T` to a value in u32.
     ///
     /// The mapped value must maintain the same ordering as `T`.
@@ -57,7 +57,7 @@ pub trait Domain<T> {
     /// Converts a mapped u32 value back to T.
     ///
     /// Will only ever be called with values produced by `to_u32`.
-    fn from_u32(member: InDomain) -> T;
+    fn from_u32(member: InDomain) -> Self;
 
     /// Returns true if all u32 values between the mapped u32 min and mapped u32 max value of T are used.
     fn is_continuous() -> bool;
@@ -72,13 +72,13 @@ pub trait Domain<T> {
     ///
     /// Values should be converted to `u32`'s according to the mapping defined in
     /// `to_u32`/`from_u32`.
-    fn ordered_values_range(range: RangeInclusive<T>) -> impl DoubleEndedIterator<Item = u32>;
+    fn ordered_values_range(range: RangeInclusive<Self>) -> impl DoubleEndedIterator<Item = u32>;
 
     /// Returns the number of members in the domain.
     fn count() -> usize;
 }
 
-/// Marks a mapped value as being in the domain of `T` for [`Domain<T>`].
+/// Marks a mapped value as being in the domain of `T` for [`Domain`].
 ///
 /// See [`Domain`] for more information.
 pub struct InDomain(u32);
@@ -98,13 +98,13 @@ impl InDomain {
     }
 }
 
-impl<T: Domain<T>> Default for IntSet<T> {
+impl<T> Default for IntSet<T> {
     fn default() -> IntSet<T> {
         IntSet::empty()
     }
 }
 
-impl<T: Domain<T>> IntSet<T> {
+impl<T: Domain> IntSet<T> {
     /// Returns an iterator over all members of the set in sorted ascending order.
     ///
     /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
@@ -406,7 +406,7 @@ impl<T> IntSet<T> {
     }
 }
 
-impl<T: Domain<T>> FromIterator<T> for IntSet<T> {
+impl<T: Domain> FromIterator<T> for IntSet<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut s = IntSet::empty();
         s.extend(iter);
@@ -414,7 +414,7 @@ impl<T: Domain<T>> FromIterator<T> for IntSet<T> {
     }
 }
 
-impl<T: Domain<T>> Extend<T> for IntSet<T> {
+impl<T: Domain> Extend<T> for IntSet<T> {
     /// Extends a collection with the contents of an iterator.
     ///
     /// This implementation is optimized to provide the best performance when the iterator contains sorted values.
@@ -428,7 +428,7 @@ impl<T: Domain<T>> Extend<T> for IntSet<T> {
     }
 }
 
-impl<T: Domain<T>> PartialEq for IntSet<T> {
+impl<T: Domain> PartialEq for IntSet<T> {
     fn eq(&self, other: &Self) -> bool {
         match (&self.0, &other.0) {
             (Membership::Inclusive(a), Membership::Inclusive(b)) => a == b,
@@ -456,7 +456,7 @@ impl<T: Domain<T>> PartialEq for IntSet<T> {
     }
 }
 
-impl<T: Domain<T>> Hash for IntSet<T> {
+impl<T: Domain> Hash for IntSet<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         // Because equality considers two sets with the same effective members (but different membership modes) as
         // equal, hash must be based on the effective member set as well. Exclusive sets may have extremely large numbers
@@ -468,7 +468,7 @@ impl<T: Domain<T>> Hash for IntSet<T> {
     }
 }
 
-impl<T: Domain<T>> Eq for IntSet<T> {}
+impl<T: Domain> Eq for IntSet<T> {}
 
 struct Iter<SetIter, AllValuesIter> {
     set_values: SetIter,
@@ -625,7 +625,7 @@ enum RangeIter<'a, InclusiveRangeIter, AllValuesIter, T>
 where
     InclusiveRangeIter: Iterator<Item = RangeInclusive<u32>>,
     AllValuesIter: Iterator<Item = u32>,
-    T: Domain<T>,
+    T: Domain,
 {
     Inclusive {
         ranges: InclusiveRangeIter,
@@ -653,7 +653,7 @@ impl<'a, InclusiveRangeIter, AllValuesIter, T> Iterator
 where
     InclusiveRangeIter: Iterator<Item = RangeInclusive<u32>>,
     AllValuesIter: Iterator<Item = u32>,
-    T: Domain<T>,
+    T: Domain,
 {
     type Item = RangeInclusive<u32>;
 
@@ -717,7 +717,7 @@ impl<'a, InclusiveRangeIter, AllValuesIter, T> RangeIter<'a, InclusiveRangeIter,
 where
     InclusiveRangeIter: Iterator<Item = RangeInclusive<u32>>,
     AllValuesIter: Iterator<Item = u32>,
-    T: Domain<T>,
+    T: Domain,
 {
     /// Iterate the ranges of an exclusive set where the domain is continuous.
     fn next_exclusive(
@@ -803,7 +803,7 @@ where
     }
 }
 
-impl Domain<u32> for u32 {
+impl Domain for u32 {
     fn to_u32(&self) -> u32 {
         *self
     }
@@ -829,7 +829,7 @@ impl Domain<u32> for u32 {
     }
 }
 
-impl Domain<u16> for u16 {
+impl Domain for u16 {
     fn to_u32(&self) -> u32 {
         *self as u32
     }
@@ -855,7 +855,7 @@ impl Domain<u16> for u16 {
     }
 }
 
-impl Domain<u8> for u8 {
+impl Domain for u8 {
     fn to_u32(&self) -> u32 {
         *self as u32
     }
@@ -881,7 +881,7 @@ impl Domain<u8> for u8 {
     }
 }
 
-impl Domain<GlyphId16> for GlyphId16 {
+impl Domain for GlyphId16 {
     fn to_u32(&self) -> u32 {
         self.to_u16() as u32
     }
@@ -909,7 +909,7 @@ impl Domain<GlyphId16> for GlyphId16 {
     }
 }
 
-impl Domain<GlyphId> for GlyphId {
+impl Domain for GlyphId {
     fn to_u32(&self) -> u32 {
         GlyphId::to_u32(*self)
     }
@@ -949,7 +949,7 @@ mod test {
     #[derive(PartialEq, Eq, Debug, PartialOrd, Ord)]
     struct EvenInts(u16);
 
-    impl Domain<EvenInts> for EvenInts {
+    impl Domain for EvenInts {
         fn to_u32(&self) -> u32 {
             self.0 as u32
         }
@@ -983,7 +983,7 @@ mod test {
     #[derive(PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
     struct TwoParts(u16);
 
-    impl Domain<TwoParts> for TwoParts {
+    impl Domain for TwoParts {
         fn to_u32(&self) -> u32 {
             self.0 as u32
         }
@@ -1015,7 +1015,7 @@ mod test {
     #[derive(PartialEq, Eq, Debug, PartialOrd, Ord)]
     struct TwoPartsBounds(u32);
 
-    impl Domain<TwoPartsBounds> for TwoPartsBounds {
+    impl Domain for TwoPartsBounds {
         fn to_u32(&self) -> u32 {
             self.0
         }
@@ -1186,7 +1186,7 @@ mod test {
 
     fn hash<T>(set: &IntSet<T>) -> u64
     where
-        T: Domain<T>,
+        T: Domain,
     {
         let mut h = DefaultHasher::new();
         set.hash(&mut h);

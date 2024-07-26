@@ -19,7 +19,7 @@ pub enum OperationSet {
     SparseBitSetEncoding,
 }
 
-pub trait SetMember<T>: Domain<T> + Ord + Copy + Debug + Hash {
+pub trait SetMember<T>: Domain + Ord + Copy + Debug + Hash {
     fn create(val: u32) -> Option<T>;
     fn can_be_inverted() -> bool;
     fn increment(&mut self);
@@ -131,7 +131,7 @@ impl SetMember<SmallInt> for SmallInt {
     }
 }
 
-impl Domain<SmallInt> for SmallInt {
+impl Domain for SmallInt {
     fn to_u32(&self) -> u32 {
         self.0
     }
@@ -201,7 +201,7 @@ impl SetMember<SmallEvenInt> for SmallEvenInt {
     }
 }
 
-impl Domain<SmallEvenInt> for SmallEvenInt {
+impl Domain for SmallEvenInt {
     fn to_u32(&self) -> u32 {
         self.0
     }
