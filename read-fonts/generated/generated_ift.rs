@@ -97,8 +97,12 @@ impl PatchMapFormat1Marker {
         let start = self.compatibility_id_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn glyph_count_byte_range(&self) -> Range<usize> {
+    fn max_glyph_map_entry_index_byte_range(&self) -> Range<usize> {
         let start = self.max_entry_index_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.max_glyph_map_entry_index_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
     fn glyph_map_offset_byte_range(&self) -> Range<usize> {
@@ -137,6 +141,7 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(compatibility_id_byte_len);
         let max_entry_index: u16 = cursor.read()?;
+        cursor.advance::<u16>();
         cursor.advance::<u32>();
         cursor.advance::<Offset32>();
         cursor.advance::<Offset32>();
@@ -174,9 +179,15 @@ impl<'a> PatchMapFormat1<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Number of entries and glyphs that are mapped.
+    /// Largest entry index which appears in either the glyph map or feature map.
     pub fn max_entry_index(&self) -> u16 {
         let range = self.shape.max_entry_index_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Largest entry index which appears in the glyph map.
+    pub fn max_glyph_map_entry_index(&self) -> u16 {
+        let range = self.shape.max_glyph_map_entry_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -243,25 +254,29 @@ impl<'a> SomeTable<'a> for PatchMapFormat1<'a> {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("compatibility_id", self.compatibility_id())),
             2usize => Some(Field::new("max_entry_index", self.max_entry_index())),
-            3usize => Some(Field::new("glyph_count", self.glyph_count())),
-            4usize => Some(Field::new(
+            3usize => Some(Field::new(
+                "max_glyph_map_entry_index",
+                self.max_glyph_map_entry_index(),
+            )),
+            4usize => Some(Field::new("glyph_count", self.glyph_count())),
+            5usize => Some(Field::new(
                 "glyph_map_offset",
                 FieldType::offset(self.glyph_map_offset(), self.glyph_map()),
             )),
-            5usize => Some(Field::new(
+            6usize => Some(Field::new(
                 "feature_map_offset",
                 FieldType::offset(self.feature_map_offset(), self.feature_map()),
             )),
-            6usize => Some(Field::new(
+            7usize => Some(Field::new(
                 "applied_entries_bitmap",
                 self.applied_entries_bitmap(),
             )),
-            7usize => Some(Field::new(
+            8usize => Some(Field::new(
                 "uri_template_length",
                 self.uri_template_length(),
             )),
-            8usize => Some(Field::new("uri_template", self.uri_template())),
-            9usize => Some(Field::new("patch_encoding", self.patch_encoding())),
+            9usize => Some(Field::new("uri_template", self.uri_template())),
+            10usize => Some(Field::new("patch_encoding", self.patch_encoding())),
             _ => None,
         }
     }

@@ -21,8 +21,12 @@ table PatchMapFormat1 {
   #[count(4)]
   compatibility_id: [u32],
 
-  /// Number of entries and glyphs that are mapped.
+  /// Largest entry index which appears in either the glyph map or feature map.
   max_entry_index: u16,
+
+  /// Largest entry index which appears in the glyph map.
+  max_glyph_map_entry_index: u16,
+  
   glyph_count: u32,
 
   /// Sub table that maps glyph ids to entry indices.

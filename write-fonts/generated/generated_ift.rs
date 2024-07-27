@@ -18,6 +18,7 @@ impl Ift {
     pub fn format_1(
         compatibility_id: Vec<u32>,
         max_entry_index: u16,
+        max_glyph_map_entry_index: u16,
         glyph_count: u32,
         glyph_map: GlyphMap,
         feature_map: Option<FeatureMap>,
@@ -29,6 +30,7 @@ impl Ift {
         Self::Format1(PatchMapFormat1::new(
             compatibility_id,
             max_entry_index,
+            max_glyph_map_entry_index,
             glyph_count,
             glyph_map,
             feature_map,
@@ -111,8 +113,10 @@ impl From<PatchMapFormat2> for Ift {
 pub struct PatchMapFormat1 {
     /// Unique ID that identifies compatible patches.
     pub compatibility_id: Vec<u32>,
-    /// Number of entries and glyphs that are mapped.
+    /// Largest entry index which appears in either the glyph map or feature map.
     pub max_entry_index: u16,
+    /// Largest entry index which appears in the glyph map.
+    pub max_glyph_map_entry_index: u16,
     pub glyph_count: u32,
     /// Sub table that maps glyph ids to entry indices.
     pub glyph_map: OffsetMarker<GlyphMap, WIDTH_32>,
@@ -131,6 +135,7 @@ impl PatchMapFormat1 {
     pub fn new(
         compatibility_id: Vec<u32>,
         max_entry_index: u16,
+        max_glyph_map_entry_index: u16,
         glyph_count: u32,
         glyph_map: GlyphMap,
         feature_map: Option<FeatureMap>,
@@ -142,6 +147,7 @@ impl PatchMapFormat1 {
         Self {
             compatibility_id: compatibility_id.into_iter().map(Into::into).collect(),
             max_entry_index,
+            max_glyph_map_entry_index,
             glyph_count,
             glyph_map: glyph_map.into(),
             feature_map: feature_map.into(),
@@ -160,6 +166,7 @@ impl FontWrite for PatchMapFormat1 {
         (0 as u32).write_into(writer);
         self.compatibility_id.write_into(writer);
         self.max_entry_index.write_into(writer);
+        self.max_glyph_map_entry_index.write_into(writer);
         self.glyph_count.write_into(writer);
         self.glyph_map.write_into(writer);
         self.feature_map.write_into(writer);
@@ -197,6 +204,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat1<'a>> for PatchMapFo
         PatchMapFormat1 {
             compatibility_id: obj.compatibility_id().to_owned_obj(offset_data),
             max_entry_index: obj.max_entry_index(),
+            max_glyph_map_entry_index: obj.max_glyph_map_entry_index(),
             glyph_count: obj.glyph_count(),
             glyph_map: obj.glyph_map().to_owned_table(),
             feature_map: obj.feature_map().to_owned_table(),
