@@ -39,3 +39,78 @@ impl<'a> SVG<'a> {
         Ok(svg_document)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::test_helpers::BeBuffer;
+    use super::*;
+
+    #[test]
+    fn read_dummy_svg_file() {
+        let data: [u16; 32] = [
+            // Version
+            0,
+            // SVGDocumentListOffset
+            0, 10,
+            // Reserved
+            0, 0,
+            // SVGDocumentList
+            // numEntries
+            3,
+            // documentRecords
+            // Record 1
+            // startGlyphID
+            1,
+            // endGlyphID
+            3,
+            // svgDocOffset
+            0, 38,
+            // svgDocLength
+            0, 10,
+            // Record 2
+            // startGlyphID
+            6,
+            // endGlyphID
+            7,
+            // svgDocOffset
+            0, 48,
+            // svgDocLength
+            0, 6,
+            // Record 3
+            // startGlyphID
+            9,
+            // endGlyphID
+            9,
+            // svgDocOffset
+            0, 38,
+            // svgDocLength
+            0, 10,
+            // SVG Documents. Not actual valid SVGs, but just dummy data.
+            // Document 1
+            1, 0, 0, 0, 1,
+            // Document 2
+            2, 0, 0
+        ];
+
+        let mut buf = BeBuffer::new();
+        buf = buf.extend(data);
+
+        let table = SVG::read(buf.font_data()).unwrap();
+
+        let first_document = &[0, 1, 0, 0, 0, 0, 0, 0, 0, 1][..];
+        let second_document = &[0, 2, 0, 0, 0, 0][..];
+
+        assert_eq!(table.glyph_data(GlyphId::new(0)).unwrap().map(|d| d.get()), None);
+        assert_eq!(table.glyph_data(GlyphId::new(1)).unwrap().map(|d| d.get()), Some(first_document));
+        assert_eq!(table.glyph_data(GlyphId::new(2)).unwrap().map(|d| d.get()), Some(first_document));
+        assert_eq!(table.glyph_data(GlyphId::new(3)).unwrap().map(|d| d.get()), Some(first_document));
+        assert_eq!(table.glyph_data(GlyphId::new(4)).unwrap().map(|d| d.get()), None);
+        assert_eq!(table.glyph_data(GlyphId::new(5)).unwrap().map(|d| d.get()), None);
+        assert_eq!(table.glyph_data(GlyphId::new(6)).unwrap().map(|d| d.get()), Some(second_document));
+        assert_eq!(table.glyph_data(GlyphId::new(7)).unwrap().map(|d| d.get()), Some(second_document));
+        assert_eq!(table.glyph_data(GlyphId::new(8)).unwrap().map(|d| d.get()), None);
+        assert_eq!(table.glyph_data(GlyphId::new(9)).unwrap().map(|d| d.get()), Some(first_document));
+        assert_eq!(table.glyph_data(GlyphId::new(10)).unwrap().map(|d| d.get()), None);
+
+    }
+}
