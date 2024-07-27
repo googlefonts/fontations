@@ -93,6 +93,16 @@ where
             Storage::Heap(vec) => vec.pop(),
         }
     }
+
+    /// Shortens the vector, keeping the first `len` elements.
+    pub fn truncate(&mut self, len: usize) {
+        match &mut self.0 {
+            Storage::Inline(_buf, inline_len) => {
+                *inline_len = len.min(*inline_len);
+            }
+            Storage::Heap(vec) => vec.truncate(len),
+        }
+    }
 }
 
 impl<T, const N: usize> SmallVec<T, N> {
