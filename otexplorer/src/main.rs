@@ -121,6 +121,7 @@ fn get_some_table<'a>(
         tables::stat::Stat::TAG => font.stat().map(|x| Box::new(x) as _),
         tables::vhea::Vhea::TAG => font.vhea().map(|x| Box::new(x) as _),
         tables::vmtx::Vmtx::TAG => font.vmtx().map(|x| Box::new(x) as _),
+        tables::svg::SVG::TAG => font.svg().map(|x| Box::new(x) as _),
         _ => Err(ReadError::TableIsMissing(tag)),
     }
 }
