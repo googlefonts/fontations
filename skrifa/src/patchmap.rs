@@ -3,20 +3,224 @@
 //! The IFT and IFTX tables encode mappings from subset definitions to URL's which host patches
 //! that can be applied to the font to add support for the corresponding subset definition.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 
 use crate::Tag;
-use raw::types::GlyphId;
+use raw::FontData;
 use read_fonts::{
-    tables::ift::{Ift, PatchMapFormat1},
-    TableProvider,
+    tables::ift::{EntryMapRecord, Ift, PatchMapFormat1},
+    ReadError, TableProvider,
 };
 
 use read_fonts::collections::IntSet;
 
 use crate::charmap::Charmap;
 
-#[derive(Clone, Eq, PartialEq, Debug, Hash)]
+/// Find the set of patches which intersect the specified subset definition.
+pub fn intersecting_patches<'a>(
+    font: &impl TableProvider<'a>,
+    codepoints: &IntSet<u32>,
+    features: &BTreeSet<Tag>,
+) -> Result<Vec<PatchUri>, ReadError> {
+    // TODO(garretrieger): move this function to a struct so we can optionally store
+    //  indexes or other data to accelerate intersection.
+    let mut result: Vec<PatchUri> = vec![];
+    if let Ok(ift) = font.ift() {
+        add_intersecting_patches(font, &ift, codepoints, features, &mut result)?;
+    };
+    if let Ok(iftx) = font.iftx() {
+        add_intersecting_patches(font, &iftx, codepoints, features, &mut result)?;
+    };
+
+    Ok(result)
+}
+
+fn add_intersecting_patches<'a>(
+    font: &impl TableProvider<'a>,
+    ift: &Ift,
+    codepoints: &IntSet<u32>,
+    features: &BTreeSet<Tag>,
+    patches: &mut Vec<PatchUri>,
+) -> Result<(), ReadError> {
+    match ift {
+        Ift::Format1(format_1) => {
+            add_intersecting_format1_patches(font, &format_1, codepoints, features, patches)
+        }
+        Ift::Format2(_) => todo!(),
+    }
+}
+
+fn add_intersecting_format1_patches<'a>(
+    font: &impl TableProvider<'a>,
+    map: &PatchMapFormat1,
+    codepoints: &IntSet<u32>,
+    features: &BTreeSet<Tag>, // TODO(garretrieger): verify tag sorting matches specification description.
+    patches: &mut Vec<PatchUri>, // TODO(garretrieger): btree set to allow for de-duping?
+) -> Result<(), ReadError> {
+    // Step 0: Top Level Field Validation
+    if let Ok(maxp) = font.maxp() {
+        if map.glyph_count() != maxp.num_glyphs() as u32 {
+            return Err(ReadError::MalformedData(
+                "IFT glyph count must match maxp glyph count.",
+            ));
+        }
+    }
+
+    let max_entry_index = map.max_entry_index();
+    let max_glyph_map_entry_index = map.max_glyph_map_entry_index();
+    if max_glyph_map_entry_index > max_entry_index {
+        return Err(ReadError::MalformedData(
+            "max_glyph_map_entry_index() must be >= max_entry_index().",
+        ));
+    }
+
+    let Ok(uri_template) = map.uri_template_as_string() else {
+        return Err(ReadError::MalformedData(
+            "Invalid unicode string for the uri_template.",
+        ));
+    };
+
+    let Some(encoding) = PatchEncoding::from_format_number(map.patch_encoding()) else {
+        return Err(ReadError::MalformedData(
+            "Unrecognized patch encoding format number.",
+        ));
+    };
+
+    // Step 1: Collect the glyph map entries.
+    let mut entries = IntSet::<u16>::empty();
+    intersect_format1_glyph_map(font, map, codepoints, &mut entries)?;
+
+    // Step 2: Collect feature mappings.
+    intersect_format1_feature_map(map, features, &mut entries)?;
+
+    // Step 3: produce final output.
+    patches.extend(
+        entries
+            .iter()
+            // Entry 0 is the entry for codepoints already in the font, so it's always considered applied and skipped.
+            .filter(|index| *index > 0)
+            .filter(|index| !map.is_entry_applied(*index))
+            .map(|index| PatchUri::from_index(uri_template, index as u32, encoding)),
+    );
+    Ok(())
+}
+
+fn intersect_format1_glyph_map<'a>(
+    font: &impl TableProvider<'a>,
+    map: &PatchMapFormat1,
+    codepoints: &IntSet<u32>,
+    entries: &mut IntSet<u16>,
+) -> Result<(), ReadError> {
+    let charmap = Charmap::new(font);
+    let glyph_map = map.glyph_map()?;
+    let first_gid = glyph_map.first_mapped_glyph() as u32;
+    let max_glyph_map_entry_index = map.max_glyph_map_entry_index();
+
+    // TODO(garretrieger): special case codepoints = * (inverted set) and large codepoints sets
+    //   produce the codepoint set to be processed by walking the cmap mapping and filtering against he input set.
+    for cp in codepoints.iter() {
+        // TODO(garretrieger): since codepoints are looked up in sorted order we may be able to speed up the charmap lookup
+        // (eg. walking the charmap in parallel with the codepoints, or caching the last binary search index)
+        let Some(gid) = charmap.map(cp) else {
+            continue;
+        };
+
+        let entry_index = if gid.to_u32() < first_gid {
+            0
+        } else {
+            glyph_map
+                .entry_index()
+                .get((gid.to_u32() - first_gid) as usize)?
+                .get()
+        };
+
+        if entry_index > max_glyph_map_entry_index {
+            continue;
+        }
+
+        entries.insert(entry_index);
+    }
+
+    Ok(())
+}
+
+fn intersect_format1_feature_map<'a>(
+    map: &PatchMapFormat1,
+    features: &BTreeSet<Tag>,
+    entries: &mut IntSet<u16>,
+) -> Result<(), ReadError> {
+    // TODO(garretrieger): special case features = * (inverted set)
+    let max_entry_index = map.max_entry_index();
+    let max_glyph_map_entry_index = map.max_glyph_map_entry_index();
+    let field_width = if max_entry_index < 256 { 1 } else { 2 };
+    if let Some(feature_map) = map.feature_map() {
+        // TODO(garretrieger): validate there is enough data for entryMapRecords.
+        let feature_map = feature_map?;
+        let mut tag_it = features.iter();
+        let mut record_it = feature_map.feature_records().iter();
+
+        let mut next_tag = tag_it.next();
+        let mut next_record = record_it.next();
+        let mut cumulative_entry_map_count = 0;
+        let mut largest_tag: Option<Tag> = None;
+        loop {
+            let (Some(tag), Some(record)) = (next_tag, next_record.as_ref()) else {
+                break;
+            };
+            let record = match record {
+                Ok(record) => record,
+                Err(err) => return Err(err.clone()),
+            };
+
+            if *tag > record.feature_tag() {
+                next_record = record_it.next();
+                continue;
+            }
+
+            if let Some(largest_tag) = largest_tag {
+                if *tag <= largest_tag {
+                    // Out of order or duplicate tag, skip this record.
+                    next_tag = tag_it.next();
+                    continue;
+                }
+            }
+
+            largest_tag = Some(*tag);
+
+            let entry_count = record.entry_map_count().get();
+            let tot_entry_count = cumulative_entry_map_count;
+            cumulative_entry_map_count += entry_count;
+            if *tag < record.feature_tag() {
+                next_tag = tag_it.next();
+                continue;
+            }
+
+            for i in 0..entry_count {
+                let index = i + tot_entry_count;
+                let byte_index = (index * field_width * 2) as usize;
+                let data = FontData::new(&feature_map.entry_map_data()[byte_index..]);
+                let record = EntryMapRecord::read(data, max_entry_index)?;
+                let mapped_entry_index = record.first_entry_index().get() + i;
+                let first = record.first_entry_index().get();
+                let last = record.first_entry_index().get();
+                if first > last
+                    || first > max_glyph_map_entry_index
+                    || last > max_glyph_map_entry_index
+                    || mapped_entry_index <= max_glyph_map_entry_index
+                    || mapped_entry_index > max_entry_index
+                {
+                    // Invalid, continue on
+                    continue;
+                }
+
+                entries.insert(mapped_entry_index);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Copy)]
 pub enum PatchEncoding {
     Brotli,
     PerTableBrotli { fully_invalidating: bool },
@@ -40,165 +244,20 @@ impl PatchEncoding {
     }
 }
 
-#[derive(Default)]
-pub struct PatchMap {
-    entry_list: Vec<Entry>,
-    // TODO(garretrieger): store an index from URI to the bit location that can be set to mark the entry as ignored.
-}
-
-impl PatchMap {
-    pub fn new<'a>(font: &impl TableProvider<'a>) -> Self {
-        // TODO(garretrieger): propagate errors up, or silently drop malformed mappings?
-        //   - spec probably requires the error to be recognized and acted on, but need to double check.
-        let mut map = PatchMap::default();
-        if let Ok(ift) = font.ift() {
-            map.add_entries(&ift, font);
-        };
-        if let Ok(iftx) = font.iftx() {
-            map.add_entries(&iftx, font);
-        };
-        map
-    }
-
-    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &Entry> {
-        self.entry_list.iter()
-    }
-
-    // TODO(garretrieger): add method that can be used to actuate removal of entries given a URI.
-
-    fn add_entries<'a>(&mut self, mapping: &Ift, font: &impl TableProvider<'a>) {
-        match mapping {
-            Ift::Format1(format_1) => self.add_format_1_entries(format_1, font),
-            Ift::Format2(_) => todo!(),
-        }
-    }
-
-    fn add_format_1_entries<'a>(
-        &mut self,
-        mapping: &PatchMapFormat1,
-        font: &impl TableProvider<'a>,
-    ) {
-        let Ok(uri_template) = mapping.uri_template_as_string() else {
-            return;
-        };
-
-        let Some(patch_encoding) = PatchEncoding::from_format_number(mapping.patch_encoding())
-        else {
-            return;
-        };
-
-        let prototype = Entry {
-            patch_uri: PatchUri {
-                uri: String::new(),
-                encoding: patch_encoding,
-            },
-            codepoints: IntSet::empty(),
-            feature_tags: BTreeSet::new(),
-            compatibility_id: mapping.get_compatibility_id(),
-        };
-
-        // Assume nearly all entries up to max entry index will be present, and preallocate storage for them.
-        let mut entries = vec![];
-        let mut present_entries = IntSet::<u16>::empty();
-        entries.resize(mapping.entry_count() as usize, prototype);
-        for (entry_index, entry) in entries.iter_mut().enumerate() {
-            entry.patch_uri.uri = PatchMap::apply_uri_template(uri_template, entry_index);
-        }
-
-        let glyph_to_unicode = PatchMap::glyph_to_unicode_map(font);
-        for (gid, entry_index) in mapping.gid_to_entry_iter() {
-            let Some(entry) = entries.get_mut(entry_index as usize) else {
-                // Table is invalid, entry_index is out of bounds.
-                return;
-            };
-
-            present_entries.insert(entry_index);
-            if let Some(codepoints) = glyph_to_unicode.get(&gid) {
-                entry.codepoints.extend(codepoints.iter());
-            };
-        }
-
-        Self::add_format_1_feature_entries(mapping, &mut entries, &mut present_entries);
-
-        self.entry_list.extend(
-            entries
-                .into_iter()
-                .enumerate()
-                .filter(|(index, _)| !mapping.is_entry_applied(*index as u32))
-                // Entries not referenced in the table do not exist, per the spec:
-                // <https://w3c.github.io/IFT/Overview.html#interpreting-patch-map-format-1>
-                .filter(|(index, _)| present_entries.contains(*index as u16))
-                .map(|(_, entry)| entry),
-        )
-    }
-
-    fn add_format_1_feature_entries(
-        mapping: &PatchMapFormat1,
-        entries: &mut [Entry],
-        present_entries: &mut IntSet<u16>,
-    ) {
-        let mut new_entries = IntSet::<u16>::empty();
-        for m in mapping.entry_map_records() {
-            let mut mapped_codepoints = IntSet::<u32>::empty();
-            for index in m.matched_entries {
-                if !present_entries.contains(index) {
-                    // The spec only allows entries produced by the glyph map to be referenced here.
-                    // TODO(garretrieger): need to error out instead of ignoring.
-                    continue;
-                }
-                let Some(entry) = entries.get(index as usize) else {
-                    // TODO(garretrieger): need to error out instead of ignoring.
-                    continue;
-                };
-
-                mapped_codepoints.union(&entry.codepoints);
-            }
-
-            if present_entries.contains(m.new_entry_index) {
-                // TODO(garretrieger): update the spec to require new entry indices to by disjoint from the glyph map
-                //                     entries.
-                // TODO(garretrieger): need to error out instead of ignoring.
-                continue;
-            }
-
-            let Some(new_entry) = entries.get_mut(m.new_entry_index as usize) else {
-                // TODO(garretrieger): need to error out instead of ignoring.
-                continue;
-            };
-
-            new_entry.codepoints.union(&mapped_codepoints);
-            new_entry.feature_tags.insert(m.feature_tag);
-            new_entries.insert(m.new_entry_index);
-        }
-
-        present_entries.union(&new_entries);
-    }
-
-    /// Produce a mapping from each glyph id to the codepoint(s) that map to that glyph.
-    fn glyph_to_unicode_map<'a>(font: &impl TableProvider<'a>) -> HashMap<GlyphId, IntSet<u32>> {
-        let charmap = Charmap::new(font);
-        let mut glyph_to_unicode = HashMap::<GlyphId, IntSet<u32>>::new();
-        for (cp, glyph) in charmap.mappings() {
-            glyph_to_unicode
-                .entry(glyph)
-                .or_insert_with(IntSet::<u32>::empty)
-                .insert(cp);
-        }
-        glyph_to_unicode
-    }
-
-    fn apply_uri_template(uri_template: &str, _entry_index: usize) -> String {
-        // TODO(garretrieger): properly implement this, may deserve to go into it's own module.
-        uri_template.to_string()
-    }
-
-    // TODO(garretrieger): add template application method that takes a string entry id (will be needed for format 2)
-}
-
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct PatchUri {
     uri: String,
     encoding: PatchEncoding,
+}
+
+impl PatchUri {
+    fn from_index(uri_template: &str, _entry_index: u32, encoding: PatchEncoding) -> PatchUri {
+        PatchUri {
+            // TODO(garretrieger): properly implement this, may deserve to go into it's own module.
+            uri: uri_template.to_string(),
+            encoding,
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -220,6 +279,7 @@ impl std::fmt::Debug for Entry {
 mod tests {
     use super::*;
     use font_test_data as test_data;
+    use font_test_data::ift::SIMPLE_FORMAT1;
     use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
     use read_fonts::FontRef;
     use write_fonts::FontBuilder;
@@ -239,42 +299,84 @@ mod tests {
         builder.build()
     }
 
+    // TODO(garretrieger): test immediate rejection of tables that are too short
+    //                     (glyph map, feature records, entry map records).
+    // TODO(garretrieger): tests for top level rejection criteria.
     // TODO(garretrieger): test w/ multi codepoints mapping to the same glyph.
     // TODO(garretrieger): test w/ IFT + IFTX both populated tables.
     // TODO(garretrieger): test which has entry that has empty codepoint array.
     // TODO(garretrieger): test which has requires URI substitution.
     // TODO(garretrieger): patch encoding lookup + URI substitution.
     // TODO(garretrieger): test with format 1 that has max entry = 0.
+    // TODO(garretrieger): fuzzer to check consistency vs intersecting "*" subset def.
 
     #[test]
     fn format_1_patch_map_u8_entries() {
         let font_bytes = create_ift_font(
-            FontRef::new(test_data::CMAP12_FONT1).unwrap(),
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
             Some(test_data::ift::SIMPLE_FORMAT1),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let patch_map = PatchMap::new(&font);
-        let entries: Vec<&Entry> = patch_map.iter().collect();
+        let patches =
+            // 0x123 is not in the mapping
+            intersecting_patches(&font, &IntSet::from([0x123]), &BTreeSet::<Tag>::from([])).unwrap();
+        assert_eq!(Vec::<PatchUri>::new(), patches);
 
+        let patches =
+            // 0x13 maps to entry 0
+            intersecting_patches(&font, &IntSet::from([0x13]), &BTreeSet::<Tag>::from([])).unwrap();
+        assert_eq!(Vec::<PatchUri>::new(), patches);
+
+        let patches =
+            // 0x12 maps to entry 1 which is applied
+            intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).unwrap();
+        assert_eq!(Vec::<PatchUri>::new(), patches);
+
+        let patches =
+            // 0x11 maps to entry 2
+            intersecting_patches(&font, &IntSet::from([0x11]), &BTreeSet::<Tag>::from([])).unwrap();
         assert_eq!(
-            entries,
-            vec![
-                // Entry 1 - contains gid 2 - is applied so not present.
-                // Entry 2 - contains gid 1
-                &Entry {
-                    patch_uri: PatchUri {
-                        uri: "ABCDEFɤ".to_string(),
-                        encoding: PatchEncoding::GlyphKeyed,
-                    },
-                    codepoints: [0x101723].into_iter().collect(),
-                    feature_tags: BTreeSet::new(),
-                    compatibility_id: [1, 2, 3, 4],
-                },
-            ]
+            vec![PatchUri {
+                uri: "ABCDEFɤ".to_string(),
+                encoding: PatchEncoding::GlyphKeyed,
+            }],
+            patches
+        );
+
+        let patches = intersecting_patches(
+            &font,
+            &IntSet::from([0x11, 0x12, 0x123]),
+            &BTreeSet::<Tag>::from([]),
+        )
+        .unwrap();
+        assert_eq!(
+            vec![PatchUri {
+                uri: "ABCDEFɤ".to_string(),
+                encoding: PatchEncoding::GlyphKeyed,
+            }],
+            patches
         );
     }
+
+    #[test]
+    fn format_1_patch_map_glyph_map_too_short() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&test_data::ift::SIMPLE_FORMAT1[..SIMPLE_FORMAT1.len() - 1]),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        assert!(
+            intersecting_patches(&font, &IntSet::from([0x123]), &BTreeSet::<Tag>::from([]))
+                .is_err()
+        );
+    }
+
+    // TODO(garretrieger): feature map too short.
+    // TODO(garretrieger): entry map recordds too short.
 
     #[test]
     fn format_1_patch_map_u16_entries() {
@@ -283,46 +385,9 @@ mod tests {
             Some(test_data::ift::U16_ENTRIES_FORMAT1),
             None,
         );
-        let font = FontRef::new(&font_bytes).unwrap();
+        let _font = FontRef::new(&font_bytes).unwrap();
 
-        let patch_map = PatchMap::new(&font);
-        let entries: Vec<&Entry> = patch_map.iter().collect();
-
-        assert_eq!(
-            entries,
-            vec![
-                // Entry 0x50 - gid 2, 6
-                &Entry {
-                    patch_uri: PatchUri {
-                        uri: "ABCDEFɤ".to_string(),
-                        encoding: PatchEncoding::GlyphKeyed,
-                    },
-                    feature_tags: BTreeSet::new(),
-                    codepoints: [0x101724, 0x102523].into_iter().collect(),
-                    compatibility_id: [1, 2, 3, 4],
-                },
-                // Entry 0x51 - gid 3
-                &Entry {
-                    patch_uri: PatchUri {
-                        uri: "ABCDEFɤ".to_string(),
-                        encoding: PatchEncoding::GlyphKeyed,
-                    },
-                    feature_tags: BTreeSet::new(),
-                    codepoints: [0x101725].into_iter().collect(),
-                    compatibility_id: [1, 2, 3, 4],
-                },
-                // Entry 0x12c - gid 4, 5
-                &Entry {
-                    patch_uri: PatchUri {
-                        uri: "ABCDEFɤ".to_string(),
-                        encoding: PatchEncoding::GlyphKeyed,
-                    },
-                    feature_tags: BTreeSet::new(),
-                    codepoints: [0x101726, 0x101727].into_iter().collect(),
-                    compatibility_id: [1, 2, 3, 4],
-                },
-            ]
-        );
+        // TODO: once template substituion is available implement this.
     }
 
     #[test]
@@ -332,75 +397,8 @@ mod tests {
             Some(test_data::ift::FEATURE_MAP_FORMAT1),
             None,
         );
-        let font = FontRef::new(&font_bytes).unwrap();
+        let _font = FontRef::new(&font_bytes).unwrap();
 
-        let patch_map = PatchMap::new(&font);
-        let entries: Vec<&Entry> = patch_map.iter().collect();
-
-        assert_eq!(
-            entries,
-            vec![
-                // Entry 0x50 - gid 2, 6
-                &Entry {
-                    patch_uri: PatchUri {
-                        uri: "ABCDEFɤ".to_string(),
-                        encoding: PatchEncoding::GlyphKeyed,
-                    },
-                    feature_tags: BTreeSet::new(),
-                    codepoints: [0x101724, 0x102523].into_iter().collect(),
-                    compatibility_id: [1, 2, 3, 4],
-                },
-                // Entry 0x51 - gid 3
-                &Entry {
-                    patch_uri: PatchUri {
-                        uri: "ABCDEFɤ".to_string(),
-                        encoding: PatchEncoding::GlyphKeyed,
-                    },
-                    feature_tags: BTreeSet::new(),
-                    codepoints: [0x101725].into_iter().collect(),
-                    compatibility_id: [1, 2, 3, 4],
-                },
-                // Entry 0x70 (copy 0x50 U 0x51 + 'liga')
-                &Entry {
-                    patch_uri: PatchUri {
-                        uri: "ABCDEFɤ".to_string(),
-                        encoding: PatchEncoding::GlyphKeyed,
-                    },
-                    feature_tags: [Tag::new(&[b'l', b'i', b'g', b'a'])].into_iter().collect(),
-                    codepoints: [0x101724, 0x101725, 0x102523].into_iter().collect(),
-                    compatibility_id: [1, 2, 3, 4],
-                },
-                // Entry 0x71 (copy 0x12c + 'liga')
-                &Entry {
-                    patch_uri: PatchUri {
-                        uri: "ABCDEFɤ".to_string(),
-                        encoding: PatchEncoding::GlyphKeyed,
-                    },
-                    feature_tags: [Tag::new(&[b'l', b'i', b'g', b'a'])].into_iter().collect(),
-                    codepoints: [0x101726, 0x101727].into_iter().collect(),
-                    compatibility_id: [1, 2, 3, 4],
-                },
-                // Entry 0x12c - gid 4, 5
-                &Entry {
-                    patch_uri: PatchUri {
-                        uri: "ABCDEFɤ".to_string(),
-                        encoding: PatchEncoding::GlyphKeyed,
-                    },
-                    feature_tags: BTreeSet::new(),
-                    codepoints: [0x101726, 0x101727].into_iter().collect(),
-                    compatibility_id: [1, 2, 3, 4],
-                },
-                // Entry 0x190 (copy 0x51 + 'dlig')
-                &Entry {
-                    patch_uri: PatchUri {
-                        uri: "ABCDEFɤ".to_string(),
-                        encoding: PatchEncoding::GlyphKeyed,
-                    },
-                    feature_tags: [Tag::new(&[b'd', b'l', b'i', b'g'])].into_iter().collect(),
-                    codepoints: [0x101725].into_iter().collect(),
-                    compatibility_id: [1, 2, 3, 4],
-                },
-            ]
-        );
+        // TODO: once template substituion is available implement this.
     }
 }

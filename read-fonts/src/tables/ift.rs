@@ -64,7 +64,7 @@ impl<'a> PatchMapFormat1<'a> {
             .map_err(|_| ReadError::MalformedData("Invalid UTF8 encoding for uri template."))
     }
 
-    pub fn is_entry_applied(&self, entry_index: u32) -> bool {
+    pub fn is_entry_applied(&self, entry_index: u16) -> bool {
         let byte_index = entry_index / 8;
         let bit_mask = 1 << (entry_index % 8);
         self.applied_entries_bitmap()
