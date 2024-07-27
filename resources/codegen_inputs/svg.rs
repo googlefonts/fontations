@@ -32,7 +32,6 @@ record SVGDocumentRecord {
     end_glyph_id: GlyphId16,
     /// Offset from the beginning of the SVGDocumentList to an SVG 
     /// document. Must be non-zero.
-    // TODO: Use a different type here?
     svg_doc_offset: u32,
     /// Length of the SVG document data. Must be non-zero.
     svg_doc_length: u32,
