@@ -120,6 +120,8 @@
 //! [`FromTableRef`]: from_obj::FromTableRef
 //! [`ToOwnedTable`]: from_obj::ToOwnedTable
 
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+
 mod collections;
 pub mod error;
 mod font_builder;
