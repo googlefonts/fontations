@@ -4,7 +4,8 @@
 include!("../../generated/generated_gvar.rs");
 
 use super::{
-    glyf::PointCoord,
+    glyf::{CompositeGlyphFlags, Glyf, Glyph, PointCoord},
+    loca::Loca,
     variations::{
         PackedPointNumbers, Tuple, TupleDelta, TupleVariationCount, TupleVariationData,
         TupleVariationHeader,
@@ -75,6 +76,46 @@ impl<'a> Gvar<'a> {
         let data = self.data_for_gid(gid)?;
         GlyphVariationData::new(data, axis_count, shared_tuples)
     }
+
+    /// Returns the phantom point deltas for the given variation coordinates
+    /// and glyph identifier.
+    ///
+    /// The resulting array will contain four deltas:
+    /// `[left, right, top, bottom]`.
+    pub fn phantom_point_deltas(
+        &self,
+        glyf: &Glyf,
+        loca: &Loca,
+        coords: &[F2Dot14],
+        glyph_id: GlyphId,
+    ) -> Option<[Fixed; 4]> {
+        // For any given glyph, there's only one outline that contributes to
+        // metrics deltas (via "phantom points"). For simple glyphs, that is
+        // the glyph itself. For composite glyphs, it is the first component
+        // in the tree that has the USE_MY_METRICS flag set or, if there are
+        // none, the composite glyph itself.
+        //
+        // This searches for the glyph that meets that criteria and also
+        // returns the point count (for composites, this is the component
+        // count), so that we know where the deltas for phantom points start
+        // in the variation data.
+        let (glyph_id, point_count) = find_glyph_and_point_count(glyf, loca, glyph_id, 0)?;
+        // [left_extent_delta, right_extent_delta]
+        let mut phantom_deltas = [Fixed::ZERO; 4];
+        let phantom_range = point_count..point_count + 4;
+        let var_data = self.glyph_variation_data(glyph_id).ok()?;
+        // Note that phantom points can never belong to a contour so we don't have
+        // to handle the IUP case here.
+        for (tuple, scalar) in var_data.active_tuples_at(coords) {
+            for tuple_delta in tuple.deltas() {
+                let ix = tuple_delta.position as usize;
+                if phantom_range.contains(&ix) {
+                    phantom_deltas[ix - phantom_range.start] += tuple_delta.apply_scalar(scalar).x;
+                }
+            }
+        }
+        Some(phantom_deltas)
+    }
 }
 
 impl<'a> GlyphVariationData<'a> {
@@ -139,6 +180,62 @@ impl TupleDelta for GlyphDelta {
             position,
             x_delta: x,
             y_delta: y,
+        }
+    }
+}
+
+/// Given a glyph identifier, searches for the glyph that contains the actual
+/// metrics for rendering.
+///
+/// For simple glyphs, that is simply the requested glyph. For composites, it
+/// depends on the USE_MY_METRICS flag.
+///
+/// Returns the resulting glyph identifer and the number of points (or
+/// components) in that glyph. This count represents the start of the phantom
+/// points.
+fn find_glyph_and_point_count(
+    glyf: &Glyf,
+    loca: &Loca,
+    glyph_id: GlyphId,
+    recurse_depth: usize,
+) -> Option<(GlyphId, usize)> {
+    // Matches HB's nesting limit
+    const RECURSION_LIMIT: usize = 64;
+    if recurse_depth > RECURSION_LIMIT {
+        return None;
+    }
+    let glyph = loca.get_glyf(glyph_id, glyf).ok()?;
+    let Some(glyph) = glyph else {
+        // Empty glyphs might still contain gvar data that
+        // only affects phantom points
+        return Some((glyph_id, 0));
+    };
+    match glyph {
+        Glyph::Simple(simple) => {
+            // Simple glyphs always use their own metrics
+            Some((glyph_id, simple.num_points()))
+        }
+        Glyph::Composite(composite) => {
+            // For composite glyphs, if one of the components has the
+            // USE_MY_METRICS flag set, recurse into the glyph referenced
+            // by that component. Otherwise, return the composite glyph
+            // itself and the number of components as the point count.
+            let mut count = 0;
+            for component in composite.components() {
+                count += 1;
+                if component
+                    .flags
+                    .contains(CompositeGlyphFlags::USE_MY_METRICS)
+                {
+                    find_glyph_and_point_count(
+                        glyf,
+                        loca,
+                        component.glyph.into(),
+                        recurse_depth + 1,
+                    );
+                }
+            }
+            Some((glyph_id, count))
         }
     }
 }
@@ -339,5 +436,61 @@ mod tests {
             tup2.deltas().map(|d| d.y_delta).collect::<Vec<_>>(),
             &[0, -20, -20, 0, 0, 0, 0, 0]
         );
+    }
+
+    #[test]
+    fn phantom_point_deltas() {
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+        #[rustfmt::skip]
+        let a_cases = [
+            // (coords, deltas)
+            (&[0.0], [0.0; 4]),
+            (&[1.0], [0.0, 59.0, 0.0, 0.0]),
+            (&[-1.0], [0.0, -113.0, 0.0, 0.0]),
+            (&[0.5], [0.0, 29.5, 0.0, 0.0]),
+            (&[-0.5], [0.0, -56.5, 0.0, 0.0]),
+        ];
+        for (coords, deltas) in a_cases {
+            // This is simple glyph "A"
+            assert_eq!(
+                compute_phantom_deltas(&font, coords, GlyphId::new(1)),
+                deltas
+            );
+            // This is composite glyph "Agrave" with USE_MY_METRICS set on "A" so
+            // the deltas are the same
+            assert_eq!(
+                compute_phantom_deltas(&font, coords, GlyphId::new(2)),
+                deltas
+            );
+        }
+        #[rustfmt::skip]
+        let grave_cases = [
+            // (coords, deltas)
+            (&[0.0], [0.0; 4]),
+            (&[1.0], [0.0, 63.0, 0.0, 0.0]),
+            (&[-1.0], [0.0, -96.0, 0.0, 0.0]),
+            (&[0.5], [0.0, 31.5, 0.0, 0.0]),
+            (&[-0.5], [0.0, -48.0, 0.0, 0.0]),
+        ];
+        // This is simple glyph "grave"
+        for (coords, deltas) in grave_cases {
+            assert_eq!(
+                compute_phantom_deltas(&font, coords, GlyphId::new(3)),
+                deltas
+            );
+        }
+    }
+
+    fn compute_phantom_deltas(font: &FontRef, coords: &[f32], glyph_id: GlyphId) -> [f32; 4] {
+        let loca = font.loca(None).unwrap();
+        let glyf = font.glyf().unwrap();
+        let gvar = font.gvar().unwrap();
+        let coords = coords
+            .iter()
+            .map(|coord| F2Dot14::from_f32(*coord))
+            .collect::<Vec<_>>();
+        gvar.phantom_point_deltas(&glyf, &loca, &coords, glyph_id)
+            .unwrap()
+            .map(|delta| delta.to_f32())
     }
 }
