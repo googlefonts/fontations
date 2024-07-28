@@ -369,10 +369,11 @@ impl<'a> GlyphMetrics<'a> {
 impl<'a> GlyphMetrics<'a> {
     fn metric_deltas_from_gvar(&self, glyph_id: GlyphId) -> Option<[i32; 2]> {
         let (loca, glyf) = self.loca_glyf.as_ref()?;
-        let mut deltas =
-            self.gvar
-                .as_ref()?
-                .phantom_point_deltas(glyf, loca, self.coords, glyph_id)?;
+        let mut deltas = self
+            .gvar
+            .as_ref()?
+            .phantom_point_deltas(glyf, loca, self.coords, glyph_id)
+            .ok()?;
         deltas[1] -= deltas[0];
         Some([deltas[0], deltas[1]].map(|delta| delta.to_i32()))
     }

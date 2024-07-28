@@ -88,7 +88,7 @@ impl<'a> Gvar<'a> {
         loca: &Loca,
         coords: &[F2Dot14],
         glyph_id: GlyphId,
-    ) -> Option<[Fixed; 4]> {
+    ) -> Result<[Fixed; 4], ReadError> {
         // For any given glyph, there's only one outline that contributes to
         // metrics deltas (via "phantom points"). For simple glyphs, that is
         // the glyph itself. For composite glyphs, it is the first component
@@ -102,7 +102,7 @@ impl<'a> Gvar<'a> {
         let (glyph_id, point_count) = find_glyph_and_point_count(glyf, loca, glyph_id, 0)?;
         let mut phantom_deltas = [Fixed::ZERO; 4];
         let phantom_range = point_count..point_count + 4;
-        let var_data = self.glyph_variation_data(glyph_id).ok()?;
+        let var_data = self.glyph_variation_data(glyph_id)?;
         // Note that phantom points can never belong to a contour so we don't have
         // to handle the IUP case here.
         for (tuple, scalar) in var_data.active_tuples_at(coords) {
@@ -113,7 +113,7 @@ impl<'a> Gvar<'a> {
                 }
             }
         }
-        Some(phantom_deltas)
+        Ok(phantom_deltas)
     }
 }
 
@@ -197,22 +197,24 @@ fn find_glyph_and_point_count(
     loca: &Loca,
     glyph_id: GlyphId,
     recurse_depth: usize,
-) -> Option<(GlyphId, usize)> {
+) -> Result<(GlyphId, usize), ReadError> {
     // Matches HB's nesting limit
     const RECURSION_LIMIT: usize = 64;
     if recurse_depth > RECURSION_LIMIT {
-        return None;
+        return Err(ReadError::MalformedData(
+            "nesting too deep in composite glyph",
+        ));
     }
-    let glyph = loca.get_glyf(glyph_id, glyf).ok()?;
+    let glyph = loca.get_glyf(glyph_id, glyf)?;
     let Some(glyph) = glyph else {
         // Empty glyphs might still contain gvar data that
         // only affects phantom points
-        return Some((glyph_id, 0));
+        return Ok((glyph_id, 0));
     };
     match glyph {
         Glyph::Simple(simple) => {
             // Simple glyphs always use their own metrics
-            Some((glyph_id, simple.num_points()))
+            Ok((glyph_id, simple.num_points()))
         }
         Glyph::Composite(composite) => {
             // For composite glyphs, if one of the components has the
@@ -226,7 +228,7 @@ fn find_glyph_and_point_count(
                     .flags
                     .contains(CompositeGlyphFlags::USE_MY_METRICS)
                 {
-                    find_glyph_and_point_count(
+                    return find_glyph_and_point_count(
                         glyf,
                         loca,
                         component.glyph.into(),
@@ -234,7 +236,7 @@ fn find_glyph_and_point_count(
                     );
                 }
             }
-            Some((glyph_id, count))
+            Ok((glyph_id, count))
         }
     }
 }
