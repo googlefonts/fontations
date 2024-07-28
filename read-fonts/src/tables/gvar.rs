@@ -100,7 +100,6 @@ impl<'a> Gvar<'a> {
         // count), so that we know where the deltas for phantom points start
         // in the variation data.
         let (glyph_id, point_count) = find_glyph_and_point_count(glyf, loca, glyph_id, 0)?;
-        // [left_extent_delta, right_extent_delta]
         let mut phantom_deltas = [Fixed::ZERO; 4];
         let phantom_range = point_count..point_count + 4;
         let var_data = self.glyph_variation_data(glyph_id).ok()?;
