@@ -189,7 +189,7 @@ impl TupleDelta for GlyphDelta {
 /// For simple glyphs, that is simply the requested glyph. For composites, it
 /// depends on the USE_MY_METRICS flag.
 ///
-/// Returns the resulting glyph identifer and the number of points (or
+/// Returns the resulting glyph identifier and the number of points (or
 /// components) in that glyph. This count represents the start of the phantom
 /// points.
 fn find_glyph_and_point_count(
