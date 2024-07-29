@@ -2,7 +2,7 @@
 
 /// The [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg) table
 #[tag = "SVG "]
-table SVG {
+table Svg {
     /// Table version (starting at 0). Set to 0.
     #[compile(0)]
     version: u16,

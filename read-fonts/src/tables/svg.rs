@@ -4,7 +4,7 @@ use core::cmp::Ordering;
 
 include!("../../generated/generated_svg.rs");
 
-impl<'a> SVG<'a> {
+impl<'a> Svg<'a> {
     /// Get the raw data of the SVG document. Is not guaranteed to be valid and might be compressed.
     pub fn glyph_data(&self, glyph_id: GlyphId) -> Result<Option<&'a [u8]>, ReadError> {
         let document_list = self.svg_document_list()?;
@@ -71,7 +71,7 @@ mod tests {
         let mut buf = BeBuffer::new();
         buf = buf.extend(data);
 
-        let table = SVG::read(buf.font_data()).unwrap();
+        let table = Svg::read(buf.font_data()).unwrap();
 
         let first_document = &[0, 1, 0, 0, 0, 0, 0, 0, 0, 1][..];
         let second_document = &[0, 2, 0, 0, 0, 0][..];

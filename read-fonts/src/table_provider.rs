@@ -169,7 +169,7 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
-    fn svg(&self) -> Result<tables::svg::SVG<'a>, ReadError> {
+    fn svg(&self) -> Result<tables::svg::Svg<'a>, ReadError> {
         self.expect_table()
     }
 

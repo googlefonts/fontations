@@ -5,12 +5,12 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg)
+/// The [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SVGMarker {}
+pub struct SvgMarker {}
 
-impl SVGMarker {
+impl SvgMarker {
     fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -25,25 +25,25 @@ impl SVGMarker {
     }
 }
 
-impl TopLevelTable for SVG<'_> {
+impl TopLevelTable for Svg<'_> {
     /// `SVG `
     const TAG: Tag = Tag::new(b"SVG ");
 }
 
-impl<'a> FontRead<'a> for SVG<'a> {
+impl<'a> FontRead<'a> for Svg<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<Offset32>();
         cursor.advance::<u16>();
-        cursor.finish(SVGMarker {})
+        cursor.finish(SvgMarker {})
     }
 }
 
-/// [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg)
-pub type SVG<'a> = TableRef<'a, SVGMarker>;
+/// The [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg) table
+pub type Svg<'a> = TableRef<'a, SvgMarker>;
 
-impl<'a> SVG<'a> {
+impl<'a> Svg<'a> {
     /// Table version (starting at 0). Set to 0.
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
@@ -65,9 +65,9 @@ impl<'a> SVG<'a> {
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for SVG<'a> {
+impl<'a> SomeTable<'a> for Svg<'a> {
     fn type_name(&self) -> &str {
-        "SVG"
+        "Svg"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
@@ -82,7 +82,7 @@ impl<'a> SomeTable<'a> for SVG<'a> {
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for SVG<'a> {
+impl<'a> std::fmt::Debug for Svg<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
