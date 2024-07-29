@@ -4,19 +4,9 @@ use core::cmp::Ordering;
 
 include!("../../generated/generated_svg.rs");
 
-/// An [SVG document](https://learn.microsoft.com/en-us/typography/opentype/spec/svg). Is not
-/// guaranteed to be valid and might be compressed.
-pub struct SVGDocument<'a>(&'a [u8]);
-
-impl<'a> SVGDocument<'a> {
-    /// Get the raw data of the SVG document.
-    pub fn get(&self) -> &'a [u8] {
-        self.0
-    }
-}
-
 impl<'a> SVG<'a> {
-    pub fn glyph_data(&self, glyph_id: GlyphId) -> Result<Option<SVGDocument<'a>>, ReadError> {
+    /// Get the raw data of the SVG document. Is not guaranteed to be valid and might be compressed.
+    pub fn glyph_data(&self, glyph_id: GlyphId) -> Result<Option<&'a [u8]>, ReadError> {
         let document_list = self.svg_document_list()?;
         let svg_document = document_list
             .document_records()
@@ -37,8 +27,7 @@ impl<'a> SVG<'a> {
                     r.svg_doc_offset.get() as usize
                         ..(r.svg_doc_offset.get() + r.svg_doc_length.get()) as usize,
                 )
-            })
-            .map(|data| SVGDocument(data));
+            });
 
         Ok(svg_document)
     }
@@ -87,49 +76,34 @@ mod tests {
         let first_document = &[0, 1, 0, 0, 0, 0, 0, 0, 0, 1][..];
         let second_document = &[0, 2, 0, 0, 0, 0][..];
 
+        assert_eq!(table.glyph_data(GlyphId::new(0)).unwrap(), None);
         assert_eq!(
-            table.glyph_data(GlyphId::new(0)).unwrap().map(|d| d.get()),
-            None
-        );
-        assert_eq!(
-            table.glyph_data(GlyphId::new(1)).unwrap().map(|d| d.get()),
+            table.glyph_data(GlyphId::new(1)).unwrap(),
             Some(first_document)
         );
         assert_eq!(
-            table.glyph_data(GlyphId::new(2)).unwrap().map(|d| d.get()),
+            table.glyph_data(GlyphId::new(2)).unwrap(),
             Some(first_document)
         );
         assert_eq!(
-            table.glyph_data(GlyphId::new(3)).unwrap().map(|d| d.get()),
+            table.glyph_data(GlyphId::new(3)).unwrap(),
             Some(first_document)
         );
+        assert_eq!(table.glyph_data(GlyphId::new(4)).unwrap(), None);
+        assert_eq!(table.glyph_data(GlyphId::new(5)).unwrap(), None);
         assert_eq!(
-            table.glyph_data(GlyphId::new(4)).unwrap().map(|d| d.get()),
-            None
-        );
-        assert_eq!(
-            table.glyph_data(GlyphId::new(5)).unwrap().map(|d| d.get()),
-            None
-        );
-        assert_eq!(
-            table.glyph_data(GlyphId::new(6)).unwrap().map(|d| d.get()),
+            table.glyph_data(GlyphId::new(6)).unwrap(),
             Some(second_document)
         );
         assert_eq!(
-            table.glyph_data(GlyphId::new(7)).unwrap().map(|d| d.get()),
+            table.glyph_data(GlyphId::new(7)).unwrap(),
             Some(second_document)
         );
+        assert_eq!(table.glyph_data(GlyphId::new(8)).unwrap(), None);
         assert_eq!(
-            table.glyph_data(GlyphId::new(8)).unwrap().map(|d| d.get()),
-            None
-        );
-        assert_eq!(
-            table.glyph_data(GlyphId::new(9)).unwrap().map(|d| d.get()),
+            table.glyph_data(GlyphId::new(9)).unwrap(),
             Some(first_document)
         );
-        assert_eq!(
-            table.glyph_data(GlyphId::new(10)).unwrap().map(|d| d.get()),
-            None
-        );
+        assert_eq!(table.glyph_data(GlyphId::new(10)).unwrap(), None);
     }
 }

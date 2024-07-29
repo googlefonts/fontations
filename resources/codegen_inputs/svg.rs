@@ -1,6 +1,6 @@
 #![parse_module(read_fonts::tables::svg)]
 
-/// [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg)
+/// The [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg) table
 #[tag = "SVG "]
 table SVG {
     /// Table version (starting at 0). Set to 0.
