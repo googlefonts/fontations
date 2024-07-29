@@ -50,14 +50,14 @@ mod sealed {
     /// `Raw` type is always a fixed-size byte array.
     #[cfg(not(feature = "bytemuck"))]
     pub trait BeByteArray: Copy + AsRef<[u8]> {
-        /// Must always succeed for [u8; N] if slice.len() == N, must fail otherwise
+        /// Must always succeed for `[u8; N]` if `slice.len() == N`, must fail otherwise
         fn from_slice(slice: &[u8]) -> Option<Self>;
     }
     #[cfg(feature = "bytemuck")]
     pub trait BeByteArray:
         Copy + AsRef<[u8]> + bytemuck::AnyBitPattern + bytemuck::Zeroable
     {
-        /// Must always succeed for [u8; N] if slice.len() == N, must fail otherwise
+        /// Must always succeed for `[u8; N]` if `slice.len() == N`, must fail otherwise
         fn from_slice(slice: &[u8]) -> Option<Self>;
     }
 

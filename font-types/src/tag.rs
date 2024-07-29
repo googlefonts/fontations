@@ -7,7 +7,7 @@ use std::{
 /// An OpenType tag.
 ///
 /// [Per the spec][spec], a tag is a 4-byte array where each byte is in the
-/// printable ASCII range (0x20..=0x7E).
+/// printable ASCII range `(0x20..=0x7E)`.
 ///
 /// We do not strictly enforce this constraint as it is possible to encounter
 /// invalid tags in existing fonts, and these need to be representable.
@@ -25,7 +25,7 @@ pub struct Tag([u8; 4]);
 impl Tag {
     /// Construct a `Tag` from raw bytes.
     ///
-    /// This does not perform any validation; use [Tag::new_checked] for a
+    /// This does not perform any validation; use [`Tag::new_checked`] for a
     /// constructor that validates input.
     pub const fn new(src: &[u8; 4]) -> Tag {
         Tag(*src)
@@ -38,7 +38,7 @@ impl Tag {
     ///
     /// If the input has fewer than four bytes, it will be padded with spaces.
     ///
-    /// This method returns an `InvalidTag` error if the tag does conform to
+    /// This method returns an [`InvalidTag`] error if the tag does conform to
     /// the spec.
     pub const fn new_checked(src: &[u8]) -> Result<Self, InvalidTag> {
         if src.is_empty() || src.len() > 4 {
@@ -67,7 +67,7 @@ impl Tag {
         Ok(Tag(raw))
     }
 
-    /// Construct a new `Tag` from a big-endian u32, without performing validation.
+    /// Construct a new `Tag` from a big-endian `u32`, without performing validation.
     ///
     /// This is provided as a convenience method for interop with code that
     /// stores tags as big-endian u32s.
@@ -100,13 +100,13 @@ impl Tag {
     /// Check that the tag conforms with the spec.
     ///
     /// This is intended for use during things like santization or lint passes
-    /// on existing fonts; if you are creating a new tag, you should Prefer
+    /// on existing fonts; if you are creating a new tag, you should prefer
     /// [`Tag::new_checked`].
     ///
     /// Specifically, this checks the following conditions
     ///
     /// - the tag is not empty
-    /// - the tag contains only characters in the printable ascii range (0x20..=0x1F)
+    /// - the tag contains only characters in the printable ascii range (`0x20..=0x1F`)
     /// - the tag does not begin with a space
     /// - the tag does not contain any non-space characters after the first space
     pub fn validate(self) -> Result<(), InvalidTag> {
@@ -129,11 +129,18 @@ impl Tag {
 }
 
 /// An error representing an invalid tag.
+///
+/// This is returned as an error from [`Tag::new_checked`] and
+/// [`Tag::validate`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum InvalidTag {
+    /// The tag was not between 1 and 4 bytes in length.
     InvalidLength(usize),
+    /// The tag contained an invalid byte, not within the printable
+    /// ASCII range `(0x20..=0x7E)`.
     InvalidByte { pos: usize, byte: u8 },
+    /// The tag contained one or more non-space characters after a space.
     ByteAfterSpace { pos: usize },
 }
 
