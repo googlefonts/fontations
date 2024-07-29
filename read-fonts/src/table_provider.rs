@@ -174,12 +174,12 @@ pub trait TableProvider<'a> {
     }
 
     fn ift(&self) -> Result<tables::ift::Ift<'a>, ReadError> {
-        self.expect_data_for_tag(tables::ift::IFT::TAG)
+        self.expect_data_for_tag(tables::ift::IFT_TAG)
             .and_then(FontRead::read)
     }
 
     fn iftx(&self) -> Result<tables::ift::Ift<'a>, ReadError> {
-        self.expect_data_for_tag(tables::ift::IFTX::TAG)
+        self.expect_data_for_tag(tables::ift::IFTX_TAG)
             .and_then(FontRead::read)
     }
 }

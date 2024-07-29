@@ -5,94 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct IFTMarker {}
-
-impl IFTMarker {}
-
-impl TopLevelTable for IFT<'_> {
-    /// `IFT `
-    const TAG: Tag = Tag::new(b"IFT ");
-}
-
-impl<'a> FontRead<'a> for IFT<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let cursor = data.cursor();
-        cursor.finish(IFTMarker {})
-    }
-}
-
-pub type IFT<'a> = TableRef<'a, IFTMarker>;
-
-impl<'a> IFT<'a> {}
-
-#[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for IFT<'a> {
-    fn type_name(&self) -> &str {
-        "IFT"
-    }
-
-    #[allow(unused_variables)]
-    #[allow(clippy::match_single_binding)]
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for IFT<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct IFTXMarker {}
-
-impl IFTXMarker {}
-
-impl TopLevelTable for IFTX<'_> {
-    /// `IFTX`
-    const TAG: Tag = Tag::new(b"IFTX");
-}
-
-impl<'a> FontRead<'a> for IFTX<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let cursor = data.cursor();
-        cursor.finish(IFTXMarker {})
-    }
-}
-
-pub type IFTX<'a> = TableRef<'a, IFTXMarker>;
-
-impl<'a> IFTX<'a> {}
-
-#[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for IFTX<'a> {
-    fn type_name(&self) -> &str {
-        "IFTX"
-    }
-
-    #[allow(unused_variables)]
-    #[allow(clippy::match_single_binding)]
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for IFTX<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 #[derive(Clone)]
 pub enum Ift<'a> {
     Format1(PatchMapFormat1<'a>),
@@ -228,7 +140,7 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
         cursor.advance::<u32>();
         cursor.advance::<Offset32>();
         cursor.advance::<Offset32>();
-        let applied_entries_bitmap_byte_len = (transforms::bitmap(max_entry_index + 1))
+        let applied_entries_bitmap_byte_len = (transforms::bitmap_len(max_entry_index + 1))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(applied_entries_bitmap_byte_len);

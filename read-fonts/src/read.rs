@@ -97,7 +97,7 @@ pub trait VarSize {
 }
 
 /// An error that occurs when reading font data
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ReadError {
     OutOfBounds,
     // i64 is flexible enough to store any value we might encounter

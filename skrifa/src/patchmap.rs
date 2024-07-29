@@ -220,21 +220,19 @@ impl std::fmt::Debug for Entry {
 mod tests {
     use super::*;
     use font_test_data as test_data;
-    use read_fonts::{
-        tables::ift::{IFT, IFTX},
-        FontRef, TopLevelTable,
-    };
+    use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
+    use read_fonts::FontRef;
     use write_fonts::FontBuilder;
 
     fn create_ift_font(font: FontRef, ift: Option<&[u8]>, iftx: Option<&[u8]>) -> Vec<u8> {
         let mut builder = FontBuilder::default();
 
         if let Some(bytes) = ift {
-            builder.add_raw(IFT::TAG, bytes);
+            builder.add_raw(IFT_TAG, bytes);
         }
 
         if let Some(bytes) = iftx {
-            builder.add_raw(IFTX::TAG, bytes);
+            builder.add_raw(IFTX_TAG, bytes);
         }
 
         builder.copy_missing_tables(font);
