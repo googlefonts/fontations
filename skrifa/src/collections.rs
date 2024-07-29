@@ -78,6 +78,21 @@ where
             Storage::Heap(vec) => vec.push(value),
         }
     }
+
+    /// Removes and returns the value at the back of the collection.
+    pub fn pop(&mut self) -> Option<T> {
+        match &mut self.0 {
+            Storage::Inline(buf, len) => {
+                if *len > 0 {
+                    *len -= 1;
+                    Some(buf[*len])
+                } else {
+                    None
+                }
+            }
+            Storage::Heap(vec) => vec.pop(),
+        }
+    }
 }
 
 impl<T, const N: usize> SmallVec<T, N> {
@@ -156,6 +171,15 @@ impl<'a, T, const N: usize> IntoIterator for &'a SmallVec<T, N> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.as_slice().iter()
+    }
+}
+
+impl<'a, T, const N: usize> IntoIterator for &'a mut SmallVec<T, N> {
+    type IntoIter = core::slice::IterMut<'a, T>;
+    type Item = &'a mut T;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.as_mut_slice().iter_mut()
     }
 }
 
