@@ -1,12 +1,13 @@
 [package]
 name = "font-types"
 version = "0.6.0"
-edition = "2021"
-license = "MIT/Apache-2.0"
 description = "Scalar types used in fonts."
-repository = "https://github.com/googlefonts/fontations"
 readme = "README.md"
 categories = ["text-processing"]
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [features]
 std = []

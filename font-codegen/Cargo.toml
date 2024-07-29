@@ -1,11 +1,13 @@
 [package]
 name = "font-codegen"
 version = "0.0.0"
-edition = "2021"
-license = "MIT/Apache-2.0"
 autotests = false
 publish = false
 default-run = "codegen"
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [[bin]]
 name = "codegen"

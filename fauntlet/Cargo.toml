@@ -1,12 +1,13 @@
 [package]
 name = "fauntlet"
 version = "0.1.0"
-edition = "2021"
-license = "MIT/Apache-2.0"
 description = "Testing tool for comparing Skrifa and FreeType."
-repository = "https://github.com/googlefonts/fontations"
 readme = "README.md"
 publish = false
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 skrifa = { version = "0.20.0", path = "../skrifa" }
