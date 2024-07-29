@@ -35,9 +35,9 @@ pub(crate) fn compute_segments(outline: &mut Outline, axis: &mut Axis) -> bool {
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L1990>
 pub(crate) fn link_segments(outline: &Outline, axis: &mut Axis, max_width: i32) {
     // Heuristic value to set up a minimum for overlapping
-    let len_threshold = outline.latin_constant(8).max(1);
+    let len_threshold = super::derived_constant(outline.units_per_em, 8).max(1);
     // Heuristic value to weight lengths
-    let len_score = outline.latin_constant(6000);
+    let len_score = super::derived_constant(outline.units_per_em, 6000);
     // Heuristic value to weight distances (not a latin constant since
     // it works on multiples of stem width)
     let dist_score = 3000;
@@ -143,7 +143,7 @@ fn assign_point_uvs(outline: &mut Outline, dim: Dimension) {
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L1588>
 fn build_segments(outline: &mut Outline, axis: &mut Axis) -> bool {
-    let flat_threshold = outline.units_per_em as i32 / 14;
+    let flat_threshold = outline.units_per_em / 14;
     axis.segments.clear();
     let major_dir = axis.major_dir.normalize();
     let mut segment_dir = major_dir;
@@ -406,12 +406,8 @@ mod tests {
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(GlyphId::new(8)).unwrap();
         let mut outline = Outline::default();
-        outline.fill(&glyph).unwrap();
-        let mut axis = Axis {
-            dim: Axis::HORIZONTAL,
-            major_dir: Direction::Up,
-            ..Default::default()
-        };
+        outline.fill(&glyph, Default::default()).unwrap();
+        let mut axis = Axis::new(Axis::HORIZONTAL, outline.orientation);
         compute_segments(&mut outline, &mut axis);
         link_segments(&outline, &mut axis, 0);
         let segments = retain_segment_test_fields(&axis.segments);
@@ -522,12 +518,8 @@ mod tests {
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(GlyphId::new(8)).unwrap();
         let mut outline = Outline::default();
-        outline.fill(&glyph).unwrap();
-        let mut axis = Axis {
-            dim: Axis::VERTICAL,
-            major_dir: Direction::Left,
-            ..Default::default()
-        };
+        outline.fill(&glyph, Default::default()).unwrap();
+        let mut axis = Axis::new(Axis::VERTICAL, outline.orientation);
         compute_segments(&mut outline, &mut axis);
         link_segments(&outline, &mut axis, 0);
         let segments = retain_segment_test_fields(&axis.segments);

@@ -6,6 +6,7 @@ use super::super::{
 };
 use crate::collections::SmallVec;
 use core::ops::Range;
+use raw::types::F2Dot14;
 
 /// Hinting directions.
 ///
@@ -15,7 +16,7 @@ use core::ops::Range;
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.h#L45>
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 #[repr(i8)]
-pub(super) enum Direction {
+pub(crate) enum Direction {
     #[default]
     None = 4,
     Right = 1,
@@ -65,6 +66,13 @@ impl Direction {
             _ => self,
         }
     }
+}
+
+/// The overall orientation of an outline.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub(crate) enum Orientation {
+    Clockwise,
+    CounterClockwise,
 }
 
 /// Outline point with a lot of context for hinting.
@@ -136,25 +144,26 @@ const MAX_INLINE_CONTOURS: usize = 8;
 
 #[derive(Default)]
 pub(super) struct Outline {
-    pub units_per_em: u16,
+    pub units_per_em: i32,
+    pub orientation: Option<Orientation>,
     pub points: SmallVec<Point, MAX_INLINE_POINTS>,
     pub contours: SmallVec<Contour, MAX_INLINE_CONTOURS>,
 }
 
 impl Outline {
     /// Fills the outline from the given glyph.
-    pub fn fill(&mut self, glyph: &OutlineGlyph) -> Result<(), DrawError> {
+    pub fn fill(&mut self, glyph: &OutlineGlyph, coords: &[F2Dot14]) -> Result<(), DrawError> {
         self.clear();
-        glyph.draw_unscaled(LocationRef::default(), None, self)?;
-        let units_per_em = glyph.units_per_em();
+        glyph.draw_unscaled(LocationRef::new(coords), None, self)?;
+        self.units_per_em = glyph.units_per_em() as i32;
         // Heuristic value
-        let near_limit = 20 * units_per_em as i32 / 2048;
-        self.units_per_em = units_per_em;
+        let near_limit = 20 * self.units_per_em / 2048;
         self.link_points();
         self.mark_near_points(near_limit);
         self.compute_directions(near_limit);
         self.simplify_topology();
         self.check_remaining_weak_points();
+        self.compute_orientation();
         Ok(())
     }
 
@@ -356,6 +365,69 @@ impl Outline {
             }
         }
     }
+
+    /// Computes the overall winding order of the outline.
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/ftoutln.c#L1049>
+    fn compute_orientation(&mut self) {
+        self.orientation = None;
+        let points = self.points.as_slice();
+        if points.is_empty() {
+            return;
+        }
+        // Compute cbox. Is this necessary?
+        let (x_min, x_max, y_min, y_max) = {
+            let first = &points[0];
+            let mut x_min = first.fx;
+            let mut x_max = x_min;
+            let mut y_min = first.fy;
+            let mut y_max = y_min;
+            for point in &points[1..] {
+                x_min = point.fx.min(x_min);
+                x_max = point.fx.max(x_max);
+                y_min = point.fy.min(y_min);
+                y_max = point.fy.max(y_max);
+            }
+            (x_min, x_max, y_min, y_max)
+        };
+        // Reject empty outlines
+        if x_min == x_max || y_min == y_max {
+            return;
+        }
+        // Reject large outlines
+        const MAX_COORD: i32 = 0x1000000;
+        if x_min < -MAX_COORD || x_max > MAX_COORD || y_min < -MAX_COORD || y_max > MAX_COORD {
+            return;
+        }
+        fn msb(x: u32) -> i32 {
+            (31 - x.leading_zeros()) as i32
+        }
+        let x_shift = msb((x_max.abs() | x_min.abs()) as u32) - 14;
+        let x_shift = x_shift.max(0);
+        let y_shift = msb((y_max - y_min) as u32) - 14;
+        let y_shift = y_shift.max(0);
+        let shifted_point = |ix: usize| {
+            let point = &points[ix];
+            (point.fx >> x_shift, point.fy >> y_shift)
+        };
+        let mut area = 0;
+        for contour in &self.contours {
+            let last_ix = contour.last();
+            let first_ix = contour.first();
+            let (mut prev_x, mut prev_y) = shifted_point(last_ix);
+            for i in first_ix..=last_ix {
+                let (x, y) = shifted_point(i);
+                area += (y - prev_y) * (x + prev_x);
+                (prev_x, prev_y) = (x, y);
+            }
+        }
+        use core::cmp::Ordering;
+        self.orientation = match area.cmp(&0) {
+            Ordering::Less => Some(Orientation::CounterClockwise),
+            Ordering::Greater => Some(Orientation::Clockwise),
+            Ordering::Equal => None,
+        };
+    }
 }
 
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/ftcalc.c#L1026>
@@ -512,11 +584,7 @@ mod tests {
 
     #[test]
     fn fill_outline() {
-        let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let glyphs = font.outline_glyphs();
-        let glyph = glyphs.get(GlyphId::new(8)).unwrap();
-        let mut outline = Outline::default();
-        outline.fill(&glyph).unwrap();
+        let outline = make_outline(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS, 8);
         use Direction::*;
         let expected = &[
             // (x, y, in_dir, out_dir, flags)
@@ -583,5 +651,24 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(&points, expected);
+    }
+
+    #[test]
+    fn orientation() {
+        let tt_outline = make_outline(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS, 8);
+        // TrueType outlines are counter clockwise
+        assert_eq!(tt_outline.orientation, Some(Orientation::CounterClockwise));
+        let ps_outline = make_outline(font_test_data::CANTARELL_VF_TRIMMED, 4);
+        // PostScript outlines are clockwise
+        assert_eq!(ps_outline.orientation, Some(Orientation::Clockwise));
+    }
+
+    fn make_outline(font_data: &[u8], glyph_id: u32) -> Outline {
+        let font = FontRef::new(font_data).unwrap();
+        let glyphs = font.outline_glyphs();
+        let glyph = glyphs.get(GlyphId::from(glyph_id)).unwrap();
+        let mut outline = Outline::default();
+        outline.fill(&glyph, Default::default()).unwrap();
+        outline
     }
 }

@@ -1,6 +1,6 @@
 //! Segments and edges for one dimension of an outline.
 
-use super::outline::{Direction, Point};
+use super::outline::{Direction, Orientation, Point};
 use crate::collections::SmallVec;
 
 /// Maximum number of segments and edges stored inline.
@@ -8,6 +8,11 @@ use crate::collections::SmallVec;
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.h#L306>
 const MAX_INLINE_SEGMENTS: usize = 18;
 const MAX_INLINE_EDGES: usize = 12;
+
+/// Either horizontal or vertical.
+///
+/// A type alias because it's used as an index.
+pub type Dimension = usize;
 
 /// Segments and edges for one dimension of an outline.
 ///
@@ -22,11 +27,6 @@ pub struct Axis {
     pub segments: SmallVec<Segment, MAX_INLINE_SEGMENTS>,
 }
 
-/// Either horizontal or vertical.
-///
-/// A type alias because it's used as an index.
-pub type Dimension = usize;
-
 impl Axis {
     /// X coordinates, i.e. vertical segments and edges.
     pub const HORIZONTAL: Dimension = 0;
@@ -34,11 +34,31 @@ impl Axis {
     pub const VERTICAL: Dimension = 1;
 }
 
+impl Axis {
+    pub fn new(dim: Dimension, orientation: Option<Orientation>) -> Self {
+        let mut axis = Self::default();
+        axis.reset(dim, orientation);
+        axis
+    }
+
+    pub fn reset(&mut self, dim: Dimension, orientation: Option<Orientation>) {
+        self.dim = dim;
+        self.major_dir = match (dim, orientation) {
+            (Self::HORIZONTAL, Some(Orientation::Clockwise)) => Direction::Down,
+            (Self::VERTICAL, Some(Orientation::Clockwise)) => Direction::Right,
+            (Self::HORIZONTAL, _) => Direction::Up,
+            (Self::VERTICAL, _) => Direction::Left,
+            _ => Direction::None,
+        };
+        self.segments.clear();
+    }
+}
+
 /// Sequence of points with a single dominant direction.
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.h#L262>
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-pub struct Segment {
+pub(crate) struct Segment {
     /// Flags describing the properties of the segment.
     pub flags: u8,
     /// Dominant direction of the segment.
