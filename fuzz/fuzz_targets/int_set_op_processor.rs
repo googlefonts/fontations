@@ -1007,6 +1007,24 @@ where
     }
 }
 
+struct CmpOp;
+
+impl CmpOp {
+    fn parse_args<T: SetMember<T>>() -> Option<Box<dyn Operation<T>>> {
+        Some(Box::new(Self))
+    }
+}
+
+impl<T: SetMember<T>> Operation<T> for CmpOp {
+    fn operate(&self, a: Input<T>, b: Input<T>) {
+        assert_eq!(a.int_set.cmp(&b.int_set), a.btree_set.cmp(&b.btree_set));
+    }
+
+    fn size(&self, length: usize) -> usize {
+        length
+    }
+}
+
 /* ### End of Ops ### */
 
 fn read_u8(data: &mut Cursor<&[u8]>) -> Option<u8> {
@@ -1094,6 +1112,7 @@ where
         }
         23 if is_standard => HashOp::parse_args(),
         24 if is_standard => EqualOp::parse_args(),
+        25 if is_standard => CmpOp::parse_args(),
         _ => None,
     };
 
