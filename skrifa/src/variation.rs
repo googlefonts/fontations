@@ -187,33 +187,17 @@ impl<'a> AxisCollection<'a> {
         I: IntoIterator,
         I::Item: Into<VariationSetting>,
     {
-        for coord in location.iter_mut() {
-            *coord = NormalizedCoord::default();
-        }
-        let avar_mappings = self.avar.as_ref().map(|avar| avar.axis_segment_maps());
-        for setting in settings.into_iter() {
-            let setting = setting.into();
-            // To permit non-linear interpolation, iterate over all axes to ensure we match
-            // multiple axes with the same tag:
-            // https://github.com/PeterConstable/OT_Drafts/blob/master/NLI/UnderstandingNLI.md
-            // We accept quadratic behavior here to avoid dynamic allocation and with the assumption
-            // that fonts contain a relatively small number of axes.
-            for (i, axis) in self
-                .iter()
-                .enumerate()
-                .filter(|v| v.1.tag() == setting.selector)
-            {
-                if let Some(target_coord) = location.get_mut(i) {
-                    let coord = axis.record.normalize(Fixed::from_f64(setting.value as f64));
-                    *target_coord = avar_mappings
-                        .as_ref()
-                        .and_then(|mappings| mappings.get(i).transpose().ok())
-                        .flatten()
-                        .map(|mapping| mapping.apply(coord))
-                        .unwrap_or(coord)
-                        .to_f2dot14();
-                }
-            }
+        if let Some(fvar) = self.fvar.as_ref() {
+            fvar.user_to_normalized(
+                self.avar.as_ref(),
+                settings
+                    .into_iter()
+                    .map(|setting| setting.into())
+                    .map(|setting| (setting.selector, Fixed::from_f64(setting.value as f64))),
+                location,
+            );
+        } else {
+            location.fill(NormalizedCoord::default());
         }
     }
 
