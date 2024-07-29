@@ -7,10 +7,7 @@ impl<'a> Vorg<'a> {
     pub fn vertical_origin_y(&self, glyph_id: GlyphId) -> i16 {
         let gid = glyph_id.to_u32();
         let metrics = self.vert_origin_y_metrics();
-        match self
-            .vert_origin_y_metrics()
-            .binary_search_by(|rec| rec.glyph_index().to_u32().cmp(&gid))
-        {
+        match metrics.binary_search_by(|rec| rec.glyph_index().to_u32().cmp(&gid)) {
             Ok(ix) => metrics
                 .get(ix)
                 .map(|metric| metric.vert_origin_y())
