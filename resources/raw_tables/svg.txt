@@ -1,0 +1,17 @@
+/// [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg)
+@table SVG
+uint16	version	Table version (starting at 0). Set to 0.
+Offset32	svgDocumentListOffset	Offset to the SVGDocumentList, from the start of the SVG table. Must be non-zero.
+uint32	reserved	Set to 0.
+
+/// [SVGDocumentList](https://learn.microsoft.com/en-us/typography/opentype/spec/svg)
+@table SVGDocumentList
+uint16	numEntries	Number of SVGDocumentRecords. Must be non-zero.
+SVGDocumentRecord	documentRecords[numEntries]	Array of SVGDocumentRecords.
+
+/// [SVGDocumentRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/svg)
+@record SVGDocumentRecord
+uint16	startGlyphID	The first glyph ID for the range covered by this record.
+uint16	endGlyphID	The last glyph ID for the range covered by this record.
+Offset32	svgDocOffset	Offset from the beginning of the SVGDocumentList to an SVG document. Must be non-zero.
+uint32	svgDocLength	Length of the SVG document data. Must be non-zero.

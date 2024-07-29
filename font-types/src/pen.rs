@@ -3,7 +3,7 @@
 /// This is a general abstraction to unify output for processes that decode and/or
 /// transform outlines.
 ///
-/// /// AbstractPen in Python terms.
+/// `AbstractPen` in Python terms.
 /// <https://github.com/fonttools/fonttools/blob/78e10d8b42095b709cd4125e592d914d3ed1558e/Lib/fontTools/pens/basePen.py#L54>.
 /// Implementations
 pub trait Pen {
@@ -25,7 +25,9 @@ pub trait Pen {
     fn close(&mut self);
 }
 
-/// Captures commands to [Pen] to facilitate implementations that buffer commands.
+/// Captures commands to [`Pen`] to facilitate implementations that buffer commands.
+///
+/// A command can be [applied](PenCommand::apply_to) to a [`Pen`].
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PenCommand {
@@ -55,6 +57,7 @@ pub enum PenCommand {
 }
 
 impl PenCommand {
+    /// Apply this command to the given [`Pen`] by calling the appropriate method on the pen.
     pub fn apply_to<T: Pen>(&self, pen: &mut T) {
         match *self {
             PenCommand::MoveTo { x, y } => pen.move_to(x, y),
@@ -74,7 +77,8 @@ impl PenCommand {
 
     /// The directly stated - not implied - end point of the command.
     ///
-    /// Notably, Close does have an end point but it is not directly stated so it returns None.
+    /// Notably, [`PenCommand::Close`] does have an end point but it is not
+    /// directly stated so it returns `None`.
     pub fn end_point(&self) -> Option<(f32, f32)> {
         match *self {
             PenCommand::MoveTo { x, y }

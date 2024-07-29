@@ -2,8 +2,10 @@
 
 /// Packed 32-bit value with major and minor version numbers.
 ///
-/// This is a legacy type with an unusual representation. See [the spec][] for
+/// This is a legacy type with an unusual representation. See [the spec][spec] for
 /// additional details.
+///
+/// [spec]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-version-numbers
 #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "bytemuck", derive(bytemuck::AnyBitPattern))]
@@ -12,10 +14,12 @@ pub struct Version16Dot16(u32);
 
 /// A type representing a major, minor version pair.
 ///
-/// This is not part of the spec, but versions in the spec are frequently
+/// This is not part of [the spec][spec], but versions in the spec are frequently
 /// represented as a `major_version`, `minor_version` pair. This type encodes
 /// those as a single type, which is useful for some of the generated code that
 /// parses out a version.
+///
+/// [spec]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-version-numbers
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "bytemuck", derive(bytemuck::AnyBitPattern))]

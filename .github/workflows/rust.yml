@@ -101,15 +101,18 @@ jobs:
 
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          # Use a target without `std` to make sure we don't link to `std`
+          target: thumbv7em-none-eabihf
 
-      - name: cargo check font-types
-        run: cargo check --manifest-path=font-types/Cargo.toml --no-default-features
+      - name: cargo build font-types
+        run: cargo build -p font-types --target thumbv7em-none-eabihf --no-default-features
 
-      - name: cargo check read-fonts
-        run: cargo check --manifest-path=read-fonts/Cargo.toml --no-default-features --features=libm
+      - name: cargo build read-fonts
+        run: cargo build -p read-fonts --target thumbv7em-none-eabihf --no-default-features --features=libm
 
-      - name: cargo check skrifa
-        run: cargo check --manifest-path=skrifa/Cargo.toml --no-default-features --features=libm
+      - name: cargo build skrifa
+        run: cargo build -p skrifa --target thumbv7em-none-eabihf --no-default-features --features=libm
 
   check-wasm:
     name: cargo check wasm

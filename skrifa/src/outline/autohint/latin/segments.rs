@@ -1,4 +1,10 @@
 //! Latin segment computation and linking.
+//!
+//! A segment is a series of at least two consecutive points that are
+//! appropriately aligned along a coordinate axis.
+//!
+//! The linking stage associates pairs of segments to form stems and
+//! identifies serifs with a post-process pass.
 
 use super::super::{
     axis::{Axis, Dimension, Segment},

@@ -17,11 +17,12 @@ pub struct BoundingBox<T> {
     pub y_max: T,
 }
 
-/// Return a BoundingBox scaled by a scale factor of the same type as the stored bounds.
 impl<T> BoundingBox<T>
 where
     T: Mul<Output = T> + Copy,
 {
+    /// Return a `BoundingBox` scaled by a scale factor of the same type
+    /// as the stored bounds.
     pub fn scale(&self, factor: T) -> Self {
         Self {
             x_min: self.x_min * factor,

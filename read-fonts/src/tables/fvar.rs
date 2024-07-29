@@ -5,6 +5,7 @@ include!("../../generated/generated_fvar.rs");
 #[path = "./instance_record.rs"]
 mod instance_record;
 
+use super::avar::Avar;
 pub use instance_record::InstanceRecord;
 
 impl<'a> Fvar<'a> {
@@ -16,6 +17,60 @@ impl<'a> Fvar<'a> {
     /// Returns the array of instance records.
     pub fn instances(&self) -> Result<ComputedArray<'a, InstanceRecord<'a>>, ReadError> {
         Ok(self.axis_instance_arrays()?.instances())
+    }
+
+    /// Converts user space coordinates provided by an unordered iterator
+    /// of `(tag, value)` pairs to normalized coordinates in axis list order.
+    ///
+    /// Stores the resulting normalized coordinates in the given slice.
+    ///
+    /// * User coordinate tags that don't match an axis are ignored.
+    /// * User coordinate values are clamped to the range of their associated
+    ///   axis before normalization.
+    /// * If more than one user coordinate is provided for the same tag, the
+    ///   last one is used.
+    /// * If no user coordinate for an axis is provided, the associated
+    ///   coordinate is set to the normalized value 0.0, representing the
+    ///   default location in variation space.
+    /// * The length of `normalized_coords` should equal the number of axes
+    ///   present in the this table. If the length is smaller, axes at
+    ///   out of bounds indices are ignored. If the length is larger, the
+    ///   excess entries will be filled with zeros.
+    ///
+    /// If the [`Avar`] table is provided, applies remapping of coordinates
+    /// according to the specification.
+    pub fn user_to_normalized(
+        &self,
+        avar: Option<&Avar>,
+        user_coords: impl IntoIterator<Item = (Tag, Fixed)>,
+        normalized_coords: &mut [F2Dot14],
+    ) {
+        normalized_coords.fill(F2Dot14::default());
+        let axes = self.axes().unwrap_or_default();
+        let avar_mappings = avar.map(|avar| avar.axis_segment_maps());
+        for user_coord in user_coords {
+            // To permit non-linear interpolation, iterate over all axes to ensure we match
+            // multiple axes with the same tag:
+            // https://github.com/PeterConstable/OT_Drafts/blob/master/NLI/UnderstandingNLI.md
+            // We accept quadratic behavior here to avoid dynamic allocation and with the assumption
+            // that fonts contain a relatively small number of axes.
+            for (i, axis) in axes
+                .iter()
+                .enumerate()
+                .filter(|(_, axis)| axis.axis_tag() == user_coord.0)
+            {
+                if let Some(target_coord) = normalized_coords.get_mut(i) {
+                    let coord = axis.normalize(user_coord.1);
+                    *target_coord = avar_mappings
+                        .as_ref()
+                        .and_then(|mappings| mappings.get(i).transpose().ok())
+                        .flatten()
+                        .map(|mapping| mapping.apply(coord))
+                        .unwrap_or(coord)
+                        .to_f2dot14();
+                }
+            }
+        }
     }
 }
 
@@ -44,7 +99,7 @@ impl VariationAxisRecord {
 #[cfg(test)]
 mod tests {
     use crate::{FontRef, TableProvider};
-    use types::{Fixed, NameId, Tag};
+    use types::{F2Dot14, Fixed, NameId, Tag};
 
     #[test]
     fn axes() {
@@ -116,5 +171,38 @@ mod tests {
             axis.normalize(Fixed::from_f64(0.0)),
             Fixed::from_f64(-0.2509765625)
         );
+    }
+
+    #[test]
+    fn user_to_normalized() {
+        let font = FontRef::from_index(font_test_data::VAZIRMATN_VAR, 0).unwrap();
+        let fvar = font.fvar().unwrap();
+        let avar = font.avar().ok();
+        let wght = Tag::new(b"wght");
+        let axis = fvar.axes().unwrap()[0];
+        let mut normalized_coords = [F2Dot14::default(); 1];
+        // avar table maps 0.8 to 0.83875
+        let avar_user = axis.default_value().to_f32()
+            + (axis.max_value().to_f32() - axis.default_value().to_f32()) * 0.8;
+        let avar_normalized = 0.83875;
+        #[rustfmt::skip]
+        let cases = [
+            // (user, normalized)
+            (-1000.0, -1.0f32),
+            (100.0, -1.0),
+            (200.0, -0.5),
+            (400.0, 0.0),
+            (900.0, 1.0),
+            (avar_user, avar_normalized),
+            (1251.5, 1.0),
+        ];
+        for (user, normalized) in cases {
+            fvar.user_to_normalized(
+                avar.as_ref(),
+                [(wght, Fixed::from_f64(user as f64))],
+                &mut normalized_coords,
+            );
+            assert_eq!(normalized_coords[0], F2Dot14::from_f32(normalized));
+        }
     }
 }
