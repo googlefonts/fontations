@@ -40,4 +40,5 @@ pub mod varc;
 pub mod variations;
 pub mod vhea;
 pub mod vmtx;
+pub mod vorg;
 pub mod vvar;

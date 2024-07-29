@@ -56,6 +56,10 @@ pub trait TableProvider<'a> {
         tables::vmtx::Vmtx::read(data, number_of_v_metrics, num_glyphs)
     }
 
+    fn vorg(&self) -> Result<tables::vorg::Vorg<'a>, ReadError> {
+        self.expect_table()
+    }
+
     fn fvar(&self) -> Result<tables::fvar::Fvar<'a>, ReadError> {
         self.expect_table()
     }
