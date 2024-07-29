@@ -19,13 +19,13 @@ pub enum OperationSet {
     SparseBitSetEncoding,
 }
 
-pub trait SetMember<T>: Domain + Ord + Copy + Debug + Hash {
-    fn create(val: u32) -> Option<T>;
+pub trait SetMember: Sized + Domain + Ord + Copy + Debug + Hash {
+    fn create(val: u32) -> Option<Self>;
     fn can_be_inverted() -> bool;
     fn increment(&mut self);
 }
 
-impl SetMember<u32> for u32 {
+impl SetMember for u32 {
     fn create(val: u32) -> Option<u32> {
         Some(val)
     }
@@ -39,7 +39,7 @@ impl SetMember<u32> for u32 {
     }
 }
 
-impl SetMember<u16> for u16 {
+impl SetMember for u16 {
     fn create(val: u32) -> Option<u16> {
         val.try_into().ok()
     }
@@ -53,7 +53,7 @@ impl SetMember<u16> for u16 {
     }
 }
 
-impl SetMember<u8> for u8 {
+impl SetMember for u8 {
     fn create(val: u32) -> Option<u8> {
         val.try_into().ok()
     }
@@ -67,7 +67,7 @@ impl SetMember<u8> for u8 {
     }
 }
 
-impl SetMember<GlyphId16> for GlyphId16 {
+impl SetMember for GlyphId16 {
     fn create(val: u32) -> Option<GlyphId16> {
         let val: u16 = val.try_into().ok()?;
         Some(GlyphId16::new(val))
@@ -82,7 +82,7 @@ impl SetMember<GlyphId16> for GlyphId16 {
     }
 }
 
-impl SetMember<GlyphId> for GlyphId {
+impl SetMember for GlyphId {
     fn create(val: u32) -> Option<GlyphId> {
         Some(GlyphId::new(val))
     }
@@ -114,7 +114,7 @@ impl SmallInt {
     }
 }
 
-impl SetMember<SmallInt> for SmallInt {
+impl SetMember for SmallInt {
     fn create(val: u32) -> Option<SmallInt> {
         if val > Self::MAX_VALUE {
             return None;
@@ -184,7 +184,7 @@ impl SmallEvenInt {
     }
 }
 
-impl SetMember<SmallEvenInt> for SmallEvenInt {
+impl SetMember for SmallEvenInt {
     fn create(val: u32) -> Option<SmallEvenInt> {
         if val > Self::MAX_VALUE || val % 2 != 0 {
             return None;
@@ -245,23 +245,18 @@ impl<T> Input<'_, T> {
     }
 }
 
-trait Operation<T>
-where
-    T: SetMember<T>,
-{
+trait Operation<T> {
     fn size(&self, set_len: usize) -> usize;
     fn operate(&self, input: Input<T>, other: Input<T>);
 }
 
 /* ### Insert ### */
 
-struct InsertOp<T>(T)
-where
-    T: SetMember<T>;
+struct InsertOp<T>(T);
 
 impl<T> InsertOp<T>
 where
-    T: SetMember<T> + 'static,
+    T: SetMember + 'static,
 {
     fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
         Some(Box::new(InsertOp::<T>(read_u32(data)?)))
@@ -270,7 +265,7 @@ where
 
 impl<T> Operation<T> for InsertOp<T>
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.insert(self.0);
@@ -284,13 +279,11 @@ where
 
 /* ### Insert Range ### */
 
-struct InsertRangeOp<T>(T, T)
-where
-    T: SetMember<T>;
+struct InsertRangeOp<T>(T, T);
 
 impl<T> InsertRangeOp<T>
 where
-    T: SetMember<T> + 'static,
+    T: SetMember + 'static,
 {
     fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
         let min = read_u32(data)?;
@@ -301,7 +294,7 @@ where
 
 impl<T> Operation<T> for InsertRangeOp<T>
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn size(&self, length: usize) -> usize {
         if self.1 < self.0 {
@@ -323,13 +316,11 @@ where
 
 /* ### Remove ### */
 
-struct RemoveOp<T>(T)
-where
-    T: SetMember<T>;
+struct RemoveOp<T>(T);
 
 impl<T> RemoveOp<T>
 where
-    T: SetMember<T> + 'static,
+    T: SetMember + 'static,
 {
     fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
         Some(Box::new(RemoveOp::<T>(read_u32(data)?)))
@@ -338,7 +329,7 @@ where
 
 impl<T> Operation<T> for RemoveOp<T>
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn size(&self, length: usize) -> usize {
         length.ilog2() as usize
@@ -352,13 +343,11 @@ where
 
 /* ### Remove Range ### */
 
-struct RemoveRangeOp<T>(T, T)
-where
-    T: SetMember<T>;
+struct RemoveRangeOp<T>(T, T);
 
 impl<T> RemoveRangeOp<T>
 where
-    T: SetMember<T> + 'static,
+    T: SetMember + 'static,
 {
     fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
         let min = read_u32(data)?;
@@ -369,7 +358,7 @@ where
 
 impl<T> Operation<T> for RemoveRangeOp<T>
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn size(&self, length: usize) -> usize {
         if self.1 < self.0 {
@@ -394,7 +383,7 @@ struct LengthOp;
 impl LengthOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
-        T: SetMember<T>,
+        T: SetMember,
     {
         Some(Box::new(Self))
     }
@@ -402,7 +391,7 @@ impl LengthOp {
 
 impl<T> Operation<T> for LengthOp
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         assert_eq!(input.int_set.len(), input.btree_set.len());
@@ -420,7 +409,7 @@ struct IsEmptyOp;
 impl IsEmptyOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
-        T: SetMember<T>,
+        T: SetMember,
     {
         Some(Box::new(Self))
     }
@@ -428,7 +417,7 @@ impl IsEmptyOp {
 
 impl<T> Operation<T> for IsEmptyOp
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         assert_eq!(input.int_set.is_empty(), input.btree_set.is_empty());
@@ -442,11 +431,11 @@ where
 /* ### Contains ### */
 struct ContainsOp<T>(T)
 where
-    T: SetMember<T>;
+    T: SetMember;
 
 impl<T> ContainsOp<T>
 where
-    T: SetMember<T> + 'static,
+    T: SetMember + 'static,
 {
     fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
         Some(Box::new(ContainsOp::<T>(read_u32(data)?)))
@@ -455,7 +444,7 @@ where
 
 impl<T> Operation<T> for ContainsOp<T>
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         assert_eq!(
@@ -476,7 +465,7 @@ struct ClearOp;
 impl ClearOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
-        T: SetMember<T>,
+        T: SetMember,
     {
         Some(Box::new(Self))
     }
@@ -484,7 +473,7 @@ impl ClearOp {
 
 impl<T> Operation<T> for ClearOp
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.clear();
@@ -498,13 +487,11 @@ where
 
 /* ### Intersects Range ### */
 
-struct IntersectsRangeOp<T>(T, T)
-where
-    T: SetMember<T>;
+struct IntersectsRangeOp<T>(T, T);
 
 impl<T> IntersectsRangeOp<T>
 where
-    T: SetMember<T> + 'static,
+    T: SetMember + 'static,
 {
     fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
         let min = read_u32(data)?;
@@ -515,7 +502,7 @@ where
 
 impl<T> Operation<T> for IntersectsRangeOp<T>
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         let int_set_intersects = input.int_set.intersects_range(self.0..=self.1);
@@ -548,7 +535,7 @@ struct FirstOp;
 impl FirstOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
-        T: SetMember<T>,
+        T: SetMember,
     {
         Some(Box::new(Self))
     }
@@ -556,7 +543,7 @@ impl FirstOp {
 
 impl<T> Operation<T> for FirstOp
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         assert_eq!(input.int_set.first(), input.btree_set.first().copied());
@@ -574,7 +561,7 @@ struct LastOp;
 impl LastOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
-        T: SetMember<T>,
+        T: SetMember,
     {
         Some(Box::new(Self))
     }
@@ -582,7 +569,7 @@ impl LastOp {
 
 impl<T> Operation<T> for LastOp
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         assert_eq!(input.int_set.last(), input.btree_set.last().copied());
@@ -600,7 +587,7 @@ struct IterOp;
 impl IterOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
-        T: SetMember<T>,
+        T: SetMember,
     {
         Some(Box::new(Self))
     }
@@ -608,7 +595,7 @@ impl IterOp {
 
 impl<T> Operation<T> for IterOp
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         assert!(input.int_set.iter().eq(input.btree_set.iter().copied()));
@@ -626,7 +613,7 @@ struct InclusiveIterOp;
 impl InclusiveIterOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
-        T: SetMember<T>,
+        T: SetMember,
     {
         Some(Box::new(Self))
     }
@@ -634,7 +621,7 @@ impl InclusiveIterOp {
 
 impl<T> Operation<T> for InclusiveIterOp
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         let int_set_it = input.int_set.inclusive_iter();
@@ -662,7 +649,7 @@ struct IterRangesOp;
 impl IterRangesOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
-        T: SetMember<T>,
+        T: SetMember,
     {
         Some(Box::new(Self))
     }
@@ -670,7 +657,7 @@ impl IterRangesOp {
 
 impl<T> Operation<T> for IterRangesOp
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         let mut btree_ranges: Vec<RangeInclusive<T>> = vec![];
@@ -704,13 +691,11 @@ where
 
 /* ### Iter After ### */
 
-struct IterAfterOp<T>(T)
-where
-    T: SetMember<T>;
+struct IterAfterOp<T>(T);
 
 impl<T> IterAfterOp<T>
 where
-    T: SetMember<T> + 'static,
+    T: SetMember + 'static,
 {
     fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
         Some(Box::new(IterAfterOp::<T>(read_u32(data)?)))
@@ -719,7 +704,7 @@ where
 
 impl<T> Operation<T> for IterAfterOp<T>
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         let domain_max = T::create(T::ordered_values().next_back().unwrap()).unwrap();
@@ -737,13 +722,11 @@ where
 
 /* ### Remove All ### */
 
-struct RemoveAllOp<T>(Vec<T>)
-where
-    T: SetMember<T>;
+struct RemoveAllOp<T>(Vec<T>);
 
 impl<T> RemoveAllOp<T>
 where
-    T: SetMember<T> + 'static,
+    T: SetMember + 'static,
 {
     fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
         Some(Box::new(RemoveAllOp::<T>(read_u32_vec(data)?)))
@@ -752,7 +735,7 @@ where
 
 impl<T> Operation<T> for RemoveAllOp<T>
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.remove_all(self.0.iter().copied());
@@ -768,13 +751,11 @@ where
 
 /* ### Extend ### */
 
-struct ExtendOp<T>(Vec<T>)
-where
-    T: SetMember<T>;
+struct ExtendOp<T>(Vec<T>);
 
 impl<T> ExtendOp<T>
 where
-    T: SetMember<T> + 'static,
+    T: SetMember + 'static,
 {
     fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
         Some(Box::new(Self(read_u32_vec(data)?)))
@@ -783,7 +764,7 @@ where
 
 impl<T> Operation<T> for ExtendOp<T>
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.extend(self.0.iter().copied());
@@ -797,13 +778,11 @@ where
 
 /* ### Extend Unsorted ### */
 
-struct ExtendUnsortedOp<T>(Vec<T>)
-where
-    T: SetMember<T>;
+struct ExtendUnsortedOp<T>(Vec<T>);
 
 impl<T> ExtendUnsortedOp<T>
 where
-    T: SetMember<T> + 'static,
+    T: SetMember + 'static,
 {
     fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
         Some(Box::new(Self(read_u32_vec(data)?)))
@@ -812,7 +791,7 @@ where
 
 impl<T> Operation<T> for ExtendUnsortedOp<T>
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.extend_unsorted(self.0.iter().copied());
@@ -831,7 +810,7 @@ struct UnionOp;
 impl UnionOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
-        T: SetMember<T>,
+        T: SetMember,
     {
         Some(Box::new(Self))
     }
@@ -839,7 +818,7 @@ impl UnionOp {
 
 impl<T> Operation<T> for UnionOp
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, a: Input<T>, b: Input<T>) {
         a.int_set.union(b.int_set);
@@ -861,7 +840,7 @@ struct IntersectOp;
 impl IntersectOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
-        T: SetMember<T>,
+        T: SetMember,
     {
         Some(Box::new(Self))
     }
@@ -869,7 +848,7 @@ impl IntersectOp {
 
 impl<T> Operation<T> for IntersectOp
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, a: Input<T>, b: Input<T>) {
         a.int_set.intersect(b.int_set);
@@ -890,7 +869,7 @@ struct InvertOp;
 impl InvertOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
-        T: SetMember<T>,
+        T: SetMember,
     {
         Some(Box::new(Self))
     }
@@ -898,7 +877,7 @@ impl InvertOp {
 
 impl<T> Operation<T> for InvertOp
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.invert();
@@ -926,7 +905,7 @@ struct IsInvertedOp;
 impl IsInvertedOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
-        T: SetMember<T>,
+        T: SetMember,
     {
         Some(Box::new(Self))
     }
@@ -934,7 +913,7 @@ impl IsInvertedOp {
 
 impl<T> Operation<T> for IsInvertedOp
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.is_inverted();
@@ -952,14 +931,14 @@ struct HashOp;
 impl HashOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
-        T: SetMember<T>,
+        T: SetMember,
     {
         Some(Box::new(Self))
     }
 }
 
 impl HashOp {
-    fn hash<T: SetMember<T>>(a: Input<T>) -> u64 {
+    fn hash<T: SetMember>(a: Input<T>) -> u64 {
         let mut hasher = DefaultHasher::new();
         a.int_set.hash(&mut hasher);
         hasher.finish()
@@ -968,7 +947,7 @@ impl HashOp {
 
 impl<T> Operation<T> for HashOp
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, a: Input<T>, b: Input<T>) {
         if a.int_set == b.int_set {
@@ -988,7 +967,7 @@ struct EqualOp;
 impl EqualOp {
     fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
     where
-        T: SetMember<T>,
+        T: SetMember,
     {
         Some(Box::new(Self))
     }
@@ -996,7 +975,7 @@ impl EqualOp {
 
 impl<T> Operation<T> for EqualOp
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     fn operate(&self, a: Input<T>, b: Input<T>) {
         assert_eq!(a.int_set == b.int_set, a.btree_set == b.btree_set);
@@ -1010,12 +989,12 @@ where
 struct CmpOp;
 
 impl CmpOp {
-    fn parse_args<T: SetMember<T>>() -> Option<Box<dyn Operation<T>>> {
+    fn parse_args<T: SetMember>() -> Option<Box<dyn Operation<T>>> {
         Some(Box::new(Self))
     }
 }
 
-impl<T: SetMember<T>> Operation<T> for CmpOp {
+impl<T: SetMember> Operation<T> for CmpOp {
     fn operate(&self, a: Input<T>, b: Input<T>) {
         assert_eq!(a.int_set.cmp(&b.int_set), a.btree_set.cmp(&b.btree_set));
     }
@@ -1033,7 +1012,7 @@ fn read_u8(data: &mut Cursor<&[u8]>) -> Option<u8> {
     Some(byte_val[0])
 }
 
-fn read_u32<T: SetMember<T>>(data: &mut Cursor<&[u8]>) -> Option<T> {
+fn read_u32<T: SetMember>(data: &mut Cursor<&[u8]>) -> Option<T> {
     let mut byte_val = [0, 0, 0, 0];
     data.read_exact(&mut byte_val).ok()?;
 
@@ -1045,7 +1024,7 @@ fn read_u32<T: SetMember<T>>(data: &mut Cursor<&[u8]>) -> Option<T> {
     T::create(u32_val)
 }
 
-fn read_u32_vec<T: SetMember<T>>(data: &mut Cursor<&[u8]>) -> Option<Vec<T>> {
+fn read_u32_vec<T: SetMember>(data: &mut Cursor<&[u8]>) -> Option<Vec<T>> {
     let count = read_u8(data)?;
     let mut values: Vec<T> = vec![];
     for _ in 0..count {
@@ -1056,7 +1035,7 @@ fn read_u32_vec<T: SetMember<T>>(data: &mut Cursor<&[u8]>) -> Option<Vec<T>> {
 
 struct NextOperation<T>
 where
-    T: SetMember<T>,
+    T: SetMember,
 {
     op: Box<dyn Operation<T>>,
     set_index: usize,
@@ -1067,7 +1046,7 @@ fn next_operation<T>(
     data: &mut Cursor<&[u8]>,
 ) -> Option<NextOperation<T>>
 where
-    T: SetMember<T> + 'static,
+    T: SetMember + 'static,
 {
     let op_code = read_u8(data)?;
 
@@ -1120,7 +1099,7 @@ where
     Some(NextOperation { op, set_index })
 }
 
-pub fn process_op_codes<T: SetMember<T> + 'static>(
+pub fn process_op_codes<T: SetMember + 'static>(
     operation_set: OperationSet,
     op_count_limit: usize,
     data: &[u8],
