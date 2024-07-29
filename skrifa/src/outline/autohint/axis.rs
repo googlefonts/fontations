@@ -43,18 +43,13 @@ impl Axis {
 
     pub fn reset(&mut self, dim: Dimension, orientation: Option<Orientation>) {
         self.dim = dim;
-        if dim == Self::HORIZONTAL {
-            self.major_dir = Direction::Up;
-        } else {
-            self.major_dir = Direction::Left;
-        }
-        if orientation == Some(Orientation::Clockwise) {
-            if dim == Self::HORIZONTAL {
-                self.major_dir = Direction::Down;
-            } else {
-                self.major_dir = Direction::Right;
-            }
-        }
+        self.major_dir = match (dim, orientation) {
+            (Self::HORIZONTAL, Some(Orientation::Clockwise)) => Direction::Down,
+            (Self::VERTICAL, Some(Orientation::Clockwise)) => Direction::Right,
+            (Self::HORIZONTAL, _) => Direction::Up,
+            (Self::VERTICAL, _) => Direction::Left,
+            _ => Direction::None,
+        };
         self.segments.clear();
     }
 }
