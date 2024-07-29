@@ -32,8 +32,13 @@ impl<'a> Fvar<'a> {
     /// * If no user coordinate for an axis is provided, the associated
     ///   coordinate is set to the normalized value 0.0, representing the
     ///   default location in variation space.
+    /// * The length of `normalized_coords` should equal the number of axes
+    ///   present in the this table. If the length is smaller, axes at
+    ///   out of bounds indices are ignored. If the length is larger, the
+    ///   excess entries will be filled with zeros.
     ///
-    /// If the `avar` table is provided, applies remapping of coordinates.
+    /// If the [`Avar`] table is provided, applies remapping of coordinates
+    /// according to the specification.
     pub fn user_to_normalized(
         &self,
         avar: Option<&Avar>,
