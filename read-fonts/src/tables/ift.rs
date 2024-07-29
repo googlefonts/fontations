@@ -2,8 +2,10 @@
 
 include!("../../generated/generated_ift.rs");
 
-use core::str::Utf8Error;
 use std::{ops::RangeInclusive, str};
+
+pub const IFT_TAG: types::Tag = Tag::new(b"IFT ");
+pub const IFTX_TAG: types::Tag = Tag::new(b"IFTX");
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct U8Or16(u16);
@@ -37,12 +39,8 @@ impl U8Or16 {
 
 impl<'a> PatchMapFormat1<'a> {
     pub fn get_compatibility_id(&self) -> [u32; 4] {
-        [
-            self.compatibility_id().first().unwrap().get(),
-            self.compatibility_id().get(1).unwrap().get(),
-            self.compatibility_id().get(2).unwrap().get(),
-            self.compatibility_id().get(3).unwrap().get(),
-        ]
+        let fixed_array: &[BigEndian<u32>; 4] = self.compatibility_id().try_into().unwrap();
+        fixed_array.map(|x| x.get())
     }
 
     pub fn gid_to_entry_iter(&'a self) -> impl Iterator<Item = (GlyphId, u16)> + 'a {
@@ -61,8 +59,9 @@ impl<'a> PatchMapFormat1<'a> {
         self.max_entry_index() as u32 + 1
     }
 
-    pub fn uri_template_as_string(&self) -> Result<&str, Utf8Error> {
+    pub fn uri_template_as_string(&self) -> Result<&str, ReadError> {
         str::from_utf8(self.uri_template())
+            .map_err(|_| ReadError::MalformedData("Invalid UTF8 encoding for uri template."))
     }
 
     pub fn is_entry_applied(&self, entry_index: u32) -> bool {
@@ -185,7 +184,7 @@ where
         self.remaining -= 1;
 
         let size = U8Or16::compute_size(&self.max_entry_index).ok()? * 2;
-        self.data = &self.data[size..];
+        self.data = self.data.get(size..)?;
 
         Some(FeatureEntryMapping {
             matched_entries: entry_record.first_entry_index().get()

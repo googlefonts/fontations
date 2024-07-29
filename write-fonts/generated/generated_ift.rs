@@ -5,44 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct IFT {}
-
-impl IFT {
-    /// Construct a new `IFT`
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Validate for IFT {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
-}
-
-impl TopLevelTable for IFT {
-    const TAG: Tag = Tag::new(b"IFT ");
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct IFTX {}
-
-impl IFTX {
-    /// Construct a new `IFTX`
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Validate for IFTX {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
-}
-
-impl TopLevelTable for IFTX {
-    const TAG: Tag = Tag::new(b"IFTX");
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Ift {

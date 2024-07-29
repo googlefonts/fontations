@@ -297,9 +297,9 @@ pub(crate) enum CountTransform {
     /// only ItemVariationStore: requires item_count, word_delta_count, region_index_count
     ItemVariationDataLen,
     /// Number of bytes to hold a bitmap of N items
-    Bitmap,
+    BitmapLen,
     /// Number of bytes to hold a bitmap with max value N
-    MaxValueBitmap,
+    MaxValueBitmapLen,
 }
 
 /// Attributes for specifying how to compile a field
@@ -1439,8 +1439,8 @@ static TRANSFORM_IDENTS: &[(CountTransform, &str)] = &[
         CountTransform::ItemVariationDataLen,
         "item_variation_data_len",
     ),
-    (CountTransform::Bitmap, "bitmap"),
-    (CountTransform::MaxValueBitmap, "max_value_bitmap"),
+    (CountTransform::BitmapLen, "bitmap_len"),
+    (CountTransform::MaxValueBitmapLen, "max_value_bitmap_len"),
 ];
 
 impl FromStr for CountTransform {
@@ -1474,8 +1474,8 @@ impl CountTransform {
             CountTransform::DeltaSetIndexData => 2,
             CountTransform::TupleLen => 3,
             CountTransform::ItemVariationDataLen => 3,
-            CountTransform::Bitmap => 1,
-            CountTransform::MaxValueBitmap => 1,
+            CountTransform::BitmapLen => 1,
+            CountTransform::MaxValueBitmapLen => 1,
         }
     }
 }
@@ -1625,11 +1625,11 @@ impl Count {
                 (CountTransform::ItemVariationDataLen, [a, b, c]) => {
                     quote!(ItemVariationData::delta_sets_len(#a, #b, #c))
                 }
-                (CountTransform::Bitmap, [a]) => {
-                    quote!(transforms::bitmap(#a))
+                (CountTransform::BitmapLen, [a]) => {
+                    quote!(transforms::bitmap_len(#a))
                 }
-                (CountTransform::MaxValueBitmap, [a]) => {
-                    quote!(transforms::bitmap(#a + 1))
+                (CountTransform::MaxValueBitmapLen, [a]) => {
+                    quote!(transforms::bitmap_len(#a + 1))
                 }
                 _ => unreachable!("validated before now"),
             },

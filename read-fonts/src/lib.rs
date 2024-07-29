@@ -145,7 +145,7 @@ pub(crate) mod codegen_prelude {
                 .saturating_add(rhs.try_into().unwrap_or_default())
         }
 
-        pub fn bitmap<T: TryInto<usize>>(count: T) -> usize {
+        pub fn bitmap_len<T: TryInto<usize>>(count: T) -> usize {
             (count.try_into().unwrap_or_default() + 7) / 8
         }
 

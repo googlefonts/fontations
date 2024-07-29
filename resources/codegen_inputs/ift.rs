@@ -2,19 +2,6 @@
 
 extern record U8Or16;
 
-#[tag = "IFT "]
-#[skip_font_write]
-#[skip_from_obj]
-table IFT {
-}
-
-#[tag = "IFTX"]
-#[skip_font_write]
-#[skip_from_obj]
-table IFTX {
-}
-
-
 format u8 Ift {
   Format1(PatchMapFormat1),
   Format2(PatchMapFormat2),
@@ -47,7 +34,7 @@ table PatchMapFormat1 {
   #[read_offset_with($max_entry_index)]
   feature_map_offset: Offset32<FeatureMap>,
 
-  #[count(max_value_bitmap($max_entry_index))]
+  #[count(max_value_bitmap_len($max_entry_index))]
   applied_entries_bitmap: [u8],
 
   // URI Template String (UTF-8 Encoded)
