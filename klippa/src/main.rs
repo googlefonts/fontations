@@ -51,5 +51,13 @@ fn main() {
     let font = FontRef::new(&font_bytes).expect("Error reading font bytes");
     let plan = Plan::new(&gids, &unicodes, &font);
 
-    subset_font(font, &plan, &args.output_file);
+    match subset_font(font, &plan) {
+        Ok(out) => {
+            std::fs::write(&args.output_file, out).unwrap();
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+    };
 }

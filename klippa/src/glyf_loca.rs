@@ -1,22 +1,27 @@
 //! impl subset() for glyf and loca
 use crate::{estimate_subset_table_size, Plan, SubsetError, SubsetError::SubsetTableError};
-use write_fonts::read::{
-    tables::{
-        glyf::{
-            CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, Glyph::Composite, Glyph::Simple,
-            SimpleGlyph, SimpleGlyphFlags,
+use write_fonts::{
+    read::{
+        tables::{
+            glyf::{
+                CompositeGlyph, CompositeGlyphFlags, Glyf,
+                Glyph::{self, Composite, Simple},
+                SimpleGlyph, SimpleGlyphFlags,
+            },
+            head::Head,
+            loca::Loca,
         },
-        head::Head,
-        loca::Loca,
+        types::GlyphId,
+        FontRef, TableProvider, TopLevelTable,
     },
-    types::GlyphId,
-    FontRef, TableProvider, TopLevelTable,
+    FontBuilder,
 };
 
 pub fn subset_glyf_loca(
     plan: &Plan,
     font: &FontRef,
-) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), SubsetError> {
+    builder: &mut FontBuilder,
+) -> Result<(), SubsetError> {
     let Ok(glyf) = font.glyf() else {
         return Err(SubsetTableError(Glyf::TAG));
     };
@@ -84,10 +89,14 @@ pub fn subset_glyf_loca(
         }
     }
 
-    let Ok(head) = subset_head(&head, loca_format) else {
+    let Ok(head_out) = subset_head(&head, loca_format) else {
         return Err(SubsetTableError(Head::TAG));
     };
-    Ok((glyf_out, loca_out, head))
+
+    builder.add_raw(Glyf::TAG, glyf_out);
+    builder.add_raw(Loca::TAG, loca_out);
+    builder.add_raw(Head::TAG, head_out);
+    Ok(())
 }
 
 fn padded_size(len: usize) -> usize {
