@@ -35,13 +35,13 @@ impl BitPage {
     }
 
     /// Returns the number of members in this page.
-    pub(crate) fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> u32 {
         if self.is_dirty() {
             // this means we're stale and should recompute
             let len = self.storage.iter().map(|val| val.count_ones()).sum();
             self.len.set(len);
         }
-        self.len.get() as usize
+        self.len.get()
     }
 
     /// Returns true if this page has no members.

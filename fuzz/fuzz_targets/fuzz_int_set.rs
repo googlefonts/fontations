@@ -14,7 +14,7 @@ use int_set_op_processor::OperationSet;
 use int_set_op_processor::SmallEvenInt;
 use int_set_op_processor::SmallInt;
 
-const OPERATION_COUNT: usize = 7_500;
+const OPERATION_COUNT: u64 = 7_500;
 
 fuzz_target!(|data: &[u8]| {
     let Some(mode_byte) = data.first() else {

@@ -75,7 +75,7 @@ pub trait Domain: Sized {
     fn ordered_values_range(range: RangeInclusive<Self>) -> impl DoubleEndedIterator<Item = u32>;
 
     /// Returns the number of members in the domain.
-    fn count() -> usize;
+    fn count() -> u64;
 }
 
 /// Marks a mapped value as being in the domain of `T` for [`Domain`].
@@ -335,7 +335,7 @@ impl<T: Domain> IntSet<T> {
     }
 
     /// Returns the number of members in this set.
-    pub fn len(&self) -> usize {
+    pub fn len(&self) -> u64 {
         match &self.0 {
             Membership::Inclusive(s) => s.len(),
             Membership::Exclusive(s) => T::count() - s.len(),
@@ -855,8 +855,8 @@ impl Domain for u32 {
         range
     }
 
-    fn count() -> usize {
-        (u32::MAX as usize) - (u32::MIN as usize) + 1
+    fn count() -> u64 {
+        (u32::MAX as u64) - (u32::MIN as u64) + 1
     }
 }
 
@@ -881,8 +881,8 @@ impl Domain for u16 {
         (*range.start() as u32)..=(*range.end() as u32)
     }
 
-    fn count() -> usize {
-        (u16::MAX as usize) - (u16::MIN as usize) + 1
+    fn count() -> u64 {
+        (u16::MAX as u64) - (u16::MIN as u64) + 1
     }
 }
 
@@ -907,8 +907,8 @@ impl Domain for u8 {
         (*range.start() as u32)..=(*range.end() as u32)
     }
 
-    fn count() -> usize {
-        (u8::MAX as usize) - (u8::MIN as usize) + 1
+    fn count() -> u64 {
+        (u8::MAX as u64) - (u8::MIN as u64) + 1
     }
 }
 
@@ -935,8 +935,8 @@ impl Domain for GlyphId16 {
         range.start().to_u32()..=range.end().to_u32()
     }
 
-    fn count() -> usize {
-        (u16::MAX as usize) - (u16::MIN as usize) + 1
+    fn count() -> u64 {
+        (u16::MAX as u64) - (u16::MIN as u64) + 1
     }
 }
 
@@ -963,8 +963,8 @@ impl Domain for GlyphId {
         range.start().to_u32()..=range.end().to_u32()
     }
 
-    fn count() -> usize {
-        (u32::MAX as usize) - (u32::MIN as usize) + 1
+    fn count() -> u64 {
+        (u32::MAX as u64) - (u32::MIN as u64) + 1
     }
 }
 
@@ -1007,8 +1007,8 @@ mod test {
                 .filter(move |v| *v >= range.start().to_u32() && *v <= range.end().to_u32())
         }
 
-        fn count() -> usize {
-            ((u32::MAX as usize) - (u32::MIN as usize) + 1) / 2
+        fn count() -> u64 {
+            ((u32::MAX as u64) - (u32::MIN as u64) + 1) / 2
         }
     }
 
@@ -1039,7 +1039,7 @@ mod test {
                 .filter(move |v| *v >= range.start().to_u32() && *v <= range.end().to_u32())
         }
 
-        fn count() -> usize {
+        fn count() -> u64 {
             4 + 9
         }
     }
@@ -1073,7 +1073,7 @@ mod test {
                 .filter(move |v| *v >= range.start().to_u32() && *v <= range.end().to_u32())
         }
 
-        fn count() -> usize {
+        fn count() -> u64 {
             4
         }
     }
@@ -1870,7 +1870,7 @@ mod test {
         assert!(!set.is_inverted());
 
         set.invert();
-        assert_eq!(set.len(), u32::MAX as usize - 1);
+        assert_eq!(set.len(), u32::MAX as u64 - 1);
         assert!(!set.contains(13));
         assert!(set.contains(80));
         assert!(!set.contains(800));
@@ -2172,9 +2172,9 @@ mod test {
         assert_eq!(s.len(), 2);
 
         s.invert();
-        assert_eq!(s.len(), (u32::MAX - 1) as usize);
+        assert_eq!(s.len(), (u32::MAX - 1) as u64);
 
-        assert_eq!(IntSet::<u32>::all().len(), (u32::MAX as usize) + 1);
+        assert_eq!(IntSet::<u32>::all().len(), (u32::MAX as u64) + 1);
 
         let mut s = IntSet::<TwoParts>::all();
         assert_eq!(s.len(), 13);

@@ -254,8 +254,8 @@ struct CreateLayerState<'a> {
     current_node: Option<Node>,
     current_node_filled_bits: u32,
     nodes: &'a mut Vec<Node>,
-    child_count: usize,
-    nodes_init_length: usize,
+    child_count: u64,
+    nodes_init_length: u64,
     branch_factor: BranchFactor,
 }
 
@@ -280,7 +280,9 @@ impl<'a> CreateLayerState<'a> {
                 let children_end_index = self.nodes_init_length;
                 // TODO(garretrieger): this scans all nodes of the previous layer to find those which are children,
                 //   but we can likely limit it to just the children of this node with some extra book keeping.
-                for child in &mut self.nodes[children_start_index..children_end_index] {
+                for child in
+                    &mut self.nodes[children_start_index as usize..children_end_index as usize]
+                {
                     if child.parent_index >= node.parent_index * self.branch_factor.value()
                         && child.parent_index < (node.parent_index + 1) * self.branch_factor.value()
                     {
@@ -314,7 +316,7 @@ fn create_layer(
         current_node: None,
         current_node_filled_bits: 0,
         child_count: values.len(),
-        nodes_init_length: nodes.len(),
+        nodes_init_length: nodes.len() as u64,
         nodes,
         branch_factor,
     };
