@@ -8,7 +8,7 @@ mod int_set_op_processor;
 use int_set_op_processor::process_op_codes;
 use int_set_op_processor::OperationSet;
 
-const OPERATION_COUNT: usize = 2000;
+const OPERATION_COUNT: u64 = 2000;
 
 fuzz_target!(|data: &[u8]| {
     let _ = process_op_codes::<u32>(OperationSet::SparseBitSetEncoding, OPERATION_COUNT, data);

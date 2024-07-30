@@ -9,6 +9,7 @@ pub use parsing_util::{parse_unicodes, populate_gids};
 use skrifa::MetadataProvider;
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
+
 use thiserror::Error;
 use write_fonts::read::{
     collections::IntSet,
@@ -69,8 +70,8 @@ impl Plan {
         font: &FontRef,
     ) {
         let charmap = font.charmap();
-        if input_gids.is_empty() && input_unicodes.len() < self.font_num_glyphs {
-            let cap = input_unicodes.len();
+        if input_gids.is_empty() && input_unicodes.len() < (self.font_num_glyphs as u64) {
+            let cap: usize = input_unicodes.len().try_into().unwrap_or(usize::MAX);
             self.unicode_to_new_gid_list.reserve(cap);
             self.codepoint_to_glyph.reserve(cap);
             //TODO: add support for subset accelerator?
@@ -91,8 +92,11 @@ impl Plan {
             let cmap_unicodes = charmap.mappings().map(|t| t.0).collect::<IntSet<u32>>();
             let unicode_gid_map = charmap.mappings().collect::<HashMap<u32, GlyphId>>();
 
-            let vec_cap = input_gids.len() + input_unicodes.len();
-            let vec_cap = vec_cap.min(cmap_unicodes.len());
+            let vec_cap: u64 = input_gids.len() + input_unicodes.len();
+            let vec_cap: usize = vec_cap
+                .min(cmap_unicodes.len())
+                .try_into()
+                .unwrap_or(usize::MAX);
             self.codepoint_to_glyph.reserve(vec_cap);
             self.unicode_to_new_gid_list.reserve(vec_cap);
             //TODO: possible micro-optimize: set iteration over ranges next_range()? getting ranges is faster in Harfbuzz int set
@@ -145,7 +149,7 @@ impl Plan {
         let loca = font.loca(None).expect("Error reading loca table");
         let glyf = font.glyf().expect("Error reading glyf table");
         let operation_count =
-            self.glyphset_gsub.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as usize);
+            self.glyphset_gsub.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as u64);
         for gid in self.glyphset_colred.iter() {
             glyf_closure_glyphs(
                 &loca,
@@ -260,7 +264,7 @@ fn compute_new_num_h_metrics(hmtx_table: &Hmtx, glyph_ids: &IntSet<GlyphId>) -> 
                 == last_advance
         })
         .count();
-    (num_long_metrics - num_skippable_glyphs).max(1) as u16
+    (num_long_metrics - num_skippable_glyphs as u64).max(1) as u16
 }
 
 #[derive(Debug, Error)]

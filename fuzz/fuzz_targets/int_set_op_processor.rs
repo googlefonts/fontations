@@ -158,8 +158,8 @@ impl Domain for SmallInt {
         range.start().to_u32()..=range.end().to_u32()
     }
 
-    fn count() -> usize {
-        Self::MAX_VALUE as usize + 1
+    fn count() -> u64 {
+        Self::MAX_VALUE as u64 + 1
     }
 }
 
@@ -228,8 +228,8 @@ impl Domain for SmallEvenInt {
         ((range.start().to_u32() / 2)..=(range.end().to_u32() / 2)).map(|ord| ord * 2)
     }
 
-    fn count() -> usize {
-        ((Self::MAX_VALUE / 2) + 1) as usize
+    fn count() -> u64 {
+        ((Self::MAX_VALUE / 2) + 1) as u64
     }
 }
 
@@ -246,7 +246,7 @@ impl<T> Input<'_, T> {
 }
 
 trait Operation<T> {
-    fn size(&self, set_len: usize) -> usize;
+    fn size(&self, set_len: u64) -> u64;
     fn operate(&self, input: Input<T>, other: Input<T>);
 }
 
@@ -272,8 +272,8 @@ where
         input.btree_set.insert(self.0);
     }
 
-    fn size(&self, length: usize) -> usize {
-        length.ilog2() as usize
+    fn size(&self, length: u64) -> u64 {
+        length.ilog2() as u64
     }
 }
 
@@ -296,11 +296,11 @@ impl<T> Operation<T> for InsertRangeOp<T>
 where
     T: SetMember,
 {
-    fn size(&self, length: usize) -> usize {
+    fn size(&self, length: u64) -> u64 {
         if self.1 < self.0 {
             return 1;
         }
-        ((self.1.to_u32() as usize - self.0.to_u32() as usize) + 1) * (length.ilog2() as usize)
+        ((self.1.to_u32() as u64 - self.0.to_u32() as u64) + 1) * (length.ilog2() as u64)
     }
 
     fn operate(&self, input: Input<T>, _: Input<T>) {
@@ -331,8 +331,8 @@ impl<T> Operation<T> for RemoveOp<T>
 where
     T: SetMember,
 {
-    fn size(&self, length: usize) -> usize {
-        length.ilog2() as usize
+    fn size(&self, length: u64) -> u64 {
+        length.ilog2() as u64
     }
 
     fn operate(&self, input: Input<T>, _: Input<T>) {
@@ -360,11 +360,11 @@ impl<T> Operation<T> for RemoveRangeOp<T>
 where
     T: SetMember,
 {
-    fn size(&self, length: usize) -> usize {
+    fn size(&self, length: u64) -> u64 {
         if self.1 < self.0 {
             return 1;
         }
-        ((self.1.to_u32() as usize - self.0.to_u32() as usize) + 1) * (length.ilog2() as usize)
+        ((self.1.to_u32() as u64 - self.0.to_u32() as u64) + 1) * (length.ilog2() as u64)
     }
 
     fn operate(&self, input: Input<T>, _: Input<T>) {
@@ -394,10 +394,10 @@ where
     T: SetMember,
 {
     fn operate(&self, input: Input<T>, _: Input<T>) {
-        assert_eq!(input.int_set.len(), input.btree_set.len());
+        assert_eq!(input.int_set.len(), input.btree_set.len() as u64);
     }
 
-    fn size(&self, _: usize) -> usize {
+    fn size(&self, _: u64) -> u64 {
         1
     }
 }
@@ -423,7 +423,7 @@ where
         assert_eq!(input.int_set.is_empty(), input.btree_set.is_empty());
     }
 
-    fn size(&self, _: usize) -> usize {
+    fn size(&self, _: u64) -> u64 {
         1
     }
 }
@@ -453,8 +453,8 @@ where
         );
     }
 
-    fn size(&self, length: usize) -> usize {
-        length.ilog2() as usize
+    fn size(&self, length: u64) -> u64 {
+        length.ilog2() as u64
     }
 }
 
@@ -480,7 +480,7 @@ where
         input.btree_set.clear();
     }
 
-    fn size(&self, length: usize) -> usize {
+    fn size(&self, length: u64) -> u64 {
         length
     }
 }
@@ -520,11 +520,11 @@ where
         assert_eq!(int_set_intersects, btree_intersects);
     }
 
-    fn size(&self, length: usize) -> usize {
+    fn size(&self, length: u64) -> u64 {
         if self.1 < self.0 {
             return 1;
         }
-        ((self.1.to_u32() as usize - self.0.to_u32() as usize) + 1) * (length.ilog2() as usize)
+        ((self.1.to_u32() as u64 - self.0.to_u32() as u64) + 1) * (length.ilog2() as u64)
     }
 }
 
@@ -549,8 +549,8 @@ where
         assert_eq!(input.int_set.first(), input.btree_set.first().copied());
     }
 
-    fn size(&self, length: usize) -> usize {
-        length.ilog2() as usize
+    fn size(&self, length: u64) -> u64 {
+        length.ilog2() as u64
     }
 }
 
@@ -575,8 +575,8 @@ where
         assert_eq!(input.int_set.last(), input.btree_set.last().copied());
     }
 
-    fn size(&self, length: usize) -> usize {
-        length.ilog2() as usize
+    fn size(&self, length: u64) -> u64 {
+        length.ilog2() as u64
     }
 }
 
@@ -601,7 +601,7 @@ where
         assert!(input.int_set.iter().eq(input.btree_set.iter().copied()));
     }
 
-    fn size(&self, length: usize) -> usize {
+    fn size(&self, length: u64) -> u64 {
         length
     }
 }
@@ -637,7 +637,7 @@ where
         };
     }
 
-    fn size(&self, length: usize) -> usize {
+    fn size(&self, length: u64) -> u64 {
         length
     }
 }
@@ -684,7 +684,7 @@ where
         assert!(input.int_set.iter_ranges().eq(btree_ranges.iter().cloned()));
     }
 
-    fn size(&self, length: usize) -> usize {
+    fn size(&self, length: u64) -> u64 {
         length
     }
 }
@@ -715,7 +715,7 @@ where
         assert!(it.eq(btree_it.copied()));
     }
 
-    fn size(&self, length: usize) -> usize {
+    fn size(&self, length: u64) -> u64 {
         length
     }
 }
@@ -744,8 +744,8 @@ where
         }
     }
 
-    fn size(&self, length: usize) -> usize {
-        (length.ilog2() as usize) * self.0.len()
+    fn size(&self, length: u64) -> u64 {
+        (length.ilog2() as u64) * (self.0.len() as u64)
     }
 }
 
@@ -771,8 +771,8 @@ where
         input.btree_set.extend(self.0.iter().copied());
     }
 
-    fn size(&self, length: usize) -> usize {
-        (length.ilog2() as usize) * self.0.len()
+    fn size(&self, length: u64) -> u64 {
+        (length.ilog2() as u64) * (self.0.len() as u64)
     }
 }
 
@@ -798,8 +798,8 @@ where
         input.btree_set.extend(self.0.iter().copied());
     }
 
-    fn size(&self, length: usize) -> usize {
-        (length.ilog2() as usize) * self.0.len()
+    fn size(&self, length: u64) -> u64 {
+        (length.ilog2() as u64) * (self.0.len() as u64)
     }
 }
 
@@ -827,7 +827,7 @@ where
         }
     }
 
-    fn size(&self, length: usize) -> usize {
+    fn size(&self, length: u64) -> u64 {
         // TODO(garretrieger): should be length a + length b
         length
     }
@@ -856,7 +856,7 @@ where
         std::mem::swap(a.btree_set, &mut intersected);
     }
 
-    fn size(&self, length: usize) -> usize {
+    fn size(&self, length: u64) -> u64 {
         // TODO(garretrieger): should be length a + length b
         length
     }
@@ -893,7 +893,7 @@ where
         std::mem::swap(input.btree_set, &mut inverted);
     }
 
-    fn size(&self, _: usize) -> usize {
+    fn size(&self, _: u64) -> u64 {
         T::count()
     }
 }
@@ -919,7 +919,7 @@ where
         input.int_set.is_inverted();
     }
 
-    fn size(&self, _: usize) -> usize {
+    fn size(&self, _: u64) -> u64 {
         1
     }
 }
@@ -955,7 +955,7 @@ where
         }
     }
 
-    fn size(&self, length: usize) -> usize {
+    fn size(&self, length: u64) -> u64 {
         length
     }
 }
@@ -981,7 +981,7 @@ where
         assert_eq!(a.int_set == b.int_set, a.btree_set == b.btree_set);
     }
 
-    fn size(&self, length: usize) -> usize {
+    fn size(&self, length: u64) -> u64 {
         length
     }
 }
@@ -999,7 +999,7 @@ impl<T: SetMember> Operation<T> for CmpOp {
         assert_eq!(a.int_set.cmp(&b.int_set), a.btree_set.cmp(&b.btree_set));
     }
 
-    fn size(&self, length: usize) -> usize {
+    fn size(&self, length: u64) -> u64 {
         length
     }
 }
@@ -1101,7 +1101,7 @@ where
 
 pub fn process_op_codes<T: SetMember + 'static>(
     operation_set: OperationSet,
-    op_count_limit: usize,
+    op_count_limit: u64,
     data: &[u8],
 ) -> Result<(), Box<dyn Error>> {
     let mut int_set_0 = IntSet::<T>::empty();
@@ -1109,7 +1109,7 @@ pub fn process_op_codes<T: SetMember + 'static>(
     let mut btree_set_0 = BTreeSet::<T>::new();
     let mut btree_set_1 = BTreeSet::<T>::new();
 
-    let mut ops_counter = 0usize;
+    let mut ops_counter = 0u64;
     let mut data = Cursor::new(data);
     loop {
         let next_op = next_operation::<T>(operation_set, &mut data);
@@ -1124,7 +1124,8 @@ pub fn process_op_codes<T: SetMember + 'static>(
                 &btree_set_1
             };
             // when computing size use minimum length of 2 to ensure minimum value of log2(length) is 1.
-            ops_counter = ops_counter.saturating_add(next_op.op.size(2.max(btree_set.len())));
+            ops_counter =
+                ops_counter.saturating_add(next_op.op.size(2.max(btree_set.len() as u64)));
             if ops_counter > op_count_limit {
                 // Operation count limit reached.
                 break;

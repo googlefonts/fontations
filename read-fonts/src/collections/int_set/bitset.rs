@@ -18,7 +18,7 @@ pub(crate) struct BitSet {
     // TODO(garretrieger): consider a "small array" type instead of Vec.
     pages: Vec<BitPage>,
     page_map: Vec<PageInfo>,
-    len: Cell<usize>, // TODO(garretrieger): use an option instead of a sentinel.
+    len: Cell<u64>, // TODO(garretrieger): use an option instead of a sentinel.
 }
 
 impl BitSet {
@@ -166,12 +166,12 @@ impl BitSet {
     }
 
     /// Returns the number of members in this set.
-    pub(crate) fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> u64 {
         // TODO(garretrieger): keep track of len on the fly, rather than computing it. Leave a computation method
         //                     for complex cases if needed.
         if self.is_dirty() {
             // this means we're stale and should recompute
-            let len = self.pages.iter().map(|val| val.len()).sum();
+            let len = self.pages.iter().map(|val| val.len() as u64).sum();
             self.len.set(len);
         }
         self.len.get()
@@ -471,11 +471,11 @@ impl BitSet {
     }
 
     fn mark_dirty(&mut self) {
-        self.len.set(usize::MAX);
+        self.len.set(u64::MAX);
     }
 
     fn is_dirty(&self) -> bool {
-        self.len.get() == usize::MAX
+        self.len.get() == u64::MAX
     }
 
     /// Return the major value (top 23 bits) of the page associated with value.
@@ -1156,7 +1156,7 @@ mod test {
             set.len();
             set.insert_range(range.0..=range.1);
             assert_eq!(set, set_for_range(range.0, range.1), "{range:?}");
-            assert_eq!(set.len(), (range.1 - range.0 + 1) as usize, "{range:?}");
+            assert_eq!(set.len(), (range.1 - range.0 + 1) as u64, "{range:?}");
         }
     }
 
