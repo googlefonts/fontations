@@ -30,7 +30,7 @@ impl OutputBitStream {
 
     /// Writes a single node worth of bits to the stream.
     ///
-    /// branch_factor controls the node size.
+    /// `branch_factor` controls the node size.
     pub fn write_node(&mut self, bits: u32) {
         for byte_index in 0..self.branch_factor.bytes_per_node() {
             if self.branch_factor.nodes_per_byte() == 1 || self.sub_index == 0 {

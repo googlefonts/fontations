@@ -18,7 +18,7 @@ pub(crate) const PAGE_BITS: u32 = ELEM_BITS * PAGE_SIZE;
 // mask out the bits of a value not used to index into a page
 const PAGE_MASK: u32 = PAGE_BITS - 1;
 
-/// A fixed size (512 bits wide) page of bits that records integer set membership from [0, 511].
+/// A fixed size (512 bits wide) page of bits that records integer set membership from `[0, 511]`.
 #[derive(Clone)]
 pub(crate) struct BitPage {
     storage: [Element; PAGE_SIZE as usize],
@@ -64,7 +64,7 @@ impl BitPage {
             })
     }
 
-    /// Iterator over the members of this page that come after 'value'.
+    /// Iterator over the members of this page that come after `value`.
     pub(crate) fn iter_after(&self, value: u32) -> impl DoubleEndedIterator<Item = u32> + '_ {
         let start_index = Self::element_index(value);
         self.storage[start_index..]
@@ -92,7 +92,7 @@ impl BitPage {
         }
     }
 
-    /// Marks (val % page width) a member of this set and returns true if it is newly added.
+    /// Marks `(val % page width)` a member of this set and returns `true` if it is newly added.
     pub(crate) fn insert(&mut self, val: u32) -> bool {
         let ret = !self.contains(val);
         *self.element_mut(val) |= elem_index_bit_mask(val);
@@ -100,15 +100,17 @@ impl BitPage {
         ret
     }
 
-    /// Marks (val % page width) a member of this set, but does not check if it was already a member.
+    /// Marks `(val % page width)` a member of this set, but does not check if it was already a member.
     ///
-    /// This is used to maximize performance in cases where the return value on insert() is not needed.
+    /// This is used to maximize performance in cases where the return value on [`insert()`] is not needed.
+    ///
+    /// [`insert()`]: Self::insert
     pub(crate) fn insert_no_return(&mut self, val: u32) {
         *self.element_mut(val) |= elem_index_bit_mask(val);
         self.mark_dirty();
     }
 
-    /// Marks all values [first, last] as members of this set.
+    /// Marks all values `[first, last]` as members of this set.
     pub(crate) fn insert_range(&mut self, first: u32, last: u32) {
         let first = first & PAGE_MASK;
         let last = last & PAGE_MASK;
@@ -129,7 +131,7 @@ impl BitPage {
         self.mark_dirty();
     }
 
-    /// Marks all values [first, last] as not members of this set.
+    /// Marks all values `[first, last]` as not members of this set.
     pub(crate) fn remove_range(&mut self, first: u32, last: u32) {
         let first = first & PAGE_MASK;
         let last = last & PAGE_MASK;
@@ -157,7 +159,7 @@ impl BitPage {
         self.len.set(0);
     }
 
-    /// Removes (val % page width) from this set.
+    /// Removes `(val % page width)` from this set.
     pub(crate) fn remove(&mut self, val: u32) -> bool {
         let ret = self.contains(val);
         *self.element_mut(val) &= !elem_index_bit_mask(val);
@@ -165,7 +167,7 @@ impl BitPage {
         ret
     }
 
-    /// Return true if (val % page width) is a member of this set.
+    /// Return true if `(val % page width)` is a member of this set.
     pub(crate) fn contains(&self, val: u32) -> bool {
         (*self.element(val) & elem_index_bit_mask(val)) != 0
     }
@@ -235,9 +237,9 @@ impl Iter {
         }
     }
 
-    /// Construct an iterator that starts at 'index'
+    /// Construct an iterator that starts at `index`
     ///
-    /// Specifically if 'index' bit is set it will be returned on the first call to next().
+    /// Specifically if `index` bit is set it will be returned on the first call to `next()`.
     fn from(elem: Element, index: u32) -> Iter {
         Iter {
             val: elem,
