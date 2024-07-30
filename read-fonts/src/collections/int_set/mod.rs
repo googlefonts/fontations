@@ -10,10 +10,10 @@
 //! exclusive/inverted version of the set is useful for patterns such as
 //! "keep all codepoints except for {x, y, z, ...}".
 //!
-//! When constructing a new IntSet from an existing lists of integer values the most efficient
+//! When constructing a new [`IntSet`] from an existing lists of integer values the most efficient
 //! way to create the set is to initialize it from a sorted (ascending) iterator of the values.
 //!
-//! For a type to be stored in the IntSet it must implement the [`Domain`] trait, and all
+//! For a type to be stored in the [`IntSet`] it must implement the [`Domain`] trait, and all
 //! unique values of that type must be able to be mapped to and from a unique `u32` value.
 //! See the [`Domain`] trait for more information.
 
@@ -108,7 +108,7 @@ impl<T: Domain> IntSet<T> {
     /// Returns an iterator over all members of the set in sorted ascending order.
     ///
     /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
-    /// care should be taken when using .iter() in combination with an inverted set.
+    /// care should be taken when using `.iter()` in combination with an inverted set.
     pub fn iter(&self) -> impl DoubleEndedIterator<Item = T> + '_ {
         let u32_iter = match &self.0 {
             Membership::Inclusive(s) => Iter::new_bidirectional(s.iter(), None),
@@ -119,7 +119,7 @@ impl<T: Domain> IntSet<T> {
         u32_iter.map(|v| T::from_u32(InDomain(v)))
     }
 
-    /// If this is an inclusive membership set then returns an iterator over the members, otherwise returns None.
+    /// If this is an inclusive membership set then returns an iterator over the members, otherwise returns `None`.
     pub fn inclusive_iter(&self) -> Option<impl DoubleEndedIterator<Item = T> + '_> {
         match &self.0 {
             Membership::Inclusive(s) => Some(s.iter().map(|v| T::from_u32(InDomain(v)))),
@@ -127,10 +127,10 @@ impl<T: Domain> IntSet<T> {
         }
     }
 
-    /// Returns an iterator over the members of this set that come after 'value' in ascending order.
+    /// Returns an iterator over the members of this set that come after `value` in ascending order.
     ///
     /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
-    /// care should be taken when using .iter() in combination with an inverted set.
+    /// care should be taken when using `.iter()` in combination with an inverted set.
     pub fn iter_after(&self, value: T) -> impl Iterator<Item = T> + '_ {
         let u32_iter = match &self.0 {
             Membership::Inclusive(s) => Iter::new(s.iter_after(value.to_u32()), None),
@@ -215,7 +215,9 @@ impl<T: Domain> IntSet<T> {
         }
     }
 
-    /// An alternate version of extend() which is optimized for inserting an unsorted iterator of values.
+    /// An alternate version of [`extend()`] which is optimized for inserting an unsorted iterator of values.
+    ///
+    /// [`extend()`]: Self::extend
     pub fn extend_unsorted<U: IntoIterator<Item = T>>(&mut self, iter: U) {
         let iter = iter.into_iter().map(|v| v.to_u32());
         match &mut self.0 {
@@ -418,7 +420,9 @@ impl<T: Domain> Extend<T> for IntSet<T> {
     /// Extends a collection with the contents of an iterator.
     ///
     /// This implementation is optimized to provide the best performance when the iterator contains sorted values.
-    /// Consider using extend_unsorted() if the iterator is known to contain unsorted values.
+    /// Consider using [`extend_unsorted()`] if the iterator is known to contain unsorted values.
+    ///
+    /// [`extend_unsorted()`]: IntSet::extend_unsorted
     fn extend<U: IntoIterator<Item = T>>(&mut self, iter: U) {
         let iter = iter.into_iter().map(|v| v.to_u32());
         match &mut self.0 {
