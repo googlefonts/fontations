@@ -58,12 +58,11 @@ fn add_intersecting_format1_patches<'a>(
     patches: &mut Vec<PatchUri>, // TODO(garretrieger): btree set to allow for de-duping?
 ) -> Result<(), ReadError> {
     // Step 0: Top Level Field Validation
-    if let Ok(maxp) = font.maxp() {
-        if map.glyph_count() != maxp.num_glyphs() as u32 {
-            return Err(ReadError::MalformedData(
-                "IFT glyph count must match maxp glyph count.",
-            ));
-        }
+    let maxp = font.maxp()?;
+    if map.glyph_count() != maxp.num_glyphs() as u32 {
+        return Err(ReadError::MalformedData(
+            "IFT glyph count must match maxp glyph count.",
+        ));
     }
 
     let max_entry_index = map.max_entry_index();
@@ -361,6 +360,23 @@ mod tests {
     }
 
     #[test]
+    fn format_1_patch_map_bad_entry_index() {
+        let mut data = Vec::<u8>::from(test_data::ift::SIMPLE_FORMAT1);
+        data[51] = 0x03;
+
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&data),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let patches =
+            intersecting_patches(&font, &IntSet::from([0x11]), &BTreeSet::<Tag>::from([])).unwrap();
+        assert_eq!(Vec::<PatchUri>::new(), patches);
+    }
+
+    #[test]
     fn format_1_patch_map_glyph_map_too_short() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -375,8 +391,80 @@ mod tests {
         );
     }
 
+    #[test]
+    fn format_1_patch_map_bad_glyph_count() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::CMAP12_FONT1).unwrap(),
+            Some(test_data::ift::SIMPLE_FORMAT1),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        assert!(
+            intersecting_patches(&font, &IntSet::from([0x123]), &BTreeSet::<Tag>::from([]))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn format_1_patch_map_bad_max_entry() {
+        let mut data = Vec::<u8>::from(test_data::ift::SIMPLE_FORMAT1);
+        data[24] = 0x03;
+
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&data),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        assert!(
+            intersecting_patches(&font, &IntSet::from([0x123]), &BTreeSet::<Tag>::from([]))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn format_1_patch_map_bad_uri_template() {
+        let mut data = Vec::<u8>::from(test_data::ift::SIMPLE_FORMAT1);
+        data[40] = 0x80;
+        data[41] = 0x81;
+
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&data),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        assert!(
+            intersecting_patches(&font, &IntSet::from([0x123]), &BTreeSet::<Tag>::from([]))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn format_1_patch_map_bad_encoding_number() {
+        let mut data = Vec::<u8>::from(test_data::ift::SIMPLE_FORMAT1);
+        data[48] = 0x12;
+
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&data),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        assert!(
+            intersecting_patches(&font, &IntSet::from([0x123]), &BTreeSet::<Tag>::from([]))
+                .is_err()
+        );
+    }
+
     // TODO(garretrieger): feature map too short.
     // TODO(garretrieger): entry map recordds too short.
+    // TODO(garretrieger): font with no maxp.
+    // TODO(garretrieger): font with MAXP and maxp.
 
     #[test]
     fn format_1_patch_map_u16_entries() {
