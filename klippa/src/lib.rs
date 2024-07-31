@@ -287,12 +287,12 @@ pub trait Subset {
     fn subset(&self, font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError>;
 }
 
-pub fn subset_font(font: FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
+pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
     let mut builder = FontBuilder::default();
 
     for record in font.table_directory.table_records() {
         let tag = record.tag();
-        subset_table(tag, &font, plan, &mut builder)?;
+        subset_table(tag, font, plan, &mut builder)?;
     }
     Ok(builder.build())
 }
