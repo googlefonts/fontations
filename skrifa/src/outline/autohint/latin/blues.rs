@@ -20,7 +20,7 @@ impl UnscaledBlues {
     /// Computes the set of blues for Latin style hinting.
     ///
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L314>
-    pub fn new_latin(font: &FontRef, coords: &[F2Dot14], script: &ScriptClass) -> Self {
+    pub(super) fn new_latin(font: &FontRef, coords: &[F2Dot14], script: &ScriptClass) -> Self {
         const MAX_INLINE_POINTS: usize = 64;
         const BLUE_STRING_MAX_LEN: usize = 51;
         let mut blues = Self::new();

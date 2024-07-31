@@ -1,6 +1,7 @@
 //! Latin writing system.
 
 mod blues;
+mod metrics;
 mod segments;
 mod widths;
 
