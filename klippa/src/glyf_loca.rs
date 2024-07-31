@@ -89,6 +89,13 @@ pub fn subset_glyf_loca(
         }
     }
 
+    // As a special case when all glyph in the font are empty, add a zero byte to the table,
+    // so that OTS doesn’t reject it, and to make the table work on Windows as well.
+    // See https://github.com/khaledhosny/ots/issues/52
+    if glyf_out.is_empty() {
+        glyf_out.extend_from_slice(&[0]);
+    }
+
     let Ok(head_out) = subset_head(&head, loca_format) else {
         return Err(SubsetTableError(Head::TAG));
     };
