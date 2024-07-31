@@ -47,8 +47,6 @@ pub struct Plan {
     glyphset: IntSet<GlyphId>,
     //Old->New glyph id mapping,
     glyph_map: HashMap<GlyphId, GlyphId>,
-    //New->old glyph id mapping,
-    reverse_glyph_map: HashMap<GlyphId, GlyphId>,
 
     new_to_old_gid_list: Vec<(GlyphId, GlyphId)>,
 
@@ -175,7 +173,6 @@ impl Plan {
     fn create_old_gid_to_new_gid_map(&mut self) {
         let pop = self.glyphset.len();
         self.glyph_map.reserve(pop);
-        self.reverse_glyph_map.reserve(pop);
         self.new_to_old_gid_list.reserve(pop);
 
         //TODO: Add support for requested_glyph_map, command line option --gid-map
@@ -187,9 +184,6 @@ impl Plan {
                 .map(|x| (GlyphId::from(x.1), x.0)),
         );
         self.num_output_glyphs = self.new_to_old_gid_list.len();
-
-        self.reverse_glyph_map
-            .extend(self.new_to_old_gid_list.iter().map(|x| (x.0, x.1)));
         self.glyph_map
             .extend(self.new_to_old_gid_list.iter().map(|x| (x.1, x.0)));
     }
