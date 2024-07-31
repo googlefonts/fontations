@@ -224,8 +224,8 @@ fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
         if i + 1 >= len {
             return Vec::new();
         }
-        let instuction_len = u16::from_be_bytes([out[i], out[i + 1]]);
-        i += 2 + instuction_len as usize;
+        let instruction_len = u16::from_be_bytes([out[i], out[i + 1]]);
+        i += 2 + instruction_len as usize;
     }
 
     out.truncate(i);
