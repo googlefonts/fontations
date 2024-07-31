@@ -11,8 +11,8 @@ use hmtx::subset_hmtx_hhea;
 use maxp::subset_maxp;
 pub use parsing_util::{parse_unicodes, populate_gids};
 
+use fnv::FnvHashMap;
 use skrifa::MetadataProvider;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;
 use write_fonts::read::{
@@ -46,14 +46,14 @@ pub struct Plan {
     glyphset_colred: IntSet<GlyphId>,
     glyphset: IntSet<GlyphId>,
     //Old->New glyph id mapping,
-    glyph_map: HashMap<GlyphId, GlyphId>,
+    glyph_map: FnvHashMap<GlyphId, GlyphId>,
 
     new_to_old_gid_list: Vec<(GlyphId, GlyphId)>,
 
     num_output_glyphs: usize,
     font_num_glyphs: usize,
     unicode_to_new_gid_list: Vec<(u32, GlyphId)>,
-    codepoint_to_glyph: HashMap<u32, GlyphId>,
+    codepoint_to_glyph: FnvHashMap<u32, GlyphId>,
 }
 
 impl Plan {
@@ -97,7 +97,7 @@ impl Plan {
         } else {
             //TODO: add support for subset accelerator?
             let cmap_unicodes = charmap.mappings().map(|t| t.0).collect::<IntSet<u32>>();
-            let unicode_gid_map = charmap.mappings().collect::<HashMap<u32, GlyphId>>();
+            let unicode_gid_map = charmap.mappings().collect::<FnvHashMap<u32, GlyphId>>();
 
             let vec_cap: u64 = input_gids.len() + input_unicodes.len();
             let vec_cap: usize = vec_cap
