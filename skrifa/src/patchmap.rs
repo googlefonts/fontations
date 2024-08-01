@@ -5,6 +5,7 @@
 
 use std::collections::BTreeSet;
 
+use crate::GlyphId;
 use crate::Tag;
 use raw::FontData;
 use read_fonts::{
@@ -54,7 +55,7 @@ fn add_intersecting_format1_patches<'a>(
     font: &impl TableProvider<'a>,
     map: &PatchMapFormat1,
     codepoints: &IntSet<u32>,
-    features: &BTreeSet<Tag>, // TODO(garretrieger): verify tag sorting matches specification description.
+    features: &BTreeSet<Tag>,
     patches: &mut Vec<PatchUri>, // TODO(garretrieger): btree set to allow for de-duping?
 ) -> Result<(), ReadError> {
     // Step 0: Top Level Field Validation
@@ -111,19 +112,33 @@ fn intersect_format1_glyph_map<'a>(
     entries: &mut IntSet<u16>,
 ) -> Result<(), ReadError> {
     let charmap = Charmap::new(font);
+    if codepoints.is_inverted() {
+        // TODO(garretrieger): consider invoking this path if codepoints set is above a size threshold
+        //                     relative to the fonts cmap.
+        let gids = charmap
+            .mappings()
+            .filter(|(cp, _)| codepoints.contains(*cp))
+            .map(|(_, gid)| gid);
+
+        return intersect_format1_glyph_map_inner(map, gids, entries);
+    }
+
+    // TODO(garretrieger): since codepoints are looked up in sorted order we may be able to speed up the charmap lookup
+    // (eg. walking the charmap in parallel with the codepoints, or caching the last binary search index)
+    let gids = codepoints.iter().flat_map(|cp| charmap.map(cp));
+    return intersect_format1_glyph_map_inner(map, gids, entries);
+}
+
+fn intersect_format1_glyph_map_inner<'a>(
+    map: &PatchMapFormat1,
+    gids: impl Iterator<Item = GlyphId>,
+    entries: &mut IntSet<u16>,
+) -> Result<(), ReadError> {
     let glyph_map = map.glyph_map()?;
     let first_gid = glyph_map.first_mapped_glyph() as u32;
     let max_glyph_map_entry_index = map.max_glyph_map_entry_index();
 
-    // TODO(garretrieger): special case codepoints = * (inverted set) and large codepoints sets
-    //   produce the codepoint set to be processed by walking the cmap mapping and filtering against he input set.
-    for cp in codepoints.iter() {
-        // TODO(garretrieger): since codepoints are looked up in sorted order we may be able to speed up the charmap lookup
-        // (eg. walking the charmap in parallel with the codepoints, or caching the last binary search index)
-        let Some(gid) = charmap.map(cp) else {
-            continue;
-        };
-
+    for gid in gids {
         let entry_index = if gid.to_u32() < first_gid {
             0
         } else {
@@ -148,7 +163,7 @@ fn intersect_format1_feature_map<'a>(
     features: &BTreeSet<Tag>,
     entries: &mut IntSet<u16>,
 ) -> Result<(), ReadError> {
-    // TODO(garretrieger): special case features = * (inverted set)
+    // TODO(garretrieger): special case features = * (inverted set), will need to change to use a IntSet.
     let Some(feature_map) = map.feature_map() else {
         return Ok(());
     };
@@ -301,15 +316,10 @@ mod tests {
     // TODO(garretrieger): test w/ IFT + IFTX both populated tables.
     // TODO(garretrieger): test which has entry that has empty codepoint array.
     // TODO(garretrieger): test with format 1 that has max entry = 0.
-    // TODO(garretrieger): feature map too short.
-    // TODO(garretrieger): entry map records too short.
     // TODO(garretrieger): font with no maxp.
     // TODO(garretrieger): font with MAXP and maxp.
-    // TODO(garretrieger): test with "*" codepoints set.
 
     // TODO(garretrieger): fuzzer to check consistency vs intersecting "*" subset def.
-
-    // TODO(garretrieger): macro or helper function to simplify test writing.
 
     fn test_intersection<const M: usize, const N: usize, const O: usize>(
         font: &FontRef,
@@ -332,6 +342,23 @@ mod tests {
         assert_eq!(expected, patches);
     }
 
+    fn test_intersection_with_all<const M: usize, const N: usize>(
+        font: &FontRef,
+        tags: [Tag; M],
+        expected_entries: [u32; N],
+    ) {
+        let patches =
+            intersecting_patches(font, &IntSet::<u32>::all(), &BTreeSet::<Tag>::from(tags))
+                .unwrap();
+
+        let expected: Vec<PatchUri> = expected_entries
+            .iter()
+            .map(|index| PatchUri::from_index("ABCDEFɤ", *index, PatchEncoding::GlyphKeyed))
+            .collect();
+
+        assert_eq!(expected, patches);
+    }
+
     #[test]
     fn format_1_patch_map_u8_entries() {
         let font_bytes = create_ift_font(
@@ -341,11 +368,14 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
+        test_intersection(&font, [], [], []);
         test_intersection(&font, [0x123], [], []); // 0x123 is not in the mapping
         test_intersection(&font, [0x13], [], []); // 0x13 maps to entry 0
         test_intersection(&font, [0x12], [], []); // 0x12 maps to entry 1 which is applied
         test_intersection(&font, [0x11], [], [2]); // 0x11 maps to entry 2
         test_intersection(&font, [0x11, 0x12, 0x123], [], [2]);
+
+        test_intersection_with_all(&font, [], [2]);
     }
 
     #[test]
@@ -457,9 +487,12 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
+        test_intersection(&font, [], [], []);
         test_intersection(&font, [0x11], [], []);
         test_intersection(&font, [0x12], [], [0x50]);
         test_intersection(&font, [0x13, 0x15], [], [0x51, 0x12c]);
+
+        test_intersection_with_all(&font, [], [0x50, 0x51, 0x12c]);
     }
 
     #[test]
@@ -471,6 +504,13 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
+        test_intersection(&font, [], [], []);
+        test_intersection(
+            &font,
+            [],
+            [Tag::new(b"liga"), Tag::new(b"dlig"), Tag::new(b"null")],
+            [],
+        );
         test_intersection(&font, [0x12], [], [0x50]);
         test_intersection(&font, [0x12], [Tag::new(b"liga")], [0x50, 0x180]);
         test_intersection(
@@ -493,6 +533,78 @@ mod tests {
         );
         test_intersection(&font, [0x11], [Tag::new(b"null")], [0x12D]);
         test_intersection(&font, [0x15], [Tag::new(b"liga")], [0x181]);
+
+        test_intersection_with_all(&font, [], [0x50, 0x51, 0x12c]);
+        test_intersection_with_all(
+            &font,
+            [Tag::new(b"liga")],
+            [0x50, 0x51, 0x12c, 0x180, 0x181],
+        );
+        test_intersection_with_all(&font, [Tag::new(b"dlig")], [0x50, 0x51, 0x12c, 0x190]);
+    }
+
+    #[test]
+    fn format_1_patch_map_u16_entries_with_out_of_order_feature_mapping() {
+        let mut data = Vec::<u8>::from(test_data::ift::FEATURE_MAP_FORMAT1);
+        data[113] = b'l';
+        data[114] = b'i';
+        data[115] = b'g';
+        data[116] = b'a';
+
+        data[121] = b'd';
+        data[122] = b'l';
+        data[123] = b'i';
+        data[124] = b'g';
+
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&data),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        test_intersection(
+            &font,
+            [0x13, 0x14],
+            [Tag::new(b"liga")],
+            [0x51, 0x12c, 0x190],
+        );
+        test_intersection(
+            &font,
+            [0x13, 0x14],
+            [Tag::new(b"dlig")],
+            [0x51, 0x12c], // dlig is ignored since it's out of order.
+        );
+        test_intersection(&font, [0x11], [Tag::new(b"null")], [0x12D]);
+    }
+
+    #[test]
+    fn format_1_patch_map_u16_entries_with_duplicate_feature_mapping() {
+        let mut data = Vec::<u8>::from(test_data::ift::FEATURE_MAP_FORMAT1);
+        data[113] = b'l';
+        data[114] = b'i';
+        data[115] = b'g';
+        data[116] = b'a';
+
+        data[121] = b'l';
+        data[122] = b'i';
+        data[123] = b'g';
+        data[124] = b'a';
+
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&data),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        test_intersection(
+            &font,
+            [0x13, 0x14],
+            [Tag::new(b"liga")],
+            [0x51, 0x12c, 0x190],
+        );
+        test_intersection(&font, [0x11], [Tag::new(b"null")], [0x12D]);
     }
 
     #[test]
