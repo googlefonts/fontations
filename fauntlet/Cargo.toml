@@ -10,7 +10,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-skrifa = { version = "0.20.0", path = "../skrifa" }
+skrifa = { workspace = true }
 freetype-rs = "0.32.0"
 memmap2 = "0.5.10"
 rayon = "1.8.0"

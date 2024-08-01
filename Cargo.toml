@@ -31,5 +31,17 @@ kurbo = "0.11.0"
 
 core_maths = "0.1"
 
+# These allow using the workspace library crates without having to
+# update the versions in each crate that uses the libraries or
+# having to use the correct path.
+# `read-fonts` disables default-features so that it can be used without
+# default-features enabled by `skrifa`. Other crates using `read-fonts`
+# that want default features will have to enable them directly.
+font-test-data = { path = "font-test-data" }
+font-types = { version = "0.6.0", path = "font-types" }
+read-fonts = { version = "0.20.0", path = "read-fonts", default-features = false }
+skrifa = { version = "0.20.0", path = "skrifa" }
+write-fonts = { version = "0.28.1", path = "write-fonts" }
+
 [workspace.metadata.release]
 allow-branch = ["main"]
