@@ -342,14 +342,14 @@ pub mod ift {
         0x00, 0x03,               // 111: feature count (3)
 
         // FeatureRecord[0]
-        b'd', b'l', b'i', b'g',   // 121: feature tag
-        0x01, 0x90,               // 127: first new entry index (0x190 = 400)
-        0x00, 0x01,               // 129: entry map count
+        b'd', b'l', b'i', b'g',   // 113: feature tag
+        0x01, 0x90,               // 117: first new entry index (0x190 = 400)
+        0x00, 0x01,               // 119: entry map count
 
         // FeatureRecord[1]
-        b'l', b'i', b'g', b'a',   // 113: feature tag
-        0x01, 0x80,               // 117: first new entry index
-        0x00, 0x02,               // 119: entry map count
+        b'l', b'i', b'g', b'a',   // 121: feature tag
+        0x01, 0x80,               // 125: first new entry index
+        0x00, 0x02,               // 127: entry map count
 
         // FeatureRecord[2]
         b'n', b'u', b'l', b'l',   // 121: feature tag
