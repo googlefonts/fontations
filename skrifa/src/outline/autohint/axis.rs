@@ -1,6 +1,9 @@
 //! Segments and edges for one dimension of an outline.
 
-use super::outline::{Direction, Orientation, Point};
+use super::{
+    metrics::ScaledWidth,
+    outline::{Direction, Orientation, Point},
+};
 use crate::collections::SmallVec;
 
 /// Maximum number of segments and edges stored inline.
@@ -25,6 +28,8 @@ pub struct Axis {
     pub major_dir: Direction,
     /// Collection of segments for the axis.
     pub segments: SmallVec<Segment, MAX_INLINE_SEGMENTS>,
+    /// Collection of edges for the axis.
+    pub edges: SmallVec<Edge, MAX_INLINE_EDGES>,
 }
 
 impl Axis {
@@ -51,6 +56,52 @@ impl Axis {
             _ => Direction::None,
         };
         self.segments.clear();
+    }
+}
+
+impl Axis {
+    /// Inserts the given edge into the sorted edge.
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L197>
+    pub fn insert_edge(&mut self, edge: Edge, top_to_bottom_hinting: bool) {
+        // First push a new default edge
+        self.edges.push(edge);
+        let edges = self.edges.as_mut_slice();
+        // If this is the first edge, we're done.
+        if edges.len() == 1 {
+            return;
+        }
+        // Now move it into place
+        let mut ix = edges.len() - 1;
+        while ix > 0 {
+            let prev_ix = ix - 1;
+            let prev_fpos = edges[prev_ix].fpos;
+            if (top_to_bottom_hinting && prev_fpos > edge.fpos)
+                || (!top_to_bottom_hinting && prev_fpos < edge.fpos)
+            {
+                break;
+            }
+            // Edges with the same position and minor direction should appear
+            // before those with the major direction
+            if prev_fpos == edge.fpos && edge.dir == self.major_dir {
+                break;
+            }
+            let prev_edge = edges[prev_ix];
+            edges[ix] = prev_edge;
+            ix -= 1;
+        }
+        edges[ix] = edge;
+    }
+
+    /// Links the given segment and edge.
+    pub fn append_segment_to_edge(&mut self, segment_ix: usize, edge_ix: usize) {
+        let edge = &mut self.edges[edge_ix];
+        let first_ix = edge.first_ix;
+        let last_ix = edge.last_ix;
+        edge.last_ix = segment_ix as u16;
+        let segment = &mut self.segments[segment_ix];
+        segment.edge_next_ix = Some(first_ix);
+        self.segments[last_ix as usize].edge_next_ix = Some(segment_ix as u16);
     }
 }
 
@@ -83,6 +134,10 @@ pub(crate) struct Segment {
     pub first_ix: u16,
     /// Index of last point in the outline.
     pub last_ix: u16,
+    /// Index of edge that is associated with the segment.
+    pub edge_ix: Option<u16>,
+    /// Index of next segment in edge's segment list.
+    pub edge_next_ix: Option<u16>,
 }
 
 /// Segment flags.
@@ -122,4 +177,46 @@ impl Segment {
     pub fn last_point_mut<'a>(&self, points: &'a mut [Point]) -> &'a mut Point {
         &mut points[self.last()]
     }
+}
+
+/// Sequence of segments used for grid-fitting.
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.h#L286>
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+pub(crate) struct Edge {
+    /// Original, unscaled position in font units.
+    pub fpos: i16,
+    /// Original, scaled position.
+    pub opos: i32,
+    /// Current position.
+    pub pos: i32,
+    /// Edge flags.
+    pub flags: u8,
+    /// Edge direction.
+    pub dir: Direction,
+    /// Present if this is a blue edge.
+    pub blue_edge: Option<ScaledWidth>,
+    /// Index of linked edge.
+    pub link_ix: Option<u16>,
+    /// Index of primary edge for serif.
+    pub serif_ix: Option<u16>,
+    /// Used during stem matching.
+    pub score: i32,
+    /// Index of first segment in edge.
+    pub first_ix: u16,
+    /// Index of last segment in edge.
+    pub last_ix: u16,
+}
+
+/// Edge flags.
+///
+/// Note: these are the same as segment flags.
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.h#L227>
+impl Edge {
+    pub const NORMAL: u8 = Segment::NORMAL;
+    pub const ROUND: u8 = Segment::ROUND;
+    pub const SERIF: u8 = Segment::SERIF;
+    pub const DONE: u8 = Segment::DONE;
+    pub const NEUTRAL: u8 = Segment::NEUTRAL;
 }
