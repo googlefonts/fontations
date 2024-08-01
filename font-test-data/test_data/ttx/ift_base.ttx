@@ -27,12 +27,14 @@
     <GlyphID id="2" name="g2"/>
     <GlyphID id="3" name="g3"/>
     <GlyphID id="4" name="g4"/>
+    <GlyphID id="5" name="g5"/>
+    <GlyphID id="6" name="g6"/>
 
   </GlyphOrder>
 
   <maxp>
     <tableVersion value="0x5000"/>
-    <numGlyphs value="5"/>
+    <numGlyphs value="7"/>
   </maxp>
 
   <cmap>
@@ -42,6 +44,8 @@
       <map code="0x12" name="g2"/>
       <map code="0x13" name="g3"/>
       <map code="0x14" name="g4"/>
+      <map code="0x15" name="g5"/>
+      <map code="0x16" name="g6"/>
     </cmap_format_12>
   </cmap>
 
