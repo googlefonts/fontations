@@ -14,12 +14,12 @@ repository.workspace = true
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
 regex = "1.10.4"
-skrifa = { version = "0.20.0", path = "../skrifa" }
+skrifa = { workspace = true }
 thiserror = "1.0.58"
-write-fonts = { path = "../write-fonts", features = ["read"] }
+write-fonts = { workspace = true, features = ["read"] }
 
 
 [dev-dependencies]
 diff = "0.1.13"
 tempdir = "0.3.7"
-font-test-data = { path = "../font-test-data" }
+font-test-data = { workspace = true }

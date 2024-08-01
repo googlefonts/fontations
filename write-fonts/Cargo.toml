@@ -16,8 +16,8 @@ dot2 = ["dep:dot2"]
 serde = ["dep:serde", "font-types/serde", "read-fonts/serde"]
 
 [dependencies]
-font-types = { version = "0.6.0", path = "../font-types" }
-read-fonts = { version = "0.20.0", path = "../read-fonts" }
+font-types = { workspace = true }
+read-fonts = { workspace = true, default-features = true }
 log = "0.4"
 kurbo.workspace = true
 dot2 = { version = "1.0", optional = true }
@@ -27,8 +27,8 @@ indexmap = "2.0"
 [dev-dependencies]
 diff = "0.1.12"
 ansi_term = "0.12.1"
-font-test-data = { path = "../font-test-data" }
-read-fonts = { version = "0.20.0", path = "../read-fonts", features = [
+font-test-data = { workspace = true }
+read-fonts = { workspace = true, features = [
   "codegen_test",
 ] }
 rstest = "0.18.0"
