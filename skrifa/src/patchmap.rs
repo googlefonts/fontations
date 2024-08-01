@@ -300,6 +300,27 @@ mod tests {
 
     // TODO(garretrieger): macro or helper function to simplify test writing.
 
+    fn test_intersection<const M: usize, const N: usize, const O: usize>(
+        font: &FontRef,
+        codepoints: [u32; M],
+        tags: [Tag; N],
+        expected_entries: [u32; O],
+    ) {
+        let patches = intersecting_patches(
+            font,
+            &IntSet::from(codepoints),
+            &BTreeSet::<Tag>::from(tags),
+        )
+        .unwrap();
+
+        let expected: Vec<PatchUri> = expected_entries
+            .iter()
+            .map(|index| PatchUri::from_index("ABCDEFɤ", *index, PatchEncoding::GlyphKeyed))
+            .collect();
+
+        assert_eq!(expected, patches);
+    }
+
     #[test]
     fn format_1_patch_map_u8_entries() {
         let font_bytes = create_ift_font(
@@ -309,47 +330,11 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let patches =
-            // 0x123 is not in the mapping
-            intersecting_patches(&font, &IntSet::from([0x123]), &BTreeSet::<Tag>::from([])).unwrap();
-        assert_eq!(Vec::<PatchUri>::new(), patches);
-
-        let patches =
-            // 0x13 maps to entry 0
-            intersecting_patches(&font, &IntSet::from([0x13]), &BTreeSet::<Tag>::from([])).unwrap();
-        assert_eq!(Vec::<PatchUri>::new(), patches);
-
-        let patches =
-            // 0x12 maps to entry 1 which is applied
-            intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).unwrap();
-        assert_eq!(Vec::<PatchUri>::new(), patches);
-
-        let patches =
-            // 0x11 maps to entry 2
-            intersecting_patches(&font, &IntSet::from([0x11]), &BTreeSet::<Tag>::from([])).unwrap();
-        assert_eq!(
-            vec![PatchUri::from_index(
-                "ABCDEFɤ",
-                2,
-                PatchEncoding::GlyphKeyed
-            )],
-            patches
-        );
-
-        let patches = intersecting_patches(
-            &font,
-            &IntSet::from([0x11, 0x12, 0x123]),
-            &BTreeSet::<Tag>::from([]),
-        )
-        .unwrap();
-        assert_eq!(
-            vec![PatchUri::from_index(
-                "ABCDEFɤ",
-                2,
-                PatchEncoding::GlyphKeyed
-            )],
-            patches
-        );
+        test_intersection(&font, [0x123], [], []); // 0x123 is not in the mapping
+        test_intersection(&font, [0x13], [], []); // 0x13 maps to entry 0
+        test_intersection(&font, [0x12], [], []); // 0x12 maps to entry 1 which is applied
+        test_intersection(&font, [0x11], [], [2]); // 0x11 maps to entry 2
+        test_intersection(&font, [0x11, 0x12, 0x123], [], [2]);
     }
 
     #[test]
@@ -364,9 +349,7 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let patches =
-            intersecting_patches(&font, &IntSet::from([0x11]), &BTreeSet::<Tag>::from([])).unwrap();
-        assert_eq!(Vec::<PatchUri>::new(), patches);
+        test_intersection(&font, [0x11], [], []);
     }
 
     #[test]
@@ -463,34 +446,9 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let patches =
-            intersecting_patches(&font, &IntSet::from([0x11]), &BTreeSet::<Tag>::from([])).unwrap();
-        assert_eq!(Vec::<PatchUri>::new(), patches);
-
-        let patches =
-            intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).unwrap();
-        assert_eq!(
-            vec![PatchUri::from_index(
-                "ABCDEFɤ",
-                0x50,
-                PatchEncoding::GlyphKeyed
-            )],
-            patches
-        );
-
-        let patches = intersecting_patches(
-            &font,
-            &IntSet::from([0x13, 0x15]),
-            &BTreeSet::<Tag>::from([]),
-        )
-        .unwrap();
-        assert_eq!(
-            vec![
-                PatchUri::from_index("ABCDEFɤ", 0x51, PatchEncoding::GlyphKeyed),
-                PatchUri::from_index("ABCDEFɤ", 0x12c, PatchEncoding::GlyphKeyed)
-            ],
-            patches
-        );
+        test_intersection(&font, [0x11], [], []);
+        test_intersection(&font, [0x12], [], [0x50]);
+        test_intersection(&font, [0x13, 0x15], [], [0x51, 0x12c]);
     }
 
     #[test]
@@ -502,114 +460,27 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        // === case 1 ===
-        let patches =
-            intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).unwrap();
-        assert_eq!(
-            vec![PatchUri::from_index(
-                "ABCDEFɤ",
-                0x50,
-                PatchEncoding::GlyphKeyed
-            )],
-            patches
-        );
-
-        // === case 2 ===
-        let patches = intersecting_patches(
+        test_intersection(&font, [0x12], [], [0x50]);
+        test_intersection(&font, [0x12], [Tag::new(b"liga")], [0x50, 0x180]);
+        test_intersection(
             &font,
-            &IntSet::from([0x12]),
-            &BTreeSet::<Tag>::from([Tag::new(b"liga")]),
-        )
-        .unwrap();
-        assert_eq!(
-            vec![
-                PatchUri::from_index("ABCDEFɤ", 0x50, PatchEncoding::GlyphKeyed),
-                PatchUri::from_index("ABCDEFɤ", 0x180, PatchEncoding::GlyphKeyed)
-            ],
-            patches
+            [0x13, 0x14],
+            [Tag::new(b"liga")],
+            [0x51, 0x12c, 0x180, 0x181],
         );
-
-        // === case 3 ===
-        let patches = intersecting_patches(
+        test_intersection(
             &font,
-            &IntSet::from([0x13, 0x14]),
-            &BTreeSet::<Tag>::from([Tag::new(b"liga")]),
-        )
-        .unwrap();
-        assert_eq!(
-            vec![
-                PatchUri::from_index("ABCDEFɤ", 0x51, PatchEncoding::GlyphKeyed),
-                PatchUri::from_index("ABCDEFɤ", 0x12c, PatchEncoding::GlyphKeyed),
-                PatchUri::from_index("ABCDEFɤ", 0x180, PatchEncoding::GlyphKeyed),
-                PatchUri::from_index("ABCDEFɤ", 0x181, PatchEncoding::GlyphKeyed)
-            ],
-            patches
+            [0x13, 0x14],
+            [Tag::new(b"dlig")],
+            [0x51, 0x12c, 0x190],
         );
-
-        // === case 4 ===
-        let patches = intersecting_patches(
+        test_intersection(
             &font,
-            &IntSet::from([0x13, 0x14]),
-            &BTreeSet::<Tag>::from([Tag::new(b"dlig")]),
-        )
-        .unwrap();
-        assert_eq!(
-            vec![
-                PatchUri::from_index("ABCDEFɤ", 0x51, PatchEncoding::GlyphKeyed),
-                PatchUri::from_index("ABCDEFɤ", 0x12c, PatchEncoding::GlyphKeyed),
-                PatchUri::from_index("ABCDEFɤ", 0x190, PatchEncoding::GlyphKeyed),
-            ],
-            patches
+            [0x13, 0x14],
+            [Tag::new(b"dlig"), Tag::new(b"liga")],
+            [0x51, 0x12c, 0x180, 0x181, 0x190],
         );
-
-        // === case 5 ===
-        let patches = intersecting_patches(
-            &font,
-            &IntSet::from([0x13, 0x14]),
-            &BTreeSet::<Tag>::from([Tag::new(b"dlig"), Tag::new(b"liga")]),
-        )
-        .unwrap();
-        assert_eq!(
-            vec![
-                PatchUri::from_index("ABCDEFɤ", 0x51, PatchEncoding::GlyphKeyed),
-                PatchUri::from_index("ABCDEFɤ", 0x12c, PatchEncoding::GlyphKeyed),
-                PatchUri::from_index("ABCDEFɤ", 0x180, PatchEncoding::GlyphKeyed),
-                PatchUri::from_index("ABCDEFɤ", 0x181, PatchEncoding::GlyphKeyed),
-                PatchUri::from_index("ABCDEFɤ", 0x190, PatchEncoding::GlyphKeyed),
-            ],
-            patches
-        );
-
-        // === case 6 ===
-        let patches = intersecting_patches(
-            &font,
-            &IntSet::from([0x11]),
-            &BTreeSet::<Tag>::from([Tag::new(b"null")]),
-        )
-        .unwrap();
-        assert_eq!(
-            vec![PatchUri::from_index(
-                "ABCDEFɤ",
-                0x12D,
-                PatchEncoding::GlyphKeyed
-            ),],
-            patches
-        );
-
-        // === case 7 ===
-        let patches = intersecting_patches(
-            &font,
-            &IntSet::from([0x15]),
-            &BTreeSet::<Tag>::from([Tag::new(b"liga")]),
-        )
-        .unwrap();
-        assert_eq!(
-            vec![PatchUri::from_index(
-                "ABCDEFɤ",
-                0x181,
-                PatchEncoding::GlyphKeyed
-            ),],
-            patches
-        );
+        test_intersection(&font, [0x11], [Tag::new(b"null")], [0x12D]);
+        test_intersection(&font, [0x15], [Tag::new(b"liga")], [0x181]);
     }
 }
