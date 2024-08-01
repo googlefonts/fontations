@@ -114,6 +114,8 @@ jobs:
       - name: cargo build skrifa
         run: cargo build -p skrifa --target thumbv7em-none-eabihf --no-default-features --features=libm
 
+  # We use `cargo build` here because `cargo check` doesn't pick up all
+  # warnings / errors. Notably, it misses `arithmetic_overflow`.
   check-wasm:
     name: cargo check wasm
     runs-on: ubuntu-latest
@@ -122,9 +124,20 @@ jobs:
 
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@stable
-      - run: rustup target add wasm32-unknown-unknown
-      - name: cargo check wasm target
-        run: cargo check --manifest-path=write-fonts/Cargo.toml --target wasm32-unknown-unknown
+        with:
+          target: wasm32-unknown-unknown
+
+      - name: cargo build font-types
+        run: cargo build -p font-types --target wasm32-unknown-unknown
+
+      - name: cargo build read-fonts
+        run: cargo build -p read-fonts --target wasm32-unknown-unknown
+
+      - name: cargo build skrifa
+        run: cargo build -p skrifa --target wasm32-unknown-unknown
+
+      - name: cargo build write-fonts
+        run: cargo build -p write-fonts --target wasm32-unknown-unknown
 
   # If this fails, consider changing your text or adding something to .typos.toml
   typos:
