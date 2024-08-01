@@ -236,7 +236,7 @@ pub mod ift {
         0x00, 0x02,              // 21: max entry id
         0x00, 0x02,              // 23: max glyph map entry id
 
-        0x00, 0x00, 0x00, 0x05,  // 25: glyph count
+        0x00, 0x00, 0x00, 0x07,  // 25: glyph count
         0x00, 0x00, 0x00, 0x31,  // 29: glyph map offset (0x31 = 49)
         0x00, 0x00, 0x00, 0x00,  // 33: feature map offset
 
@@ -250,7 +250,8 @@ pub mod ift {
 
         // ## Glyph Map ##
         0x00, 0x01,              // 49: first mapped glyph
-        0x02, 0x01, 0x00, 0x01   // 51: entryIndex[1..4]
+        0x02, 0x01, 0x00, 0x01,  // 51: entryIndex[1..6]
+        0x00, 0x00
     ];
 
     #[rustfmt::skip]
@@ -265,11 +266,13 @@ pub mod ift {
         0x00, 0x00, 0x00, 0x04,  // 17: compat id [3]
 
         0x01, 0x2C,              // 21: max entry id = 300
-        0x00, 0x00, 0x00, 0x07,  // 23: glyph count
-        0x00, 0x00, 0x00, 0x54,  // 27: glyph map offset (0x54 = 84)
-        0x00, 0x00, 0x00, 0x00,  // 31: feature map offset
+        0x01, 0x2C,              // 23: max glyph map entry id = 300
 
-        // 35: applied entry bitmap (38 bytes)
+        0x00, 0x00, 0x00, 0x07,  // 25: glyph count
+        0x00, 0x00, 0x00, 0x56,  // 29: glyph map offset (0x56 = 86)
+        0x00, 0x00, 0x00, 0x00,  // 33: feature map offset
+
+        // 37: applied entry bitmap (38 bytes)
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -278,15 +281,15 @@ pub mod ift {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00,
 
-        0x00, 0x08,              // 73: uriTemplateLength
+        0x00, 0x08,              // 75: uriTemplateLength
         b'A', b'B', b'C', b'D',
-        b'E', b'F', 0xc9, 0xa4,  // 75: uriTemplate[8]
+        b'E', b'F', 0xc9, 0xa4,  // 77: uriTemplate[8]
 
-        0x04,                    // 83: patch encoding = glyph keyed
+        0x04,                    // 85: patch encoding = glyph keyed
 
         // ## Glyph Map ##
-        0x00, 0x02,              // 84: first mapped glyph
-        // 86: entryIndex[2..6]
+        0x00, 0x02,              // 86: first mapped glyph
+        // 88: entryIndex[2..6]
         0x00, 0x50, // gid 2
         0x00, 0x51, // gid 3
         0x01, 0x2c, // gid 4
@@ -305,58 +308,68 @@ pub mod ift {
         0x00, 0x00, 0x00, 0x03,  // 13: compat id [2]
         0x00, 0x00, 0x00, 0x04,  // 17: compat id [3]
 
-        0x01, 0x90,              // 21: max entry id = 0x190 = 400
-        0x00, 0x00, 0x00, 0x07,  // 23: glyph count
-        0x00, 0x00, 0x00, 0x61,  // 27: glyph map offset (0x61 = 97)
-        0x00, 0x00, 0x00, 0x6D,  // 31: feature map offset (0x6D= 109)
+        0x01, 0x90,              // 21: max entry id = 0x190
+        0x01, 0x2c,              // 23: max glyph map entry id = 0x12C
+        0x00, 0x00, 0x00, 0x07,  // 25: glyph count
+        0x00, 0x00, 0x00, 0x63,  // 29: glyph map offset (0x63 = 99)
+        0x00, 0x00, 0x00, 0x6F,  // 33: feature map offset (0x6F= 111)
 
-        // 35: applied entry bitmap (51 bytes)
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00,
+        // 37: applied entry bitmap (51 bytes) - 0x12b is applied
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,       // [0, 64)
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,       // [64, 128)
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,       // [128, 192)
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,       // [192, 256)
+        0x00, 0x00, 0x00, 0x00, 0x00, 0b00001000, 0x00, 0x00, // [256, 320)
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,       // [320, 384)
+        0x00, 0x00, 0x00,                                     // [384, 400)
 
-        0x00, 0x08,              // 86: uriTemplateLength
+        0x00, 0x08,              // 88: uriTemplateLength
         b'A', b'B', b'C', b'D',
-        b'E', b'F', 0xc9, 0xa4,  // 88: uriTemplate[8]
+        b'E', b'F', 0xc9, 0xa4,  // 90: uriTemplate[8]
 
-        0x04,                    // 96: patch encoding = glyph keyed
+        0x04,                    // 98: patch encoding = glyph keyed
 
         // ## Glyph Map ##
-        0x00, 0x02,              // 97: first mapped glyph
-        // 99: entryIndex[2..6]
+        0x00, 0x02,              // 99: first mapped glyph
+        // 101: entryIndex[2..6]
         0x00, 0x50, // gid 2
         0x00, 0x51, // gid 3
         0x01, 0x2c, // gid 4
-        0x01, 0x2c, // gid 5
+        0x01, 0x2b, // gid 5
         0x00, 0x50, // gid 6
 
         // ## Feature Map ##
-        0x00, 0x02,               // 109: feature count (2)
+        0x00, 0x03,               // 111: feature count (3)
 
         // FeatureRecord[0]
-        b'l', b'i', b'g', b'a',   // 111: feature tag
-        0x00, 0x70,               // 115: first new entry index
-        0x00, 0x02,               // 117: entry map count
+        b'd', b'l', b'i', b'g',   // 121: feature tag
+        0x01, 0x90,               // 127: first new entry index (0x190 = 400)
+        0x00, 0x01,               // 129: entry map count
 
         // FeatureRecord[1]
-        b'd', b'l', b'i', b'g',   // 119: feature tag
-        0x01, 0x90,               // 125: first new entry index (0x190 = 400)
-        0x00, 0x01,               // 127: entry map count
+        b'l', b'i', b'g', b'a',   // 113: feature tag
+        0x01, 0x80,               // 117: first new entry index
+        0x00, 0x02,               // 119: entry map count
 
-        // EntryMapRecord[0]: "liga" + entry [0x50, 0x51] => entry 0x70
+        // FeatureRecord[2]
+        b'n', b'u', b'l', b'l',   // 121: feature tag
+        0x01, 0x2D,               // 123: first new entry index
+        0x00, 0x01,               // 125: entry map count
+
+        // EntryMapRecord[0]: "dlig" + entry 0x51 => entry 0x190
+        0x00, 0x51,               // first_entry_index
+        0x00, 0x51,               // last_entry_index
+
+        // EntryMapRecord[1]: "liga" + entry [0x50, 0x51] => entry 0x180
         0x00, 0x50,               // first_entry_index
         0x00, 0x51,               // last_entry_index
 
-        // EntryMapRecord[1]: "liga" + entry 0x12c => entry 0x71
-        0x01, 0x2c,               // first_entry_index
+        // EntryMapRecord[2]: "liga" + entry 0x12c => entry 0x181
+        0x01, 0x2b,               // first_entry_index
         0x01, 0x2c,               // last_entry_index
 
-        // EntryMapRecord[2]: "dlig" + entry 0x51 => entry 0x190
-        0x00, 0x51,               // first_entry_index
-        0x00, 0x51,               // last_entry_index
+        // EntryMapRecord[3]: "null" + entry 0x0 => entry 0x12D
+        0x00, 0x00,               // first_entry_index
+        0x00, 0x00,               // last_entry_index
     ];
 }

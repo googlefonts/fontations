@@ -172,6 +172,7 @@ fn intersect_format1_feature_map<'a>(
             };
 
             if *tag > record.feature_tag() {
+                cumulative_entry_map_count += record.entry_map_count().get();
                 next_record = record_it.next();
                 continue;
             }
@@ -187,21 +188,19 @@ fn intersect_format1_feature_map<'a>(
             largest_tag = Some(*tag);
 
             let entry_count = record.entry_map_count().get();
-            let tot_entry_count = cumulative_entry_map_count;
-            cumulative_entry_map_count += entry_count;
             if *tag < record.feature_tag() {
                 next_tag = tag_it.next();
                 continue;
             }
 
             for i in 0..entry_count {
-                let index = i + tot_entry_count;
+                let index = i + cumulative_entry_map_count;
                 let byte_index = (index * field_width * 2) as usize;
                 let data = FontData::new(&feature_map.entry_map_data()[byte_index..]);
+                let mapped_entry_index = record.first_new_entry_index().get() + i;
                 let record = EntryMapRecord::read(data, max_entry_index)?;
-                let mapped_entry_index = record.first_entry_index().get() + i;
                 let first = record.first_entry_index().get();
-                let last = record.first_entry_index().get();
+                let last = record.last_entry_index().get();
                 if first > last
                     || first > max_glyph_map_entry_index
                     || last > max_glyph_map_entry_index
@@ -212,8 +211,11 @@ fn intersect_format1_feature_map<'a>(
                     continue;
                 }
 
-                entries.insert(mapped_entry_index);
+                if entries.intersects_range(first..=last) {
+                    entries.insert(mapped_entry_index);
+                }
             }
+            next_tag = tag_it.next();
         }
     }
     Ok(())
@@ -245,32 +247,18 @@ impl PatchEncoding {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct PatchUri {
-    uri: String,
+    template: String,
+    index: u32,
     encoding: PatchEncoding,
 }
 
 impl PatchUri {
-    fn from_index(uri_template: &str, _entry_index: u32, encoding: PatchEncoding) -> PatchUri {
+    fn from_index(uri_template: &str, entry_index: u32, encoding: PatchEncoding) -> PatchUri {
         PatchUri {
-            // TODO(garretrieger): properly implement this, may deserve to go into it's own module.
-            uri: uri_template.to_string(),
+            template: uri_template.to_string(),
+            index: entry_index,
             encoding,
         }
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Hash)]
-pub struct Entry {
-    pub patch_uri: PatchUri,
-    pub codepoints: IntSet<u32>,
-    pub feature_tags: BTreeSet<Tag>,
-    pub compatibility_id: [u32; 4],
-}
-
-impl std::fmt::Debug for Entry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let values: Vec<_> = self.codepoints.iter().collect();
-        write!(f, "Entry({values:?} => {})", self.patch_uri.uri)
     }
 }
 
@@ -298,16 +286,19 @@ mod tests {
         builder.build()
     }
 
-    // TODO(garretrieger): test immediate rejection of tables that are too short
-    //                     (glyph map, feature records, entry map records).
-    // TODO(garretrieger): tests for top level rejection criteria.
     // TODO(garretrieger): test w/ multi codepoints mapping to the same glyph.
     // TODO(garretrieger): test w/ IFT + IFTX both populated tables.
     // TODO(garretrieger): test which has entry that has empty codepoint array.
-    // TODO(garretrieger): test which has requires URI substitution.
-    // TODO(garretrieger): patch encoding lookup + URI substitution.
     // TODO(garretrieger): test with format 1 that has max entry = 0.
+    // TODO(garretrieger): feature map too short.
+    // TODO(garretrieger): entry map records too short.
+    // TODO(garretrieger): font with no maxp.
+    // TODO(garretrieger): font with MAXP and maxp.
+    // TODO(garretrieger): test with "*" codepoints set.
+
     // TODO(garretrieger): fuzzer to check consistency vs intersecting "*" subset def.
+
+    // TODO(garretrieger): macro or helper function to simplify test writing.
 
     #[test]
     fn format_1_patch_map_u8_entries() {
@@ -337,10 +328,11 @@ mod tests {
             // 0x11 maps to entry 2
             intersecting_patches(&font, &IntSet::from([0x11]), &BTreeSet::<Tag>::from([])).unwrap();
         assert_eq!(
-            vec![PatchUri {
-                uri: "ABCDEFɤ".to_string(),
-                encoding: PatchEncoding::GlyphKeyed,
-            }],
+            vec![PatchUri::from_index(
+                "ABCDEFɤ",
+                2,
+                PatchEncoding::GlyphKeyed
+            )],
             patches
         );
 
@@ -351,10 +343,11 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            vec![PatchUri {
-                uri: "ABCDEFɤ".to_string(),
-                encoding: PatchEncoding::GlyphKeyed,
-            }],
+            vec![PatchUri::from_index(
+                "ABCDEFɤ",
+                2,
+                PatchEncoding::GlyphKeyed
+            )],
             patches
         );
     }
@@ -461,32 +454,162 @@ mod tests {
         );
     }
 
-    // TODO(garretrieger): feature map too short.
-    // TODO(garretrieger): entry map recordds too short.
-    // TODO(garretrieger): font with no maxp.
-    // TODO(garretrieger): font with MAXP and maxp.
-
     #[test]
     fn format_1_patch_map_u16_entries() {
         let font_bytes = create_ift_font(
-            FontRef::new(test_data::CMAP12_FONT1).unwrap(),
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
             Some(test_data::ift::U16_ENTRIES_FORMAT1),
             None,
         );
-        let _font = FontRef::new(&font_bytes).unwrap();
+        let font = FontRef::new(&font_bytes).unwrap();
 
-        // TODO: once template substituion is available implement this.
+        let patches =
+            intersecting_patches(&font, &IntSet::from([0x11]), &BTreeSet::<Tag>::from([])).unwrap();
+        assert_eq!(Vec::<PatchUri>::new(), patches);
+
+        let patches =
+            intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).unwrap();
+        assert_eq!(
+            vec![PatchUri::from_index(
+                "ABCDEFɤ",
+                0x50,
+                PatchEncoding::GlyphKeyed
+            )],
+            patches
+        );
+
+        let patches = intersecting_patches(
+            &font,
+            &IntSet::from([0x13, 0x15]),
+            &BTreeSet::<Tag>::from([]),
+        )
+        .unwrap();
+        assert_eq!(
+            vec![
+                PatchUri::from_index("ABCDEFɤ", 0x51, PatchEncoding::GlyphKeyed),
+                PatchUri::from_index("ABCDEFɤ", 0x12c, PatchEncoding::GlyphKeyed)
+            ],
+            patches
+        );
     }
 
     #[test]
     fn format_1_patch_map_u16_entries_with_feature_mapping() {
         let font_bytes = create_ift_font(
-            FontRef::new(test_data::CMAP12_FONT1).unwrap(),
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
             Some(test_data::ift::FEATURE_MAP_FORMAT1),
             None,
         );
-        let _font = FontRef::new(&font_bytes).unwrap();
+        let font = FontRef::new(&font_bytes).unwrap();
 
-        // TODO: once template substituion is available implement this.
+        // === case 1 ===
+        let patches =
+            intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).unwrap();
+        assert_eq!(
+            vec![PatchUri::from_index(
+                "ABCDEFɤ",
+                0x50,
+                PatchEncoding::GlyphKeyed
+            )],
+            patches
+        );
+
+        // === case 2 ===
+        let patches = intersecting_patches(
+            &font,
+            &IntSet::from([0x12]),
+            &BTreeSet::<Tag>::from([Tag::new(b"liga")]),
+        )
+        .unwrap();
+        assert_eq!(
+            vec![
+                PatchUri::from_index("ABCDEFɤ", 0x50, PatchEncoding::GlyphKeyed),
+                PatchUri::from_index("ABCDEFɤ", 0x180, PatchEncoding::GlyphKeyed)
+            ],
+            patches
+        );
+
+        // === case 3 ===
+        let patches = intersecting_patches(
+            &font,
+            &IntSet::from([0x13, 0x14]),
+            &BTreeSet::<Tag>::from([Tag::new(b"liga")]),
+        )
+        .unwrap();
+        assert_eq!(
+            vec![
+                PatchUri::from_index("ABCDEFɤ", 0x51, PatchEncoding::GlyphKeyed),
+                PatchUri::from_index("ABCDEFɤ", 0x12c, PatchEncoding::GlyphKeyed),
+                PatchUri::from_index("ABCDEFɤ", 0x180, PatchEncoding::GlyphKeyed),
+                PatchUri::from_index("ABCDEFɤ", 0x181, PatchEncoding::GlyphKeyed)
+            ],
+            patches
+        );
+
+        // === case 4 ===
+        let patches = intersecting_patches(
+            &font,
+            &IntSet::from([0x13, 0x14]),
+            &BTreeSet::<Tag>::from([Tag::new(b"dlig")]),
+        )
+        .unwrap();
+        assert_eq!(
+            vec![
+                PatchUri::from_index("ABCDEFɤ", 0x51, PatchEncoding::GlyphKeyed),
+                PatchUri::from_index("ABCDEFɤ", 0x12c, PatchEncoding::GlyphKeyed),
+                PatchUri::from_index("ABCDEFɤ", 0x190, PatchEncoding::GlyphKeyed),
+            ],
+            patches
+        );
+
+        // === case 5 ===
+        let patches = intersecting_patches(
+            &font,
+            &IntSet::from([0x13, 0x14]),
+            &BTreeSet::<Tag>::from([Tag::new(b"dlig"), Tag::new(b"liga")]),
+        )
+        .unwrap();
+        assert_eq!(
+            vec![
+                PatchUri::from_index("ABCDEFɤ", 0x51, PatchEncoding::GlyphKeyed),
+                PatchUri::from_index("ABCDEFɤ", 0x12c, PatchEncoding::GlyphKeyed),
+                PatchUri::from_index("ABCDEFɤ", 0x180, PatchEncoding::GlyphKeyed),
+                PatchUri::from_index("ABCDEFɤ", 0x181, PatchEncoding::GlyphKeyed),
+                PatchUri::from_index("ABCDEFɤ", 0x190, PatchEncoding::GlyphKeyed),
+            ],
+            patches
+        );
+
+        // === case 6 ===
+        let patches = intersecting_patches(
+            &font,
+            &IntSet::from([0x11]),
+            &BTreeSet::<Tag>::from([Tag::new(b"null")]),
+        )
+        .unwrap();
+        assert_eq!(
+            vec![PatchUri::from_index(
+                "ABCDEFɤ",
+                0x12D,
+                PatchEncoding::GlyphKeyed
+            ),],
+            patches
+        );
+
+        // === case 7 ===
+        let patches = intersecting_patches(
+            &font,
+            &IntSet::from([0x15]),
+            &BTreeSet::<Tag>::from([Tag::new(b"liga")]),
+        )
+        .unwrap();
+        assert_eq!(
+            vec![PatchUri::from_index(
+                "ABCDEFɤ",
+                0x181,
+                PatchEncoding::GlyphKeyed
+            ),],
+            patches
+        );
     }
 }
