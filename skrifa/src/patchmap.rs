@@ -149,75 +149,85 @@ fn intersect_format1_feature_map<'a>(
     entries: &mut IntSet<u16>,
 ) -> Result<(), ReadError> {
     // TODO(garretrieger): special case features = * (inverted set)
+    let Some(feature_map) = map.feature_map() else {
+        return Ok(());
+    };
+    let feature_map = feature_map?;
+
     let max_entry_index = map.max_entry_index();
     let max_glyph_map_entry_index = map.max_glyph_map_entry_index();
-    let field_width = if max_entry_index < 256 { 1 } else { 2 };
-    if let Some(feature_map) = map.feature_map() {
-        // TODO(garretrieger): validate there is enough data for entryMapRecords.
-        let feature_map = feature_map?;
-        let mut tag_it = features.iter();
-        let mut record_it = feature_map.feature_records().iter();
+    let field_width = if max_entry_index < 256 { 1u16 } else { 2u16 };
 
-        let mut next_tag = tag_it.next();
-        let mut next_record = record_it.next();
-        let mut cumulative_entry_map_count = 0;
-        let mut largest_tag: Option<Tag> = None;
-        loop {
-            let (Some(tag), Some(record)) = (next_tag, next_record.as_ref()) else {
-                break;
-            };
-            let record = match record {
-                Ok(record) => record,
-                Err(err) => return Err(err.clone()),
-            };
+    // We need to check up front there is enough data for all of the listed entry records, thise
+    // isn't checked by the read_fonts generated code. Specification requires the operation to fail
+    // up front if the data is too short.
+    if feature_map.entry_records_size(max_entry_index)? > feature_map.entry_map_data().len() {
+        return Err(ReadError::OutOfBounds);
+    }
 
-            if *tag > record.feature_tag() {
-                cumulative_entry_map_count += record.entry_map_count().get();
-                next_record = record_it.next();
-                continue;
-            }
+    let mut tag_it = features.iter();
+    let mut record_it = feature_map.feature_records().iter();
 
-            if let Some(largest_tag) = largest_tag {
-                if *tag <= largest_tag {
-                    // Out of order or duplicate tag, skip this record.
-                    next_tag = tag_it.next();
-                    continue;
-                }
-            }
+    let mut next_tag = tag_it.next();
+    let mut next_record = record_it.next();
+    let mut cumulative_entry_map_count = 0;
+    let mut largest_tag: Option<Tag> = None;
+    loop {
+        let (Some(tag), Some(record)) = (next_tag, next_record.as_ref()) else {
+            break;
+        };
+        let record = match record {
+            Ok(record) => record,
+            Err(err) => return Err(err.clone()),
+        };
 
-            largest_tag = Some(*tag);
+        if *tag > record.feature_tag() {
+            cumulative_entry_map_count += record.entry_map_count().get();
+            next_record = record_it.next();
+            continue;
+        }
 
-            let entry_count = record.entry_map_count().get();
-            if *tag < record.feature_tag() {
+        if let Some(largest_tag) = largest_tag {
+            if *tag <= largest_tag {
+                // Out of order or duplicate tag, skip this record.
                 next_tag = tag_it.next();
                 continue;
             }
-
-            for i in 0..entry_count {
-                let index = i + cumulative_entry_map_count;
-                let byte_index = (index * field_width * 2) as usize;
-                let data = FontData::new(&feature_map.entry_map_data()[byte_index..]);
-                let mapped_entry_index = record.first_new_entry_index().get() + i;
-                let record = EntryMapRecord::read(data, max_entry_index)?;
-                let first = record.first_entry_index().get();
-                let last = record.last_entry_index().get();
-                if first > last
-                    || first > max_glyph_map_entry_index
-                    || last > max_glyph_map_entry_index
-                    || mapped_entry_index <= max_glyph_map_entry_index
-                    || mapped_entry_index > max_entry_index
-                {
-                    // Invalid, continue on
-                    continue;
-                }
-
-                if entries.intersects_range(first..=last) {
-                    entries.insert(mapped_entry_index);
-                }
-            }
-            next_tag = tag_it.next();
         }
+
+        largest_tag = Some(*tag);
+
+        let entry_count = record.entry_map_count().get();
+        if *tag < record.feature_tag() {
+            next_tag = tag_it.next();
+            continue;
+        }
+
+        for i in 0..entry_count {
+            let index = i + cumulative_entry_map_count;
+            let byte_index = (index * field_width * 2) as usize;
+            let data = FontData::new(&feature_map.entry_map_data()[byte_index..]);
+            let mapped_entry_index = record.first_new_entry_index().get() + i;
+            let record = EntryMapRecord::read(data, max_entry_index)?;
+            let first = record.first_entry_index().get();
+            let last = record.last_entry_index().get();
+            if first > last
+                || first > max_glyph_map_entry_index
+                || last > max_glyph_map_entry_index
+                || mapped_entry_index <= max_glyph_map_entry_index
+                || mapped_entry_index > max_entry_index
+            {
+                // Invalid, continue on
+                continue;
+            }
+
+            if entries.intersects_range(first..=last) {
+                entries.insert(mapped_entry_index);
+            }
+        }
+        next_tag = tag_it.next();
     }
+
     Ok(())
 }
 
@@ -286,6 +296,7 @@ mod tests {
         builder.build()
     }
 
+    // Format 1 tests:
     // TODO(garretrieger): test w/ multi codepoints mapping to the same glyph.
     // TODO(garretrieger): test w/ IFT + IFTX both populated tables.
     // TODO(garretrieger): test which has entry that has empty codepoint array.
@@ -482,5 +493,54 @@ mod tests {
         );
         test_intersection(&font, [0x11], [Tag::new(b"null")], [0x12D]);
         test_intersection(&font, [0x15], [Tag::new(b"liga")], [0x181]);
+    }
+
+    #[test]
+    fn format_1_patch_map_feature_map_entry_record_too_short() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(
+                &test_data::ift::FEATURE_MAP_FORMAT1
+                    [..test_data::ift::FEATURE_MAP_FORMAT1.len() - 1],
+            ),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        assert!(
+            intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).is_err()
+        );
+        assert!(intersecting_patches(
+            &font,
+            &IntSet::from([0x12]),
+            &BTreeSet::<Tag>::from([Tag::new(b"liga")])
+        )
+        .is_err());
+        assert!(
+            intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).is_err()
+        );
+    }
+
+    #[test]
+    fn format_1_patch_map_feature_record_too_short() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&test_data::ift::FEATURE_MAP_FORMAT1[..123]),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        assert!(
+            intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).is_err()
+        );
+        assert!(intersecting_patches(
+            &font,
+            &IntSet::from([0x12]),
+            &BTreeSet::<Tag>::from([Tag::new(b"liga")])
+        )
+        .is_err());
+        assert!(
+            intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).is_err()
+        );
     }
 }

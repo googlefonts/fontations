@@ -88,6 +88,21 @@ impl<'a> PatchMapFormat1<'a> {
     }
 }
 
+impl<'a> FeatureMap<'a> {
+    pub fn entry_records_size(&self, max_entry_index: u16) -> Result<usize, ReadError> {
+        let field_width = if max_entry_index < 256 { 1 } else { 2 };
+        let mut num_bytes = 0usize;
+        for record in self.feature_records().iter() {
+            let record = match record {
+                Ok(record) => record,
+                Err(err) => return Err(err.clone()),
+            };
+            num_bytes += record.entry_map_count().get() as usize * field_width * 2;
+        }
+        Ok(num_bytes)
+    }
+}
+
 struct GidToEntryIter<'a> {
     glyph_map: Option<GlyphMap<'a>>,
     glyph_count: u32,
