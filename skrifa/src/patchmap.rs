@@ -45,7 +45,7 @@ fn add_intersecting_patches<'a>(
 ) -> Result<(), ReadError> {
     match ift {
         Ift::Format1(format_1) => {
-            add_intersecting_format1_patches(font, &format_1, codepoints, features, patches)
+            add_intersecting_format1_patches(font, format_1, codepoints, features, patches)
         }
         Ift::Format2(_) => todo!(),
     }
@@ -126,10 +126,10 @@ fn intersect_format1_glyph_map<'a>(
     // TODO(garretrieger): since codepoints are looked up in sorted order we may be able to speed up the charmap lookup
     // (eg. walking the charmap in parallel with the codepoints, or caching the last binary search index)
     let gids = codepoints.iter().flat_map(|cp| charmap.map(cp));
-    return intersect_format1_glyph_map_inner(map, gids, entries);
+    intersect_format1_glyph_map_inner(map, gids, entries)
 }
 
-fn intersect_format1_glyph_map_inner<'a>(
+fn intersect_format1_glyph_map_inner(
     map: &PatchMapFormat1,
     gids: impl Iterator<Item = GlyphId>,
     entries: &mut IntSet<u16>,
@@ -158,7 +158,7 @@ fn intersect_format1_glyph_map_inner<'a>(
     Ok(())
 }
 
-fn intersect_format1_feature_map<'a>(
+fn intersect_format1_feature_map(
     map: &PatchMapFormat1,
     features: &BTreeSet<Tag>,
     entries: &mut IntSet<u16>,
@@ -173,7 +173,7 @@ fn intersect_format1_feature_map<'a>(
     let max_glyph_map_entry_index = map.max_glyph_map_entry_index();
     let field_width = if max_entry_index < 256 { 1u16 } else { 2u16 };
 
-    // We need to check up front there is enough data for all of the listed entry records, thise
+    // We need to check up front there is enough data for all of the listed entry records, this
     // isn't checked by the read_fonts generated code. Specification requires the operation to fail
     // up front if the data is too short.
     if feature_map.entry_records_size(max_entry_index)? > feature_map.entry_map_data().len() {
