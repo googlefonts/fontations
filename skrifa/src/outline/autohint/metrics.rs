@@ -60,6 +60,8 @@ pub(crate) struct ScaledAxisMetrics {
 /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.h#L95>
 #[derive(Clone, Default, Debug)]
 pub(crate) struct UnscaledStyleMetrics {
+    /// Index of style class.
+    pub class_ix: u16,
     /// Monospaced digits?
     pub digits_have_same_width: bool,
     /// Per-dimension unscaled metrics.
@@ -143,7 +145,8 @@ pub(crate) struct Scale {
 }
 
 impl Scale {
-    /// Create initial scaling parameters from font size and units per em.
+    /// Create initial scaling parameters from font size, units per em
+    /// and hinting mode.
     pub fn new(size: f32, units_per_em: i32, mode: HintingMode) -> Self {
         let scale =
             (Fixed::from_bits((size * 64.0) as i32) / Fixed::from_bits(units_per_em)).to_bits();
@@ -162,7 +165,7 @@ impl Scale {
         if is_mono || is_lcd {
             flags |= Self::HORIZONTAL_SNAP;
         }
-        // Snap horizontal stems for monochrome and vertical LCD renering.
+        // Snap horizontal stems for monochrome and vertical LCD rendering.
         if is_mono || is_lcd_v {
             flags |= Self::VERTICAL_SNAP;
         }

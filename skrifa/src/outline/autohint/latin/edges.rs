@@ -313,7 +313,7 @@ mod tests {
         for (dim, axis) in axes.iter_mut().enumerate() {
             latin::segments::compute_segments(&mut outline, axis);
             latin::segments::link_segments(&outline, axis, unscaled_metrics.axes[dim].max_width());
-            compute_edges(axis, &scaled_metrics.axes[0], class.hint_top_to_bottom);
+            compute_edges(axis, &scaled_metrics.axes[dim], class.hint_top_to_bottom);
             if dim == Axis::VERTICAL {
                 compute_blue_edges(
                     axis,

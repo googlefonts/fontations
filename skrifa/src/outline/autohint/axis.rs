@@ -56,6 +56,7 @@ impl Axis {
             _ => Direction::None,
         };
         self.segments.clear();
+        self.edges.clear();
     }
 }
 
@@ -176,6 +177,10 @@ impl Segment {
 
     pub fn last_point_mut<'a>(&self, points: &'a mut [Point]) -> &'a mut Point {
         &mut points[self.last()]
+    }
+
+    pub fn edge<'a>(&self, edges: &'a [Edge]) -> Option<&'a Edge> {
+        edges.get(self.edge_ix.map(|ix| ix as usize)?)
     }
 }
 
