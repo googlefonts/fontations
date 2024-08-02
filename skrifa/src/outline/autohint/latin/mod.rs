@@ -2,6 +2,7 @@
 
 mod blues;
 mod edges;
+mod hint;
 mod metrics;
 mod segments;
 mod widths;

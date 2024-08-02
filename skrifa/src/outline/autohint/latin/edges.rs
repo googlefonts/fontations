@@ -296,7 +296,11 @@ mod tests {
         let class = &script::SCRIPT_CLASSES[script::ScriptClass::HEBR];
         let unscaled_metrics =
             latin::metrics::compute_unscaled_style_metrics(&font, Default::default(), class);
-        let scale = metrics::Scale::new(16.0, font.head().unwrap().units_per_em() as i32);
+        let scale = metrics::Scale::new(
+            16.0,
+            font.head().unwrap().units_per_em() as i32,
+            Default::default(),
+        );
         let scaled_metrics = latin::metrics::scale_style_metrics(&unscaled_metrics, scale);
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(GlyphId::new(9)).unwrap();
@@ -329,7 +333,7 @@ mod tests {
                 blue_edge: None,
                 link_ix: Some(3),
                 serif_ix: None,
-                score: 0,
+                scale: 0,
                 first_ix: 1,
                 last_ix: 1,
             },
@@ -342,7 +346,7 @@ mod tests {
                 blue_edge: None,
                 link_ix: Some(2),
                 serif_ix: None,
-                score: 0,
+                scale: 0,
                 first_ix: 0,
                 last_ix: 0,
             },
@@ -355,7 +359,7 @@ mod tests {
                 blue_edge: None,
                 link_ix: Some(1),
                 serif_ix: None,
-                score: 0,
+                scale: 0,
                 first_ix: 4,
                 last_ix: 4,
             },
@@ -368,7 +372,7 @@ mod tests {
                 blue_edge: None,
                 link_ix: Some(0),
                 serif_ix: None,
-                score: 0,
+                scale: 0,
                 first_ix: 3,
                 last_ix: 3,
             },
@@ -386,7 +390,7 @@ mod tests {
                 }),
                 link_ix: None,
                 serif_ix: Some(1),
-                score: 0,
+                scale: 0,
                 first_ix: 3,
                 last_ix: 3,
             },
@@ -399,7 +403,7 @@ mod tests {
                 blue_edge: None,
                 link_ix: Some(2),
                 serif_ix: None,
-                score: 0,
+                scale: 0,
                 first_ix: 0,
                 last_ix: 0,
             },
@@ -415,7 +419,7 @@ mod tests {
                 }),
                 link_ix: Some(1),
                 serif_ix: None,
-                score: 0,
+                scale: 0,
                 first_ix: 2,
                 last_ix: 2,
             },
@@ -428,7 +432,7 @@ mod tests {
                 blue_edge: None,
                 link_ix: None,
                 serif_ix: Some(2),
-                score: 0,
+                scale: 0,
                 first_ix: 1,
                 last_ix: 1,
             },
