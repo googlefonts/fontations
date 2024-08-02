@@ -4,7 +4,7 @@
 //! 1. Align points that are directly attached to edges.
 //! 2. Interpolate non-weak points that were not touched by the previous pass.
 //! 3. Interpolate remaining (weak) points.
-//! 
+//!
 //! The final result is a fully hinted outline.
 
 use super::{
