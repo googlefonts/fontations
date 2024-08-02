@@ -126,51 +126,11 @@ fn subset_simple_glyph(g: &SimpleGlyph) -> Vec<u8> {
         return out;
     };
     let num_coords = num_coords.get() + 1;
-    let mut coord_bytes: usize = 0;
-    let mut coords_with_flags: u16 = 0;
-
     let glyph_data = g.glyph_data();
-    let length = glyph_data.len();
-    let mut i: usize = 0;
-    while i < length {
-        let flag = SimpleGlyphFlags::from_bits_truncate(glyph_data[i]);
-        i += 1;
-
-        let mut repeat: u8 = 1;
-        if flag.contains(SimpleGlyphFlags::REPEAT_FLAG) {
-            if i >= length {
-                return out;
-            }
-            repeat = glyph_data[i] + 1;
-            i += 1;
-        }
-
-        let mut x_bytes: u8 = 0;
-        let mut y_bytes: u8 = 0;
-        if flag.contains(SimpleGlyphFlags::X_SHORT_VECTOR) {
-            x_bytes = 1;
-        } else if !flag.contains(SimpleGlyphFlags::X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR) {
-            x_bytes = 2;
-        }
-
-        if flag.contains(SimpleGlyphFlags::Y_SHORT_VECTOR) {
-            y_bytes = 1;
-        } else if !flag.contains(SimpleGlyphFlags::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR) {
-            y_bytes = 2;
-        }
-
-        coord_bytes += ((x_bytes + y_bytes) * repeat) as usize;
-        coords_with_flags += repeat as u16;
-        if coords_with_flags >= num_coords {
-            break;
-        }
-    }
-
-    if num_coords != coords_with_flags {
+    let i = trim_simple_glyph_padding(glyph_data, num_coords);
+    if i == 0 {
         return out;
     }
-    i += coord_bytes;
-
     let trimmed_len =
         10 + 2 * (g.number_of_contours() as usize) + 2 + g.instruction_length() as usize + i;
     let Some(trimmed_slice) = g.offset_data().as_bytes().get(0..trimmed_len) else {
@@ -237,6 +197,52 @@ fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
 
     out.truncate(i);
     out
+}
+
+fn trim_simple_glyph_padding(glyph_data: &[u8], num_coords: u16) -> usize {
+    let mut coord_bytes: usize = 0;
+    let mut coords_with_flags: u16 = 0;
+    let length = glyph_data.len();
+    let mut i: usize = 0;
+    while i < length {
+        let flag = SimpleGlyphFlags::from_bits_truncate(glyph_data[i]);
+        i += 1;
+
+        let mut repeat: u8 = 1;
+        if flag.contains(SimpleGlyphFlags::REPEAT_FLAG) {
+            if i >= length {
+                return 0;
+            }
+            repeat = glyph_data[i] + 1;
+            i += 1;
+        }
+
+        let mut x_bytes: u8 = 0;
+        let mut y_bytes: u8 = 0;
+        if flag.contains(SimpleGlyphFlags::X_SHORT_VECTOR) {
+            x_bytes = 1;
+        } else if !flag.contains(SimpleGlyphFlags::X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR) {
+            x_bytes = 2;
+        }
+
+        if flag.contains(SimpleGlyphFlags::Y_SHORT_VECTOR) {
+            y_bytes = 1;
+        } else if !flag.contains(SimpleGlyphFlags::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR) {
+            y_bytes = 2;
+        }
+
+        coord_bytes += ((x_bytes + y_bytes) * repeat) as usize;
+        coords_with_flags += repeat as u16;
+        if coords_with_flags >= num_coords {
+            break;
+        }
+    }
+
+    if num_coords != coords_with_flags {
+        return 0;
+    }
+    i += coord_bytes;
+    i
 }
 
 fn subset_head(head: &Head, loca_format: u8) -> Result<Vec<u8>, SubsetError> {
