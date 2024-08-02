@@ -2,7 +2,7 @@
 
 include!("../../generated/generated_ift.rs");
 
-use std::{ops::RangeInclusive, str};
+use std::str;
 
 pub const IFT_TAG: types::Tag = Tag::new(b"IFT ");
 pub const IFTX_TAG: types::Tag = Tag::new(b"IFTX");
@@ -72,20 +72,6 @@ impl<'a> PatchMapFormat1<'a> {
             .map(|byte| byte & bit_mask != 0)
             .unwrap_or(false)
     }
-
-    pub fn entry_map_records(&self) -> impl Iterator<Item = FeatureEntryMapping> + 'a {
-        let Some(Ok(feature_map)) = self.feature_map() else {
-            return EntryMapIter::empty(&[]);
-        };
-
-        EntryMapIter {
-            data: feature_map.entry_map_data(),
-            feature_record_it: Some(feature_map.feature_records().iter()),
-            current_feature_record: None,
-            remaining: 0,
-            max_entry_index: self.max_entry_index(),
-        }
-    }
 }
 
 impl<'a> FeatureMap<'a> {
@@ -131,85 +117,6 @@ impl<'a> Iterator for GidToEntryIter<'a> {
     }
 }
 
-#[derive(PartialEq, Debug)]
-pub struct FeatureEntryMapping {
-    pub matched_entries: RangeInclusive<u16>,
-    pub new_entry_index: u16,
-    pub feature_tag: Tag,
-}
-
-struct EntryMapIter<'a, T>
-where
-    T: Iterator<Item = Result<FeatureRecord, ReadError>>,
-{
-    data: &'a [u8],
-    feature_record_it: Option<T>,
-    current_feature_record: Option<FeatureRecord>,
-    remaining: u16,
-    max_entry_index: u16,
-}
-
-impl<'a, T> EntryMapIter<'a, T>
-where
-    T: Iterator<Item = Result<FeatureRecord, ReadError>>,
-{
-    fn empty(data: &'a [u8]) -> Self {
-        EntryMapIter {
-            data,
-            feature_record_it: None,
-            current_feature_record: None,
-            remaining: 0,
-            max_entry_index: 0,
-        }
-    }
-}
-
-impl<T> Iterator for EntryMapIter<'_, T>
-where
-    T: Iterator<Item = Result<FeatureRecord, ReadError>>,
-{
-    type Item = FeatureEntryMapping;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // TODO(garretrieger): current spec text for this is wrong and doesn't match what were doing here. Update
-        //                     the spec to match this implementation.
-        let feature_record_it = self.feature_record_it.as_mut()?;
-
-        if self.current_feature_record.is_none() || self.remaining == 0 {
-            let Some(Ok(feature_record)) = feature_record_it.next() else {
-                self.feature_record_it = None;
-                return None;
-            };
-
-            self.remaining = feature_record.entry_map_count().get();
-            self.current_feature_record = Some(feature_record);
-        }
-
-        let data = FontData::new(self.data);
-        let (Some(feature_record), Ok(entry_record)) = (
-            self.current_feature_record.clone(),
-            EntryMapRecord::read(data, self.max_entry_index),
-        ) else {
-            self.feature_record_it = None;
-            return None;
-        };
-
-        let new_entry_index = feature_record.first_new_entry_index.get()
-            + (feature_record.entry_map_count().get() - self.remaining);
-        self.remaining -= 1;
-
-        let size = U8Or16::compute_size(&self.max_entry_index).ok()? * 2;
-        self.data = self.data.get(size..)?;
-
-        Some(FeatureEntryMapping {
-            matched_entries: entry_record.first_entry_index().get()
-                ..=entry_record.last_entry_index().get(),
-            new_entry_index,
-            feature_tag: feature_record.feature_tag(),
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,7 +142,10 @@ mod tests {
         };
         let entries: Vec<(GlyphId, u16)> = map.gid_to_entry_iter().collect();
 
-        assert_eq!(entries, vec![(1u32.into(), 2), (2u32.into(), 1),]);
+        assert_eq!(
+            entries,
+            vec![(1u32.into(), 2), (2u32.into(), 1), (4u32.into(), 1)]
+        );
     }
 
     #[test]
@@ -273,56 +183,17 @@ mod tests {
             panic!("should have a valid feature map.");
         };
 
-        assert_eq!(feature_map.feature_records().len(), 2);
+        assert_eq!(feature_map.feature_records().len(), 3);
 
         let fr0 = feature_map.feature_records().get(0).unwrap();
-        assert_eq!(fr0.feature_tag(), Tag::new(&[b'l', b'i', b'g', b'a']));
-        assert_eq!(*fr0.first_new_entry_index(), U8Or16(0x70));
-        assert_eq!(*fr0.entry_map_count(), U8Or16(0x02));
+        assert_eq!(fr0.feature_tag(), Tag::new(&[b'd', b'l', b'i', b'g']));
+        assert_eq!(*fr0.first_new_entry_index(), U8Or16(0x190));
+        assert_eq!(*fr0.entry_map_count(), U8Or16(0x01));
 
         let fr1 = feature_map.feature_records().get(1).unwrap();
-        assert_eq!(fr1.feature_tag(), Tag::new(&[b'd', b'l', b'i', b'g']));
-        assert_eq!(*fr1.first_new_entry_index(), U8Or16(0x190));
-        assert_eq!(*fr1.entry_map_count(), U8Or16(0x01));
-    }
-
-    #[test]
-    fn format_1_feature_entry_map() {
-        let table = Ift::read(test_data::FEATURE_MAP_FORMAT1.into()).unwrap();
-        let Ift::Format1(map) = table else {
-            panic!("Not format 1.");
-        };
-
-        let mut it = map.entry_map_records();
-
-        assert_eq!(
-            it.next(),
-            Some(FeatureEntryMapping {
-                matched_entries: 0x50..=0x51,
-                new_entry_index: 0x70,
-                feature_tag: Tag::new(&[b'l', b'i', b'g', b'a']),
-            })
-        );
-
-        assert_eq!(
-            it.next(),
-            Some(FeatureEntryMapping {
-                matched_entries: 0x12c..=0x12c,
-                new_entry_index: 0x71,
-                feature_tag: Tag::new(&[b'l', b'i', b'g', b'a']),
-            })
-        );
-
-        assert_eq!(
-            it.next(),
-            Some(FeatureEntryMapping {
-                matched_entries: 0x51..=0x51,
-                new_entry_index: 0x190,
-                feature_tag: Tag::new(&[b'd', b'l', b'i', b'g']),
-            })
-        );
-
-        assert_eq!(it.next(), None);
+        assert_eq!(fr1.feature_tag(), Tag::new(&[b'l', b'i', b'g', b'a']));
+        assert_eq!(*fr1.first_new_entry_index(), U8Or16(0x180));
+        assert_eq!(*fr1.entry_map_count(), U8Or16(0x02));
     }
 
     #[test]
