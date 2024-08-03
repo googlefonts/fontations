@@ -365,6 +365,21 @@ target = "read-fonts/generated/generated_aat.rs"
 
 [[generate]]
 mode = "parse"
+source = "resources/codegen_inputs/feat.rs"
+target = "read-fonts/generated/generated_feat.rs"
+
+[[generate]]
+mode = "parse"
+source = "resources/codegen_inputs/ankr.rs"
+target = "read-fonts/generated/generated_ankr.rs"
+
+[[generate]]
+mode = "parse"
+source = "resources/codegen_inputs/ltag.rs"
+target = "read-fonts/generated/generated_ltag.rs"
+
+[[generate]]
+mode = "parse"
 source = "resources/codegen_inputs/ift.rs"
 target = "read-fonts/generated/generated_ift.rs"
 

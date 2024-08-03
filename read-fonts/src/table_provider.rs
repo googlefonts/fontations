@@ -138,6 +138,18 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    fn feat(&self) -> Result<tables::feat::Feat<'a>, ReadError> {
+        self.expect_table()
+    }
+
+    fn ltag(&self) -> Result<tables::ltag::Ltag<'a>, ReadError> {
+        self.expect_table()
+    }
+
+    fn ankr(&self) -> Result<tables::ankr::Ankr<'a>, ReadError> {
+        self.expect_table()
+    }
+
     fn colr(&self) -> Result<tables::colr::Colr<'a>, ReadError> {
         self.expect_table()
     }
