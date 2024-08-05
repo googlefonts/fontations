@@ -6,7 +6,7 @@
 //! To generate the expected output files, pass GEN_EXPECTED_OUTPUTS=1 as an
 //! environment variable.
 
-use klippa::{parse_unicodes, subset_font, Plan};
+use klippa::{parse_unicodes, subset_font, Plan, SubsetFlags};
 use std::fmt::Write;
 use std::fs;
 use std::iter::Peekable;
@@ -313,7 +313,8 @@ fn gen_subset_font_file(font_file: &str, subset: &str, output_file: &PathBuf) {
 
     let gids = IntSet::empty();
     let unicodes = parse_unicodes(subset).unwrap();
-    let plan = Plan::new(&gids, &unicodes, &font);
+    //TODO: support parsing subset_flags
+    let plan = Plan::new(&gids, &unicodes, &font, SubsetFlags::SUBSET_FLAGS_DEFAULT);
 
     let subset_output = subset_font(&font, &plan).unwrap();
     std::fs::write(output_file, subset_output).unwrap();

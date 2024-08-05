@@ -37,6 +37,69 @@ const MAX_NESTING_LEVEL: u8 = 64;
 // See <https://github.com/googlefonts/fontations/issues/997>
 const MAX_GID: GlyphId = GlyphId::new(0xFFFFFF);
 
+#[derive(Clone, Copy, Debug)]
+pub struct SubsetFlags(u16);
+
+impl SubsetFlags {
+    //all flags at their default value of false.
+    pub const SUBSET_FLAGS_DEFAULT: Self = Self(0x0000);
+
+    //If set hinting instructions will be dropped in the produced subset.
+    //Otherwise hinting instructions will be retained.
+    pub const SUBSET_FLAGS_NO_HINTING: Self = Self(0x0001);
+
+    //If set glyph indices will not be modified in the produced subset.
+    //If glyphs are dropped their indices will be retained as an empty glyph.
+    pub const SUBSET_FLAGS_RETAIN_GIDS: Self = Self(0x0002);
+
+    //If set and subsetting a CFF font the subsetter will attempt to remove subroutines from the CFF glyphs.
+    pub const SUBSET_FLAGS_DESUBROUTINIZE: Self = Self(0x0004);
+
+    //If set non-unicode name records will be retained in the subset.
+    pub const SUBSET_FLAGS_NAME_LEGACY: Self = Self(0x0008);
+
+    //If set the subsetter will set the OVERLAP_SIMPLE flag on each simple glyph.
+    pub const SUBSET_FLAGS_SET_OVERLAPS_FLAG: Self = Self(0x0010);
+
+    //If set the subsetter will not drop unrecognized tables and instead pass them through untouched.
+    pub const SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED: Self = Self(0x0020);
+
+    //If set the notdef glyph outline will be retained in the final subset.
+    pub const SUBSET_FLAGS_NOTDEF_OUTLINE: Self = Self(0x0040);
+
+    //If set the PS glyph names will be retained in the final subset.
+    pub const SUBSET_FLAGS_GLYPH_NAMES: Self = Self(0x0080);
+
+    //If set then the unicode ranges in OS/2 will not be recalculated.
+    pub const SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES: Self = Self(0x0100);
+
+    //If set don't perform glyph closure on layout substitution rules (GSUB)
+    pub const SUBSET_FLAGS_NO_LAYOUT_CLOSURE: Self = Self(0x0200);
+
+    //If set perform IUP delta optimization on the remaining gvar table's deltas.
+    pub const SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS: Self = Self(0x0400);
+}
+
+impl Default for SubsetFlags {
+    fn default() -> Self {
+        Self::SUBSET_FLAGS_DEFAULT
+    }
+}
+
+impl From<u16> for SubsetFlags {
+    fn from(value: u16) -> Self {
+        Self(value)
+    }
+}
+
+impl std::ops::BitOrAssign for SubsetFlags {
+    /// Adds the set of flags.
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        self.0 |= other.0;
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Default)]
 pub struct Plan {
@@ -53,12 +116,20 @@ pub struct Plan {
     font_num_glyphs: usize,
     unicode_to_new_gid_list: Vec<(u32, GlyphId)>,
     codepoint_to_glyph: FnvHashMap<u32, GlyphId>,
+
+    subset_flags: SubsetFlags,
 }
 
 impl Plan {
-    pub fn new(input_gids: &IntSet<GlyphId>, input_unicodes: &IntSet<u32>, font: &FontRef) -> Self {
+    pub fn new(
+        input_gids: &IntSet<GlyphId>,
+        input_unicodes: &IntSet<u32>,
+        font: &FontRef,
+        flags: SubsetFlags,
+    ) -> Self {
         let mut this = Plan {
             font_num_glyphs: get_font_num_glyphs(font),
+            subset_flags: flags,
             ..Default::default()
         };
 
