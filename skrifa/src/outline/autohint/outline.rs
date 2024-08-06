@@ -1,8 +1,11 @@
 //! Outline representation and helpers for autohinting.
 
-use super::super::{
-    unscaled::{UnscaledOutlineSink, UnscaledPoint},
-    DrawError, LocationRef, OutlineGlyph,
+use super::{
+    super::{
+        unscaled::{UnscaledOutlineSink, UnscaledPoint},
+        DrawError, LocationRef, OutlineGlyph,
+    },
+    metrics::Scale,
 };
 use crate::collections::SmallVec;
 use core::ops::Range;
@@ -86,6 +89,14 @@ pub(super) struct Point {
     pub fx: i32,
     /// Y coordinate in font units.
     pub fy: i32,
+    /// Scaled X coordinate.
+    pub ox: i32,
+    /// Scaled Y coordinate.
+    pub oy: i32,
+    /// Hinted X coordinate.
+    pub x: i32,
+    /// Hinted Y coordinate.
+    pub y: i32,
     /// Direction of inwards vector.
     pub in_dir: Direction,
     /// Direction of outwards vector.
@@ -165,6 +176,20 @@ impl Outline {
         self.check_remaining_weak_points();
         self.compute_orientation();
         Ok(())
+    }
+
+    /// Applies dimension specific scaling factors and deltas to each
+    /// point in the outline.
+    pub fn scale(&mut self, scale: &Scale) {
+        use super::metrics::fixed_mul;
+        for point in &mut self.points {
+            let x = fixed_mul(point.fx, scale.x_scale) + scale.x_delta;
+            let y = fixed_mul(point.fy, scale.y_scale) + scale.y_delta;
+            point.ox = x;
+            point.x = x;
+            point.oy = y;
+            point.y = y;
+        }
     }
 
     pub fn clear(&mut self) {

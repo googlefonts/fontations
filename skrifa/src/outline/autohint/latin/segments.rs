@@ -30,10 +30,11 @@ pub(crate) fn compute_segments(outline: &mut Outline, axis: &mut Axis) -> bool {
 
 /// Link segments to form stems and serifs.
 ///
-/// If `max_width` is not 0, use it to refine the scoring function.
+/// If `max_width` is provided, use it to refine the scoring function.
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L1990>
-pub(crate) fn link_segments(outline: &Outline, axis: &mut Axis, max_width: i32) {
+pub(crate) fn link_segments(outline: &Outline, axis: &mut Axis, max_width: Option<i32>) {
+    let max_width = max_width.unwrap_or_default();
     // Heuristic value to set up a minimum for overlapping
     let len_threshold = super::derived_constant(outline.units_per_em, 8).max(1);
     // Heuristic value to weight lengths
@@ -409,7 +410,7 @@ mod tests {
         outline.fill(&glyph, Default::default()).unwrap();
         let mut axis = Axis::new(Axis::HORIZONTAL, outline.orientation);
         compute_segments(&mut outline, &mut axis);
-        link_segments(&outline, &mut axis, 0);
+        link_segments(&outline, &mut axis, None);
         let segments = retain_segment_test_fields(&axis.segments);
         let expected = [
             Segment {
@@ -521,7 +522,7 @@ mod tests {
         outline.fill(&glyph, Default::default()).unwrap();
         let mut axis = Axis::new(Axis::VERTICAL, outline.orientation);
         compute_segments(&mut outline, &mut axis);
-        link_segments(&outline, &mut axis, 0);
+        link_segments(&outline, &mut axis, None);
         let segments = retain_segment_test_fields(&axis.segments);
         let expected = [
             Segment {

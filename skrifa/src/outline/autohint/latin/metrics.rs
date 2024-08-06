@@ -45,6 +45,7 @@ pub(crate) fn compute_unscaled_style_metrics(
         }
     }
     UnscaledStyleMetrics {
+        class_ix: style.index as u16,
         digits_have_same_width,
         axes: [
             UnscaledAxisMetrics {
@@ -84,11 +85,7 @@ pub(crate) fn scale_style_metrics(
         scale_axis(&unscaled_metrics.axes[0]),
         scale_axis(&unscaled_metrics.axes[1]),
     ];
-    ScaledStyleMetrics {
-        scale,
-        flags: 0,
-        axes,
-    }
+    ScaledStyleMetrics { scale, axes }
 }
 
 /// Computes scaled metrics for a single axis.
@@ -219,7 +216,11 @@ mod tests {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
         let class = &script::SCRIPT_CLASSES[ScriptClass::HEBR];
         let unscaled_metrics = compute_unscaled_style_metrics(&font, Default::default(), class);
-        let scale = Scale::new(16.0, font.head().unwrap().units_per_em() as i32);
+        let scale = Scale::new(
+            16.0,
+            font.head().unwrap().units_per_em() as i32,
+            Default::default(),
+        );
         let scaled_metrics = scale_style_metrics(&unscaled_metrics, scale);
         // Check scale and deltas
         assert_eq!(scaled_metrics.scale.x_scale, 67109);

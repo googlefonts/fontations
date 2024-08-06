@@ -41,7 +41,7 @@ pub(super) fn compute_widths(
             for (dim, (_metrics, widths)) in result.iter_mut().enumerate() {
                 axis.reset(dim, outline.orientation);
                 super::segments::compute_segments(&mut outline, &mut axis);
-                super::segments::link_segments(&outline, &mut axis, 0);
+                super::segments::link_segments(&outline, &mut axis, None);
                 let segments = axis.segments.as_slice();
                 for (segment_ix, segment) in segments.iter().enumerate() {
                     let segment_ix = segment_ix as u16;
