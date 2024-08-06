@@ -1,8 +1,8 @@
 use ::skrifa::{
-    outline::{DrawError, DrawSettings, HintingInstance},
+    outline::{DrawError, DrawSettings, HintingInstance, OutlinePen},
     prelude::{LocationRef, Size},
     raw::types::F2Dot14,
-    raw::{types::Pen, FontRef, TableProvider},
+    raw::{FontRef, TableProvider},
     GlyphId, MetadataProvider, OutlineGlyphCollection,
 };
 
@@ -55,7 +55,11 @@ impl<'a> SkrifaInstance<'a> {
             .advance_width(glyph_id)
     }
 
-    pub fn outline(&mut self, glyph_id: GlyphId, pen: &mut impl Pen) -> Result<(), DrawError> {
+    pub fn outline(
+        &mut self,
+        glyph_id: GlyphId,
+        pen: &mut impl OutlinePen,
+    ) -> Result<(), DrawError> {
         let outline = self
             .outlines
             .get(glyph_id)

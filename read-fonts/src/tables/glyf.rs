@@ -1,13 +1,10 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
 pub mod bytecode;
-mod path;
 
 use bytemuck::AnyBitPattern;
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub};
 use types::{F26Dot6, Point};
-
-pub use path::{contour_to_path, to_path, ContourPoint, ToPathError, ToPathStyle};
 
 include!("../../generated/generated_glyf.rs");
 

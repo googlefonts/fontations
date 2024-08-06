@@ -1,5 +1,5 @@
-use super::{FreeTypeInstance, InstanceOptions, RecordingPen, RegularizingPen, SkrifaInstance};
-use skrifa::GlyphId;
+use super::{FreeTypeInstance, InstanceOptions, RegularizingPen, SkrifaInstance};
+use skrifa::{outline::pen::PathElement, GlyphId};
 use std::{io::Write, path::Path};
 
 #[allow(clippy::explicit_write)]
@@ -16,8 +16,8 @@ pub fn compare_glyphs(
     let glyph_count = skrifa_instance.glyph_count();
     let is_scaled = options.ppem != 0;
 
-    let mut ft_outline = RecordingPen::default();
-    let mut skrifa_outline = RecordingPen::default();
+    let mut ft_outline = vec![];
+    let mut skrifa_outline = vec![];
 
     let mut ok = true;
 
@@ -55,9 +55,8 @@ pub fn compare_glyphs(
             .unwrap();
         if ft_outline != skrifa_outline {
             ok = false;
-            fn outline_to_string(outline: &RecordingPen) -> String {
+            fn outline_to_string(outline: &[PathElement]) -> String {
                 outline
-                    .0
                     .iter()
                     .map(|cmd| format!("{cmd:?}"))
                     .collect::<Vec<_>>()

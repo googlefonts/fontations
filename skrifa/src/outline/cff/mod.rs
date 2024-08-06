@@ -2,8 +2,8 @@
 
 mod hint;
 
-use std::ops::Range;
-
+use super::OutlinePen;
+use hint::{HintParams, HintState, HintingSink};
 use read_fonts::{
     tables::{
         cff::Cff,
@@ -14,11 +14,10 @@ use read_fonts::{
         },
         variations::ItemVariationStore,
     },
-    types::{F2Dot14, Fixed, GlyphId, Pen},
+    types::{F2Dot14, Fixed, GlyphId},
     FontData, FontRead, TableProvider,
 };
-
-use hint::{HintParams, HintState, HintingSink};
+use std::ops::Range;
 
 /// Type for loading, scaling and hinting outlines in CFF/CFF2 tables.
 ///
@@ -211,7 +210,7 @@ impl<'a> Outlines<'a> {
         glyph_id: GlyphId,
         coords: &[F2Dot14],
         hint: bool,
-        pen: &mut impl Pen,
+        pen: &mut impl OutlinePen,
     ) -> Result<(), Error> {
         let charstring_data = self
             .top_dict
@@ -221,7 +220,7 @@ impl<'a> Outlines<'a> {
             .get(glyph_id.to_u32() as usize)?;
         let subrs = subfont.subrs(self)?;
         let blend_state = subfont.blend_state(self, coords)?;
-        let mut pen_sink = charstring::PenSink::new(pen);
+        let mut pen_sink = PenSink::new(pen);
         let mut simplifying_adapter = NopFilteringSink::new(&mut pen_sink);
         if hint {
             let mut hinting_adapter =
@@ -382,6 +381,43 @@ impl<'a> TopDict<'a> {
             }
         }
         Ok(items)
+    }
+}
+
+/// Command sink that sends the results of charstring evaluation to a [Pen].
+struct PenSink<'a, P>(&'a mut P);
+
+impl<'a, P> PenSink<'a, P> {
+    fn new(pen: &'a mut P) -> Self {
+        Self(pen)
+    }
+}
+
+impl<'a, P> CommandSink for PenSink<'a, P>
+where
+    P: OutlinePen,
+{
+    fn move_to(&mut self, x: Fixed, y: Fixed) {
+        self.0.move_to(x.to_f32(), y.to_f32());
+    }
+
+    fn line_to(&mut self, x: Fixed, y: Fixed) {
+        self.0.line_to(x.to_f32(), y.to_f32());
+    }
+
+    fn curve_to(&mut self, cx0: Fixed, cy0: Fixed, cx1: Fixed, cy1: Fixed, x: Fixed, y: Fixed) {
+        self.0.curve_to(
+            cx0.to_f32(),
+            cy0.to_f32(),
+            cx1.to_f32(),
+            cy1.to_f32(),
+            x.to_f32(),
+            y.to_f32(),
+        );
+    }
+
+    fn close(&mut self) {
+        self.0.close();
     }
 }
 
@@ -681,10 +717,11 @@ mod tests {
     /// This will compare all outlines at various sizes and (for variable
     /// fonts), locations in variation space.
     fn compare_glyphs(font_data: &[u8], expected_outlines: &str) {
+        use super::super::testing;
         let font = FontRef::new(font_data).unwrap();
-        let expected_outlines = read_fonts::scaler_test::parse_glyph_outlines(expected_outlines);
+        let expected_outlines = testing::parse_glyph_outlines(expected_outlines);
         let outlines = super::Outlines::new(&font).unwrap();
-        let mut path = read_fonts::scaler_test::Path::default();
+        let mut path = testing::Path::default();
         for expected_outline in &expected_outlines {
             if expected_outline.size == 0.0 && !expected_outline.coords.is_empty() {
                 continue;

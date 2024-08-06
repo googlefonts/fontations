@@ -82,27 +82,27 @@ mod autohint;
 mod cff;
 mod glyf;
 mod hint;
+mod path;
 mod unscaled;
 
+#[cfg(test)]
+mod testing;
+
 pub mod error;
+pub mod pen;
 
-use core::fmt::Debug;
-
-use raw::tables::glyf::ToPathStyle;
-use read_fonts::{types::GlyphId, TableProvider};
-
-#[doc(inline)]
-pub use error::DrawError;
 pub use hint::{HintingInstance, HintingMode, LcdLayout};
-
-pub use read_fonts::types::Pen as OutlinePen;
+#[doc(inline)]
+pub use {error::DrawError, pen::OutlinePen};
 
 use self::glyf::{FreeTypeScaler, HarfBuzzScaler};
-
 use super::{
     instance::{LocationRef, NormalizedCoord, Size},
     GLYF_COMPOSITE_RECURSION_LIMIT,
 };
+use core::fmt::Debug;
+use pen::PathStyle;
+use read_fonts::{types::GlyphId, TableProvider};
 
 /// Source format for an outline glyph.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -158,7 +158,7 @@ pub struct AdjustedMetrics {
 pub struct DrawSettings<'a> {
     instance: DrawInstance<'a>,
     memory: Option<&'a mut [u8]>,
-    path_style: ToPathStyle,
+    path_style: PathStyle,
 }
 
 impl<'a> DrawSettings<'a> {
@@ -168,7 +168,7 @@ impl<'a> DrawSettings<'a> {
         Self {
             instance: DrawInstance::Unhinted(size, location.into()),
             memory: None,
-            path_style: ToPathStyle::default(),
+            path_style: PathStyle::default(),
         }
     }
 
@@ -188,7 +188,7 @@ impl<'a> DrawSettings<'a> {
                 is_pedantic,
             },
             memory: None,
-            path_style: ToPathStyle::default(),
+            path_style: PathStyle::default(),
         }
     }
 
@@ -207,7 +207,7 @@ impl<'a> DrawSettings<'a> {
     /// Builder method to control nuances of [`glyf`](https://learn.microsoft.com/en-us/typography/opentype/spec/glyf) pointstream interpretation.
     ///
     /// Meant for use when trying to match legacy code behavior in Rust.
-    pub fn with_path_style(mut self, path_style: ToPathStyle) -> Self {
+    pub fn with_path_style(mut self, path_style: PathStyle) -> Self {
         self.path_style = path_style;
         self
     }
@@ -323,10 +323,10 @@ impl<'a> OutlineGlyph<'a> {
     ) -> Result<AdjustedMetrics, DrawError> {
         let settings: DrawSettings<'a> = settings.into();
         match (settings.instance, settings.path_style) {
-            (DrawInstance::Unhinted(size, location), ToPathStyle::FreeType) => {
+            (DrawInstance::Unhinted(size, location), PathStyle::FreeType) => {
                 self.draw_unhinted(size, location, settings.memory, settings.path_style, pen)
             }
-            (DrawInstance::Unhinted(size, location), ToPathStyle::HarfBuzz) => {
+            (DrawInstance::Unhinted(size, location), PathStyle::HarfBuzz) => {
                 self.draw_unhinted(size, location, settings.memory, settings.path_style, pen)
             }
             (
@@ -334,7 +334,7 @@ impl<'a> OutlineGlyph<'a> {
                     instance: hinting_instance,
                     is_pedantic,
                 },
-                ToPathStyle::FreeType,
+                PathStyle::FreeType,
             ) => {
                 if hinting_instance.is_enabled() {
                     hinting_instance.draw(
@@ -354,7 +354,7 @@ impl<'a> OutlineGlyph<'a> {
                     )
                 }
             }
-            (DrawInstance::Hinted { .. }, ToPathStyle::HarfBuzz) => {
+            (DrawInstance::Hinted { .. }, PathStyle::HarfBuzz) => {
                 Err(DrawError::HarfBuzzHintingUnsupported)
             }
         }
@@ -365,7 +365,7 @@ impl<'a> OutlineGlyph<'a> {
         size: Size,
         location: impl Into<LocationRef<'a>>,
         user_memory: Option<&mut [u8]>,
-        path_style: ToPathStyle,
+        path_style: PathStyle,
         pen: &mut impl OutlinePen,
     ) -> Result<AdjustedMetrics, DrawError> {
         let ppem = size.ppem();
@@ -374,7 +374,7 @@ impl<'a> OutlineGlyph<'a> {
             OutlineKind::Glyf(glyf, outline) => {
                 with_glyf_memory(outline, Hinting::None, user_memory, |buf| {
                     let (lsb, advance_width) = match path_style {
-                        ToPathStyle::FreeType => {
+                        PathStyle::FreeType => {
                             let scaled_outline =
                                 FreeTypeScaler::unhinted(glyf.clone(), outline, buf, ppem, coords)?
                                     .scale(&outline.glyph, outline.glyph_id)?;
@@ -384,7 +384,7 @@ impl<'a> OutlineGlyph<'a> {
                                 scaled_outline.adjusted_advance_width().to_f32(),
                             )
                         }
-                        ToPathStyle::HarfBuzz => {
+                        PathStyle::HarfBuzz => {
                             let scaled_outline =
                                 HarfBuzzScaler::unhinted(glyf.clone(), outline, buf, ppem, coords)?
                                     .scale(&outline.glyph, outline.glyph_id)?;
@@ -624,7 +624,7 @@ mod tests {
     use super::*;
     use crate::{instance::Location, MetadataProvider};
     use kurbo::{Affine, BezPath, PathEl, Point};
-    use read_fonts::{scaler_test, types::GlyphId, FontRef, TableProvider};
+    use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     use pretty_assertions::assert_eq;
 
@@ -697,8 +697,8 @@ mod tests {
 
     fn compare_glyphs(font_data: &[u8], expected_outlines: &str) {
         let font = FontRef::new(font_data).unwrap();
-        let expected_outlines = scaler_test::parse_glyph_outlines(expected_outlines);
-        let mut path = scaler_test::Path::default();
+        let expected_outlines = testing::parse_glyph_outlines(expected_outlines);
+        let mut path = testing::Path::default();
         for expected_outline in &expected_outlines {
             if expected_outline.size == 0.0 && !expected_outline.coords.is_empty() {
                 continue;
@@ -1001,7 +1001,7 @@ mod tests {
         expected_points = insert_implicit_oncurve(&expected_points);
 
         let settings: DrawSettings = Size::unscaled().into();
-        let settings = settings.with_path_style(ToPathStyle::HarfBuzz);
+        let settings = settings.with_path_style(PathStyle::HarfBuzz);
         let actual = drawn_points(font, PERIOD, settings);
         assert_eq!(
             expected_points, actual,
@@ -1106,7 +1106,7 @@ mod tests {
         font: &FontRef,
         gid: GlyphId,
         loc: Location,
-        path_style: ToPathStyle,
+        path_style: PathStyle,
         expected_path_start: &[PathEl],
     ) {
         let glyph = font
@@ -1141,7 +1141,7 @@ mod tests {
             &font,
             MATERIAL_SYMBOL_GID_MAIL_AT_DEFAULT,
             Location::default(),
-            ToPathStyle::FreeType,
+            PathStyle::FreeType,
             &[
                 PathEl::MoveTo((160.0, -160.0).into()),
                 PathEl::QuadTo((127.0, -160.0).into(), (103.5, -183.5).into()),
@@ -1157,7 +1157,7 @@ mod tests {
             &font,
             MATERIAL_SYMBOL_GID_MAIL_AT_DEFAULT,
             Location::default(),
-            ToPathStyle::HarfBuzz,
+            PathStyle::HarfBuzz,
             &[
                 PathEl::MoveTo((160.0, -160.0).into()),
                 PathEl::QuadTo((127.0, -160.0).into(), (103.5, -183.5).into()),
@@ -1173,7 +1173,7 @@ mod tests {
             &font,
             MATERIAL_SYMBOL_GID_MAIL_OFF_DEFAULT,
             icon_loc_off_default(&font),
-            ToPathStyle::FreeType,
+            PathStyle::FreeType,
             &[
                 PathEl::MoveTo((150.0, -138.0).into()),
                 PathEl::QuadTo((113.0, -138.0).into(), (86.0, -165.5).into()),
@@ -1189,7 +1189,7 @@ mod tests {
             &font,
             MATERIAL_SYMBOL_GID_MAIL_OFF_DEFAULT,
             icon_loc_off_default(&font),
-            ToPathStyle::HarfBuzz,
+            PathStyle::HarfBuzz,
             &[
                 PathEl::MoveTo((150.0, -138.0).into()),
                 PathEl::QuadTo((113.22, -138.0).into(), (86.11, -165.61).into()),
@@ -1209,7 +1209,7 @@ mod tests {
             &font,
             GLYF_COMPONENT_GID_NON_UNIFORM_SCALE,
             Location::default(),
-            ToPathStyle::FreeType,
+            PathStyle::FreeType,
             &[
                 PathEl::MoveTo((-138.0, -185.0).into()),
                 PathEl::LineTo((-32.0, -259.0).into()),
@@ -1227,7 +1227,7 @@ mod tests {
             &font,
             GLYF_COMPONENT_GID_NON_UNIFORM_SCALE,
             Location::default(),
-            ToPathStyle::HarfBuzz,
+            PathStyle::HarfBuzz,
             &[
                 PathEl::MoveTo((-137.8, -184.86).into()),
                 PathEl::LineTo((-32.15, -258.52).into()),
@@ -1245,7 +1245,7 @@ mod tests {
             &font,
             GLYF_COMPONENT_GID_SCALED_COMPONENT_OFFSET,
             Location::default(),
-            ToPathStyle::FreeType,
+            PathStyle::FreeType,
             &[
                 // Adds (x-transform magnitude * x-offset, y-transform magnitude * y-offset) to x/y offset
                 PathEl::MoveTo((715.0, -360.0).into()),
@@ -1260,7 +1260,7 @@ mod tests {
             &font,
             GLYF_COMPONENT_GID_NO_SCALED_COMPONENT_OFFSET,
             Location::default(),
-            ToPathStyle::FreeType,
+            PathStyle::FreeType,
             &[PathEl::MoveTo((705.0, -340.0).into())],
         );
     }
@@ -1272,7 +1272,7 @@ mod tests {
             &font,
             GLYF_COMPONENT_GID_SCALED_COMPONENT_OFFSET,
             Location::default(),
-            ToPathStyle::HarfBuzz,
+            PathStyle::HarfBuzz,
             &[
                 // Adds (x-transform magnitude * x-offset, y-transform magnitude * y-offset) to x/y offset
                 PathEl::MoveTo((714.97, -360.0).into()),
@@ -1287,7 +1287,7 @@ mod tests {
             &font,
             GLYF_COMPONENT_GID_NO_SCALED_COMPONENT_OFFSET,
             Location::default(),
-            ToPathStyle::HarfBuzz,
+            PathStyle::HarfBuzz,
             &[PathEl::MoveTo((704.97, -340.0).into())],
         );
     }
@@ -1301,7 +1301,7 @@ mod tests {
             &font,
             CUBIC_GLYPH,
             Location::default(),
-            ToPathStyle::FreeType,
+            PathStyle::FreeType,
             &[
                 PathEl::MoveTo((278.0, -710.0).into()),
                 PathEl::LineTo((278.0, -470.0).into()),

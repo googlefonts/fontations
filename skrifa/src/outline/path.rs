@@ -1,25 +1,11 @@
-//! Conversion from TrueType outlines to paths.
+//! TrueType style outline to path conversion.
 
-use super::{Point, PointCoord, PointFlags};
-use std::fmt;
-use types::Pen;
-
-/// The order to process points in a glyf point stream is ambiguous when the first point is
-/// off-curve. Major implementations differ. Which one would you like to match?
-///
-/// **If you add a new one make sure to update the fuzzer**
-#[derive(Debug, Default, Copy, Clone)]
-pub enum ToPathStyle {
-    /// If the first point is off-curve, check if the last is on-curve
-    /// If it is, start there. If it isn't, start at the implied midpoint between first and last.
-    #[default]
-    FreeType,
-    /// If the first point is off-curve, check if the second is on-curve.
-    /// If it is, start there. If it isn't, start at the implied midpoint between first and second.
-    ///
-    /// Matches hb-draw's interpretation of a point stream.
-    HarfBuzz,
-}
+use super::pen::{OutlinePen, PathStyle};
+use core::fmt;
+use raw::{
+    tables::glyf::{PointCoord, PointFlags},
+    types::Point,
+};
 
 /// Errors that can occur when converting an outline to a path.
 #[derive(Clone, Debug)]
@@ -71,12 +57,12 @@ impl fmt::Display for ToPathError {
 ///
 /// See [`contour_to_path`] for a more general function that takes an iterator
 /// if your outline data is in a different format.
-pub fn to_path<C: PointCoord>(
+pub(crate) fn to_path<C: PointCoord>(
     points: &[Point<C>],
     flags: &[PointFlags],
     contours: &[u16],
-    path_style: ToPathStyle,
-    pen: &mut impl Pen,
+    path_style: PathStyle,
+    pen: &mut impl OutlinePen,
 ) -> Result<(), ToPathError> {
     for contour_ix in 0..contours.len() {
         let start_ix = (contour_ix > 0)
@@ -127,7 +113,7 @@ pub fn to_path<C: PointCoord>(
 
 /// Combination of point coordinates and flags.
 #[derive(Copy, Clone, Default, Debug)]
-pub struct ContourPoint<T> {
+pub(crate) struct ContourPoint<T> {
     pub x: T,
     pub y: T,
     pub flags: PointFlags,
@@ -160,11 +146,11 @@ where
 ///
 /// This is more general than [`to_path`] and exists to support cases (such as
 /// autohinting) where the source outline data is in a different format.
-pub fn contour_to_path<C: PointCoord>(
+pub(crate) fn contour_to_path<C: PointCoord>(
     points: impl Iterator<Item = ContourPoint<C>>,
     last_point: ContourPoint<C>,
-    style: ToPathStyle,
-    pen: &mut impl Pen,
+    style: PathStyle,
+    pen: &mut impl OutlinePen,
 ) -> Result<(), ToPathError> {
     let mut points = points.enumerate().peekable();
     let Some((_, first_point)) = points.peek().copied() else {
@@ -186,7 +172,7 @@ pub fn contour_to_path<C: PointCoord>(
         // We're starting with an off curve, so select our first move based on
         // the path style
         match style {
-            ToPathStyle::FreeType => {
+            PathStyle::FreeType => {
                 if last_point.flags.is_on_curve() {
                     // The last point is an on curve, so let's start there
                     omit_last = true;
@@ -196,7 +182,7 @@ pub fn contour_to_path<C: PointCoord>(
                     last_point.midpoint(&first_point)
                 }
             }
-            ToPathStyle::HarfBuzz => {
+            PathStyle::HarfBuzz => {
                 // Always consume the first point
                 points.next();
                 // Then check the next point
@@ -248,7 +234,7 @@ impl<C: PointCoord> ContourPathEmitter<C> {
         &mut self,
         ix: usize,
         point: ContourPoint<C>,
-        pen: &mut impl Pen,
+        pen: &mut impl OutlinePen,
     ) -> Result<(), ToPathError> {
         if point.flags.is_off_curve_quad() {
             // Quads can have 0 or 1 buffered point. If there is one, draw a
@@ -275,7 +261,7 @@ impl<C: PointCoord> ContourPathEmitter<C> {
     fn finish(
         mut self,
         start_point: ContourPoint<C>,
-        pen: &mut impl Pen,
+        pen: &mut impl OutlinePen,
     ) -> Result<(), ToPathError> {
         if self.num_pending != 0 {
             self.flush(start_point, pen)?;
@@ -293,7 +279,7 @@ impl<C: PointCoord> ContourPathEmitter<C> {
         &mut self,
         curr: ContourPoint<C>,
         oncurve: OnCurve,
-        pen: &mut impl Pen,
+        pen: &mut impl OutlinePen,
     ) -> Result<(), ToPathError> {
         let (ix, c0) = self.pending[0];
         if !c0.flags.is_off_curve_quad() {
@@ -310,7 +296,7 @@ impl<C: PointCoord> ContourPathEmitter<C> {
         &mut self,
         curr: ContourPoint<C>,
         oncurve: OnCurve,
-        pen: &mut impl Pen,
+        pen: &mut impl OutlinePen,
     ) -> Result<(), ToPathError> {
         let (ix0, c0) = self.pending[0];
         if !c0.flags.is_off_curve_cubic() {
@@ -328,7 +314,11 @@ impl<C: PointCoord> ContourPathEmitter<C> {
         Ok(())
     }
 
-    fn flush(&mut self, curr: ContourPoint<C>, pen: &mut impl Pen) -> Result<(), ToPathError> {
+    fn flush(
+        &mut self,
+        curr: ContourPoint<C>,
+        pen: &mut impl OutlinePen,
+    ) -> Result<(), ToPathError> {
         match self.num_pending {
             2 => self.cubic_to(curr, OnCurve::Explicit, pen)?,
             1 => self.quad_to(curr, OnCurve::Explicit, pen)?,
@@ -365,10 +355,10 @@ impl OnCurve {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use types::F26Dot6;
+    use super::{super::pen::SvgPen, *};
+    use raw::types::F26Dot6;
 
-    fn assert_off_curve_path_to_svg(expected: &str, path_style: ToPathStyle, all_off_curve: bool) {
+    fn assert_off_curve_path_to_svg(expected: &str, path_style: PathStyle, all_off_curve: bool) {
         fn pt(x: i32, y: i32) -> Point<F26Dot6> {
             Point::new(x, y).map(F26Dot6::from_bits)
         }
@@ -383,37 +373,16 @@ mod tests {
         // For this test case (in 26.6 fixed point): [(640, 128) + (128, 128)] / 2 = (384, 128)
         // which becomes (6.0, 2.0) when converted to floating point.
         let points = [pt(640, 128), pt(256, 64), pt(640, 64), pt(128, 128)];
-        struct SvgPen(String);
-        impl Pen for SvgPen {
-            fn move_to(&mut self, x: f32, y: f32) {
-                self.0.push_str(&format!("M{x:.1},{y:.1} "));
-            }
-            fn line_to(&mut self, x: f32, y: f32) {
-                self.0.push_str(&format!("L{x:.1},{y:.1} "));
-            }
-            fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
-                self.0
-                    .push_str(&format!("Q{cx0:.1},{cy0:.1} {x:.1},{y:.1} "));
-            }
-            fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
-                self.0.push_str(&format!(
-                    "C{cx0:.1},{cy0:.1} {cx1:.1},{cy1:.1} {x:.1},{y:.1} "
-                ));
-            }
-            fn close(&mut self) {
-                self.0.push_str("z ");
-            }
-        }
-        let mut pen = SvgPen(String::default());
+        let mut pen = SvgPen::default();
         to_path(&points, &flags, &contours, path_style, &mut pen).unwrap();
-        assert_eq!(pen.0.trim(), expected);
+        assert_eq!(pen.as_ref(), expected);
     }
 
     #[test]
     fn all_off_curve_to_path_scan_backward() {
         assert_off_curve_path_to_svg(
-            "M6.0,2.0 Q10.0,2.0 7.0,1.5 Q4.0,1.0 7.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 z",
-            ToPathStyle::FreeType,
+            "M6.0,2.0 Q10.0,2.0 7.0,1.5 Q4.0,1.0 7.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 Z",
+            PathStyle::FreeType,
             true,
         );
     }
@@ -421,8 +390,8 @@ mod tests {
     #[test]
     fn all_off_curve_to_path_scan_forward() {
         assert_off_curve_path_to_svg(
-            "M7.0,1.5 Q4.0,1.0 7.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 Q10.0,2.0 7.0,1.5 z",
-            ToPathStyle::HarfBuzz,
+            "M7.0,1.5 Q4.0,1.0 7.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 Q10.0,2.0 7.0,1.5 Z",
+            PathStyle::HarfBuzz,
             true,
         );
     }
@@ -430,8 +399,8 @@ mod tests {
     #[test]
     fn start_off_curve_to_path_scan_backward() {
         assert_off_curve_path_to_svg(
-            "M6.0,2.0 Q10.0,2.0 4.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 z",
-            ToPathStyle::FreeType,
+            "M6.0,2.0 Q10.0,2.0 4.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 Z",
+            PathStyle::FreeType,
             false,
         );
     }
@@ -439,8 +408,8 @@ mod tests {
     #[test]
     fn start_off_curve_to_path_scan_forward() {
         assert_off_curve_path_to_svg(
-            "M4.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 Q10.0,2.0 4.0,1.0 z",
-            ToPathStyle::HarfBuzz,
+            "M4.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 Q10.0,2.0 4.0,1.0 Z",
+            PathStyle::HarfBuzz,
             false,
         );
     }

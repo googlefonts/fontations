@@ -3,12 +3,10 @@
 use core::fmt;
 use read_fonts::types::GlyphId;
 
-pub use read_fonts::{
-    tables::{glyf::ToPathError, postscript::Error as CffError},
-    ReadError,
-};
+pub use read_fonts::{tables::postscript::Error as CffError, ReadError};
 
 pub use super::glyf::HintError;
+pub use super::path::ToPathError;
 
 /// Errors that may occur when drawing glyphs.
 #[derive(Clone, Debug)]

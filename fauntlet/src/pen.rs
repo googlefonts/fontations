@@ -1,4 +1,4 @@
-use skrifa::raw::types::{Pen, PenCommand};
+use skrifa::outline::pen::OutlinePen;
 
 /// Pen that eliminates differences between FreeType and Skrifa.
 ///
@@ -27,7 +27,7 @@ pub struct RegularizingPen<'a, P> {
     last_end: Option<(f32, f32)>,
 }
 
-impl<'a, P: Pen> RegularizingPen<'a, P> {
+impl<'a, P: OutlinePen> RegularizingPen<'a, P> {
     pub fn new(inner: &'a mut P, is_scaled: bool) -> Self {
         Self {
             inner,
@@ -53,7 +53,7 @@ impl<'a, P: Pen> RegularizingPen<'a, P> {
     }
 }
 
-impl<'a, P: Pen> Pen for RegularizingPen<'a, P> {
+impl<'a, P: OutlinePen> OutlinePen for RegularizingPen<'a, P> {
     fn move_to(&mut self, x: f32, y: f32) {
         let [x, y] = self.process_coords([x, y]);
         self.pending_move = Some((x, y));
@@ -91,52 +91,15 @@ impl<'a, P: Pen> Pen for RegularizingPen<'a, P> {
     }
 }
 
-#[derive(Clone, PartialEq, Default)]
-pub struct RecordingPen(pub Vec<PenCommand>);
-
-impl RecordingPen {
-    pub fn clear(&mut self) {
-        self.0.clear();
-    }
-}
-
-impl Pen for RecordingPen {
-    fn move_to(&mut self, x: f32, y: f32) {
-        self.0.push(PenCommand::MoveTo { x, y });
-    }
-
-    fn line_to(&mut self, x: f32, y: f32) {
-        self.0.push(PenCommand::LineTo { x, y });
-    }
-
-    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
-        self.0.push(PenCommand::QuadTo { cx0, cy0, x, y });
-    }
-
-    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
-        self.0.push(PenCommand::CurveTo {
-            cx0,
-            cy0,
-            cx1,
-            cy1,
-            x,
-            y,
-        });
-    }
-
-    fn close(&mut self) {
-        self.0.push(PenCommand::Close)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use skrifa::outline::pen::PathElement;
 
     #[test]
     fn regularize_case_1_close_commands() {
-        use PenCommand::*;
-        let mut recording = RecordingPen::default();
+        use PathElement::*;
+        let mut recording = vec![];
         let mut pen = RegularizingPen::new(&mut recording, true);
         // Subpath 1
         pen.move_to(1.0, 2.0);
@@ -153,7 +116,7 @@ mod tests {
         pen.curve_to(1.0, 2.0, 3.0, 4.0, 3.3, 4.4);
         pen.close();
         assert_eq!(
-            recording.0.as_slice(),
+            recording.as_slice(),
             &[
                 // Subpath 1
                 MoveTo { x: 1.0, y: 2.0 },
@@ -185,8 +148,8 @@ mod tests {
 
     #[test]
     fn regularize_case_2_degenerates() {
-        use PenCommand::*;
-        let mut recording = RecordingPen::default();
+        use PathElement::*;
+        let mut recording = vec![];
         let mut pen = RegularizingPen::new(&mut recording, true);
         // Dropped: superseded by following move
         pen.move_to(1.0, 2.0);
@@ -198,7 +161,7 @@ mod tests {
         pen.line_to(5.0, 6.0);
         pen.close();
         assert_eq!(
-            recording.0.as_slice(),
+            recording.as_slice(),
             &[
                 MoveTo { x: 4.5, y: 5.0 },
                 CurveTo {
@@ -216,8 +179,8 @@ mod tests {
 
     #[test]
     fn regularize_case_3_truncate_unscaled() {
-        use PenCommand::*;
-        let mut recording = RecordingPen::default();
+        use PathElement::*;
+        let mut recording = vec![];
         // Note: false for second parameter denotes unscaled outline
         let mut pen = RegularizingPen::new(&mut recording, false);
         // Simulate computation for offcurve points that generate an implicit
@@ -242,7 +205,7 @@ mod tests {
         assert_eq!(implicit_oncurve.0.fract(), 0.5);
         assert_eq!(implicit_oncurve.1.fract(), 0.5);
         assert_eq!(
-            recording.0.as_slice(),
+            recording.as_slice(),
             &[
                 MoveTo { x: 1.0, y: 2.0 },
                 QuadTo {

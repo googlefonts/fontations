@@ -1,10 +1,9 @@
 //! Support for applying embedded hinting instructions.
 
-use raw::tables::glyf::ToPathStyle;
-
 use super::{
     cff,
     glyf::{self, FreeTypeScaler},
+    pen::PathStyle,
     AdjustedMetrics, DrawError, Hinting, LocationRef, NormalizedCoord, OutlineCollectionKind,
     OutlineGlyph, OutlineGlyphCollection, OutlineKind, OutlinePen, Size,
 };
@@ -187,7 +186,7 @@ impl HintingInstance {
         &self,
         glyph: &OutlineGlyph,
         memory: Option<&mut [u8]>,
-        path_style: ToPathStyle,
+        path_style: PathStyle,
         pen: &mut impl OutlinePen,
         is_pedantic: bool,
     ) -> Result<AdjustedMetrics, DrawError> {
@@ -195,7 +194,7 @@ impl HintingInstance {
         let coords = self.coords.as_slice();
         match (&self.kind, &glyph.kind) {
             (HinterKind::Glyf(instance), OutlineKind::Glyf(glyf, outline)) => {
-                if matches!(path_style, ToPathStyle::HarfBuzz) {
+                if matches!(path_style, PathStyle::HarfBuzz) {
                     return Err(DrawError::HarfBuzzHintingUnsupported);
                 }
                 super::with_glyf_memory(outline, Hinting::Embedded, memory, |buf| {
