@@ -298,7 +298,11 @@ mod tests {
         let class = &script::SCRIPT_CLASSES[script::ScriptClass::HEBR];
         let unscaled_metrics =
             latin::metrics::compute_unscaled_style_metrics(&font, Default::default(), class);
-        let scale = metrics::Scale::new(16.0, font.head().unwrap().units_per_em() as i32);
+        let scale = metrics::Scale::new(
+            16.0,
+            font.head().unwrap().units_per_em() as i32,
+            Default::default(),
+        );
         let scaled_metrics = latin::metrics::scale_style_metrics(&unscaled_metrics, scale);
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(GlyphId::new(9)).unwrap();
