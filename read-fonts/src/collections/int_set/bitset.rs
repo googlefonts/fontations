@@ -50,8 +50,10 @@ impl BitSet {
         self.mark_dirty();
     }
 
-    /// An alternate version of extend() which is optimized for inserting an unsorted
+    /// An alternate version of [`extend()`] which is optimized for inserting an unsorted
     /// iterator of values.
+    ///
+    /// [`extend()`]: Self::extend
     pub(crate) fn extend_unsorted<U: IntoIterator<Item = u32>>(&mut self, iter: U) {
         for val in iter {
             let major_value = Self::get_major_value(val);
@@ -204,7 +206,7 @@ impl BitSet {
         })
     }
 
-    /// Iterator over the members of this set that come after 'value'.
+    /// Iterator over the members of this set that come after `value`.
     pub(crate) fn iter_after(&self, value: u32) -> impl Iterator<Item = u32> + '_ {
         let major_value = Self::get_major_value(value);
         let result = self
@@ -492,7 +494,7 @@ impl BitSet {
         Self::major_start(major) + (PAGE_BITS - 1)
     }
 
-    /// Returns the index in self.pages (if it exists) for the page with the same major as major_value.
+    /// Returns the index in `self.pages` (if it exists) for the page with the same major as `major_value`.
     fn page_index_for_major(&self, major_value: u32) -> Option<usize> {
         self.page_map
             .binary_search_by(|probe| probe.major_value.cmp(&major_value))
@@ -500,8 +502,8 @@ impl BitSet {
             .map(|info_idx| self.page_map[info_idx].index as usize)
     }
 
-    /// Returns the index in self.pages for the page with the same major as major_value. Will create the page
-    /// if it does not yet exist.
+    /// Returns the index in `self.pages` for the page with the same major as `major_value`. Will create
+    /// the page if it does not yet exist.
     fn ensure_page_index_for_major(&mut self, major_value: u32) -> usize {
         match self
             .page_map
@@ -521,14 +523,14 @@ impl BitSet {
         }
     }
 
-    /// Return a reference to the page that 'value' resides in.
+    /// Return a reference to the page that `value` resides in.
     fn page_for(&self, value: u32) -> Option<&BitPage> {
         let major_value = Self::get_major_value(value);
         let pages_index = self.page_index_for_major(major_value)?;
         self.pages.get(pages_index)
     }
 
-    /// Return a mutable reference to the page that 'value' resides in.
+    /// Return a mutable reference to the page that `value` resides in.
     ///
     /// Insert a new page if it doesn't exist.
     fn page_for_mut(&mut self, value: u32) -> Option<&mut BitPage> {
@@ -536,27 +538,27 @@ impl BitSet {
         return self.page_for_major_mut(major_value);
     }
 
-    // Return a mutable reference to the page with major value equal to major_value.
+    /// Return a mutable reference to the page with major value equal to `major_value`.
     fn page_for_major_mut(&mut self, major_value: u32) -> Option<&mut BitPage> {
         let page_index = self.page_index_for_major(major_value)?;
         self.pages.get_mut(page_index)
     }
 
-    /// Return a mutable reference to the page that 'value' resides in.
+    /// Return a mutable reference to the page that `value` resides in.
     ///
     /// Insert a new page if it doesn't exist.
     fn ensure_page_for_mut(&mut self, value: u32) -> &mut BitPage {
         self.ensure_page_for_major_mut(Self::get_major_value(value))
     }
 
-    // Return a mutable reference to the page with major value equal to major_value.
-    // Inserts a new page if it doesn't exist.
+    /// Return a mutable reference to the page with major value equal to `major_value`.
+    /// Inserts a new page if it doesn't exist.
     fn ensure_page_for_major_mut(&mut self, major_value: u32) -> &mut BitPage {
         let page_index = self.ensure_page_index_for_major(major_value);
         self.pages.get_mut(page_index).unwrap()
     }
 
-    // Return the mutable page at a given index
+    /// Return the mutable page at a given index
     fn page_for_index_mut(&mut self, index: usize) -> Option<&mut BitPage> {
         self.page_map
             .get(index)
@@ -580,10 +582,10 @@ impl Extend<u32> for BitSet {
     }
 }
 
-/// This helper is used to construct BitSet's from a stream of possibly sorted values.
+/// This helper is used to construct [`BitSet`]'s from a stream of possibly sorted values.
 /// It remembers the last page index to reduce the amount of page lookups needed when inserting
 /// sorted data. If given unsorted values it will still work correctly, but may be slower then just
-/// repeatedly calling insert() on the bitset.
+/// repeatedly calling `insert()` on the bitset.
 pub(crate) struct BitSetBuilder<'a> {
     pub(crate) set: &'a mut BitSet,
     last_page_index: usize,

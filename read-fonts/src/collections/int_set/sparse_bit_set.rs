@@ -1,4 +1,4 @@
-//! Provides serialization of IntSet's to a highly compact bitset format as defined in the
+//! Provides serialization of [`IntSet`]'s to a highly compact bitset format as defined in the
 //! IFT specification:
 //!
 //! <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>

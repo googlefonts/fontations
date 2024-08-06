@@ -19,13 +19,15 @@ use super::super::{
 pub(crate) fn compute_edges(
     axis: &mut Axis,
     metrics: &ScaledAxisMetrics,
-    mut top_to_bottom_hinting: bool,
+    top_to_bottom_hinting: bool,
 ) {
     axis.edges.clear();
     let scale = metrics.scale;
-    if axis.dim != Axis::VERTICAL {
-        top_to_bottom_hinting = false;
-    }
+    let top_to_bottom_hinting = if axis.dim == Axis::HORIZONTAL {
+        false
+    } else {
+        top_to_bottom_hinting
+    };
     // Ignore horizontal segments less than 1 pixel in length
     let segment_length_threshold = if axis.dim == Axis::HORIZONTAL {
         fixed_div(64, scale)
@@ -296,11 +298,7 @@ mod tests {
         let class = &script::SCRIPT_CLASSES[script::ScriptClass::HEBR];
         let unscaled_metrics =
             latin::metrics::compute_unscaled_style_metrics(&font, Default::default(), class);
-        let scale = metrics::Scale::new(
-            16.0,
-            font.head().unwrap().units_per_em() as i32,
-            Default::default(),
-        );
+        let scale = metrics::Scale::new(16.0, font.head().unwrap().units_per_em() as i32);
         let scaled_metrics = latin::metrics::scale_style_metrics(&unscaled_metrics, scale);
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(GlyphId::new(9)).unwrap();

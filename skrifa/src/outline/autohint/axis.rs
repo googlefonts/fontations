@@ -64,7 +64,6 @@ impl Axis {
     ///
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L197>
     pub fn insert_edge(&mut self, edge: Edge, top_to_bottom_hinting: bool) {
-        // First push a new default edge
         self.edges.push(edge);
         let edges = self.edges.as_mut_slice();
         // If this is the first edge, we're done.
