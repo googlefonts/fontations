@@ -45,6 +45,7 @@ pub(crate) fn compute_unscaled_style_metrics(
         }
     }
     UnscaledStyleMetrics {
+        class_ix: style.index as u16,
         digits_have_same_width,
         axes: [
             UnscaledAxisMetrics {
