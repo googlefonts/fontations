@@ -1,6 +1,9 @@
 //! Autohinting specific metrics.
 
-use super::axis::Dimension;
+use super::{
+    super::{HintingMode, LcdLayout},
+    axis::Dimension,
+};
 use crate::collections::SmallVec;
 use raw::types::Fixed;
 
@@ -68,22 +71,8 @@ pub(crate) struct UnscaledStyleMetrics {
 pub(crate) struct ScaledStyleMetrics {
     /// Multidimensional scaling factors and deltas.
     pub scale: Scale,
-    /// Control flags to partially disable hinting.
-    pub flags: u16,
     /// Per-dimension scaled metrics.
     pub axes: [ScaledAxisMetrics; 2],
-}
-
-/// Scaled metrics flags.
-///
-/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aftypes.h#L115>
-impl ScaledStyleMetrics {
-    /// Disable horizontal hinting.
-    pub(crate) const NO_HORIZONTAL: u16 = 1;
-    /// Disable vertical hinting.
-    pub(crate) const NO_VERTICAL: u16 = 2;
-    /// Disable advance hinting.
-    pub(crate) const NO_ADVANCE: u16 = 4;
 }
 
 // FreeType keeps a single array of blue values per metrics set
@@ -145,23 +134,81 @@ pub(crate) struct Scale {
     pub x_delta: i32,
     /// In 1/64 device pixels.
     pub y_delta: i32,
+    /// Font size in pixels per em.
+    pub size: f32,
     /// From the source font.
     pub units_per_em: i32,
+    /// Flags that determine hinting functionality.
+    pub flags: u32,
 }
 
 impl Scale {
     /// Create initial scaling parameters from font size and units per em.
-    pub fn new(size: f32, units_per_em: i32) -> Self {
+    pub fn new(size: f32, units_per_em: i32, mode: HintingMode) -> Self {
         let scale =
             (Fixed::from_bits((size * 64.0) as i32) / Fixed::from_bits(units_per_em)).to_bits();
+        let is_mono = mode == HintingMode::Strong;
+        let lcd = match mode {
+            HintingMode::Smooth { lcd_subpixel, .. } => lcd_subpixel,
+            _ => None,
+        };
+        // TODO: handle light hinting mode and italic flag
+        let is_light = false;
+        let is_italic = false;
+        let is_lcd = lcd == Some(LcdLayout::Horizontal);
+        let is_lcd_v = lcd == Some(LcdLayout::Horizontal);
+        let mut flags = 0;
+        // Snap vertical stems for monochrome and horizontal LCD rendering.
+        if is_mono || is_lcd {
+            flags |= Self::HORIZONTAL_SNAP;
+        }
+        // Snap horizontal stems for monochrome and vertical LCD renering.
+        if is_mono || is_lcd_v {
+            flags |= Self::VERTICAL_SNAP;
+        }
+        // Adjust stems to full pixels unless in LCD or light modes.
+        if !(is_lcd || is_light) {
+            flags |= Self::STEM_ADJUST;
+        }
+        if is_mono {
+            flags |= Self::MONO;
+        }
+        // Disable horizontal hinting completely for LCD, light hinting
+        // and italic fonts.
+        if is_lcd || is_light || is_italic {
+            flags |= Self::NO_HORIZONTAL;
+        }
         Self {
             x_scale: scale,
             y_scale: scale,
             x_delta: 0,
             y_delta: 0,
+            size,
             units_per_em,
+            flags,
         }
     }
+}
+
+/// Scaler flags that determine hinting settings.
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aftypes.h#L115>
+/// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L143>
+impl Scale {
+    /// Stem width snapping.
+    pub const HORIZONTAL_SNAP: u32 = 1 << 0;
+    /// Stem height snapping.
+    pub const VERTICAL_SNAP: u32 = 1 << 1;
+    /// Stem width/height adjustment.
+    pub const STEM_ADJUST: u32 = 1 << 2;
+    /// Monochrome rendering.
+    pub const MONO: u32 = 1 << 3;
+    /// Disable horizontal hinting.
+    pub const NO_HORIZONTAL: u32 = 1 << 4;
+    /// Disable vertical hinting.
+    pub const NO_VERTICAL: u32 = 1 << 5;
+    /// Disable advance hinting.
+    pub const NO_ADVANCE: u32 = 1 << 6;
 }
 
 // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L59>

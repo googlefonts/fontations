@@ -199,8 +199,8 @@ pub(crate) struct Edge {
     pub link_ix: Option<u16>,
     /// Index of primary edge for serif.
     pub serif_ix: Option<u16>,
-    /// Used during stem matching.
-    pub score: i32,
+    /// Used to speed up edge interpolation.
+    pub scale: i32,
     /// Index of first segment in edge.
     pub first_ix: u16,
     /// Index of last segment in edge.
@@ -218,4 +218,14 @@ impl Edge {
     pub const SERIF: u8 = Segment::SERIF;
     pub const DONE: u8 = Segment::DONE;
     pub const NEUTRAL: u8 = Segment::NEUTRAL;
+}
+
+impl Edge {
+    pub fn link<'a>(&self, edges: &'a [Edge]) -> Option<&'a Edge> {
+        edges.get(self.link_ix.map(|ix| ix as usize)?)
+    }
+
+    pub fn serif<'a>(&self, edges: &'a [Edge]) -> Option<&'a Edge> {
+        edges.get(self.serif_ix.map(|ix| ix as usize)?)
+    }
 }
