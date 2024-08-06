@@ -602,64 +602,6 @@ mod tests {
         bytes
     }
 
-    fn simple_glyph_to_bezpath(glyph: &read_fonts::tables::glyf::SimpleGlyph) -> BezPath {
-        use types::{F26Dot6, Pen};
-
-        #[derive(Default)]
-        struct Path(BezPath);
-
-        impl Pen for Path {
-            fn move_to(&mut self, x: f32, y: f32) {
-                self.0.move_to((x as f64, y as f64));
-            }
-
-            fn line_to(&mut self, x: f32, y: f32) {
-                self.0.line_to((x as f64, y as f64));
-            }
-
-            fn quad_to(&mut self, x0: f32, y0: f32, x1: f32, y1: f32) {
-                self.0
-                    .quad_to((x0 as f64, y0 as f64), (x1 as f64, y1 as f64));
-            }
-
-            fn curve_to(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, x2: f32, y2: f32) {
-                self.0.curve_to(
-                    (x0 as f64, y0 as f64),
-                    (x1 as f64, y1 as f64),
-                    (x2 as f64, y2 as f64),
-                );
-            }
-
-            fn close(&mut self) {
-                self.0.close_path();
-            }
-        }
-
-        let contours = glyph
-            .end_pts_of_contours()
-            .iter()
-            .map(|x| x.get())
-            .collect::<Vec<_>>();
-        let num_points = glyph.num_points();
-        let mut points = vec![Default::default(); num_points];
-        let mut flags = vec![Default::default(); num_points];
-        glyph.read_points_fast(&mut points, &mut flags).unwrap();
-        let points = points
-            .into_iter()
-            .map(|point| point.map(F26Dot6::from_i32))
-            .collect::<Vec<_>>();
-        let mut path = Path::default();
-        read_fonts::tables::glyf::to_path(
-            &points,
-            &flags,
-            &contours,
-            Default::default(),
-            &mut path,
-        )
-        .unwrap();
-        path.0
-    }
-
     #[test]
     fn bad_path_input() {
         let mut path = BezPath::new();
@@ -707,7 +649,7 @@ mod tests {
         };
         let orig_bytes = orig.offset_data();
 
-        let bezpath = simple_glyph_to_bezpath(&orig);
+        let bezpath = BezPath::from_svg("M278,710 L278,470 L998,470 L998,710 Z").unwrap();
 
         let ours = SimpleGlyph::from_bezpath(&bezpath).unwrap();
         let bytes = pad_for_loca_format(&loca, crate::dump_table(&ours).unwrap());
@@ -733,7 +675,7 @@ mod tests {
         };
         let orig_bytes = orig.offset_data();
 
-        let bezpath = simple_glyph_to_bezpath(&orig);
+        let bezpath = BezPath::from_svg("M708,1327 L226,0 L29,0 L584,1456 L711,1456 Z M1112,0 L629,1327 L626,1456 L753,1456 L1310,0 Z M1087,539 L1087,381 L269,381 L269,539 Z").unwrap();
 
         let ours = SimpleGlyph::from_bezpath(&bezpath).unwrap();
         let bytes = pad_for_loca_format(&loca, crate::dump_table(&ours).unwrap());

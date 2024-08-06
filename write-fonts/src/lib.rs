@@ -126,7 +126,6 @@ mod font_builder;
 pub mod from_obj;
 mod graph;
 mod offsets;
-pub mod pens;
 mod round;
 mod table_type;
 pub mod tables;
