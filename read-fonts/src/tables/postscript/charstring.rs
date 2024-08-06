@@ -2,7 +2,7 @@
 
 use super::{BlendState, Error, Index, Stack};
 use crate::{
-    types::{Fixed, Pen, Point},
+    types::{Fixed, Point},
     Cursor,
 };
 
@@ -39,43 +39,6 @@ pub trait CommandSink {
     /// Bitmask defining the counter hints that should be made active for the
     /// commands that follow.
     fn counter_mask(&mut self, mask: &[u8]) {}
-}
-
-/// Command sink that sends the results of charstring evaluation to a [Pen].
-pub struct PenSink<'a, P>(&'a mut P);
-
-impl<'a, P> PenSink<'a, P> {
-    pub fn new(pen: &'a mut P) -> Self {
-        Self(pen)
-    }
-}
-
-impl<'a, P> CommandSink for PenSink<'a, P>
-where
-    P: Pen,
-{
-    fn move_to(&mut self, x: Fixed, y: Fixed) {
-        self.0.move_to(x.to_f32(), y.to_f32());
-    }
-
-    fn line_to(&mut self, x: Fixed, y: Fixed) {
-        self.0.line_to(x.to_f32(), y.to_f32());
-    }
-
-    fn curve_to(&mut self, cx0: Fixed, cy0: Fixed, cx1: Fixed, cy1: Fixed, x: Fixed, y: Fixed) {
-        self.0.curve_to(
-            cx0.to_f32(),
-            cy0.to_f32(),
-            cx1.to_f32(),
-            cy1.to_f32(),
-            x.to_f32(),
-            y.to_f32(),
-        );
-    }
-
-    fn close(&mut self) {
-        self.0.close();
-    }
 }
 
 /// Evaluates the given charstring and emits the resulting commands to the

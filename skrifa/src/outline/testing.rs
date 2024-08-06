@@ -1,11 +1,11 @@
 //! Helpers for unit testing
 
-use super::Pen;
-use crate::{
+use super::OutlinePen;
+use core::str::FromStr;
+use raw::{
     tables::glyf::PointFlags,
     types::{F26Dot6, F2Dot14, GlyphId, Point},
 };
-use core::str::FromStr;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 // clippy doesn't like the common To suffix
@@ -23,7 +23,7 @@ pub struct Path {
     last_end: Option<[f32; 2]>,
 }
 
-impl Pen for Path {
+impl OutlinePen for Path {
     fn move_to(&mut self, x: f32, y: f32) {
         self.elements.push(PathElement::MoveTo([x, y]));
         self.last_end = Some([x, y]);

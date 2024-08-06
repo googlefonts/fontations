@@ -4,8 +4,10 @@ use std::{error::Error, fmt::Display};
 use libfuzzer_sys::fuzz_target;
 use skrifa::{
     instance::{Location, Size},
-    outline::{DrawError, DrawSettings, HintingInstance, HintingMode, LcdLayout, OutlinePen},
-    raw::tables::glyf::ToPathStyle,
+    outline::{
+        pen::PathStyle, DrawError, DrawSettings, HintingInstance, HintingMode, LcdLayout,
+        OutlinePen,
+    },
     FontRef, MetadataProvider,
 };
 
@@ -120,7 +122,7 @@ fn do_glyf_things(outline_request: OutlineRequest, data: &[u8]) -> Result<(), Bo
             settings = settings.with_memory(Some(&mut buf));
         }
         if outline_request.harfbuzz_pathstyle {
-            settings = settings.with_path_style(ToPathStyle::HarfBuzz);
+            settings = settings.with_path_style(PathStyle::HarfBuzz);
         }
 
         let _ = glyph.draw(settings, &mut NopPen {});

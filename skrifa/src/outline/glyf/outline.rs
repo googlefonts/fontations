@@ -2,13 +2,16 @@
 
 use std::mem::size_of;
 
-use raw::tables::glyf::{PointCoord, ToPathStyle};
-use read_fonts::{
-    tables::glyf::{to_path, Glyph, PointFlags, ToPathError},
-    types::{F26Dot6, Fixed, GlyphId, Pen, Point},
+use super::super::{
+    path::{to_path, ToPathError},
+    pen::PathStyle,
+    Hinting, OutlinePen,
 };
-
-use super::super::Hinting;
+use raw::tables::glyf::PointCoord;
+use read_fonts::{
+    tables::glyf::{Glyph, PointFlags},
+    types::{F26Dot6, Fixed, GlyphId, Point},
+};
 
 /// Represents the information necessary to scale a glyph outline.
 ///
@@ -137,7 +140,11 @@ where
         self.phantom_points[1].x - self.phantom_points[0].x
     }
 
-    pub fn to_path(&self, path_style: ToPathStyle, pen: &mut impl Pen) -> Result<(), ToPathError> {
+    pub fn to_path(
+        &self,
+        path_style: PathStyle,
+        pen: &mut impl OutlinePen,
+    ) -> Result<(), ToPathError> {
         to_path(self.points, self.flags, self.contours, path_style, pen)
     }
 }
