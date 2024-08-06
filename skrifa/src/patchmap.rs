@@ -188,13 +188,10 @@ fn intersect_format1_feature_map(
     let mut cumulative_entry_map_count = 0;
     let mut largest_tag: Option<Tag> = None;
     loop {
-        let (Some(tag), Some(record)) = (next_tag, next_record.as_ref()) else {
+        let Some((tag, record)) = next_tag.zip(next_record.clone()) else {
             break;
         };
-        let record = match record {
-            Ok(record) => record,
-            Err(err) => return Err(err.clone()),
-        };
+        let record = record?;
 
         if *tag > record.feature_tag() {
             cumulative_entry_map_count += record.entry_map_count().get();
@@ -246,6 +243,8 @@ fn intersect_format1_feature_map(
     Ok(())
 }
 
+/// Models the encoding type for a incremental font transfer patch.
+/// See: <https://w3c.github.io/IFT/Overview.html#font-patch-formats-summary>
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Copy)]
 pub enum PatchEncoding {
     Brotli,
@@ -270,6 +269,13 @@ impl PatchEncoding {
     }
 }
 
+/// Stores the information needed to create the URI which points to and incremental font transfer patch.
+///
+/// Stores a template and the arguments used to instantiate it. See:
+/// <https://w3c.github.io/IFT/Overview.html#uri-templates> for details on the template format.
+///
+/// The input to the template expansion can be either a numeric index or a string id. Currently only
+/// the numeric index is supported.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct PatchUri {
     template: String,

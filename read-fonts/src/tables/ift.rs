@@ -79,11 +79,7 @@ impl<'a> FeatureMap<'a> {
         let field_width = if max_entry_index < 256 { 1 } else { 2 };
         let mut num_bytes = 0usize;
         for record in self.feature_records().iter() {
-            let record = match record {
-                Ok(record) => record,
-                Err(err) => return Err(err.clone()),
-            };
-            num_bytes += record.entry_map_count().get() as usize * field_width * 2;
+            num_bytes += record?.entry_map_count().get() as usize * field_width * 2;
         }
         Ok(num_bytes)
     }
