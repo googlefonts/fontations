@@ -176,29 +176,34 @@ impl Plan {
                 .unwrap_or(usize::MAX);
             self.codepoint_to_glyph.reserve(vec_cap);
             self.unicode_to_new_gid_list.reserve(vec_cap);
-            //TODO: possible micro-optimize: set iteration over ranges next_range()? getting ranges is faster in Harfbuzz int set
-            for cp in cmap_unicodes.iter() {
-                match unicode_gid_map.get(&cp) {
-                    Some(gid) => {
-                        if !input_gids.contains(*gid) && !input_unicodes.contains(cp) {
+            for range in cmap_unicodes.iter_ranges() {
+                for cp in range {
+                    match unicode_gid_map.get(&cp) {
+                        Some(gid) => {
+                            if !input_gids.contains(*gid) && !input_unicodes.contains(cp) {
+                                continue;
+                            }
+                            self.codepoint_to_glyph.insert(cp, *gid);
+                            self.unicode_to_new_gid_list.push((cp, *gid));
+                        }
+                        None => {
                             continue;
                         }
-                        self.codepoint_to_glyph.insert(cp, *gid);
-                        self.unicode_to_new_gid_list.push((cp, *gid));
-                    }
-                    None => {
-                        continue;
                     }
                 }
             }
 
             /* Add gids which where requested, but not mapped in cmap */
-            //TODO: possible micro-optimize: set iteration over ranges next_range()? getting ranges is faster in Harfbuzz int set
-            for gid in input_gids
-                .iter()
-                .take_while(|gid| gid.to_u32() < self.font_num_glyphs as u32)
-            {
-                self.glyphset_gsub.insert(gid);
+            for range in input_gids.iter_ranges() {
+                if range.start().to_u32() as usize >= self.font_num_glyphs {
+                    break;
+                }
+                let mut last = range.end().to_u32() as usize;
+                if last >= self.font_num_glyphs {
+                    last = self.font_num_glyphs - 1;
+                }
+                self.glyphset_gsub
+                    .insert_range(*range.start()..=GlyphId::from(last as u32));
             }
         }
         self.glyphset_gsub
