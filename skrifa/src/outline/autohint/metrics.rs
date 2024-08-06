@@ -29,6 +29,12 @@ pub(crate) struct UnscaledAxisMetrics {
     pub blues: UnscaledBlues,
 }
 
+impl UnscaledAxisMetrics {
+    pub fn max_width(&self) -> Option<i32> {
+        self.widths.last().copied()
+    }
+}
+
 /// Scaled metrics for a single axis.
 #[derive(Clone, Default, Debug)]
 pub(crate) struct ScaledAxisMetrics {
@@ -209,6 +215,10 @@ pub(crate) fn sort_and_quantize_widths(widths: &mut UnscaledWidths, threshold: i
 
 pub(crate) fn fixed_mul(a: i32, b: i32) -> i32 {
     (Fixed::from_bits(a) * Fixed::from_bits(b)).to_bits()
+}
+
+pub(crate) fn fixed_div(a: i32, b: i32) -> i32 {
+    (Fixed::from_bits(a) / Fixed::from_bits(b)).to_bits()
 }
 
 pub(crate) fn fixed_mul_div(a: i32, b: i32, c: i32) -> i32 {
