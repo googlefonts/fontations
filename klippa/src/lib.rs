@@ -17,6 +17,8 @@ use thiserror::Error;
 use write_fonts::read::{
     collections::IntSet,
     tables::{
+        cff::Cff,
+        cff2::Cff2,
         glyf::{Glyf, Glyph},
         gpos::Gpos,
         gsub::Gsub,
@@ -78,6 +80,12 @@ impl SubsetFlags {
 
     //If set perform IUP delta optimization on the remaining gvar table's deltas.
     pub const SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS: Self = Self(0x0400);
+
+    /// Returns `true` if all of the flags in `other` are contained within `self`.
+    #[inline]
+    pub const fn contains(&self, other: Self) -> bool {
+        (self.0 & other.0) == other.0
+    }
 }
 
 impl Default for SubsetFlags {
@@ -251,14 +259,25 @@ impl Plan {
         self.new_to_old_gid_list.reserve(pop as usize);
 
         //TODO: Add support for requested_glyph_map, command line option --gid-map
-        //TODO: Add support for retain_gids
-        self.new_to_old_gid_list.extend(
-            self.glyphset
-                .iter()
-                .zip(0u16..)
-                .map(|x| (GlyphId::from(x.1), x.0)),
-        );
-        self.num_output_glyphs = self.new_to_old_gid_list.len();
+        if !self
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS)
+        {
+            self.new_to_old_gid_list.extend(
+                self.glyphset
+                    .iter()
+                    .zip(0u16..)
+                    .map(|x| (GlyphId::from(x.1), x.0)),
+            );
+            self.num_output_glyphs = self.new_to_old_gid_list.len();
+        } else {
+            self.new_to_old_gid_list
+                .extend(self.glyphset.iter().map(|x| (x, x)));
+            let Some(max_glyph) = self.glyphset.last() else {
+                return;
+            };
+            self.num_output_glyphs = max_glyph.to_u32() as usize + 1;
+        }
         self.glyph_map
             .extend(self.new_to_old_gid_list.iter().map(|x| (x.1, x.0)));
     }
@@ -423,7 +442,7 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
     };
 
     let table_len = table_data.len();
-    let bulk: usize = 8192;
+    let mut bulk: usize = 8192;
     let src_glyphs = plan.font_num_glyphs;
     let dst_glyphs = plan.num_output_glyphs;
 
@@ -432,7 +451,19 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
     let same_size: bool =
         table_tag == Gsub::TAG || table_tag == Gpos::TAG || table_tag == Name::TAG;
 
-    //TODO: Add extra room retain_gids
+    if plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS)
+    {
+        if table_tag == Cff::TAG {
+            //Add some extra room for the CFF charset
+            bulk += src_glyphs * 16;
+        } else if table_tag == Cff2::TAG {
+            // Just extra CharString offsets
+            bulk += src_glyphs * 4;
+        }
+    }
+
     if src_glyphs == 0 || same_size {
         return bulk + table_len;
     }
