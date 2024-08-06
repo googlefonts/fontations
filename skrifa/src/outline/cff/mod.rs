@@ -384,7 +384,8 @@ impl<'a> TopDict<'a> {
     }
 }
 
-/// Command sink that sends the results of charstring evaluation to a [Pen].
+/// Command sink that sends the results of charstring evaluation to
+/// an [OutlinePen].
 struct PenSink<'a, P>(&'a mut P);
 
 impl<'a, P> PenSink<'a, P> {
