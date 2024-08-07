@@ -16,14 +16,10 @@ pub fn subset_hmtx_hhea(
     plan: &Plan,
     builder: &mut FontBuilder,
 ) -> Result<(), SubsetError> {
-    let Ok(hmtx) = font.hmtx() else {
-        return Err(SubsetTableError(Hmtx::TAG));
-    };
+    let hmtx = font.hmtx().or(Err(SubsetTableError(Hmtx::TAG)))?;
 
     let gids = &plan.glyphset;
-    let Some(last_gid) = gids.last() else {
-        return Err(SubsetTableError(Hmtx::TAG));
-    };
+    let last_gid = gids.last().ok_or(SubsetTableError(Hmtx::TAG))?;
 
     let h_metrics = hmtx.h_metrics();
     let side_bearings = hmtx.left_side_bearings();
@@ -52,13 +48,12 @@ pub fn subset_hmtx_hhea(
         return Ok(());
     };
 
-    let mut hhea_out = Vec::with_capacity(hhea.offset_data().len());
-    hhea_out.extend_from_slice(hhea.offset_data().as_bytes());
-    let Some(index_num_h_metrics) = hhea_out.get_mut(34..36) else {
-        return Err(SubsetTableError(Hhea::TAG));
-    };
+    let mut hhea_out = hhea.offset_data().as_bytes().to_owned();
     let new_num_h_metrics = (new_num_h_metrics as u16).to_be_bytes();
-    index_num_h_metrics.clone_from_slice(&new_num_h_metrics);
+    hhea_out
+        .get_mut(34..36)
+        .unwrap()
+        .clone_from_slice(&new_num_h_metrics);
 
     builder.add_raw(Hmtx::TAG, hmtx_out);
     builder.add_raw(Hhea::TAG, hhea_out);

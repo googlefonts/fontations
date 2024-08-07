@@ -22,17 +22,9 @@ pub fn subset_glyf_loca(
     font: &FontRef,
     builder: &mut FontBuilder,
 ) -> Result<(), SubsetError> {
-    let Ok(glyf) = font.glyf() else {
-        return Err(SubsetTableError(Glyf::TAG));
-    };
-
-    let Ok(loca) = font.loca(None) else {
-        return Err(SubsetTableError(Loca::TAG));
-    };
-
-    let Ok(head) = font.head() else {
-        return Err(SubsetTableError(Head::TAG));
-    };
+    let glyf = font.glyf().or(Err(SubsetTableError(Glyf::TAG)))?;
+    let loca = font.loca(None).or(Err(SubsetTableError(Loca::TAG)))?;
+    let head = font.head().or(Err(SubsetTableError(Head::TAG)))?;
 
     let num_output_glyphs = plan.num_output_glyphs;
     let mut subset_glyphs = Vec::with_capacity(num_output_glyphs);
@@ -96,9 +88,7 @@ pub fn subset_glyf_loca(
         glyf_out.extend_from_slice(&[0]);
     }
 
-    let Ok(head_out) = subset_head(&head, loca_format) else {
-        return Err(SubsetTableError(Head::TAG));
-    };
+    let head_out = subset_head(&head, loca_format);
 
     builder.add_raw(Glyf::TAG, glyf_out);
     builder.add_raw(Loca::TAG, loca_out);
@@ -141,8 +131,7 @@ fn subset_simple_glyph(g: &SimpleGlyph) -> Vec<u8> {
 }
 
 fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
-    let mut out = Vec::with_capacity(g.offset_data().len());
-    out.extend_from_slice(g.offset_data().as_bytes());
+    let mut out = g.offset_data().as_bytes().to_owned();
 
     let mut more = true;
     let mut we_have_instructions = false;
@@ -199,6 +188,7 @@ fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
     out
 }
 
+// trim padding bytes for simple glyphs, return trimmed length of the raw data for flags & x/y coordinates
 fn trim_simple_glyph_padding(glyph_data: &[u8], num_coords: u16) -> usize {
     let mut coord_bytes: usize = 0;
     let mut coords_with_flags: u16 = 0;
@@ -245,16 +235,12 @@ fn trim_simple_glyph_padding(glyph_data: &[u8], num_coords: u16) -> usize {
     i
 }
 
-fn subset_head(head: &Head, loca_format: u8) -> Result<Vec<u8>, SubsetError> {
-    let mut out = Vec::new();
-    out.extend_from_slice(head.offset_data().as_bytes());
-
-    let Some(index_loca_format) = out.get_mut(50..52) else {
-        return Err(SubsetTableError(Head::TAG));
-    };
-    index_loca_format[0] = 0;
-    index_loca_format[1] = loca_format;
-    Ok(out)
+fn subset_head(head: &Head, loca_format: u8) -> Vec<u8> {
+    let mut out = head.offset_data().as_bytes().to_owned();
+    out.get_mut(50..52)
+        .unwrap()
+        .copy_from_slice(&[0, loca_format]);
+    out
 }
 
 #[cfg(test)]

@@ -5,18 +5,12 @@ use write_fonts::{
     FontBuilder,
 };
 
-pub fn subset_head(
-    font: &FontRef,
+pub fn subset_head<'a>(
+    font: &FontRef<'a>,
     _plan: &Plan,
-    builder: &mut FontBuilder,
+    builder: &mut FontBuilder<'a>,
 ) -> Result<(), SubsetError> {
-    let Ok(head) = font.head() else {
-        return Err(SubsetTableError(Head::TAG));
-    };
-
-    let mut out = Vec::with_capacity(head.offset_data().len());
-    out.extend_from_slice(head.offset_data().as_bytes());
-
-    builder.add_raw(Head::TAG, out);
+    let head = font.head().or(Err(SubsetTableError(Head::TAG)))?;
+    builder.add_raw(Head::TAG, head.offset_data());
     Ok(())
 }
