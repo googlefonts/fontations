@@ -1,5 +1,9 @@
 //! impl subset() for glyf and loca
-use crate::{estimate_subset_table_size, Plan, SubsetError, SubsetError::SubsetTableError};
+use crate::{
+    estimate_subset_table_size, Plan,
+    SubsetError::{self, SubsetTableError},
+    SubsetFlags,
+};
 use write_fonts::{
     read::{
         tables::{
@@ -31,9 +35,19 @@ pub fn subset_glyf_loca(
     let mut max_offset: u32 = 0;
 
     //TODO: support not_def_outline and drop_hints
-    for (_new_gid, old_gid) in &plan.new_to_old_gid_list {
+    for (new_gid, old_gid) in &plan.new_to_old_gid_list {
         match loca.get_glyf(*old_gid, &glyf) {
             Ok(g) => {
+                if *old_gid == GlyphId::from(0u32)
+                    && *new_gid == GlyphId::from(0u32)
+                    && !plan
+                        .subset_flags
+                        .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
+                {
+                    subset_glyphs.push(Vec::new());
+                    continue;
+                }
+
                 let Some(glyph) = g else {
                     subset_glyphs.push(Vec::new());
                     continue;
@@ -104,12 +118,12 @@ fn subset_glyph(glyph: &Glyph, plan: &Plan) -> Vec<u8> {
     //TODO: support set_overlaps_flag and drop_hints
     match glyph {
         Composite(comp_g) => subset_composite_glyph(comp_g, plan),
-        Simple(simple_g) => subset_simple_glyph(simple_g),
+        Simple(simple_g) => subset_simple_glyph(simple_g, plan),
     }
 }
 
 // TODO: drop_hints and set_overlaps_flag
-fn subset_simple_glyph(g: &SimpleGlyph) -> Vec<u8> {
+fn subset_simple_glyph(g: &SimpleGlyph, plan: &Plan) -> Vec<u8> {
     let mut out = Vec::with_capacity(g.offset_data().len());
 
     let Some(num_coords) = g.end_pts_of_contours().last() else {
@@ -121,12 +135,39 @@ fn subset_simple_glyph(g: &SimpleGlyph) -> Vec<u8> {
     if i == 0 {
         return out;
     }
-    let trimmed_len =
-        10 + 2 * (g.number_of_contours() as usize) + 2 + g.instruction_length() as usize + i;
-    let Some(trimmed_slice) = g.offset_data().as_bytes().get(0..trimmed_len) else {
+
+    let glyph_bytes = g.offset_data().as_bytes();
+    let header_len = 10 + 2 * (g.number_of_contours() as usize) + 2;
+    let Some(header_slice) = glyph_bytes.get(0..header_len) else {
         return out;
     };
+    out.extend_from_slice(header_slice);
+
+    if plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+    {
+        out[header_len - 2] = 0;
+        out[header_len - 1] = 0;
+    } else {
+        let instruction_end = header_len + g.instruction_length() as usize;
+        let Some(instruction_slice) = glyph_bytes.get(header_len..instruction_end) else {
+            return Vec::new();
+        };
+        out.extend_from_slice(instruction_slice);
+    }
+
+    let Some(trimmed_slice) = glyph_data.get(0..i) else {
+        return Vec::new();
+    };
+    let first_flag_index = out.len();
     out.extend_from_slice(trimmed_slice);
+    if plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG)
+    {
+        out[first_flag_index] |= SimpleGlyphFlags::OVERLAP_SIMPLE.bits();
+    }
     out
 }
 
@@ -143,10 +184,31 @@ fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
             return Vec::new();
         }
         let flags = u16::from_be_bytes([out[i], out[i + 1]]);
-        let flags = CompositeGlyphFlags::from_bits_truncate(flags);
+        let mut flags = CompositeGlyphFlags::from_bits_truncate(flags);
 
         if flags.contains(CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS) {
             we_have_instructions = true;
+            if plan
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+            {
+                flags.remove(CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS);
+                out.get_mut(i..i + 2)
+                    .unwrap()
+                    .clone_from_slice(&flags.bits().to_be_bytes());
+            }
+        }
+
+        // only set overlaps flag on the first component
+        if plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG)
+            && i == 10
+        {
+            flags.insert(CompositeGlyphFlags::OVERLAP_COMPOUND);
+            out.get_mut(i..i + 2)
+                .unwrap()
+                .clone_from_slice(&flags.bits().to_be_bytes());
         }
 
         let old_gid = u16::from_be_bytes([out[i + 2], out[i + 3]]);
@@ -176,7 +238,11 @@ fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
         more = flags.contains(CompositeGlyphFlags::MORE_COMPONENTS);
     }
 
-    if we_have_instructions {
+    if we_have_instructions
+        && !plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+    {
         if i + 1 >= len {
             return Vec::new();
         }
