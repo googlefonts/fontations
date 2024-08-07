@@ -208,20 +208,14 @@ impl Outline {
                 continue;
             };
             let first_ix = contour.first() as u16;
-            let last_ix = contour.last() as u16;
+            let mut prev_ix = contour.last() as u16;
             for (ix, point) in points.iter_mut().enumerate() {
                 let ix = ix as u16 + first_ix;
-                if ix == first_ix {
-                    point.prev_ix = last_ix;
-                } else {
-                    point.prev_ix = ix - 1;
-                }
-                if ix == last_ix {
-                    point.next_ix = first_ix;
-                } else {
-                    point.next_ix = ix + 1;
-                }
+                point.prev_ix = prev_ix;
+                prev_ix = ix;
+                point.next_ix = ix + 1;
             }
+            points.last_mut().unwrap().next_ix = first_ix;
         }
     }
 
