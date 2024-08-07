@@ -1,6 +1,7 @@
 //! The various font tables
 
 pub mod aat;
+pub mod ankr;
 pub mod avar;
 pub mod base;
 pub mod bitmap;
@@ -14,6 +15,7 @@ pub mod cpal;
 pub mod cvar;
 pub mod ebdt;
 pub mod eblc;
+pub mod feat;
 pub mod fvar;
 pub mod gasp;
 pub mod gdef;
@@ -28,6 +30,7 @@ pub mod hvar;
 pub mod ift;
 pub mod layout;
 pub mod loca;
+pub mod ltag;
 pub mod maxp;
 pub mod mvar;
 pub mod name;
