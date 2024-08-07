@@ -21,7 +21,7 @@ impl<'a> Ltag<'a> {
     }
 
     /// Returns the index of the given language tag.
-    pub fn find(&self, tag: &str) -> Option<u32> {
+    pub fn index_for_tag(&self, tag: &str) -> Option<u32> {
         self.tag_indices().find(|x| x.1 == tag).map(|x| x.0)
     }
 }
@@ -45,10 +45,10 @@ mod tests {
         let ltag = Ltag::read(buf.font_data()).unwrap();
         let tags = ltag.tag_indices().collect::<Vec<_>>();
         assert_eq!(tags, expected_tags);
-        assert_eq!(ltag.find("en"), Some(0));
-        assert_eq!(ltag.find("sp"), Some(1));
-        assert_eq!(ltag.find("sr"), Some(2));
-        assert_eq!(ltag.find("ar"), None);
-        assert_eq!(ltag.find("hi"), None);
+        assert_eq!(ltag.index_for_tag("en"), Some(0));
+        assert_eq!(ltag.index_for_tag("sp"), Some(1));
+        assert_eq!(ltag.index_for_tag("sr"), Some(2));
+        assert_eq!(ltag.index_for_tag("ar"), None);
+        assert_eq!(ltag.index_for_tag("hi"), None);
     }
 }
