@@ -1,27 +1,34 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
-mod hhea;
+mod glyf_loca;
+mod head;
 mod hmtx;
 mod maxp;
 mod parsing_util;
+use glyf_loca::subset_glyf_loca;
+use head::subset_head;
+use hmtx::subset_hmtx_hhea;
+use maxp::subset_maxp;
 pub use parsing_util::{parse_unicodes, populate_gids};
 
+use fnv::FnvHashMap;
 use skrifa::MetadataProvider;
-use std::collections::{BTreeSet, HashMap};
-use std::path::PathBuf;
-
 use thiserror::Error;
 use write_fonts::read::{
     collections::IntSet,
-    tables::glyf::{Glyf, Glyph},
-    tables::loca::Loca,
+    tables::{
+        glyf::{Glyf, Glyph},
+        gpos::Gpos,
+        gsub::Gsub,
+        head::Head,
+        loca::Loca,
+        name::Name,
+    },
     FontRef, TableProvider, TopLevelTable,
 };
 use write_fonts::types::GlyphId;
 use write_fonts::types::Tag;
-use write_fonts::{
-    from_obj::FromTableRef, tables::hhea::Hhea, tables::hmtx::Hmtx, tables::maxp::Maxp, FontBuilder,
-};
+use write_fonts::{tables::hhea::Hhea, tables::hmtx::Hmtx, tables::maxp::Maxp, FontBuilder};
 
 const MAX_COMPOSITE_OPERATIONS_PER_GLYPH: u8 = 64;
 const MAX_NESTING_LEVEL: u8 = 64;
@@ -37,11 +44,15 @@ pub struct Plan {
     glyphset_gsub: IntSet<GlyphId>,
     glyphset_colred: IntSet<GlyphId>,
     glyphset: IntSet<GlyphId>,
-    num_h_metrics: u16,
-    num_output_glyphs: u16,
+    //Old->New glyph id mapping,
+    glyph_map: FnvHashMap<GlyphId, GlyphId>,
+
+    new_to_old_gid_list: Vec<(GlyphId, GlyphId)>,
+
+    num_output_glyphs: usize,
     font_num_glyphs: usize,
     unicode_to_new_gid_list: Vec<(u32, GlyphId)>,
-    codepoint_to_glyph: HashMap<u32, GlyphId>,
+    codepoint_to_glyph: FnvHashMap<u32, GlyphId>,
 }
 
 impl Plan {
@@ -53,17 +64,12 @@ impl Plan {
 
         this.populate_unicodes_to_retain(input_gids, input_unicodes, font);
         this.populate_gids_to_retain(font);
-        this.num_output_glyphs = this.glyphset.len() as u16;
-
-        // compute new h_metrics
-        let hmtx = font.hmtx().expect("Error reading hmtx table");
-        let hmtx = Hmtx::from_table_ref(&hmtx);
-        this.num_h_metrics = compute_new_num_h_metrics(&hmtx, &this.glyphset);
+        this.create_old_gid_to_new_gid_map();
 
         this
     }
 
-    pub fn populate_unicodes_to_retain(
+    fn populate_unicodes_to_retain(
         &mut self,
         input_gids: &IntSet<GlyphId>,
         input_unicodes: &IntSet<u32>,
@@ -90,7 +96,7 @@ impl Plan {
         } else {
             //TODO: add support for subset accelerator?
             let cmap_unicodes = charmap.mappings().map(|t| t.0).collect::<IntSet<u32>>();
-            let unicode_gid_map = charmap.mappings().collect::<HashMap<u32, GlyphId>>();
+            let unicode_gid_map = charmap.mappings().collect::<FnvHashMap<u32, GlyphId>>();
 
             let vec_cap: u64 = input_gids.len() + input_unicodes.len();
             let vec_cap: usize = vec_cap
@@ -130,7 +136,7 @@ impl Plan {
             .extend(self.unicode_to_new_gid_list.iter().map(|t| t.0));
     }
 
-    pub fn populate_gids_to_retain(&mut self, font: &FontRef) {
+    fn populate_gids_to_retain(&mut self, font: &FontRef) {
         //not-def
         self.glyphset_gsub.insert(GlyphId::NOTDEF);
 
@@ -161,6 +167,24 @@ impl Plan {
             );
         }
         remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
+    }
+
+    fn create_old_gid_to_new_gid_map(&mut self) {
+        let pop = self.glyphset.len();
+        self.glyph_map.reserve(pop as usize);
+        self.new_to_old_gid_list.reserve(pop as usize);
+
+        //TODO: Add support for requested_glyph_map, command line option --gid-map
+        //TODO: Add support for retain_gids
+        self.new_to_old_gid_list.extend(
+            self.glyphset
+                .iter()
+                .zip(0u16..)
+                .map(|x| (GlyphId::from(x.1), x.0)),
+        );
+        self.num_output_glyphs = self.new_to_old_gid_list.len();
+        self.glyph_map
+            .extend(self.new_to_old_gid_list.iter().map(|x| (x.1, x.0)));
     }
 
     fn colr_closure(&mut self, font: &FontRef) {
@@ -239,34 +263,6 @@ fn get_font_num_glyphs(font: &FontRef) -> usize {
     ret.max(maxp.num_glyphs() as usize)
 }
 
-fn compute_new_num_h_metrics(hmtx_table: &Hmtx, glyph_ids: &IntSet<GlyphId>) -> u16 {
-    let num_long_metrics = glyph_ids.len().min(0xFFFF);
-    //TODO: we still need a BTreeSet here because we currently don't have max() and Iterator::rev() for IntSet
-    let gids: BTreeSet<GlyphId> = glyph_ids.iter().collect();
-    let last_gid = gids.last().unwrap().to_u32() as usize;
-    let last_advance = hmtx_table
-        .h_metrics
-        .get(last_gid)
-        .or_else(|| hmtx_table.h_metrics.last())
-        .unwrap()
-        .advance;
-
-    let num_skippable_glyphs = gids
-        .iter()
-        .rev()
-        .take_while(|gid| {
-            hmtx_table
-                .h_metrics
-                .get(gid.to_u32() as usize)
-                .or_else(|| hmtx_table.h_metrics.last())
-                .unwrap()
-                .advance
-                == last_advance
-        })
-        .count();
-    (num_long_metrics - num_skippable_glyphs as u64).max(1) as u16
-}
-
 #[derive(Debug, Error)]
 pub enum SubsetError {
     #[error("Invalid input gid {0}")]
@@ -287,33 +283,85 @@ pub enum SubsetError {
 
 pub trait Subset {
     /// Subset this object. Returns `true` if the object should be retained.
-    fn subset(&mut self, plan: &Plan) -> Result<bool, SubsetError>;
+    fn subset(&self, font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError>;
 }
 
-pub fn subset_font(font: FontRef, plan: &Plan, output_file: &PathBuf) {
-    let hmtx = font.hmtx().expect("Error reading hmtx table");
-    let mut hmtx = Hmtx::from_table_ref(&hmtx);
-    hmtx.subset(plan).expect("SUbsetting failed");
-    let hmtx_bytes = write_fonts::dump_table(&hmtx).unwrap();
-
-    let hhea = font.hhea().expect("Error reading hhea table");
-    let mut hhea = Hhea::from_table_ref(&hhea);
-    hhea.subset(plan).expect("Subsetting failed");
-    let hhea_bytes = write_fonts::dump_table(&hhea).unwrap();
-
-    let maxp = font.maxp().expect("Error reading maxp table");
-    let mut maxp = Maxp::from_table_ref(&maxp);
-    maxp.subset(plan).expect("Subsetting failed");
-    let maxp_bytes = write_fonts::dump_table(&maxp).unwrap();
-
+pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
     let mut builder = FontBuilder::default();
-    builder.add_raw(Hmtx::TAG, hmtx_bytes);
-    builder.add_raw(Hhea::TAG, hhea_bytes);
-    builder.add_raw(Maxp::TAG, maxp_bytes);
 
-    builder.copy_missing_tables(font);
+    for record in font.table_directory.table_records() {
+        let tag = record.tag();
+        subset_table(tag, font, plan, &mut builder)?;
+    }
+    Ok(builder.build())
+}
 
-    std::fs::write(output_file, builder.build()).unwrap();
+fn subset_table<'a>(
+    tag: Tag,
+    font: &FontRef<'a>,
+    plan: &Plan,
+    builder: &mut FontBuilder<'a>,
+) -> Result<(), SubsetError> {
+    match tag {
+        Glyf::TAG => {
+            subset_glyf_loca(plan, font, builder)?;
+        }
+        Head::TAG => {
+            //handled by glyf table if exists
+            if let Ok(_glyf) = font.glyf() {
+                return Ok(());
+            } else {
+                subset_head(font, plan, builder)?;
+            }
+        }
+        //Skip, handled by Hmtx
+        Hhea::TAG => {
+            return Ok(());
+        }
+
+        Hmtx::TAG => {
+            subset_hmtx_hhea(font, plan, builder)?;
+        }
+        //Skip, handled by glyf
+        Loca::TAG => {
+            return Ok(());
+        }
+
+        Maxp::TAG => {
+            subset_maxp(font, plan, builder)?;
+        }
+        _ => {
+            if let Some(data) = font.data_for_tag(tag) {
+                builder.add_raw(tag, data);
+            } else {
+                return Err(SubsetError::SubsetTableError(tag));
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -> usize {
+    let Some(table_data) = font.data_for_tag(table_tag) else {
+        return 0;
+    };
+
+    let table_len = table_data.len();
+    let bulk: usize = 8192;
+    let src_glyphs = plan.font_num_glyphs;
+    let dst_glyphs = plan.num_output_glyphs;
+
+    // ported from HB: Tables that we want to allocate same space as the source table.
+    // For GSUB/GPOS it's because those are expensive to subset, so giving them more room is fine.
+    let same_size: bool =
+        table_tag == Gsub::TAG || table_tag == Gpos::TAG || table_tag == Name::TAG;
+
+    //TODO: Add extra room retain_gids
+    if src_glyphs == 0 || same_size {
+        return bulk + table_len;
+    }
+
+    bulk + table_len * ((dst_glyphs as f32 / src_glyphs as f32).sqrt() as usize)
 }
 
 #[cfg(test)]

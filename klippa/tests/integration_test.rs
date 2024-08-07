@@ -315,7 +315,8 @@ fn gen_subset_font_file(font_file: &str, subset: &str, output_file: &PathBuf) {
     let unicodes = parse_unicodes(subset).unwrap();
     let plan = Plan::new(&gids, &unicodes, &font);
 
-    subset_font(font, &plan, output_file);
+    let subset_output = subset_font(&font, &plan).unwrap();
+    std::fs::write(output_file, subset_output).unwrap();
     //TODO: re-enable OTS check
     //assert_has_ots_exec();
     //assert_check_ots(&output_file);

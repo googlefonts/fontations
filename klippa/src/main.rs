@@ -26,6 +26,10 @@ struct Args {
     /// The output font file
     #[arg(short, long)]
     output_file: std::path::PathBuf,
+
+    ///run subsetter N times
+    #[arg(short, long)]
+    num_iterations: Option<u32>,
 }
 
 fn main() {
@@ -49,7 +53,19 @@ fn main() {
 
     let font_bytes = std::fs::read(&args.path).expect("Invalid input font file found");
     let font = FontRef::new(&font_bytes).expect("Error reading font bytes");
-    let plan = Plan::new(&gids, &unicodes, &font);
 
-    subset_font(font, &plan, &args.output_file);
+    let mut output_bytes = Vec::new();
+    for _ in 0..args.num_iterations.unwrap_or(1) {
+        let plan = Plan::new(&gids, &unicodes, &font);
+        match subset_font(&font, &plan) {
+            Ok(out) => {
+                output_bytes = out;
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+        };
+    }
+    std::fs::write(&args.output_file, output_bytes).unwrap();
 }
