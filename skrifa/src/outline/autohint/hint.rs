@@ -320,7 +320,7 @@ mod tests {
             &font,
             16.0,
             Default::default(),
-            9,
+            GlyphId::new(9),
             &script::SCRIPT_CLASSES[script::ScriptClass::HEBR],
         );
         #[rustfmt::skip]
@@ -366,15 +366,47 @@ mod tests {
         assert_eq!(coords, expected_coords);
     }
 
+    // Specific test case for <https://issues.skia.org/issues/344529168> which
+    // uses the Ahem <https://web-platform-tests.org/writing-tests/ahem.html>
+    // font
+    #[test]
+    fn skia_ahem_test_case() {
+        let font = FontRef::new(font_test_data::AHEM).unwrap();
+        let outline = hint_latin_outline(
+            &font,
+            24.0,
+            Default::default(),
+            // This glyph is the typical Ahem block square; the link to the
+            // font description above more detail.
+            GlyphId::new(5),
+            &script::SCRIPT_CLASSES[script::ScriptClass::LATN],
+        );
+        let expected_coords = [(0, 1216), (1536, 1216), (1536, -320), (0, -320)];
+        // See <https://issues.skia.org/issues/344529168#comment3>
+        // Note that Skia inverts y coords
+        let expected_float_coords = [(0.0, 19.0), (24.0, 19.0), (24.0, -5.0), (0.0, -5.0)];
+        let coords = outline
+            .points
+            .iter()
+            .map(|point| (point.x, point.y))
+            .collect::<Vec<_>>();
+        let float_coords = coords
+            .iter()
+            .map(|(x, y)| (*x as f32 / 64.0, *y as f32 / 64.0))
+            .collect::<Vec<_>>();
+        assert_eq!(coords, expected_coords);
+        assert_eq!(float_coords, expected_float_coords);
+    }
+
     fn hint_latin_outline(
         font: &FontRef,
         size: f32,
         coords: &[F2Dot14],
-        gid: u32,
+        gid: GlyphId,
         style: &script::ScriptClass,
     ) -> Outline {
         let glyphs = font.outline_glyphs();
-        let glyph = glyphs.get(GlyphId::new(gid)).unwrap();
+        let glyph = glyphs.get(gid).unwrap();
         let mut outline = Outline::default();
         outline.fill(&glyph, coords).unwrap();
         let metrics = latin::compute_unscaled_style_metrics(font, coords, style);

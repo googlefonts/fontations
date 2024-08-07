@@ -204,17 +204,18 @@ impl Outline {
     fn link_points(&mut self) {
         let points = self.points.as_mut_slice();
         for contour in &self.contours {
-            let last_ix = contour.last();
-            let mut ix = contour.first();
-            let mut prev_ix = last_ix;
-            points[ix].prev_ix = last_ix as _;
-            points[last_ix].next_ix = ix as _;
-            while ix != last_ix {
-                points[ix].prev_ix = prev_ix as _;
-                points[prev_ix].next_ix = ix as _;
+            let Some(points) = points.get_mut(contour.range()) else {
+                continue;
+            };
+            let first_ix = contour.first() as u16;
+            let mut prev_ix = contour.last() as u16;
+            for (ix, point) in points.iter_mut().enumerate() {
+                let ix = ix as u16 + first_ix;
+                point.prev_ix = prev_ix;
                 prev_ix = ix;
-                ix = contour.next(ix);
+                point.next_ix = ix + 1;
             }
+            points.last_mut().unwrap().next_ix = first_ix;
         }
     }
 

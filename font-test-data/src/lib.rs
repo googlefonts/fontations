@@ -75,6 +75,8 @@ pub static TTHINT_SUBSET: &[u8] = include_bytes!("../test_data/ttf/tthint_subset
 
 pub static VORG: &[u8] = include_bytes!("../test_data/ttf/vorg.ttf");
 
+pub static AHEM: &[u8] = include_bytes!("../test_data/ttf/ahem.ttf");
+
 pub mod varc {
     pub static CJK_6868: &[u8] = include_bytes!("../test_data/ttf/varc-6868.ttf");
     pub static CONDITIONALS: &[u8] = include_bytes!("../test_data/ttf/varc-ac01-conditional.ttf");
