@@ -7,12 +7,6 @@ drop-hints.txt
 drop-hints-retain-gids.txt
 retain-gids.txt
 notdef-outline.txt
-name-ids.txt
-name-languages.txt
-name-legacy.txt
-gids.txt
-layout-features.txt
-keep-all-layout-features.txt
 no-prune-unicode-ranges.txt
 glyph-names.txt
 

@@ -94,6 +94,22 @@ impl Default for SubsetFlags {
     }
 }
 
+impl PartialEq for SubsetFlags {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl std::ops::BitOr for SubsetFlags {
+    type Output = Self;
+
+    /// Returns the union of the two sets of flags.
+    #[inline]
+    fn bitor(self, other: SubsetFlags) -> Self {
+        Self(self.0 | other.0)
+    }
+}
+
 impl From<u16> for SubsetFlags {
     fn from(value: u16) -> Self {
         Self(value)
