@@ -320,7 +320,7 @@ mod tests {
             &font,
             16.0,
             Default::default(),
-            9,
+            GlyphId::new(9),
             &script::SCRIPT_CLASSES[script::ScriptClass::HEBR],
         );
         #[rustfmt::skip]
@@ -366,7 +366,9 @@ mod tests {
         assert_eq!(coords, expected_coords);
     }
 
-    // Specific test case for <https://issues.skia.org/issues/344529168>
+    // Specific test case for <https://issues.skia.org/issues/344529168> which
+    // uses the Ahem <https://web-platform-tests.org/writing-tests/ahem.html>
+    // font
     #[test]
     fn skia_ahem_test_case() {
         let font = FontRef::new(font_test_data::AHEM).unwrap();
@@ -374,7 +376,9 @@ mod tests {
             &font,
             24.0,
             Default::default(),
-            5,
+            // This glyph is the typical Ahem block square; the link to the
+            // font description above more detail.
+            GlyphId::new(5),
             &script::SCRIPT_CLASSES[script::ScriptClass::LATN],
         );
         let expected_coords = [(0, 1216), (1536, 1216), (1536, -320), (0, -320)];
@@ -398,11 +402,11 @@ mod tests {
         font: &FontRef,
         size: f32,
         coords: &[F2Dot14],
-        gid: u32,
+        gid: GlyphId,
         style: &script::ScriptClass,
     ) -> Outline {
         let glyphs = font.outline_glyphs();
-        let glyph = glyphs.get(GlyphId::new(gid)).unwrap();
+        let glyph = glyphs.get(gid).unwrap();
         let mut outline = Outline::default();
         outline.fill(&glyph, coords).unwrap();
         let metrics = latin::compute_unscaled_style_metrics(font, coords, style);
