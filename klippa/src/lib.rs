@@ -13,7 +13,6 @@ pub use parsing_util::{parse_unicodes, populate_gids};
 
 use fnv::FnvHashMap;
 use skrifa::MetadataProvider;
-use std::path::PathBuf;
 use thiserror::Error;
 use write_fonts::read::{
     collections::IntSet,
@@ -172,8 +171,8 @@ impl Plan {
 
     fn create_old_gid_to_new_gid_map(&mut self) {
         let pop = self.glyphset.len();
-        self.glyph_map.reserve(pop);
-        self.new_to_old_gid_list.reserve(pop);
+        self.glyph_map.reserve(pop as usize);
+        self.new_to_old_gid_list.reserve(pop as usize);
 
         //TODO: Add support for requested_glyph_map, command line option --gid-map
         //TODO: Add support for retain_gids

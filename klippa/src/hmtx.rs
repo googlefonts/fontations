@@ -61,7 +61,7 @@ pub fn subset_hmtx_hhea(
 }
 
 fn compute_new_num_h_metrics(hmtx: &Hmtx, gids: &IntSet<GlyphId>) -> usize {
-    let num_long_metrics = gids.len().min(0xFFFF);
+    let num_long_metrics = gids.len().min(0xFFFF) as usize;
     let last_gid = gids.last().unwrap();
     let last_advance = hmtx.advance(last_gid).unwrap();
 
