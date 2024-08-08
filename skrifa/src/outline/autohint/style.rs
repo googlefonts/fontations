@@ -1,7 +1,8 @@
-//! Per-glyph style assignment.
+//! Styles, scripts and glyph style mapping.
 
-use super::script::{ScriptClass, ScriptRange, SCRIPT_RANGES};
 use crate::GlyphId;
+use alloc::boxed::Box;
+use raw::types::Tag;
 
 /// Defines the script and style associated with a single glyph.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -13,10 +14,10 @@ impl GlyphStyle {
     // here: https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afglobal.h#L76
     // but with different values because we intend to store "meta style"
     // information differently.
-    pub const SCRIPT_INDEX_MASK: u16 = 0xFF;
-    pub const UNASSIGNED: u16 = Self::SCRIPT_INDEX_MASK;
-    pub const NON_BASE: u16 = 0x100;
-    pub const DIGIT: u16 = 0x200;
+    const STYLE_INDEX_MASK: u16 = 0xFF;
+    const UNASSIGNED: u16 = Self::STYLE_INDEX_MASK;
+    const NON_BASE: u16 = 0x100;
+    const DIGIT: u16 = 0x200;
 
     pub const fn is_unassigned(self) -> bool {
         self.0 == Self::UNASSIGNED
@@ -30,18 +31,17 @@ impl GlyphStyle {
         self.0 & Self::DIGIT != 0
     }
 
-    pub fn script_class(self) -> Option<&'static ScriptClass> {
-        let ix = self.0 & Self::SCRIPT_INDEX_MASK;
+    pub fn style_class(self) -> Option<&'static StyleClass> {
+        StyleClass::from_index(self.style_index()?)
+    }
+
+    pub fn style_index(self) -> Option<u16> {
+        let ix = self.0 & Self::STYLE_INDEX_MASK;
         if ix != Self::UNASSIGNED {
-            ScriptClass::from_index(ix)
+            Some(ix)
         } else {
             None
         }
-    }
-
-    // Helper for generated code
-    pub(super) const fn from_script_index_and_flags(script_index: u16, flags: u16) -> Self {
-        Self(flags | script_index)
     }
 }
 
@@ -49,6 +49,98 @@ impl Default for GlyphStyle {
     fn default() -> Self {
         Self(Self::UNASSIGNED)
     }
+}
+
+/// Determines which algorithms the autohinter will use while generating
+/// metrics and processing a glyph outline.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub(crate) enum ScriptGroup {
+    /// All scripts that are not CJK or Indic.
+    ///
+    /// FreeType calls this Latin.
+    Default,
+    Cjk,
+    Indic,
+}
+
+/// Defines the basic properties for each script supported by the
+/// autohinter.
+#[derive(Clone, Debug)]
+pub(crate) struct ScriptClass {
+    pub name: &'static str,
+    /// Group that defines how glyphs belonging to this script are hinted.
+    pub group: ScriptGroup,
+    /// Unicode tag for the script.
+    pub tag: Tag,
+    /// Index of self in the SCRIPT_CLASSES array.
+    pub index: usize,
+    /// True if outline edges are processed top to bottom.
+    pub hint_top_to_bottom: bool,
+    /// Characters used to define standard width and height of stems.
+    pub std_chars: &'static [char],
+    /// "Blue" characters used to define alignment zones.
+    pub blues: &'static [(&'static [char], u32)],
+}
+
+impl ScriptClass {
+    pub fn from_index(index: u16) -> Option<&'static ScriptClass> {
+        SCRIPT_CLASSES.get(index as usize)
+    }
+}
+
+/// Defines the basic properties for each style supported by the
+/// autohinter.
+///
+/// There's mostly a 1:1 correspondence between styles and scripts except
+/// in the cases where style coverage is determined by OpenType feature
+/// coverage.
+#[derive(Clone, Debug)]
+pub(crate) struct StyleClass {
+    pub name: &'static str,
+    /// Index of self in the STYLE_CLASSES array.
+    pub index: usize,
+    /// Associated Unicode script.
+    pub script: &'static ScriptClass,
+    /// OpenType feature tag for styles that derive coverage from layout
+    /// tables.
+    pub feature: Option<Tag>,
+}
+
+impl StyleClass {
+    pub(crate) fn from_index(index: u16) -> Option<&'static StyleClass> {
+        STYLE_CLASSES.get(index as usize)
+    }
+}
+
+/// Associates a basic glyph style with a range of codepoints.
+#[derive(Copy, Clone, Debug)]
+pub(super) struct StyleRange {
+    pub first: u32,
+    pub last: u32,
+    pub style: GlyphStyle,
+}
+
+impl StyleRange {
+    pub fn contains(&self, ch: u32) -> bool {
+        (self.first..=self.last).contains(&ch)
+    }
+}
+
+// These properties ostensibly come from
+// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afblue.h#L317>
+// but are modified to match those at
+// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L68>
+// so that when don't need to keep two sets and adjust during blue computation.
+pub(super) mod blue_flags {
+    pub const LATIN_ACTIVE: u32 = 1 << 0;
+    pub const TOP: u32 = 1 << 1;
+    pub const LATIN_SUB_TOP: u32 = 1 << 2;
+    pub const LATIN_NEUTRAL: u32 = 1 << 3;
+    pub const LATIN_BLUE_ADJUSTMENT: u32 = 1 << 4;
+    pub const LATIN_X_HEIGHT: u32 = 1 << 5;
+    pub const LATIN_LONG: u32 = 1 << 6;
+    pub const CJK_HORIZ: u32 = 1 << 1;
+    pub const CJK_RIGHT: u32 = TOP;
 }
 
 /// Computes glyph styles for those glyphs directly addressed by a character
@@ -62,7 +154,7 @@ pub(super) fn compute_mapped_styles(
     styles.fill(GlyphStyle::default());
     // cmap entries are sorted so we keep track of the most recent range to
     // avoid a binary search per character
-    let mut last_range: Option<(usize, ScriptRange)> = None;
+    let mut last_range: Option<(usize, StyleRange)> = None;
     for (ch, gid) in charmap {
         let Some(style) = styles.get_mut(gid.to_u32() as usize) else {
             continue;
@@ -75,11 +167,11 @@ pub(super) fn compute_mapped_styles(
                 continue;
             }
         }
-        let ix = match SCRIPT_RANGES.binary_search_by(|x| x.first.cmp(&ch)) {
+        let ix = match STYLE_RANGES.binary_search_by(|x| x.first.cmp(&ch)) {
             Ok(i) => i,
             Err(i) => i.saturating_sub(1),
         };
-        let Some(range) = SCRIPT_RANGES.get(ix).copied() else {
+        let Some(range) = STYLE_RANGES.get(ix).copied() else {
             continue;
         };
         if range.contains(ch) {
@@ -96,11 +188,34 @@ pub(super) fn assign_fallback_styles(styles: &mut [GlyphStyle]) {
     // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afglobal.h#L69>
     for style in styles.iter_mut() {
         if style.is_unassigned() {
-            style.0 &= !GlyphStyle::SCRIPT_INDEX_MASK;
-            style.0 |= ScriptClass::HANI as u16;
+            style.0 &= !GlyphStyle::STYLE_INDEX_MASK;
+            style.0 |= StyleClass::HANI as u16;
         }
     }
 }
+
+// The following are helpers for generated code.
+const fn base_range(first: u32, last: u32, style_index: u16) -> StyleRange {
+    StyleRange {
+        first,
+        last,
+        style: GlyphStyle(style_index),
+    }
+}
+
+const fn non_base_range(first: u32, last: u32, style_index: u16) -> StyleRange {
+    StyleRange {
+        first,
+        last,
+        style: GlyphStyle(style_index | GlyphStyle::NON_BASE),
+    }
+}
+
+const MAX_STYLES: usize = STYLE_CLASSES.len();
+
+use blue_flags::*;
+
+include!("../../../generated/generated_autohint_styles.rs");
 
 #[cfg(test)]
 mod tests {
@@ -223,8 +338,8 @@ mod tests {
                 (
                     gid as i32,
                     style
-                        .script_class()
-                        .map(|script| (script.name, style.is_non_base())),
+                        .style_class()
+                        .map(|style_class| (style_class.name, style.is_non_base())),
                 )
             })
             .collect::<Vec<_>>();

@@ -4,7 +4,7 @@ use super::super::{
     axis::Axis,
     metrics::{self, UnscaledWidths, WidthMetrics, MAX_WIDTHS},
     outline::Outline,
-    script::ScriptClass,
+    style::ScriptClass,
 };
 use crate::MetadataProvider;
 use raw::{types::F2Dot14, FontRef, TableProvider};
@@ -79,7 +79,7 @@ pub(super) fn compute_widths(
 
 #[cfg(test)]
 mod tests {
-    use super::{super::super::script, *};
+    use super::{super::super::style, *};
     use raw::FontRef;
 
     #[test]
@@ -136,7 +136,7 @@ mod tests {
 
     fn check_widths(font_data: &[u8], script_class: usize, expected: [(WidthMetrics, &[i32]); 2]) {
         let font = FontRef::new(font_data).unwrap();
-        let script = &script::SCRIPT_CLASSES[script_class];
+        let script = &style::SCRIPT_CLASSES[script_class];
         let [(hori_metrics, hori_widths), (vert_metrics, vert_widths)] =
             compute_widths(&font, Default::default(), script);
         assert_eq!(hori_metrics, expected[0].0);

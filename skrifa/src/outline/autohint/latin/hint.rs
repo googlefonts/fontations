@@ -558,7 +558,7 @@ mod tests {
             latin,
             metrics::{self},
             outline::Outline,
-            script,
+            style,
         },
         *,
     };
@@ -568,7 +568,7 @@ mod tests {
     #[test]
     fn edge_hinting() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let class = &script::SCRIPT_CLASSES[script::ScriptClass::HEBR];
+        let class = &style::SCRIPT_CLASSES[style::ScriptClass::HEBR];
         let unscaled_metrics =
             latin::metrics::compute_unscaled_style_metrics(&font, Default::default(), class);
         let scale = metrics::Scale::new(

@@ -304,7 +304,7 @@ fn iup_interpolate(
 #[cfg(test)]
 mod tests {
     use super::{
-        super::{latin, metrics::Scale, script},
+        super::{latin, metrics::Scale, style},
         *,
     };
     use crate::MetadataProvider;
@@ -321,7 +321,7 @@ mod tests {
             16.0,
             Default::default(),
             GlyphId::new(9),
-            &script::SCRIPT_CLASSES[script::ScriptClass::HEBR],
+            &style::SCRIPT_CLASSES[style::ScriptClass::HEBR],
         );
         #[rustfmt::skip]
         let expected_coords = [
@@ -379,7 +379,7 @@ mod tests {
             // This glyph is the typical Ahem block square; the link to the
             // font description above more detail.
             GlyphId::new(5),
-            &script::SCRIPT_CLASSES[script::ScriptClass::LATN],
+            &style::SCRIPT_CLASSES[style::ScriptClass::LATN],
         );
         let expected_coords = [(0, 1216), (1536, 1216), (1536, -320), (0, -320)];
         // See <https://issues.skia.org/issues/344529168#comment3>
@@ -403,7 +403,7 @@ mod tests {
         size: f32,
         coords: &[F2Dot14],
         gid: GlyphId,
-        style: &script::ScriptClass,
+        style: &style::ScriptClass,
     ) -> Outline {
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(gid).unwrap();

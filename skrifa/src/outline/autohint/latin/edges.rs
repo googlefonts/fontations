@@ -10,7 +10,7 @@ use super::super::{
     axis::{Axis, Edge, Segment},
     metrics::{fixed_div, fixed_mul, Scale, ScaledAxisMetrics, ScaledBlue, UnscaledBlue},
     outline::Direction,
-    script::blue_flags,
+    style::blue_flags,
 };
 
 /// Links segments to edges, using feature analysis for selection.
@@ -237,7 +237,7 @@ pub(crate) fn compute_blue_edges(
             if blue.flags & blue_flags::LATIN_ACTIVE == 0 {
                 continue;
             }
-            let is_top = blue.flags & (blue_flags::LATIN_TOP | blue_flags::LATIN_SUB_TOP) != 0;
+            let is_top = blue.flags & (blue_flags::TOP | blue_flags::LATIN_SUB_TOP) != 0;
             let is_neutral = blue.flags & blue_flags::LATIN_NEUTRAL != 0;
             let is_major_dir = edge.dir == axis.major_dir;
             // Both directions are handled for neutral blues
@@ -285,7 +285,7 @@ mod tests {
             latin,
             metrics::{self, ScaledWidth},
             outline::Outline,
-            script,
+            style,
         },
         *,
     };
@@ -295,7 +295,7 @@ mod tests {
     #[test]
     fn edges() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let class = &script::SCRIPT_CLASSES[script::ScriptClass::HEBR];
+        let class = &style::SCRIPT_CLASSES[style::ScriptClass::HEBR];
         let unscaled_metrics =
             latin::metrics::compute_unscaled_style_metrics(&font, Default::default(), class);
         let scale = metrics::Scale::new(

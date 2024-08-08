@@ -9,5 +9,4 @@ mod hint;
 mod latin;
 mod metrics;
 mod outline;
-mod script;
 mod style;
