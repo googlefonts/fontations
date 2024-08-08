@@ -17,22 +17,32 @@ pub fn subset_hmtx_hhea(
     builder: &mut FontBuilder,
 ) -> Result<(), SubsetError> {
     let hmtx = font.hmtx().or(Err(SubsetTableError(Hmtx::TAG)))?;
-
-    let gids = &plan.glyphset;
-    let last_gid = gids.last().ok_or(SubsetTableError(Hmtx::TAG))?;
-
     let h_metrics = hmtx.h_metrics();
     let side_bearings = hmtx.left_side_bearings();
-    if last_gid.to_u32() as usize >= h_metrics.len() + side_bearings.len() {
+
+    let last_gid = plan.num_output_glyphs - 1;
+    if last_gid >= h_metrics.len() + side_bearings.len() {
         return Err(SubsetTableError(Hmtx::TAG));
     }
 
     let hmtx_cap = estimate_subset_table_size(font, Hmtx::TAG, plan);
     let mut hmtx_out = Vec::with_capacity(hmtx_cap);
-    let new_num_h_metrics = compute_new_num_h_metrics(&hmtx, gids);
+    let new_num_h_metrics =
+        compute_new_num_h_metrics(&hmtx, &plan.glyphset, plan.num_output_glyphs);
 
+    let mut last = 0;
+    let retain_gid_hole = UfWord::from(0).to_be_bytes();
     for (new_gid, old_gid) in &plan.new_to_old_gid_list {
-        if (new_gid.to_u32() as usize) < new_num_h_metrics {
+        let new_gid = new_gid.to_u32() as usize;
+        while last < new_gid {
+            hmtx_out.extend_from_slice(&retain_gid_hole);
+            if last < new_num_h_metrics {
+                hmtx_out.extend_from_slice(&retain_gid_hole);
+            }
+
+            last += 1;
+        }
+        if new_gid < new_num_h_metrics {
             let advance = UfWord::from(hmtx.advance(*old_gid).unwrap());
             let lsb = FWord::from(hmtx.side_bearing(*old_gid).unwrap());
             hmtx_out.extend_from_slice(&advance.to_be_bytes());
@@ -41,6 +51,8 @@ pub fn subset_hmtx_hhea(
             let lsb = FWord::from(hmtx.side_bearing(*old_gid).unwrap());
             hmtx_out.extend_from_slice(&lsb.to_be_bytes());
         }
+
+        last += 1;
     }
 
     let Ok(hhea) = font.hhea() else {
@@ -60,15 +72,25 @@ pub fn subset_hmtx_hhea(
     Ok(())
 }
 
-fn compute_new_num_h_metrics(hmtx: &Hmtx, gids: &IntSet<GlyphId>) -> usize {
-    let num_long_metrics = gids.len().min(0xFFFF) as usize;
-    let last_gid = gids.last().unwrap();
-    let last_advance = hmtx.advance(last_gid).unwrap();
+fn compute_new_num_h_metrics(
+    hmtx: &Hmtx,
+    gid_set: &IntSet<GlyphId>,
+    num_output_glyphs: usize,
+) -> usize {
+    let mut num_long_metrics = num_output_glyphs.min(0xFFFF) as u32;
+    let last_gid = num_long_metrics - 1;
+    let last_advance = hmtx.advance(GlyphId::from(last_gid)).unwrap();
 
-    let num_skippable_glyphs = gids
-        .iter()
-        .rev()
-        .take_while(|gid| hmtx.advance(*gid).unwrap() == last_advance)
-        .count();
-    (num_long_metrics - num_skippable_glyphs + 1).max(1)
+    while num_long_metrics > 1 {
+        let gid = GlyphId::from(num_long_metrics - 2);
+        let mut advance = 0;
+        if gid_set.contains(gid) {
+            advance = hmtx.advance(gid).unwrap();
+        }
+        if advance != last_advance {
+            break;
+        }
+        num_long_metrics -= 1;
+    }
+    num_long_metrics as usize
 }
