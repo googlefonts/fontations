@@ -26,7 +26,7 @@ pub(crate) fn hint_outline(outline: &mut Outline, metrics: &UnscaledStyleMetrics
     let scaled_metrics = metrics::scale_style_metrics(metrics, *scale);
     let mut axis = Axis::default();
     let hint_top_to_bottom =
-        super::script::SCRIPT_CLASSES[metrics.class_ix as usize].hint_top_to_bottom;
+        super::style::SCRIPT_CLASSES[metrics.class_ix as usize].hint_top_to_bottom;
     outline.scale(&scaled_metrics.scale);
     for dim in 0..2 {
         axis.reset(dim, outline.orientation);

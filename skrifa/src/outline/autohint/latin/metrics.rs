@@ -13,7 +13,7 @@ use super::super::{
         ScaledStyleMetrics, ScaledWidth, UnscaledAxisMetrics, UnscaledBlue, UnscaledBlues,
         UnscaledStyleMetrics, WidthMetrics,
     },
-    script::{blue_flags, ScriptClass},
+    style::{blue_flags, ScriptClass},
 };
 use crate::{prelude::Size, MetadataProvider};
 use raw::{types::F2Dot14, FontRef};
@@ -208,13 +208,13 @@ fn scale_axis_metrics(
 
 #[cfg(test)]
 mod tests {
-    use super::{super::super::script, *};
+    use super::{super::super::style, *};
     use raw::{FontRef, TableProvider};
 
     #[test]
     fn scaled_metrics() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let class = &script::SCRIPT_CLASSES[ScriptClass::HEBR];
+        let class = &style::SCRIPT_CLASSES[ScriptClass::HEBR];
         let unscaled_metrics = compute_unscaled_style_metrics(&font, Default::default(), class);
         let scale = Scale::new(
             16.0,
@@ -253,7 +253,7 @@ mod tests {
         #[rustfmt::skip]
         let expected_v_blues = [
             // ((scaled_pos, fitted_pos), (scaled_shoot, fitted_shoot), flags)
-            ((606, 576), (606, 576), blue_flags::LATIN_ACTIVE | blue_flags::LATIN_TOP),
+            ((606, 576), (606, 576), blue_flags::LATIN_ACTIVE | blue_flags::TOP),
             ((0, 0), (-9, 0), blue_flags::LATIN_ACTIVE),
             ((-246, -256), (-246, -256), blue_flags::LATIN_ACTIVE),
         ];

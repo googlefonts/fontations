@@ -4,7 +4,7 @@ use super::super::{
     super::unscaled::UnscaledOutlineBuf,
     cycling::{cycle_backward, cycle_forward},
     metrics::{UnscaledBlue, UnscaledBlues, MAX_BLUES},
-    script::{blue_flags, ScriptClass},
+    style::{blue_flags, ScriptClass},
 };
 use crate::{FontRef, MetadataProvider};
 use raw::types::F2Dot14;
@@ -12,7 +12,7 @@ use raw::TableProvider;
 
 impl UnscaledBlue {
     fn is_latin_any_top(&self) -> bool {
-        self.flags & (blue_flags::LATIN_TOP | blue_flags::LATIN_SUB_TOP) != 0
+        self.flags & (blue_flags::TOP | blue_flags::LATIN_SUB_TOP) != 0
     }
 }
 
@@ -36,9 +36,8 @@ impl UnscaledBlues {
         let flat_threshold = units_per_em / 14;
         // Walk over each of the blue character sets for our script.
         for (blue_chars, blue_flags) in script.blues {
-            let is_top_like =
-                (blue_flags & (blue_flags::LATIN_TOP | blue_flags::LATIN_SUB_TOP)) != 0;
-            let is_top = blue_flags & blue_flags::LATIN_TOP != 0;
+            let is_top_like = (blue_flags & (blue_flags::TOP | blue_flags::LATIN_SUB_TOP)) != 0;
+            let is_top = blue_flags & blue_flags::TOP != 0;
             let is_x_height = blue_flags & blue_flags::LATIN_X_HEIGHT != 0;
             let is_neutral = blue_flags & blue_flags::LATIN_NEUTRAL != 0;
             let is_long = blue_flags & blue_flags::LATIN_LONG != 0;
@@ -354,9 +353,7 @@ impl UnscaledBlues {
                 ascender: ascender.into(),
                 descender: descender.into(),
                 flags: blue_flags
-                    & (blue_flags::LATIN_TOP
-                        | blue_flags::LATIN_SUB_TOP
-                        | blue_flags::LATIN_NEUTRAL),
+                    & (blue_flags::TOP | blue_flags::LATIN_SUB_TOP | blue_flags::LATIN_NEUTRAL),
             };
             if is_x_height {
                 blue.flags |= blue_flags::LATIN_BLUE_ADJUSTMENT;
@@ -421,13 +418,13 @@ impl UnscaledBlues {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::super::script, blue_flags, UnscaledBlue};
+    use super::{super::super::style, blue_flags, UnscaledBlue};
     use raw::FontRef;
 
     #[test]
     fn latin_blues() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let script = &script::SCRIPT_CLASSES[super::ScriptClass::LATN];
+        let script = &style::SCRIPT_CLASSES[super::ScriptClass::LATN];
         let blues = super::UnscaledBlues::new_latin(&font, &[], script);
         let values = blues.as_slice();
         let expected = [
@@ -436,7 +433,7 @@ mod tests {
                 overshoot: 725,
                 ascender: 725,
                 descender: -230,
-                flags: blue_flags::LATIN_TOP,
+                flags: blue_flags::TOP,
             },
             UnscaledBlue {
                 position: 0,
@@ -450,14 +447,14 @@ mod tests {
                 overshoot: 760,
                 ascender: 770,
                 descender: -240,
-                flags: blue_flags::LATIN_TOP,
+                flags: blue_flags::TOP,
             },
             UnscaledBlue {
                 position: 536,
                 overshoot: 546,
                 ascender: 546,
                 descender: -10,
-                flags: blue_flags::LATIN_TOP | blue_flags::LATIN_BLUE_ADJUSTMENT,
+                flags: blue_flags::TOP | blue_flags::LATIN_BLUE_ADJUSTMENT,
             },
             UnscaledBlue {
                 position: 0,
@@ -481,7 +478,7 @@ mod tests {
     fn latin_long_blues() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
         // Hebrew triggers "long" blue code path
-        let script = &script::SCRIPT_CLASSES[super::ScriptClass::HEBR];
+        let script = &style::SCRIPT_CLASSES[super::ScriptClass::HEBR];
         let blues = super::UnscaledBlues::new_latin(&font, &[], script);
         let values = blues.as_slice();
         assert_eq!(values.len(), 3);
@@ -491,7 +488,7 @@ mod tests {
                 overshoot: 592,
                 ascender: 647,
                 descender: -240,
-                flags: blue_flags::LATIN_TOP,
+                flags: blue_flags::TOP,
             },
             UnscaledBlue {
                 position: 0,
