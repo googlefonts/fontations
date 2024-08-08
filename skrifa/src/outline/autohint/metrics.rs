@@ -6,6 +6,7 @@ use super::{
     style::{GlyphStyleMap, StyleClass},
 };
 use crate::{collections::SmallVec, FontRef};
+use alloc::vec::Vec;
 use raw::types::{F2Dot14, Fixed, GlyphId};
 #[cfg(feature = "std")]
 use std::sync::RwLock;
