@@ -295,7 +295,7 @@ mod tests {
     #[test]
     fn edges() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let class = &style::SCRIPT_CLASSES[style::ScriptClass::HEBR];
+        let class = &style::STYLE_CLASSES[style::StyleClass::HEBR];
         let unscaled_metrics =
             latin::metrics::compute_unscaled_style_metrics(&font, Default::default(), class);
         let scale = metrics::Scale::new(
@@ -315,7 +315,11 @@ mod tests {
         for (dim, axis) in axes.iter_mut().enumerate() {
             latin::segments::compute_segments(&mut outline, axis);
             latin::segments::link_segments(&outline, axis, unscaled_metrics.axes[dim].max_width());
-            compute_edges(axis, &scaled_metrics.axes[dim], class.hint_top_to_bottom);
+            compute_edges(
+                axis,
+                &scaled_metrics.axes[dim],
+                class.script.hint_top_to_bottom,
+            );
             if dim == Axis::VERTICAL {
                 compute_blue_edges(
                     axis,

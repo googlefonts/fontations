@@ -164,6 +164,28 @@ impl GlyphStyleMap {
     pub fn metrics_count(&self) -> usize {
         self.metrics_count as usize
     }
+
+    /// Returns an ordered iterator yielding each style class referenced by
+    /// this map.
+    pub fn metrics_styles(&self) -> impl Iterator<Item = &'static StyleClass> + '_ {
+        // Need to build a reverse map so that these are properly ordered
+        let mut reverse_map = [0xFF; MAX_STYLES];
+        for (ix, &entry) in self.metrics_map.iter().enumerate() {
+            if entry != 0xFF {
+                reverse_map[entry as usize] = ix as u8;
+            }
+        }
+        reverse_map
+            .into_iter()
+            .enumerate()
+            .filter_map(move |(mapped, style_ix)| {
+                if mapped == 0xFF {
+                    None
+                } else {
+                    STYLE_CLASSES.get(style_ix as usize)
+                }
+            })
+    }
 }
 
 /// Determines which algorithms the autohinter will use while generating
