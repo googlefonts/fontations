@@ -5,6 +5,8 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+pub use read_fonts::tables::ift::EntryFormatFlags;
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Ift {
@@ -19,7 +21,7 @@ impl Ift {
         compatibility_id: Vec<u32>,
         max_entry_index: u16,
         max_glyph_map_entry_index: u16,
-        glyph_count: u32,
+        glyph_count: Uint24,
         glyph_map: GlyphMap,
         feature_map: Option<FeatureMap>,
         applied_entries_bitmap: Vec<u8>,
@@ -42,8 +44,24 @@ impl Ift {
     }
 
     /// Construct a new `PatchMapFormat2` subtable
-    pub fn format_2(todo: u32) -> Self {
-        Self::Format2(PatchMapFormat2::new(todo))
+    pub fn format_2(
+        compatibility_id: Vec<u32>,
+        default_patch_encoding: u8,
+        entry_count: Uint24,
+        entries: MappingEntries,
+        entry_id_string_data: Option<IdStringData>,
+        uri_template_length: u16,
+        uri_template: Vec<u8>,
+    ) -> Self {
+        Self::Format2(PatchMapFormat2::new(
+            compatibility_id,
+            default_patch_encoding,
+            entry_count,
+            entries,
+            entry_id_string_data,
+            uri_template_length,
+            uri_template,
+        ))
     }
 }
 
@@ -117,7 +135,7 @@ pub struct PatchMapFormat1 {
     pub max_entry_index: u16,
     /// Largest entry index which appears in the glyph map.
     pub max_glyph_map_entry_index: u16,
-    pub glyph_count: u32,
+    pub glyph_count: Uint24,
     /// Sub table that maps glyph ids to entry indices.
     pub glyph_map: OffsetMarker<GlyphMap, WIDTH_32>,
     /// Sub table that maps feature and glyph ids to entry indices.
@@ -136,7 +154,7 @@ impl PatchMapFormat1 {
         compatibility_id: Vec<u32>,
         max_entry_index: u16,
         max_glyph_map_entry_index: u16,
-        glyph_count: u32,
+        glyph_count: Uint24,
         glyph_map: GlyphMap,
         feature_map: Option<FeatureMap>,
         applied_entries_bitmap: Vec<u8>,
@@ -371,17 +389,41 @@ impl FromObjRef<read_fonts::tables::ift::EntryMapRecord> for EntryMapRecord {
     }
 }
 
-/// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
+/// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-2)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PatchMapFormat2 {
-    pub todo: u32,
+    /// Unique ID that identifies compatible patches.
+    pub compatibility_id: Vec<u32>,
+    /// Patch format number for patches referenced by this mapping.
+    pub default_patch_encoding: u8,
+    pub entry_count: Uint24,
+    pub entries: OffsetMarker<MappingEntries, WIDTH_32>,
+    pub entry_id_string_data: NullableOffsetMarker<IdStringData, WIDTH_32>,
+    pub uri_template_length: u16,
+    pub uri_template: Vec<u8>,
 }
 
 impl PatchMapFormat2 {
     /// Construct a new `PatchMapFormat2`
-    pub fn new(todo: u32) -> Self {
-        Self { todo }
+    pub fn new(
+        compatibility_id: Vec<u32>,
+        default_patch_encoding: u8,
+        entry_count: Uint24,
+        entries: MappingEntries,
+        entry_id_string_data: Option<IdStringData>,
+        uri_template_length: u16,
+        uri_template: Vec<u8>,
+    ) -> Self {
+        Self {
+            compatibility_id: compatibility_id.into_iter().map(Into::into).collect(),
+            default_patch_encoding,
+            entry_count,
+            entries: entries.into(),
+            entry_id_string_data: entry_id_string_data.into(),
+            uri_template_length,
+            uri_template: uri_template.into_iter().map(Into::into).collect(),
+        }
     }
 }
 
@@ -389,7 +431,14 @@ impl FontWrite for PatchMapFormat2 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u8).write_into(writer);
-        self.todo.write_into(writer);
+        (0 as u32).write_into(writer);
+        self.compatibility_id.write_into(writer);
+        self.default_patch_encoding.write_into(writer);
+        self.entry_count.write_into(writer);
+        self.entries.write_into(writer);
+        self.entry_id_string_data.write_into(writer);
+        self.uri_template_length.write_into(writer);
+        self.uri_template.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("PatchMapFormat2")
@@ -397,12 +446,35 @@ impl FontWrite for PatchMapFormat2 {
 }
 
 impl Validate for PatchMapFormat2 {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("PatchMapFormat2", |ctx| {
+            ctx.in_field("entries", |ctx| {
+                self.entries.validate_impl(ctx);
+            });
+            ctx.in_field("entry_id_string_data", |ctx| {
+                self.entry_id_string_data.validate_impl(ctx);
+            });
+            ctx.in_field("uri_template", |ctx| {
+                if self.uri_template.len() > (u16::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+        })
+    }
 }
 
 impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat2<'a>> for PatchMapFormat2 {
     fn from_obj_ref(obj: &read_fonts::tables::ift::PatchMapFormat2<'a>, _: FontData) -> Self {
-        PatchMapFormat2 { todo: obj.todo() }
+        let offset_data = obj.offset_data();
+        PatchMapFormat2 {
+            compatibility_id: obj.compatibility_id().to_owned_obj(offset_data),
+            default_patch_encoding: obj.default_patch_encoding(),
+            entry_count: obj.entry_count(),
+            entries: obj.entries().to_owned_table(),
+            entry_id_string_data: obj.entry_id_string_data().to_owned_table(),
+            uri_template_length: obj.uri_template_length(),
+            uri_template: obj.uri_template().to_owned_obj(offset_data),
+        }
     }
 }
 
@@ -412,5 +484,337 @@ impl<'a> FontRead<'a> for PatchMapFormat2 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::PatchMapFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct MappingEntries {
+    pub entry_data: Vec<u8>,
+}
+
+impl MappingEntries {
+    /// Construct a new `MappingEntries`
+    pub fn new(entry_data: Vec<u8>) -> Self {
+        Self {
+            entry_data: entry_data.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for MappingEntries {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.entry_data.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MappingEntries")
+    }
+}
+
+impl Validate for MappingEntries {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl<'a> FromObjRef<read_fonts::tables::ift::MappingEntries<'a>> for MappingEntries {
+    fn from_obj_ref(obj: &read_fonts::tables::ift::MappingEntries<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        MappingEntries {
+            entry_data: obj.entry_data().to_owned_obj(offset_data),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::tables::ift::MappingEntries<'a>> for MappingEntries {}
+
+impl<'a> FontRead<'a> for MappingEntries {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::ift::MappingEntries as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+impl FontWrite for EntryFormatFlags {
+    fn write_into(&self, writer: &mut TableWriter) {
+        writer.write_slice(&self.bits().to_be_bytes())
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Entry {
+    pub format_flags: EntryFormatFlags,
+    pub data: Vec<u8>,
+}
+
+impl Entry {
+    /// Construct a new `Entry`
+    pub fn new(format_flags: EntryFormatFlags, data: Vec<u8>) -> Self {
+        Self {
+            format_flags,
+            data: data.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for Entry {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.format_flags.write_into(writer);
+        self.data.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Entry")
+    }
+}
+
+impl Validate for Entry {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl<'a> FromObjRef<read_fonts::tables::ift::Entry<'a>> for Entry {
+    fn from_obj_ref(obj: &read_fonts::tables::ift::Entry<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        Entry {
+            format_flags: obj.format_flags(),
+            data: obj.data().to_owned_obj(offset_data),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::tables::ift::Entry<'a>> for Entry {}
+
+impl<'a> FontRead<'a> for Entry {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::ift::Entry as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct FeaturesAndDesignSpace {
+    pub feature_count: u8,
+    pub feature_tags: Vec<Tag>,
+    pub design_space_count: u16,
+    pub design_space_segments: Vec<DesignSpaceSegment>,
+}
+
+impl FeaturesAndDesignSpace {
+    /// Construct a new `FeaturesAndDesignSpace`
+    pub fn new(
+        feature_count: u8,
+        feature_tags: Vec<Tag>,
+        design_space_count: u16,
+        design_space_segments: Vec<DesignSpaceSegment>,
+    ) -> Self {
+        Self {
+            feature_count,
+            feature_tags: feature_tags.into_iter().map(Into::into).collect(),
+            design_space_count,
+            design_space_segments: design_space_segments.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for FeaturesAndDesignSpace {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.feature_count.write_into(writer);
+        self.feature_tags.write_into(writer);
+        self.design_space_count.write_into(writer);
+        self.design_space_segments.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("FeaturesAndDesignSpace")
+    }
+}
+
+impl Validate for FeaturesAndDesignSpace {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("FeaturesAndDesignSpace", |ctx| {
+            ctx.in_field("feature_tags", |ctx| {
+                if self.feature_tags.len() > (u8::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+            ctx.in_field("design_space_segments", |ctx| {
+                if self.design_space_segments.len() > (u16::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
+                self.design_space_segments.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::ift::FeaturesAndDesignSpace<'a>>
+    for FeaturesAndDesignSpace
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::ift::FeaturesAndDesignSpace<'a>,
+        _: FontData,
+    ) -> Self {
+        let offset_data = obj.offset_data();
+        FeaturesAndDesignSpace {
+            feature_count: obj.feature_count(),
+            feature_tags: obj.feature_tags().to_owned_obj(offset_data),
+            design_space_count: obj.design_space_count(),
+            design_space_segments: obj.design_space_segments().to_owned_obj(offset_data),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::tables::ift::FeaturesAndDesignSpace<'a>>
+    for FeaturesAndDesignSpace
+{
+}
+
+impl<'a> FontRead<'a> for FeaturesAndDesignSpace {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::ift::FeaturesAndDesignSpace as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CopyIndices {
+    pub copy_count: u8,
+    pub copy_indices: Vec<Uint24>,
+}
+
+impl CopyIndices {
+    /// Construct a new `CopyIndices`
+    pub fn new(copy_count: u8, copy_indices: Vec<Uint24>) -> Self {
+        Self {
+            copy_count,
+            copy_indices: copy_indices.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for CopyIndices {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.copy_count.write_into(writer);
+        self.copy_indices.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CopyIndices")
+    }
+}
+
+impl Validate for CopyIndices {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("CopyIndices", |ctx| {
+            ctx.in_field("copy_indices", |ctx| {
+                if self.copy_indices.len() > (u8::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::ift::CopyIndices<'a>> for CopyIndices {
+    fn from_obj_ref(obj: &read_fonts::tables::ift::CopyIndices<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        CopyIndices {
+            copy_count: obj.copy_count(),
+            copy_indices: obj.copy_indices().to_owned_obj(offset_data),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::tables::ift::CopyIndices<'a>> for CopyIndices {}
+
+impl<'a> FontRead<'a> for CopyIndices {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::ift::CopyIndices as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct DesignSpaceSegment {
+    pub axis_tag: Tag,
+    pub start: Fixed,
+    pub end: Fixed,
+}
+
+impl DesignSpaceSegment {
+    /// Construct a new `DesignSpaceSegment`
+    pub fn new(axis_tag: Tag, start: Fixed, end: Fixed) -> Self {
+        Self {
+            axis_tag,
+            start,
+            end,
+        }
+    }
+}
+
+impl FontWrite for DesignSpaceSegment {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.axis_tag.write_into(writer);
+        self.start.write_into(writer);
+        self.end.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("DesignSpaceSegment")
+    }
+}
+
+impl Validate for DesignSpaceSegment {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl FromObjRef<read_fonts::tables::ift::DesignSpaceSegment> for DesignSpaceSegment {
+    fn from_obj_ref(obj: &read_fonts::tables::ift::DesignSpaceSegment, _: FontData) -> Self {
+        DesignSpaceSegment {
+            axis_tag: obj.axis_tag(),
+            start: obj.start(),
+            end: obj.end(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct IdStringData {
+    pub id_data: Vec<u8>,
+}
+
+impl IdStringData {
+    /// Construct a new `IdStringData`
+    pub fn new(id_data: Vec<u8>) -> Self {
+        Self {
+            id_data: id_data.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for IdStringData {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.id_data.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("IdStringData")
+    }
+}
+
+impl Validate for IdStringData {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl<'a> FromObjRef<read_fonts::tables::ift::IdStringData<'a>> for IdStringData {
+    fn from_obj_ref(obj: &read_fonts::tables::ift::IdStringData<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        IdStringData {
+            id_data: obj.id_data().to_owned_obj(offset_data),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::tables::ift::IdStringData<'a>> for IdStringData {}
+
+impl<'a> FontRead<'a> for IdStringData {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::ift::IdStringData as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
