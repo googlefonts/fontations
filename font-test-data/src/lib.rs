@@ -238,21 +238,21 @@ pub mod ift {
         0x00, 0x02,              // 21: max entry id
         0x00, 0x02,              // 23: max glyph map entry id
 
-        0x00, 0x00, 0x00, 0x07,  // 25: glyph count
-        0x00, 0x00, 0x00, 0x31,  // 29: glyph map offset (0x31 = 49)
-        0x00, 0x00, 0x00, 0x00,  // 33: feature map offset
+        0x00, 0x00, 0x07,        // 25: glyph count
+        0x00, 0x00, 0x00, 0x30,  // 28: glyph map offset (0x30 = 48)
+        0x00, 0x00, 0x00, 0x00,  // 32: feature map offset
 
-        0x02,                    // 37: applied entry bitmap (entry 1)
+        0x02,                    // 36: applied entry bitmap (entry 1)
 
-        0x00, 0x08,              // 38: uriTemplateLength
+        0x00, 0x08,              // 37: uriTemplateLength
         b'A', b'B', b'C', b'D',
-        b'E', b'F', 0xc9, 0xa4,  // 40: uriTemplate[8]
+        b'E', b'F', 0xc9, 0xa4,  // 39: uriTemplate[8]
 
-        0x04,                    // 48: patch encoding = glyph keyed
+        0x04,                    // 47: patch encoding = glyph keyed
 
         // ## Glyph Map ##
-        0x00, 0x01,              // 49: first mapped glyph
-        0x02, 0x01, 0x00, 0x01,  // 51: entryIndex[1..6]
+        0x00, 0x01,              // 48: first mapped glyph
+        0x02, 0x01, 0x00, 0x01,  // 50: entryIndex[1..6]
         0x00, 0x00
     ];
 
@@ -270,11 +270,11 @@ pub mod ift {
         0x01, 0x2C,              // 21: max entry id = 300
         0x01, 0x2C,              // 23: max glyph map entry id = 300
 
-        0x00, 0x00, 0x00, 0x07,  // 25: glyph count
-        0x00, 0x00, 0x00, 0x56,  // 29: glyph map offset (0x56 = 86)
-        0x00, 0x00, 0x00, 0x00,  // 33: feature map offset
+              0x00, 0x00, 0x07,  // 25: glyph count
+        0x00, 0x00, 0x00, 0x55,  // 28: glyph map offset (0x55 = 85)
+        0x00, 0x00, 0x00, 0x00,  // 32: feature map offset
 
-        // 37: applied entry bitmap (38 bytes)
+        // 36: applied entry bitmap (38 bytes)
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -283,14 +283,14 @@ pub mod ift {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00,
 
-        0x00, 0x08,              // 75: uriTemplateLength
+        0x00, 0x08,              // 74: uriTemplateLength
         b'A', b'B', b'C', b'D',
-        b'E', b'F', 0xc9, 0xa4,  // 77: uriTemplate[8]
+        b'E', b'F', 0xc9, 0xa4,  // 76: uriTemplate[8]
 
-        0x04,                    // 85: patch encoding = glyph keyed
+        0x04,                    // 84: patch encoding = glyph keyed
 
         // ## Glyph Map ##
-        0x00, 0x02,              // 86: first mapped glyph
+        0x00, 0x02,              // 85: first mapped glyph
         // 88: entryIndex[2..6]
         0x00, 0x50, // gid 2
         0x00, 0x51, // gid 3
@@ -312,11 +312,11 @@ pub mod ift {
 
         0x01, 0x90,              // 21: max entry id = 0x190
         0x01, 0x2c,              // 23: max glyph map entry id = 0x12C
-        0x00, 0x00, 0x00, 0x07,  // 25: glyph count
-        0x00, 0x00, 0x00, 0x63,  // 29: glyph map offset (0x63 = 99)
-        0x00, 0x00, 0x00, 0x6F,  // 33: feature map offset (0x6F= 111)
+        0x00, 0x00, 0x07,        // 25: glyph count
+        0x00, 0x00, 0x00, 0x62,  // 28: glyph map offset (0x62 = 98)
+        0x00, 0x00, 0x00, 0x6E,  // 32: feature map offset (0x6E = 110)
 
-        // 37: applied entry bitmap (51 bytes) - 0x12b is applied
+        // 36: applied entry bitmap (51 bytes) - 0x12b is applied
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,       // [0, 64)
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,       // [64, 128)
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,       // [128, 192)
@@ -325,14 +325,14 @@ pub mod ift {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,       // [320, 384)
         0x00, 0x00, 0x00,                                     // [384, 400)
 
-        0x00, 0x08,              // 88: uriTemplateLength
+        0x00, 0x08,              // 87: uriTemplateLength
         b'A', b'B', b'C', b'D',
-        b'E', b'F', 0xc9, 0xa4,  // 90: uriTemplate[8]
+        b'E', b'F', 0xc9, 0xa4,  // 89: uriTemplate[8]
 
-        0x04,                    // 98: patch encoding = glyph keyed
+        0x04,                    // 97: patch encoding = glyph keyed
 
         // ## Glyph Map ##
-        0x00, 0x02,              // 99: first mapped glyph
+        0x00, 0x02,              // 98: first mapped glyph
         // 101: entryIndex[2..6]
         0x00, 0x50, // gid 2
         0x00, 0x51, // gid 3
@@ -341,22 +341,22 @@ pub mod ift {
         0x00, 0x50, // gid 6
 
         // ## Feature Map ##
-        0x00, 0x03,               // 111: feature count (3)
+        0x00, 0x03,               // 110: feature count (3)
 
         // FeatureRecord[0]
-        b'd', b'l', b'i', b'g',   // 113: feature tag
-        0x01, 0x90,               // 117: first new entry index (0x190 = 400)
-        0x00, 0x01,               // 119: entry map count
+        b'd', b'l', b'i', b'g',   // 112: feature tag
+        0x01, 0x90,               // 116: first new entry index (0x190 = 400)
+        0x00, 0x01,               // 118: entry map count
 
         // FeatureRecord[1]
-        b'l', b'i', b'g', b'a',   // 121: feature tag
-        0x01, 0x80,               // 125: first new entry index
-        0x00, 0x02,               // 127: entry map count
+        b'l', b'i', b'g', b'a',   // 120: feature tag
+        0x01, 0x80,               // 124: first new entry index
+        0x00, 0x02,               // 126: entry map count
 
         // FeatureRecord[2]
-        b'n', b'u', b'l', b'l',   // 121: feature tag
-        0x01, 0x2D,               // 123: first new entry index
-        0x00, 0x01,               // 125: entry map count
+        b'n', b'u', b'l', b'l',   // 120: feature tag
+        0x01, 0x2D,               // 122: first new entry index
+        0x00, 0x01,               // 124: entry map count
 
         // EntryMapRecord[0]: "dlig" + entry 0x51 => entry 0x190
         0x00, 0x51,               // first_entry_index

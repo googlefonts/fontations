@@ -27,7 +27,7 @@ table PatchMapFormat1 {
   /// Largest entry index which appears in the glyph map.
   max_glyph_map_entry_index: u16,
   
-  glyph_count: u32,
+  glyph_count: Uint24,
 
   /// Sub table that maps glyph ids to entry indices.
   #[read_offset_with($glyph_count, $max_entry_index)]
@@ -50,7 +50,7 @@ table PatchMapFormat1 {
   patch_encoding: u8,
 }
 
-#[read_args(glyph_count: u32, max_entry_index: u16)]
+#[read_args(glyph_count: Uint24, max_entry_index: u16)]
 table GlyphMap {
   first_mapped_glyph: u16,
 
@@ -105,13 +105,92 @@ record EntryMapRecord {
   last_entry_index: U8Or16,
 }
 
-/// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
+/// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-2)
 table PatchMapFormat2 {
   /// Format identifier: format = 2
   #[format = 2]
   format: u8,
 
-  todo: u32,
+  #[skip_getter]
+  #[compile(0)]
+  _reserved: u32,
 
-  // TODO(garretrieger): write me.
+  /// Unique ID that identifies compatible patches.
+  #[count(4)]
+  compatibility_id: [u32],
+
+  /// Patch format number for patches referenced by this mapping.
+  default_patch_encoding: u8,
+
+  // Encoded entries
+  entry_count: Uint24,
+  entries_offset: Offset32<MappingEntries>,
+
+  #[nullable]
+  entry_id_string_data_offset: Offset32<IdStringData>,
+  
+  // URI Template String (UTF-8 Encoded)
+  uri_template_length: u16,
+  #[count($uri_template_length)]
+  uri_template: [u8],
+}
+
+table MappingEntries {
+  #[count(..)]
+  entry_data: [u8],
+}
+
+// See <https://w3c.github.io/IFT/Overview.html#mapping-entry-formatflags>
+flags u8 EntryFormatFlags {
+  // Fields specifying features and design space are present.
+  FEATURES_AND_DESIGN_SPACE = 0b00000001,
+
+  // Fields specifying copy indices are present.
+  COPY_INDICES = 0b00000010,
+
+  // Fields specifying the entry ID delta are present.
+  ENTRY_ID_DELTA = 0b00000100,
+
+  // Fields specifying the patch encoding are present.
+  PATCH_ENCODING = 0b00001000,
+
+  // These two bits specify how the codepoint set is encoded.
+  CODEPOINTS_BIT_1 = 0b00010000,
+  CODEPOINTS_BIT_2 = 0b00100000,
+
+  // If set, this entry is ignored.
+  IGNORED = 0b01000000,
+}
+
+table Entry {
+  format_flags: EntryFormatFlags,
+  #[count(..)]
+  data: [u8],
+}
+
+table FeaturesAndDesignSpace {
+  feature_count: u8,
+  #[count($feature_count)]
+  feature_tags: [Tag],
+
+  design_space_count: u16,
+  #[count($design_space_count)]
+  design_space_segments: [DesignSpaceSegment],
+}
+
+table CopyIndices {
+  copy_count: u8,
+  #[count($copy_count)]
+  copy_indices: [Uint24],
+}
+
+record DesignSpaceSegment {
+  axis_tag: Tag,
+  start: Fixed,
+  end: Fixed,
+}
+
+table IdStringData {
+  #[count(..)]
+  id_data: [u8],
 }
