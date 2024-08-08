@@ -46,7 +46,7 @@ impl<'a> PatchMapFormat1<'a> {
     pub fn gid_to_entry_iter(&'a self) -> impl Iterator<Item = (GlyphId, u16)> + 'a {
         GidToEntryIter {
             glyph_map: self.glyph_map().ok(),
-            glyph_count: self.glyph_count(),
+            glyph_count: self.glyph_count().to_u32(),
             gid: self
                 .glyph_map()
                 .map(|glyph_map| glyph_map.first_mapped_glyph() as u32)

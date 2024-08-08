@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 
 use crate::GlyphId;
 use crate::Tag;
+use raw::types::Uint24;
 use raw::{FontData, FontRef};
 use read_fonts::{
     tables::ift::{EntryMapRecord, Ift, PatchMapFormat1},
@@ -60,7 +61,7 @@ fn add_intersecting_format1_patches(
 ) -> Result<(), ReadError> {
     // Step 0: Top Level Field Validation
     let maxp = font.maxp()?;
-    if map.glyph_count() != maxp.num_glyphs() as u32 {
+    if map.glyph_count() != Uint24::new(maxp.num_glyphs() as u32) {
         return Err(ReadError::MalformedData(
             "IFT glyph count must match maxp glyph count.",
         ));
@@ -387,7 +388,7 @@ mod tests {
     #[test]
     fn format_1_patch_map_bad_entry_index() {
         let mut data = Vec::<u8>::from(test_data::ift::SIMPLE_FORMAT1);
-        data[51] = 0x03;
+        data[50] = 0x03;
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -450,8 +451,8 @@ mod tests {
     #[test]
     fn format_1_patch_map_bad_uri_template() {
         let mut data = Vec::<u8>::from(test_data::ift::SIMPLE_FORMAT1);
-        data[40] = 0x80;
-        data[41] = 0x81;
+        data[39] = 0x80;
+        data[40] = 0x81;
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -469,7 +470,7 @@ mod tests {
     #[test]
     fn format_1_patch_map_bad_encoding_number() {
         let mut data = Vec::<u8>::from(test_data::ift::SIMPLE_FORMAT1);
-        data[48] = 0x12;
+        data[47] = 0x12;
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -552,15 +553,15 @@ mod tests {
     #[test]
     fn format_1_patch_map_u16_entries_with_out_of_order_feature_mapping() {
         let mut data = Vec::<u8>::from(test_data::ift::FEATURE_MAP_FORMAT1);
-        data[113] = b'l';
-        data[114] = b'i';
-        data[115] = b'g';
-        data[116] = b'a';
+        data[112] = b'l';
+        data[113] = b'i';
+        data[114] = b'g';
+        data[115] = b'a';
 
-        data[121] = b'd';
-        data[122] = b'l';
-        data[123] = b'i';
-        data[124] = b'g';
+        data[120] = b'd';
+        data[121] = b'l';
+        data[122] = b'i';
+        data[123] = b'g';
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -587,15 +588,15 @@ mod tests {
     #[test]
     fn format_1_patch_map_u16_entries_with_duplicate_feature_mapping() {
         let mut data = Vec::<u8>::from(test_data::ift::FEATURE_MAP_FORMAT1);
-        data[113] = b'l';
-        data[114] = b'i';
-        data[115] = b'g';
-        data[116] = b'a';
+        data[112] = b'l';
+        data[113] = b'i';
+        data[114] = b'g';
+        data[115] = b'a';
 
-        data[121] = b'l';
-        data[122] = b'i';
-        data[123] = b'g';
-        data[124] = b'a';
+        data[120] = b'l';
+        data[121] = b'i';
+        data[122] = b'g';
+        data[123] = b'a';
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
