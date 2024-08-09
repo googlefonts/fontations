@@ -1,6 +1,6 @@
 //! impl subset() for hmtx
 
-use crate::{estimate_subset_table_size, Plan, SubsetError, SubsetError::SubsetTableError};
+use crate::{Plan, SubsetError, SubsetError::SubsetTableError};
 use write_fonts::types::{FWord, GlyphId, UfWord};
 use write_fonts::{
     read::{
@@ -25,34 +25,35 @@ pub fn subset_hmtx_hhea(
         return Err(SubsetTableError(Hmtx::TAG));
     }
 
-    let hmtx_cap = estimate_subset_table_size(font, Hmtx::TAG, plan);
-    let mut hmtx_out = Vec::with_capacity(hmtx_cap);
     let new_num_h_metrics =
         compute_new_num_h_metrics(&hmtx, &plan.glyphset, plan.num_output_glyphs);
+    //subsetted hmtx table length
+    let hmtx_cap = new_num_h_metrics * 4 + (plan.num_output_glyphs - new_num_h_metrics) * 2;
+    let mut hmtx_out = vec![0; hmtx_cap];
 
-    let mut last = 0;
-    let retain_gid_hole = UfWord::from(0).to_be_bytes();
     for (new_gid, old_gid) in &plan.new_to_old_gid_list {
         let new_gid = new_gid.to_u32() as usize;
-        while last < new_gid {
-            hmtx_out.extend_from_slice(&retain_gid_hole);
-            if last < new_num_h_metrics {
-                hmtx_out.extend_from_slice(&retain_gid_hole);
-            }
-
-            last += 1;
-        }
         if new_gid < new_num_h_metrics {
+            let idx = 4 * new_gid;
             let advance = UfWord::from(hmtx.advance(*old_gid).unwrap());
-            let lsb = FWord::from(hmtx.side_bearing(*old_gid).unwrap());
-            hmtx_out.extend_from_slice(&advance.to_be_bytes());
-            hmtx_out.extend_from_slice(&lsb.to_be_bytes());
-        } else {
-            let lsb = FWord::from(hmtx.side_bearing(*old_gid).unwrap());
-            hmtx_out.extend_from_slice(&lsb.to_be_bytes());
-        }
+            hmtx_out
+                .get_mut(idx..idx + 2)
+                .unwrap()
+                .copy_from_slice(&advance.to_be_bytes());
 
-        last += 1;
+            let lsb = FWord::from(hmtx.side_bearing(*old_gid).unwrap());
+            hmtx_out
+                .get_mut(idx + 2..idx + 4)
+                .unwrap()
+                .copy_from_slice(&lsb.to_be_bytes());
+        } else {
+            let idx = 4 * new_num_h_metrics + (new_gid - new_num_h_metrics) * 2;
+            let lsb = FWord::from(hmtx.side_bearing(*old_gid).unwrap());
+            hmtx_out
+                .get_mut(idx..idx + 2)
+                .unwrap()
+                .copy_from_slice(&lsb.to_be_bytes());
+        }
     }
 
     let Ok(hhea) = font.hhea() else {
