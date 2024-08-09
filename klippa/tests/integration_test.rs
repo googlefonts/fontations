@@ -392,7 +392,7 @@ fn gen_subset_font_name(font: &str, subset: &str, profile: &str) -> String {
     //TODO: add instances later
     let (profile_name, _profile_extension) = profile.rsplit_once('.').unwrap();
     let subset_font_name =
-        format!("{font_base_name}.{subset_name}.{profile_name}.{font_extension}");
+        format!("{font_base_name}.{profile_name}.{subset_name}.{font_extension}");
     subset_font_name
 }
 /// Assert that we can find the `ttx` executable
@@ -560,7 +560,7 @@ fn parse_test() {
     assert!(test_data_dir.exists());
     let test_file = test_data_dir.join("tests/basics.tests");
     let subset_test = SubsetTestCase::new(&test_file);
-    assert_eq!(subset_test.fonts.len(), 1);
+    assert_eq!(subset_test.fonts.len(), 2);
     assert_eq!(subset_test.fonts[0], "Roboto-Regular.abc.ttf");
     assert_eq!(subset_test.profiles.len(), 7);
     assert_eq!(
