@@ -86,11 +86,15 @@ impl UnscaledStyleMetricsSet {
     /// Creates a precomputed style metrics set containing all metrics
     /// required by the glyph map.
     pub fn precomputed(font: &FontRef, coords: &[F2Dot14], style_map: &GlyphStyleMap) -> Self {
+        // The metrics_styles() iterator does not report exact size so we
+        // preallocate and extend here rather than collect to avoid
+        // over allocating memory.
         let mut vec = Vec::with_capacity(style_map.metrics_count());
-        for style in style_map.metrics_styles() {
-            let metrics = super::latin::compute_unscaled_style_metrics(font, coords, style);
-            vec.push(metrics);
-        }
+        vec.extend(
+            style_map
+                .metrics_styles()
+                .map(|style| super::latin::compute_unscaled_style_metrics(font, coords, style)),
+        );
         Self::Precomputed(vec)
     }
 
