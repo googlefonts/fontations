@@ -1,7 +1,7 @@
 //! Styles, scripts and glyph style mapping.
 
-use crate::GlyphId;
-use alloc::boxed::Box;
+use crate::{charmap::Charmap, GlyphId};
+use alloc::vec::Vec;
 use raw::types::Tag;
 
 /// Defines the script and style associated with a single glyph.
@@ -48,6 +48,121 @@ impl GlyphStyle {
 impl Default for GlyphStyle {
     fn default() -> Self {
         Self(Self::UNASSIGNED)
+    }
+}
+
+/// Maps glyph identifiers to glyph styles.
+///
+/// Also keeps track of the styles that are actually used so we can allocate
+/// an appropriately sized metrics array.
+#[derive(Debug)]
+pub(crate) struct GlyphStyleMap {
+    /// List of styles, indexed by glyph id.
+    styles: Vec<GlyphStyle>,
+    /// Maps an actual style class index into a compacted index for the
+    /// metrics table.
+    ///
+    /// Uses `0xFF` to signify unused styles.
+    metrics_map: [u8; MAX_STYLES],
+    /// Number of metrics styles in use.
+    metrics_count: u8,
+}
+
+impl GlyphStyleMap {
+    /// Computes a new glyph style map for the given glyph count and character
+    /// map.
+    ///
+    /// Roughly based on <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afglobal.c#L126>
+    pub fn new(glyph_count: u32, charmap: &Charmap) -> Self {
+        let mut map = Self {
+            styles: vec![GlyphStyle::default(); glyph_count as usize],
+            metrics_map: [0xFF; MAX_STYLES],
+            metrics_count: 0,
+        };
+        // TODO: Step 1: compute styles for glyphs covered by OpenType features
+        // --
+        // Step 2: compute styles for glyphs contained in the cmap
+        // cmap entries are sorted so we keep track of the most recent range to
+        // avoid a binary search per character
+        let mut last_range: Option<(usize, StyleRange)> = None;
+        for (ch, gid) in charmap.mappings() {
+            let Some(style) = map.styles.get_mut(gid.to_u32() as usize) else {
+                continue;
+            };
+            if !style.is_unassigned() {
+                continue;
+            }
+            // Charmaps enumerate in order so we're likely to encounter at least
+            // a few codepoints in the same range.
+            if let Some(last) = last_range {
+                if last.1.contains(ch) {
+                    *style = last.1.style;
+                    continue;
+                }
+            }
+            let ix = match STYLE_RANGES.binary_search_by(|x| x.first.cmp(&ch)) {
+                Ok(i) => i,
+                Err(i) => i.saturating_sub(1),
+            };
+            let Some(range) = STYLE_RANGES.get(ix).copied() else {
+                continue;
+            };
+            if range.contains(ch) {
+                *style = range.style;
+                if let Some(style_ix) = range.style.style_index() {
+                    let style_ix = style_ix as usize;
+                    if map.metrics_map[style_ix] == 0xFF {
+                        // This the first time we've seen this style so record
+                        // it in the metrics map
+                        map.metrics_map[style_ix] = map.metrics_count;
+                        map.metrics_count += 1;
+                    }
+                }
+                last_range = Some((ix, range));
+            }
+        }
+        // TODO: Step 3: compute script based coverage
+        // --
+        // Step 4: Assign a default to all remaining glyphs
+        // For some reason, FreeType uses Hani as a default fallback style so
+        // let's do the same.
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afglobal.h#L69>
+        let mut need_hani = false;
+        for style in map.styles.iter_mut() {
+            if style.is_unassigned() {
+                style.0 &= !GlyphStyle::STYLE_INDEX_MASK;
+                style.0 |= StyleClass::HANI as u16;
+                need_hani = true;
+            }
+        }
+        if need_hani {
+            let mapped_ix = &mut map.metrics_map[StyleClass::HANI];
+            if *mapped_ix == 0xFF {
+                map.metrics_map[StyleClass::HANI] = map.metrics_count;
+                map.metrics_count += 1;
+            }
+        }
+        map
+    }
+
+    pub fn style(&self, glyph_id: GlyphId) -> Option<GlyphStyle> {
+        self.styles.get(glyph_id.to_u32() as usize).copied()
+    }
+
+    /// Returns a compacted metrics index for the given glyph style.
+    pub fn metrics_index(&self, style: GlyphStyle) -> Option<usize> {
+        let ix = style.style_index()? as usize;
+        let metrics_ix = *self.metrics_map.get(ix)? as usize;
+        if metrics_ix != 0xFF {
+            Some(metrics_ix)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the required size of the compacted metrics array.
+    pub fn metrics_count(&self) -> usize {
+        self.metrics_count as usize
     }
 }
 
@@ -143,57 +258,6 @@ pub(super) mod blue_flags {
     pub const CJK_RIGHT: u32 = TOP;
 }
 
-/// Computes glyph styles for those glyphs directly addressed by a character
-/// map.
-///
-/// This generally follows the FreeType code here: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afglobal.c#L126>
-pub(super) fn compute_mapped_styles(
-    charmap: impl Iterator<Item = (u32, GlyphId)>,
-    styles: &mut [GlyphStyle],
-) {
-    styles.fill(GlyphStyle::default());
-    // cmap entries are sorted so we keep track of the most recent range to
-    // avoid a binary search per character
-    let mut last_range: Option<(usize, StyleRange)> = None;
-    for (ch, gid) in charmap {
-        let Some(style) = styles.get_mut(gid.to_u32() as usize) else {
-            continue;
-        };
-        // Charmaps enumerate in order so we're likely to encounter at least
-        // a few codepoints in the same range.
-        if let Some(last) = last_range {
-            if last.1.contains(ch) {
-                *style = last.1.style;
-                continue;
-            }
-        }
-        let ix = match STYLE_RANGES.binary_search_by(|x| x.first.cmp(&ch)) {
-            Ok(i) => i,
-            Err(i) => i.saturating_sub(1),
-        };
-        let Some(range) = STYLE_RANGES.get(ix).copied() else {
-            continue;
-        };
-        if range.contains(ch) {
-            *style = range.style;
-            last_range = Some((ix, range));
-        }
-    }
-}
-
-/// Sets a fallback style for any glyph that is still unassigned.
-pub(super) fn assign_fallback_styles(styles: &mut [GlyphStyle]) {
-    // For some reason, FreeType uses Hani as a default fallback script so
-    // let's do the same.
-    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afglobal.h#L69>
-    for style in styles.iter_mut() {
-        if style.is_unassigned() {
-            style.0 &= !GlyphStyle::STYLE_INDEX_MASK;
-            style.0 |= StyleClass::HANI as u16;
-        }
-    }
-}
-
 // The following are helpers for generated code.
 const fn base_range(first: u32, last: u32, style_index: u16) -> StyleRange {
     StyleRange {
@@ -223,12 +287,10 @@ mod tests {
     use crate::{raw::TableProvider, FontRef, MetadataProvider};
 
     #[test]
-    fn cmap_glyph_styles() {
+    fn glyph_styles() {
         let font = FontRef::new(font_test_data::AUTOHINT_CMAP).unwrap();
-        let num_glyphs = font.maxp().unwrap().num_glyphs() as usize;
-        let mut styles = vec![GlyphStyle::default(); num_glyphs];
-        super::compute_mapped_styles(font.charmap().mappings(), &mut styles);
-        super::assign_fallback_styles(&mut styles);
+        let num_glyphs = font.maxp().unwrap().num_glyphs() as u32;
+        let style_map = GlyphStyleMap::new(num_glyphs, &font.charmap());
         // generated by printf debugging in FreeType
         // (gid, Option<(script_name, is_non_base)>)
         let expected = &[
@@ -331,7 +393,8 @@ mod tests {
             (96, Some(("Adlam", true))),
             (97, Some(("Adlam", false))),
         ];
-        let results = styles
+        let results = style_map
+            .styles
             .iter()
             .enumerate()
             .map(|(gid, style)| {
@@ -345,6 +408,10 @@ mod tests {
             .collect::<Vec<_>>();
         for (i, result) in results.iter().enumerate() {
             assert_eq!(result, &expected[i]);
+        }
+        // Ensure each style has a remapped metrics index
+        for style in &style_map.styles {
+            style_map.metrics_index(*style).unwrap();
         }
     }
 }
