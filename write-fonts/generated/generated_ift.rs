@@ -533,143 +533,273 @@ impl<'a> FontRead<'a> for MappingEntries {
     }
 }
 
-impl FontWrite for EntryFormatFlags {
-    fn write_into(&self, writer: &mut TableWriter) {
-        writer.write_slice(&self.bits().to_be_bytes())
-    }
-}
-
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Entry {
-    pub format_flags: EntryFormatFlags,
-    pub data: Vec<u8>,
+pub struct EntryData {
+    pub format: EntryFormatFlags,
+    pub feature_count: Option<u8>,
+    pub feature_tags: Option<Vec<Tag>>,
+    pub design_space_count: Option<u16>,
+    pub design_space_segments: Option<Vec<DesignSpaceSegment>>,
+    pub copy_count: Option<u8>,
+    pub copy_indices: Option<Vec<Uint24>>,
+    pub enty_id_delta: Option<Uint24>,
+    pub patch_encoding: Option<u8>,
+    pub codepoint_data: Option<Vec<u8>>,
 }
 
-impl Entry {
-    /// Construct a new `Entry`
-    pub fn new(format_flags: EntryFormatFlags, data: Vec<u8>) -> Self {
+impl EntryData {
+    /// Construct a new `EntryData`
+    pub fn new(format: EntryFormatFlags) -> Self {
         Self {
-            format_flags,
-            data: data.into_iter().map(Into::into).collect(),
+            format,
+            ..Default::default()
         }
     }
 }
 
-impl FontWrite for Entry {
+impl FontWrite for EntryData {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.format_flags.write_into(writer);
-        self.data.write_into(writer);
+        self.format.write_into(writer);
+        self.format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| {
+                self.feature_count
+                    .as_ref()
+                    .expect("missing conditional field should have failed validation")
+                    .write_into(writer)
+            });
+        self.format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| {
+                self.feature_tags
+                    .as_ref()
+                    .expect("missing conditional field should have failed validation")
+                    .write_into(writer)
+            });
+        self.format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| {
+                self.design_space_count
+                    .as_ref()
+                    .expect("missing conditional field should have failed validation")
+                    .write_into(writer)
+            });
+        self.format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| {
+                self.design_space_segments
+                    .as_ref()
+                    .expect("missing conditional field should have failed validation")
+                    .write_into(writer)
+            });
+        self.format
+            .contains(EntryFormatFlags::COPY_INDICES)
+            .then(|| {
+                self.copy_count
+                    .as_ref()
+                    .expect("missing conditional field should have failed validation")
+                    .write_into(writer)
+            });
+        self.format
+            .contains(EntryFormatFlags::COPY_INDICES)
+            .then(|| {
+                self.copy_indices
+                    .as_ref()
+                    .expect("missing conditional field should have failed validation")
+                    .write_into(writer)
+            });
+        self.format
+            .contains(EntryFormatFlags::ENTRY_ID_DELTA)
+            .then(|| {
+                self.enty_id_delta
+                    .as_ref()
+                    .expect("missing conditional field should have failed validation")
+                    .write_into(writer)
+            });
+        self.format
+            .contains(EntryFormatFlags::PATCH_ENCODING)
+            .then(|| {
+                self.patch_encoding
+                    .as_ref()
+                    .expect("missing conditional field should have failed validation")
+                    .write_into(writer)
+            });
+        self.format
+            .contains(EntryFormatFlags::CODEPOINTS_BIT_1)
+            .then(|| {
+                self.codepoint_data
+                    .as_ref()
+                    .expect("missing conditional field should have failed validation")
+                    .write_into(writer)
+            });
     }
     fn table_type(&self) -> TableType {
-        TableType::Named("Entry")
+        TableType::Named("EntryData")
     }
 }
 
-impl Validate for Entry {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
-}
-
-impl<'a> FromObjRef<read_fonts::tables::ift::Entry<'a>> for Entry {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::Entry<'a>, _: FontData) -> Self {
-        let offset_data = obj.offset_data();
-        Entry {
-            format_flags: obj.format_flags(),
-            data: obj.data().to_owned_obj(offset_data),
-        }
-    }
-}
-
-impl<'a> FromTableRef<read_fonts::tables::ift::Entry<'a>> for Entry {}
-
-impl<'a> FontRead<'a> for Entry {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::tables::ift::Entry as FontRead>::read(data).map(|x| x.to_owned_table())
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct FeaturesAndDesignSpace {
-    pub feature_count: u8,
-    pub feature_tags: Vec<Tag>,
-    pub design_space_count: u16,
-    pub design_space_segments: Vec<DesignSpaceSegment>,
-}
-
-impl FeaturesAndDesignSpace {
-    /// Construct a new `FeaturesAndDesignSpace`
-    pub fn new(
-        feature_count: u8,
-        feature_tags: Vec<Tag>,
-        design_space_count: u16,
-        design_space_segments: Vec<DesignSpaceSegment>,
-    ) -> Self {
-        Self {
-            feature_count,
-            feature_tags: feature_tags.into_iter().map(Into::into).collect(),
-            design_space_count,
-            design_space_segments: design_space_segments.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
-impl FontWrite for FeaturesAndDesignSpace {
-    fn write_into(&self, writer: &mut TableWriter) {
-        self.feature_count.write_into(writer);
-        self.feature_tags.write_into(writer);
-        self.design_space_count.write_into(writer);
-        self.design_space_segments.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::Named("FeaturesAndDesignSpace")
-    }
-}
-
-impl Validate for FeaturesAndDesignSpace {
+impl Validate for EntryData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("FeaturesAndDesignSpace", |ctx| {
+        ctx.in_table("EntryData", |ctx| {
+            let format = self.format;
+            ctx.in_field("feature_count", |ctx| {
+                if !(format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                    && self.feature_count.is_some()
+                {
+                    ctx.report("'feature_count' is present but FEATURES_AND_DESIGN_SPACE not set")
+                }
+                if (format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                    && self.feature_count.is_none()
+                {
+                    ctx.report("FEATURES_AND_DESIGN_SPACE is set but 'feature_count' is None")
+                }
+            });
             ctx.in_field("feature_tags", |ctx| {
-                if self.feature_tags.len() > (u8::MAX as usize) {
+                if !(format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                    && self.feature_tags.is_some()
+                {
+                    ctx.report("'feature_tags' is present but FEATURES_AND_DESIGN_SPACE not set")
+                }
+                if (format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                    && self.feature_tags.is_none()
+                {
+                    ctx.report("FEATURES_AND_DESIGN_SPACE is set but 'feature_tags' is None")
+                }
+                if self.feature_tags.is_some()
+                    && self.feature_tags.as_ref().unwrap().len() > (u8::MAX as usize)
+                {
                     ctx.report("array exceeds max length");
                 }
             });
+            ctx.in_field("design_space_count", |ctx| {
+                if !(format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                    && self.design_space_count.is_some()
+                {
+                    ctx.report(
+                        "'design_space_count' is present but FEATURES_AND_DESIGN_SPACE not set",
+                    )
+                }
+                if (format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                    && self.design_space_count.is_none()
+                {
+                    ctx.report("FEATURES_AND_DESIGN_SPACE is set but 'design_space_count' is None")
+                }
+            });
             ctx.in_field("design_space_segments", |ctx| {
-                if self.design_space_segments.len() > (u16::MAX as usize) {
+                if !(format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                    && self.design_space_segments.is_some()
+                {
+                    ctx.report(
+                        "'design_space_segments' is present but FEATURES_AND_DESIGN_SPACE not set",
+                    )
+                }
+                if (format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                    && self.design_space_segments.is_none()
+                {
+                    ctx.report(
+                        "FEATURES_AND_DESIGN_SPACE is set but 'design_space_segments' is None",
+                    )
+                }
+                if self.design_space_segments.is_some()
+                    && self.design_space_segments.as_ref().unwrap().len() > (u16::MAX as usize)
+                {
                     ctx.report("array exceeds max length");
                 }
                 self.design_space_segments.validate_impl(ctx);
+            });
+            ctx.in_field("copy_count", |ctx| {
+                if !(format.contains(EntryFormatFlags::COPY_INDICES)) && self.copy_count.is_some() {
+                    ctx.report("'copy_count' is present but COPY_INDICES not set")
+                }
+                if (format.contains(EntryFormatFlags::COPY_INDICES)) && self.copy_count.is_none() {
+                    ctx.report("COPY_INDICES is set but 'copy_count' is None")
+                }
+            });
+            ctx.in_field("copy_indices", |ctx| {
+                if !(format.contains(EntryFormatFlags::COPY_INDICES)) && self.copy_indices.is_some()
+                {
+                    ctx.report("'copy_indices' is present but COPY_INDICES not set")
+                }
+                if (format.contains(EntryFormatFlags::COPY_INDICES)) && self.copy_indices.is_none()
+                {
+                    ctx.report("COPY_INDICES is set but 'copy_indices' is None")
+                }
+                if self.copy_indices.is_some()
+                    && self.copy_indices.as_ref().unwrap().len() > (u8::MAX as usize)
+                {
+                    ctx.report("array exceeds max length");
+                }
+            });
+            ctx.in_field("enty_id_delta", |ctx| {
+                if !(format.contains(EntryFormatFlags::ENTRY_ID_DELTA))
+                    && self.enty_id_delta.is_some()
+                {
+                    ctx.report("'enty_id_delta' is present but ENTRY_ID_DELTA not set")
+                }
+                if (format.contains(EntryFormatFlags::ENTRY_ID_DELTA))
+                    && self.enty_id_delta.is_none()
+                {
+                    ctx.report("ENTRY_ID_DELTA is set but 'enty_id_delta' is None")
+                }
+            });
+            ctx.in_field("patch_encoding", |ctx| {
+                if !(format.contains(EntryFormatFlags::PATCH_ENCODING))
+                    && self.patch_encoding.is_some()
+                {
+                    ctx.report("'patch_encoding' is present but PATCH_ENCODING not set")
+                }
+                if (format.contains(EntryFormatFlags::PATCH_ENCODING))
+                    && self.patch_encoding.is_none()
+                {
+                    ctx.report("PATCH_ENCODING is set but 'patch_encoding' is None")
+                }
+            });
+            ctx.in_field("codepoint_data", |ctx| {
+                if !(format.contains(EntryFormatFlags::CODEPOINTS_BIT_1))
+                    && self.codepoint_data.is_some()
+                {
+                    ctx.report("'codepoint_data' is present but CODEPOINTS_BIT_1 not set")
+                }
+                if (format.contains(EntryFormatFlags::CODEPOINTS_BIT_1))
+                    && self.codepoint_data.is_none()
+                {
+                    ctx.report("CODEPOINTS_BIT_1 is set but 'codepoint_data' is None")
+                }
             });
         })
     }
 }
 
-impl<'a> FromObjRef<read_fonts::tables::ift::FeaturesAndDesignSpace<'a>>
-    for FeaturesAndDesignSpace
-{
-    fn from_obj_ref(
-        obj: &read_fonts::tables::ift::FeaturesAndDesignSpace<'a>,
-        _: FontData,
-    ) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::ift::EntryData<'a>> for EntryData {
+    fn from_obj_ref(obj: &read_fonts::tables::ift::EntryData<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
-        FeaturesAndDesignSpace {
+        EntryData {
+            format: obj.format(),
             feature_count: obj.feature_count(),
             feature_tags: obj.feature_tags().to_owned_obj(offset_data),
             design_space_count: obj.design_space_count(),
             design_space_segments: obj.design_space_segments().to_owned_obj(offset_data),
+            copy_count: obj.copy_count(),
+            copy_indices: obj.copy_indices().to_owned_obj(offset_data),
+            enty_id_delta: obj.enty_id_delta(),
+            patch_encoding: obj.patch_encoding(),
+            codepoint_data: obj.codepoint_data().to_owned_obj(offset_data),
         }
     }
 }
 
-impl<'a> FromTableRef<read_fonts::tables::ift::FeaturesAndDesignSpace<'a>>
-    for FeaturesAndDesignSpace
-{
+impl<'a> FromTableRef<read_fonts::tables::ift::EntryData<'a>> for EntryData {}
+
+impl<'a> FontRead<'a> for EntryData {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::ift::EntryData as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
 }
 
-impl<'a> FontRead<'a> for FeaturesAndDesignSpace {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::tables::ift::FeaturesAndDesignSpace as FontRead>::read(data)
-            .map(|x| x.to_owned_table())
+impl FontWrite for EntryFormatFlags {
+    fn write_into(&self, writer: &mut TableWriter) {
+        writer.write_slice(&self.bits().to_be_bytes())
     }
 }
 
