@@ -13,6 +13,7 @@ repository.workspace = true
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
+fnv = "1.0.7"
 regex = "1.10.4"
 skrifa = { workspace = true }
 thiserror = "1.0.58"

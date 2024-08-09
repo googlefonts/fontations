@@ -1,48 +1,74 @@
 //! impl subset() for hmtx
 
-use crate::{Plan, Subset, SubsetError};
-use write_fonts::read::TopLevelTable;
-use write_fonts::tables::{hmtx::Hmtx, hmtx::LongMetric};
+use crate::{estimate_subset_table_size, Plan, SubsetError, SubsetError::SubsetTableError};
+use write_fonts::types::{FWord, GlyphId, UfWord};
+use write_fonts::{
+    read::{
+        collections::IntSet,
+        tables::{hhea::Hhea, hmtx::Hmtx},
+        FontRef, TableProvider, TopLevelTable,
+    },
+    FontBuilder,
+};
 
-impl Subset for Hmtx {
-    fn subset(&mut self, plan: &Plan) -> Result<bool, SubsetError> {
-        let gids = &plan.glyphset;
-        if gids.is_empty() {
-            return Err(SubsetError::SubsetTableError(Hmtx::TAG));
-        }
+pub fn subset_hmtx_hhea(
+    font: &FontRef,
+    plan: &Plan,
+    builder: &mut FontBuilder,
+) -> Result<(), SubsetError> {
+    let hmtx = font.hmtx().or(Err(SubsetTableError(Hmtx::TAG)))?;
 
-        let num_long_metrics = plan.num_h_metrics as usize;
-        let mut new_metrics = Vec::with_capacity(num_long_metrics);
-        let mut new_side_bearings = Vec::new();
-        for gid in gids.iter() {
-            let glyph_id = gid.to_u32() as usize;
-            let side_bearing =
-                get_gid_side_bearing(&self.h_metrics, &self.left_side_bearings, glyph_id);
-            if glyph_id < num_long_metrics {
-                let advance = get_gid_advance(&self.h_metrics, glyph_id);
-                new_metrics.push(LongMetric {
-                    advance,
-                    side_bearing,
-                });
-            } else {
-                new_side_bearings.push(side_bearing);
-            }
-        }
+    let gids = &plan.glyphset;
+    let last_gid = gids.last().ok_or(SubsetTableError(Hmtx::TAG))?;
 
-        self.h_metrics = new_metrics;
-        self.left_side_bearings = new_side_bearings;
-
-        Ok(true)
+    let h_metrics = hmtx.h_metrics();
+    let side_bearings = hmtx.left_side_bearings();
+    if last_gid.to_u32() as usize >= h_metrics.len() + side_bearings.len() {
+        return Err(SubsetTableError(Hmtx::TAG));
     }
+
+    let hmtx_cap = estimate_subset_table_size(font, Hmtx::TAG, plan);
+    let mut hmtx_out = Vec::with_capacity(hmtx_cap);
+    let new_num_h_metrics = compute_new_num_h_metrics(&hmtx, gids);
+
+    for (new_gid, old_gid) in &plan.new_to_old_gid_list {
+        if (new_gid.to_u32() as usize) < new_num_h_metrics {
+            let advance = UfWord::from(hmtx.advance(*old_gid).unwrap());
+            let lsb = FWord::from(hmtx.side_bearing(*old_gid).unwrap());
+            hmtx_out.extend_from_slice(&advance.to_be_bytes());
+            hmtx_out.extend_from_slice(&lsb.to_be_bytes());
+        } else {
+            let lsb = FWord::from(hmtx.side_bearing(*old_gid).unwrap());
+            hmtx_out.extend_from_slice(&lsb.to_be_bytes());
+        }
+    }
+
+    let Ok(hhea) = font.hhea() else {
+        builder.add_raw(Hmtx::TAG, hmtx_out);
+        return Ok(());
+    };
+
+    let mut hhea_out = hhea.offset_data().as_bytes().to_owned();
+    let new_num_h_metrics = (new_num_h_metrics as u16).to_be_bytes();
+    hhea_out
+        .get_mut(34..36)
+        .unwrap()
+        .clone_from_slice(&new_num_h_metrics);
+
+    builder.add_raw(Hmtx::TAG, hmtx_out);
+    builder.add_raw(Hhea::TAG, hhea_out);
+    Ok(())
 }
 
-fn get_gid_advance(metrics: &[LongMetric], gid: usize) -> u16 {
-    metrics.get(gid).or_else(|| metrics.last()).unwrap().advance
-}
+fn compute_new_num_h_metrics(hmtx: &Hmtx, gids: &IntSet<GlyphId>) -> usize {
+    let num_long_metrics = gids.len().min(0xFFFF) as usize;
+    let last_gid = gids.last().unwrap();
+    let last_advance = hmtx.advance(last_gid).unwrap();
 
-fn get_gid_side_bearing(metrics: &[LongMetric], side_bearings: &[i16], gid: usize) -> i16 {
-    match metrics.get(gid) {
-        Some(long_metric) => long_metric.side_bearing,
-        None => *side_bearings.get(gid - metrics.len()).unwrap(),
-    }
+    let num_skippable_glyphs = gids
+        .iter()
+        .rev()
+        .take_while(|gid| hmtx.advance(*gid).unwrap() == last_advance)
+        .count();
+    (num_long_metrics - num_skippable_glyphs + 1).max(1)
 }
