@@ -74,6 +74,18 @@ impl<'a> PatchMapFormat1<'a> {
     }
 }
 
+impl<'a> PatchMapFormat2<'a> {
+    pub fn get_compatibility_id(&self) -> [u32; 4] {
+        let fixed_array: &[BigEndian<u32>; 4] = self.compatibility_id().try_into().unwrap();
+        fixed_array.map(|x| x.get())
+    }
+
+    pub fn uri_template_as_string(&self) -> Result<&str, ReadError> {
+        str::from_utf8(self.uri_template())
+            .map_err(|_| ReadError::MalformedData("Invalid UTF8 encoding for uri template."))
+    }
+}
+
 impl<'a> FeatureMap<'a> {
     pub fn entry_records_size(&self, max_entry_index: u16) -> Result<usize, ReadError> {
         let field_width = if max_entry_index < 256 { 1 } else { 2 };

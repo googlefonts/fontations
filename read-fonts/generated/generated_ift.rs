@@ -906,6 +906,289 @@ impl<'a> std::fmt::Debug for MappingEntries<'a> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct EntryDataMarker {
+    feature_count_byte_start: Option<usize>,
+    feature_tags_byte_start: Option<usize>,
+    feature_tags_byte_len: Option<usize>,
+    design_space_count_byte_start: Option<usize>,
+    design_space_segments_byte_start: Option<usize>,
+    design_space_segments_byte_len: Option<usize>,
+    copy_count_byte_start: Option<usize>,
+    copy_indices_byte_start: Option<usize>,
+    copy_indices_byte_len: Option<usize>,
+    enty_id_delta_byte_start: Option<usize>,
+    patch_encoding_byte_start: Option<usize>,
+    codepoint_data_byte_start: Option<usize>,
+    codepoint_data_byte_len: Option<usize>,
+}
+
+impl EntryDataMarker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + EntryFormatFlags::RAW_BYTE_LEN
+    }
+    fn feature_count_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.feature_count_byte_start?;
+        Some(start..start + u8::RAW_BYTE_LEN)
+    }
+    fn feature_tags_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.feature_tags_byte_start?;
+        Some(start..start + self.feature_tags_byte_len?)
+    }
+    fn design_space_count_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.design_space_count_byte_start?;
+        Some(start..start + u16::RAW_BYTE_LEN)
+    }
+    fn design_space_segments_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.design_space_segments_byte_start?;
+        Some(start..start + self.design_space_segments_byte_len?)
+    }
+    fn copy_count_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.copy_count_byte_start?;
+        Some(start..start + u8::RAW_BYTE_LEN)
+    }
+    fn copy_indices_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.copy_indices_byte_start?;
+        Some(start..start + self.copy_indices_byte_len?)
+    }
+    fn enty_id_delta_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.enty_id_delta_byte_start?;
+        Some(start..start + Uint24::RAW_BYTE_LEN)
+    }
+    fn patch_encoding_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.patch_encoding_byte_start?;
+        Some(start..start + u8::RAW_BYTE_LEN)
+    }
+    fn codepoint_data_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.codepoint_data_byte_start?;
+        Some(start..start + self.codepoint_data_byte_len?)
+    }
+}
+
+impl<'a> FontRead<'a> for EntryData<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let format: EntryFormatFlags = cursor.read()?;
+        let feature_count_byte_start = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| cursor.position())
+            .transpose()?;
+        let feature_count = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| cursor.read::<u8>())
+            .transpose()?
+            .unwrap_or(0);
+        let feature_tags_byte_start = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| cursor.position())
+            .transpose()?;
+        let feature_tags_byte_len = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then_some(
+                (feature_count as usize)
+                    .checked_mul(Tag::RAW_BYTE_LEN)
+                    .ok_or(ReadError::OutOfBounds)?,
+            );
+        if let Some(value) = feature_tags_byte_len {
+            cursor.advance_by(value);
+        }
+        let design_space_count_byte_start = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| cursor.position())
+            .transpose()?;
+        let design_space_count = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| cursor.read::<u16>())
+            .transpose()?
+            .unwrap_or(0);
+        let design_space_segments_byte_start = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| cursor.position())
+            .transpose()?;
+        let design_space_segments_byte_len = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then_some(
+                (design_space_count as usize)
+                    .checked_mul(DesignSpaceSegment::RAW_BYTE_LEN)
+                    .ok_or(ReadError::OutOfBounds)?,
+            );
+        if let Some(value) = design_space_segments_byte_len {
+            cursor.advance_by(value);
+        }
+        let copy_count_byte_start = format
+            .contains(EntryFormatFlags::COPY_INDICES)
+            .then(|| cursor.position())
+            .transpose()?;
+        let copy_count = format
+            .contains(EntryFormatFlags::COPY_INDICES)
+            .then(|| cursor.read::<u8>())
+            .transpose()?
+            .unwrap_or(0);
+        let copy_indices_byte_start = format
+            .contains(EntryFormatFlags::COPY_INDICES)
+            .then(|| cursor.position())
+            .transpose()?;
+        let copy_indices_byte_len = format.contains(EntryFormatFlags::COPY_INDICES).then_some(
+            (copy_count as usize)
+                .checked_mul(Uint24::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?,
+        );
+        if let Some(value) = copy_indices_byte_len {
+            cursor.advance_by(value);
+        }
+        let enty_id_delta_byte_start = format
+            .contains(EntryFormatFlags::ENTRY_ID_DELTA)
+            .then(|| cursor.position())
+            .transpose()?;
+        format
+            .contains(EntryFormatFlags::ENTRY_ID_DELTA)
+            .then(|| cursor.advance::<Uint24>());
+        let patch_encoding_byte_start = format
+            .contains(EntryFormatFlags::PATCH_ENCODING)
+            .then(|| cursor.position())
+            .transpose()?;
+        format
+            .contains(EntryFormatFlags::PATCH_ENCODING)
+            .then(|| cursor.advance::<u8>());
+        let codepoint_data_byte_start = format
+            .contains(EntryFormatFlags::CODEPOINTS_BIT_1)
+            .then(|| cursor.position())
+            .transpose()?;
+        let codepoint_data_byte_len = format
+            .contains(EntryFormatFlags::CODEPOINTS_BIT_1)
+            .then_some(cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN);
+        if let Some(value) = codepoint_data_byte_len {
+            cursor.advance_by(value);
+        }
+        cursor.finish(EntryDataMarker {
+            feature_count_byte_start,
+            feature_tags_byte_start,
+            feature_tags_byte_len,
+            design_space_count_byte_start,
+            design_space_segments_byte_start,
+            design_space_segments_byte_len,
+            copy_count_byte_start,
+            copy_indices_byte_start,
+            copy_indices_byte_len,
+            enty_id_delta_byte_start,
+            patch_encoding_byte_start,
+            codepoint_data_byte_start,
+            codepoint_data_byte_len,
+        })
+    }
+}
+
+pub type EntryData<'a> = TableRef<'a, EntryDataMarker>;
+
+impl<'a> EntryData<'a> {
+    pub fn format(&self) -> EntryFormatFlags {
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn feature_count(&self) -> Option<u8> {
+        let range = self.shape.feature_count_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn feature_tags(&self) -> Option<&'a [BigEndian<Tag>]> {
+        let range = self.shape.feature_tags_byte_range()?;
+        Some(self.data.read_array(range).unwrap())
+    }
+
+    pub fn design_space_count(&self) -> Option<u16> {
+        let range = self.shape.design_space_count_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn design_space_segments(&self) -> Option<&'a [DesignSpaceSegment]> {
+        let range = self.shape.design_space_segments_byte_range()?;
+        Some(self.data.read_array(range).unwrap())
+    }
+
+    pub fn copy_count(&self) -> Option<u8> {
+        let range = self.shape.copy_count_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn copy_indices(&self) -> Option<&'a [BigEndian<Uint24>]> {
+        let range = self.shape.copy_indices_byte_range()?;
+        Some(self.data.read_array(range).unwrap())
+    }
+
+    pub fn enty_id_delta(&self) -> Option<Uint24> {
+        let range = self.shape.enty_id_delta_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn patch_encoding(&self) -> Option<u8> {
+        let range = self.shape.patch_encoding_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn codepoint_data(&self) -> Option<&'a [u8]> {
+        let range = self.shape.codepoint_data_byte_range()?;
+        Some(self.data.read_array(range).unwrap())
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for EntryData<'a> {
+    fn type_name(&self) -> &str {
+        "EntryData"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let format = self.format();
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize if format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => {
+                Some(Field::new("feature_count", self.feature_count().unwrap()))
+            }
+            2usize if format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => {
+                Some(Field::new("feature_tags", self.feature_tags().unwrap()))
+            }
+            3usize if format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => Some(
+                Field::new("design_space_count", self.design_space_count().unwrap()),
+            ),
+            4usize if format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => {
+                Some(Field::new(
+                    "design_space_segments",
+                    traversal::FieldType::array_of_records(
+                        stringify!(DesignSpaceSegment),
+                        self.design_space_segments().unwrap(),
+                        self.offset_data(),
+                    ),
+                ))
+            }
+            5usize if format.contains(EntryFormatFlags::COPY_INDICES) => {
+                Some(Field::new("copy_count", self.copy_count().unwrap()))
+            }
+            6usize if format.contains(EntryFormatFlags::COPY_INDICES) => {
+                Some(Field::new("copy_indices", self.copy_indices().unwrap()))
+            }
+            7usize if format.contains(EntryFormatFlags::ENTRY_ID_DELTA) => {
+                Some(Field::new("enty_id_delta", self.enty_id_delta().unwrap()))
+            }
+            8usize if format.contains(EntryFormatFlags::PATCH_ENCODING) => {
+                Some(Field::new("patch_encoding", self.patch_encoding().unwrap()))
+            }
+            9usize if format.contains(EntryFormatFlags::CODEPOINTS_BIT_1) => {
+                Some(Field::new("codepoint_data", self.codepoint_data().unwrap()))
+            }
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for EntryData<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
@@ -1229,168 +1512,6 @@ impl font_types::Scalar for EntryFormatFlags {
 impl<'a> From<EntryFormatFlags> for FieldType<'a> {
     fn from(src: EntryFormatFlags) -> FieldType<'a> {
         src.bits().into()
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct EntryMarker {
-    data_byte_len: usize,
-}
-
-impl EntryMarker {
-    fn format_flags_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + EntryFormatFlags::RAW_BYTE_LEN
-    }
-    fn data_byte_range(&self) -> Range<usize> {
-        let start = self.format_flags_byte_range().end;
-        start..start + self.data_byte_len
-    }
-}
-
-impl<'a> FontRead<'a> for Entry<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<EntryFormatFlags>();
-        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(data_byte_len);
-        cursor.finish(EntryMarker { data_byte_len })
-    }
-}
-
-pub type Entry<'a> = TableRef<'a, EntryMarker>;
-
-impl<'a> Entry<'a> {
-    pub fn format_flags(&self) -> EntryFormatFlags {
-        let range = self.shape.format_flags_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    pub fn data(&self) -> &'a [u8] {
-        let range = self.shape.data_byte_range();
-        self.data.read_array(range).unwrap()
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for Entry<'a> {
-    fn type_name(&self) -> &str {
-        "Entry"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format_flags", self.format_flags())),
-            1usize => Some(Field::new("data", self.data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for Entry<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct FeaturesAndDesignSpaceMarker {
-    feature_tags_byte_len: usize,
-    design_space_segments_byte_len: usize,
-}
-
-impl FeaturesAndDesignSpaceMarker {
-    fn feature_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-    fn feature_tags_byte_range(&self) -> Range<usize> {
-        let start = self.feature_count_byte_range().end;
-        start..start + self.feature_tags_byte_len
-    }
-    fn design_space_count_byte_range(&self) -> Range<usize> {
-        let start = self.feature_tags_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-    fn design_space_segments_byte_range(&self) -> Range<usize> {
-        let start = self.design_space_count_byte_range().end;
-        start..start + self.design_space_segments_byte_len
-    }
-}
-
-impl<'a> FontRead<'a> for FeaturesAndDesignSpace<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let feature_count: u8 = cursor.read()?;
-        let feature_tags_byte_len = (feature_count as usize)
-            .checked_mul(Tag::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(feature_tags_byte_len);
-        let design_space_count: u16 = cursor.read()?;
-        let design_space_segments_byte_len = (design_space_count as usize)
-            .checked_mul(DesignSpaceSegment::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(design_space_segments_byte_len);
-        cursor.finish(FeaturesAndDesignSpaceMarker {
-            feature_tags_byte_len,
-            design_space_segments_byte_len,
-        })
-    }
-}
-
-pub type FeaturesAndDesignSpace<'a> = TableRef<'a, FeaturesAndDesignSpaceMarker>;
-
-impl<'a> FeaturesAndDesignSpace<'a> {
-    pub fn feature_count(&self) -> u8 {
-        let range = self.shape.feature_count_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    pub fn feature_tags(&self) -> &'a [BigEndian<Tag>] {
-        let range = self.shape.feature_tags_byte_range();
-        self.data.read_array(range).unwrap()
-    }
-
-    pub fn design_space_count(&self) -> u16 {
-        let range = self.shape.design_space_count_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    pub fn design_space_segments(&self) -> &'a [DesignSpaceSegment] {
-        let range = self.shape.design_space_segments_byte_range();
-        self.data.read_array(range).unwrap()
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for FeaturesAndDesignSpace<'a> {
-    fn type_name(&self) -> &str {
-        "FeaturesAndDesignSpace"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("feature_count", self.feature_count())),
-            1usize => Some(Field::new("feature_tags", self.feature_tags())),
-            2usize => Some(Field::new("design_space_count", self.design_space_count())),
-            3usize => Some(Field::new(
-                "design_space_segments",
-                traversal::FieldType::array_of_records(
-                    stringify!(DesignSpaceSegment),
-                    self.design_space_segments(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for FeaturesAndDesignSpace<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 

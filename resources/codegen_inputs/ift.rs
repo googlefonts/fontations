@@ -140,6 +140,42 @@ table MappingEntries {
   entry_data: [u8],
 }
 
+table EntryData {
+  format: EntryFormatFlags,
+
+  // FEATURES_AND_DESIGN_SPACE
+  #[if_flag($format, EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)]
+  feature_count: u8,
+  #[if_flag($format, EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)]
+  #[count($feature_count)]
+  feature_tags: [Tag],
+
+  #[if_flag($format, EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)]
+  design_space_count: u16,
+  #[if_flag($format, EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)]
+  #[count($design_space_count)]
+  design_space_segments: [DesignSpaceSegment],
+
+  // COPY_INDICES
+  #[if_flag($format, EntryFormatFlags::COPY_INDICES)]
+  copy_count: u8,
+  #[if_flag($format, EntryFormatFlags::COPY_INDICES)]
+  #[count($copy_count)]
+  copy_indices: [Uint24],
+
+  // ENTRY_ID_DELTA
+  // TODO id string length
+  #[if_flag($format, EntryFormatFlags::ENTRY_ID_DELTA)]
+  enty_id_delta: Uint24, // TODO should be Int24
+
+  #[if_flag($format, EntryFormatFlags::PATCH_ENCODING)]
+  patch_encoding: u8,
+
+  #[if_flag($format, EntryFormatFlags::CODEPOINTS_BIT_1)]
+  #[count(..)]
+  codepoint_data: [u8],
+}
+
 // See <https://w3c.github.io/IFT/Overview.html#mapping-entry-formatflags>
 flags u8 EntryFormatFlags {
   // Fields specifying features and design space are present.
@@ -162,21 +198,7 @@ flags u8 EntryFormatFlags {
   IGNORED = 0b01000000,
 }
 
-table Entry {
-  format_flags: EntryFormatFlags,
-  #[count(..)]
-  data: [u8],
-}
 
-table FeaturesAndDesignSpace {
-  feature_count: u8,
-  #[count($feature_count)]
-  feature_tags: [Tag],
-
-  design_space_count: u16,
-  #[count($design_space_count)]
-  design_space_segments: [DesignSpaceSegment],
-}
 
 table CopyIndices {
   copy_count: u8,

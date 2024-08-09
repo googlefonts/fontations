@@ -7,10 +7,17 @@ use std::collections::BTreeSet;
 
 use crate::GlyphId;
 use crate::Tag;
+use raw::tables::ift::DesignSpaceSegment;
+use raw::types::FixedSize;
+use raw::types::Scalar;
 use raw::types::Uint24;
 use raw::FontData;
+use raw::FontRead;
 use read_fonts::{
-    tables::ift::{EntryMapRecord, Ift, PatchMapFormat1},
+    tables::ift::{
+        EntryData, EntryFormatFlags, EntryMapRecord, FeaturesAndDesignSpace, Ift, PatchMapFormat1,
+        PatchMapFormat2,
+    },
     ReadError, TableProvider,
 };
 
@@ -244,6 +251,51 @@ fn intersect_format1_feature_map(
     Ok(())
 }
 
+fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Entry>, ReadError> {
+    let compat_id = map.get_compatibility_id();
+    let uri_template = map.uri_template_as_string()?;
+    let entries_data = map.entries()?.entry_data();
+    let default_encoding = PatchEncoding::from_format_number(map.default_patch_encoding())
+        .ok_or(ReadError::MalformedData("Invalid encoding format number."))?;
+
+    let mut entry_count = map.entry_count().to_u32();
+    let mut entries_data = FontData::new(entries_data);
+    let mut entries: Vec<Entry> = vec![];
+
+    while entry_count > 0 {
+        let (entry, new_entries_data) =
+            decode_format2_entry(entries_data, &compat_id, uri_template, &default_encoding)?;
+        entries.push(entry);
+        entries_data = new_entries_data;
+        entry_count -= 1;
+    }
+
+    Ok(entries)
+}
+
+fn decode_format2_entry<'a>(
+    data: FontData<'a>,
+    compat_id: &[u32; 4],
+    uri_template: &str,
+    default_encoding: &PatchEncoding,
+) -> Result<(Entry, FontData<'a>), ReadError> {
+    let entry_data = EntryData::read(data)?;
+
+    let mut entry = Entry::new(uri_template, compat_id, default_encoding);
+
+    if let Some(features) = entry_data.feature_tags() {
+        entry
+            .feature_tags
+            .extend(features.into_iter().map(|t| t.get()));
+    }
+
+    // TODO codepoints
+
+    // TODO XXXXX
+
+    Ok((entry, data))
+}
+
 /// Models the encoding type for a incremental font transfer patch.
 /// See: <https://w3c.github.io/IFT/Overview.html#font-patch-formats-summary>
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Copy)]
@@ -279,7 +331,7 @@ impl PatchEncoding {
 /// the numeric index is supported.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct PatchUri {
-    template: String,
+    template: String, // TODO: Make this a reference?
     index: u32,
     encoding: PatchEncoding,
 }
@@ -290,6 +342,32 @@ impl PatchUri {
             template: uri_template.to_string(),
             index: entry_index,
             encoding,
+        }
+    }
+}
+
+/// Stores a materialized version of an IFT patchmap (entry)[https://w3c.github.io/IFT/Overview.html#patch-map-dfn].
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+struct Entry {
+    // Key
+    codepoints: IntSet<u32>,
+    feature_tags: BTreeSet<Tag>,
+    design_space: Vec<DesignSpaceSegment>,
+
+    // Value
+    uri: PatchUri,
+    compatibility_id: [u32; 4], // TODO: Make this a reference?
+}
+
+impl Entry {
+    fn new(template: &str, compat_id: &[u32; 4], default_encoding: &PatchEncoding) -> Entry {
+        Entry {
+            codepoints: IntSet::<u32>::empty(),
+            feature_tags: BTreeSet::<Tag>::new(),
+            design_space: vec![],
+
+            uri: PatchUri::from_index(template, 0, *default_encoding),
+            compatibility_id: compat_id.clone(),
         }
     }
 }
