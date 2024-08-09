@@ -1,4 +1,6 @@
 //! impl subset() for glyf and loca
+use std::iter::zip;
+
 use crate::{
     estimate_subset_table_size, Plan,
     SubsetError::{self, SubsetTableError},
@@ -34,7 +36,6 @@ pub fn subset_glyf_loca(
     let mut subset_glyphs = Vec::with_capacity(num_output_glyphs);
     let mut max_offset: u32 = 0;
 
-    //TODO: support not_def_outline and drop_hints
     for (new_gid, old_gid) in &plan.new_to_old_gid_list {
         match loca.get_glyf(*old_gid, &glyf) {
             Ok(g) => {
@@ -65,42 +66,7 @@ pub fn subset_glyf_loca(
 
     //TODO: support force_long_loca in the plan
     let loca_format: u8 = if max_offset < 0x1FFFF { 0 } else { 1 };
-
-    let glyf_cap = estimate_subset_table_size(font, Glyf::TAG, plan);
-    let mut glyf_out = Vec::with_capacity(glyf_cap);
-
-    let loca_cap = estimate_subset_table_size(font, Loca::TAG, plan);
-    let mut loca_out: Vec<u8> = Vec::with_capacity(loca_cap);
-
-    if loca_format == 0 {
-        loca_out.extend_from_slice(&0_u16.to_be_bytes());
-        let mut offset: u16 = 0;
-        for g in &subset_glyphs {
-            let padded_len = padded_size(g.len());
-            offset += padded_len as u16;
-            let glyph_offset = offset >> 1;
-            loca_out.extend_from_slice(&glyph_offset.to_be_bytes());
-            glyf_out.extend_from_slice(g);
-            if padded_len > g.len() {
-                glyf_out.extend_from_slice(&[0]);
-            }
-        }
-    } else {
-        loca_out.extend_from_slice(&0_u32.to_be_bytes());
-        let mut offset: u32 = 0;
-        for g in &subset_glyphs {
-            offset += g.len() as u32;
-            loca_out.extend_from_slice(&offset.to_be_bytes());
-            glyf_out.extend_from_slice(g);
-        }
-    }
-
-    // As a special case when all glyph in the font are empty, add a zero byte to the table,
-    // so that OTS doesn’t reject it, and to make the table work on Windows as well.
-    // See https://github.com/khaledhosny/ots/issues/52
-    if glyf_out.is_empty() {
-        glyf_out.extend_from_slice(&[0]);
-    }
+    let (glyf_out, loca_out) = write_glyf_loca(font, plan, loca_format, &subset_glyphs);
 
     let head_out = subset_head(&head, loca_format);
 
@@ -112,6 +78,89 @@ pub fn subset_glyf_loca(
 
 fn padded_size(len: usize) -> usize {
     len + len % 2
+}
+
+fn write_glyf_loca(
+    font: &FontRef,
+    plan: &Plan,
+    loca_format: u8,
+    subset_glyphs: &[Vec<u8>],
+) -> (Vec<u8>, Vec<u8>) {
+    let loca_cap = estimate_subset_table_size(font, Loca::TAG, plan);
+    let mut loca_out: Vec<u8> = Vec::with_capacity(loca_cap);
+
+    let glyf_cap = estimate_subset_table_size(font, Glyf::TAG, plan);
+    let mut glyf_out = Vec::with_capacity(glyf_cap);
+
+    if loca_format == 0 {
+        loca_out.extend_from_slice(&0_u16.to_be_bytes());
+    } else {
+        loca_out.extend_from_slice(&0_u32.to_be_bytes());
+    }
+
+    let mut last: u32 = 0;
+    if loca_format == 0 {
+        let mut offset: u16 = 0;
+        let mut value = 0_u16.to_be_bytes();
+        for ((new_gid, _), i) in zip(&plan.new_to_old_gid_list, 0u16..) {
+            let gid = new_gid.to_u32();
+
+            while last < gid {
+                loca_out.extend_from_slice(&value);
+                last += 1;
+            }
+            let g = &subset_glyphs[i as usize];
+            let padded_len = padded_size(g.len());
+            offset += padded_len as u16;
+            value = (offset >> 1).to_be_bytes();
+            loca_out.extend_from_slice(&value);
+            glyf_out.extend_from_slice(g);
+            if padded_len > g.len() {
+                glyf_out.extend_from_slice(&[0]);
+            }
+
+            last += 1;
+        }
+
+        while last < plan.num_output_glyphs as u32 {
+            loca_out.extend_from_slice(&value);
+            last += 1;
+        }
+    } else {
+        let mut offset: u32 = 0;
+        let mut value = 0_u32.to_be_bytes();
+        for ((new_gid, _), i) in zip(&plan.new_to_old_gid_list, 0u16..) {
+            let gid = new_gid.to_u32();
+
+            while last < gid {
+                loca_out.extend_from_slice(&value);
+                last += 1;
+            }
+            let g = &subset_glyphs[i as usize];
+            let padded_len = padded_size(g.len());
+            offset += padded_len as u32;
+            value = offset.to_be_bytes();
+            loca_out.extend_from_slice(&value);
+
+            glyf_out.extend_from_slice(g);
+
+            last += 1;
+        }
+
+        while last < plan.num_output_glyphs as u32 {
+            loca_out.extend_from_slice(&value);
+            last += 1;
+        }
+    }
+
+    // As a special case when all glyph in the font are empty, add a zero byte to the table,
+    // so that OTS doesn’t reject it, and to make the table work on Windows as well.
+    // See https://github.com/khaledhosny/ots/issues/52
+    if glyf_out.is_empty() {
+        glyf_out.extend_from_slice(&[0]);
+    }
+
+    (glyf_out, loca_out)
 }
 
 fn subset_glyph(glyph: &Glyph, plan: &Plan) -> Vec<u8> {
