@@ -3,9 +3,13 @@
 use super::{
     super::{HintingMode, LcdLayout},
     axis::Dimension,
+    style::{GlyphStyleMap, StyleClass},
 };
-use crate::collections::SmallVec;
-use raw::types::Fixed;
+use crate::{collections::SmallVec, FontRef};
+use alloc::vec::Vec;
+use raw::types::{F2Dot14, Fixed, GlyphId};
+#[cfg(feature = "std")]
+use std::sync::RwLock;
 
 /// Maximum number of widths, same for Latin and CJK.
 ///
@@ -66,6 +70,75 @@ pub(crate) struct UnscaledStyleMetrics {
     pub digits_have_same_width: bool,
     /// Per-dimension unscaled metrics.
     pub axes: [UnscaledAxisMetrics; 2],
+}
+
+/// The set of unscaled style metrics for a single font.
+///
+/// For a variable font, this is dependent on the location in variation space.
+#[derive(Debug)]
+pub(crate) enum UnscaledStyleMetricsSet {
+    Precomputed(Vec<UnscaledStyleMetrics>),
+    #[cfg(feature = "std")]
+    Lazy(RwLock<Vec<Option<UnscaledStyleMetrics>>>),
+}
+
+impl UnscaledStyleMetricsSet {
+    /// Creates a precomputed style metrics set containing all metrics
+    /// required by the glyph map.
+    pub fn precomputed(font: &FontRef, coords: &[F2Dot14], style_map: &GlyphStyleMap) -> Self {
+        // The metrics_styles() iterator does not report exact size so we
+        // preallocate and extend here rather than collect to avoid
+        // over allocating memory.
+        let mut vec = Vec::with_capacity(style_map.metrics_count());
+        vec.extend(
+            style_map
+                .metrics_styles()
+                .map(|style| super::latin::compute_unscaled_style_metrics(font, coords, style)),
+        );
+        Self::Precomputed(vec)
+    }
+
+    /// Creates an unscaled style metrics set where each entry will be
+    /// initialized as needed.
+    #[cfg(feature = "std")]
+    pub fn lazy(style_map: &GlyphStyleMap) -> Self {
+        let vec = vec![None; style_map.metrics_count()];
+        Self::Lazy(RwLock::new(vec))
+    }
+
+    /// Returns the unscaled style metrics for the given style map and glyph
+    /// identifier.
+    pub fn get(
+        &self,
+        font: &FontRef,
+        coords: &[F2Dot14],
+        style_map: &GlyphStyleMap,
+        glyph_id: GlyphId,
+    ) -> Option<UnscaledStyleMetrics> {
+        let style = style_map.style(glyph_id)?;
+        let index = style_map.metrics_index(style)?;
+        match self {
+            Self::Precomputed(metrics) => metrics.get(index).cloned(),
+            #[cfg(feature = "std")]
+            Self::Lazy(lazy) => {
+                let read = lazy.read().unwrap();
+                let entry = read.get(index)?;
+                if let Some(metrics) = &entry {
+                    return Some(metrics.clone());
+                }
+                core::mem::drop(read);
+                // The std RwLock doesn't support upgrading and contention is
+                // expected to be low, so let's just race to compute the new
+                // metrics.
+                let style_class = style.style_class()?;
+                let metrics =
+                    super::latin::compute_unscaled_style_metrics(font, coords, style_class);
+                let mut entry = lazy.write().unwrap();
+                *entry.get_mut(index)? = Some(metrics.clone());
+                Some(metrics)
+            }
+        }
+    }
 }
 
 /// Scaled metrics for a single style and script.
@@ -283,7 +356,10 @@ pub(crate) fn pix_round(a: i32) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{super::style::STYLE_CLASSES, *};
+    use crate::MetadataProvider;
+    use raw::TableProvider;
+    use std::sync::Arc;
 
     #[test]
     fn sort_widths() {
@@ -302,5 +378,72 @@ mod tests {
         }
         sort_and_quantize_widths(&mut widths2, threshold);
         widths2.into_iter().collect()
+    }
+
+    #[test]
+    fn precomputed_style_set() {
+        let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
+        let coords = &[];
+        let glyph_count = font.maxp().unwrap().num_glyphs() as u32;
+        let style_map = GlyphStyleMap::new(glyph_count, &font.charmap());
+        let style_set = UnscaledStyleMetricsSet::precomputed(&font, coords, &style_map);
+        let UnscaledStyleMetricsSet::Precomputed(set) = &style_set else {
+            panic!("we definitely made a precomputed style set");
+        };
+        // This font has Latin, Hebrew and CJK (for unassigned chars) styles
+        assert_eq!(STYLE_CLASSES[set[0].class_ix as usize].name, "Latin");
+        assert_eq!(STYLE_CLASSES[set[1].class_ix as usize].name, "Hebrew");
+        assert_eq!(
+            STYLE_CLASSES[set[2].class_ix as usize].name,
+            "CJKV ideographs"
+        );
+        assert_eq!(set.len(), 3);
+    }
+
+    #[test]
+    fn lazy_style_set() {
+        let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
+        let coords = &[];
+        let glyph_count = font.maxp().unwrap().num_glyphs() as u32;
+        let style_map = GlyphStyleMap::new(glyph_count, &font.charmap());
+        let style_set = UnscaledStyleMetricsSet::lazy(&style_map);
+        let all_empty = lazy_set_presence(&style_set);
+        // Set starts out all empty
+        assert_eq!(all_empty, [false; 3]);
+        // First load a CJK glyph
+        let metrics2 = style_set
+            .get(&font, coords, &style_map, GlyphId::new(0))
+            .unwrap();
+        assert_eq!(
+            STYLE_CLASSES[metrics2.class_ix as usize].name,
+            "CJKV ideographs"
+        );
+        let only_cjk = lazy_set_presence(&style_set);
+        assert_eq!(only_cjk, [false, false, true]);
+        // Then a Hebrew glyph
+        let metrics1 = style_set
+            .get(&font, coords, &style_map, GlyphId::new(1))
+            .unwrap();
+        assert_eq!(STYLE_CLASSES[metrics1.class_ix as usize].name, "Hebrew");
+        let hebrew_and_cjk = lazy_set_presence(&style_set);
+        assert_eq!(hebrew_and_cjk, [false, true, true]);
+        // And finally a Latin glyph
+        let metrics0 = style_set
+            .get(&font, coords, &style_map, GlyphId::new(15))
+            .unwrap();
+        assert_eq!(STYLE_CLASSES[metrics0.class_ix as usize].name, "Latin");
+        let all_present = lazy_set_presence(&style_set);
+        assert_eq!(all_present, [true; 3]);
+    }
+
+    fn lazy_set_presence(style_set: &UnscaledStyleMetricsSet) -> Vec<bool> {
+        let UnscaledStyleMetricsSet::Lazy(set) = &style_set else {
+            panic!("we definitely made a lazy style set");
+        };
+        set.read()
+            .unwrap()
+            .iter()
+            .map(|opt| opt.is_some())
+            .collect()
     }
 }

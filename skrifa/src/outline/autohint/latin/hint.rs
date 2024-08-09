@@ -568,7 +568,7 @@ mod tests {
     #[test]
     fn edge_hinting() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let class = &style::SCRIPT_CLASSES[style::ScriptClass::HEBR];
+        let class = &style::STYLE_CLASSES[style::StyleClass::HEBR];
         let unscaled_metrics =
             latin::metrics::compute_unscaled_style_metrics(&font, Default::default(), class);
         let scale = metrics::Scale::new(
@@ -588,7 +588,11 @@ mod tests {
         for (dim, axis) in axes.iter_mut().enumerate() {
             latin::segments::compute_segments(&mut outline, axis);
             latin::segments::link_segments(&outline, axis, unscaled_metrics.axes[dim].max_width());
-            latin::edges::compute_edges(axis, &scaled_metrics.axes[0], class.hint_top_to_bottom);
+            latin::edges::compute_edges(
+                axis,
+                &scaled_metrics.axes[0],
+                class.script.hint_top_to_bottom,
+            );
             if dim == Axis::VERTICAL {
                 latin::edges::compute_blue_edges(
                     axis,
@@ -601,7 +605,7 @@ mod tests {
                 axis,
                 &scaled_metrics.axes[dim],
                 &scale,
-                class.hint_top_to_bottom,
+                class.script.hint_top_to_bottom,
             );
         }
         // Only pos and flags fields are modified by edge hinting

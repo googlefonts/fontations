@@ -13,7 +13,7 @@ use super::super::{
         ScaledStyleMetrics, ScaledWidth, UnscaledAxisMetrics, UnscaledBlue, UnscaledBlues,
         UnscaledStyleMetrics, WidthMetrics,
     },
-    style::{blue_flags, ScriptClass},
+    style::{blue_flags, ScriptClass, StyleClass},
 };
 use crate::{prelude::Size, MetadataProvider};
 use raw::{types::F2Dot14, FontRef};
@@ -24,10 +24,10 @@ use raw::{types::F2Dot14, FontRef};
 pub(crate) fn compute_unscaled_style_metrics(
     font: &FontRef,
     coords: &[F2Dot14],
-    style: &ScriptClass,
+    style: &StyleClass,
 ) -> UnscaledStyleMetrics {
-    let [hwidths, vwidths] = super::widths::compute_widths(font, coords, style);
-    let blues = UnscaledBlues::new_latin(font, coords, style);
+    let [hwidths, vwidths] = super::widths::compute_widths(font, coords, style.script);
+    let blues = UnscaledBlues::new_latin(font, coords, style.script);
     let charmap = font.charmap();
     let glyph_metrics = font.glyph_metrics(Size::unscaled(), coords);
     let mut digit_advance = None;
@@ -214,7 +214,7 @@ mod tests {
     #[test]
     fn scaled_metrics() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let class = &style::SCRIPT_CLASSES[ScriptClass::HEBR];
+        let class = &style::STYLE_CLASSES[StyleClass::HEBR];
         let unscaled_metrics = compute_unscaled_style_metrics(&font, Default::default(), class);
         let scale = Scale::new(
             16.0,
