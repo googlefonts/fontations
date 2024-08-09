@@ -454,6 +454,13 @@ pub(crate) fn traverse_with_callbacks(
                         }
                     }
 
+                    // https://learn.microsoft.com/en-us/typography/opentype/spec/colr#sweep-gradients
+                    // "If the color line's extend mode is reflect or repeat
+                    // and start and end angle are equal, nothing shall be drawn."
+                    if start_angle_scaled == end_angle_scaled && extend != &Extend::Pad {
+                        return Ok(());
+                    }
+
                     painter.fill(Brush::SweepGradient {
                         c0: Point::new(*center_x, *center_y),
                         start_angle: start_angle_scaled,
