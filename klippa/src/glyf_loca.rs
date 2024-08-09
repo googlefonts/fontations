@@ -1,6 +1,4 @@
 //! impl subset() for glyf and loca
-use std::iter::zip;
-
 use crate::{
     estimate_subset_table_size, Plan,
     SubsetError::{self, SubsetTableError},
@@ -39,8 +37,8 @@ pub fn subset_glyf_loca(
     for (new_gid, old_gid) in &plan.new_to_old_gid_list {
         match loca.get_glyf(*old_gid, &glyf) {
             Ok(g) => {
-                if *old_gid == GlyphId::from(0u32)
-                    && *new_gid == GlyphId::from(0u32)
+                if *old_gid == GlyphId::NOTDEF
+                    && *new_gid == GlyphId::NOTDEF
                     && !plan
                         .subset_flags
                         .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
@@ -102,7 +100,7 @@ fn write_glyf_loca(
     if loca_format == 0 {
         let mut offset: u16 = 0;
         let mut value = 0_u16.to_be_bytes();
-        for ((new_gid, _), i) in zip(&plan.new_to_old_gid_list, 0u16..) {
+        for ((new_gid, _), i) in plan.new_to_old_gid_list.iter().zip(0u16..) {
             let gid = new_gid.to_u32();
 
             while last < gid {
@@ -129,7 +127,7 @@ fn write_glyf_loca(
     } else {
         let mut offset: u32 = 0;
         let mut value = 0_u32.to_be_bytes();
-        for ((new_gid, _), i) in zip(&plan.new_to_old_gid_list, 0u16..) {
+        for ((new_gid, _), i) in plan.new_to_old_gid_list.iter().zip(0u16..) {
             let gid = new_gid.to_u32();
 
             while last < gid {
@@ -196,6 +194,7 @@ fn subset_simple_glyph(g: &SimpleGlyph, plan: &Plan) -> Vec<u8> {
         .subset_flags
         .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
     {
+        // drop hints: set instructionLength field to 0
         out[header_len - 2] = 0;
         out[header_len - 1] = 0;
     } else {
@@ -244,7 +243,7 @@ fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
                 flags.remove(CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS);
                 out.get_mut(i..i + 2)
                     .unwrap()
-                    .clone_from_slice(&flags.bits().to_be_bytes());
+                    .copy_from_slice(&flags.bits().to_be_bytes());
             }
         }
 
@@ -257,7 +256,7 @@ fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
             flags.insert(CompositeGlyphFlags::OVERLAP_COMPOUND);
             out.get_mut(i..i + 2)
                 .unwrap()
-                .clone_from_slice(&flags.bits().to_be_bytes());
+                .copy_from_slice(&flags.bits().to_be_bytes());
         }
 
         let old_gid = u16::from_be_bytes([out[i + 2], out[i + 3]]);

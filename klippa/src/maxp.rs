@@ -21,7 +21,7 @@ pub fn subset_maxp(
     let mut out = maxp.offset_data().as_bytes().to_owned();
     out.get_mut(4..6)
         .unwrap()
-        .clone_from_slice(&num_glyphs.to_be_bytes());
+        .copy_from_slice(&num_glyphs.to_be_bytes());
 
     //drop hints
     if maxp.version() == Version16Dot16::VERSION_1_0
@@ -30,7 +30,7 @@ pub fn subset_maxp(
             .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
     {
         //maxZones
-        out.get_mut(14..16).unwrap().clone_from_slice(&[0, 1]);
+        out.get_mut(14..16).unwrap().copy_from_slice(&[0, 1]);
         //maxTwilightPoints..maxSizeOfInstructions
         out.get_mut(16..28).unwrap().fill(0);
     }

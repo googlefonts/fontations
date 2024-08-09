@@ -65,7 +65,7 @@ pub fn subset_hmtx_hhea(
     hhea_out
         .get_mut(34..36)
         .unwrap()
-        .clone_from_slice(&new_num_h_metrics);
+        .copy_from_slice(&new_num_h_metrics);
 
     builder.add_raw(Hmtx::TAG, hmtx_out);
     builder.add_raw(Hhea::TAG, hhea_out);
@@ -83,10 +83,10 @@ fn compute_new_num_h_metrics(
 
     while num_long_metrics > 1 {
         let gid = GlyphId::from(num_long_metrics - 2);
-        let mut advance = 0;
-        if gid_set.contains(gid) {
-            advance = hmtx.advance(gid).unwrap();
-        }
+        let advance = gid_set
+            .contains(gid)
+            .then(|| hmtx.advance(gid).unwrap())
+            .unwrap_or(0);
         if advance != last_advance {
             break;
         }
