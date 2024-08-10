@@ -6,7 +6,7 @@
 //! # Drawing a glyph
 //!
 //! Generating SVG [path commands](https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/d#path_commands)
-//! for a character (this assumes a local variable `font` of type [`FontRef`](crate::FontRef)):
+//! for a character (this assumes a local variable `font` of type [`FontRef`]):
 //!
 //! ```rust
 //! use skrifa::{
