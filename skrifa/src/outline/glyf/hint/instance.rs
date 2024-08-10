@@ -1,7 +1,7 @@
 //! Instance state for TrueType hinting.
 
 use super::{
-    super::Outlines,
+    super::GlyfScaler,
     cow_slice::CowSlice,
     definition::{Definition, DefinitionMap, DefinitionState},
     engine::Engine,
@@ -35,7 +35,7 @@ pub struct HintInstance {
 impl HintInstance {
     pub fn reconfigure(
         &mut self,
-        outlines: &Outlines,
+        outlines: &GlyfScaler,
         scale: i32,
         ppem: i32,
         mode: HintingMode,
@@ -103,7 +103,7 @@ impl HintInstance {
 
     pub fn hint(
         &self,
-        outlines: &Outlines,
+        outlines: &GlyfScaler,
         outline: &mut HintOutline,
         is_pedantic: bool,
     ) -> Result<(), HintError> {
@@ -177,7 +177,7 @@ impl HintInstance {
     }
 
     /// Captures limits, resizes buffers and scales the CVT.
-    fn setup(&mut self, outlines: &Outlines, scale: i32, coords: &[F2Dot14]) {
+    fn setup(&mut self, outlines: &GlyfScaler, scale: i32, coords: &[F2Dot14]) {
         let axis_count = outlines
             .gvar
             .as_ref()

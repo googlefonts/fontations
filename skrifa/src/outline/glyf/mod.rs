@@ -163,7 +163,7 @@ impl<'a> Outlines<'a> {
     }
 }
 
-impl<'a> Outlines<'a> {
+impl<'a> GlyfScaler<'a> {
     fn outline_rec(
         &self,
         glyph: &Glyph,
@@ -222,7 +222,7 @@ impl<'a> Outlines<'a> {
 
 trait Scaler {
     fn coords(&self) -> &[F2Dot14];
-    fn outlines(&self) -> &Outlines;
+    fn outlines(&self) -> &GlyfScaler;
     fn setup_phantom_points(
         &mut self,
         bounds: [i16; 4],
@@ -271,7 +271,7 @@ trait Scaler {
 
 /// f32 all the things. Hold your rounding. No hinting.
 pub(crate) struct HarfBuzzScaler<'a> {
-    outlines: Outlines<'a>,
+    outlines: GlyfScaler<'a>,
     memory: HarfBuzzOutlineMemory<'a>,
     coords: &'a [F2Dot14],
     point_count: usize,
@@ -289,7 +289,7 @@ pub(crate) struct HarfBuzzScaler<'a> {
 
 impl<'a> HarfBuzzScaler<'a> {
     pub(crate) fn unhinted(
-        outlines: Outlines<'a>,
+        outlines: GlyfScaler<'a>,
         outline: &'a Outline,
         buf: &'a mut [u8],
         ppem: Option<f32>,
@@ -328,7 +328,7 @@ impl<'a> HarfBuzzScaler<'a> {
 
 /// F26Dot6 coords, Fixed deltas, and a penchant for rounding
 pub(crate) struct FreeTypeScaler<'a> {
-    outlines: Outlines<'a>,
+    outlines: GlyfScaler<'a>,
     memory: FreeTypeOutlineMemory<'a>,
     coords: &'a [F2Dot14],
     point_count: usize,
@@ -349,7 +349,7 @@ pub(crate) struct FreeTypeScaler<'a> {
 
 impl<'a> FreeTypeScaler<'a> {
     pub(crate) fn unhinted(
-        outlines: Outlines<'a>,
+        outlines: GlyfScaler<'a>,
         outline: &'a Outline,
         buf: &'a mut [u8],
         ppem: Option<f32>,
@@ -375,7 +375,7 @@ impl<'a> FreeTypeScaler<'a> {
     }
 
     pub(crate) fn hinted(
-        outlines: Outlines<'a>,
+        outlines: GlyfScaler<'a>,
         outline: &'a Outline,
         buf: &'a mut [u8],
         ppem: Option<f32>,
@@ -445,7 +445,7 @@ impl<'a> Scaler for FreeTypeScaler<'a> {
         self.coords
     }
 
-    fn outlines(&self) -> &Outlines {
+    fn outlines(&self) -> &GlyfScaler {
         &self.outlines
     }
 
@@ -935,7 +935,7 @@ impl<'a> Scaler for HarfBuzzScaler<'a> {
         self.coords
     }
 
-    fn outlines(&self) -> &Outlines {
+    fn outlines(&self) -> &GlyfScaler {
         &self.outlines
     }
 

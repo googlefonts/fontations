@@ -79,6 +79,7 @@
 //! ```
 
 mod autohint;
+mod base;
 mod cff;
 mod common;
 mod glyf;
@@ -483,9 +484,9 @@ impl<'a> OutlineGlyph<'a> {
 
 #[derive(Clone)]
 enum OutlineKind<'a> {
-    Glyf(glyf::Outlines<'a>, glyf::Outline<'a>),
+    Glyf(glyf::GlyfScaler<'a>, glyf::Outline<'a>),
     // Third field is subfont index
-    Cff(cff::Outlines<'a>, GlyphId, u32),
+    Cff(cff::CffScaler<'a>, GlyphId, u32),
 }
 
 impl Debug for OutlineKind<'_> {
@@ -597,8 +598,8 @@ impl<'a> OutlineGlyphCollection<'a> {
 #[derive(Clone)]
 enum OutlineCollectionKind<'a> {
     None,
-    Glyf(glyf::Outlines<'a>),
-    Cff(cff::Outlines<'a>),
+    Glyf(glyf::GlyfScaler<'a>),
+    Cff(cff::CffScaler<'a>),
 }
 
 impl Debug for OutlineCollectionKind<'_> {
