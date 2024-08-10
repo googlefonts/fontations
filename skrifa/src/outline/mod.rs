@@ -79,6 +79,7 @@
 //! ```
 
 mod autohint;
+mod base;
 mod cff;
 mod glyf;
 mod hint;
@@ -91,7 +92,9 @@ mod testing;
 pub mod error;
 pub mod pen;
 
+use base::BaseScaler;
 pub use hint::{HintingInstance, HintingMode, LcdLayout};
+use raw::FontRef;
 #[doc(inline)]
 pub use {error::DrawError, pen::OutlinePen};
 
@@ -460,6 +463,14 @@ impl<'a> OutlineGlyph<'a> {
         }
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn base_scaler(&self) -> &BaseScaler<'a> {
+        match &self.kind {
+            OutlineKind::Glyf(glyf, ..) => &glyf.base,
+            OutlineKind::Cff(cff, ..) => &cff.base,
+        }
+    }
+
     fn units_per_em(&self) -> u16 {
         match &self.kind {
             OutlineKind::Cff(cff, ..) => cff.units_per_em(),
@@ -470,9 +481,9 @@ impl<'a> OutlineGlyph<'a> {
 
 #[derive(Clone)]
 enum OutlineKind<'a> {
-    Glyf(glyf::Outlines<'a>, glyf::Outline<'a>),
+    Glyf(glyf::GlyfScaler<'a>, glyf::Outline<'a>),
     // Third field is subfont index
-    Cff(cff::Outlines<'a>, GlyphId, u32),
+    Cff(cff::CffScaler<'a>, GlyphId, u32),
 }
 
 impl Debug for OutlineKind<'_> {
@@ -496,11 +507,15 @@ pub struct OutlineGlyphCollection<'a> {
 
 impl<'a> OutlineGlyphCollection<'a> {
     /// Creates a new outline collection for the given font.
-    pub fn new(font: &impl TableProvider<'a>) -> Self {
-        let kind = if let Some(glyf) = glyf::Outlines::new(font) {
-            OutlineCollectionKind::Glyf(glyf)
-        } else if let Ok(cff) = cff::Outlines::new(font) {
-            OutlineCollectionKind::Cff(cff)
+    pub fn new(font: &FontRef<'a>) -> Self {
+        let kind = if let Some(base) = BaseScaler::new(font) {
+            if let Some(glyf) = glyf::GlyfScaler::new(&base) {
+                OutlineCollectionKind::Glyf(glyf)
+            } else if let Some(cff) = cff::CffScaler::new(&base) {
+                OutlineCollectionKind::Cff(cff)
+            } else {
+                OutlineCollectionKind::None
+            }
         } else {
             OutlineCollectionKind::None
         };
@@ -512,16 +527,17 @@ impl<'a> OutlineGlyphCollection<'a> {
     ///
     /// Returns `None` if the font does not contain outlines in the requested
     /// format.
-    pub fn with_format(font: &impl TableProvider<'a>, format: OutlineGlyphFormat) -> Option<Self> {
+    pub fn with_format(font: &FontRef<'a>, format: OutlineGlyphFormat) -> Option<Self> {
+        let base = BaseScaler::new(font)?;
         let kind = match format {
-            OutlineGlyphFormat::Glyf => OutlineCollectionKind::Glyf(glyf::Outlines::new(font)?),
+            OutlineGlyphFormat::Glyf => OutlineCollectionKind::Glyf(glyf::GlyfScaler::new(&base)?),
             OutlineGlyphFormat::Cff => {
                 let upem = font.head().ok()?.units_per_em();
-                OutlineCollectionKind::Cff(cff::Outlines::from_cff(font.cff().ok()?, 0, upem).ok()?)
+                OutlineCollectionKind::Cff(cff::CffScaler::from_cff(&base, upem)?)
             }
             OutlineGlyphFormat::Cff2 => {
                 let upem = font.head().ok()?.units_per_em();
-                OutlineCollectionKind::Cff(cff::Outlines::from_cff2(font.cff2().ok()?, upem).ok()?)
+                OutlineCollectionKind::Cff(cff::CffScaler::from_cff2(&base, upem)?)
             }
         };
         Some(Self { kind })
@@ -571,8 +587,8 @@ impl<'a> OutlineGlyphCollection<'a> {
 #[derive(Clone)]
 enum OutlineCollectionKind<'a> {
     None,
-    Glyf(glyf::Outlines<'a>),
-    Cff(cff::Outlines<'a>),
+    Glyf(glyf::GlyfScaler<'a>),
+    Cff(cff::CffScaler<'a>),
 }
 
 impl Debug for OutlineCollectionKind<'_> {

@@ -2,12 +2,10 @@
 
 mod hint;
 
-use super::OutlinePen;
+use super::{base::BaseScaler, OutlinePen};
 use hint::{HintParams, HintState, HintingSink};
 use read_fonts::{
     tables::{
-        cff::Cff,
-        cff2::Cff2,
         postscript::{
             charstring::{self, CommandSink},
             dict, BlendState, Error, FdSelect, Index,
@@ -37,57 +35,60 @@ use std::ops::Range;
 /// [`subfont`](Self::subfont) method to create an appropriately configured
 /// subfont for that glyph.
 #[derive(Clone)]
-pub(crate) struct Outlines<'a> {
-    version: Version<'a>,
+pub(crate) struct CffScaler<'a> {
+    pub(crate) base: BaseScaler<'a>,
+    offset_data: FontData<'a>,
+    global_subrs: Index<'a>,
     top_dict: TopDict<'a>,
+    version: u16,
     units_per_em: u16,
 }
 
-impl<'a> Outlines<'a> {
+impl<'a> CffScaler<'a> {
     /// Creates a new scaler for the given font.
     ///
     /// This will choose an underlying CFF2 or CFF table from the font, in that
     /// order.
-    pub fn new(font: &impl TableProvider<'a>) -> Result<Self, Error> {
-        let units_per_em = font.head()?.units_per_em();
-        if let Ok(cff2) = font.cff2() {
-            Self::from_cff2(cff2, units_per_em)
-        } else {
-            // "The Name INDEX in the CFF data must contain only one entry;
-            // that is, there must be only one font in the CFF FontSet"
-            // So we always pass 0 for Top DICT index when reading from an
-            // OpenType font.
-            // <https://learn.microsoft.com/en-us/typography/opentype/spec/cff>
-            Self::from_cff(font.cff()?, 0, units_per_em)
-        }
+    pub fn new(base: &BaseScaler<'a>) -> Option<Self> {
+        let units_per_em = base.font.head().ok()?.units_per_em();
+        Self::from_cff2(base, units_per_em).or_else(|| Self::from_cff(base, units_per_em))
     }
 
-    pub fn from_cff(
-        cff1: Cff<'a>,
-        top_dict_index: usize,
-        units_per_em: u16,
-    ) -> Result<Self, Error> {
-        let top_dict_data = cff1.top_dicts().get(top_dict_index)?;
-        let top_dict = TopDict::new(cff1.offset_data().as_bytes(), top_dict_data, false)?;
-        Ok(Self {
-            version: Version::Version1(cff1),
+    pub fn from_cff(base: &BaseScaler<'a>, units_per_em: u16) -> Option<Self> {
+        let cff1 = base.font.cff().ok()?;
+        // "The Name INDEX in the CFF data must contain only one entry;
+        // that is, there must be only one font in the CFF FontSet"
+        // So we always pass 0 for Top DICT index when reading from an
+        // OpenType font.
+        // <https://learn.microsoft.com/en-us/typography/opentype/spec/cff>
+        let top_dict_data = cff1.top_dicts().get(0).ok()?;
+        let top_dict = TopDict::new(cff1.offset_data().as_bytes(), top_dict_data, false).ok()?;
+        Some(Self {
+            base: base.clone(),
+            offset_data: cff1.offset_data(),
+            global_subrs: cff1.global_subrs().into(),
             top_dict,
+            version: 1,
             units_per_em,
         })
     }
 
-    pub fn from_cff2(cff2: Cff2<'a>, units_per_em: u16) -> Result<Self, Error> {
+    pub fn from_cff2(base: &BaseScaler<'a>, units_per_em: u16) -> Option<Self> {
+        let cff2 = base.font.cff2().ok()?;
         let table_data = cff2.offset_data().as_bytes();
-        let top_dict = TopDict::new(table_data, cff2.top_dict_data(), true)?;
-        Ok(Self {
-            version: Version::Version2(cff2),
+        let top_dict = TopDict::new(table_data, cff2.top_dict_data(), true).ok()?;
+        Some(Self {
+            base: base.clone(),
+            offset_data: cff2.offset_data(),
+            global_subrs: cff2.global_subrs().into(),
             top_dict,
+            version: 2,
             units_per_em,
         })
     }
 
     pub fn is_cff2(&self) -> bool {
-        matches!(self.version, Version::Version2(_))
+        self.version == 2
     }
 
     pub fn units_per_em(&self) -> u16 {
@@ -96,21 +97,13 @@ impl<'a> Outlines<'a> {
 
     /// Returns the number of available glyphs.
     pub fn glyph_count(&self) -> usize {
-        self.top_dict
-            .charstrings
-            .as_ref()
-            .map(|cs| cs.count() as usize)
-            .unwrap_or_default()
+        self.top_dict.charstrings.count() as usize
     }
 
     /// Returns the number of available subfonts.
     pub fn subfont_count(&self) -> u32 {
-        self.top_dict
-            .font_dicts
-            .as_ref()
-            .map(|font_dicts| font_dicts.count())
-            // All CFF fonts have at least one logical subfont.
-            .unwrap_or(1)
+        // All CFF fonts have at least one logical subfont.
+        self.top_dict.font_dicts.count().max(1)
     }
 
     /// Returns the subfont (or Font DICT) index for the given glyph
@@ -145,7 +138,7 @@ impl<'a> Outlines<'a> {
         coords: &[F2Dot14],
     ) -> Result<Subfont, Error> {
         let private_dict_range = self.private_dict_range(index)?;
-        let private_dict_data = self.offset_data().read_array(private_dict_range.clone())?;
+        let private_dict_data = self.offset_data.read_array(private_dict_range.clone())?;
         let mut hint_params = HintParams::default();
         let mut subrs_offset = None;
         let mut store_index = 0;
@@ -212,12 +205,7 @@ impl<'a> Outlines<'a> {
         hint: bool,
         pen: &mut impl OutlinePen,
     ) -> Result<(), Error> {
-        let charstring_data = self
-            .top_dict
-            .charstrings
-            .as_ref()
-            .ok_or(Error::MissingCharstrings)?
-            .get(glyph_id.to_u32() as usize)?;
+        let charstring_data = self.top_dict.charstrings.get(glyph_id.to_u32() as usize)?;
         let subrs = subfont.subrs(self)?;
         let blend_state = subfont.blend_state(self, coords)?;
         let mut pen_sink = PenSink::new(pen);
@@ -227,7 +215,7 @@ impl<'a> Outlines<'a> {
                 HintingSink::new(&subfont.hint_state, &mut simplifying_adapter);
             charstring::evaluate(
                 charstring_data,
-                self.global_subrs(),
+                self.global_subrs.clone(),
                 subrs,
                 blend_state,
                 &mut hinting_adapter,
@@ -238,7 +226,7 @@ impl<'a> Outlines<'a> {
                 ScalingSink26Dot6::new(&mut simplifying_adapter, subfont.scale);
             charstring::evaluate(
                 charstring_data,
-                self.global_subrs(),
+                self.global_subrs.clone(),
                 subrs,
                 blend_state,
                 &mut scaling_adapter,
@@ -248,25 +236,11 @@ impl<'a> Outlines<'a> {
         Ok(())
     }
 
-    fn offset_data(&self) -> FontData<'a> {
-        match &self.version {
-            Version::Version1(cff1) => cff1.offset_data(),
-            Version::Version2(cff2) => cff2.offset_data(),
-        }
-    }
-
-    fn global_subrs(&self) -> Index<'a> {
-        match &self.version {
-            Version::Version1(cff1) => cff1.global_subrs().into(),
-            Version::Version2(cff2) => cff2.global_subrs().into(),
-        }
-    }
-
     fn private_dict_range(&self, subfont_index: u32) -> Result<Range<usize>, Error> {
-        if let Some(font_dicts) = &self.top_dict.font_dicts {
+        if self.top_dict.font_dicts.count() != 0 {
             // If we have a font dict array, extract the private dict range
             // from the font dict at the given index.
-            let font_dict_data = font_dicts.get(subfont_index as usize)?;
+            let font_dict_data = self.top_dict.font_dicts.get(subfont_index as usize)?;
             let mut range = None;
             for entry in dict::entries(font_dict_data, None) {
                 if let dict::Entry::PrivateDictRange(r) = entry? {
@@ -278,18 +252,15 @@ impl<'a> Outlines<'a> {
         } else {
             // Last chance, use the private dict range from the top dict if
             // available.
-            self.top_dict.private_dict_range.clone()
+            let range = self.top_dict.private_dict_range.clone();
+            if !range.is_empty() {
+                Some(range.start as usize..range.end as usize)
+            } else {
+                None
+            }
         }
         .ok_or(Error::MissingPrivateDict)
     }
-}
-
-#[derive(Clone)]
-enum Version<'a> {
-    /// <https://learn.microsoft.com/en-us/typography/opentype/spec/cff>
-    Version1(Cff<'a>),
-    /// <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2>
-    Version2(Cff2<'a>),
 }
 
 /// Specifies local subroutines and hinting parameters for some subset of
@@ -310,9 +281,9 @@ pub(crate) struct Subfont {
 
 impl Subfont {
     /// Returns the local subroutine index.
-    pub fn subrs<'a>(&self, scaler: &Outlines<'a>) -> Result<Option<Index<'a>>, Error> {
+    pub fn subrs<'a>(&self, scaler: &CffScaler<'a>) -> Result<Option<Index<'a>>, Error> {
         if let Some(subrs_offset) = self.subrs_offset {
-            let offset_data = scaler.offset_data().as_bytes();
+            let offset_data = scaler.offset_data.as_bytes();
             let index_data = offset_data.get(subrs_offset..).unwrap_or_default();
             Ok(Some(Index::new(index_data, self.is_cff2)?))
         } else {
@@ -324,7 +295,7 @@ impl Subfont {
     /// coordinates.
     pub fn blend_state<'a>(
         &self,
-        scaler: &Outlines<'a>,
+        scaler: &CffScaler<'a>,
         coords: &'a [F2Dot14],
     ) -> Result<Option<BlendState<'a>>, Error> {
         if let Some(var_store) = scaler.top_dict.var_store.clone() {
@@ -339,10 +310,10 @@ impl Subfont {
 /// charstring evaluation.
 #[derive(Clone, Default)]
 struct TopDict<'a> {
-    charstrings: Option<Index<'a>>,
-    font_dicts: Option<Index<'a>>,
+    charstrings: Index<'a>,
+    font_dicts: Index<'a>,
     fd_select: Option<FdSelect<'a>>,
-    private_dict_range: Option<Range<usize>>,
+    private_dict_range: Range<u32>,
     var_store: Option<ItemVariationStore<'a>>,
 }
 
@@ -352,16 +323,12 @@ impl<'a> TopDict<'a> {
         for entry in dict::entries(top_dict_data, None) {
             match entry? {
                 dict::Entry::CharstringsOffset(offset) => {
-                    items.charstrings = Some(Index::new(
-                        table_data.get(offset..).unwrap_or_default(),
-                        is_cff2,
-                    )?);
+                    items.charstrings =
+                        Index::new(table_data.get(offset..).unwrap_or_default(), is_cff2)?;
                 }
                 dict::Entry::FdArrayOffset(offset) => {
-                    items.font_dicts = Some(Index::new(
-                        table_data.get(offset..).unwrap_or_default(),
-                        is_cff2,
-                    )?);
+                    items.font_dicts =
+                        Index::new(table_data.get(offset..).unwrap_or_default(), is_cff2)?;
                 }
                 dict::Entry::FdSelectOffset(offset) => {
                     items.fd_select = Some(FdSelect::read(FontData::new(
@@ -369,7 +336,7 @@ impl<'a> TopDict<'a> {
                     ))?);
                 }
                 dict::Entry::PrivateDictRange(range) => {
-                    items.private_dict_range = Some(range);
+                    items.private_dict_range = range.start as u32..range.end as u32;
                 }
                 dict::Entry::VariationStoreOffset(offset) if is_cff2 => {
                     items.var_store = Some(ItemVariationStore::read(FontData::new(
@@ -613,6 +580,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use raw::tables::cff2::Cff2;
     use read_fonts::FontRef;
 
     #[test]
@@ -653,46 +621,43 @@ mod tests {
     #[test]
     fn read_cff_static() {
         let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
-        let cff = Outlines::new(&font).unwrap();
+        let base = BaseScaler::new(&font).unwrap();
+        let cff = CffScaler::new(&base).unwrap();
         assert!(!cff.is_cff2());
         assert!(cff.top_dict.var_store.is_none());
-        assert!(cff.top_dict.font_dicts.is_none());
-        assert!(cff.top_dict.private_dict_range.is_some());
+        assert!(cff.top_dict.font_dicts.count() == 0);
+        assert!(!cff.top_dict.private_dict_range.is_empty());
         assert!(cff.top_dict.fd_select.is_none());
         assert_eq!(cff.subfont_count(), 1);
         assert_eq!(cff.subfont_index(GlyphId::new(1)), 0);
-        assert_eq!(cff.global_subrs().count(), 17);
+        assert_eq!(cff.global_subrs.count(), 17);
     }
 
     #[test]
     fn read_cff2_static() {
         let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
-        let cff = Outlines::new(&font).unwrap();
+        let base = BaseScaler::new(&font).unwrap();
+        let cff = CffScaler::new(&base).unwrap();
         assert!(cff.is_cff2());
         assert!(cff.top_dict.var_store.is_some());
-        assert!(cff.top_dict.font_dicts.is_some());
-        assert!(cff.top_dict.private_dict_range.is_none());
+        assert!(cff.top_dict.font_dicts.count() != 0);
+        assert!(cff.top_dict.private_dict_range.is_empty());
         assert!(cff.top_dict.fd_select.is_none());
         assert_eq!(cff.subfont_count(), 1);
         assert_eq!(cff.subfont_index(GlyphId::new(1)), 0);
-        assert_eq!(cff.global_subrs().count(), 0);
+        assert_eq!(cff.global_subrs.count(), 0);
     }
 
     #[test]
     fn read_example_cff2_table() {
-        let cff = Outlines::from_cff2(
-            Cff2::read(FontData::new(font_test_data::cff2::EXAMPLE)).unwrap(),
-            1000,
-        )
-        .unwrap();
-        assert!(cff.is_cff2());
-        assert!(cff.top_dict.var_store.is_some());
-        assert!(cff.top_dict.font_dicts.is_some());
-        assert!(cff.top_dict.private_dict_range.is_none());
-        assert!(cff.top_dict.fd_select.is_none());
-        assert_eq!(cff.subfont_count(), 1);
-        assert_eq!(cff.subfont_index(GlyphId::new(1)), 0);
-        assert_eq!(cff.global_subrs().count(), 0);
+        let cff2 = Cff2::read(FontData::new(font_test_data::cff2::EXAMPLE)).unwrap();
+        let top_dict =
+            TopDict::new(cff2.offset_data().as_bytes(), cff2.top_dict_data(), true).unwrap();
+        assert!(top_dict.var_store.is_some());
+        assert!(top_dict.font_dicts.count() != 0);
+        assert!(top_dict.private_dict_range.is_empty());
+        assert!(top_dict.fd_select.is_none());
+        assert_eq!(cff2.global_subrs().count(), 0);
     }
 
     #[test]
@@ -721,7 +686,8 @@ mod tests {
         use super::super::testing;
         let font = FontRef::new(font_data).unwrap();
         let expected_outlines = testing::parse_glyph_outlines(expected_outlines);
-        let outlines = super::Outlines::new(&font).unwrap();
+        let base = BaseScaler::new(&font).unwrap();
+        let outlines = super::CffScaler::new(&base).unwrap();
         let mut path = testing::Path::default();
         for expected_outline in &expected_outlines {
             if expected_outline.size == 0.0 && !expected_outline.coords.is_empty() {

@@ -8,6 +8,7 @@ use crate::codegen_prelude::*;
 /// Common type for uniform access to CFF and CFF2 index formats.
 #[derive(Clone)]
 pub enum Index<'a> {
+    Empty,
     Format1(Index1<'a>),
     Format2(Index2<'a>),
 }
@@ -28,6 +29,7 @@ impl<'a> Index<'a> {
     /// Returns the number of objects in the index.
     pub fn count(&self) -> u32 {
         match self {
+            Self::Empty => 0,
             Self::Format1(ix) => ix.count() as u32,
             Self::Format2(ix) => ix.count(),
         }
@@ -51,6 +53,7 @@ impl<'a> Index<'a> {
     /// Returns the total size in bytes of the index table.
     pub fn size_in_bytes(&self) -> Result<usize, ReadError> {
         match self {
+            Self::Empty => Ok(0),
             Self::Format1(ix) => ix.size_in_bytes(),
             Self::Format2(ix) => ix.size_in_bytes(),
         }
@@ -59,6 +62,7 @@ impl<'a> Index<'a> {
     /// Returns the offset at the given index.
     pub fn get_offset(&self, index: usize) -> Result<usize, Error> {
         match self {
+            Self::Empty => Err(ReadError::OutOfBounds.into()),
             Self::Format1(ix) => ix.get_offset(index),
             Self::Format2(ix) => ix.get_offset(index),
         }
@@ -67,6 +71,7 @@ impl<'a> Index<'a> {
     /// Returns the data for the object at the given index.
     pub fn get(&self, index: usize) -> Result<&'a [u8], Error> {
         match self {
+            Self::Empty => Err(ReadError::OutOfBounds.into()),
             Self::Format1(ix) => ix.get(index),
             Self::Format2(ix) => ix.get(index),
         }
@@ -82,6 +87,12 @@ impl<'a> From<Index1<'a>> for Index<'a> {
 impl<'a> From<Index2<'a>> for Index<'a> {
     fn from(value: Index2<'a>) -> Self {
         Self::Format2(value)
+    }
+}
+
+impl Default for Index<'_> {
+    fn default() -> Self {
+        Self::Empty
     }
 }
 
@@ -272,6 +283,7 @@ mod tests {
         let buf = make_index(fmt, off_size, count);
         let index = Index::new(buf.font_data().as_bytes(), fmt == 2).unwrap();
         let built_off_size = match &index {
+            Index::Empty => 0,
             Index::Format1(v1) => v1.off_size(),
             Index::Format2(v2) => v2.off_size(),
         };
