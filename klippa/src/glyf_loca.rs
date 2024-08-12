@@ -1,5 +1,9 @@
 //! impl subset() for glyf and loca
-use crate::{estimate_subset_table_size, Plan, SubsetError, SubsetError::SubsetTableError};
+use crate::{
+    estimate_subset_table_size, Plan,
+    SubsetError::{self, SubsetTableError},
+    SubsetFlags,
+};
 use write_fonts::{
     read::{
         tables::{
@@ -30,10 +34,19 @@ pub fn subset_glyf_loca(
     let mut subset_glyphs = Vec::with_capacity(num_output_glyphs);
     let mut max_offset: u32 = 0;
 
-    //TODO: support not_def_outline and drop_hints
-    for (_new_gid, old_gid) in &plan.new_to_old_gid_list {
+    for (new_gid, old_gid) in &plan.new_to_old_gid_list {
         match loca.get_glyf(*old_gid, &glyf) {
             Ok(g) => {
+                if *old_gid == GlyphId::NOTDEF
+                    && *new_gid == GlyphId::NOTDEF
+                    && !plan
+                        .subset_flags
+                        .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
+                {
+                    subset_glyphs.push(Vec::new());
+                    continue;
+                }
+
                 let Some(glyph) = g else {
                     subset_glyphs.push(Vec::new());
                     continue;
@@ -51,42 +64,7 @@ pub fn subset_glyf_loca(
 
     //TODO: support force_long_loca in the plan
     let loca_format: u8 = if max_offset < 0x1FFFF { 0 } else { 1 };
-
-    let glyf_cap = estimate_subset_table_size(font, Glyf::TAG, plan);
-    let mut glyf_out = Vec::with_capacity(glyf_cap);
-
-    let loca_cap = estimate_subset_table_size(font, Loca::TAG, plan);
-    let mut loca_out: Vec<u8> = Vec::with_capacity(loca_cap);
-
-    if loca_format == 0 {
-        loca_out.extend_from_slice(&0_u16.to_be_bytes());
-        let mut offset: u16 = 0;
-        for g in &subset_glyphs {
-            let padded_len = padded_size(g.len());
-            offset += padded_len as u16;
-            let glyph_offset = offset >> 1;
-            loca_out.extend_from_slice(&glyph_offset.to_be_bytes());
-            glyf_out.extend_from_slice(g);
-            if padded_len > g.len() {
-                glyf_out.extend_from_slice(&[0]);
-            }
-        }
-    } else {
-        loca_out.extend_from_slice(&0_u32.to_be_bytes());
-        let mut offset: u32 = 0;
-        for g in &subset_glyphs {
-            offset += g.len() as u32;
-            loca_out.extend_from_slice(&offset.to_be_bytes());
-            glyf_out.extend_from_slice(g);
-        }
-    }
-
-    // As a special case when all glyph in the font are empty, add a zero byte to the table,
-    // so that OTS doesn’t reject it, and to make the table work on Windows as well.
-    // See https://github.com/khaledhosny/ots/issues/52
-    if glyf_out.is_empty() {
-        glyf_out.extend_from_slice(&[0]);
-    }
+    let (glyf_out, loca_out) = write_glyf_loca(font, plan, loca_format, &subset_glyphs);
 
     let head_out = subset_head(&head, loca_format);
 
@@ -100,16 +78,99 @@ fn padded_size(len: usize) -> usize {
     len + len % 2
 }
 
+fn write_glyf_loca(
+    font: &FontRef,
+    plan: &Plan,
+    loca_format: u8,
+    subset_glyphs: &[Vec<u8>],
+) -> (Vec<u8>, Vec<u8>) {
+    let loca_cap = estimate_subset_table_size(font, Loca::TAG, plan);
+    let mut loca_out: Vec<u8> = Vec::with_capacity(loca_cap);
+
+    let glyf_cap = estimate_subset_table_size(font, Glyf::TAG, plan);
+    let mut glyf_out = Vec::with_capacity(glyf_cap);
+
+    if loca_format == 0 {
+        loca_out.extend_from_slice(&0_u16.to_be_bytes());
+    } else {
+        loca_out.extend_from_slice(&0_u32.to_be_bytes());
+    }
+
+    let mut last: u32 = 0;
+    if loca_format == 0 {
+        let mut offset: u16 = 0;
+        let mut value = 0_u16.to_be_bytes();
+        for ((new_gid, _), i) in plan.new_to_old_gid_list.iter().zip(0u16..) {
+            let gid = new_gid.to_u32();
+
+            while last < gid {
+                loca_out.extend_from_slice(&value);
+                last += 1;
+            }
+            let g = &subset_glyphs[i as usize];
+            let padded_len = padded_size(g.len());
+            offset += padded_len as u16;
+            value = (offset >> 1).to_be_bytes();
+            loca_out.extend_from_slice(&value);
+            glyf_out.extend_from_slice(g);
+            if padded_len > g.len() {
+                glyf_out.extend_from_slice(&[0]);
+            }
+
+            last += 1;
+        }
+
+        while last < plan.num_output_glyphs as u32 {
+            loca_out.extend_from_slice(&value);
+            last += 1;
+        }
+    } else {
+        let mut offset: u32 = 0;
+        let mut value = 0_u32.to_be_bytes();
+        for ((new_gid, _), i) in plan.new_to_old_gid_list.iter().zip(0u16..) {
+            let gid = new_gid.to_u32();
+
+            while last < gid {
+                loca_out.extend_from_slice(&value);
+                last += 1;
+            }
+            let g = &subset_glyphs[i as usize];
+            let padded_len = padded_size(g.len());
+            offset += padded_len as u32;
+            value = offset.to_be_bytes();
+            loca_out.extend_from_slice(&value);
+
+            glyf_out.extend_from_slice(g);
+
+            last += 1;
+        }
+
+        while last < plan.num_output_glyphs as u32 {
+            loca_out.extend_from_slice(&value);
+            last += 1;
+        }
+    }
+
+    // As a special case when all glyph in the font are empty, add a zero byte to the table,
+    // so that OTS doesn’t reject it, and to make the table work on Windows as well.
+    // See https://github.com/khaledhosny/ots/issues/52
+    if glyf_out.is_empty() {
+        glyf_out.extend_from_slice(&[0]);
+    }
+
+    (glyf_out, loca_out)
+}
+
 fn subset_glyph(glyph: &Glyph, plan: &Plan) -> Vec<u8> {
     //TODO: support set_overlaps_flag and drop_hints
     match glyph {
         Composite(comp_g) => subset_composite_glyph(comp_g, plan),
-        Simple(simple_g) => subset_simple_glyph(simple_g),
+        Simple(simple_g) => subset_simple_glyph(simple_g, plan),
     }
 }
 
 // TODO: drop_hints and set_overlaps_flag
-fn subset_simple_glyph(g: &SimpleGlyph) -> Vec<u8> {
+fn subset_simple_glyph(g: &SimpleGlyph, plan: &Plan) -> Vec<u8> {
     let mut out = Vec::with_capacity(g.offset_data().len());
 
     let Some(num_coords) = g.end_pts_of_contours().last() else {
@@ -121,12 +182,40 @@ fn subset_simple_glyph(g: &SimpleGlyph) -> Vec<u8> {
     if i == 0 {
         return out;
     }
-    let trimmed_len =
-        10 + 2 * (g.number_of_contours() as usize) + 2 + g.instruction_length() as usize + i;
-    let Some(trimmed_slice) = g.offset_data().as_bytes().get(0..trimmed_len) else {
+
+    let glyph_bytes = g.offset_data().as_bytes();
+    let header_len = 10 + 2 * (g.number_of_contours() as usize) + 2;
+    let Some(header_slice) = glyph_bytes.get(0..header_len) else {
         return out;
     };
+    out.extend_from_slice(header_slice);
+
+    if plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+    {
+        // drop hints: set instructionLength field to 0
+        out[header_len - 2] = 0;
+        out[header_len - 1] = 0;
+    } else {
+        let instruction_end = header_len + g.instruction_length() as usize;
+        let Some(instruction_slice) = glyph_bytes.get(header_len..instruction_end) else {
+            return Vec::new();
+        };
+        out.extend_from_slice(instruction_slice);
+    }
+
+    let Some(trimmed_slice) = glyph_data.get(0..i) else {
+        return Vec::new();
+    };
+    let first_flag_index = out.len();
     out.extend_from_slice(trimmed_slice);
+    if plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG)
+    {
+        out[first_flag_index] |= SimpleGlyphFlags::OVERLAP_SIMPLE.bits();
+    }
     out
 }
 
@@ -143,10 +232,31 @@ fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
             return Vec::new();
         }
         let flags = u16::from_be_bytes([out[i], out[i + 1]]);
-        let flags = CompositeGlyphFlags::from_bits_truncate(flags);
+        let mut flags = CompositeGlyphFlags::from_bits_truncate(flags);
 
         if flags.contains(CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS) {
             we_have_instructions = true;
+            if plan
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+            {
+                flags.remove(CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS);
+                out.get_mut(i..i + 2)
+                    .unwrap()
+                    .copy_from_slice(&flags.bits().to_be_bytes());
+            }
+        }
+
+        // only set overlaps flag on the first component
+        if plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG)
+            && i == 10
+        {
+            flags.insert(CompositeGlyphFlags::OVERLAP_COMPOUND);
+            out.get_mut(i..i + 2)
+                .unwrap()
+                .copy_from_slice(&flags.bits().to_be_bytes());
         }
 
         let old_gid = u16::from_be_bytes([out[i + 2], out[i + 3]]);
@@ -176,7 +286,11 @@ fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
         more = flags.contains(CompositeGlyphFlags::MORE_COMPONENTS);
     }
 
-    if we_have_instructions {
+    if we_have_instructions
+        && !plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+    {
         if i + 1 >= len {
             return Vec::new();
         }

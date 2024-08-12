@@ -6,7 +6,7 @@
 //! To generate the expected output files, pass GEN_EXPECTED_OUTPUTS=1 as an
 //! environment variable.
 
-use klippa::{parse_unicodes, subset_font, Plan};
+use klippa::{parse_unicodes, subset_font, Plan, SubsetFlags};
 use std::fmt::Write;
 use std::fs;
 use std::iter::Peekable;
@@ -27,7 +27,7 @@ struct SubsetTestCase {
     fonts: Vec<String>,
 
     /// command line args for subsetter
-    profiles: Vec<String>,
+    profiles: Vec<(String, SubsetFlags)>,
 
     ///subset codepoints to retain
     subsets: Vec<String>,
@@ -120,10 +120,14 @@ impl TestCaseParser {
         }
     }
 
+    //TODO: when we support more options that are not just subset flags, make profiles to be Vec<(String, SubsetInput)>
     fn parse_profiles(&mut self, lines: &mut LinesIter) {
         while !lines.is_end() {
             if let Some(next) = lines.next() {
-                self.case.profiles.push(next.trim().to_owned());
+                let subset_flag = parse_profile_options(next.trim());
+                self.case
+                    .profiles
+                    .push((next.trim().to_owned(), subset_flag));
             }
         }
     }
@@ -186,6 +190,28 @@ impl TestCaseParser {
     }
 }
 
+fn parse_profile_options(file_name: &str) -> SubsetFlags {
+    let file_path = Path::new(TEST_DATA_DIR).join("profiles").join(file_name);
+    let input = std::fs::read_to_string(file_path).unwrap();
+    let mut subset_flag = SubsetFlags::SUBSET_FLAGS_DEFAULT;
+    for line in input.lines() {
+        match line.trim() {
+            "--desubroutinize" => subset_flag |= SubsetFlags::SUBSET_FLAGS_DESUBROUTINIZE,
+            "--retain-gids" => subset_flag |= SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS,
+            "--no-hinting" => subset_flag |= SubsetFlags::SUBSET_FLAGS_NO_HINTING,
+            "--glyph-names" => subset_flag |= SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES,
+            "--name-legacy" => subset_flag |= SubsetFlags::SUBSET_FLAGS_NAME_LEGACY,
+            "--no-layout-closure" => subset_flag |= SubsetFlags::SUBSET_FLAGS_NO_LAYOUT_CLOSURE,
+            "--no-prune-unicode-ranges" => {
+                subset_flag |= SubsetFlags::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES
+            }
+            "--notdef-outline" => subset_flag |= SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE,
+            _ => continue,
+        }
+    }
+    subset_flag
+}
+
 impl SubsetTestCase {
     fn new(path: &Path) -> Self {
         let parser = TestCaseParser::new();
@@ -196,12 +222,11 @@ impl SubsetTestCase {
         let output_temp_dir = TempDir::new_in(".", "klippa_test").unwrap();
         let output_dir = output_temp_dir.path();
         for font in &self.fonts {
-            //TODO: add support for profiles later
-            //for profile in &self.profiles {
-            //}
-            for subset in &self.subsets {
-                //TODO: add support for instances/iup_options
-                self.run_one_test(font, subset, output_dir);
+            for profile in &self.profiles {
+                for subset in &self.subsets {
+                    //TODO: add support for instances/iup_options
+                    self.run_one_test(font, subset, profile, output_dir);
+                }
             }
         }
     }
@@ -210,12 +235,11 @@ impl SubsetTestCase {
         let output_temp_dir = TempDir::new_in(".", "klippa_test").unwrap();
         let output_dir = output_temp_dir.path();
         for font in &self.fonts {
-            //TODO: add support for profiles later
-            //for profile in &self.profiles {
-            //}
-            for subset in &self.subsets {
-                //TODO: add support for instances/iup_options
-                self.gen_expected_output_for_one_test(font, subset, output_dir);
+            for profile in &self.profiles {
+                for subset in &self.subsets {
+                    //TODO: add support for instances/iup_options
+                    self.gen_expected_output_for_one_test(font, subset, profile, output_dir);
+                }
             }
         }
         let expected_dir = Path::new(TEST_DATA_DIR)
@@ -224,14 +248,20 @@ impl SubsetTestCase {
         fs::rename(output_dir, expected_dir).unwrap();
     }
 
-    fn run_one_test(&self, font: &str, subset: &str, output_dir: &Path) {
+    fn run_one_test(
+        &self,
+        font: &str,
+        subset: &str,
+        profile: &(String, SubsetFlags),
+        output_dir: &Path,
+    ) {
         //TODO: re-enable subset="*" once populate_unicodes_to_retain supports *
         if subset == "*" {
             return;
         }
-        let subset_font_name = gen_subset_font_name(font, subset);
+        let subset_font_name = gen_subset_font_name(font, subset, profile.0.as_str());
         let output_file = output_dir.join(&subset_font_name);
-        gen_subset_font_file(font, subset, &output_file);
+        gen_subset_font_file(font, subset, profile.1, &output_file);
 
         let expected_file = Path::new(TEST_DATA_DIR)
             .join("expected")
@@ -240,15 +270,21 @@ impl SubsetTestCase {
         compare_with_expected(output_dir, &output_file, &expected_file);
     }
 
-    fn gen_expected_output_for_one_test(&self, font: &str, subset: &str, output_dir: &Path) {
+    fn gen_expected_output_for_one_test(
+        &self,
+        font: &str,
+        subset: &str,
+        profile: &(String, SubsetFlags),
+        output_dir: &Path,
+    ) {
         //TODO: re-enable subset="*" once populate_unicodes_to_retain supports *
         if subset == "*" {
             return;
         }
 
-        let subset_font_name = gen_subset_font_name(font, subset);
+        let subset_font_name = gen_subset_font_name(font, subset, profile.0.as_str());
         let output_file = output_dir.join(&subset_font_name);
-        gen_subset_font_file(font, subset, &output_file);
+        gen_subset_font_file(font, subset, profile.1, &output_file);
 
         assert_has_ttx_exec();
         let mut expected_file_name = String::from(&subset_font_name);
@@ -306,14 +342,20 @@ impl SubsetTestCase {
     }
 }
 
-fn gen_subset_font_file(font_file: &str, subset: &str, output_file: &PathBuf) {
+fn gen_subset_font_file(
+    font_file: &str,
+    subset: &str,
+    profile: SubsetFlags,
+    output_file: &PathBuf,
+) {
     let org_font_file = PathBuf::from(TEST_DATA_DIR).join("fonts").join(font_file);
     let org_font_bytes = std::fs::read(org_font_file).unwrap();
     let font = FontRef::new(&org_font_bytes).unwrap();
 
     let gids = IntSet::empty();
     let unicodes = parse_unicodes(subset).unwrap();
-    let plan = Plan::new(&gids, &unicodes, &font);
+    //TODO: support parsing subset_flags
+    let plan = Plan::new(&gids, &unicodes, &font, profile);
 
     let subset_output = subset_font(&font, &plan).unwrap();
     std::fs::write(output_file, subset_output).unwrap();
@@ -339,7 +381,7 @@ fn strip_unicode_prefix(text: &str) -> String {
     text.replace("U+", "")
 }
 
-fn gen_subset_font_name(font: &str, subset: &str) -> String {
+fn gen_subset_font_name(font: &str, subset: &str, profile: &str) -> String {
     let subset_name = match subset {
         "*" => "all",
         "" => "no-unicodes",
@@ -347,8 +389,10 @@ fn gen_subset_font_name(font: &str, subset: &str) -> String {
     };
 
     let (font_base_name, font_extension) = font.rsplit_once('.').unwrap();
-    //TODO: add profiles/instances later
-    let subset_font_name = format!("{font_base_name}.{subset_name}.{font_extension}");
+    //TODO: add instances later
+    let (profile_name, _profile_extension) = profile.rsplit_once('.').unwrap();
+    let subset_font_name =
+        format!("{font_base_name}.{profile_name}.{subset_name}.{font_extension}");
     subset_font_name
 }
 /// Assert that we can find the `ttx` executable
@@ -516,9 +560,58 @@ fn parse_test() {
     assert!(test_data_dir.exists());
     let test_file = test_data_dir.join("tests/basics.tests");
     let subset_test = SubsetTestCase::new(&test_file);
-    assert_eq!(subset_test.fonts.len(), 1);
+    assert_eq!(subset_test.fonts.len(), 2);
     assert_eq!(subset_test.fonts[0], "Roboto-Regular.abc.ttf");
-    assert_eq!(subset_test.profiles.len(), 13);
+    assert_eq!(subset_test.profiles.len(), 7);
+    assert_eq!(
+        subset_test.profiles[0],
+        (
+            String::from("default.txt"),
+            SubsetFlags::SUBSET_FLAGS_DEFAULT
+        )
+    );
+    assert_eq!(
+        subset_test.profiles[1],
+        (
+            String::from("drop-hints.txt"),
+            SubsetFlags::SUBSET_FLAGS_NO_HINTING
+        )
+    );
+    assert_eq!(
+        subset_test.profiles[2],
+        (
+            String::from("drop-hints-retain-gids.txt"),
+            SubsetFlags::SUBSET_FLAGS_NO_HINTING | SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS
+        )
+    );
+    assert_eq!(
+        subset_test.profiles[3],
+        (
+            String::from("retain-gids.txt"),
+            SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS
+        )
+    );
+    assert_eq!(
+        subset_test.profiles[4],
+        (
+            String::from("notdef-outline.txt"),
+            SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE
+        )
+    );
+    assert_eq!(
+        subset_test.profiles[5],
+        (
+            String::from("no-prune-unicode-ranges.txt"),
+            SubsetFlags::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES
+        )
+    );
+    assert_eq!(
+        subset_test.profiles[6],
+        (
+            String::from("glyph-names.txt"),
+            SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES
+        )
+    );
     assert_eq!(subset_test.subsets.len(), 5);
     assert_eq!(subset_test.subsets[0], "61,62,63");
 }

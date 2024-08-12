@@ -17,6 +17,8 @@ use thiserror::Error;
 use write_fonts::read::{
     collections::IntSet,
     tables::{
+        cff::Cff,
+        cff2::Cff2,
         glyf::{Glyf, Glyph},
         gpos::Gpos,
         gsub::Gsub,
@@ -37,6 +39,98 @@ const MAX_NESTING_LEVEL: u8 = 64;
 // See <https://github.com/googlefonts/fontations/issues/997>
 const MAX_GID: GlyphId = GlyphId::new(0xFFFFFF);
 
+#[derive(Clone, Copy, Debug)]
+pub struct SubsetFlags(u16);
+
+impl SubsetFlags {
+    //all flags at their default value of false.
+    pub const SUBSET_FLAGS_DEFAULT: Self = Self(0x0000);
+
+    //If set hinting instructions will be dropped in the produced subset.
+    //Otherwise hinting instructions will be retained.
+    pub const SUBSET_FLAGS_NO_HINTING: Self = Self(0x0001);
+
+    //If set glyph indices will not be modified in the produced subset.
+    //If glyphs are dropped their indices will be retained as an empty glyph.
+    pub const SUBSET_FLAGS_RETAIN_GIDS: Self = Self(0x0002);
+
+    //If set and subsetting a CFF font the subsetter will attempt to remove subroutines from the CFF glyphs.
+    //This flag is UNIMPLEMENTED yet
+    pub const SUBSET_FLAGS_DESUBROUTINIZE: Self = Self(0x0004);
+
+    //If set non-unicode name records will be retained in the subset.
+    //This flag is UNIMPLEMENTED yet
+    pub const SUBSET_FLAGS_NAME_LEGACY: Self = Self(0x0008);
+
+    //If set the subsetter will set the OVERLAP_SIMPLE flag on each simple glyph.
+    pub const SUBSET_FLAGS_SET_OVERLAPS_FLAG: Self = Self(0x0010);
+
+    //If set the subsetter will not drop unrecognized tables and instead pass them through untouched.
+    //This flag is UNIMPLEMENTED yet
+    pub const SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED: Self = Self(0x0020);
+
+    //If set the notdef glyph outline will be retained in the final subset.
+    pub const SUBSET_FLAGS_NOTDEF_OUTLINE: Self = Self(0x0040);
+
+    //If set the PS glyph names will be retained in the final subset.
+    //This flag is UNIMPLEMENTED yet
+    pub const SUBSET_FLAGS_GLYPH_NAMES: Self = Self(0x0080);
+
+    //If set then the unicode ranges in OS/2 will not be recalculated.
+    //This flag is UNIMPLEMENTED yet
+    pub const SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES: Self = Self(0x0100);
+
+    //If set don't perform glyph closure on layout substitution rules (GSUB)
+    //This flag is UNIMPLEMENTED yet
+    pub const SUBSET_FLAGS_NO_LAYOUT_CLOSURE: Self = Self(0x0200);
+
+    //If set perform IUP delta optimization on the remaining gvar table's deltas.
+    //This flag is UNIMPLEMENTED yet
+    pub const SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS: Self = Self(0x0400);
+
+    /// Returns `true` if all of the flags in `other` are contained within `self`.
+    #[inline]
+    pub const fn contains(&self, other: Self) -> bool {
+        (self.0 & other.0) == other.0
+    }
+}
+
+impl Default for SubsetFlags {
+    fn default() -> Self {
+        Self::SUBSET_FLAGS_DEFAULT
+    }
+}
+
+impl PartialEq for SubsetFlags {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl std::ops::BitOr for SubsetFlags {
+    type Output = Self;
+
+    /// Returns the union of the two sets of flags.
+    #[inline]
+    fn bitor(self, other: SubsetFlags) -> Self {
+        Self(self.0 | other.0)
+    }
+}
+
+impl From<u16> for SubsetFlags {
+    fn from(value: u16) -> Self {
+        Self(value)
+    }
+}
+
+impl std::ops::BitOrAssign for SubsetFlags {
+    /// Adds the set of flags.
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        self.0 |= other.0;
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Default)]
 pub struct Plan {
@@ -53,12 +147,20 @@ pub struct Plan {
     font_num_glyphs: usize,
     unicode_to_new_gid_list: Vec<(u32, GlyphId)>,
     codepoint_to_glyph: FnvHashMap<u32, GlyphId>,
+
+    subset_flags: SubsetFlags,
 }
 
 impl Plan {
-    pub fn new(input_gids: &IntSet<GlyphId>, input_unicodes: &IntSet<u32>, font: &FontRef) -> Self {
+    pub fn new(
+        input_gids: &IntSet<GlyphId>,
+        input_unicodes: &IntSet<u32>,
+        font: &FontRef,
+        flags: SubsetFlags,
+    ) -> Self {
         let mut this = Plan {
             font_num_glyphs: get_font_num_glyphs(font),
+            subset_flags: flags,
             ..Default::default()
         };
 
@@ -105,29 +207,34 @@ impl Plan {
                 .unwrap_or(usize::MAX);
             self.codepoint_to_glyph.reserve(vec_cap);
             self.unicode_to_new_gid_list.reserve(vec_cap);
-            //TODO: possible micro-optimize: set iteration over ranges next_range()? getting ranges is faster in Harfbuzz int set
-            for cp in cmap_unicodes.iter() {
-                match unicode_gid_map.get(&cp) {
-                    Some(gid) => {
-                        if !input_gids.contains(*gid) && !input_unicodes.contains(cp) {
+            for range in cmap_unicodes.iter_ranges() {
+                for cp in range {
+                    match unicode_gid_map.get(&cp) {
+                        Some(gid) => {
+                            if !input_gids.contains(*gid) && !input_unicodes.contains(cp) {
+                                continue;
+                            }
+                            self.codepoint_to_glyph.insert(cp, *gid);
+                            self.unicode_to_new_gid_list.push((cp, *gid));
+                        }
+                        None => {
                             continue;
                         }
-                        self.codepoint_to_glyph.insert(cp, *gid);
-                        self.unicode_to_new_gid_list.push((cp, *gid));
-                    }
-                    None => {
-                        continue;
                     }
                 }
             }
 
             /* Add gids which where requested, but not mapped in cmap */
-            //TODO: possible micro-optimize: set iteration over ranges next_range()? getting ranges is faster in Harfbuzz int set
-            for gid in input_gids
-                .iter()
-                .take_while(|gid| gid.to_u32() < self.font_num_glyphs as u32)
-            {
-                self.glyphset_gsub.insert(gid);
+            for range in input_gids.iter_ranges() {
+                if range.start().to_u32() as usize >= self.font_num_glyphs {
+                    break;
+                }
+                let mut last = range.end().to_u32() as usize;
+                if last >= self.font_num_glyphs {
+                    last = self.font_num_glyphs - 1;
+                }
+                self.glyphset_gsub
+                    .insert_range(*range.start()..=GlyphId::from(last as u32));
             }
         }
         self.glyphset_gsub
@@ -175,14 +282,25 @@ impl Plan {
         self.new_to_old_gid_list.reserve(pop as usize);
 
         //TODO: Add support for requested_glyph_map, command line option --gid-map
-        //TODO: Add support for retain_gids
-        self.new_to_old_gid_list.extend(
-            self.glyphset
-                .iter()
-                .zip(0u16..)
-                .map(|x| (GlyphId::from(x.1), x.0)),
-        );
-        self.num_output_glyphs = self.new_to_old_gid_list.len();
+        if !self
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS)
+        {
+            self.new_to_old_gid_list.extend(
+                self.glyphset
+                    .iter()
+                    .zip(0u16..)
+                    .map(|x| (GlyphId::from(x.1), x.0)),
+            );
+            self.num_output_glyphs = self.new_to_old_gid_list.len();
+        } else {
+            self.new_to_old_gid_list
+                .extend(self.glyphset.iter().map(|x| (x, x)));
+            let Some(max_glyph) = self.glyphset.last() else {
+                return;
+            };
+            self.num_output_glyphs = max_glyph.to_u32() as usize + 1;
+        }
         self.glyph_map
             .extend(self.new_to_old_gid_list.iter().map(|x| (x.1, x.0)));
     }
@@ -347,7 +465,7 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
     };
 
     let table_len = table_data.len();
-    let bulk: usize = 8192;
+    let mut bulk: usize = 8192;
     let src_glyphs = plan.font_num_glyphs;
     let dst_glyphs = plan.num_output_glyphs;
 
@@ -356,7 +474,19 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
     let same_size: bool =
         table_tag == Gsub::TAG || table_tag == Gpos::TAG || table_tag == Name::TAG;
 
-    //TODO: Add extra room retain_gids
+    if plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS)
+    {
+        if table_tag == Cff::TAG {
+            //Add some extra room for the CFF charset
+            bulk += src_glyphs * 16;
+        } else if table_tag == Cff2::TAG {
+            // Just extra CharString offsets
+            bulk += src_glyphs * 4;
+        }
+    }
+
     if src_glyphs == 0 || same_size {
         return bulk + table_len;
     }
