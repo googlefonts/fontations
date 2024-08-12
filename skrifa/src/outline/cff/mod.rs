@@ -44,7 +44,7 @@ pub(crate) struct Outlines<'a> {
     units_per_em: u16,
 }
 
-impl<'a> CffScaler<'a> {
+impl<'a> Outlines<'a> {
     /// Creates a new scaler for the given font.
     ///
     /// This will choose an underlying CFF2 or CFF table from the font, in that
@@ -281,7 +281,7 @@ pub(crate) struct Subfont {
 
 impl Subfont {
     /// Returns the local subroutine index.
-    pub fn subrs<'a>(&self, scaler: &CffScaler<'a>) -> Result<Option<Index<'a>>, Error> {
+    pub fn subrs<'a>(&self, scaler: &Outlines<'a>) -> Result<Option<Index<'a>>, Error> {
         if let Some(subrs_offset) = self.subrs_offset {
             let offset_data = scaler.offset_data.as_bytes();
             let index_data = offset_data.get(subrs_offset..).unwrap_or_default();
@@ -295,7 +295,7 @@ impl Subfont {
     /// coordinates.
     pub fn blend_state<'a>(
         &self,
-        scaler: &CffScaler<'a>,
+        scaler: &Outlines<'a>,
         coords: &'a [F2Dot14],
     ) -> Result<Option<BlendState<'a>>, Error> {
         if let Some(var_store) = scaler.top_dict.var_store.clone() {

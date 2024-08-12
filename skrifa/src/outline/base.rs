@@ -8,13 +8,13 @@ use raw::{
 
 /// Common functionality for glyf, cff and autohinting scalers.
 #[derive(Clone)]
-pub(crate) struct BaseScaler<'a> {
+pub(crate) struct BaseOutlines<'a> {
     pub font: FontRef<'a>,
     pub hmtx: Hmtx<'a>,
     pub hvar: Option<Hvar<'a>>,
 }
 
-impl<'a> BaseScaler<'a> {
+impl<'a> BaseOutlines<'a> {
     pub fn new(font: &FontRef<'a>) -> Option<Self> {
         let hmtx = font.hmtx().ok()?;
         let hvar = font.hvar().ok();

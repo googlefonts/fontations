@@ -21,7 +21,7 @@ use read_fonts::{
 };
 
 use super::{
-    super::GlyfScaler,
+    super::Outlines,
     cvt::Cvt,
     definition::DefinitionState,
     error::{HintError, HintErrorKind},
@@ -51,7 +51,7 @@ pub struct Engine<'a> {
 impl<'a> Engine<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        outlines: &GlyfScaler,
+        outlines: &Outlines,
         program: ProgramState<'a>,
         graphics: RetainedGraphicsState,
         definitions: DefinitionState<'a>,
