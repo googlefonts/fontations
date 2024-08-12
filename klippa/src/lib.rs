@@ -55,30 +55,37 @@ impl SubsetFlags {
     pub const SUBSET_FLAGS_RETAIN_GIDS: Self = Self(0x0002);
 
     //If set and subsetting a CFF font the subsetter will attempt to remove subroutines from the CFF glyphs.
+    //This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_DESUBROUTINIZE: Self = Self(0x0004);
 
     //If set non-unicode name records will be retained in the subset.
+    //This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_NAME_LEGACY: Self = Self(0x0008);
 
     //If set the subsetter will set the OVERLAP_SIMPLE flag on each simple glyph.
     pub const SUBSET_FLAGS_SET_OVERLAPS_FLAG: Self = Self(0x0010);
 
     //If set the subsetter will not drop unrecognized tables and instead pass them through untouched.
+    //This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED: Self = Self(0x0020);
 
     //If set the notdef glyph outline will be retained in the final subset.
     pub const SUBSET_FLAGS_NOTDEF_OUTLINE: Self = Self(0x0040);
 
     //If set the PS glyph names will be retained in the final subset.
+    //This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_GLYPH_NAMES: Self = Self(0x0080);
 
     //If set then the unicode ranges in OS/2 will not be recalculated.
+    //This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES: Self = Self(0x0100);
 
     //If set don't perform glyph closure on layout substitution rules (GSUB)
+    //This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_NO_LAYOUT_CLOSURE: Self = Self(0x0200);
 
     //If set perform IUP delta optimization on the remaining gvar table's deltas.
+    //This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS: Self = Self(0x0400);
 
     /// Returns `true` if all of the flags in `other` are contained within `self`.
