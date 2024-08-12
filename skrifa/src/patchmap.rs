@@ -8,16 +8,11 @@ use std::collections::BTreeSet;
 use crate::GlyphId;
 use crate::Tag;
 use raw::tables::ift::DesignSpaceSegment;
-use raw::types::FixedSize;
-use raw::types::Scalar;
 use raw::types::Uint24;
 use raw::FontData;
 use raw::FontRead;
 use read_fonts::{
-    tables::ift::{
-        EntryData, EntryFormatFlags, EntryMapRecord, FeaturesAndDesignSpace, Ift, PatchMapFormat1,
-        PatchMapFormat2,
-    },
+    tables::ift::{EntryData, EntryMapRecord, Ift, PatchMapFormat1, PatchMapFormat2},
     ReadError, TableProvider,
 };
 

@@ -246,7 +246,26 @@ pub(crate) struct FieldReadArgs {
 #[derive(Clone, Debug)]
 pub(crate) enum Condition {
     SinceVersion(VersionSpec),
-    IfFlag { field: syn::Ident, flag: syn::Path },
+    IfFlag {
+        field: syn::Ident,
+        flag: syn::Path,
+    },
+    IfCond {
+        xform: IfTransform,
+        args: Vec<IfArg>,
+    },
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum IfArg {
+    Field(syn::Ident),
+    Path(syn::Path),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum IfTransform {
+    FlagAndNonZero,
+    AnyFlag,
 }
 
 #[derive(Clone, Debug)]
@@ -1019,6 +1038,7 @@ static NULLABLE: &str = "nullable";
 static SKIP_GETTER: &str = "skip_getter";
 static COUNT: &str = "count";
 static SINCE_VERSION: &str = "since_version";
+static IF_COND: &str = "if_cond";
 static IF_FLAG: &str = "if_flag";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
@@ -1081,6 +1101,9 @@ impl Parse for FieldAttrs {
                 this.checked_set_condition(ident, Condition::SinceVersion(spec))?;
             } else if ident == IF_FLAG {
                 let condition = parse_if_flag(&attr)?;
+                this.checked_set_condition(ident, condition)?;
+            } else if ident == IF_COND {
+                let condition = parse_if_cond(&attr)?;
                 this.checked_set_condition(ident, condition)?;
             } else if ident == READ_WITH {
                 this.read_with_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
@@ -1790,6 +1813,81 @@ fn parse_if_flag(attr: &syn::Attribute) -> syn::Result<Condition> {
             syn::Error::new(
                 e.span(),
                 format!("expected #[if_flag($field_name, FlagType::SOME_FLAG)]: '{e}'"),
+            )
+        })
+}
+
+impl Parse for IfArg {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        if input.peek(Token![$]) {
+            input.parse::<Token![$]>()?;
+            input.parse().map(Self::Field)
+        } else {
+            input.parse().map(Self::Path)
+        }
+    }
+}
+
+impl Parse for IfTransform {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let ident = input.parse::<syn::Ident>()?;
+        IfTransform::from_str(&ident.to_string()).map_err(|err| syn::Error::new(ident.span(), err))
+    }
+}
+
+static IF_TRANSFORM_IDENTS: &[(IfTransform, &str)] = &[
+    (IfTransform::FlagAndNonZero, "flag_and_non_zero"),
+    (IfTransform::AnyFlag, "any_flag"),
+];
+
+impl FromStr for IfTransform {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        IF_TRANSFORM_IDENTS
+            .iter()
+            .find_map(|(var, ident)| (*ident == s).then_some(*var))
+            .ok_or_else(|| {
+                format!(
+                    "invalid if transform, expected one of {}",
+                    IF_TRANSFORM_IDENTS
+                        .iter()
+                        .map(|(_, ident)| format!("'{ident}'"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            })
+    }
+}
+
+fn parse_if_cond(attr: &syn::Attribute) -> syn::Result<Condition> {
+    struct If(IfTransform, Vec<IfArg>);
+    impl Parse for If {
+        fn parse(input: ParseStream) -> syn::Result<Self> {
+            // leading ident must be a function
+            if !input.peek(syn::Ident) {
+                return Err(syn::Error::new(
+                    input.span(),
+                    "Non identifier argument to if_cond().",
+                ));
+            }
+
+            let xform: IfTransform = input.parse()?;
+            let content;
+            let _ = parenthesized!(content in input);
+            let args = Punctuated::<IfArg, Token![,]>::parse_terminated(&content)?
+                .into_iter()
+                .collect();
+            Ok(If(xform, args))
+        }
+    }
+
+    attr.parse_args::<If>()
+        .map(|If(xform, args)| Condition::IfCond { xform, args })
+        .map_err(|e| {
+            syn::Error::new(
+                e.span(),
+                format!("expected #[if_cond(condition_function(...))]: '{e}'"),
             )
         })
 }
