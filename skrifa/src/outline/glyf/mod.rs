@@ -12,7 +12,7 @@ use core_maths::CoreFloat;
 pub use hint::{HintError, HintInstance, HintOutline};
 pub use outline::{Outline, ScaledOutline};
 
-use super::{base::BaseScaler, DrawError, Hinting};
+use super::{base::BaseOutlines, DrawError, Hinting};
 use crate::GLYF_COMPOSITE_RECURSION_LIMIT;
 use memory::{FreeTypeOutlineMemory, HarfBuzzOutlineMemory};
 
@@ -33,8 +33,8 @@ pub const PHANTOM_POINT_COUNT: usize = 4;
 
 /// Scaler state for TrueType outlines.
 #[derive(Clone)]
-pub struct GlyfScaler<'a> {
-    pub(crate) base: BaseScaler<'a>,
+pub struct Outlines<'a> {
+    pub(crate) base: BaseOutlines<'a>,
     loca: Loca<'a>,
     glyf: Glyf<'a>,
     gvar: Option<Gvar<'a>>,
@@ -52,8 +52,8 @@ pub struct GlyfScaler<'a> {
     has_var_lsb: bool,
 }
 
-impl<'a> GlyfScaler<'a> {
-    pub fn new(base: &BaseScaler<'a>) -> Option<Self> {
+impl<'a> Outlines<'a> {
+    pub fn new(base: &BaseOutlines<'a>) -> Option<Self> {
         let font = &base.font;
         let has_var_lsb = base
             .hvar
@@ -163,7 +163,7 @@ impl<'a> GlyfScaler<'a> {
     }
 }
 
-impl<'a> GlyfScaler<'a> {
+impl<'a> Outlines<'a> {
     fn outline_rec(
         &self,
         glyph: &Glyph,
@@ -222,7 +222,7 @@ impl<'a> GlyfScaler<'a> {
 
 trait Scaler {
     fn coords(&self) -> &[F2Dot14];
-    fn outlines(&self) -> &GlyfScaler;
+    fn outlines(&self) -> &Outlines;
     fn setup_phantom_points(
         &mut self,
         bounds: [i16; 4],
@@ -271,7 +271,7 @@ trait Scaler {
 
 /// f32 all the things. Hold your rounding. No hinting.
 pub(crate) struct HarfBuzzScaler<'a> {
-    outlines: GlyfScaler<'a>,
+    outlines: Outlines<'a>,
     memory: HarfBuzzOutlineMemory<'a>,
     coords: &'a [F2Dot14],
     point_count: usize,
@@ -289,7 +289,7 @@ pub(crate) struct HarfBuzzScaler<'a> {
 
 impl<'a> HarfBuzzScaler<'a> {
     pub(crate) fn unhinted(
-        outlines: GlyfScaler<'a>,
+        outlines: Outlines<'a>,
         outline: &'a Outline,
         buf: &'a mut [u8],
         ppem: Option<f32>,
@@ -328,7 +328,7 @@ impl<'a> HarfBuzzScaler<'a> {
 
 /// F26Dot6 coords, Fixed deltas, and a penchant for rounding
 pub(crate) struct FreeTypeScaler<'a> {
-    outlines: GlyfScaler<'a>,
+    outlines: Outlines<'a>,
     memory: FreeTypeOutlineMemory<'a>,
     coords: &'a [F2Dot14],
     point_count: usize,
@@ -349,7 +349,7 @@ pub(crate) struct FreeTypeScaler<'a> {
 
 impl<'a> FreeTypeScaler<'a> {
     pub(crate) fn unhinted(
-        outlines: GlyfScaler<'a>,
+        outlines: Outlines<'a>,
         outline: &'a Outline,
         buf: &'a mut [u8],
         ppem: Option<f32>,
@@ -375,7 +375,7 @@ impl<'a> FreeTypeScaler<'a> {
     }
 
     pub(crate) fn hinted(
-        outlines: GlyfScaler<'a>,
+        outlines: Outlines<'a>,
         outline: &'a Outline,
         buf: &'a mut [u8],
         ppem: Option<f32>,
@@ -445,7 +445,7 @@ impl<'a> Scaler for FreeTypeScaler<'a> {
         self.coords
     }
 
-    fn outlines(&self) -> &GlyfScaler {
+    fn outlines(&self) -> &Outlines {
         &self.outlines
     }
 
@@ -935,7 +935,7 @@ impl<'a> Scaler for HarfBuzzScaler<'a> {
         self.coords
     }
 
-    fn outlines(&self) -> &GlyfScaler {
+    fn outlines(&self) -> &Outlines {
         &self.outlines
     }
 
@@ -1181,7 +1181,7 @@ mod tests {
     #[test]
     fn overlap_flags() {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
-        let scaler = GlyfScaler::new(&BaseScaler::new(&font).unwrap()).unwrap();
+        let scaler = Outlines::new(&BaseOutlines::new(&font).unwrap()).unwrap();
         let glyph_count = font.maxp().unwrap().num_glyphs();
         // GID 2 is a composite glyph with the overlap bit on a component
         // GID 3 is a simple glyph with the overlap bit on the first flag

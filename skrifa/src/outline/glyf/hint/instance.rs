@@ -1,7 +1,7 @@
 //! Instance state for TrueType hinting.
 
 use super::{
-    super::GlyfScaler,
+    super::Outlines,
     cow_slice::CowSlice,
     definition::{Definition, DefinitionMap, DefinitionState},
     engine::Engine,
@@ -35,7 +35,7 @@ pub struct HintInstance {
 impl HintInstance {
     pub fn reconfigure(
         &mut self,
-        outlines: &GlyfScaler,
+        outlines: &Outlines,
         scale: i32,
         ppem: i32,
         mode: HintingMode,
@@ -103,7 +103,7 @@ impl HintInstance {
 
     pub fn hint(
         &self,
-        outlines: &GlyfScaler,
+        outlines: &Outlines,
         outline: &mut HintOutline,
         is_pedantic: bool,
     ) -> Result<(), HintError> {
@@ -177,7 +177,7 @@ impl HintInstance {
     }
 
     /// Captures limits, resizes buffers and scales the CVT.
-    fn setup(&mut self, outlines: &GlyfScaler, scale: i32, coords: &[F2Dot14]) {
+    fn setup(&mut self, outlines: &Outlines, scale: i32, coords: &[F2Dot14]) {
         let axis_count = outlines
             .gvar
             .as_ref()
@@ -238,7 +238,7 @@ impl HintInstance {
 #[cfg(test)]
 mod tests {
     use super::{
-        super::super::{BaseScaler, GlyfScaler},
+        super::super::{BaseOutlines, Outlines},
         HintInstance,
     };
     use read_fonts::{types::F2Dot14, FontRef};
@@ -246,8 +246,8 @@ mod tests {
     #[test]
     fn scaled_cvar_cvt() {
         let font = FontRef::new(font_test_data::CVAR).unwrap();
-        let base = BaseScaler::new(&font).unwrap();
-        let outlines = GlyfScaler::new(&base).unwrap();
+        let base = BaseOutlines::new(&font).unwrap();
+        let outlines = Outlines::new(&base).unwrap();
         let mut instance = HintInstance::default();
         let coords = [0.5, -0.5].map(F2Dot14::from_f32);
         let ppem = 16;
