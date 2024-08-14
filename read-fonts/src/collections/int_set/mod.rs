@@ -24,6 +24,7 @@ mod output_bit_stream;
 pub mod sparse_bit_set;
 
 use bitset::BitSet;
+use core::cmp::Ordering;
 use font_types::{GlyphId, GlyphId16};
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -475,16 +476,54 @@ impl<T: Domain> Hash for IntSet<T> {
 
 impl<T: Domain + Ord> Ord for IntSet<T> {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        // there is probably room for optimization here, but it gets us working
-        for (us, them) in self.iter().zip(other.iter()) {
-            match us.cmp(&them) {
-                core::cmp::Ordering::Equal => continue,
-                other => return other,
+        match (&self.0, &other.0) {
+            (Membership::Inclusive(a), Membership::Inclusive(b)) => a.cmp(b),
+            _ => {
+                let mut this = self
+                    .iter_ranges()
+                    .map(|r| r.start().to_u32()..=r.end().to_u32());
+                let mut other = other
+                    .iter_ranges()
+                    .map(|r| r.start().to_u32()..=r.end().to_u32());
+                loop {
+                    match (this.next(), other.next()) {
+                        (Some(a), Some(b)) => {
+                            let cmp = a.start().cmp(b.start());
+                            if cmp != Ordering::Equal {
+                                return cmp;
+                            }
+
+                            match a.end().cmp(b.end()) {
+                                Ordering::Equal => continue,
+                                // If a range isn't equal then there are two possible scenarios:
+                                // 1. The set with the shorter range has at least one more range.
+                                //    In this case the set with the shorter range's next element will always be bigger
+                                //    then the other set's next element and should be considered greater.
+                                // 2. The set with the shorter range does not have anymore ranges, in that case we
+                                //    know the other set has at least one more element and thus should be considered greater.
+                                Ordering::Less => {
+                                    return if this.next().is_some() {
+                                        Ordering::Greater
+                                    } else {
+                                        Ordering::Less
+                                    };
+                                }
+                                Ordering::Greater => {
+                                    return if other.next().is_some() {
+                                        Ordering::Less
+                                    } else {
+                                        Ordering::Greater
+                                    };
+                                }
+                            }
+                        }
+                        (None, None) => return Ordering::Equal,
+                        (None, Some(_)) => return Ordering::Less,
+                        (Some(_), None) => return Ordering::Greater,
+                    }
+                }
             }
         }
-
-        // all items in iter are the same: is one collection longer?
-        self.len().cmp(&other.len())
     }
 }
 
@@ -2262,5 +2301,49 @@ mod test {
         assert_ord!([5u16, 4, 0], [1, 2, 3], Ordering::Less); // out of order
         assert_ord!([1u16, 2, 3], [1, 2, 3, 4], Ordering::Less); // out of order
         assert_ord!([2u16, 3, 4], [1, 2, 3, 4, 5], Ordering::Greater); // out of order
+
+        // Exclusive - Exclusive
+        let all = IntSet::<u16>::all();
+        let mut all_but_0 = all.clone();
+        all_but_0.remove(0);
+        let mut all_but_5 = all.clone();
+        all_but_5.remove(5);
+
+        assert_eq!(all.cmp(&all), Ordering::Equal);
+        assert_eq!(all.cmp(&all_but_0), Ordering::Less);
+        assert_eq!(all_but_0.cmp(&all), Ordering::Greater);
+
+        let mut a = IntSet::<u16>::all();
+        a.remove_range(0..=5);
+        a.remove_range(221..=1693);
+        let mut b = IntSet::<u16>::all();
+        b.remove_range(0..=1693);
+        assert_eq!(a.cmp(&b), Ordering::Less);
+
+        // Mixed
+        let mut inc_all_but_0 = IntSet::<u16>::empty();
+        inc_all_but_0.insert_range(1..=u16::MAX);
+        let mut inc_all_but_5 = IntSet::<u16>::empty();
+        inc_all_but_5.insert_range(0..=4);
+        inc_all_but_5.insert_range(6..=u16::MAX);
+
+        assert_eq!(all.cmp(&all), Ordering::Equal);
+        assert_eq!(all.cmp(&inc_all_but_0), Ordering::Less);
+        assert_eq!(inc_all_but_0.cmp(&all), Ordering::Greater);
+        assert_eq!(inc_all_but_5.cmp(&all_but_0), Ordering::Less);
+
+        let mut a = IntSet::<u16>::all();
+        a.remove_range(8..=1160);
+        let mut b = IntSet::<u16>::empty();
+        b.insert_range(0..=259);
+
+        assert_eq!(a.cmp(&b), Ordering::Greater);
+
+        let mut a = IntSet::<u16>::all();
+        a.remove_range(8..=u16::MAX);
+        let mut b = IntSet::<u16>::empty();
+        b.insert_range(0..=259);
+
+        assert_eq!(a.cmp(&b), Ordering::Less);
     }
 }
