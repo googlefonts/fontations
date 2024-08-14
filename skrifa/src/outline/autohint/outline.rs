@@ -2,14 +2,19 @@
 
 use super::{
     super::{
+        path,
+        pen::PathStyle,
         unscaled::{UnscaledOutlineSink, UnscaledPoint},
-        DrawError, LocationRef, OutlineGlyph,
+        DrawError, LocationRef, OutlineGlyph, OutlinePen,
     },
     metrics::Scale,
 };
 use crate::collections::SmallVec;
 use core::ops::Range;
-use raw::types::F2Dot14;
+use raw::{
+    tables::glyf::PointFlags,
+    types::{F26Dot6, F2Dot14},
+};
 
 /// Hinting directions.
 ///
@@ -197,6 +202,35 @@ impl Outline {
         self.points.clear();
         self.contours.clear();
     }
+
+    pub fn to_path(
+        &self,
+        style: PathStyle,
+        pen: &mut impl OutlinePen,
+    ) -> Result<(), path::ToPathError> {
+        for contour in &self.contours {
+            let Some(points) = self.points.get(contour.range()) else {
+                continue;
+            };
+            #[inline(always)]
+            fn to_contour_point(point: &Point) -> path::ContourPoint<F26Dot6> {
+                path::ContourPoint {
+                    x: F26Dot6::from_bits(point.x),
+                    y: F26Dot6::from_bits(point.y),
+                    flags: if point.flags & Point::QUAD != 0 {
+                        PointFlags::off_curve_quad()
+                    } else if point.flags & Point::CUBIC != 0 {
+                        PointFlags::off_curve_cubic()
+                    } else {
+                        PointFlags::on_curve()
+                    },
+                }
+            }
+            let last_point = to_contour_point(points.last().unwrap());
+            path::contour_to_path(points.iter().map(to_contour_point), last_point, style, pen)?;
+        }
+        Ok(())
+    }
 }
 
 impl Outline {
@@ -335,7 +369,7 @@ impl Outline {
                 let in_y = point.fy - prev_v.fy;
                 let out_x = next_u.fx - point.fx;
                 let out_y = next_u.fy - point.fy;
-                if (in_x ^ out_x) >= 0 || (in_y ^ out_y) >= 0 {
+                if (in_x ^ out_x) >= 0 && (in_y ^ out_y) >= 0 {
                     // Both vectors point into the same quadrant
                     points[i].flags |= Point::WEAK_INTERPOLATION;
                     points[v_index].u = u_index as _;

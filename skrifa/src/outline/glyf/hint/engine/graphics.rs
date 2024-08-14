@@ -568,7 +568,7 @@ impl<'a> Engine<'a> {
         }
         // If preserving linear metrics, prevent modification of the backward
         // compatibility flag.
-        if selector == 3 && self.graphics.mode.preserve_linear_metrics() {
+        if selector == 3 && self.graphics.target.preserve_linear_metrics() {
             return Ok(());
         }
         match (self.program.initial, selector) {

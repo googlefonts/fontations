@@ -1,7 +1,7 @@
 //! Autohinting specific metrics.
 
 use super::{
-    super::{HintingMode, LcdLayout},
+    super::hint::{SmoothMode, Target},
     axis::Dimension,
     style::{GlyphStyleMap, StyleClass},
 };
@@ -9,7 +9,7 @@ use crate::{collections::SmallVec, FontRef};
 use alloc::vec::Vec;
 use raw::types::{F2Dot14, Fixed, GlyphId};
 #[cfg(feature = "std")]
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 /// Maximum number of widths, same for Latin and CJK.
 ///
@@ -72,14 +72,20 @@ pub(crate) struct UnscaledStyleMetrics {
     pub axes: [UnscaledAxisMetrics; 2],
 }
 
+impl UnscaledStyleMetrics {
+    pub fn style_class(&self) -> &'static StyleClass {
+        &super::style::STYLE_CLASSES[self.class_ix as usize]
+    }
+}
+
 /// The set of unscaled style metrics for a single font.
 ///
 /// For a variable font, this is dependent on the location in variation space.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum UnscaledStyleMetricsSet {
     Precomputed(Vec<UnscaledStyleMetrics>),
     #[cfg(feature = "std")]
-    Lazy(RwLock<Vec<Option<UnscaledStyleMetrics>>>),
+    Lazy(Arc<RwLock<Vec<Option<UnscaledStyleMetrics>>>>),
 }
 
 impl UnscaledStyleMetricsSet {
@@ -103,7 +109,7 @@ impl UnscaledStyleMetricsSet {
     #[cfg(feature = "std")]
     pub fn lazy(style_map: &GlyphStyleMap) -> Self {
         let vec = vec![None; style_map.metrics_count()];
-        Self::Lazy(RwLock::new(vec))
+        Self::Lazy(RwLock::new(vec).into())
     }
 
     /// Returns the unscaled style metrics for the given style map and glyph
@@ -220,30 +226,22 @@ pub(crate) struct Scale {
 impl Scale {
     /// Create initial scaling parameters from font size, units per em
     /// and hinting mode.
-    pub fn new(size: f32, units_per_em: i32, mode: HintingMode) -> Self {
+    pub fn new(size: f32, units_per_em: i32, target: Target, is_italic: bool) -> Self {
         let scale =
             (Fixed::from_bits((size * 64.0) as i32) / Fixed::from_bits(units_per_em)).to_bits();
-        let is_mono = mode == HintingMode::Strong;
-        let lcd = match mode {
-            HintingMode::Smooth { lcd_subpixel, .. } => lcd_subpixel,
-            _ => None,
-        };
-        // TODO: handle light hinting mode and italic flag
-        let is_light = false;
-        let is_italic = false;
-        let is_lcd = lcd == Some(LcdLayout::Horizontal);
-        let is_lcd_v = lcd == Some(LcdLayout::Horizontal);
         let mut flags = 0;
+        let is_mono = target == Target::Mono;
+        let is_light = target.is_light() || target.preserve_linear_metrics();
         // Snap vertical stems for monochrome and horizontal LCD rendering.
-        if is_mono || is_lcd {
+        if is_mono || target.is_lcd() {
             flags |= Self::HORIZONTAL_SNAP;
         }
         // Snap horizontal stems for monochrome and vertical LCD rendering.
-        if is_mono || is_lcd_v {
+        if is_mono || target.is_vertical_lcd() {
             flags |= Self::VERTICAL_SNAP;
         }
         // Adjust stems to full pixels unless in LCD or light modes.
-        if !(is_lcd || is_light) {
+        if !(target.is_lcd() || is_light) {
             flags |= Self::STEM_ADJUST;
         }
         if is_mono {
@@ -251,7 +249,7 @@ impl Scale {
         }
         // Disable horizontal hinting completely for LCD, light hinting
         // and italic fonts.
-        if is_lcd || is_light || is_italic {
+        if target.is_lcd() || is_light || is_italic {
             flags |= Self::NO_HORIZONTAL;
         }
         Self {

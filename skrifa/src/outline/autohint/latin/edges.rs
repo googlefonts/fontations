@@ -20,6 +20,7 @@ pub(crate) fn compute_edges(
     axis: &mut Axis,
     metrics: &ScaledAxisMetrics,
     top_to_bottom_hinting: bool,
+    y_scale: i32,
 ) {
     axis.edges.clear();
     let scale = metrics.scale;
@@ -30,7 +31,7 @@ pub(crate) fn compute_edges(
     };
     // Ignore horizontal segments less than 1 pixel in length
     let segment_length_threshold = if axis.dim == Axis::HORIZONTAL {
-        fixed_div(64, scale)
+        fixed_div(64, y_scale)
     } else {
         0
     };
@@ -118,13 +119,13 @@ fn link_segments_to_edges(axis: &mut Axis) {
         loop {
             let segment = &mut segments[ix];
             segment.edge_ix = Some(edge_ix as u16);
+            if ix == last_ix {
+                break;
+            }
             ix = segment
                 .edge_next_ix
                 .map(|ix| ix as usize)
                 .unwrap_or(last_ix);
-            if ix == last_ix {
-                break;
-            }
         }
     }
 }
@@ -193,12 +194,12 @@ fn compute_edge_properties(axis: &mut Axis) {
                     edges[edge_ix].link_ix = edge2_ix;
                 }
             }
-            segment_ix = next_segment_ix
-                .map(|ix| ix as usize)
-                .unwrap_or(last_segment_ix);
             if segment_ix == last_segment_ix {
                 break;
             }
+            segment_ix = next_segment_ix
+                .map(|ix| ix as usize)
+                .unwrap_or(last_segment_ix);
         }
         let edge = &mut edges[edge_ix];
         edge.flags = Edge::NORMAL;
@@ -302,6 +303,7 @@ mod tests {
             16.0,
             font.head().unwrap().units_per_em() as i32,
             Default::default(),
+            false,
         );
         let scaled_metrics = latin::metrics::scale_style_metrics(&unscaled_metrics, scale);
         let glyphs = font.outline_glyphs();
@@ -319,6 +321,7 @@ mod tests {
                 axis,
                 &scaled_metrics.axes[dim],
                 class.script.hint_top_to_bottom,
+                scaled_metrics.axes[1].scale,
             );
             if dim == Axis::VERTICAL {
                 compute_blue_edges(

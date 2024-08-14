@@ -2,7 +2,7 @@
 
 mod hint;
 
-use super::{base::BaseScaler, OutlinePen};
+use super::{base::BaseOutlines, OutlinePen};
 use hint::{HintParams, HintState, HintingSink};
 use read_fonts::{
     tables::{
@@ -35,8 +35,8 @@ use std::ops::Range;
 /// [`subfont`](Self::subfont) method to create an appropriately configured
 /// subfont for that glyph.
 #[derive(Clone)]
-pub(crate) struct CffScaler<'a> {
-    pub(crate) base: BaseScaler<'a>,
+pub(crate) struct Outlines<'a> {
+    pub(crate) base: BaseOutlines<'a>,
     offset_data: FontData<'a>,
     global_subrs: Index<'a>,
     top_dict: TopDict<'a>,
@@ -44,17 +44,17 @@ pub(crate) struct CffScaler<'a> {
     units_per_em: u16,
 }
 
-impl<'a> CffScaler<'a> {
+impl<'a> Outlines<'a> {
     /// Creates a new scaler for the given font.
     ///
     /// This will choose an underlying CFF2 or CFF table from the font, in that
     /// order.
-    pub fn new(base: &BaseScaler<'a>) -> Option<Self> {
+    pub fn new(base: &BaseOutlines<'a>) -> Option<Self> {
         let units_per_em = base.font.head().ok()?.units_per_em();
         Self::from_cff2(base, units_per_em).or_else(|| Self::from_cff(base, units_per_em))
     }
 
-    pub fn from_cff(base: &BaseScaler<'a>, units_per_em: u16) -> Option<Self> {
+    pub fn from_cff(base: &BaseOutlines<'a>, units_per_em: u16) -> Option<Self> {
         let cff1 = base.font.cff().ok()?;
         // "The Name INDEX in the CFF data must contain only one entry;
         // that is, there must be only one font in the CFF FontSet"
@@ -73,7 +73,7 @@ impl<'a> CffScaler<'a> {
         })
     }
 
-    pub fn from_cff2(base: &BaseScaler<'a>, units_per_em: u16) -> Option<Self> {
+    pub fn from_cff2(base: &BaseOutlines<'a>, units_per_em: u16) -> Option<Self> {
         let cff2 = base.font.cff2().ok()?;
         let table_data = cff2.offset_data().as_bytes();
         let top_dict = TopDict::new(table_data, cff2.top_dict_data(), true).ok()?;
@@ -281,7 +281,7 @@ pub(crate) struct Subfont {
 
 impl Subfont {
     /// Returns the local subroutine index.
-    pub fn subrs<'a>(&self, scaler: &CffScaler<'a>) -> Result<Option<Index<'a>>, Error> {
+    pub fn subrs<'a>(&self, scaler: &Outlines<'a>) -> Result<Option<Index<'a>>, Error> {
         if let Some(subrs_offset) = self.subrs_offset {
             let offset_data = scaler.offset_data.as_bytes();
             let index_data = offset_data.get(subrs_offset..).unwrap_or_default();
@@ -295,7 +295,7 @@ impl Subfont {
     /// coordinates.
     pub fn blend_state<'a>(
         &self,
-        scaler: &CffScaler<'a>,
+        scaler: &Outlines<'a>,
         coords: &'a [F2Dot14],
     ) -> Result<Option<BlendState<'a>>, Error> {
         if let Some(var_store) = scaler.top_dict.var_store.clone() {
@@ -621,8 +621,8 @@ mod tests {
     #[test]
     fn read_cff_static() {
         let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
-        let base = BaseScaler::new(&font).unwrap();
-        let cff = CffScaler::new(&base).unwrap();
+        let base = BaseOutlines::new(&font).unwrap();
+        let cff = Outlines::new(&base).unwrap();
         assert!(!cff.is_cff2());
         assert!(cff.top_dict.var_store.is_none());
         assert!(cff.top_dict.font_dicts.count() == 0);
@@ -636,8 +636,8 @@ mod tests {
     #[test]
     fn read_cff2_static() {
         let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
-        let base = BaseScaler::new(&font).unwrap();
-        let cff = CffScaler::new(&base).unwrap();
+        let base = BaseOutlines::new(&font).unwrap();
+        let cff = Outlines::new(&base).unwrap();
         assert!(cff.is_cff2());
         assert!(cff.top_dict.var_store.is_some());
         assert!(cff.top_dict.font_dicts.count() != 0);
@@ -686,8 +686,8 @@ mod tests {
         use super::super::testing;
         let font = FontRef::new(font_data).unwrap();
         let expected_outlines = testing::parse_glyph_outlines(expected_outlines);
-        let base = BaseScaler::new(&font).unwrap();
-        let outlines = super::CffScaler::new(&base).unwrap();
+        let base = BaseOutlines::new(&font).unwrap();
+        let outlines = super::Outlines::new(&base).unwrap();
         let mut path = testing::Path::default();
         for expected_outline in &expected_outlines {
             if expected_outline.size == 0.0 && !expected_outline.coords.is_empty() {

@@ -1,7 +1,7 @@
 //! Instance state for TrueType hinting.
 
 use super::{
-    super::GlyfScaler,
+    super::Outlines,
     cow_slice::CowSlice,
     definition::{Definition, DefinitionMap, DefinitionState},
     engine::Engine,
@@ -10,7 +10,7 @@ use super::{
     program::{Program, ProgramState},
     value_stack::ValueStack,
     zone::Zone,
-    HintOutline, HintingMode, PointFlags,
+    HintOutline, PointFlags, Target,
 };
 use alloc::vec::Vec;
 use raw::{
@@ -35,10 +35,10 @@ pub struct HintInstance {
 impl HintInstance {
     pub fn reconfigure(
         &mut self,
-        outlines: &GlyfScaler,
+        outlines: &Outlines,
         scale: i32,
         ppem: i32,
-        mode: HintingMode,
+        target: Target,
         coords: &[F2Dot14],
     ) -> Result<(), HintError> {
         self.setup(outlines, scale, coords);
@@ -53,7 +53,7 @@ impl HintInstance {
         let glyph = Zone::default();
         let mut stack_buf = vec![0; self.max_stack];
         let value_stack = ValueStack::new(&mut stack_buf, false);
-        let graphics = RetainedGraphicsState::new(scale, ppem, mode);
+        let graphics = RetainedGraphicsState::new(scale, ppem, target);
         let mut engine = Engine::new(
             outlines,
             ProgramState::new(outlines.fpgm, outlines.prep, &[], Program::Font),
@@ -92,9 +92,9 @@ impl HintInstance {
     /// by the hinter settings or the `prep` table.
     pub fn backward_compatibility(&self) -> bool {
         // Set backward compatibility mode
-        if self.graphics.mode.preserve_linear_metrics() {
+        if self.graphics.target.preserve_linear_metrics() {
             true
-        } else if self.graphics.mode.is_smooth() {
+        } else if self.graphics.target.is_smooth() {
             (self.graphics.instruct_control & 0x4) == 0
         } else {
             false
@@ -103,7 +103,7 @@ impl HintInstance {
 
     pub fn hint(
         &self,
-        outlines: &GlyfScaler,
+        outlines: &Outlines,
         outline: &mut HintOutline,
         is_pedantic: bool,
     ) -> Result<(), HintError> {
@@ -177,7 +177,7 @@ impl HintInstance {
     }
 
     /// Captures limits, resizes buffers and scales the CVT.
-    fn setup(&mut self, outlines: &GlyfScaler, scale: i32, coords: &[F2Dot14]) {
+    fn setup(&mut self, outlines: &Outlines, scale: i32, coords: &[F2Dot14]) {
         let axis_count = outlines
             .gvar
             .as_ref()
@@ -238,7 +238,7 @@ impl HintInstance {
 #[cfg(test)]
 mod tests {
     use super::{
-        super::super::{BaseScaler, GlyfScaler},
+        super::super::{BaseOutlines, Outlines},
         HintInstance,
     };
     use read_fonts::{types::F2Dot14, FontRef};
@@ -246,8 +246,8 @@ mod tests {
     #[test]
     fn scaled_cvar_cvt() {
         let font = FontRef::new(font_test_data::CVAR).unwrap();
-        let base = BaseScaler::new(&font).unwrap();
-        let outlines = GlyfScaler::new(&base).unwrap();
+        let base = BaseOutlines::new(&font).unwrap();
+        let outlines = Outlines::new(&base).unwrap();
         let mut instance = HintInstance::default();
         let coords = [0.5, -0.5].map(F2Dot14::from_f32);
         let ppem = 16;

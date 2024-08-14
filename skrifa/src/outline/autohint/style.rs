@@ -188,6 +188,16 @@ impl GlyphStyleMap {
     }
 }
 
+impl Default for GlyphStyleMap {
+    fn default() -> Self {
+        Self {
+            styles: Default::default(),
+            metrics_map: [0xFF; MAX_STYLES],
+            metrics_count: 0,
+        }
+    }
+}
+
 /// Determines which algorithms the autohinter will use while generating
 /// metrics and processing a glyph outline.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]

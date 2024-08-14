@@ -60,17 +60,19 @@ fn align_edges_to_blues(
             let edge2 = edge2_ix.map(|ix| &edges[ix]);
             // If we have two neutral zones, skip one of them
             if let (true, Some(edge2)) = (edge.blue_edge.is_some(), edge2) {
-                let skip_ix = if edge2.flags & Edge::NEUTRAL != 0 {
-                    edge2_ix
-                } else if edge.flags & Edge::NEUTRAL != 0 {
-                    Some(edge_ix)
-                } else {
-                    None
-                };
-                if let Some(skip_ix) = skip_ix {
-                    let skip_edge = &mut edges[skip_ix];
-                    skip_edge.blue_edge = None;
-                    skip_edge.flags &= !Edge::NEUTRAL;
+                if edge2.blue_edge.is_some() {
+                    let skip_ix = if edge2.flags & Edge::NEUTRAL != 0 {
+                        edge2_ix
+                    } else if edge.flags & Edge::NEUTRAL != 0 {
+                        Some(edge_ix)
+                    } else {
+                        None
+                    };
+                    if let Some(skip_ix) = skip_ix {
+                        let skip_edge = &mut edges[skip_ix];
+                        skip_edge.blue_edge = None;
+                        skip_edge.flags &= !Edge::NEUTRAL;
+                    }
                 }
             }
             // Flip edges if the other is aligned to a blue zone
@@ -90,8 +92,10 @@ fn align_edges_to_blues(
             edge1.flags |= Edge::DONE;
             if let Some(edge2_ix) = edge2_ix {
                 let edge2 = &mut edges[edge2_ix];
-                edge2.flags |= Edge::DONE;
-                align_linked_edge(axis, metrics, scale, edge1_ix, edge2_ix);
+                if edge2.blue_edge.is_none() {
+                    edge2.flags |= Edge::DONE;
+                    align_linked_edge(axis, metrics, scale, edge1_ix, edge2_ix);
+                }
             }
             if anchor_ix.is_none() {
                 anchor_ix = Some(edge_ix);
@@ -166,10 +170,6 @@ fn align_stem_edges(
                 edges[edge_ix].pos = cur_pos1 - cur_len / 2;
                 edges[edge2_ix].pos = cur_pos1 + cur_len / 2;
             } else {
-                let original_pos = anchor.pos - (edge.opos - anchor.opos);
-                let original_center = original_pos + (original_len >> 1);
-                // Note: FreeType recomputes original_len and cur_len here but
-                // they are the same as above
                 let cur_pos1 = pix_round(original_pos);
                 let delta1 = (cur_pos1 + (cur_len >> 1) - original_center).abs();
                 let cur_pos2 = pix_round(original_pos + original_len) - cur_len;
@@ -178,6 +178,11 @@ fn align_stem_edges(
                 let new_pos2 = new_pos + cur_len;
                 edges[edge_ix].pos = new_pos;
                 edges[edge2_ix].pos = new_pos2;
+            }
+            edges[edge_ix].flags |= Edge::DONE;
+            edges[edge2_ix].flags |= Edge::DONE;
+            if edge_ix > 0 {
+                adjust_link(edges, edge_ix, LinkDir::Prev, top_to_bottom_hinting);
             }
         } else {
             // No stem has been aligned yet
@@ -209,7 +214,7 @@ fn align_stem_edges(
                 if error1 < error2 {
                     cur_pos1 -= u_off;
                 } else {
-                    cur_pos1 -= d_off;
+                    cur_pos1 += d_off;
                 }
                 let edge_pos = cur_pos1 - cur_len / 2;
                 edges[edge_ix].pos = edge_pos;
@@ -220,13 +225,6 @@ fn align_stem_edges(
             edges[edge_ix].flags |= Edge::DONE;
             align_linked_edge(axis, metrics, scale, edge_ix, edge2_ix);
             anchor_ix = Some(edge_ix);
-        }
-        // Reborrow edges
-        let edges = axis.edges.as_mut_slice();
-        edges[edge_ix].flags |= Edge::DONE;
-        edges[edge2_ix].flags |= Edge::DONE;
-        if edge_ix > 0 {
-            adjust_link(edges, edge_ix, LinkDir::Prev, top_to_bottom_hinting);
         }
     }
     (serif_count, anchor_ix)
@@ -309,11 +307,12 @@ fn align_remaining_edges(
                 let new_pos = if after.opos == before.opos {
                     before.pos
                 } else {
-                    fixed_mul_div(
-                        edge.opos - before.opos,
-                        after.pos - before.pos,
-                        after.opos - before.opos,
-                    )
+                    before.pos
+                        + fixed_mul_div(
+                            edge.opos - before.opos,
+                            after.pos - before.pos,
+                            after.opos - before.opos,
+                        )
                 };
                 edges[edge_ix].pos = new_pos;
             } else {
@@ -575,6 +574,7 @@ mod tests {
             16.0,
             font.head().unwrap().units_per_em() as i32,
             Default::default(),
+            false,
         );
         let scaled_metrics = latin::metrics::scale_style_metrics(&unscaled_metrics, scale);
         let glyphs = font.outline_glyphs();
@@ -592,6 +592,7 @@ mod tests {
                 axis,
                 &scaled_metrics.axes[0],
                 class.script.hint_top_to_bottom,
+                scaled_metrics.axes[1].scale,
             );
             if dim == Axis::VERTICAL {
                 latin::edges::compute_blue_edges(

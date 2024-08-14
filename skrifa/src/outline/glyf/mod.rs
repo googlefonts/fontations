@@ -12,7 +12,7 @@ use core_maths::CoreFloat;
 pub use hint::{HintError, HintInstance, HintOutline};
 pub use outline::{Outline, ScaledOutline};
 
-use super::{base::BaseScaler, DrawError, Hinting};
+use super::{base::BaseOutlines, DrawError, Hinting};
 use crate::GLYF_COMPOSITE_RECURSION_LIMIT;
 use memory::{FreeTypeOutlineMemory, HarfBuzzOutlineMemory};
 
@@ -33,8 +33,8 @@ pub const PHANTOM_POINT_COUNT: usize = 4;
 
 /// Scaler state for TrueType outlines.
 #[derive(Clone)]
-pub struct GlyfScaler<'a> {
-    pub(crate) base: BaseScaler<'a>,
+pub struct Outlines<'a> {
+    pub(crate) base: BaseOutlines<'a>,
     loca: Loca<'a>,
     glyf: Glyf<'a>,
     gvar: Option<Gvar<'a>>,
@@ -50,10 +50,11 @@ pub struct GlyfScaler<'a> {
     units_per_em: u16,
     os2_vmetrics: [i16; 2],
     has_var_lsb: bool,
+    prefer_interpreter: bool,
 }
 
-impl<'a> GlyfScaler<'a> {
-    pub fn new(base: &BaseScaler<'a>) -> Option<Self> {
+impl<'a> Outlines<'a> {
+    pub fn new(base: &BaseOutlines<'a>) -> Option<Self> {
         let font = &base.font;
         let has_var_lsb = base
             .hvar
@@ -67,6 +68,7 @@ impl<'a> GlyfScaler<'a> {
             max_twilight_points,
             max_stack_elements,
             max_storage,
+            max_instructions,
         ) = font
             .maxp()
             .map(|maxp| {
@@ -85,6 +87,7 @@ impl<'a> GlyfScaler<'a> {
                         .unwrap_or_default()
                         .saturating_add(32),
                     maxp.max_storage().unwrap_or_default(),
+                    maxp.max_size_of_instructions().unwrap_or_default(),
                 )
             })
             .unwrap_or_default();
@@ -92,20 +95,25 @@ impl<'a> GlyfScaler<'a> {
             .os2()
             .map(|os2| [os2.s_typo_ascender(), os2.s_typo_descender()])
             .unwrap_or_default();
+        let fpgm = font
+            .data_for_tag(Tag::new(b"fpgm"))
+            .unwrap_or_default()
+            .as_bytes();
+        let prep = font
+            .data_for_tag(Tag::new(b"prep"))
+            .unwrap_or_default()
+            .as_bytes();
+        // Copy FreeType's logic on whether to use the interpreter:
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/ftobjs.c#L1001>
+        let use_interpreter = !(max_instructions == 0 && fpgm.is_empty() && prep.is_empty());
         let cvt_len = base.cvt().len() as u32;
         Some(Self {
             base: base.clone(),
             loca: font.loca(None).ok()?,
             glyf: font.glyf().ok()?,
             gvar: font.gvar().ok(),
-            fpgm: font
-                .data_for_tag(Tag::new(b"fpgm"))
-                .unwrap_or_default()
-                .as_bytes(),
-            prep: font
-                .data_for_tag(Tag::new(b"prep"))
-                .unwrap_or_default()
-                .as_bytes(),
+            fpgm,
+            prep,
             cvt_len,
             max_function_defs,
             max_instruction_defs,
@@ -116,6 +124,7 @@ impl<'a> GlyfScaler<'a> {
             units_per_em: font.head().ok()?.units_per_em(),
             os2_vmetrics,
             has_var_lsb,
+            prefer_interpreter: use_interpreter,
         })
     }
 
@@ -125,6 +134,10 @@ impl<'a> GlyfScaler<'a> {
 
     pub fn glyph_count(&self) -> usize {
         self.glyph_count as usize
+    }
+
+    pub fn prefer_interpreter(&self) -> bool {
+        self.prefer_interpreter
     }
 
     pub fn outline(&self, glyph_id: GlyphId) -> Result<Outline<'a>, DrawError> {
@@ -163,7 +176,7 @@ impl<'a> GlyfScaler<'a> {
     }
 }
 
-impl<'a> GlyfScaler<'a> {
+impl<'a> Outlines<'a> {
     fn outline_rec(
         &self,
         glyph: &Glyph,
@@ -222,7 +235,7 @@ impl<'a> GlyfScaler<'a> {
 
 trait Scaler {
     fn coords(&self) -> &[F2Dot14];
-    fn outlines(&self) -> &GlyfScaler;
+    fn outlines(&self) -> &Outlines;
     fn setup_phantom_points(
         &mut self,
         bounds: [i16; 4],
@@ -271,7 +284,7 @@ trait Scaler {
 
 /// f32 all the things. Hold your rounding. No hinting.
 pub(crate) struct HarfBuzzScaler<'a> {
-    outlines: GlyfScaler<'a>,
+    outlines: Outlines<'a>,
     memory: HarfBuzzOutlineMemory<'a>,
     coords: &'a [F2Dot14],
     point_count: usize,
@@ -289,7 +302,7 @@ pub(crate) struct HarfBuzzScaler<'a> {
 
 impl<'a> HarfBuzzScaler<'a> {
     pub(crate) fn unhinted(
-        outlines: GlyfScaler<'a>,
+        outlines: Outlines<'a>,
         outline: &'a Outline,
         buf: &'a mut [u8],
         ppem: Option<f32>,
@@ -328,7 +341,7 @@ impl<'a> HarfBuzzScaler<'a> {
 
 /// F26Dot6 coords, Fixed deltas, and a penchant for rounding
 pub(crate) struct FreeTypeScaler<'a> {
-    outlines: GlyfScaler<'a>,
+    outlines: Outlines<'a>,
     memory: FreeTypeOutlineMemory<'a>,
     coords: &'a [F2Dot14],
     point_count: usize,
@@ -349,7 +362,7 @@ pub(crate) struct FreeTypeScaler<'a> {
 
 impl<'a> FreeTypeScaler<'a> {
     pub(crate) fn unhinted(
-        outlines: GlyfScaler<'a>,
+        outlines: Outlines<'a>,
         outline: &'a Outline,
         buf: &'a mut [u8],
         ppem: Option<f32>,
@@ -375,7 +388,7 @@ impl<'a> FreeTypeScaler<'a> {
     }
 
     pub(crate) fn hinted(
-        outlines: GlyfScaler<'a>,
+        outlines: Outlines<'a>,
         outline: &'a Outline,
         buf: &'a mut [u8],
         ppem: Option<f32>,
@@ -445,7 +458,7 @@ impl<'a> Scaler for FreeTypeScaler<'a> {
         self.coords
     }
 
-    fn outlines(&self) -> &GlyfScaler {
+    fn outlines(&self) -> &Outlines {
         &self.outlines
     }
 
@@ -935,7 +948,7 @@ impl<'a> Scaler for HarfBuzzScaler<'a> {
         self.coords
     }
 
-    fn outlines(&self) -> &GlyfScaler {
+    fn outlines(&self) -> &Outlines {
         &self.outlines
     }
 
@@ -1181,7 +1194,7 @@ mod tests {
     #[test]
     fn overlap_flags() {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
-        let scaler = GlyfScaler::new(&BaseScaler::new(&font).unwrap()).unwrap();
+        let scaler = Outlines::new(&BaseOutlines::new(&font).unwrap()).unwrap();
         let glyph_count = font.maxp().unwrap().num_glyphs();
         // GID 2 is a composite glyph with the overlap bit on a component
         // GID 3 is a simple glyph with the overlap bit on the first flag

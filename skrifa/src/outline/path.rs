@@ -373,7 +373,7 @@ mod tests {
         // For this test case (in 26.6 fixed point): [(640, 128) + (128, 128)] / 2 = (384, 128)
         // which becomes (6.0, 2.0) when converted to floating point.
         let points = [pt(640, 128), pt(256, 64), pt(640, 64), pt(128, 128)];
-        let mut pen = SvgPen::default();
+        let mut pen = SvgPen::with_precision(1);
         to_path(&points, &flags, &contours, path_style, &mut pen).unwrap();
         assert_eq!(pen.as_ref(), expected);
     }

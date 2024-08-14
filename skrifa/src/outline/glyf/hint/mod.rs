@@ -16,7 +16,7 @@ mod storage;
 mod value_stack;
 mod zone;
 
-use super::super::{HintingMode, LcdLayout};
+use super::super::Target;
 
 use read_fonts::{
     tables::glyf::PointFlags,
@@ -44,43 +44,4 @@ pub struct HintOutline<'a> {
     pub twilight_flags: &'a mut [PointFlags],
     pub is_composite: bool,
     pub coords: &'a [F2Dot14],
-}
-
-// Helpers for deriving various flags from the mode which
-// change the behavior of certain instructions.
-// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttgload.c#L2222>
-impl HintingMode {
-    fn is_smooth(&self) -> bool {
-        matches!(self, Self::Smooth { .. })
-    }
-
-    fn is_grayscale_cleartype(&self) -> bool {
-        matches!(
-            self,
-            Self::Smooth {
-                lcd_subpixel: None,
-                ..
-            }
-        )
-    }
-
-    fn is_vertical_lcd(&self) -> bool {
-        matches!(
-            self,
-            Self::Smooth {
-                lcd_subpixel: Some(LcdLayout::Vertical),
-                ..
-            }
-        )
-    }
-
-    fn preserve_linear_metrics(&self) -> bool {
-        matches!(
-            self,
-            Self::Smooth {
-                preserve_linear_metrics: true,
-                ..
-            }
-        )
-    }
 }

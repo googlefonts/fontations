@@ -110,10 +110,16 @@ impl OutlinePen for NullPen {
 }
 
 /// Pen that generates SVG style path data.
-#[derive(Clone, Default, Debug)]
-pub struct SvgPen(String);
+#[derive(Clone, Debug)]
+pub struct SvgPen(String, usize);
 
 impl SvgPen {
+    /// Creates a new SVG pen with the given precision (the number of digits
+    /// that will be printed after the decimal).
+    pub fn with_precision(precision: usize) -> Self {
+        Self(String::default(), precision)
+    }
+
     /// Clears the content of the internal string.
     pub fn clear(&mut self) {
         self.0.clear();
@@ -123,6 +129,12 @@ impl SvgPen {
         if !self.0.is_empty() {
             self.0.push(' ');
         }
+    }
+}
+
+impl Default for SvgPen {
+    fn default() -> Self {
+        Self(String::default(), 3)
     }
 }
 
@@ -137,22 +149,26 @@ impl core::ops::Deref for SvgPen {
 impl OutlinePen for SvgPen {
     fn move_to(&mut self, x: f32, y: f32) {
         self.maybe_push_space();
-        let _ = write!(self.0, "M{x:.1},{y:.1}");
+        let _ = write!(self.0, "M{x:.0$},{y:.0$}", self.1);
     }
 
     fn line_to(&mut self, x: f32, y: f32) {
         self.maybe_push_space();
-        let _ = write!(self.0, "L{x:.1},{y:.1}");
+        let _ = write!(self.0, "L{x:.0$},{y:.0$}", self.1);
     }
 
     fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
         self.maybe_push_space();
-        let _ = write!(self.0, "Q{cx0:.1},{cy0:.1} {x:.1},{y:.1}");
+        let _ = write!(self.0, "Q{cx0:.0$},{cy0:.0$} {x:.0$},{y:.0$}", self.1);
     }
 
     fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
         self.maybe_push_space();
-        let _ = write!(self.0, "C{cx0:.1},{cy0:.1} {cx1:.1},{cy1:.1} {x:.1},{y:.1}");
+        let _ = write!(
+            self.0,
+            "C{cx0:.0$},{cy0:.0$} {cx1:.0$},{cy1:.0$} {x:.0$},{y:.0$}",
+            self.1
+        );
     }
 
     fn close(&mut self) {
@@ -169,7 +185,7 @@ impl AsRef<str> for SvgPen {
 
 impl From<String> for SvgPen {
     fn from(value: String) -> Self {
-        Self(value)
+        Self(value, 3)
     }
 }
 

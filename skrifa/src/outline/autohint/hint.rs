@@ -414,6 +414,7 @@ mod tests {
             size,
             font.head().unwrap().units_per_em() as i32,
             Default::default(),
+            false,
         );
         latin::hint_outline(&mut outline, &metrics, &scale);
         outline
