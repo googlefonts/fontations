@@ -1,4 +1,7 @@
 //! Common functionality for glyf, cff and autohinting scalers.
+//!
+//! Currently this includes the font reference as well as horizontal glyph
+//! metrics and access to the control value table.
 
 use raw::{
     tables::{hmtx::Hmtx, hvar::Hvar},
