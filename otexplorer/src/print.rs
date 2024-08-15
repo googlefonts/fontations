@@ -166,6 +166,7 @@ impl<'a> PrettyPrinter<'a> {
             FieldType::U16(val) => write!(self, "{val}")?,
             FieldType::I32(val) => write!(self, "{val}")?,
             FieldType::U32(val) => write!(self, "{val}")?,
+            FieldType::I24(val) => write!(self, "{val}")?,
             FieldType::U24(val) => write!(self, "{val}")?,
             FieldType::Tag(val) => write!(self, "{val}")?,
             FieldType::FWord(val) => write!(self, "{val}")?,
