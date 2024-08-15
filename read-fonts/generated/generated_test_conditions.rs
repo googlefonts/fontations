@@ -120,6 +120,8 @@ impl GotFlags {
     pub const FOO: Self = Self { bits: 0x0001 };
 
     pub const BAR: Self = Self { bits: 0x0002 };
+
+    pub const BAZ: Self = Self { bits: 0x0004 };
 }
 
 impl GotFlags {
@@ -133,7 +135,7 @@ impl GotFlags {
     #[inline]
     pub const fn all() -> Self {
         Self {
-            bits: Self::FOO.bits | Self::BAR.bits,
+            bits: Self::FOO.bits | Self::BAR.bits | Self::BAZ.bits,
         }
     }
 
@@ -351,7 +353,8 @@ impl std::ops::Not for GotFlags {
 
 impl std::fmt::Debug for GotFlags {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let members: &[(&str, Self)] = &[("FOO", Self::FOO), ("BAR", Self::BAR)];
+        let members: &[(&str, Self)] =
+            &[("FOO", Self::FOO), ("BAR", Self::BAR), ("BAZ", Self::BAZ)];
         let mut first = true;
         for (name, value) in members {
             if self.contains(*value) {
@@ -416,6 +419,7 @@ impl<'a> From<GotFlags> for FieldType<'a> {
 pub struct FlagDayMarker {
     foo_byte_start: Option<usize>,
     bar_byte_start: Option<usize>,
+    baz_byte_start: Option<usize>,
 }
 
 impl FlagDayMarker {
@@ -433,6 +437,10 @@ impl FlagDayMarker {
     }
     fn bar_byte_range(&self) -> Option<Range<usize>> {
         let start = self.bar_byte_start?;
+        Some(start..start + u16::RAW_BYTE_LEN)
+    }
+    fn baz_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.baz_byte_start?;
         Some(start..start + u16::RAW_BYTE_LEN)
     }
 }
@@ -456,9 +464,17 @@ impl<'a> FontRead<'a> for FlagDay<'a> {
         flags
             .contains(GotFlags::BAR)
             .then(|| cursor.advance::<u16>());
+        let baz_byte_start = flags
+            .intersects(GotFlags::BAZ | GotFlags::FOO)
+            .then(|| cursor.position())
+            .transpose()?;
+        flags
+            .intersects(GotFlags::BAZ | GotFlags::FOO)
+            .then(|| cursor.advance::<u16>());
         cursor.finish(FlagDayMarker {
             foo_byte_start,
             bar_byte_start,
+            baz_byte_start,
         })
     }
 }
@@ -485,6 +501,11 @@ impl<'a> FlagDay<'a> {
         let range = self.shape.bar_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
+
+    pub fn baz(&self) -> Option<u16> {
+        let range = self.shape.baz_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
 }
 
 #[cfg(feature = "traversal")]
@@ -499,6 +520,9 @@ impl<'a> SomeTable<'a> for FlagDay<'a> {
             1usize => Some(Field::new("flags", self.flags())),
             2usize if flags.contains(GotFlags::FOO) => Some(Field::new("foo", self.foo().unwrap())),
             3usize if flags.contains(GotFlags::BAR) => Some(Field::new("bar", self.bar().unwrap())),
+            4usize if flags.intersects(GotFlags::BAZ | GotFlags::FOO) => {
+                Some(Field::new("baz", self.baz().unwrap()))
+            }
             _ => None,
         }
     }
