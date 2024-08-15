@@ -305,9 +305,10 @@ impl SubsetTestCase {
         Command::new("fonttools")
             .arg("subset")
             .arg(&org_font_file)
-            .arg("--drop-tables+=DSIG,BASE,post,OS/2,GSUB,GPOS,GDEF,name,hdmx,fpgm,prep,cvt,gasp,cvar")
+            .arg("--drop-tables+=DSIG,BASE,post,GSUB,GPOS,GDEF,name,hdmx,fpgm,prep,cvt,gasp,cvar,fvar,gvar,HVAR,STAT")
             .arg("--drop-tables-=sbix")
             .arg("--no-harfbuzz-repacker")
+            .arg("--no-prune-codepage-ranges")
             .arg(&unicodes_option)
             .arg(output_option)
             .stdout(Stdio::null())
@@ -357,7 +358,8 @@ fn gen_subset_font_file(
 
     let gids = IntSet::empty();
     let unicodes = parse_unicodes(subset).unwrap();
-    let drop_tables_str = "DSIG,BASE,post,OS/2,GSUB,GPOS,GDEF,name,hdmx,fpgm,prep,cvt,gasp,cvar";
+    let drop_tables_str =
+        "DSIG,BASE,post,GSUB,GPOS,GDEF,name,hdmx,fpgm,prep,cvt,gasp,cvar,fvar,gvar,HVAR,STAT";
     let mut drop_tables = IntSet::empty();
     for str in drop_tables_str.split(',') {
         let tag = Tag::new_checked(str.as_bytes()).unwrap();
@@ -569,7 +571,7 @@ fn parse_test() {
     assert!(test_data_dir.exists());
     let test_file = test_data_dir.join("tests/basics.tests");
     let subset_test = SubsetTestCase::new(&test_file);
-    assert_eq!(subset_test.fonts.len(), 2);
+    assert_eq!(subset_test.fonts.len(), 3);
     assert_eq!(subset_test.fonts[0], "Roboto-Regular.abc.ttf");
     assert_eq!(subset_test.profiles.len(), 7);
     assert_eq!(

@@ -4,11 +4,13 @@ mod glyf_loca;
 mod head;
 mod hmtx;
 mod maxp;
+mod os2;
 mod parsing_util;
 use glyf_loca::subset_glyf_loca;
 use head::subset_head;
 use hmtx::subset_hmtx_hhea;
 use maxp::subset_maxp;
+use os2::subset_os2;
 pub use parsing_util::{parse_drop_tables, parse_unicodes, populate_gids};
 
 use fnv::FnvHashMap;
@@ -25,6 +27,7 @@ use write_fonts::read::{
         head::Head,
         loca::Loca,
         name::Name,
+        os2::Os2,
     },
     FontRef, TableProvider, TopLevelTable,
 };
@@ -460,6 +463,10 @@ fn subset_table<'a>(
 
         Maxp::TAG => {
             subset_maxp(font, plan, builder)?;
+        }
+
+        Os2::TAG => {
+            subset_os2(font, plan, builder)?;
         }
         _ => {
             if let Some(data) = font.data_for_tag(tag) {
