@@ -13,7 +13,7 @@ use raw::TableProvider;
 pub struct GlyphStyles(Arc<GlyphStyleMap>);
 
 impl GlyphStyles {
-    /// Precomputes the full set of glyph styles for the given font.
+    /// Precomputes the full set of glyph styles for the given outlines.
     pub fn new(outlines: &OutlineGlyphCollection) -> Self {
         if let Some(outlines) = outlines.common() {
             let glyph_count = outlines
