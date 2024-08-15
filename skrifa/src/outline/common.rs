@@ -16,6 +16,7 @@ pub(crate) struct OutlinesCommon<'a> {
 
 impl<'a> OutlinesCommon<'a> {
     pub fn new(font: &FontRef<'a>) -> Option<Self> {
+        // Note: hmtx is required and HVAR is optional
         let hmtx = font.hmtx().ok()?;
         let hvar = font.hvar().ok();
         Some(Self {
