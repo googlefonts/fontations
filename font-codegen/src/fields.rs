@@ -705,12 +705,7 @@ impl Field {
                     .map(|fld| (fld.clone(), NeededWhen::Parse)),
             );
         }
-        if let Some(flds) = self
-            .attrs
-            .conditional
-            .as_ref()
-            .and_then(|c| Some(c.input_field()))
-        {
+        if let Some(flds) = self.attrs.conditional.as_ref().map(|c| c.input_field()) {
             for fld in flds {
                 result.push((fld, NeededWhen::Parse))
             }
