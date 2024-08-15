@@ -12,22 +12,19 @@ use core_maths::CoreFloat;
 pub use hint::{HintError, HintInstance, HintOutline};
 pub use outline::{Outline, ScaledOutline};
 
-use super::{DrawError, Hinting};
+use super::{common::OutlinesCommon, DrawError, Hinting};
 use crate::GLYF_COMPOSITE_RECURSION_LIMIT;
 use memory::{FreeTypeOutlineMemory, HarfBuzzOutlineMemory};
 
 use read_fonts::{
     tables::{
-        cvar::Cvar,
         glyf::{
             Anchor, CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, PointMarker, SimpleGlyph,
         },
         gvar::Gvar,
-        hmtx::Hmtx,
-        hvar::Hvar,
         loca::Loca,
     },
-    types::{BigEndian, F26Dot6, F2Dot14, Fixed, GlyphId, Point, Tag},
+    types::{F26Dot6, F2Dot14, Fixed, GlyphId, Point, Tag},
     TableProvider,
 };
 
@@ -37,15 +34,13 @@ pub const PHANTOM_POINT_COUNT: usize = 4;
 /// Scaler state for TrueType outlines.
 #[derive(Clone)]
 pub struct Outlines<'a> {
+    pub(crate) common: OutlinesCommon<'a>,
     loca: Loca<'a>,
     glyf: Glyf<'a>,
     gvar: Option<Gvar<'a>>,
-    hmtx: Hmtx<'a>,
-    hvar: Option<Hvar<'a>>,
     fpgm: &'a [u8],
     prep: &'a [u8],
-    cvt: &'a [BigEndian<i16>],
-    cvar: Option<Cvar<'a>>,
+    cvt_len: u32,
     max_function_defs: u16,
     max_instruction_defs: u16,
     max_twilight_points: u16,
@@ -58,9 +53,10 @@ pub struct Outlines<'a> {
 }
 
 impl<'a> Outlines<'a> {
-    pub fn new(font: &impl TableProvider<'a>) -> Option<Self> {
-        let hvar = font.hvar().ok();
-        let has_var_lsb = hvar
+    pub fn new(common: &OutlinesCommon<'a>) -> Option<Self> {
+        let font = &common.font;
+        let has_var_lsb = common
+            .hvar
             .as_ref()
             .map(|hvar| hvar.lsb_mapping().is_some())
             .unwrap_or_default();
@@ -96,12 +92,12 @@ impl<'a> Outlines<'a> {
             .os2()
             .map(|os2| [os2.s_typo_ascender(), os2.s_typo_descender()])
             .unwrap_or_default();
+        let cvt_len = common.cvt().len() as u32;
         Some(Self {
+            common: common.clone(),
             loca: font.loca(None).ok()?,
             glyf: font.glyf().ok()?,
             gvar: font.gvar().ok(),
-            hmtx: font.hmtx().ok()?,
-            hvar,
             fpgm: font
                 .data_for_tag(Tag::new(b"fpgm"))
                 .unwrap_or_default()
@@ -110,11 +106,7 @@ impl<'a> Outlines<'a> {
                 .data_for_tag(Tag::new(b"prep"))
                 .unwrap_or_default()
                 .as_bytes(),
-            cvt: font
-                .data_for_tag(Tag::new(b"cvt "))
-                .and_then(|d| d.read_array(0..d.len()).ok())
-                .unwrap_or_default(),
-            cvar: font.cvar().ok(),
+            cvt_len,
             max_function_defs,
             max_instruction_defs,
             max_twilight_points,
@@ -150,7 +142,7 @@ impl<'a> Outlines<'a> {
             outline.points += PHANTOM_POINT_COUNT;
         }
         outline.max_stack = self.max_stack_elements as usize;
-        outline.cvt_count = self.cvt.len();
+        outline.cvt_count = self.cvt_len as usize;
         outline.storage_count = self.max_storage as usize;
         outline.max_twilight_points = self.max_twilight_points as usize;
         outline.glyph = glyph;
@@ -226,30 +218,6 @@ impl<'a> Outlines<'a> {
         }
         Ok(())
     }
-
-    fn advance_width(&self, gid: GlyphId, coords: &'a [F2Dot14]) -> i32 {
-        let mut advance = self.hmtx.advance(gid).unwrap_or_default() as i32;
-        if let Some(hvar) = &self.hvar {
-            advance += hvar
-                .advance_width_delta(gid, coords)
-                // FreeType truncates metric deltas...
-                .map(|delta| delta.to_f64() as i32)
-                .unwrap_or(0);
-        }
-        advance
-    }
-
-    fn lsb(&self, gid: GlyphId, coords: &'a [F2Dot14]) -> i32 {
-        let mut lsb = self.hmtx.side_bearing(gid).unwrap_or_default() as i32;
-        if let Some(hvar) = &self.hvar {
-            lsb += hvar
-                .lsb_delta(gid, coords)
-                // FreeType truncates metric deltas...
-                .map(|delta| delta.to_f64() as i32)
-                .unwrap_or(0);
-        }
-        lsb
-    }
 }
 
 trait Scaler {
@@ -288,8 +256,8 @@ trait Scaler {
         let bounds = [glyph.x_min(), glyph.x_max(), glyph.y_min(), glyph.y_max()];
         let outlines = self.outlines();
         let coords: &[F2Dot14] = self.coords();
-        let lsb = outlines.lsb(glyph_id, coords);
-        let advance = outlines.advance_width(glyph_id, coords);
+        let lsb = outlines.common.lsb(glyph_id, coords);
+        let advance = outlines.common.advance_width(glyph_id, coords);
         let [ascent, descent] = outlines.os2_vmetrics.map(|x| x as i32);
         let tsb = ascent - bounds[3] as i32;
         let vadvance = ascent - descent;
@@ -607,7 +575,7 @@ impl<'a> Scaler for FreeTypeScaler<'a> {
             }
         }
         // Commit our potentially modified phantom points.
-        if self.outlines.hvar.is_some() && self.is_hinted {
+        if self.outlines.common.hvar.is_some() && self.is_hinted {
             self.phantom[0] *= self.scale;
             self.phantom[1] *= self.scale;
         } else {
@@ -1213,7 +1181,7 @@ mod tests {
     #[test]
     fn overlap_flags() {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
-        let scaler = Outlines::new(&font).unwrap();
+        let scaler = Outlines::new(&OutlinesCommon::new(&font).unwrap()).unwrap();
         let glyph_count = font.maxp().unwrap().num_glyphs();
         // GID 2 is a composite glyph with the overlap bit on a component
         // GID 3 is a simple glyph with the overlap bit on the first flag

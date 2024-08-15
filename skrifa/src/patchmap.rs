@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 
 use crate::GlyphId;
 use crate::Tag;
-use raw::FontData;
+use raw::{FontData, FontRef};
 use read_fonts::{
     tables::ift::{EntryMapRecord, Ift, PatchMapFormat1},
     ReadError, TableProvider,
@@ -18,8 +18,8 @@ use read_fonts::collections::IntSet;
 use crate::charmap::Charmap;
 
 /// Find the set of patches which intersect the specified subset definition.
-pub fn intersecting_patches<'a>(
-    font: &impl TableProvider<'a>,
+pub fn intersecting_patches(
+    font: &FontRef,
     codepoints: &IntSet<u32>,
     features: &BTreeSet<Tag>,
 ) -> Result<Vec<PatchUri>, ReadError> {
@@ -36,8 +36,8 @@ pub fn intersecting_patches<'a>(
     Ok(result)
 }
 
-fn add_intersecting_patches<'a>(
-    font: &impl TableProvider<'a>,
+fn add_intersecting_patches(
+    font: &FontRef,
     ift: &Ift,
     codepoints: &IntSet<u32>,
     features: &BTreeSet<Tag>,
@@ -51,8 +51,8 @@ fn add_intersecting_patches<'a>(
     }
 }
 
-fn add_intersecting_format1_patches<'a>(
-    font: &impl TableProvider<'a>,
+fn add_intersecting_format1_patches(
+    font: &FontRef,
     map: &PatchMapFormat1,
     codepoints: &IntSet<u32>,
     features: &BTreeSet<Tag>,
@@ -105,8 +105,8 @@ fn add_intersecting_format1_patches<'a>(
     Ok(())
 }
 
-fn intersect_format1_glyph_map<'a>(
-    font: &impl TableProvider<'a>,
+fn intersect_format1_glyph_map(
+    font: &FontRef,
     map: &PatchMapFormat1,
     codepoints: &IntSet<u32>,
     entries: &mut IntSet<u16>,

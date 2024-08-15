@@ -110,12 +110,13 @@ struct LoopBudget {
 
 impl LoopBudget {
     fn new(outlines: &Outlines, point_count: Option<usize>) -> Self {
+        let cvt_len = outlines.cvt_len as usize;
         // Compute limits for loop calls and backward jumps.
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6955>
         let limit = if let Some(point_count) = point_count {
-            (point_count * 10).max(50) + (outlines.cvt.len() / 10).max(50)
+            (point_count * 10).max(50) + (cvt_len / 10).max(50)
         } else {
-            300 + 22 * outlines.cvt.len()
+            300 + 22 * cvt_len
         };
         // FreeType has two variables for neg_jump_counter_max and
         // loopcall_counter_max but sets them to the same value so

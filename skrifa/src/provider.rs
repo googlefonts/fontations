@@ -7,10 +7,48 @@ use super::{
     outline::OutlineGlyphCollection,
     string::{LocalizedStrings, StringId},
     variation::{AxisCollection, NamedInstanceCollection},
+    FontRef,
 };
 
 /// Interface for types that can provide font metadata.
-pub trait MetadataProvider<'a>: raw::TableProvider<'a> + Sized {
+pub trait MetadataProvider<'a>: Sized {
+    /// Returns the primary attributes for font classification-- stretch,
+    /// style and weight.
+    fn attributes(&self) -> Attributes;
+
+    /// Returns the collection of variation axes.
+    fn axes(&self) -> AxisCollection<'a>;
+
+    /// Returns the collection of named variation instances.
+    fn named_instances(&self) -> NamedInstanceCollection<'a>;
+
+    /// Returns an iterator over the collection of localized strings for the
+    /// given informational string identifier.
+    fn localized_strings(&self, id: StringId) -> LocalizedStrings<'a>;
+
+    /// Returns the global font metrics for the specified size and location in
+    /// normalized variation space.
+    fn metrics(&self, size: Size, location: impl Into<LocationRef<'a>>) -> Metrics;
+
+    /// Returns the glyph specific metrics for the specified size and location
+    /// in normalized variation space.
+    fn glyph_metrics(&self, size: Size, location: impl Into<LocationRef<'a>>) -> GlyphMetrics<'a>;
+
+    /// Returns the character to nominal glyph identifier mapping.
+    fn charmap(&self) -> Charmap<'a>;
+
+    /// Returns the collection of scalable glyph outlines.
+    ///
+    /// If the font contains multiple outline sources, this method prioritizes
+    /// `glyf`, `CFF2` and `CFF` in that order. To select a specific outline
+    /// source, use the [`OutlineGlyphCollection::with_format`] method.
+    fn outline_glyphs(&self) -> OutlineGlyphCollection<'a>;
+
+    // Returns a collection of paintable color glyphs.
+    fn color_glyphs(&self) -> ColorGlyphCollection<'a>;
+}
+
+impl<'a> MetadataProvider<'a> for FontRef<'a> {
     /// Returns the primary attributes for font classification-- stretch,
     /// style and weight.
     fn attributes(&self) -> Attributes {
@@ -64,7 +102,3 @@ pub trait MetadataProvider<'a>: raw::TableProvider<'a> + Sized {
         ColorGlyphCollection::new(self)
     }
 }
-
-/// Blanket implementation of `MetadataProvider` for any type that implements
-/// `TableProvider`.
-impl<'a, T> MetadataProvider<'a> for T where T: raw::TableProvider<'a> {}

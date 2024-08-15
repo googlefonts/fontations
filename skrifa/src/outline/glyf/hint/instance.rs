@@ -13,7 +13,10 @@ use super::{
     HintOutline, HintingMode, PointFlags,
 };
 use alloc::vec::Vec;
-use raw::types::{F26Dot6, F2Dot14, Fixed, Point};
+use raw::{
+    types::{F26Dot6, F2Dot14, Fixed, Point},
+    TableProvider,
+};
 
 #[derive(Clone, Default)]
 pub struct HintInstance {
@@ -188,12 +191,13 @@ impl HintInstance {
             Definition::default(),
         );
         self.cvt.clear();
-        if let Some(cvar) = outlines.cvar.as_ref() {
+        let cvt = outlines.common.cvt();
+        if let Ok(cvar) = outlines.common.font.cvar() {
             // First accumulate all the deltas in 16.16
-            self.cvt.resize(outlines.cvt.len(), 0);
+            self.cvt.resize(cvt.len(), 0);
             let _ = cvar.deltas(axis_count, coords, &mut self.cvt);
             // Now add the base CVT values
-            for (value, base_value) in self.cvt.iter_mut().zip(outlines.cvt.iter()) {
+            for (value, base_value) in self.cvt.iter_mut().zip(cvt.iter()) {
                 // Deltas are converted from 16.16 to 26.6
                 // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttgxvar.c#L3822>
                 let delta = Fixed::from_bits(*value).to_f26dot6().to_bits();
@@ -204,7 +208,7 @@ impl HintInstance {
             // CVT values are converted to 26.6 on load
             // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttpload.c#L350>
             self.cvt
-                .extend(outlines.cvt.iter().map(|value| (value.get() as i32) * 64));
+                .extend(cvt.iter().map(|value| (value.get() as i32) * 64));
         }
         // More weird scaling. This is due to the fact that CVT values are
         // already in 26.6
@@ -233,13 +237,17 @@ impl HintInstance {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::super::Outlines, HintInstance};
+    use super::{
+        super::super::{Outlines, OutlinesCommon},
+        HintInstance,
+    };
     use read_fonts::{types::F2Dot14, FontRef};
 
     #[test]
     fn scaled_cvar_cvt() {
         let font = FontRef::new(font_test_data::CVAR).unwrap();
-        let outlines = Outlines::new(&font).unwrap();
+        let base = OutlinesCommon::new(&font).unwrap();
+        let outlines = Outlines::new(&base).unwrap();
         let mut instance = HintInstance::default();
         let coords = [0.5, -0.5].map(F2Dot14::from_f32);
         let ppem = 16;
