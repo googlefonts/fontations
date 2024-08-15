@@ -59,8 +59,9 @@ impl<'a> Engine<'a> {
                 result |= SUBPIXEL_POSITIONED_RESULT_BIT;
             }
             // Symmetrical smoothing (selector bit: 11, result bit: 18)
-            // Note: FreeType always enables this but we deviate when our own
-            // preserve linear metrics flag is enabled.
+            // Note: FreeType always enables this but we allow direct control
+            // with our own flag.
+            // See <https://github.com/googlefonts/fontations/issues/1080>
             if (selector & SYMMETRICAL_SMOOTHING_SELECTOR_BIT) != 0
                 && self.graphics.target.symmetric_rendering()
             {
