@@ -1866,7 +1866,7 @@ impl IfTransform {
 
     pub(crate) fn input_field(&self) -> Vec<syn::Ident> {
         match self {
-            IfTransform::AnyFlag(field, _) => return vec![field.clone()],
+            IfTransform::AnyFlag(field, _) => vec![field.clone()],
         }
     }
 }
