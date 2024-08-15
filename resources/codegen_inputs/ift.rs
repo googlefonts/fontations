@@ -171,7 +171,7 @@ table EntryData {
   #[if_flag($format, EntryFormatFlags::PATCH_ENCODING)]
   patch_encoding: u8,
 
-  #[if_flag($format, EntryFormatFlags::CODEPOINTS_BIT_1)]
+  #[if_cond(any_flag($format, EntryFormatFlags::CODEPOINTS_BIT_1, EntryFormatFlags::CODEPOINTS_BIT_2))]
   #[count(..)]
   codepoint_data: [u8],
 }
