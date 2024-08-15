@@ -241,6 +241,7 @@ fn normalize_type(input: &str) -> &str {
         "uint8" => "BigEndian<u8>",
         "uint16" => "BigEndian<u16>",
         "uint24" => "BigEndian<Uint24>",
+        "int24" => "BigEndian<Int24>",
         "uint32" => "BigEndian<u32>",
         "int8" => "BigEndian<i8>",
         "int16" => "BigEndian<i16>",

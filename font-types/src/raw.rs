@@ -199,6 +199,7 @@ int_scalar!(u32, [u8; 4]);
 int_scalar!(i32, [u8; 4]);
 int_scalar!(i64, [u8; 8]);
 int_scalar!(crate::Uint24, [u8; 3]);
+int_scalar!(crate::Int24, [u8; 3]);
 
 impl<T: std::fmt::Debug + Scalar + Copy> std::fmt::Debug for BigEndian<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
