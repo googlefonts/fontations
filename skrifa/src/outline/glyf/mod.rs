@@ -12,7 +12,7 @@ use core_maths::CoreFloat;
 pub use hint::{HintError, HintInstance, HintOutline};
 pub use outline::{Outline, ScaledOutline};
 
-use super::{base::BaseOutlines, DrawError, Hinting};
+use super::{common::OutlinesCommon, DrawError, Hinting};
 use crate::GLYF_COMPOSITE_RECURSION_LIMIT;
 use memory::{FreeTypeOutlineMemory, HarfBuzzOutlineMemory};
 
@@ -34,7 +34,7 @@ pub const PHANTOM_POINT_COUNT: usize = 4;
 /// Scaler state for TrueType outlines.
 #[derive(Clone)]
 pub struct Outlines<'a> {
-    pub(crate) base: BaseOutlines<'a>,
+    pub(crate) common: OutlinesCommon<'a>,
     loca: Loca<'a>,
     glyf: Glyf<'a>,
     gvar: Option<Gvar<'a>>,
@@ -53,9 +53,9 @@ pub struct Outlines<'a> {
 }
 
 impl<'a> Outlines<'a> {
-    pub fn new(base: &BaseOutlines<'a>) -> Option<Self> {
-        let font = &base.font;
-        let has_var_lsb = base
+    pub fn new(common: &OutlinesCommon<'a>) -> Option<Self> {
+        let font = &common.font;
+        let has_var_lsb = common
             .hvar
             .as_ref()
             .map(|hvar| hvar.lsb_mapping().is_some())
@@ -92,9 +92,9 @@ impl<'a> Outlines<'a> {
             .os2()
             .map(|os2| [os2.s_typo_ascender(), os2.s_typo_descender()])
             .unwrap_or_default();
-        let cvt_len = base.cvt().len() as u32;
+        let cvt_len = common.cvt().len() as u32;
         Some(Self {
-            base: base.clone(),
+            common: common.clone(),
             loca: font.loca(None).ok()?,
             glyf: font.glyf().ok()?,
             gvar: font.gvar().ok(),
@@ -256,8 +256,8 @@ trait Scaler {
         let bounds = [glyph.x_min(), glyph.x_max(), glyph.y_min(), glyph.y_max()];
         let outlines = self.outlines();
         let coords: &[F2Dot14] = self.coords();
-        let lsb = outlines.base.lsb(glyph_id, coords);
-        let advance = outlines.base.advance_width(glyph_id, coords);
+        let lsb = outlines.common.lsb(glyph_id, coords);
+        let advance = outlines.common.advance_width(glyph_id, coords);
         let [ascent, descent] = outlines.os2_vmetrics.map(|x| x as i32);
         let tsb = ascent - bounds[3] as i32;
         let vadvance = ascent - descent;
@@ -575,7 +575,7 @@ impl<'a> Scaler for FreeTypeScaler<'a> {
             }
         }
         // Commit our potentially modified phantom points.
-        if self.outlines.base.hvar.is_some() && self.is_hinted {
+        if self.outlines.common.hvar.is_some() && self.is_hinted {
             self.phantom[0] *= self.scale;
             self.phantom[1] *= self.scale;
         } else {
@@ -1181,7 +1181,7 @@ mod tests {
     #[test]
     fn overlap_flags() {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
-        let scaler = Outlines::new(&BaseOutlines::new(&font).unwrap()).unwrap();
+        let scaler = Outlines::new(&OutlinesCommon::new(&font).unwrap()).unwrap();
         let glyph_count = font.maxp().unwrap().num_glyphs();
         // GID 2 is a composite glyph with the overlap bit on a component
         // GID 3 is a simple glyph with the overlap bit on the first flag

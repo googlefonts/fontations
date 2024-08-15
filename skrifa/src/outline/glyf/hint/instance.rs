@@ -191,8 +191,8 @@ impl HintInstance {
             Definition::default(),
         );
         self.cvt.clear();
-        let cvt = outlines.base.cvt();
-        if let Ok(cvar) = outlines.base.font.cvar() {
+        let cvt = outlines.common.cvt();
+        if let Ok(cvar) = outlines.common.font.cvar() {
             // First accumulate all the deltas in 16.16
             self.cvt.resize(cvt.len(), 0);
             let _ = cvar.deltas(axis_count, coords, &mut self.cvt);
@@ -238,7 +238,7 @@ impl HintInstance {
 #[cfg(test)]
 mod tests {
     use super::{
-        super::super::{BaseOutlines, Outlines},
+        super::super::{Outlines, OutlinesCommon},
         HintInstance,
     };
     use read_fonts::{types::F2Dot14, FontRef};
@@ -246,7 +246,7 @@ mod tests {
     #[test]
     fn scaled_cvar_cvt() {
         let font = FontRef::new(font_test_data::CVAR).unwrap();
-        let base = BaseOutlines::new(&font).unwrap();
+        let base = OutlinesCommon::new(&font).unwrap();
         let outlines = Outlines::new(&base).unwrap();
         let mut instance = HintInstance::default();
         let coords = [0.5, -0.5].map(F2Dot14::from_f32);

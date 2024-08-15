@@ -1105,7 +1105,7 @@ mod tests {
     use read_fonts::{tables::postscript::charstring::CommandSink, types::F2Dot14, FontRef};
 
     use super::{
-        super::BaseOutlines, BlueZone, Blues, Fixed, Hint, HintMap, HintMask, HintParams,
+        super::OutlinesCommon, BlueZone, Blues, Fixed, Hint, HintMap, HintMask, HintParams,
         HintState, HintingSink, StemHint, GHOST_BOTTOM, GHOST_TOP, HINT_MASK_SIZE, LOCKED,
         PAIR_BOTTOM, PAIR_TOP,
     };
@@ -1303,7 +1303,7 @@ mod tests {
     #[test]
     fn hint_mapping() {
         let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
-        let base = BaseOutlines::new(&font).unwrap();
+        let base = OutlinesCommon::new(&font).unwrap();
         let cff_font = super::super::Outlines::new(&base).unwrap();
         let state = cff_font
             .subfont(0, Some(8.0), &[F2Dot14::from_f32(-1.0); 2])

@@ -2,7 +2,7 @@
 
 mod hint;
 
-use super::{base::BaseOutlines, OutlinePen};
+use super::{common::OutlinesCommon, OutlinePen};
 use hint::{HintParams, HintState, HintingSink};
 use read_fonts::{
     tables::{
@@ -36,7 +36,7 @@ use std::ops::Range;
 /// subfont for that glyph.
 #[derive(Clone)]
 pub(crate) struct Outlines<'a> {
-    pub(crate) base: BaseOutlines<'a>,
+    pub(crate) common: OutlinesCommon<'a>,
     offset_data: FontData<'a>,
     global_subrs: Index<'a>,
     top_dict: TopDict<'a>,
@@ -49,13 +49,13 @@ impl<'a> Outlines<'a> {
     ///
     /// This will choose an underlying CFF2 or CFF table from the font, in that
     /// order.
-    pub fn new(base: &BaseOutlines<'a>) -> Option<Self> {
-        let units_per_em = base.font.head().ok()?.units_per_em();
-        Self::from_cff2(base, units_per_em).or_else(|| Self::from_cff(base, units_per_em))
+    pub fn new(common: &OutlinesCommon<'a>) -> Option<Self> {
+        let units_per_em = common.font.head().ok()?.units_per_em();
+        Self::from_cff2(common, units_per_em).or_else(|| Self::from_cff(common, units_per_em))
     }
 
-    pub fn from_cff(base: &BaseOutlines<'a>, units_per_em: u16) -> Option<Self> {
-        let cff1 = base.font.cff().ok()?;
+    pub fn from_cff(common: &OutlinesCommon<'a>, units_per_em: u16) -> Option<Self> {
+        let cff1 = common.font.cff().ok()?;
         // "The Name INDEX in the CFF data must contain only one entry;
         // that is, there must be only one font in the CFF FontSet"
         // So we always pass 0 for Top DICT index when reading from an
@@ -64,7 +64,7 @@ impl<'a> Outlines<'a> {
         let top_dict_data = cff1.top_dicts().get(0).ok()?;
         let top_dict = TopDict::new(cff1.offset_data().as_bytes(), top_dict_data, false).ok()?;
         Some(Self {
-            base: base.clone(),
+            common: common.clone(),
             offset_data: cff1.offset_data(),
             global_subrs: cff1.global_subrs().into(),
             top_dict,
@@ -73,12 +73,12 @@ impl<'a> Outlines<'a> {
         })
     }
 
-    pub fn from_cff2(base: &BaseOutlines<'a>, units_per_em: u16) -> Option<Self> {
-        let cff2 = base.font.cff2().ok()?;
+    pub fn from_cff2(common: &OutlinesCommon<'a>, units_per_em: u16) -> Option<Self> {
+        let cff2 = common.font.cff2().ok()?;
         let table_data = cff2.offset_data().as_bytes();
         let top_dict = TopDict::new(table_data, cff2.top_dict_data(), true).ok()?;
         Some(Self {
-            base: base.clone(),
+            common: common.clone(),
             offset_data: cff2.offset_data(),
             global_subrs: cff2.global_subrs().into(),
             top_dict,
@@ -621,7 +621,7 @@ mod tests {
     #[test]
     fn read_cff_static() {
         let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
-        let base = BaseOutlines::new(&font).unwrap();
+        let base = OutlinesCommon::new(&font).unwrap();
         let cff = Outlines::new(&base).unwrap();
         assert!(!cff.is_cff2());
         assert!(cff.top_dict.var_store.is_none());
@@ -636,7 +636,7 @@ mod tests {
     #[test]
     fn read_cff2_static() {
         let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
-        let base = BaseOutlines::new(&font).unwrap();
+        let base = OutlinesCommon::new(&font).unwrap();
         let cff = Outlines::new(&base).unwrap();
         assert!(cff.is_cff2());
         assert!(cff.top_dict.var_store.is_some());
@@ -686,7 +686,7 @@ mod tests {
         use super::super::testing;
         let font = FontRef::new(font_data).unwrap();
         let expected_outlines = testing::parse_glyph_outlines(expected_outlines);
-        let base = BaseOutlines::new(&font).unwrap();
+        let base = OutlinesCommon::new(&font).unwrap();
         let outlines = super::Outlines::new(&base).unwrap();
         let mut path = testing::Path::default();
         for expected_outline in &expected_outlines {
