@@ -149,7 +149,7 @@ pub struct Plan {
     codepoint_to_glyph: FnvHashMap<u32, GlyphId>,
 
     subset_flags: SubsetFlags,
-    drop_tables: IntSet<u32>,
+    drop_tables: IntSet<Tag>,
 }
 
 impl Plan {
@@ -158,7 +158,7 @@ impl Plan {
         input_unicodes: &IntSet<u32>,
         font: &FontRef,
         flags: SubsetFlags,
-        drop_tables: &IntSet<u32>,
+        drop_tables: &IntSet<Tag>,
     ) -> Self {
         let mut this = Plan {
             font_num_glyphs: get_font_num_glyphs(font),
@@ -258,10 +258,7 @@ impl Plan {
         //skip glyph closure for MATH table, it's not supported yet
 
         //glyph closure for COLR
-        if !self
-            .drop_tables
-            .contains(u32::from_be_bytes(Tag::new(b"COLR").to_be_bytes()))
-        {
+        if !self.drop_tables.contains(Tag::new(b"COLR")) {
             self.colr_closure(font);
             remove_invalid_gids(&mut self.glyphset_colred, self.font_num_glyphs);
         } else {
@@ -422,10 +419,7 @@ pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> 
 
     for record in font.table_directory.table_records() {
         let tag = record.tag();
-        if plan
-            .drop_tables
-            .contains(u32::from_be_bytes(tag.to_be_bytes()))
-        {
+        if plan.drop_tables.contains(tag) {
             continue;
         }
         subset_table(tag, font, plan, &mut builder)?;

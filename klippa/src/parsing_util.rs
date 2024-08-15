@@ -66,11 +66,11 @@ pub fn parse_unicodes(unicode_str: &str) -> Result<IntSet<u32>, SubsetError> {
 }
 
 //parse input drop_tables string, which is a comma/whitespace-separated list of tables that will be dropped
-pub fn parse_drop_tables(input_str: &str) -> Result<IntSet<u32>, SubsetError> {
+pub fn parse_drop_tables(input_str: &str) -> Result<IntSet<Tag>, SubsetError> {
     let mut result = IntSet::empty();
 
     if input_str == "*" {
-        let out = IntSet::<u32>::all();
+        let out = IntSet::<Tag>::all();
         return Ok(out);
     }
 
@@ -81,7 +81,7 @@ pub fn parse_drop_tables(input_str: &str) -> Result<IntSet<u32>, SubsetError> {
         let Ok(table_tag) = Tag::new_checked(tag.as_bytes()) else {
             return Err(SubsetError::InvalidTag(tag.to_owned()));
         };
-        result.insert(u32::from_be_bytes(table_tag.to_be_bytes()));
+        result.insert(table_tag);
     }
     Ok(result)
 }
@@ -123,10 +123,10 @@ fn test_parse_drop_tables() {
     let input = "cmap,GSUB OS/2 CFF";
     let output = parse_drop_tables(input).unwrap();
     assert_eq!(output.len(), 4);
-    assert!(output.contains(0x636d6170_u32));
-    assert!(output.contains(0x47535542_u32));
-    assert!(output.contains(0x4f532f32_u32));
-    assert!(output.contains(0x43464620_u32));
+    assert!(output.contains(Tag::new(b"cmap")));
+    assert!(output.contains(Tag::new(b"GSUB")));
+    assert!(output.contains(Tag::new(b"OS/2")));
+    assert!(output.contains(Tag::new(b"CFF ")));
 
     let input = "";
     let output = parse_drop_tables(input).unwrap();

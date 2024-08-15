@@ -361,7 +361,7 @@ fn gen_subset_font_file(
     let mut drop_tables = IntSet::empty();
     for str in drop_tables_str.split(',') {
         let tag = Tag::new_checked(str.as_bytes()).unwrap();
-        drop_tables.insert(u32::from_be_bytes(tag.to_be_bytes()));
+        drop_tables.insert(tag);
     }
     //TODO: support parsing subset_flags
     let plan = Plan::new(&gids, &unicodes, &font, profile, &drop_tables);
