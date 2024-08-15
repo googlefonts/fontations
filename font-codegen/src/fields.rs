@@ -8,7 +8,8 @@ use syn::spanned::Spanned;
 
 use super::parsing::{
     logged_syn_error, Attr, Condition, Count, CountArg, CustomCompile, Field, FieldReadArgs,
-    FieldType, FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record, ReferencedFields,
+    FieldType, FieldValidation, Fields, IfTransform, NeededWhen, OffsetTarget, Phase, Record,
+    ReferencedFields,
 };
 
 impl Fields {
@@ -103,12 +104,8 @@ impl Fields {
         let mut result = self
             .fields
             .iter()
-            .flat_map(|fld| {
-                fld.attrs
-                    .conditional
-                    .as_ref()
-                    .and_then(|cond| cond.input_field())
-            })
+            .flat_map(|fld| fld.attrs.conditional.as_ref())
+            .flat_map(|cond| cond.input_field())
             .collect::<Vec<_>>();
         result.sort();
         result.dedup();
@@ -218,6 +215,22 @@ impl Fields {
                                 }
                             }
                         }
+                        Condition::IfCond { xform } => match xform {
+                            IfTransform::AnyFlag(_, _) => {
+                                let condition_not_set_message =
+                                    format!("if_cond is not satisfied but '{name}' is present.");
+                                let condition_set_message =
+                                    format!("if_cond is satisfied by '{name}' is not present.");
+                                quote! {
+                                    if !(#condition) && self.#name.is_some() {
+                                        ctx.report(#condition_not_set_message);
+                                    }
+                                    if (#condition) && self.#name.is_none() {
+                                        ctx.report(#condition_set_message);
+                                    }
+                                }
+                            }
+                        },
                     }
                 });
 
@@ -290,11 +303,24 @@ impl Fields {
     }
 }
 
+fn if_expression(xform: &IfTransform, add_self: bool) -> TokenStream {
+    match xform {
+        IfTransform::AnyFlag(field, flags) => {
+            if add_self {
+                quote!(self.#field.intersects(#(#flags)|*))
+            } else {
+                quote!(#field.intersects(#(#flags)|*))
+            }
+        }
+    }
+}
+
 impl Condition {
     fn condition_tokens_for_read(&self) -> TokenStream {
         match self {
             Condition::SinceVersion(version) => quote!(version.compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(#field.contains(#flag)),
+            Condition::IfCond { xform } => if_expression(xform, false),
         }
     }
 
@@ -302,15 +328,17 @@ impl Condition {
         match self {
             Condition::SinceVersion(version) => quote!(version.compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(self.#field.contains(#flag)),
+            Condition::IfCond { xform } => if_expression(xform, true),
         }
     }
 
     /// the name of any fields that need to be instantiated to determine this condition
-    fn input_field(&self) -> Option<syn::Ident> {
+    fn input_field(&self) -> Vec<syn::Ident> {
         match self {
             // special case, we always treat a version field as input
-            Condition::SinceVersion(_) => None,
-            Condition::IfFlag { field, .. } => Some(field.clone()),
+            Condition::SinceVersion(_) => vec![],
+            Condition::IfFlag { field, .. } => vec![field.clone()],
+            Condition::IfCond { xform } => xform.input_field(),
         }
     }
 }
@@ -677,13 +705,15 @@ impl Field {
                     .map(|fld| (fld.clone(), NeededWhen::Parse)),
             );
         }
-        if let Some(fld) = self
+        if let Some(flds) = self
             .attrs
             .conditional
             .as_ref()
-            .and_then(|c| c.input_field())
+            .and_then(|c| Some(c.input_field()))
         {
-            result.push((fld, NeededWhen::Parse))
+            for fld in flds {
+                result.push((fld, NeededWhen::Parse))
+            }
         }
 
         if let Some(read_with) = self.attrs.read_with_args.as_ref() {
