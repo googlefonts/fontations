@@ -50,6 +50,7 @@ pub struct Outlines<'a> {
     units_per_em: u16,
     os2_vmetrics: [i16; 2],
     has_var_lsb: bool,
+    prefer_interpreter: bool,
 }
 
 impl<'a> Outlines<'a> {
@@ -67,6 +68,7 @@ impl<'a> Outlines<'a> {
             max_twilight_points,
             max_stack_elements,
             max_storage,
+            max_instructions,
         ) = font
             .maxp()
             .map(|maxp| {
@@ -85,6 +87,7 @@ impl<'a> Outlines<'a> {
                         .unwrap_or_default()
                         .saturating_add(32),
                     maxp.max_storage().unwrap_or_default(),
+                    maxp.max_size_of_instructions().unwrap_or_default(),
                 )
             })
             .unwrap_or_default();
@@ -92,20 +95,25 @@ impl<'a> Outlines<'a> {
             .os2()
             .map(|os2| [os2.s_typo_ascender(), os2.s_typo_descender()])
             .unwrap_or_default();
+        let fpgm = font
+            .data_for_tag(Tag::new(b"fpgm"))
+            .unwrap_or_default()
+            .as_bytes();
+        let prep = font
+            .data_for_tag(Tag::new(b"prep"))
+            .unwrap_or_default()
+            .as_bytes();
+        // Copy FreeType's logic on whether to use the interpreter:
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/ftobjs.c#L1001>
+        let prefer_interpreter = !(max_instructions == 0 && fpgm.is_empty() && prep.is_empty());
         let cvt_len = common.cvt().len() as u32;
         Some(Self {
             common: common.clone(),
             loca: font.loca(None).ok()?,
             glyf: font.glyf().ok()?,
             gvar: font.gvar().ok(),
-            fpgm: font
-                .data_for_tag(Tag::new(b"fpgm"))
-                .unwrap_or_default()
-                .as_bytes(),
-            prep: font
-                .data_for_tag(Tag::new(b"prep"))
-                .unwrap_or_default()
-                .as_bytes(),
+            fpgm,
+            prep,
             cvt_len,
             max_function_defs,
             max_instruction_defs,
@@ -116,6 +124,7 @@ impl<'a> Outlines<'a> {
             units_per_em: font.head().ok()?.units_per_em(),
             os2_vmetrics,
             has_var_lsb,
+            prefer_interpreter,
         })
     }
 
@@ -125,6 +134,10 @@ impl<'a> Outlines<'a> {
 
     pub fn glyph_count(&self) -> usize {
         self.glyph_count as usize
+    }
+
+    pub fn prefer_interpreter(&self) -> bool {
+        self.prefer_interpreter
     }
 
     pub fn outline(&self, glyph_id: GlyphId) -> Result<Outline<'a>, DrawError> {
@@ -1192,5 +1205,19 @@ mod tests {
                 .filter(|gid| scaler.outline(GlyphId::from(*gid)).unwrap().has_overlaps)
                 .collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn interpreter_preference() {
+        // no instructions in this font...
+        let font = FontRef::new(font_test_data::COLRV0V1).unwrap();
+        let outlines = Outlines::new(&OutlinesCommon::new(&font).unwrap()).unwrap();
+        // thus no preference for the interpreter
+        assert!(!outlines.prefer_interpreter());
+        // but this one has instructions...
+        let font = FontRef::new(font_test_data::TTHINT_SUBSET).unwrap();
+        let outlines = Outlines::new(&OutlinesCommon::new(&font).unwrap()).unwrap();
+        // so let's use it
+        assert!(outlines.prefer_interpreter());
     }
 }

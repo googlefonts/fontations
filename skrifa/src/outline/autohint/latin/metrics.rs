@@ -220,6 +220,7 @@ mod tests {
             16.0,
             font.head().unwrap().units_per_em() as i32,
             Default::default(),
+            false,
         );
         let scaled_metrics = scale_style_metrics(&unscaled_metrics, scale);
         // Check scale and deltas
