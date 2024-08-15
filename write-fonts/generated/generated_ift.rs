@@ -626,7 +626,7 @@ impl FontWrite for EntryData {
                     .write_into(writer)
             });
         self.format
-            .contains(EntryFormatFlags::CODEPOINTS_BIT_1)
+            .intersects(EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2)
             .then(|| {
                 self.codepoint_data
                     .as_ref()
@@ -756,15 +756,17 @@ impl Validate for EntryData {
                 }
             });
             ctx.in_field("codepoint_data", |ctx| {
-                if !(format.contains(EntryFormatFlags::CODEPOINTS_BIT_1))
-                    && self.codepoint_data.is_some()
+                if !(format.intersects(
+                    EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2,
+                )) && self.codepoint_data.is_some()
                 {
-                    ctx.report("'codepoint_data' is present but CODEPOINTS_BIT_1 not set")
+                    ctx.report("if_cond is not satisfied but 'codepoint_data' is present.");
                 }
-                if (format.contains(EntryFormatFlags::CODEPOINTS_BIT_1))
-                    && self.codepoint_data.is_none()
+                if (format.intersects(
+                    EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2,
+                )) && self.codepoint_data.is_none()
                 {
-                    ctx.report("CODEPOINTS_BIT_1 is set but 'codepoint_data' is None")
+                    ctx.report("if_cond is satisfied by 'codepoint_data' is not present.");
                 }
             });
         })
