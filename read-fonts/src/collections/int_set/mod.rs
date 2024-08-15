@@ -28,6 +28,7 @@ use font_types::{GlyphId, GlyphId16};
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
+use types::Tag;
 
 /// A fast & efficient invertible ordered set for small (up to 32-bit) unsigned integer types.
 #[derive(Clone, Debug)]
@@ -960,6 +961,32 @@ impl Domain for GlyphId {
     fn ordered_values_range(
         range: RangeInclusive<GlyphId>,
     ) -> impl DoubleEndedIterator<Item = u32> {
+        range.start().to_u32()..=range.end().to_u32()
+    }
+
+    fn count() -> u64 {
+        (u32::MAX as u64) - (u32::MIN as u64) + 1
+    }
+}
+
+impl Domain for Tag {
+    fn to_u32(&self) -> u32 {
+        u32::from_be_bytes(self.to_be_bytes())
+    }
+
+    fn from_u32(member: InDomain) -> Tag {
+        Tag::from_u32(member.value())
+    }
+
+    fn is_continuous() -> bool {
+        true
+    }
+
+    fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
+        u32::MIN..=u32::MAX
+    }
+
+    fn ordered_values_range(range: RangeInclusive<Tag>) -> impl DoubleEndedIterator<Item = u32> {
         range.start().to_u32()..=range.end().to_u32()
     }
 
@@ -2060,6 +2087,30 @@ mod test {
         assert_eq!(it.next(), Some(GlyphId::new(3)));
         assert_eq!(it.next(), Some(GlyphId::new(4)));
         assert_eq!(it.next(), Some(GlyphId::new(6)));
+    }
+
+    #[test]
+    fn with_tag() {
+        let mut set = IntSet::<Tag>::empty();
+
+        set.insert(Tag::new(b"GSUB"));
+        set.insert(Tag::new(b"CFF "));
+        set.insert(Tag::new(b"OS/2"));
+
+        assert!(set.contains(Tag::new(b"GSUB")));
+        assert!(!set.contains(Tag::new(b"GSU ")));
+        assert!(set.contains(Tag::new(b"CFF ")));
+        assert!(set.contains(Tag::new(b"OS/2")));
+
+        let copy: IntSet<Tag> = set.iter().collect();
+        assert_eq!(set, copy);
+
+        set.invert();
+
+        assert!(!set.contains(Tag::new(b"GSUB")));
+        assert!(set.contains(Tag::new(b"GSU ")));
+        assert!(!set.contains(Tag::new(b"CFF ")));
+        assert!(!set.contains(Tag::new(b"OS/2")));
     }
 
     #[test]

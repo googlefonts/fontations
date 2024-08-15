@@ -1,6 +1,6 @@
 //! subsetter input parsing util functions
 use skrifa::raw::collections::IntSet;
-use write_fonts::types::GlyphId;
+use write_fonts::types::{GlyphId, Tag};
 
 use crate::SubsetError;
 
@@ -65,6 +65,27 @@ pub fn parse_unicodes(unicode_str: &str) -> Result<IntSet<u32>, SubsetError> {
     Ok(result)
 }
 
+//parse input drop_tables string, which is a comma/whitespace-separated list of tables that will be dropped
+pub fn parse_drop_tables(input_str: &str) -> Result<IntSet<Tag>, SubsetError> {
+    let mut result = IntSet::empty();
+
+    if input_str == "*" {
+        let out = IntSet::<Tag>::all();
+        return Ok(out);
+    }
+
+    for tag in input_str.split(|c| c == ',' || c == ' ') {
+        if tag.is_empty() {
+            continue;
+        }
+        let Ok(table_tag) = Tag::new_checked(tag.as_bytes()) else {
+            return Err(SubsetError::InvalidTag(tag.to_owned()));
+        };
+        result.insert(table_tag);
+    }
+    Ok(result)
+}
+
 #[test]
 fn test_populate_gids() {
     let input = "1,5,7";
@@ -95,4 +116,19 @@ fn test_parse_unicodes() {
     assert!(output.contains(101_u32));
     assert!(output.contains(102_u32));
     assert!(output.contains(103_u32));
+}
+
+#[test]
+fn test_parse_drop_tables() {
+    let input = "cmap,GSUB OS/2 CFF";
+    let output = parse_drop_tables(input).unwrap();
+    assert_eq!(output.len(), 4);
+    assert!(output.contains(Tag::new(b"cmap")));
+    assert!(output.contains(Tag::new(b"GSUB")));
+    assert!(output.contains(Tag::new(b"OS/2")));
+    assert!(output.contains(Tag::new(b"CFF ")));
+
+    let input = "";
+    let output = parse_drop_tables(input).unwrap();
+    assert!(output.is_empty());
 }

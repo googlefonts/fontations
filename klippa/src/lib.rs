@@ -9,7 +9,7 @@ use glyf_loca::subset_glyf_loca;
 use head::subset_head;
 use hmtx::subset_hmtx_hhea;
 use maxp::subset_maxp;
-pub use parsing_util::{parse_unicodes, populate_gids};
+pub use parsing_util::{parse_drop_tables, parse_unicodes, populate_gids};
 
 use fnv::FnvHashMap;
 use skrifa::MetadataProvider;
@@ -149,6 +149,7 @@ pub struct Plan {
     codepoint_to_glyph: FnvHashMap<u32, GlyphId>,
 
     subset_flags: SubsetFlags,
+    drop_tables: IntSet<Tag>,
 }
 
 impl Plan {
@@ -157,10 +158,12 @@ impl Plan {
         input_unicodes: &IntSet<u32>,
         font: &FontRef,
         flags: SubsetFlags,
+        drop_tables: &IntSet<Tag>,
     ) -> Self {
         let mut this = Plan {
             font_num_glyphs: get_font_num_glyphs(font),
             subset_flags: flags,
+            drop_tables: drop_tables.clone(),
             ..Default::default()
         };
 
@@ -255,8 +258,12 @@ impl Plan {
         //skip glyph closure for MATH table, it's not supported yet
 
         //glyph closure for COLR
-        self.colr_closure(font);
-        remove_invalid_gids(&mut self.glyphset_colred, self.font_num_glyphs);
+        if !self.drop_tables.contains(Tag::new(b"COLR")) {
+            self.colr_closure(font);
+            remove_invalid_gids(&mut self.glyphset_colred, self.font_num_glyphs);
+        } else {
+            self.glyphset_colred = self.glyphset_gsub.clone();
+        }
 
         /* Populate a full set of glyphs to retain by adding all referenced composite glyphs. */
         let loca = font.loca(None).expect("Error reading loca table");
@@ -395,6 +402,9 @@ pub enum SubsetError {
     #[error("Invalid unicode range {start}-{end}")]
     InvalidUnicodeRange { start: u32, end: u32 },
 
+    #[error("Invalid tag {0}")]
+    InvalidTag(String),
+
     #[error("Subsetting table '{0}' failed")]
     SubsetTableError(Tag),
 }
@@ -409,6 +419,9 @@ pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> 
 
     for record in font.table_directory.table_records() {
         let tag = record.tag();
+        if plan.drop_tables.contains(tag) {
+            continue;
+        }
         subset_table(tag, font, plan, &mut builder)?;
     }
     Ok(builder.build())

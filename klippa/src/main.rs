@@ -5,7 +5,7 @@
 //!
 
 use clap::Parser;
-use klippa::{parse_unicodes, populate_gids, subset_font, Plan, SubsetFlags};
+use klippa::{parse_drop_tables, parse_unicodes, populate_gids, subset_font, Plan, SubsetFlags};
 use write_fonts::read::FontRef;
 
 #[derive(Parser, Debug)]
@@ -26,6 +26,10 @@ struct Args {
     /// The output font file
     #[arg(short, long)]
     output_file: std::path::PathBuf,
+
+    /// Drop the specified tables.
+    #[arg(long)]
+    drop_tables: Option<String>,
 
     /// drop hints
     #[arg(long)]
@@ -98,10 +102,17 @@ fn main() {
 
     let font_bytes = std::fs::read(&args.path).expect("Invalid input font file found");
     let font = FontRef::new(&font_bytes).expect("Error reading font bytes");
+    let drop_tables = match parse_drop_tables(&args.drop_tables.unwrap_or_default()) {
+        Ok(drop_tables) => drop_tables,
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+    };
 
     let mut output_bytes = Vec::new();
     for _ in 0..args.num_iterations.unwrap_or(1) {
-        let plan = Plan::new(&gids, &unicodes, &font, subset_flags);
+        let plan = Plan::new(&gids, &unicodes, &font, subset_flags, &drop_tables);
         match subset_font(&font, &plan) {
             Ok(out) => {
                 output_bytes = out;

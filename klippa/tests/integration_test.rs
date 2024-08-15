@@ -13,7 +13,10 @@ use std::iter::Peekable;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tempdir::TempDir;
-use write_fonts::read::{collections::IntSet, FontRef};
+use write_fonts::{
+    read::{collections::IntSet, FontRef},
+    types::Tag,
+};
 
 static TEST_DATA_DIR: &str = "./test-data";
 static GEN_EXPECTED_OUTPUTS_VAR: &str = "GEN_EXPECTED_OUTPUTS";
@@ -302,7 +305,7 @@ impl SubsetTestCase {
         Command::new("fonttools")
             .arg("subset")
             .arg(&org_font_file)
-            .arg("--drop-tables+=DSIG,BASE")
+            .arg("--drop-tables+=DSIG,BASE,post,OS/2,GSUB,GPOS,GDEF,name,hdmx,fpgm,prep,cvt,gasp,cvar")
             .arg("--drop-tables-=sbix")
             .arg("--no-harfbuzz-repacker")
             .arg(&unicodes_option)
@@ -354,8 +357,14 @@ fn gen_subset_font_file(
 
     let gids = IntSet::empty();
     let unicodes = parse_unicodes(subset).unwrap();
+    let drop_tables_str = "DSIG,BASE,post,OS/2,GSUB,GPOS,GDEF,name,hdmx,fpgm,prep,cvt,gasp,cvar";
+    let mut drop_tables = IntSet::empty();
+    for str in drop_tables_str.split(',') {
+        let tag = Tag::new_checked(str.as_bytes()).unwrap();
+        drop_tables.insert(tag);
+    }
     //TODO: support parsing subset_flags
-    let plan = Plan::new(&gids, &unicodes, &font, profile);
+    let plan = Plan::new(&gids, &unicodes, &font, profile, &drop_tables);
 
     let subset_output = subset_font(&font, &plan).unwrap();
     std::fs::write(output_file, subset_output).unwrap();
