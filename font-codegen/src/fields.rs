@@ -230,6 +230,13 @@ impl Fields {
                                     }
                                 }
                             }
+                            IfTransform::True() => {
+                                quote!(
+                                    if self.#name.is_none() {
+                                        ctx.report("'{name}' should always be present.");
+                                    }
+                                )
+                            }
                         },
                     }
                 });
@@ -311,6 +318,9 @@ fn if_expression(xform: &IfTransform, add_self: bool) -> TokenStream {
             } else {
                 quote!(#field.intersects(#(#flags)|*))
             }
+        }
+        IfTransform::True() => {
+            quote!(true)
         }
     }
 }

@@ -256,6 +256,11 @@ pub(crate) enum IfTransform {
     ///
     /// Evaluates to true if field has at least one of the input flags set.
     AnyFlag(syn::Ident, Vec<syn::Path>),
+
+    /// true():
+    ///
+    /// Always evaluates to true.
+    True(),
 }
 
 enum IfArg {
@@ -1844,6 +1849,7 @@ impl IfTransform {
     fn from_args(s: &str, args: Vec<IfArg>) -> Result<Self, String> {
         match s {
             "any_flag" => Self::any_flag(args),
+            "always_true" => Ok(IfTransform::True()),
             _ => Err(format!("invalid if_cond transform function: {}", s)),
         }
     }
@@ -1870,6 +1876,7 @@ impl IfTransform {
     pub(crate) fn input_field(&self) -> Vec<syn::Ident> {
         match self {
             IfTransform::AnyFlag(field, _) => vec![field.clone()],
+            IfTransform::True() => vec![],
         }
     }
 }

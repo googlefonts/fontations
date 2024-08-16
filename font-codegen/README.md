@@ -173,9 +173,12 @@ The following annotations are supported on top-level objects:
 - `#[if_flag($field, Flags::SOME_FLAG)]`: indicates that a given field is only
   present if a particular flag is set on the named field. The field is expected
   to be a bitset with a `contains` method.
-- `#[if_cond($field, Flags::SOME_FLAG_A, Flags::SOME_FLAG_B, ...)]`: indicates that a
-  given field is only present if at least one of the listed flags is set on the named
-  field. The field is expected to be a bitset with a `contains` method.
+- `#[if_cond(any_flag($field, Flags::SOME_FLAG_A, Flags::SOME_FLAG_B, ...))]`:
+  indicates that a given field is only present if at least one of the listed flags
+  is set on the named field. The field is expected to be a bitset with a `contains` method.
+- `#[if_cond(always_true())]`:
+  indicates that a given field is always present. This is useful to sidestep the restriction
+  that non-conditional fields cannot follow a conditional field.
 - `#[skip_getter]`: if present, we will not generate a getter for this field.
   Used on things like padding fields.
 - `#[offset_getter(method name)]`: only allowed on offsets or arrays of offsets.

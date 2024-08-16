@@ -28,4 +28,6 @@ table FlagDay {
     bar: u16,
     #[if_cond(any_flag($flags, GotFlags::BAZ, GotFlags::FOO))]
     baz: u16,
+    #[if_cond(always_true())]
+    always_present: u16,
 }

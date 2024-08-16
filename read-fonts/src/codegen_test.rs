@@ -156,6 +156,7 @@ pub mod conditions {
         if flags.contains(GotFlags::FOO) || flags.contains(GotFlags::BAZ) {
             buf = buf.push(0xba2_u16);
         }
+        buf = buf.push(0xff_u16);
         buf
     }
 
@@ -165,6 +166,7 @@ pub mod conditions {
         let table = FlagDay::read(data.font_data()).unwrap();
         assert!(table.foo().is_none());
         assert!(table.bar().is_none());
+        assert_eq!(table.always_present(), Some(0xff));
     }
 
     #[test]
@@ -174,6 +176,7 @@ pub mod conditions {
         assert_eq!(table.foo(), Some(0xf00));
         assert!(table.bar().is_none());
         assert_eq!(table.baz(), Some(0xba2));
+        assert_eq!(table.always_present(), Some(0xff));
     }
 
     #[test]
@@ -183,6 +186,7 @@ pub mod conditions {
         assert!(table.foo().is_none());
         assert_eq!(table.bar(), Some(0xba4));
         assert!(table.baz().is_none());
+        assert_eq!(table.always_present(), Some(0xff));
     }
 
     #[test]
@@ -192,6 +196,7 @@ pub mod conditions {
         assert!(table.foo().is_none());
         assert!(table.bar().is_none());
         assert_eq!(table.baz(), Some(0xba2));
+        assert_eq!(table.always_present(), Some(0xff));
     }
 
     #[test]
@@ -201,5 +206,6 @@ pub mod conditions {
         assert_eq!(table.foo(), Some(0xf00));
         assert_eq!(table.bar(), Some(0xba4));
         assert_eq!(table.baz(), Some(0xba2));
+        assert_eq!(table.always_present(), Some(0xff));
     }
 }

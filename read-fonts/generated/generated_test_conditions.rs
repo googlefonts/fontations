@@ -420,6 +420,7 @@ pub struct FlagDayMarker {
     foo_byte_start: Option<usize>,
     bar_byte_start: Option<usize>,
     baz_byte_start: Option<usize>,
+    always_present_byte_start: Option<usize>,
 }
 
 impl FlagDayMarker {
@@ -441,6 +442,10 @@ impl FlagDayMarker {
     }
     fn baz_byte_range(&self) -> Option<Range<usize>> {
         let start = self.baz_byte_start?;
+        Some(start..start + u16::RAW_BYTE_LEN)
+    }
+    fn always_present_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.always_present_byte_start?;
         Some(start..start + u16::RAW_BYTE_LEN)
     }
 }
@@ -471,10 +476,13 @@ impl<'a> FontRead<'a> for FlagDay<'a> {
         flags
             .intersects(GotFlags::BAZ | GotFlags::FOO)
             .then(|| cursor.advance::<u16>());
+        let always_present_byte_start = true.then(|| cursor.position()).transpose()?;
+        true.then(|| cursor.advance::<u16>());
         cursor.finish(FlagDayMarker {
             foo_byte_start,
             bar_byte_start,
             baz_byte_start,
+            always_present_byte_start,
         })
     }
 }
@@ -506,6 +514,11 @@ impl<'a> FlagDay<'a> {
         let range = self.shape.baz_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
+
+    pub fn always_present(&self) -> Option<u16> {
+        let range = self.shape.always_present_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
 }
 
 #[cfg(feature = "traversal")]
@@ -523,6 +536,7 @@ impl<'a> SomeTable<'a> for FlagDay<'a> {
             4usize if flags.intersects(GotFlags::BAZ | GotFlags::FOO) => {
                 Some(Field::new("baz", self.baz().unwrap()))
             }
+            5usize if true => Some(Field::new("always_present", self.always_present().unwrap())),
             _ => None,
         }
     }

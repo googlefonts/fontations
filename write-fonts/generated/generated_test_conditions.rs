@@ -110,6 +110,7 @@ pub struct FlagDay {
     pub foo: Option<u16>,
     pub bar: Option<u16>,
     pub baz: Option<u16>,
+    pub always_present: Option<u16>,
 }
 
 impl FlagDay {
@@ -147,6 +148,12 @@ impl FontWrite for FlagDay {
                     .expect("missing conditional field should have failed validation")
                     .write_into(writer)
             });
+        true.then(|| {
+            self.always_present
+                .as_ref()
+                .expect("missing conditional field should have failed validation")
+                .write_into(writer)
+        });
     }
     fn table_type(&self) -> TableType {
         TableType::Named("FlagDay")
@@ -181,6 +188,11 @@ impl Validate for FlagDay {
                     ctx.report("if_cond is satisfied by 'baz' is not present.");
                 }
             });
+            ctx.in_field("always_present", |ctx| {
+                if self.always_present.is_none() {
+                    ctx.report("'{name}' should always be present.");
+                }
+            });
         })
     }
 }
@@ -193,6 +205,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::conditions::FlagDay<'a>> for FlagD
             foo: obj.foo(),
             bar: obj.bar(),
             baz: obj.baz(),
+            always_present: obj.always_present(),
         }
     }
 }
