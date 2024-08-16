@@ -301,9 +301,7 @@ fn decode_format2_entry<'a>(
 
     // Features
     if let Some(features) = entry_data.feature_tags() {
-        entry
-            .feature_tags
-            .extend(features.into_iter().map(|t| t.get()));
+        entry.feature_tags.extend(features.iter().map(|t| t.get()));
     }
 
     // TODO(garretrieger): load design space segmetns
@@ -340,9 +338,10 @@ fn compute_format2_new_entry_index(
     if new_index.is_negative() {
         return Err(ReadError::MalformedData("Negative entry id encountered."));
     }
-    Ok(u32::try_from(new_index).map_err(|_| {
+
+    u32::try_from(new_index).map_err(|_| {
         ReadError::MalformedData("Entry index exceeded maximum size (unsigned 32 bit).")
-    })?)
+    })
 }
 
 fn decode_format2_codepoints<'a>(
@@ -460,7 +459,7 @@ impl Entry {
             design_space: vec![],
 
             uri: PatchUri::from_index(template, 0, *default_encoding),
-            compatibility_id: compat_id.clone(),
+            compatibility_id: *compat_id,
         }
     }
 

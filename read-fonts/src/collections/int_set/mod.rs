@@ -2211,9 +2211,9 @@ mod test {
         assert!(!IntSet::<u32>::empty().intersects_set(&IntSet::<u32>::empty()));
 
         let empty = IntSet::<u32>::empty();
-        let a = IntSet::from([1u32, 5, 6, 7, 8, 12].clone());
-        let b = IntSet::from([2u32, 13].clone());
-        let c = IntSet::from([8u32, 14].clone());
+        let a = IntSet::from([1u32, 5, 6, 7, 8, 12]);
+        let b = IntSet::from([2u32, 13]);
+        let c = IntSet::from([8u32, 14]);
         let mut d = IntSet::all();
         d.remove_range(0u32..=13);
         let mut e = IntSet::all();
