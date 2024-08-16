@@ -6,7 +6,10 @@ use types::MajorMinor;
 
 use super::{
     layout::{ClassDef, CoverageTable, DeviceOrVariationIndex},
-    variations::ItemVariationStore,
+    variations::{
+        ivs_builder::{RemapVariationIndices, VariationIndexRemapping},
+        ItemVariationStore,
+    },
 };
 
 include!("../../generated/generated_gdef.rs");
@@ -20,6 +23,38 @@ impl Gdef {
         } else {
             MajorMinor::VERSION_1_0
         }
+    }
+}
+
+impl RemapVariationIndices for Gdef {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        if let Some(ligs) = self.lig_caret_list.as_mut() {
+            ligs.remap_variation_indices(key_map);
+        }
+    }
+}
+
+impl RemapVariationIndices for LigCaretList {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        self.lig_glyphs.iter_mut().for_each(|lig| {
+            lig.caret_values
+                .iter_mut()
+                .for_each(|caret| caret.remap_variation_indices(key_map))
+        })
+    }
+}
+
+impl RemapVariationIndices for CaretValue {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        if let CaretValue::Format3(table) = self {
+            table.remap_variation_indices(key_map)
+        }
+    }
+}
+
+impl RemapVariationIndices for CaretValueFormat3 {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        self.device.remap_variation_indices(key_map)
     }
 }
 
