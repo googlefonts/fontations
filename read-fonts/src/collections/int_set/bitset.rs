@@ -179,6 +179,10 @@ impl BitSet {
         self.len.get()
     }
 
+    pub(crate) fn num_pages(&self) -> usize {
+        self.pages.len()
+    }
+
     /// Sets the members of this set to the union of self and other.
     pub(crate) fn union(&mut self, other: &BitSet) {
         self.process(BitPage::union, other);
