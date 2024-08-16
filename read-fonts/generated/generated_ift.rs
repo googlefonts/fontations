@@ -955,7 +955,7 @@ impl EntryDataMarker {
     }
     fn enty_id_delta_byte_range(&self) -> Option<Range<usize>> {
         let start = self.enty_id_delta_byte_start?;
-        Some(start..start + Uint24::RAW_BYTE_LEN)
+        Some(start..start + Int24::RAW_BYTE_LEN)
     }
     fn patch_encoding_byte_range(&self) -> Option<Range<usize>> {
         let start = self.patch_encoding_byte_start?;
@@ -1044,7 +1044,7 @@ impl<'a> FontRead<'a> for EntryData<'a> {
             .transpose()?;
         format
             .contains(EntryFormatFlags::ENTRY_ID_DELTA)
-            .then(|| cursor.advance::<Uint24>());
+            .then(|| cursor.advance::<Int24>());
         let patch_encoding_byte_start = format
             .contains(EntryFormatFlags::PATCH_ENCODING)
             .then(|| cursor.position())
@@ -1118,7 +1118,7 @@ impl<'a> EntryData<'a> {
         Some(self.data.read_array(range).unwrap())
     }
 
-    pub fn enty_id_delta(&self) -> Option<Uint24> {
+    pub fn enty_id_delta(&self) -> Option<Int24> {
         let range = self.shape.enty_id_delta_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }

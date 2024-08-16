@@ -543,7 +543,7 @@ pub struct EntryData {
     pub design_space_segments: Option<Vec<DesignSpaceSegment>>,
     pub copy_count: Option<u8>,
     pub copy_indices: Option<Vec<Uint24>>,
-    pub enty_id_delta: Option<Uint24>,
+    pub enty_id_delta: Option<Int24>,
     pub patch_encoding: Option<u8>,
     pub codepoint_data: Option<Vec<u8>>,
 }
