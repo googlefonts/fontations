@@ -290,7 +290,7 @@ impl<T: Domain> IntSet<T> {
     }
 
     /// Returns true if this set contains at least one element in 'range'.
-    pub fn intersects_range(&mut self, range: RangeInclusive<T>) -> bool {
+    pub fn intersects_range(&self, range: RangeInclusive<T>) -> bool {
         let domain_min = T::ordered_values()
             .next()
             .map(|v_u32| T::from_u32(InDomain(v_u32)));
@@ -315,6 +315,31 @@ impl<T: Domain> IntSet<T> {
 
         // If next is <= end then there is at least one value in the input range.
         return next.to_u32() <= range.end().to_u32();
+    }
+
+    /// Returns true if this set contains at least one element in 'other'.
+    pub fn intersects_set(&self, other: &IntSet<T>) -> bool {
+        // Iterate the smaller set and check for member ship in the larger set
+        // Estimate the true size as the number of pages.
+        let (a, b) = match (&self.0, &other.0) {
+            (
+                Membership::Inclusive(us) | Membership::Exclusive(us),
+                Membership::Inclusive(them) | Membership::Exclusive(them),
+            ) => {
+                if us.num_pages() > them.num_pages() {
+                    (self, other)
+                } else {
+                    (other, self)
+                }
+            }
+        };
+
+        for range in b.iter_ranges() {
+            if a.intersects_range(range) {
+                return true;
+            }
+        }
+        false
     }
 
     /// Returns first element in the set, if any. This element is always the minimum of all elements in the set.
@@ -2172,6 +2197,46 @@ mod test {
         set.insert(0);
         assert!(set.intersects_range(0..=0));
         assert!(!set.intersects_range(1..=1));
+    }
+
+    #[test]
+    fn intersects_set() {
+        macro_rules! assert_intersects {
+            ($lhs:path, $rhs:path, $expected:expr) => {
+                assert_eq!($lhs.intersects_set(&$rhs), $expected);
+                assert_eq!($rhs.intersects_set(&$lhs), $expected);
+            };
+        }
+
+        assert!(!IntSet::<u32>::empty().intersects_set(&IntSet::<u32>::empty()));
+
+        let empty = IntSet::<u32>::empty();
+        let a = IntSet::from([1u32, 5, 6, 7, 8, 12].clone());
+        let b = IntSet::from([2u32, 13].clone());
+        let c = IntSet::from([8u32, 14].clone());
+        let mut d = IntSet::all();
+        d.remove_range(0u32..=13);
+        let mut e = IntSet::all();
+        e.remove_range(0u32..=100);
+
+        assert_intersects!(a, b, false);
+        assert_intersects!(a, c, true);
+        assert_intersects!(a, d, false);
+
+        assert_intersects!(b, c, false);
+        assert_intersects!(b, d, false);
+        assert_intersects!(b, e, false);
+
+        assert_intersects!(c, d, true);
+        assert_intersects!(c, e, false);
+
+        assert_intersects!(d, e, true);
+
+        assert_intersects!(a, empty, false);
+        assert_intersects!(b, empty, false);
+        assert_intersects!(c, empty, false);
+        assert_intersects!(d, empty, false);
+        assert_intersects!(e, empty, false);
     }
 
     #[test]

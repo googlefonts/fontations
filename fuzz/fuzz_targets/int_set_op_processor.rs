@@ -528,6 +528,38 @@ where
     }
 }
 
+/* ### Intersects Set ### */
+
+struct IntersectsSetOp;
+
+impl IntersectsSetOp {
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
+    where
+        T: SetMember,
+    {
+        Some(Box::new(Self))
+    }
+}
+
+impl<T> Operation<T> for IntersectsSetOp
+where
+    T: SetMember,
+{
+    fn operate(&self, input: Input<T>, other: Input<T>) {
+        let intersects_int_set = input.int_set.intersects_set(&other.int_set);
+        let intersects_btree_set = input
+            .btree_set
+            .intersection(&other.btree_set)
+            .next()
+            .is_some();
+        assert_eq!(intersects_int_set, intersects_btree_set);
+    }
+
+    fn size(&self, length: u64) -> u64 {
+        length * (length.ilog2() as u64)
+    }
+}
+
 /* ### First  ### */
 
 struct FirstOp;
@@ -1092,6 +1124,7 @@ where
         23 if is_standard => HashOp::parse_args(),
         24 if is_standard => EqualOp::parse_args(),
         25 if is_standard => CmpOp::parse_args(),
+        26 if is_standard => IntersectsSetOp::parse_args(),
         _ => None,
     };
 
