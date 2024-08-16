@@ -1052,13 +1052,9 @@ impl<'a> FontRead<'a> for EntryData<'a> {
         format
             .contains(EntryFormatFlags::PATCH_ENCODING)
             .then(|| cursor.advance::<u8>());
-        let codepoint_data_byte_start = format
-            .intersects(EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2)
-            .then(|| cursor.position())
-            .transpose()?;
-        let codepoint_data_byte_len = format
-            .intersects(EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2)
-            .then_some(cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN);
+        let codepoint_data_byte_start = true.then(|| cursor.position()).transpose()?;
+        let codepoint_data_byte_len =
+            true.then_some(cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN);
         if let Some(value) = codepoint_data_byte_len {
             cursor.advance_by(value);
         }
@@ -1174,13 +1170,7 @@ impl<'a> SomeTable<'a> for EntryData<'a> {
             8usize if format.contains(EntryFormatFlags::PATCH_ENCODING) => {
                 Some(Field::new("patch_encoding", self.patch_encoding().unwrap()))
             }
-            9usize
-                if format.intersects(
-                    EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2,
-                ) =>
-            {
-                Some(Field::new("codepoint_data", self.codepoint_data().unwrap()))
-            }
+            9usize if true => Some(Field::new("codepoint_data", self.codepoint_data().unwrap())),
             _ => None,
         }
     }

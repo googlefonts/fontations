@@ -171,7 +171,9 @@ table EntryData {
   #[if_flag($format, EntryFormatFlags::PATCH_ENCODING)]
   patch_encoding: u8,
 
-  #[if_cond(any_flag($format, EntryFormatFlags::CODEPOINTS_BIT_1, EntryFormatFlags::CODEPOINTS_BIT_2))]
+  // hack to allow non-conditional field to follow conditional field
+  // this is non conditional as we always need to get a pointer to any remaining data after the entry.
+  #[if_cond(always_true())]
   #[count(..)]
   codepoint_data: [u8],
 }

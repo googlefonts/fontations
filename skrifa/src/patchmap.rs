@@ -8,6 +8,7 @@ use std::collections::BTreeSet;
 use crate::GlyphId;
 use crate::Tag;
 use raw::tables::ift::DesignSpaceSegment;
+use raw::tables::ift::EntryFormatFlags;
 use raw::types::Uint24;
 use raw::{FontData, FontRead, FontRef};
 use read_fonts::{
@@ -288,20 +289,22 @@ fn decode_format2_entry<'a>(
 
     // Entry ID
     // TODO(garretrieger): handle the alternate ID string path.
-    entry.uri.index = compute_new_entry_index(&entry_data, last_entry_index)?;
+    entry.uri.index = compute_format2_new_entry_index(&entry_data, last_entry_index)?;
 
     // Encoding
     if let Some(patch_encoding) = entry_data.patch_encoding() {
         entry.uri.encoding = PatchEncoding::from_format_number(patch_encoding)?;
     }
 
-    // TODO(garretrieger): handle codepoints
+    // Codepoints
+    let (codepoints, remaining_data) = decode_format2_codepoints(&entry_data)?;
+    entry.codepoints = codepoints;
 
     entries.push(entry);
-    Ok(data)
+    Ok(FontData::new(remaining_data))
 }
 
-fn compute_new_entry_index(
+fn compute_format2_new_entry_index(
     entry_data: &EntryData,
     last_entry_index: u32,
 ) -> Result<u32, ReadError> {
@@ -318,6 +321,50 @@ fn compute_new_entry_index(
     Ok(u32::try_from(new_index).map_err(|_| {
         ReadError::MalformedData("Entry index exceeded maximum size (unsigned 32 bit).")
     })?)
+}
+
+fn decode_format2_codepoints<'a>(
+    entry_data: &EntryData<'a>,
+) -> Result<(IntSet<u32>, &'a [u8]), ReadError> {
+    let format = entry_data
+        .format()
+        .intersection(EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2);
+
+    let Some(codepoint_data) = entry_data.codepoint_data() else {
+        return Err(ReadError::MalformedData(
+            "Something is wrong, codepoint_data() should always be present.",
+        ));
+    };
+
+    if format.bits() == 0 {
+        return Ok((IntSet::<u32>::empty(), codepoint_data));
+    }
+
+    // See: https://w3c.github.io/IFT/Overview.html#abstract-opdef-interpret-format-2-patch-map-entry
+    // for interpretation of codepoint bit balues.
+    let codepoint_data = FontData::new(codepoint_data);
+    let (bias, skipped) = if format == EntryFormatFlags::CODEPOINTS_BIT_2 {
+        (codepoint_data.read_at::<u16>(0)? as u32, 2)
+    } else if format == (EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2) {
+        (codepoint_data.read_at::<Uint24>(0)?.to_u32(), 3)
+    } else {
+        (0, 0)
+    };
+
+    let Some(codepoint_data) = codepoint_data.split_off(skipped) else {
+        return Err(ReadError::MalformedData("Codepoints data is too short."));
+    };
+
+    // TODO(garretrieger): the spec doesn't currently enforce a maximum set size, but here we are
+    // disallowing sets with more members then the unicode max value. The spec should be updated to
+    // provide a reasonable maximum set size.
+    let (set, remaining_data) =
+        IntSet::<u32>::from_sparse_bit_set_bounded(codepoint_data.as_bytes(), bias, 0x10FFFF)
+            .map_err(|_| {
+                ReadError::MalformedData("Failed to decode sparse bit set data stream.")
+            })?;
+
+    Ok((set, remaining_data))
 }
 
 /// Models the encoding type for a incremental font transfer patch.
