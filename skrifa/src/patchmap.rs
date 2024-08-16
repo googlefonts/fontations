@@ -50,7 +50,9 @@ fn add_intersecting_patches(
         Ift::Format1(format_1) => {
             add_intersecting_format1_patches(font, format_1, codepoints, features, patches)
         }
-        Ift::Format2(_) => todo!(),
+        Ift::Format2(format_2) => {
+            add_intersecting_format2_patches(format_2, codepoints, features, patches)
+        }
     }
 }
 
@@ -237,6 +239,26 @@ fn intersect_format1_feature_map(
             }
         }
         next_tag = tag_it.next();
+    }
+
+    Ok(())
+}
+
+fn add_intersecting_format2_patches(
+    map: &PatchMapFormat2,
+    codepoints: &IntSet<u32>,
+    features: &BTreeSet<Tag>,
+    patches: &mut Vec<PatchUri>, // TODO(garretrieger): btree set to allow for de-duping?
+) -> Result<(), ReadError> {
+    let entries = decode_format2_entries(map)?;
+
+    for e in entries {
+        // TODO(garretrieger): skip ignored entries.
+        if !e.intersects(codepoints, features) {
+            continue;
+        }
+
+        patches.push(e.uri)
     }
 
     Ok(())
@@ -440,6 +462,16 @@ impl Entry {
             uri: PatchUri::from_index(template, 0, *default_encoding),
             compatibility_id: compat_id.clone(),
         }
+    }
+
+    fn intersects(&self, codepoints: &IntSet<u32>, features: &BTreeSet<Tag>) -> bool {
+        // Intersection defined here: https://w3c.github.io/IFT/Overview.html#abstract-opdef-check-entry-intersection
+        let codepoints_intersects =
+            self.codepoints.is_empty() || self.codepoints.intersects_set(codepoints);
+        let features_intersects = self.feature_tags.is_empty()
+            || self.feature_tags.intersection(features).next().is_some();
+
+        codepoints_intersects && features_intersects
     }
 }
 
@@ -811,4 +843,31 @@ mod tests {
             intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).is_err()
         );
     }
+
+    #[test]
+    fn format_2_patch_map_codepoints_only() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(test_data::ift::CODEPOINTS_ONLY_FORMAT2),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        test_intersection(&font, [], [], []);
+        test_intersection(&font, [0x02], [], [1]);
+        test_intersection(&font, [0x15], [], [2]);
+        test_intersection(&font, [0x07], [], [1, 2]);
+
+        test_intersection_with_all(&font, [], [1, 2]);
+    }
+
+    // TODO(garretrieger): test decoding of other entry features for format 2
+    // - copy indices
+    // - feature tags
+    // - design space
+    // - custom id delta
+    // - custom encoding
+    // - id strings
+    // - ignored
+    // - 24 bit bias.
 }

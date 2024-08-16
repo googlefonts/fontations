@@ -374,4 +374,36 @@ pub mod ift {
         0x00, 0x00,               // first_entry_index
         0x00, 0x00,               // last_entry_index
     ];
+
+    // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-2
+    #[rustfmt::skip]
+    pub static CODEPOINTS_ONLY_FORMAT2: &[u8] = &[
+        0x02,                    // 0: format
+
+        0x00, 0x00, 0x00, 0x00,  // 1: reserved
+
+        0x00, 0x00, 0x00, 0x01,  // 5: compat id [0]
+        0x00, 0x00, 0x00, 0x02,  // 9: compat id [1]
+        0x00, 0x00, 0x00, 0x03,  // 13: compat id [2]
+        0x00, 0x00, 0x00, 0x04,  // 17: compat id [3]
+
+        0x04,                    // 21: default patch encoding = glyph keyed
+        0x00, 0x00, 0x02,        // 22: entry count
+        0x00, 0x00, 0x00, 0x2b,  // 25: entries offset (0x2b = 43)
+        0x00, 0x00, 0x00, 0x00,  // 29: entry id string data = null
+
+        0x00, 0x08,              // 33: uriTemplateLength
+        b'A', b'B', b'C', b'D',
+        b'E', b'F', 0xc9, 0xa4,  // 35: uriTemplate[8]
+
+        // Entries Array
+        // Entry id = 1
+        0b00010000,                         // 43: format = CODEPOINT_BIT_1
+        0b00001101, 0b00000011, 0b00110001, // 44: codepoints = [0..17]
+
+        // Entry id = 2
+        0b00100000,                         // 47: format = CODEPOINT_BIT_2
+        0x00, 0x05,                         // 48: bias = 5
+        0b00001101, 0b00000011, 0b00110001, // 50: codepoints = [5..22]
+    ];
 }
