@@ -625,14 +625,12 @@ impl FontWrite for EntryData {
                     .expect("missing conditional field should have failed validation")
                     .write_into(writer)
             });
-        self.format
-            .intersects(EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2)
-            .then(|| {
-                self.codepoint_data
-                    .as_ref()
-                    .expect("missing conditional field should have failed validation")
-                    .write_into(writer)
-            });
+        true.then(|| {
+            self.codepoint_data
+                .as_ref()
+                .expect("missing conditional field should have failed validation")
+                .write_into(writer)
+        });
     }
     fn table_type(&self) -> TableType {
         TableType::Named("EntryData")
@@ -756,17 +754,8 @@ impl Validate for EntryData {
                 }
             });
             ctx.in_field("codepoint_data", |ctx| {
-                if !(format.intersects(
-                    EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2,
-                )) && self.codepoint_data.is_some()
-                {
-                    ctx.report("if_cond is not satisfied but 'codepoint_data' is present.");
-                }
-                if (format.intersects(
-                    EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2,
-                )) && self.codepoint_data.is_none()
-                {
-                    ctx.report("if_cond is satisfied by 'codepoint_data' is not present.");
+                if self.codepoint_data.is_none() {
+                    ctx.report("'{name}' should always be present.");
                 }
             });
         })
