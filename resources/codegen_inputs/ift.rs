@@ -164,9 +164,9 @@ table EntryData {
   copy_indices: [Uint24],
 
   // ENTRY_ID_DELTA
-  // TODO id string length
+  // TODO(garretrieger): add alternate id string length field.
   #[if_flag($format, EntryFormatFlags::ENTRY_ID_DELTA)]
-  enty_id_delta: Uint24, // TODO should be Int24
+  enty_id_delta: Int24,
 
   #[if_flag($format, EntryFormatFlags::PATCH_ENCODING)]
   patch_encoding: u8,

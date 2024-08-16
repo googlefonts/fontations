@@ -8,15 +8,10 @@ use std::collections::BTreeSet;
 use crate::GlyphId;
 use crate::Tag;
 use raw::tables::ift::DesignSpaceSegment;
-use raw::types::FixedSize;
-use raw::types::Scalar;
 use raw::types::Uint24;
 use raw::{FontData, FontRead, FontRef};
 use read_fonts::{
-    tables::ift::{
-        EntryData, EntryFormatFlags, EntryMapRecord, FeaturesAndDesignSpace, Ift, PatchMapFormat1,
-        PatchMapFormat2,
-    },
+    tables::ift::{EntryData, EntryMapRecord, Ift, PatchMapFormat1, PatchMapFormat2},
     ReadError, TableProvider,
 };
 
@@ -87,11 +82,7 @@ fn add_intersecting_format1_patches(
         ));
     };
 
-    let Some(encoding) = PatchEncoding::from_format_number(map.patch_encoding()) else {
-        return Err(ReadError::MalformedData(
-            "Unrecognized patch encoding format number.",
-        ));
-    };
+    let encoding = PatchEncoding::from_format_number(map.patch_encoding())?;
 
     // Step 1: Collect the glyph map entries.
     let mut entries = IntSet::<u16>::empty();
@@ -254,18 +245,20 @@ fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Entry>, ReadError
     let compat_id = map.get_compatibility_id();
     let uri_template = map.uri_template_as_string()?;
     let entries_data = map.entries()?.entry_data();
-    let default_encoding = PatchEncoding::from_format_number(map.default_patch_encoding())
-        .ok_or(ReadError::MalformedData("Invalid encoding format number."))?;
+    let default_encoding = PatchEncoding::from_format_number(map.default_patch_encoding())?;
 
     let mut entry_count = map.entry_count().to_u32();
     let mut entries_data = FontData::new(entries_data);
     let mut entries: Vec<Entry> = vec![];
 
     while entry_count > 0 {
-        let (entry, new_entries_data) =
-            decode_format2_entry(entries_data, &compat_id, uri_template, &default_encoding)?;
-        entries.push(entry);
-        entries_data = new_entries_data;
+        entries_data = decode_format2_entry(
+            entries_data,
+            &compat_id,
+            uri_template,
+            &default_encoding,
+            &mut entries,
+        )?;
         entry_count -= 1;
     }
 
@@ -277,22 +270,54 @@ fn decode_format2_entry<'a>(
     compat_id: &[u32; 4],
     uri_template: &str,
     default_encoding: &PatchEncoding,
-) -> Result<(Entry, FontData<'a>), ReadError> {
+    entries: &mut Vec<Entry>,
+) -> Result<FontData<'a>, ReadError> {
     let entry_data = EntryData::read(data)?;
-
     let mut entry = Entry::new(uri_template, compat_id, default_encoding);
+    let last_entry_index = entries.last().map(|e| e.uri.index).unwrap_or(0);
 
+    // Features
     if let Some(features) = entry_data.feature_tags() {
         entry
             .feature_tags
             .extend(features.into_iter().map(|t| t.get()));
     }
 
-    // TODO codepoints
+    // TODO(garretrieger): load design space segmetns
+    // TODO(garretrieger): handle copy indices
 
-    // TODO XXXXX
+    // Entry ID
+    // TODO(garretrieger): handle the alternate ID string path.
+    entry.uri.index = compute_new_entry_index(&entry_data, last_entry_index)?;
 
-    Ok((entry, data))
+    // Encoding
+    if let Some(patch_encoding) = entry_data.patch_encoding() {
+        entry.uri.encoding = PatchEncoding::from_format_number(patch_encoding)?;
+    }
+
+    // TODO(garretrieger): handle codepoints
+
+    entries.push(entry);
+    Ok(data)
+}
+
+fn compute_new_entry_index(
+    entry_data: &EntryData,
+    last_entry_index: u32,
+) -> Result<u32, ReadError> {
+    let new_index = (last_entry_index as i64)
+        + 1
+        + if let Some(id_delta) = entry_data.enty_id_delta() {
+            id_delta.to_i32() as i64
+        } else {
+            0
+        };
+    if new_index.is_negative() {
+        return Err(ReadError::MalformedData("Negative entry id encountered."));
+    }
+    Ok(u32::try_from(new_index).map_err(|_| {
+        ReadError::MalformedData("Entry index exceeded maximum size (unsigned 32 bit).")
+    })?)
 }
 
 /// Models the encoding type for a incremental font transfer patch.
@@ -305,18 +330,18 @@ pub enum PatchEncoding {
 }
 
 impl PatchEncoding {
-    fn from_format_number(format: u8) -> Option<Self> {
+    fn from_format_number(format: u8) -> Result<Self, ReadError> {
         // Based on https://w3c.github.io/IFT/Overview.html#font-patch-formats-summary
         match format {
-            1 => Some(Self::Brotli),
-            2 => Some(Self::PerTableBrotli {
+            1 => Ok(Self::Brotli),
+            2 => Ok(Self::PerTableBrotli {
                 fully_invalidating: true,
             }),
-            3 => Some(Self::PerTableBrotli {
+            3 => Ok(Self::PerTableBrotli {
                 fully_invalidating: false,
             }),
-            4 => Some(Self::GlyphKeyed),
-            _ => None,
+            4 => Ok(Self::GlyphKeyed),
+            _ => Err(ReadError::MalformedData("Invalid encoding format number.")),
         }
     }
 }
@@ -331,7 +356,7 @@ impl PatchEncoding {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct PatchUri {
     template: String, // TODO: Make this a reference?
-    index: u32,
+    index: u32,       // TODO(garretrieger): define a maximum size in the spec and match it here.
     encoding: PatchEncoding,
 }
 
