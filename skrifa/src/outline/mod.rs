@@ -93,6 +93,8 @@ pub mod error;
 pub mod pen;
 
 use common::OutlinesCommon;
+
+pub use autohint::GlyphStyles;
 pub use hint::{HintingInstance, HintingMode, LcdLayout};
 use raw::FontRef;
 #[doc(inline)]
@@ -581,6 +583,14 @@ impl<'a> OutlineGlyphCollection<'a> {
             let glyph = copy.get(gid)?;
             Some((gid, glyph))
         })
+    }
+
+    pub(crate) fn common(&self) -> Option<&OutlinesCommon<'a>> {
+        match &self.kind {
+            OutlineCollectionKind::Glyf(glyf) => Some(&glyf.common),
+            OutlineCollectionKind::Cff(cff) => Some(&cff.common),
+            _ => None,
+        }
     }
 }
 
