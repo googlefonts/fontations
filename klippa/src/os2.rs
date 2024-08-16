@@ -11,7 +11,9 @@ use write_fonts::{
     FontBuilder,
 };
 
-pub fn subset_os2(
+// reference: subset() for OS/2 in harfbuzz
+// https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-ot-os2-table.hh#L229
+pub(crate) fn subset_os2(
     font: &FontRef,
     plan: &Plan,
     builder: &mut FontBuilder,
@@ -29,15 +31,13 @@ pub fn subset_os2(
         .unwrap()
         .copy_from_slice(&us_last_char_index.to_be_bytes());
 
-    if plan
+    if !plan
         .subset_flags
         .contains(SubsetFlags::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES)
     {
-        builder.add_raw(Os2::TAG, out);
-        return Ok(());
+        update_unicode_ranges(&plan.unicodes, out.get_mut(42..58).unwrap());
     }
 
-    update_unicode_ranges(&plan.unicodes, out.get_mut(42..58).unwrap());
     builder.add_raw(Os2::TAG, out);
     Ok(())
 }

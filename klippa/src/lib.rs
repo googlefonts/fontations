@@ -437,46 +437,31 @@ fn subset_table<'a>(
     builder: &mut FontBuilder<'a>,
 ) -> Result<(), SubsetError> {
     match tag {
-        Glyf::TAG => {
-            subset_glyf_loca(plan, font, builder)?;
-        }
-        Head::TAG => {
-            //handled by glyf table if exists
-            if let Ok(_glyf) = font.glyf() {
-                return Ok(());
-            } else {
-                subset_head(font, plan, builder)?;
-            }
-        }
+        Glyf::TAG => subset_glyf_loca(plan, font, builder),
+        //handled by glyf table if exists
+        Head::TAG => font
+            .glyf()
+            .map(|_| ())
+            .or_else(|_| subset_head(font, plan, builder)),
         //Skip, handled by Hmtx
-        Hhea::TAG => {
-            return Ok(());
-        }
+        Hhea::TAG => Ok(()),
 
-        Hmtx::TAG => {
-            subset_hmtx_hhea(font, plan, builder)?;
-        }
+        Hmtx::TAG => subset_hmtx_hhea(font, plan, builder),
         //Skip, handled by glyf
-        Loca::TAG => {
-            return Ok(());
-        }
+        Loca::TAG => Ok(()),
 
-        Maxp::TAG => {
-            subset_maxp(font, plan, builder)?;
-        }
+        Maxp::TAG => subset_maxp(font, plan, builder),
 
-        Os2::TAG => {
-            subset_os2(font, plan, builder)?;
-        }
+        Os2::TAG => subset_os2(font, plan, builder),
         _ => {
             if let Some(data) = font.data_for_tag(tag) {
                 builder.add_raw(tag, data);
+                Ok(())
             } else {
-                return Err(SubsetError::SubsetTableError(tag));
+                Err(SubsetError::SubsetTableError(tag))
             }
         }
     }
-    Ok(())
 }
 
 pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -> usize {
