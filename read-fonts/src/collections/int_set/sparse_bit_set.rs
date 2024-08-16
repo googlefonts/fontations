@@ -648,7 +648,7 @@ mod test {
     fn from_sparse_bit_set_biased_and_bounded() {
         let bytes = [0b00001101, 0b00000011, 0b00110001];
         let mut expected: IntSet<u32> = IntSet::<u32>::empty();
-        expected.insert_range((0 + 5)..=(17 + 5));
+        expected.insert_range(5..=(17 + 5));
 
         assert_eq!(
             IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 5, 19).unwrap(),

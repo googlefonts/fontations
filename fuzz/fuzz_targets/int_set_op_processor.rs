@@ -546,10 +546,10 @@ where
     T: SetMember,
 {
     fn operate(&self, input: Input<T>, other: Input<T>) {
-        let intersects_int_set = input.int_set.intersects_set(&other.int_set);
+        let intersects_int_set = input.int_set.intersects_set(other.int_set);
         let intersects_btree_set = input
             .btree_set
-            .intersection(&other.btree_set)
+            .intersection(other.btree_set)
             .next()
             .is_some();
         assert_eq!(intersects_int_set, intersects_btree_set);
