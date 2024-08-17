@@ -168,9 +168,11 @@ table EntryData {
   #[if_flag($format, EntryFormatFlags::ENTRY_ID_DELTA)]
   enty_id_delta: Int24,
 
+  // PATCH_ENCODING
   #[if_flag($format, EntryFormatFlags::PATCH_ENCODING)]
   patch_encoding: u8,
 
+  // CODEPOINT_BIT_1 or CODEPOINT_BIT_2
   // hack to allow non-conditional field to follow conditional field
   // this is non conditional as we always need to get a pointer to any remaining data after the entry.
   #[if_cond(always_true())]
@@ -197,15 +199,10 @@ flags u8 EntryFormatFlags {
   CODEPOINTS_BIT_2 = 0b00100000,
 
   // If set, this entry is ignored.
-  IGNORED = 0b01000000,
-}
+  IGNORED =  0b01000000,
 
-
-
-table CopyIndices {
-  copy_count: u8,
-  #[count($copy_count)]
-  copy_indices: [Uint24],
+  // Reserved for future use.
+  RESERVED = 0b10000000,
 }
 
 record DesignSpaceSegment {

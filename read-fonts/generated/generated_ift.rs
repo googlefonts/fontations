@@ -1204,6 +1204,8 @@ impl EntryFormatFlags {
     pub const CODEPOINTS_BIT_2: Self = Self { bits: 0b00100000 };
 
     pub const IGNORED: Self = Self { bits: 0b01000000 };
+
+    pub const RESERVED: Self = Self { bits: 0b10000000 };
 }
 
 impl EntryFormatFlags {
@@ -1223,7 +1225,8 @@ impl EntryFormatFlags {
                 | Self::PATCH_ENCODING.bits
                 | Self::CODEPOINTS_BIT_1.bits
                 | Self::CODEPOINTS_BIT_2.bits
-                | Self::IGNORED.bits,
+                | Self::IGNORED.bits
+                | Self::RESERVED.bits,
         }
     }
 
@@ -1449,6 +1452,7 @@ impl std::fmt::Debug for EntryFormatFlags {
             ("CODEPOINTS_BIT_1", Self::CODEPOINTS_BIT_1),
             ("CODEPOINTS_BIT_2", Self::CODEPOINTS_BIT_2),
             ("IGNORED", Self::IGNORED),
+            ("RESERVED", Self::RESERVED),
         ];
         let mut first = true;
         for (name, value) in members {
@@ -1506,72 +1510,6 @@ impl font_types::Scalar for EntryFormatFlags {
 impl<'a> From<EntryFormatFlags> for FieldType<'a> {
     fn from(src: EntryFormatFlags) -> FieldType<'a> {
         src.bits().into()
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct CopyIndicesMarker {
-    copy_indices_byte_len: usize,
-}
-
-impl CopyIndicesMarker {
-    fn copy_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-    fn copy_indices_byte_range(&self) -> Range<usize> {
-        let start = self.copy_count_byte_range().end;
-        start..start + self.copy_indices_byte_len
-    }
-}
-
-impl<'a> FontRead<'a> for CopyIndices<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let copy_count: u8 = cursor.read()?;
-        let copy_indices_byte_len = (copy_count as usize)
-            .checked_mul(Uint24::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(copy_indices_byte_len);
-        cursor.finish(CopyIndicesMarker {
-            copy_indices_byte_len,
-        })
-    }
-}
-
-pub type CopyIndices<'a> = TableRef<'a, CopyIndicesMarker>;
-
-impl<'a> CopyIndices<'a> {
-    pub fn copy_count(&self) -> u8 {
-        let range = self.shape.copy_count_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    pub fn copy_indices(&self) -> &'a [BigEndian<Uint24>] {
-        let range = self.shape.copy_indices_byte_range();
-        self.data.read_array(range).unwrap()
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for CopyIndices<'a> {
-    fn type_name(&self) -> &str {
-        "CopyIndices"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("copy_count", self.copy_count())),
-            1usize => Some(Field::new("copy_indices", self.copy_indices())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for CopyIndices<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 

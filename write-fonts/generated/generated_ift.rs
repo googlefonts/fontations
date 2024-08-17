@@ -796,63 +796,6 @@ impl FontWrite for EntryFormatFlags {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct CopyIndices {
-    pub copy_count: u8,
-    pub copy_indices: Vec<Uint24>,
-}
-
-impl CopyIndices {
-    /// Construct a new `CopyIndices`
-    pub fn new(copy_count: u8, copy_indices: Vec<Uint24>) -> Self {
-        Self {
-            copy_count,
-            copy_indices: copy_indices.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
-impl FontWrite for CopyIndices {
-    fn write_into(&self, writer: &mut TableWriter) {
-        self.copy_count.write_into(writer);
-        self.copy_indices.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::Named("CopyIndices")
-    }
-}
-
-impl Validate for CopyIndices {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("CopyIndices", |ctx| {
-            ctx.in_field("copy_indices", |ctx| {
-                if self.copy_indices.len() > (u8::MAX as usize) {
-                    ctx.report("array exceeds max length");
-                }
-            });
-        })
-    }
-}
-
-impl<'a> FromObjRef<read_fonts::tables::ift::CopyIndices<'a>> for CopyIndices {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::CopyIndices<'a>, _: FontData) -> Self {
-        let offset_data = obj.offset_data();
-        CopyIndices {
-            copy_count: obj.copy_count(),
-            copy_indices: obj.copy_indices().to_owned_obj(offset_data),
-        }
-    }
-}
-
-impl<'a> FromTableRef<read_fonts::tables::ift::CopyIndices<'a>> for CopyIndices {}
-
-impl<'a> FontRead<'a> for CopyIndices {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::tables::ift::CopyIndices as FontRead>::read(data).map(|x| x.to_owned_table())
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DesignSpaceSegment {
     pub axis_tag: Tag,
     pub start: Fixed,
