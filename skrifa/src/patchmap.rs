@@ -438,7 +438,9 @@ impl PatchUri {
     }
 }
 
-/// Stores a materialized version of an IFT patchmap (entry)[https://w3c.github.io/IFT/Overview.html#patch-map-dfn].
+/// Stores a materialized version of an IFT patchmap entry.
+///
+/// See: <https://w3c.github.io/IFT/Overview.html#patch-map-dfn>
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 struct Entry {
     // Key
