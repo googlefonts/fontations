@@ -166,7 +166,7 @@ table EntryData {
   // ENTRY_ID_DELTA
   // TODO(garretrieger): add alternate id string length field.
   #[if_flag($format, EntryFormatFlags::ENTRY_ID_DELTA)]
-  enty_id_delta: Int24,
+  entry_id_delta: Int24,
 
   // PATCH_ENCODING
   #[if_flag($format, EntryFormatFlags::PATCH_ENCODING)]

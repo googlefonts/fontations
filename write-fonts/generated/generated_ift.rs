@@ -543,7 +543,7 @@ pub struct EntryData {
     pub design_space_segments: Option<Vec<DesignSpaceSegment>>,
     pub copy_count: Option<u8>,
     pub copy_indices: Option<Vec<Uint24>>,
-    pub enty_id_delta: Option<Int24>,
+    pub entry_id_delta: Option<Int24>,
     pub patch_encoding: Option<u8>,
     pub codepoint_data: Option<Vec<u8>>,
 }
@@ -612,7 +612,7 @@ impl FontWrite for EntryData {
         self.format
             .contains(EntryFormatFlags::ENTRY_ID_DELTA)
             .then(|| {
-                self.enty_id_delta
+                self.entry_id_delta
                     .as_ref()
                     .expect("missing conditional field should have failed validation")
                     .write_into(writer)
@@ -729,16 +729,16 @@ impl Validate for EntryData {
                     ctx.report("array exceeds max length");
                 }
             });
-            ctx.in_field("enty_id_delta", |ctx| {
+            ctx.in_field("entry_id_delta", |ctx| {
                 if !(format.contains(EntryFormatFlags::ENTRY_ID_DELTA))
-                    && self.enty_id_delta.is_some()
+                    && self.entry_id_delta.is_some()
                 {
-                    ctx.report("'enty_id_delta' is present but ENTRY_ID_DELTA not set")
+                    ctx.report("'entry_id_delta' is present but ENTRY_ID_DELTA not set")
                 }
                 if (format.contains(EntryFormatFlags::ENTRY_ID_DELTA))
-                    && self.enty_id_delta.is_none()
+                    && self.entry_id_delta.is_none()
                 {
-                    ctx.report("ENTRY_ID_DELTA is set but 'enty_id_delta' is None")
+                    ctx.report("ENTRY_ID_DELTA is set but 'entry_id_delta' is None")
                 }
             });
             ctx.in_field("patch_encoding", |ctx| {
@@ -773,7 +773,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::EntryData<'a>> for EntryData {
             design_space_segments: obj.design_space_segments().to_owned_obj(offset_data),
             copy_count: obj.copy_count(),
             copy_indices: obj.copy_indices().to_owned_obj(offset_data),
-            enty_id_delta: obj.enty_id_delta(),
+            entry_id_delta: obj.entry_id_delta(),
             patch_encoding: obj.patch_encoding(),
             codepoint_data: obj.codepoint_data().to_owned_obj(offset_data),
         }

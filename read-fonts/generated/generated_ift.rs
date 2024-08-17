@@ -918,7 +918,7 @@ pub struct EntryDataMarker {
     copy_count_byte_start: Option<usize>,
     copy_indices_byte_start: Option<usize>,
     copy_indices_byte_len: Option<usize>,
-    enty_id_delta_byte_start: Option<usize>,
+    entry_id_delta_byte_start: Option<usize>,
     patch_encoding_byte_start: Option<usize>,
     codepoint_data_byte_start: Option<usize>,
     codepoint_data_byte_len: Option<usize>,
@@ -953,8 +953,8 @@ impl EntryDataMarker {
         let start = self.copy_indices_byte_start?;
         Some(start..start + self.copy_indices_byte_len?)
     }
-    fn enty_id_delta_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.enty_id_delta_byte_start?;
+    fn entry_id_delta_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.entry_id_delta_byte_start?;
         Some(start..start + Int24::RAW_BYTE_LEN)
     }
     fn patch_encoding_byte_range(&self) -> Option<Range<usize>> {
@@ -1038,7 +1038,7 @@ impl<'a> FontRead<'a> for EntryData<'a> {
         if let Some(value) = copy_indices_byte_len {
             cursor.advance_by(value);
         }
-        let enty_id_delta_byte_start = format
+        let entry_id_delta_byte_start = format
             .contains(EntryFormatFlags::ENTRY_ID_DELTA)
             .then(|| cursor.position())
             .transpose()?;
@@ -1068,7 +1068,7 @@ impl<'a> FontRead<'a> for EntryData<'a> {
             copy_count_byte_start,
             copy_indices_byte_start,
             copy_indices_byte_len,
-            enty_id_delta_byte_start,
+            entry_id_delta_byte_start,
             patch_encoding_byte_start,
             codepoint_data_byte_start,
             codepoint_data_byte_len,
@@ -1114,8 +1114,8 @@ impl<'a> EntryData<'a> {
         Some(self.data.read_array(range).unwrap())
     }
 
-    pub fn enty_id_delta(&self) -> Option<Int24> {
-        let range = self.shape.enty_id_delta_byte_range()?;
+    pub fn entry_id_delta(&self) -> Option<Int24> {
+        let range = self.shape.entry_id_delta_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
@@ -1165,7 +1165,7 @@ impl<'a> SomeTable<'a> for EntryData<'a> {
                 Some(Field::new("copy_indices", self.copy_indices().unwrap()))
             }
             7usize if format.contains(EntryFormatFlags::ENTRY_ID_DELTA) => {
-                Some(Field::new("enty_id_delta", self.enty_id_delta().unwrap()))
+                Some(Field::new("entry_id_delta", self.entry_id_delta().unwrap()))
             }
             8usize if format.contains(EntryFormatFlags::PATCH_ENCODING) => {
                 Some(Field::new("patch_encoding", self.patch_encoding().unwrap()))

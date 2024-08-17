@@ -304,7 +304,7 @@ fn decode_format2_entry<'a>(
         entry.feature_tags.extend(features.iter().map(|t| t.get()));
     }
 
-    // TODO(garretrieger): load design space segmetns
+    // TODO(garretrieger): load design space segments
     // TODO(garretrieger): handle copy indices
 
     // Entry ID
@@ -330,7 +330,7 @@ fn compute_format2_new_entry_index(
 ) -> Result<u32, ReadError> {
     let new_index = (last_entry_index as i64)
         + 1
-        + if let Some(id_delta) = entry_data.enty_id_delta() {
+        + if let Some(id_delta) = entry_data.entry_id_delta() {
             id_delta.to_i32() as i64
         } else {
             0
