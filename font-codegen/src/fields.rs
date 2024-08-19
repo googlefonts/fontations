@@ -367,7 +367,14 @@ fn traversal_arm_for_field(
 ) -> TokenStream {
     let name_str = &fld.name.to_string();
     let name = &fld.name;
-    let maybe_unwrap = fld.attrs.conditional.is_some().then(|| quote!(.unwrap()));
+    let is_single_nullable_offset = fld.is_nullable() && !fld.is_array();
+    let maybe_unwrap = fld
+        .attrs
+        .conditional
+        .as_ref()
+        .filter(|_| !is_single_nullable_offset)
+        .is_some()
+        .then(|| quote!(.unwrap()));
     if let Some(traverse_with) = &fld.attrs.traverse_with {
         let traverse_fn = &traverse_with.attr;
         if traverse_fn == "skip" {
