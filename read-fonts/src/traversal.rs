@@ -778,3 +778,10 @@ impl<T: Into<OffsetType> + Clone> From<Nullable<T>> for OffsetType {
         src.offset().clone().into()
     }
 }
+
+impl<T: Into<OffsetType> + Clone> From<Option<Nullable<T>>> for OffsetType {
+    fn from(src: Option<Nullable<T>>) -> Self {
+        src.map(|x| x.offset().clone())
+            .map_or(OffsetType::Offset16(0), |x| x.into())
+    }
+}
