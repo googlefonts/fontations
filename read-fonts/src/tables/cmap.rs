@@ -164,7 +164,16 @@ impl<'a> Iterator for Cmap4Iter<'a> {
                 return Some((codepoint, glyph_id));
             } else {
                 self.cur_range_ix += 1;
-                self.cur_range = self.subtable.code_range(self.cur_range_ix)?;
+                let next_range = self.subtable.code_range(self.cur_range_ix)?;
+                // Groups should be in order and non-overlapping so make sure
+                // that the start code of next group is at least current_end + 1.
+                // Also avoid start sliding backwards if we see data where end < start by taking the max
+                // of next.end and curr.end as the new end.
+                // This prevents timeout and bizarre results in the face of numerous overlapping ranges
+                // https://github.com/googlefonts/fontations/issues/1100
+                // cmap4 ranges are u16 so no need to stress about values past char::MAX
+                self.cur_range = next_range.start.max(self.cur_range.end)
+                    ..next_range.end.max(self.cur_range.end);
                 self.cur_start_code = self.cur_range.start as u16;
             }
         }
@@ -748,5 +757,21 @@ mod tests {
                 CmapSubtable::Format14(cmap14) => Some(cmap14),
                 _ => None,
             })
+    }
+
+    /// <https://github.com/googlefonts/fontations/issues/1100>
+    ///
+    /// Note that this doesn't demonstrate the timeout, merely that we've eliminated the underlying
+    /// enthusiasm for non-ascending ranges that enabled it
+    #[test]
+    fn cmap4_bad_data() {
+        let buf = font_test_data::cmap::repetitive_cmap4();
+        let cmap4 = Cmap4::read(FontData::new(buf.as_slice())).unwrap();
+
+        // we should have unique, ascending codepoints, not duplicates and overlaps
+        assert_eq!(
+            (6..=64).collect::<Vec<_>>(),
+            cmap4.iter().map(|(cp, _)| cp).collect::<Vec<_>>()
+        );
     }
 }

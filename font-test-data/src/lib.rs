@@ -1,5 +1,6 @@
 //! test data shared between various fontations crates.
 
+pub mod cmap;
 pub mod gdef;
 pub mod gpos;
 pub mod gsub;
