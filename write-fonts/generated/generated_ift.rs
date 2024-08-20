@@ -545,14 +545,15 @@ pub struct EntryData {
     pub copy_indices: Option<Vec<Uint24>>,
     pub entry_id_delta: Option<Int24>,
     pub patch_encoding: Option<u8>,
-    pub codepoint_data: Option<Vec<u8>>,
+    pub codepoint_data: Vec<u8>,
 }
 
 impl EntryData {
     /// Construct a new `EntryData`
-    pub fn new(format: EntryFormatFlags) -> Self {
+    pub fn new(format: EntryFormatFlags, codepoint_data: Vec<u8>) -> Self {
         Self {
             format,
+            codepoint_data: codepoint_data.into_iter().map(Into::into).collect(),
             ..Default::default()
         }
     }
@@ -625,12 +626,7 @@ impl FontWrite for EntryData {
                     .expect("missing conditional field should have failed validation")
                     .write_into(writer)
             });
-        true.then(|| {
-            self.codepoint_data
-                .as_ref()
-                .expect("missing conditional field should have failed validation")
-                .write_into(writer)
-        });
+        self.codepoint_data.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("EntryData")
@@ -751,11 +747,6 @@ impl Validate for EntryData {
                     && self.patch_encoding.is_none()
                 {
                     ctx.report("PATCH_ENCODING is set but 'patch_encoding' is None")
-                }
-            });
-            ctx.in_field("codepoint_data", |ctx| {
-                if self.codepoint_data.is_none() {
-                    ctx.report("'{name}' should always be present.");
                 }
             });
         })

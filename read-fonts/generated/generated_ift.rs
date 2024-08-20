@@ -920,8 +920,7 @@ pub struct EntryDataMarker {
     copy_indices_byte_len: Option<usize>,
     entry_id_delta_byte_start: Option<usize>,
     patch_encoding_byte_start: Option<usize>,
-    codepoint_data_byte_start: Option<usize>,
-    codepoint_data_byte_len: Option<usize>,
+    codepoint_data_byte_len: usize,
 }
 
 impl EntryDataMarker {
@@ -961,9 +960,42 @@ impl EntryDataMarker {
         let start = self.patch_encoding_byte_start?;
         Some(start..start + u8::RAW_BYTE_LEN)
     }
-    fn codepoint_data_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.codepoint_data_byte_start?;
-        Some(start..start + self.codepoint_data_byte_len?)
+    fn codepoint_data_byte_range(&self) -> Range<usize> {
+        let start = self
+            .patch_encoding_byte_range()
+            .map(|range| range.end)
+            .unwrap_or_else(|| {
+                self.entry_id_delta_byte_range()
+                    .map(|range| range.end)
+                    .unwrap_or_else(|| {
+                        self.copy_indices_byte_range()
+                            .map(|range| range.end)
+                            .unwrap_or_else(|| {
+                                self.copy_count_byte_range()
+                                    .map(|range| range.end)
+                                    .unwrap_or_else(|| {
+                                        self.design_space_segments_byte_range()
+                                            .map(|range| range.end)
+                                            .unwrap_or_else(|| {
+                                                self.design_space_count_byte_range()
+                                                    .map(|range| range.end)
+                                                    .unwrap_or_else(|| {
+                                                        self.feature_tags_byte_range()
+                                                            .map(|range| range.end)
+                                                            .unwrap_or_else(|| {
+                                                                self.feature_count_byte_range()
+                                                                    .map(|range| range.end)
+                                                                    .unwrap_or_else(|| {
+                                                                        self.format_byte_range().end
+                                                                    })
+                                                            })
+                                                    })
+                                            })
+                                    })
+                            })
+                    })
+            });
+        start..start + self.codepoint_data_byte_len
     }
 }
 
@@ -1052,12 +1084,9 @@ impl<'a> FontRead<'a> for EntryData<'a> {
         format
             .contains(EntryFormatFlags::PATCH_ENCODING)
             .then(|| cursor.advance::<u8>());
-        let codepoint_data_byte_start = true.then(|| cursor.position()).transpose()?;
         let codepoint_data_byte_len =
-            true.then_some(cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN);
-        if let Some(value) = codepoint_data_byte_len {
-            cursor.advance_by(value);
-        }
+            cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        cursor.advance_by(codepoint_data_byte_len);
         cursor.finish(EntryDataMarker {
             feature_count_byte_start,
             feature_tags_byte_start,
@@ -1070,7 +1099,6 @@ impl<'a> FontRead<'a> for EntryData<'a> {
             copy_indices_byte_len,
             entry_id_delta_byte_start,
             patch_encoding_byte_start,
-            codepoint_data_byte_start,
             codepoint_data_byte_len,
         })
     }
@@ -1124,9 +1152,9 @@ impl<'a> EntryData<'a> {
         Some(self.data.read_at(range.start).unwrap())
     }
 
-    pub fn codepoint_data(&self) -> Option<&'a [u8]> {
-        let range = self.shape.codepoint_data_byte_range()?;
-        Some(self.data.read_array(range).unwrap())
+    pub fn codepoint_data(&self) -> &'a [u8] {
+        let range = self.shape.codepoint_data_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
@@ -1170,7 +1198,7 @@ impl<'a> SomeTable<'a> for EntryData<'a> {
             8usize if format.contains(EntryFormatFlags::PATCH_ENCODING) => {
                 Some(Field::new("patch_encoding", self.patch_encoding().unwrap()))
             }
-            9usize if true => Some(Field::new("codepoint_data", self.codepoint_data().unwrap())),
+            9usize => Some(Field::new("codepoint_data", self.codepoint_data())),
             _ => None,
         }
     }
