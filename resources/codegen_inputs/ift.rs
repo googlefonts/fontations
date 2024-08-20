@@ -209,6 +209,8 @@ record DesignSpaceSegment {
   end: Fixed,
 }
 
+// Storage for id strings, indexed by EntryData::entryIdStringLength
+// See: https://w3c.github.io/IFT/Overview.html#mapping-entry-entryidstringlength
 table IdStringData {
   #[count(..)]
   id_data: [u8],

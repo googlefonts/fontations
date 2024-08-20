@@ -452,8 +452,8 @@ struct Entry {
 impl Entry {
     fn new(template: &str, compat_id: &[u32; 4], default_encoding: &PatchEncoding) -> Entry {
         Entry {
-            codepoints: IntSet::<u32>::empty(),
-            feature_tags: BTreeSet::<Tag>::new(),
+            codepoints: IntSet::empty(),
+            feature_tags: BTreeSet::new(),
             design_space: vec![],
 
             uri: PatchUri::from_index(template, 0, *default_encoding),
