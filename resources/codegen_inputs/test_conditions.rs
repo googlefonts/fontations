@@ -29,3 +29,16 @@ table FlagDay {
     #[if_cond(any_flag($flags, GotFlags::BAZ, GotFlags::FOO))]
     baz: u16,
 }
+
+table FieldsAfterConditionals {
+    flags: GotFlags,
+    #[if_flag($flags, GotFlags::FOO)]
+    foo: u16,
+    always_here: u16,
+    #[if_flag($flags, GotFlags::BAR)]
+    bar: u16,
+    #[if_flag($flags, GotFlags::BAZ)]
+    baz: u16,
+    also_always_here: u16,
+    and_me_too: u16,
+}

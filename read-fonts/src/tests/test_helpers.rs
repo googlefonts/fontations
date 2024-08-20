@@ -11,6 +11,11 @@ impl BeBuffer {
         Default::default()
     }
 
+    /// Return a reference to the contents of the buffer
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0
+    }
+
     /// Write any scalar to this buffer.
     pub fn push(mut self, item: impl Scalar) -> Self {
         self.0.extend(item.to_raw().as_ref());
