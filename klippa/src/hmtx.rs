@@ -11,7 +11,9 @@ use write_fonts::{
     FontBuilder,
 };
 
-pub fn subset_hmtx_hhea(
+// reference: subset() for hmtx/hhea in harfbuzz
+// https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-ot-hmtx-table.hh#L214
+pub(crate) fn subset_hmtx_hhea(
     font: &FontRef,
     plan: &Plan,
     builder: &mut FontBuilder,

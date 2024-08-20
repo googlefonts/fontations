@@ -5,7 +5,9 @@ use write_fonts::{
     FontBuilder,
 };
 
-pub fn subset_head<'a>(
+// reference: subset() for head in harfbuzz
+// https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-ot-head-table.hh#L63
+pub(crate) fn subset_head<'a>(
     font: &FontRef<'a>,
     _plan: &Plan,
     builder: &mut FontBuilder<'a>,
