@@ -534,3 +534,154 @@ impl<'a> std::fmt::Debug for FlagDay<'a> {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct FieldsAfterConditionalsMarker {
+    foo_byte_start: Option<usize>,
+    bar_byte_start: Option<usize>,
+    baz_byte_start: Option<usize>,
+}
+
+impl FieldsAfterConditionalsMarker {
+    fn flags_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + GotFlags::RAW_BYTE_LEN
+    }
+    fn foo_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.foo_byte_start?;
+        Some(start..start + u16::RAW_BYTE_LEN)
+    }
+    fn always_here_byte_range(&self) -> Range<usize> {
+        let start = self
+            .foo_byte_range()
+            .map(|range| range.end)
+            .unwrap_or_else(|| self.flags_byte_range().end);
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn bar_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.bar_byte_start?;
+        Some(start..start + u16::RAW_BYTE_LEN)
+    }
+    fn baz_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.baz_byte_start?;
+        Some(start..start + u16::RAW_BYTE_LEN)
+    }
+    fn also_always_here_byte_range(&self) -> Range<usize> {
+        let start = self
+            .baz_byte_range()
+            .map(|range| range.end)
+            .unwrap_or_else(|| {
+                self.bar_byte_range()
+                    .map(|range| range.end)
+                    .unwrap_or_else(|| self.always_here_byte_range().end)
+            });
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn and_me_too_byte_range(&self) -> Range<usize> {
+        let start = self.also_always_here_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+}
+
+impl<'a> FontRead<'a> for FieldsAfterConditionals<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let flags: GotFlags = cursor.read()?;
+        let foo_byte_start = flags
+            .contains(GotFlags::FOO)
+            .then(|| cursor.position())
+            .transpose()?;
+        flags
+            .contains(GotFlags::FOO)
+            .then(|| cursor.advance::<u16>());
+        cursor.advance::<u16>();
+        let bar_byte_start = flags
+            .contains(GotFlags::BAR)
+            .then(|| cursor.position())
+            .transpose()?;
+        flags
+            .contains(GotFlags::BAR)
+            .then(|| cursor.advance::<u16>());
+        let baz_byte_start = flags
+            .contains(GotFlags::BAZ)
+            .then(|| cursor.position())
+            .transpose()?;
+        flags
+            .contains(GotFlags::BAZ)
+            .then(|| cursor.advance::<u16>());
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.finish(FieldsAfterConditionalsMarker {
+            foo_byte_start,
+            bar_byte_start,
+            baz_byte_start,
+        })
+    }
+}
+
+pub type FieldsAfterConditionals<'a> = TableRef<'a, FieldsAfterConditionalsMarker>;
+
+impl<'a> FieldsAfterConditionals<'a> {
+    pub fn flags(&self) -> GotFlags {
+        let range = self.shape.flags_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn foo(&self) -> Option<u16> {
+        let range = self.shape.foo_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn always_here(&self) -> u16 {
+        let range = self.shape.always_here_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn bar(&self) -> Option<u16> {
+        let range = self.shape.bar_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn baz(&self) -> Option<u16> {
+        let range = self.shape.baz_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn also_always_here(&self) -> u16 {
+        let range = self.shape.also_always_here_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn and_me_too(&self) -> u16 {
+        let range = self.shape.and_me_too_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for FieldsAfterConditionals<'a> {
+    fn type_name(&self) -> &str {
+        "FieldsAfterConditionals"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let flags = self.flags();
+        match idx {
+            0usize => Some(Field::new("flags", self.flags())),
+            1usize if flags.contains(GotFlags::FOO) => Some(Field::new("foo", self.foo().unwrap())),
+            2usize => Some(Field::new("always_here", self.always_here())),
+            3usize if flags.contains(GotFlags::BAR) => Some(Field::new("bar", self.bar().unwrap())),
+            4usize if flags.contains(GotFlags::BAZ) => Some(Field::new("baz", self.baz().unwrap())),
+            5usize => Some(Field::new("also_always_here", self.also_always_here())),
+            6usize => Some(Field::new("and_me_too", self.and_me_too())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for FieldsAfterConditionals<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}

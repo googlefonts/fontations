@@ -891,9 +891,10 @@ impl Table {
 
             // versioned fields have a different signature
             if field.attrs.conditional.is_some() {
-                prev_field_end_expr = quote!(compile_error!(
-                    "non-version dependent field cannot follow version-dependent field"
-                ));
+                prev_field_end_expr = quote! {
+                    self.#fn_name().map(|range| range.end)
+                        .unwrap_or_else(|| #prev_field_end_expr)
+                };
                 let start_field_name = field.shape_byte_start_field_name();
                 return Some(quote! {
                     fn #fn_name(&self) -> Option<Range<usize>> {
