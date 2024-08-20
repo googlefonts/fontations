@@ -351,11 +351,7 @@ fn decode_format2_codepoints<'a>(
         .format()
         .intersection(EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2);
 
-    let Some(codepoint_data) = entry_data.codepoint_data() else {
-        return Err(ReadError::MalformedData(
-            "Something is wrong, codepoint_data() should always be present.",
-        ));
-    };
+    let codepoint_data = entry_data.codepoint_data();
 
     if format.bits() == 0 {
         return Ok((IntSet::<u32>::empty(), codepoint_data));

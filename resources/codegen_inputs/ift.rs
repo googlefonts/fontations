@@ -173,9 +173,7 @@ table EntryData {
   patch_encoding: u8,
 
   // CODEPOINT_BIT_1 or CODEPOINT_BIT_2
-  // hack to allow non-conditional field to follow conditional field
-  // this is non conditional as we always need to get a pointer to any remaining data after the entry.
-  #[if_cond(always_true())]
+  // Non-conditional since we also use this to find the end of the entry.
   #[count(..)]
   codepoint_data: [u8],
 }
