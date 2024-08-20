@@ -924,7 +924,7 @@ pub struct EntryDataMarker {
 }
 
 impl EntryDataMarker {
-    fn format_byte_range(&self) -> Range<usize> {
+    fn format_flags_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + EntryFormatFlags::RAW_BYTE_LEN
     }
@@ -961,40 +961,7 @@ impl EntryDataMarker {
         Some(start..start + u8::RAW_BYTE_LEN)
     }
     fn codepoint_data_byte_range(&self) -> Range<usize> {
-        let start = self
-            .patch_encoding_byte_range()
-            .map(|range| range.end)
-            .unwrap_or_else(|| {
-                self.entry_id_delta_byte_range()
-                    .map(|range| range.end)
-                    .unwrap_or_else(|| {
-                        self.copy_indices_byte_range()
-                            .map(|range| range.end)
-                            .unwrap_or_else(|| {
-                                self.copy_count_byte_range()
-                                    .map(|range| range.end)
-                                    .unwrap_or_else(|| {
-                                        self.design_space_segments_byte_range()
-                                            .map(|range| range.end)
-                                            .unwrap_or_else(|| {
-                                                self.design_space_count_byte_range()
-                                                    .map(|range| range.end)
-                                                    .unwrap_or_else(|| {
-                                                        self.feature_tags_byte_range()
-                                                            .map(|range| range.end)
-                                                            .unwrap_or_else(|| {
-                                                                self.feature_count_byte_range()
-                                                                    .map(|range| range.end)
-                                                                    .unwrap_or_else(|| {
-                                                                        self.format_byte_range().end
-                                                                    })
-                                                            })
-                                                    })
-                                            })
-                                    })
-                            })
-                    })
-            });
+        let start = self . patch_encoding_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . entry_id_delta_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_indices_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_segments_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_tags_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . format_flags_byte_range () . end)))))))) ;
         start..start + self.codepoint_data_byte_len
     }
 }
@@ -1002,21 +969,21 @@ impl EntryDataMarker {
 impl<'a> FontRead<'a> for EntryData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let format: EntryFormatFlags = cursor.read()?;
-        let feature_count_byte_start = format
+        let format_flags: EntryFormatFlags = cursor.read()?;
+        let feature_count_byte_start = format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| cursor.position())
             .transpose()?;
-        let feature_count = format
+        let feature_count = format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| cursor.read::<u8>())
             .transpose()?
             .unwrap_or(0);
-        let feature_tags_byte_start = format
+        let feature_tags_byte_start = format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| cursor.position())
             .transpose()?;
-        let feature_tags_byte_len = format
+        let feature_tags_byte_len = format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then_some(
                 (feature_count as usize)
@@ -1026,20 +993,20 @@ impl<'a> FontRead<'a> for EntryData<'a> {
         if let Some(value) = feature_tags_byte_len {
             cursor.advance_by(value);
         }
-        let design_space_count_byte_start = format
+        let design_space_count_byte_start = format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| cursor.position())
             .transpose()?;
-        let design_space_count = format
+        let design_space_count = format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| cursor.read::<u16>())
             .transpose()?
             .unwrap_or(0);
-        let design_space_segments_byte_start = format
+        let design_space_segments_byte_start = format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| cursor.position())
             .transpose()?;
-        let design_space_segments_byte_len = format
+        let design_space_segments_byte_len = format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then_some(
                 (design_space_count as usize)
@@ -1049,39 +1016,41 @@ impl<'a> FontRead<'a> for EntryData<'a> {
         if let Some(value) = design_space_segments_byte_len {
             cursor.advance_by(value);
         }
-        let copy_count_byte_start = format
+        let copy_count_byte_start = format_flags
             .contains(EntryFormatFlags::COPY_INDICES)
             .then(|| cursor.position())
             .transpose()?;
-        let copy_count = format
+        let copy_count = format_flags
             .contains(EntryFormatFlags::COPY_INDICES)
             .then(|| cursor.read::<u8>())
             .transpose()?
             .unwrap_or(0);
-        let copy_indices_byte_start = format
+        let copy_indices_byte_start = format_flags
             .contains(EntryFormatFlags::COPY_INDICES)
             .then(|| cursor.position())
             .transpose()?;
-        let copy_indices_byte_len = format.contains(EntryFormatFlags::COPY_INDICES).then_some(
-            (copy_count as usize)
-                .checked_mul(Uint24::RAW_BYTE_LEN)
-                .ok_or(ReadError::OutOfBounds)?,
-        );
+        let copy_indices_byte_len = format_flags
+            .contains(EntryFormatFlags::COPY_INDICES)
+            .then_some(
+                (copy_count as usize)
+                    .checked_mul(Uint24::RAW_BYTE_LEN)
+                    .ok_or(ReadError::OutOfBounds)?,
+            );
         if let Some(value) = copy_indices_byte_len {
             cursor.advance_by(value);
         }
-        let entry_id_delta_byte_start = format
+        let entry_id_delta_byte_start = format_flags
             .contains(EntryFormatFlags::ENTRY_ID_DELTA)
             .then(|| cursor.position())
             .transpose()?;
-        format
+        format_flags
             .contains(EntryFormatFlags::ENTRY_ID_DELTA)
             .then(|| cursor.advance::<Int24>());
-        let patch_encoding_byte_start = format
+        let patch_encoding_byte_start = format_flags
             .contains(EntryFormatFlags::PATCH_ENCODING)
             .then(|| cursor.position())
             .transpose()?;
-        format
+        format_flags
             .contains(EntryFormatFlags::PATCH_ENCODING)
             .then(|| cursor.advance::<u8>());
         let codepoint_data_byte_len =
@@ -1107,8 +1076,8 @@ impl<'a> FontRead<'a> for EntryData<'a> {
 pub type EntryData<'a> = TableRef<'a, EntryDataMarker>;
 
 impl<'a> EntryData<'a> {
-    pub fn format(&self) -> EntryFormatFlags {
-        let range = self.shape.format_byte_range();
+    pub fn format_flags(&self) -> EntryFormatFlags {
+        let range = self.shape.format_flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -1164,19 +1133,19 @@ impl<'a> SomeTable<'a> for EntryData<'a> {
         "EntryData"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        let format = self.format();
+        let format_flags = self.format_flags();
         match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize if format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => {
+            0usize => Some(Field::new("format_flags", self.format_flags())),
+            1usize if format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => {
                 Some(Field::new("feature_count", self.feature_count().unwrap()))
             }
-            2usize if format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => {
+            2usize if format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => {
                 Some(Field::new("feature_tags", self.feature_tags().unwrap()))
             }
-            3usize if format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => Some(
+            3usize if format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => Some(
                 Field::new("design_space_count", self.design_space_count().unwrap()),
             ),
-            4usize if format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => {
+            4usize if format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => {
                 Some(Field::new(
                     "design_space_segments",
                     traversal::FieldType::array_of_records(
@@ -1186,16 +1155,16 @@ impl<'a> SomeTable<'a> for EntryData<'a> {
                     ),
                 ))
             }
-            5usize if format.contains(EntryFormatFlags::COPY_INDICES) => {
+            5usize if format_flags.contains(EntryFormatFlags::COPY_INDICES) => {
                 Some(Field::new("copy_count", self.copy_count().unwrap()))
             }
-            6usize if format.contains(EntryFormatFlags::COPY_INDICES) => {
+            6usize if format_flags.contains(EntryFormatFlags::COPY_INDICES) => {
                 Some(Field::new("copy_indices", self.copy_indices().unwrap()))
             }
-            7usize if format.contains(EntryFormatFlags::ENTRY_ID_DELTA) => {
+            7usize if format_flags.contains(EntryFormatFlags::ENTRY_ID_DELTA) => {
                 Some(Field::new("entry_id_delta", self.entry_id_delta().unwrap()))
             }
-            8usize if format.contains(EntryFormatFlags::PATCH_ENCODING) => {
+            8usize if format_flags.contains(EntryFormatFlags::PATCH_ENCODING) => {
                 Some(Field::new("patch_encoding", self.patch_encoding().unwrap()))
             }
             9usize => Some(Field::new("codepoint_data", self.codepoint_data())),

@@ -141,35 +141,35 @@ table MappingEntries {
 }
 
 table EntryData {
-  format: EntryFormatFlags,
+  format_flags: EntryFormatFlags,
 
   // FEATURES_AND_DESIGN_SPACE
-  #[if_flag($format, EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)]
+  #[if_flag($format_flags, EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)]
   feature_count: u8,
-  #[if_flag($format, EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)]
+  #[if_flag($format_flags, EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)]
   #[count($feature_count)]
   feature_tags: [Tag],
 
-  #[if_flag($format, EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)]
+  #[if_flag($format_flags, EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)]
   design_space_count: u16,
-  #[if_flag($format, EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)]
+  #[if_flag($format_flags, EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)]
   #[count($design_space_count)]
   design_space_segments: [DesignSpaceSegment],
 
   // COPY_INDICES
-  #[if_flag($format, EntryFormatFlags::COPY_INDICES)]
+  #[if_flag($format_flags, EntryFormatFlags::COPY_INDICES)]
   copy_count: u8,
-  #[if_flag($format, EntryFormatFlags::COPY_INDICES)]
+  #[if_flag($format_flags, EntryFormatFlags::COPY_INDICES)]
   #[count($copy_count)]
   copy_indices: [Uint24],
 
   // ENTRY_ID_DELTA
   // TODO(garretrieger): add alternate id string length field.
-  #[if_flag($format, EntryFormatFlags::ENTRY_ID_DELTA)]
+  #[if_flag($format_flags, EntryFormatFlags::ENTRY_ID_DELTA)]
   entry_id_delta: Int24,
 
   // PATCH_ENCODING
-  #[if_flag($format, EntryFormatFlags::PATCH_ENCODING)]
+  #[if_flag($format_flags, EntryFormatFlags::PATCH_ENCODING)]
   patch_encoding: u8,
 
   // CODEPOINT_BIT_1 or CODEPOINT_BIT_2

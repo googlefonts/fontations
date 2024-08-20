@@ -536,7 +536,7 @@ impl<'a> FontRead<'a> for MappingEntries {
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct EntryData {
-    pub format: EntryFormatFlags,
+    pub format_flags: EntryFormatFlags,
     pub feature_count: Option<u8>,
     pub feature_tags: Option<Vec<Tag>>,
     pub design_space_count: Option<u16>,
@@ -550,9 +550,9 @@ pub struct EntryData {
 
 impl EntryData {
     /// Construct a new `EntryData`
-    pub fn new(format: EntryFormatFlags, codepoint_data: Vec<u8>) -> Self {
+    pub fn new(format_flags: EntryFormatFlags, codepoint_data: Vec<u8>) -> Self {
         Self {
-            format,
+            format_flags,
             codepoint_data: codepoint_data.into_iter().map(Into::into).collect(),
             ..Default::default()
         }
@@ -561,8 +561,8 @@ impl EntryData {
 
 impl FontWrite for EntryData {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.format.write_into(writer);
-        self.format
+        self.format_flags.write_into(writer);
+        self.format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| {
                 self.feature_count
@@ -570,7 +570,7 @@ impl FontWrite for EntryData {
                     .expect("missing conditional field should have failed validation")
                     .write_into(writer)
             });
-        self.format
+        self.format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| {
                 self.feature_tags
@@ -578,7 +578,7 @@ impl FontWrite for EntryData {
                     .expect("missing conditional field should have failed validation")
                     .write_into(writer)
             });
-        self.format
+        self.format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| {
                 self.design_space_count
@@ -586,7 +586,7 @@ impl FontWrite for EntryData {
                     .expect("missing conditional field should have failed validation")
                     .write_into(writer)
             });
-        self.format
+        self.format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| {
                 self.design_space_segments
@@ -594,7 +594,7 @@ impl FontWrite for EntryData {
                     .expect("missing conditional field should have failed validation")
                     .write_into(writer)
             });
-        self.format
+        self.format_flags
             .contains(EntryFormatFlags::COPY_INDICES)
             .then(|| {
                 self.copy_count
@@ -602,7 +602,7 @@ impl FontWrite for EntryData {
                     .expect("missing conditional field should have failed validation")
                     .write_into(writer)
             });
-        self.format
+        self.format_flags
             .contains(EntryFormatFlags::COPY_INDICES)
             .then(|| {
                 self.copy_indices
@@ -610,7 +610,7 @@ impl FontWrite for EntryData {
                     .expect("missing conditional field should have failed validation")
                     .write_into(writer)
             });
-        self.format
+        self.format_flags
             .contains(EntryFormatFlags::ENTRY_ID_DELTA)
             .then(|| {
                 self.entry_id_delta
@@ -618,7 +618,7 @@ impl FontWrite for EntryData {
                     .expect("missing conditional field should have failed validation")
                     .write_into(writer)
             });
-        self.format
+        self.format_flags
             .contains(EntryFormatFlags::PATCH_ENCODING)
             .then(|| {
                 self.patch_encoding
@@ -636,26 +636,26 @@ impl FontWrite for EntryData {
 impl Validate for EntryData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("EntryData", |ctx| {
-            let format = self.format;
+            let format_flags = self.format_flags;
             ctx.in_field("feature_count", |ctx| {
-                if !(format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if !(format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.feature_count.is_some()
                 {
                     ctx.report("'feature_count' is present but FEATURES_AND_DESIGN_SPACE not set")
                 }
-                if (format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if (format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.feature_count.is_none()
                 {
                     ctx.report("FEATURES_AND_DESIGN_SPACE is set but 'feature_count' is None")
                 }
             });
             ctx.in_field("feature_tags", |ctx| {
-                if !(format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if !(format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.feature_tags.is_some()
                 {
                     ctx.report("'feature_tags' is present but FEATURES_AND_DESIGN_SPACE not set")
                 }
-                if (format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if (format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.feature_tags.is_none()
                 {
                     ctx.report("FEATURES_AND_DESIGN_SPACE is set but 'feature_tags' is None")
@@ -667,28 +667,28 @@ impl Validate for EntryData {
                 }
             });
             ctx.in_field("design_space_count", |ctx| {
-                if !(format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if !(format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.design_space_count.is_some()
                 {
                     ctx.report(
                         "'design_space_count' is present but FEATURES_AND_DESIGN_SPACE not set",
                     )
                 }
-                if (format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if (format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.design_space_count.is_none()
                 {
                     ctx.report("FEATURES_AND_DESIGN_SPACE is set but 'design_space_count' is None")
                 }
             });
             ctx.in_field("design_space_segments", |ctx| {
-                if !(format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if !(format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.design_space_segments.is_some()
                 {
                     ctx.report(
                         "'design_space_segments' is present but FEATURES_AND_DESIGN_SPACE not set",
                     )
                 }
-                if (format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if (format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.design_space_segments.is_none()
                 {
                     ctx.report(
@@ -703,19 +703,25 @@ impl Validate for EntryData {
                 self.design_space_segments.validate_impl(ctx);
             });
             ctx.in_field("copy_count", |ctx| {
-                if !(format.contains(EntryFormatFlags::COPY_INDICES)) && self.copy_count.is_some() {
+                if !(format_flags.contains(EntryFormatFlags::COPY_INDICES))
+                    && self.copy_count.is_some()
+                {
                     ctx.report("'copy_count' is present but COPY_INDICES not set")
                 }
-                if (format.contains(EntryFormatFlags::COPY_INDICES)) && self.copy_count.is_none() {
+                if (format_flags.contains(EntryFormatFlags::COPY_INDICES))
+                    && self.copy_count.is_none()
+                {
                     ctx.report("COPY_INDICES is set but 'copy_count' is None")
                 }
             });
             ctx.in_field("copy_indices", |ctx| {
-                if !(format.contains(EntryFormatFlags::COPY_INDICES)) && self.copy_indices.is_some()
+                if !(format_flags.contains(EntryFormatFlags::COPY_INDICES))
+                    && self.copy_indices.is_some()
                 {
                     ctx.report("'copy_indices' is present but COPY_INDICES not set")
                 }
-                if (format.contains(EntryFormatFlags::COPY_INDICES)) && self.copy_indices.is_none()
+                if (format_flags.contains(EntryFormatFlags::COPY_INDICES))
+                    && self.copy_indices.is_none()
                 {
                     ctx.report("COPY_INDICES is set but 'copy_indices' is None")
                 }
@@ -726,24 +732,24 @@ impl Validate for EntryData {
                 }
             });
             ctx.in_field("entry_id_delta", |ctx| {
-                if !(format.contains(EntryFormatFlags::ENTRY_ID_DELTA))
+                if !(format_flags.contains(EntryFormatFlags::ENTRY_ID_DELTA))
                     && self.entry_id_delta.is_some()
                 {
                     ctx.report("'entry_id_delta' is present but ENTRY_ID_DELTA not set")
                 }
-                if (format.contains(EntryFormatFlags::ENTRY_ID_DELTA))
+                if (format_flags.contains(EntryFormatFlags::ENTRY_ID_DELTA))
                     && self.entry_id_delta.is_none()
                 {
                     ctx.report("ENTRY_ID_DELTA is set but 'entry_id_delta' is None")
                 }
             });
             ctx.in_field("patch_encoding", |ctx| {
-                if !(format.contains(EntryFormatFlags::PATCH_ENCODING))
+                if !(format_flags.contains(EntryFormatFlags::PATCH_ENCODING))
                     && self.patch_encoding.is_some()
                 {
                     ctx.report("'patch_encoding' is present but PATCH_ENCODING not set")
                 }
-                if (format.contains(EntryFormatFlags::PATCH_ENCODING))
+                if (format_flags.contains(EntryFormatFlags::PATCH_ENCODING))
                     && self.patch_encoding.is_none()
                 {
                     ctx.report("PATCH_ENCODING is set but 'patch_encoding' is None")
@@ -757,7 +763,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::EntryData<'a>> for EntryData {
     fn from_obj_ref(obj: &read_fonts::tables::ift::EntryData<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         EntryData {
-            format: obj.format(),
+            format_flags: obj.format_flags(),
             feature_count: obj.feature_count(),
             feature_tags: obj.feature_tags().to_owned_obj(offset_data),
             design_space_count: obj.design_space_count(),
