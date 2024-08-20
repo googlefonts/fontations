@@ -12,7 +12,6 @@ use skrifa::{
 };
 
 mod helpers;
-
 use helpers::*;
 
 /// The pen for when you don't really care what gets drawn
@@ -84,8 +83,7 @@ impl Display for DrawErrorWrapper {
     }
 }
 
-fn do_glyf_things(outline_request: OutlineRequest, data: &[u8]) -> Result<(), Box<dyn Error>> {
-    let font = FontRef::new(data)?;
+fn do_glyf_things(outline_request: OutlineRequest, font: &FontRef) -> Result<(), Box<dyn Error>> {
     let outlines = font.outline_glyphs();
     let size = outline_request.size;
     let mut buf: Vec<u8> = Vec::with_capacity(
@@ -219,10 +217,10 @@ fn create_request_scenarios(font: &FontRef) -> Vec<OutlineRequest> {
 }
 
 fuzz_target!(|data: &[u8]| {
-    let Ok(font) = FontRef::new(data) else {
+    let Ok(font) = select_font(data) else {
         return;
     };
     for request in create_request_scenarios(&font) {
-        let _ = do_glyf_things(request, data);
+        let _ = do_glyf_things(request, &font);
     }
 });

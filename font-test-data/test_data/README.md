@@ -2,6 +2,10 @@
 
 This directory contains files used for testing.
 
+## ttc
+
+The `ttc` directory contains ttc files, see it's readme for provenance.
+
 ## ttx
 
 The `ttx` directory contains ttx files describing test cases. These are compiled

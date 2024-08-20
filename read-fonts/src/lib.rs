@@ -328,3 +328,24 @@ impl<'a> TableProvider<'a> for FontRef<'a> {
         self.table_data(tag)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use font_test_data::{ttc::TTC, AHEM};
+
+    use crate::FileRef;
+
+    #[test]
+    fn file_ref_non_collection() {
+        assert!(matches!(FileRef::new(AHEM), Ok(FileRef::Font(_))));
+    }
+
+    #[test]
+    fn file_ref_collection() {
+        let Ok(FileRef::Collection(collection)) = FileRef::new(TTC) else {
+            panic!("Expected a collection");
+        };
+        assert_eq!(2, collection.len());
+        assert!(!collection.is_empty());
+    }
+}

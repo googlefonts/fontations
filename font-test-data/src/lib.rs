@@ -220,3 +220,7 @@ pub mod colrv1_json {
         }
     }
 }
+
+pub mod ttc {
+    pub static TTC: &[u8] = include_bytes!("../test_data/ttc/TTC.ttc");
+}

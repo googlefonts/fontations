@@ -2,11 +2,13 @@
 use std::error::Error;
 
 use libfuzzer_sys::fuzz_target;
-use skrifa::{raw::TableProvider, FontRef};
+use skrifa::raw::TableProvider;
+
+mod helpers;
+use helpers::*;
 
 fn do_metadata_things(data: &[u8]) -> Result<(), Box<dyn Error>> {
-    let font = FontRef::new(data)?;
-
+    let font = select_font(data)?;
     if let Ok(avar) = font.avar() {
         let _ = avar.version();
         let _ = avar.axis_count();
