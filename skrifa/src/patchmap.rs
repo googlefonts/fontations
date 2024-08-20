@@ -253,7 +253,10 @@ fn add_intersecting_format2_patches(
     let entries = decode_format2_entries(map)?;
 
     for e in entries {
-        // TODO(garretrieger): skip ignored entries.
+        if e.ignored {
+            continue;
+        }
+
         if !e.intersects(codepoints, features) {
             continue;
         }
@@ -320,6 +323,11 @@ fn decode_format2_entry<'a>(
     let (codepoints, remaining_data) = decode_format2_codepoints(&entry_data)?;
     entry.codepoints = codepoints;
 
+    // Ignored
+    entry.ignored = entry_data
+        .format_flags()
+        .contains(EntryFormatFlags::IGNORED);
+
     entries.push(entry);
     Ok(FontData::new(remaining_data))
 }
@@ -348,7 +356,7 @@ fn decode_format2_codepoints<'a>(
     entry_data: &EntryData<'a>,
 ) -> Result<(IntSet<u32>, &'a [u8]), ReadError> {
     let format = entry_data
-        .format()
+        .format_flags()
         .intersection(EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2);
 
     let codepoint_data = entry_data.codepoint_data();
@@ -443,6 +451,7 @@ struct Entry {
     codepoints: IntSet<u32>,
     feature_tags: BTreeSet<Tag>,
     design_space: Vec<DesignSpaceSegment>,
+    ignored: bool,
 
     // Value
     uri: PatchUri,
@@ -455,6 +464,7 @@ impl Entry {
             codepoints: IntSet::empty(),
             feature_tags: BTreeSet::new(),
             design_space: vec![],
+            ignored: false,
 
             uri: PatchUri::from_index(template, 0, *default_encoding),
             compatibility_id: *compat_id,
@@ -524,7 +534,7 @@ mod tests {
             .map(|index| PatchUri::from_index("ABCDEFɤ", *index, PatchEncoding::GlyphKeyed))
             .collect();
 
-        assert_eq!(expected, patches);
+        assert_eq!(patches, expected);
     }
 
     fn test_intersection_with_all<const M: usize, const N: usize>(
@@ -852,10 +862,10 @@ mod tests {
 
         test_intersection(&font, [], [], []);
         test_intersection(&font, [0x02], [], [1]);
-        test_intersection(&font, [0x15], [], [2]);
-        test_intersection(&font, [0x07], [], [1, 2]);
+        test_intersection(&font, [0x15], [], [3]);
+        test_intersection(&font, [0x07], [], [1, 3]);
 
-        test_intersection_with_all(&font, [], [1, 2]);
+        test_intersection_with_all(&font, [], [1, 3]);
     }
 
     // TODO(garretrieger): test decoding of other entry features for format 2

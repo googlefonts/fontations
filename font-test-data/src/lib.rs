@@ -388,7 +388,7 @@ pub mod ift {
         0x00, 0x00, 0x00, 0x04,  // 17: compat id [3]
 
         0x04,                    // 21: default patch encoding = glyph keyed
-        0x00, 0x00, 0x02,        // 22: entry count
+        0x00, 0x00, 0x03,        // 22: entry count
         0x00, 0x00, 0x00, 0x2b,  // 25: entries offset (0x2b = 43)
         0x00, 0x00, 0x00, 0x00,  // 29: entry id string data = null
 
@@ -402,6 +402,11 @@ pub mod ift {
         0b00001101, 0b00000011, 0b00110001, // 44: codepoints = [0..17]
 
         // Entry id = 2
+        0b01100000,                         // 47: format = CODEPOINT_BIT_2
+        0x00, 0x05,                         // 48: bias = 6
+        0b00001101, 0b00000011, 0b00110001, // 50: codepoints = [5..22]
+
+        // Entry id = 3
         0b00100000,                         // 47: format = CODEPOINT_BIT_2
         0x00, 0x05,                         // 48: bias = 5
         0b00001101, 0b00000011, 0b00110001, // 50: codepoints = [5..22]
