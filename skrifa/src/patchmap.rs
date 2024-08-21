@@ -4,10 +4,11 @@
 //! that can be applied to the font to add support for the corresponding subset definition.
 
 use std::collections::BTreeSet;
+use std::collections::HashMap;
+use std::ops::RangeInclusive;
 
 use crate::GlyphId;
 use crate::Tag;
-use raw::tables::ift::DesignSpaceSegment;
 use raw::tables::ift::EntryFormatFlags;
 use raw::types::Uint24;
 use raw::{FontData, FontRead, FontRef};
@@ -25,15 +26,16 @@ pub fn intersecting_patches(
     font: &FontRef,
     codepoints: &IntSet<u32>,
     features: &BTreeSet<Tag>,
+    design_space: &HashMap<Tag, Vec<RangeInclusive<f64>>>,
 ) -> Result<Vec<PatchUri>, ReadError> {
     // TODO(garretrieger): move this function to a struct so we can optionally store
     //  indexes or other data to accelerate intersection.
     let mut result: Vec<PatchUri> = vec![];
     if let Ok(ift) = font.ift() {
-        add_intersecting_patches(font, &ift, codepoints, features, &mut result)?;
+        add_intersecting_patches(font, &ift, codepoints, features, design_space, &mut result)?;
     };
     if let Ok(iftx) = font.iftx() {
-        add_intersecting_patches(font, &iftx, codepoints, features, &mut result)?;
+        add_intersecting_patches(font, &iftx, codepoints, features, design_space, &mut result)?;
     };
 
     Ok(result)
@@ -44,6 +46,7 @@ fn add_intersecting_patches(
     ift: &Ift,
     codepoints: &IntSet<u32>,
     features: &BTreeSet<Tag>,
+    design_space: &HashMap<Tag, Vec<RangeInclusive<f64>>>,
     patches: &mut Vec<PatchUri>,
 ) -> Result<(), ReadError> {
     match ift {
@@ -51,7 +54,7 @@ fn add_intersecting_patches(
             add_intersecting_format1_patches(font, format_1, codepoints, features, patches)
         }
         Ift::Format2(format_2) => {
-            add_intersecting_format2_patches(format_2, codepoints, features, patches)
+            add_intersecting_format2_patches(format_2, codepoints, features, design_space, patches)
         }
     }
 }
@@ -248,6 +251,7 @@ fn add_intersecting_format2_patches(
     map: &PatchMapFormat2,
     codepoints: &IntSet<u32>,
     features: &BTreeSet<Tag>,
+    design_space: &HashMap<Tag, Vec<RangeInclusive<f64>>>,
     patches: &mut Vec<PatchUri>, // TODO(garretrieger): btree set to allow for de-duping?
 ) -> Result<(), ReadError> {
     let entries = decode_format2_entries(map)?;
@@ -257,7 +261,7 @@ fn add_intersecting_format2_patches(
             continue;
         }
 
-        if !e.intersects(codepoints, features) {
+        if !e.intersects(codepoints, features, design_space) {
             continue;
         }
 
@@ -307,7 +311,23 @@ fn decode_format2_entry<'a>(
         entry.feature_tags.extend(features.iter().map(|t| t.get()));
     }
 
-    // TODO(garretrieger): load design space segments
+    // Design space
+    if let Some(design_space_segments) = entry_data.design_space_segments() {
+        for dss in design_space_segments {
+            if dss.start() > dss.end() {
+                // TODO(garretrieger): ensure spec has language enforcing this.
+                return Err(ReadError::MalformedData(
+                    "Design space segment start > end.",
+                ));
+            }
+            entry
+                .design_space
+                .entry(dss.axis_tag())
+                .or_default()
+                .push(dss.start().to_f64()..=dss.end().to_f64());
+        }
+    }
+
     // TODO(garretrieger): handle copy indices
 
     // Entry ID
@@ -445,12 +465,12 @@ impl PatchUri {
 /// Stores a materialized version of an IFT patchmap entry.
 ///
 /// See: <https://w3c.github.io/IFT/Overview.html#patch-map-dfn>
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq)]
 struct Entry {
     // Key
     codepoints: IntSet<u32>,
     feature_tags: BTreeSet<Tag>,
-    design_space: Vec<DesignSpaceSegment>,
+    design_space: HashMap<Tag, Vec<RangeInclusive<f64>>>,
     ignored: bool,
 
     // Value
@@ -463,7 +483,7 @@ impl Entry {
         Entry {
             codepoints: IntSet::empty(),
             feature_tags: BTreeSet::new(),
-            design_space: vec![],
+            design_space: HashMap::new(),
             ignored: false,
 
             uri: PatchUri::from_index(template, 0, *default_encoding),
@@ -471,14 +491,45 @@ impl Entry {
         }
     }
 
-    fn intersects(&self, codepoints: &IntSet<u32>, features: &BTreeSet<Tag>) -> bool {
+    fn intersects(
+        &self,
+        codepoints: &IntSet<u32>,
+        features: &BTreeSet<Tag>,
+        design_space: &HashMap<Tag, Vec<RangeInclusive<f64>>>,
+    ) -> bool {
         // Intersection defined here: https://w3c.github.io/IFT/Overview.html#abstract-opdef-check-entry-intersection
         let codepoints_intersects =
             self.codepoints.is_empty() || self.codepoints.intersects_set(codepoints);
         let features_intersects = self.feature_tags.is_empty()
             || self.feature_tags.intersection(features).next().is_some();
 
-        codepoints_intersects && features_intersects
+        let design_space_intersects =
+            self.design_space.is_empty() || self.design_space_intersects(design_space);
+
+        codepoints_intersects && features_intersects && design_space_intersects
+    }
+
+    fn design_space_intersects(
+        &self,
+        design_space: &HashMap<Tag, Vec<RangeInclusive<f64>>>,
+    ) -> bool {
+        for (tag, input_segments) in design_space {
+            let Some(entry_segments) = self.design_space.get(tag) else {
+                continue;
+            };
+
+            // TODO(garretrieger): this is inefficient (O(n^2)). If we keep the ranges sorted by start then
+            //                     this can be implemented much more efficiently.
+            for a in input_segments {
+                for b in entry_segments {
+                    if a.start() <= b.end() && b.start() <= a.end() {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
     }
 }
 
@@ -522,10 +573,26 @@ mod tests {
         tags: [Tag; N],
         expected_entries: [u32; O],
     ) {
+        test_design_space_intersection(font, codepoints, tags, [], expected_entries)
+    }
+
+    fn test_design_space_intersection<
+        const M: usize,
+        const N: usize,
+        const O: usize,
+        const P: usize,
+    >(
+        font: &FontRef,
+        codepoints: [u32; M],
+        tags: [Tag; N],
+        design_space: [(Tag, Vec<RangeInclusive<f64>>); O],
+        expected_entries: [u32; P],
+    ) {
         let patches = intersecting_patches(
             font,
             &IntSet::from(codepoints),
             &BTreeSet::<Tag>::from(tags),
+            &design_space.into_iter().collect(),
         )
         .unwrap();
 
@@ -542,9 +609,13 @@ mod tests {
         tags: [Tag; M],
         expected_entries: [u32; N],
     ) {
-        let patches =
-            intersecting_patches(font, &IntSet::<u32>::all(), &BTreeSet::<Tag>::from(tags))
-                .unwrap();
+        let patches = intersecting_patches(
+            font,
+            &IntSet::<u32>::all(),
+            &BTreeSet::<Tag>::from(tags),
+            &HashMap::new(),
+        )
+        .unwrap();
 
         let expected: Vec<PatchUri> = expected_entries
             .iter()
@@ -597,10 +668,13 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        assert!(
-            intersecting_patches(&font, &IntSet::from([0x123]), &BTreeSet::<Tag>::from([]))
-                .is_err()
-        );
+        assert!(intersecting_patches(
+            &font,
+            &IntSet::from([0x123]),
+            &BTreeSet::<Tag>::from([]),
+            &HashMap::new(),
+        )
+        .is_err());
     }
 
     #[test]
@@ -612,10 +686,13 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        assert!(
-            intersecting_patches(&font, &IntSet::from([0x123]), &BTreeSet::<Tag>::from([]))
-                .is_err()
-        );
+        assert!(intersecting_patches(
+            &font,
+            &IntSet::from([0x123]),
+            &BTreeSet::<Tag>::from([]),
+            &HashMap::new(),
+        )
+        .is_err());
     }
 
     #[test]
@@ -630,10 +707,13 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        assert!(
-            intersecting_patches(&font, &IntSet::from([0x123]), &BTreeSet::<Tag>::from([]))
-                .is_err()
-        );
+        assert!(intersecting_patches(
+            &font,
+            &IntSet::from([0x123]),
+            &BTreeSet::<Tag>::from([]),
+            &HashMap::new(),
+        )
+        .is_err());
     }
 
     #[test]
@@ -649,10 +729,13 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        assert!(
-            intersecting_patches(&font, &IntSet::from([0x123]), &BTreeSet::<Tag>::from([]))
-                .is_err()
-        );
+        assert!(intersecting_patches(
+            &font,
+            &IntSet::from([0x123]),
+            &BTreeSet::<Tag>::from([]),
+            &HashMap::new(),
+        )
+        .is_err());
     }
 
     #[test]
@@ -667,10 +750,13 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        assert!(
-            intersecting_patches(&font, &IntSet::from([0x123]), &BTreeSet::<Tag>::from([]))
-                .is_err()
-        );
+        assert!(intersecting_patches(
+            &font,
+            &IntSet::from([0x123]),
+            &BTreeSet::<Tag>::from([]),
+            &HashMap::new(),
+        )
+        .is_err());
     }
 
     #[test]
@@ -814,18 +900,27 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        assert!(
-            intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).is_err()
-        );
         assert!(intersecting_patches(
             &font,
             &IntSet::from([0x12]),
-            &BTreeSet::<Tag>::from([Tag::new(b"liga")])
+            &BTreeSet::<Tag>::from([]),
+            &HashMap::new(),
         )
         .is_err());
-        assert!(
-            intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).is_err()
-        );
+        assert!(intersecting_patches(
+            &font,
+            &IntSet::from([0x12]),
+            &BTreeSet::<Tag>::from([Tag::new(b"liga")]),
+            &HashMap::new(),
+        )
+        .is_err());
+        assert!(intersecting_patches(
+            &font,
+            &IntSet::from([0x12]),
+            &BTreeSet::<Tag>::from([]),
+            &HashMap::new(),
+        )
+        .is_err());
     }
 
     #[test]
@@ -837,18 +932,27 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        assert!(
-            intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).is_err()
-        );
         assert!(intersecting_patches(
             &font,
             &IntSet::from([0x12]),
-            &BTreeSet::<Tag>::from([Tag::new(b"liga")])
+            &BTreeSet::<Tag>::from([]),
+            &HashMap::new(),
         )
         .is_err());
-        assert!(
-            intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).is_err()
-        );
+        assert!(intersecting_patches(
+            &font,
+            &IntSet::from([0x12]),
+            &BTreeSet::<Tag>::from([Tag::new(b"liga")]),
+            &HashMap::new(),
+        )
+        .is_err());
+        assert!(intersecting_patches(
+            &font,
+            &IntSet::from([0x12]),
+            &BTreeSet::<Tag>::from([]),
+            &HashMap::new(),
+        )
+        .is_err());
     }
 
     #[test]
@@ -868,10 +972,80 @@ mod tests {
         test_intersection_with_all(&font, [], [1, 3]);
     }
 
+    #[test]
+    fn format_2_patch_map_features_and_design_space() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(test_data::ift::FEATURES_AND_DESIGN_SPACE_FORMAT2),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        test_intersection(&font, [], [], []);
+        test_intersection(&font, [0x02], [], []);
+        test_intersection(&font, [0x50], [Tag::new(b"rlig")], []);
+        test_intersection(&font, [0x02], [Tag::new(b"rlig")], [2]);
+
+        test_design_space_intersection(
+            &font,
+            [0x02],
+            [Tag::new(b"rlig")],
+            [(Tag::new(b"wdth"), vec![0.7..=0.8])],
+            [2],
+        );
+
+        test_design_space_intersection(
+            &font,
+            [0x05],
+            [Tag::new(b"smcp")],
+            [(Tag::new(b"wdth"), vec![0.7..=0.8])],
+            [1],
+        );
+        test_design_space_intersection(
+            &font,
+            [0x05],
+            [Tag::new(b"smcp")],
+            [(Tag::new(b"wdth"), vec![0.2..=0.3])],
+            [3],
+        );
+        test_design_space_intersection(
+            &font,
+            [0x05],
+            [Tag::new(b"smcp")],
+            [(Tag::new(b"wdth"), vec![1.2..=1.3])],
+            [],
+        );
+
+        test_design_space_intersection(
+            &font,
+            [0x05],
+            [Tag::new(b"smcp")],
+            [(Tag::new(b"wdth"), vec![0.2..=0.3, 0.7..=0.8])],
+            [1, 3],
+        );
+        test_design_space_intersection(
+            &font,
+            [0x05],
+            [Tag::new(b"smcp")],
+            [(Tag::new(b"wdth"), vec![2.2..=2.3])],
+            [3],
+        );
+        test_design_space_intersection(
+            &font,
+            [0x05],
+            [Tag::new(b"smcp")],
+            [(Tag::new(b"wdth"), vec![2.2..=2.3, 1.2..=1.3])],
+            [3],
+        );
+    }
+
     // TODO(garretrieger): test decoding of other entry features for format 2
+    // - invalid cases: add once spec has been updated with validation requirements.
+    //   - start < end for ds segments
+    //   - sparse bit set to short
+    //   - negative entry indices
+    //   - too large entry indices
     // - copy indices
-    // - feature tags
-    // - design space
     // - custom id delta
     // - custom encoding
     // - id strings
