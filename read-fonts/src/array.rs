@@ -85,6 +85,11 @@ where
     }
 
     pub fn get(&self, idx: usize) -> Result<T, ReadError> {
+        // if our items are zero-length (itself a degenerate case) we want
+        // to always return oob here since otherwise we will succeed for all indices
+        if self.item_len == 0 {
+            return Err(ReadError::OutOfBounds);
+        }
         let item_start = idx
             .checked_mul(self.item_len)
             .ok_or(ReadError::OutOfBounds)?;
@@ -159,5 +164,22 @@ impl<'a, T: AnyBitPattern + FixedSize> FontReadWithArgs<'a> for &'a [T] {
             .checked_mul(T::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         data.read_array(0..len)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tables::variations::VariationRegion;
+
+    use super::*;
+
+    #[test]
+    fn zero_len_get() {
+        let non_empty_data = FontData::new(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        let array = ComputedArray::<VariationRegion>::new(non_empty_data, 0).unwrap();
+
+        assert!(matches!(array.get(usize::MAX), Err(ReadError::OutOfBounds)));
+        assert!(matches!(array.get(1), Err(ReadError::OutOfBounds)));
+        assert!(matches!(array.get(0), Err(ReadError::OutOfBounds)));
     }
 }
