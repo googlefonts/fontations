@@ -328,7 +328,18 @@ fn decode_format2_entry<'a>(
         }
     }
 
-    // TODO(garretrieger): handle copy indices
+    // Copy Indices
+    if let Some(copy_indices) = entry_data.copy_indices() {
+        for index in copy_indices {
+            let Some(entry_to_copy) = entries.get(index.get().to_u32() as usize) else {
+                return Err(ReadError::MalformedData(
+                    "copy index can only refer to a previous entry.",
+                ));
+            };
+
+            entry.union(entry_to_copy);
+        }
+    }
 
     // Entry ID
     // TODO(garretrieger): handle the alternate ID string path.
@@ -341,7 +352,12 @@ fn decode_format2_entry<'a>(
 
     // Codepoints
     let (codepoints, remaining_data) = decode_format2_codepoints(&entry_data)?;
-    entry.codepoints = codepoints;
+    if entry.codepoints.is_empty() {
+        // as an optimization move the existing set instead of copying it in if possible.
+        entry.codepoints = codepoints;
+    } else {
+        entry.codepoints.union(&codepoints);
+    }
 
     // Ignored
     entry.ignored = entry_data
@@ -462,6 +478,8 @@ impl PatchUri {
     }
 }
 
+// TODO(garretrieger): consider adding a "SubsetDefinition" structure.
+
 /// Stores a materialized version of an IFT patchmap entry.
 ///
 /// See: <https://w3c.github.io/IFT/Overview.html#patch-map-dfn>
@@ -530,6 +548,21 @@ impl Entry {
         }
 
         false
+    }
+
+    /// Union in the subset definition (codepoints, features, and design space segments)
+    /// from other.
+    fn union(&mut self, other: &Entry) {
+        self.codepoints.union(&other.codepoints);
+        other.feature_tags.iter().for_each(|t| {
+            self.feature_tags.insert(*t);
+        });
+        for (tag, segments) in other.design_space.iter() {
+            self.design_space
+                .entry(*tag)
+                .or_default()
+                .extend(segments.clone());
+        }
     }
 }
 
@@ -1042,13 +1075,42 @@ mod tests {
         );
     }
 
+    #[test]
+    fn format_2_patch_map_copy_indices() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(test_data::ift::COPY_INDICES_FORMAT2),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        test_intersection(&font, [], [], []);
+        test_intersection(&font, [0x05], [], [1, 5, 9]);
+        test_intersection(&font, [0x65], [], [9]);
+
+        test_design_space_intersection(
+            &font,
+            [],
+            [Tag::new(b"rlig")],
+            [(Tag::new(b"wght"), vec![500.0..=500.0])],
+            [3, 6],
+        );
+
+        test_design_space_intersection(
+            &font,
+            [0x05],
+            [Tag::new(b"rlig")],
+            [(Tag::new(b"wght"), vec![500.0..=500.0])],
+            [1, 3, 5, 6, 7, 8, 9],
+        );
+    }
+
     // TODO(garretrieger): test decoding of other entry features for format 2
     // - invalid cases: add once spec has been updated with validation requirements.
     //   - start < end for ds segments
     //   - sparse bit set to short
     //   - negative entry indices
     //   - too large entry indices
-    // - copy indices
     // - custom id delta
     // - custom encoding
     // - id strings
