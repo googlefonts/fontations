@@ -1160,16 +1160,55 @@ mod tests {
         );
     }
 
+    #[test]
+    fn format_2_patch_map_custom_ids() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(test_data::ift::CUSTOM_IDS_FORMAT_2),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        test_intersection_with_all(&font, [], [0, 6, 15]);
+    }
+
+    #[test]
+    fn format_2_patch_map_custom_encoding() {
+        let mut data = Vec::<u8>::from(test_data::ift::CUSTOM_IDS_FORMAT_2);
+        data[64] = 0x01; // Brotli Full Invalidation.
+
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&data),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let patches = intersecting_patches(
+            &font,
+            &SubsetDefinition::new(IntSet::all(), BTreeSet::new(), HashMap::new()),
+        )
+        .unwrap();
+
+        let encodings: Vec<PatchEncoding> = patches.into_iter().map(|uri| uri.encoding).collect();
+        assert_eq!(
+            encodings,
+            vec![
+                PatchEncoding::GlyphKeyed,
+                PatchEncoding::GlyphKeyed,
+                PatchEncoding::Brotli,
+            ]
+        );
+    }
+
     // TODO(garretrieger): test decoding of other entry features for format 2
     // - invalid cases: add once spec has been updated with validation requirements.
     //   - start < end for ds segments
     //   - sparse bit set to short
     //   - negative entry indices
     //   - too large entry indices
-    // - custom id delta
-    // - custom encoding
     // - id strings
-    // - ignored
     // - 24 bit bias.
     // - no codepoints
+    // - ignored entries can still be copied
 }
