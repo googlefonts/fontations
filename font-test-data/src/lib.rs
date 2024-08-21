@@ -482,4 +482,90 @@ pub mod ift {
         0x00, 0x05,                         // 128: bias = 5
         0b00001101, 0b00000011, 0b00110001, // 130: codepoints = [5..22]
     ];
+
+    #[rustfmt::skip]
+    pub static COPY_INDICES_FORMAT2: &[u8] = &[
+        0x02,                    // 0: format
+
+        0x00, 0x00, 0x00, 0x00,  // 1: reserved
+
+        0x00, 0x00, 0x00, 0x01,  // 5: compat id [0]
+        0x00, 0x00, 0x00, 0x02,  // 9: compat id [1]
+        0x00, 0x00, 0x00, 0x03,  // 13: compat id [2]
+        0x00, 0x00, 0x00, 0x04,  // 17: compat id [3]
+
+        0x04,                    // 21: default patch encoding = glyph keyed
+        0x00, 0x00, 0x09,        // 22: entry count 9
+        0x00, 0x00, 0x00, 0x2b,  // 25: entries offset (0x2b = 43)
+        0x00, 0x00, 0x00, 0x00,  // 29: entry id string data = null
+
+        0x00, 0x08,              // 33: uriTemplateLength
+        b'A', b'B', b'C', b'D',
+        b'E', b'F', 0xc9, 0xa4,  // 35: uriTemplate[8]
+
+        // Entries Array
+
+        // Entry id = 1
+        0b00100000,                         // : format = CODEPOINT_BIT_2
+        0x00, 0x05,                         // : bias = 5
+        0b00001101, 0b00000011, 0b00110001, // : codepoints = [5..22]
+
+        // Entry id = 2
+        0b00100000,                         // : format = CODEPOINT_BIT_2
+        0x00, 0x32,                         // : bias = 50
+        0b00001101, 0b00000011, 0b00110001, // : codepoints = [50..67]
+
+        // Entry id = 3
+        0b00000001,                         //   : format = FEATURES_AND_DESIGN_SPACE
+
+        0x01,                               //   : feature count = 1
+        b'r', b'l', b'i', b'g',             //   : feature[0] = rlig
+
+        0x00, 0x01,                         //   : design space count = 1
+        b'w', b'g', b'h', b't',             //   : tag = wght
+        0x00, 0xC8, 0x00, 0x00,             //   : start = 200
+        0x02, 0xBC, 0x00, 0x00,             //   : end = 700
+
+        // Entry id = 4
+        0b00000001,                         //   : format = FEATURES_AND_DESIGN_SPACE
+
+        0x01,                               //   : feature count = 1
+        b'l', b'i', b'g', b'a',             //   : feature[0] = liga
+
+        0x00, 0x01,                         //   : design space count = 1
+        b'w', b'g', b'h', b't',             //   : tag = wght
+        0x00, 0x32, 0x00, 0x00,             //   : start = 50
+        0x00, 0x64, 0x00, 0x00,             //   : end = 100
+
+        // Entry id = 5
+        0b00000010,                         //   : format = COPY_INDICES
+        0x01,                               //   : copy count = 1
+        0x00, 0x00, 0x00,                   //   : copy 0
+
+        // Entry id = 6
+        0b00000010,                         //   : format = COPY_INDICES
+        0x01,                               //   : copy count = 1
+        0x00, 0x00, 0x02,                   //   : copy 2
+
+        // Entry id = 7
+        0b00000010,                         //   : format = COPY_INDICES
+        0x04,                               //   : copy count = 4
+        0x00, 0x00, 0x03,                   //   : copy 3
+        0x00, 0x00, 0x02,                   //   : copy 2
+        0x00, 0x00, 0x01,                   //   : copy 1
+        0x00, 0x00, 0x00,                   //   : copy 0
+
+        // Entry id = 8
+        0b00000010,                         //   : format = COPY_INDICES
+        0x02,                               //   : copy count = 2
+        0x00, 0x00, 0x04,                   //   : copy 4
+        0x00, 0x00, 0x05,                   //   : copy 5
+
+        // Entry id = 9
+        0b00100010,                         // : format = CODEPOINT_BIT_2 | COPY_INDICES
+        0x01,                               // : copy count = 1
+        0x00, 0x00, 0x00,                   // : copy 0
+        0x00, 0x64,                         // : bias = 100
+        0b00001101, 0b00000011, 0b00110001, // : codepoints = [100..117]
+    ];
 }
