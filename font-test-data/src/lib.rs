@@ -568,4 +568,48 @@ pub mod ift {
         0x00, 0x64,                         // : bias = 100
         0b00001101, 0b00000011, 0b00110001, // : codepoints = [100..117]
     ];
+
+    // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-2
+    #[rustfmt::skip]
+    pub static CUSTOM_IDS_FORMAT_2: &[u8] = &[
+        0x02,                    // 0: format
+
+        0x00, 0x00, 0x00, 0x00,  // 1: reserved
+
+        0x00, 0x00, 0x00, 0x01,  // 5: compat id [0]
+        0x00, 0x00, 0x00, 0x02,  // 9: compat id [1]
+        0x00, 0x00, 0x00, 0x03,  // 13: compat id [2]
+        0x00, 0x00, 0x00, 0x04,  // 17: compat id [3]
+
+        0x04,                    // 21: default patch encoding = glyph keyed
+        0x00, 0x00, 0x04,        // 22: entry count
+        0x00, 0x00, 0x00, 0x2b,  // 25: entries offset (0x2b = 43)
+        0x00, 0x00, 0x00, 0x00,  // 29: entry id string data = null
+
+        0x00, 0x08,              // 33: uriTemplateLength
+        b'A', b'B', b'C', b'D',
+        b'E', b'F', 0xc9, 0xa4,  // 35: uriTemplate[8]
+
+        // Entries Array
+        // Entry id = 0
+        0b00010100,                         // 43: format = CODEPOINT_BIT_1 | ID_DELTA
+        0xFF, 0xFF, 0xFF,                   // 44: id delta = -1
+        0b00001101, 0b00000011, 0b00110001, // 47: codepoints = [0..17]
+
+        // Entry id = 6
+        0b00100100,                         // 50: format = CODEPOINT_BIT_2 | ID_DELTA
+        0x00, 0x00, 0x05,                   // 51: id delta 5
+        0x00, 0x05,                         // 54: bias = 6
+        0b00001101, 0b00000011, 0b00110001, // 56: codepoints = [5..22]
+
+        // Entry id = 14
+        0b01000100,                         // 59: format = ID_DELTA | IGNORED
+        0x00, 0x00, 0x07,                   // 60: id delta 7
+
+        // Entry id = 15
+        0b00101000,                         // 63: format = CODEPOINT_BIT_2 | PATCH_ENCODING
+        0x04,                               // 64: patch encoding = Glyph Keyed
+        0x00, 0x0A,                         // 65: bias = 10
+        0b00001101, 0b00000011, 0b00110001, // 67: codepoints = [10..27]
+    ];
 }
