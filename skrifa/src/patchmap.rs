@@ -24,18 +24,16 @@ use crate::charmap::Charmap;
 /// Find the set of patches which intersect the specified subset definition.
 pub fn intersecting_patches(
     font: &FontRef,
-    codepoints: &IntSet<u32>,
-    features: &BTreeSet<Tag>,
-    design_space: &HashMap<Tag, Vec<RangeInclusive<f64>>>,
+    subset_definition: &SubsetDefinition,
 ) -> Result<Vec<PatchUri>, ReadError> {
     // TODO(garretrieger): move this function to a struct so we can optionally store
     //  indexes or other data to accelerate intersection.
     let mut result: Vec<PatchUri> = vec![];
     if let Ok(ift) = font.ift() {
-        add_intersecting_patches(font, &ift, codepoints, features, design_space, &mut result)?;
+        add_intersecting_patches(font, &ift, subset_definition, &mut result)?;
     };
     if let Ok(iftx) = font.iftx() {
-        add_intersecting_patches(font, &iftx, codepoints, features, design_space, &mut result)?;
+        add_intersecting_patches(font, &iftx, subset_definition, &mut result)?;
     };
 
     Ok(result)
@@ -44,17 +42,19 @@ pub fn intersecting_patches(
 fn add_intersecting_patches(
     font: &FontRef,
     ift: &Ift,
-    codepoints: &IntSet<u32>,
-    features: &BTreeSet<Tag>,
-    design_space: &HashMap<Tag, Vec<RangeInclusive<f64>>>,
+    subset_definition: &SubsetDefinition,
     patches: &mut Vec<PatchUri>,
 ) -> Result<(), ReadError> {
     match ift {
-        Ift::Format1(format_1) => {
-            add_intersecting_format1_patches(font, format_1, codepoints, features, patches)
-        }
+        Ift::Format1(format_1) => add_intersecting_format1_patches(
+            font,
+            format_1,
+            &subset_definition.codepoints,
+            &subset_definition.feature_tags,
+            patches,
+        ),
         Ift::Format2(format_2) => {
-            add_intersecting_format2_patches(format_2, codepoints, features, design_space, patches)
+            add_intersecting_format2_patches(format_2, subset_definition, patches)
         }
     }
 }
@@ -249,9 +249,7 @@ fn intersect_format1_feature_map(
 
 fn add_intersecting_format2_patches(
     map: &PatchMapFormat2,
-    codepoints: &IntSet<u32>,
-    features: &BTreeSet<Tag>,
-    design_space: &HashMap<Tag, Vec<RangeInclusive<f64>>>,
+    subset_definition: &SubsetDefinition,
     patches: &mut Vec<PatchUri>, // TODO(garretrieger): btree set to allow for de-duping?
 ) -> Result<(), ReadError> {
     let entries = decode_format2_entries(map)?;
@@ -261,7 +259,7 @@ fn add_intersecting_format2_patches(
             continue;
         }
 
-        if !e.intersects(codepoints, features, design_space) {
+        if !e.intersects(subset_definition) {
             continue;
         }
 
@@ -308,7 +306,10 @@ fn decode_format2_entry<'a>(
 
     // Features
     if let Some(features) = entry_data.feature_tags() {
-        entry.feature_tags.extend(features.iter().map(|t| t.get()));
+        entry
+            .subset_definition
+            .feature_tags
+            .extend(features.iter().map(|t| t.get()));
     }
 
     // Design space
@@ -321,6 +322,7 @@ fn decode_format2_entry<'a>(
                 ));
             }
             entry
+                .subset_definition
                 .design_space
                 .entry(dss.axis_tag())
                 .or_default()
@@ -352,11 +354,11 @@ fn decode_format2_entry<'a>(
 
     // Codepoints
     let (codepoints, remaining_data) = decode_format2_codepoints(&entry_data)?;
-    if entry.codepoints.is_empty() {
+    if entry.subset_definition.codepoints.is_empty() {
         // as an optimization move the existing set instead of copying it in if possible.
-        entry.codepoints = codepoints;
+        entry.subset_definition.codepoints = codepoints;
     } else {
-        entry.codepoints.union(&codepoints);
+        entry.subset_definition.codepoints.union(&codepoints);
     }
 
     // Ignored
@@ -478,7 +480,40 @@ impl PatchUri {
     }
 }
 
-// TODO(garretrieger): consider adding a "SubsetDefinition" structure.
+/// Stores a description of a font subset over codepoints, feature tags, and design space.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SubsetDefinition {
+    codepoints: IntSet<u32>,
+    feature_tags: BTreeSet<Tag>,
+    design_space: HashMap<Tag, Vec<RangeInclusive<f64>>>,
+}
+
+impl SubsetDefinition {
+    pub fn new(
+        codepoints: IntSet<u32>,
+        feature_tags: BTreeSet<Tag>,
+        design_space: HashMap<Tag, Vec<RangeInclusive<f64>>>,
+    ) -> SubsetDefinition {
+        SubsetDefinition {
+            codepoints,
+            feature_tags,
+            design_space,
+        }
+    }
+
+    fn union(&mut self, other: &SubsetDefinition) {
+        self.codepoints.union(&other.codepoints);
+        other.feature_tags.iter().for_each(|t| {
+            self.feature_tags.insert(*t);
+        });
+        for (tag, segments) in other.design_space.iter() {
+            self.design_space
+                .entry(*tag)
+                .or_default()
+                .extend(segments.clone());
+        }
+    }
+}
 
 /// Stores a materialized version of an IFT patchmap entry.
 ///
@@ -486,9 +521,7 @@ impl PatchUri {
 #[derive(Debug, Clone, PartialEq)]
 struct Entry {
     // Key
-    codepoints: IntSet<u32>,
-    feature_tags: BTreeSet<Tag>,
-    design_space: HashMap<Tag, Vec<RangeInclusive<f64>>>,
+    subset_definition: SubsetDefinition,
     ignored: bool,
 
     // Value
@@ -499,9 +532,11 @@ struct Entry {
 impl Entry {
     fn new(template: &str, compat_id: &[u32; 4], default_encoding: &PatchEncoding) -> Entry {
         Entry {
-            codepoints: IntSet::empty(),
-            feature_tags: BTreeSet::new(),
-            design_space: HashMap::new(),
+            subset_definition: SubsetDefinition {
+                codepoints: IntSet::empty(),
+                feature_tags: BTreeSet::new(),
+                design_space: HashMap::new(),
+            },
             ignored: false,
 
             uri: PatchUri::from_index(template, 0, *default_encoding),
@@ -509,20 +544,23 @@ impl Entry {
         }
     }
 
-    fn intersects(
-        &self,
-        codepoints: &IntSet<u32>,
-        features: &BTreeSet<Tag>,
-        design_space: &HashMap<Tag, Vec<RangeInclusive<f64>>>,
-    ) -> bool {
+    fn intersects(&self, subset_definition: &SubsetDefinition) -> bool {
         // Intersection defined here: https://w3c.github.io/IFT/Overview.html#abstract-opdef-check-entry-intersection
-        let codepoints_intersects =
-            self.codepoints.is_empty() || self.codepoints.intersects_set(codepoints);
-        let features_intersects = self.feature_tags.is_empty()
-            || self.feature_tags.intersection(features).next().is_some();
+        let codepoints_intersects = self.subset_definition.codepoints.is_empty()
+            || self
+                .subset_definition
+                .codepoints
+                .intersects_set(&subset_definition.codepoints);
+        let features_intersects = self.subset_definition.feature_tags.is_empty()
+            || self
+                .subset_definition
+                .feature_tags
+                .intersection(&subset_definition.feature_tags)
+                .next()
+                .is_some();
 
-        let design_space_intersects =
-            self.design_space.is_empty() || self.design_space_intersects(design_space);
+        let design_space_intersects = self.subset_definition.design_space.is_empty()
+            || self.design_space_intersects(&subset_definition.design_space);
 
         codepoints_intersects && features_intersects && design_space_intersects
     }
@@ -532,7 +570,7 @@ impl Entry {
         design_space: &HashMap<Tag, Vec<RangeInclusive<f64>>>,
     ) -> bool {
         for (tag, input_segments) in design_space {
-            let Some(entry_segments) = self.design_space.get(tag) else {
+            let Some(entry_segments) = self.subset_definition.design_space.get(tag) else {
                 continue;
             };
 
@@ -553,16 +591,7 @@ impl Entry {
     /// Union in the subset definition (codepoints, features, and design space segments)
     /// from other.
     fn union(&mut self, other: &Entry) {
-        self.codepoints.union(&other.codepoints);
-        other.feature_tags.iter().for_each(|t| {
-            self.feature_tags.insert(*t);
-        });
-        for (tag, segments) in other.design_space.iter() {
-            self.design_space
-                .entry(*tag)
-                .or_default()
-                .extend(segments.clone());
-        }
+        self.subset_definition.union(&other.subset_definition);
     }
 }
 
@@ -623,9 +652,11 @@ mod tests {
     ) {
         let patches = intersecting_patches(
             font,
-            &IntSet::from(codepoints),
-            &BTreeSet::<Tag>::from(tags),
-            &design_space.into_iter().collect(),
+            &SubsetDefinition::new(
+                IntSet::from(codepoints),
+                BTreeSet::<Tag>::from(tags),
+                design_space.into_iter().collect(),
+            ),
         )
         .unwrap();
 
@@ -644,9 +675,11 @@ mod tests {
     ) {
         let patches = intersecting_patches(
             font,
-            &IntSet::<u32>::all(),
-            &BTreeSet::<Tag>::from(tags),
-            &HashMap::new(),
+            &SubsetDefinition::new(
+                IntSet::<u32>::all(),
+                BTreeSet::<Tag>::from(tags),
+                HashMap::new(),
+            ),
         )
         .unwrap();
 
@@ -706,9 +739,11 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &IntSet::from([0x123]),
-            &BTreeSet::<Tag>::from([]),
-            &HashMap::new(),
+            &SubsetDefinition::new(
+                IntSet::from([0x123]),
+                BTreeSet::<Tag>::from([]),
+                HashMap::new(),
+            ),
         )
         .is_err());
     }
@@ -724,9 +759,11 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &IntSet::from([0x123]),
-            &BTreeSet::<Tag>::from([]),
-            &HashMap::new(),
+            &SubsetDefinition::new(
+                IntSet::from([0x123]),
+                BTreeSet::<Tag>::from([]),
+                HashMap::new(),
+            ),
         )
         .is_err());
     }
@@ -745,9 +782,11 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &IntSet::from([0x123]),
-            &BTreeSet::<Tag>::from([]),
-            &HashMap::new(),
+            &SubsetDefinition::new(
+                IntSet::from([0x123]),
+                BTreeSet::<Tag>::from([]),
+                HashMap::new(),
+            ),
         )
         .is_err());
     }
@@ -767,9 +806,11 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &IntSet::from([0x123]),
-            &BTreeSet::<Tag>::from([]),
-            &HashMap::new(),
+            &SubsetDefinition::new(
+                IntSet::from([0x123]),
+                BTreeSet::<Tag>::from([]),
+                HashMap::new(),
+            )
         )
         .is_err());
     }
@@ -788,9 +829,11 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &IntSet::from([0x123]),
-            &BTreeSet::<Tag>::from([]),
-            &HashMap::new(),
+            &SubsetDefinition::new(
+                IntSet::from([0x123]),
+                BTreeSet::<Tag>::from([]),
+                HashMap::new()
+            )
         )
         .is_err());
     }
@@ -938,23 +981,29 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &IntSet::from([0x12]),
-            &BTreeSet::<Tag>::from([]),
-            &HashMap::new(),
+            &SubsetDefinition::new(
+                IntSet::from([0x12]),
+                BTreeSet::<Tag>::from([]),
+                HashMap::new(),
+            ),
         )
         .is_err());
         assert!(intersecting_patches(
             &font,
-            &IntSet::from([0x12]),
-            &BTreeSet::<Tag>::from([Tag::new(b"liga")]),
-            &HashMap::new(),
+            &SubsetDefinition::new(
+                IntSet::from([0x12]),
+                BTreeSet::<Tag>::from([Tag::new(b"liga")]),
+                HashMap::new(),
+            )
         )
         .is_err());
         assert!(intersecting_patches(
             &font,
-            &IntSet::from([0x12]),
-            &BTreeSet::<Tag>::from([]),
-            &HashMap::new(),
+            &SubsetDefinition::new(
+                IntSet::from([0x12]),
+                BTreeSet::<Tag>::from([]),
+                HashMap::new(),
+            )
         )
         .is_err());
     }
@@ -970,23 +1019,29 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &IntSet::from([0x12]),
-            &BTreeSet::<Tag>::from([]),
-            &HashMap::new(),
+            &SubsetDefinition::new(
+                IntSet::from([0x12]),
+                BTreeSet::<Tag>::from([]),
+                HashMap::new(),
+            ),
         )
         .is_err());
         assert!(intersecting_patches(
             &font,
-            &IntSet::from([0x12]),
-            &BTreeSet::<Tag>::from([Tag::new(b"liga")]),
-            &HashMap::new(),
+            &SubsetDefinition::new(
+                IntSet::from([0x12]),
+                BTreeSet::<Tag>::from([Tag::new(b"liga")]),
+                HashMap::new(),
+            )
         )
         .is_err());
         assert!(intersecting_patches(
             &font,
-            &IntSet::from([0x12]),
-            &BTreeSet::<Tag>::from([]),
-            &HashMap::new(),
+            &SubsetDefinition::new(
+                IntSet::from([0x12]),
+                BTreeSet::<Tag>::from([]),
+                HashMap::new(),
+            )
         )
         .is_err());
     }
