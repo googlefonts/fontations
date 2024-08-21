@@ -411,4 +411,73 @@ pub mod ift {
         0x00, 0x05,                         // 48: bias = 5
         0b00001101, 0b00000011, 0b00110001, // 50: codepoints = [5..22]
     ];
+
+    #[rustfmt::skip]
+    pub static FEATURES_AND_DESIGN_SPACE_FORMAT2: &[u8] = &[
+        0x02,                    // 0: format
+
+        0x00, 0x00, 0x00, 0x00,  // 1: reserved
+
+        0x00, 0x00, 0x00, 0x01,  // 5: compat id [0]
+        0x00, 0x00, 0x00, 0x02,  // 9: compat id [1]
+        0x00, 0x00, 0x00, 0x03,  // 13: compat id [2]
+        0x00, 0x00, 0x00, 0x04,  // 17: compat id [3]
+
+        0x04,                    // 21: default patch encoding = glyph keyed
+        0x00, 0x00, 0x03,        // 22: entry count
+        0x00, 0x00, 0x00, 0x2b,  // 25: entries offset (0x2b = 43)
+        0x00, 0x00, 0x00, 0x00,  // 29: entry id string data = null
+
+        0x00, 0x08,              // 33: uriTemplateLength
+        b'A', b'B', b'C', b'D',
+        b'E', b'F', 0xc9, 0xa4,  // 35: uriTemplate[8]
+
+        // Entries Array
+        // Entry id = 1
+        0b00010001,                         // 43: format = CODEPOINT_BIT_1 | FEATURES_AND_DESIGN_SPACE
+
+        0x02,                               // 44: feature count = 2
+        b'l', b'i', b'g', b'a',             // 45: feature[0] = liga
+        b's', b'm', b'c', b'p',             // 49: feature[0] = smcp
+
+        0x00, 0x01,                         // 53: design space count = 1
+        b'w', b'd', b't', b'h',             // 55: tag = wdth
+        0x00, 0x00, 0x80, 0x00,             // 59: start = 0.5
+        0x00, 0x01, 0x00, 0x00,             // 63: end = 1.0
+
+        0b00001101, 0b00000011, 0b00110001, // 67: codepoints = [0..17]
+
+        // Entries Array
+        // Entry id = 2
+        0b00010001,                         // 70: format = CODEPOINT_BIT_1 | FEATURES_AND_DESIGN_SPACE
+
+        0x01,                               // 71: feature count = 1
+        b'r', b'l', b'i', b'g',             // 72: feature[0] = rlig
+
+        0x00, 0x00,                         // 76: design space count = 1
+
+        0b00001101, 0b00000011, 0b00110001, // 78: codepoints = [0..17]
+
+        // Entry id = 3
+        0b000100001,                         // 81: format = CODEPOINT_BIT_2 | FEATURES_AND_DESIGN_SPACE
+
+        0x01,                               // 82: feature count = 1
+        b's', b'm', b'c', b'p',             // 83: feature[0] = smcp
+
+        0x00, 0x03,                         // 87: design space count = 2
+        b'w', b'g', b'h', b't',             // 89: tag = wght
+        0x00, 0xC8, 0x00, 0x00,             // 93: start = 200
+        0x02, 0xBC, 0x00, 0x00,             // 97: end = 700
+
+        b'w', b'd', b't', b'h',             // 101: tag = wdth
+        0x00, 0x00, 0x00, 0x00,             // 105: start = 0
+        0x00, 0x00, 0x80, 0x00,             // 109: end = 0.5
+
+        b'w', b'd', b't', b'h',             // 114: tag = wdth
+        0x00, 0x02, 0x00, 0x00,             // 119: start = 2.0
+        0x00, 0x02, 0x80, 0x00,             // 124: end = 2.5
+
+        0x00, 0x05,                         // 128: bias = 5
+        0b00001101, 0b00000011, 0b00110001, // 130: codepoints = [5..22]
+    ];
 }
