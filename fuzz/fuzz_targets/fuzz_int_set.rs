@@ -13,6 +13,7 @@ use int_set_op_processor::process_op_codes;
 use int_set_op_processor::OperationSet;
 use int_set_op_processor::SmallEvenInt;
 use int_set_op_processor::SmallInt;
+use std::io::Cursor;
 
 const OPERATION_COUNT: u64 = 7_500;
 
@@ -24,34 +25,55 @@ fuzz_target!(|data: &[u8]| {
     match mode_byte {
         // These variants provide the primary testing of functionality.
         1 => {
-            let _ = process_op_codes::<u32>(OperationSet::Standard, OPERATION_COUNT, &data[1..]);
+            let _ = process_op_codes::<u32>(
+                OperationSet::Standard,
+                OPERATION_COUNT,
+                Cursor::new(&data[1..]),
+            );
         }
         2 => {
-            let _ =
-                process_op_codes::<SmallInt>(OperationSet::Standard, OPERATION_COUNT, &data[1..]);
+            let _ = process_op_codes::<SmallInt>(
+                OperationSet::Standard,
+                OPERATION_COUNT,
+                Cursor::new(&data[1..]),
+            );
         }
         3 => {
             let _ = process_op_codes::<SmallEvenInt>(
                 OperationSet::Standard,
                 OPERATION_COUNT,
-                &data[1..],
+                Cursor::new(&data[1..]),
             );
         }
 
         // And these provide coverage of remaining default supported domains
         4 => {
-            let _ = process_op_codes::<u8>(OperationSet::Standard, OPERATION_COUNT, &data[1..]);
+            let _ = process_op_codes::<u8>(
+                OperationSet::Standard,
+                OPERATION_COUNT,
+                Cursor::new(&data[1..]),
+            );
         }
         5 => {
-            let _ = process_op_codes::<u16>(OperationSet::Standard, OPERATION_COUNT, &data[1..]);
+            let _ = process_op_codes::<u16>(
+                OperationSet::Standard,
+                OPERATION_COUNT,
+                Cursor::new(&data[1..]),
+            );
         }
         6 => {
-            let _ =
-                process_op_codes::<GlyphId>(OperationSet::Standard, OPERATION_COUNT, &data[1..]);
+            let _ = process_op_codes::<GlyphId>(
+                OperationSet::Standard,
+                OPERATION_COUNT,
+                Cursor::new(&data[1..]),
+            );
         }
         7 => {
-            let _ =
-                process_op_codes::<GlyphId16>(OperationSet::Standard, OPERATION_COUNT, &data[1..]);
+            let _ = process_op_codes::<GlyphId16>(
+                OperationSet::Standard,
+                OPERATION_COUNT,
+                Cursor::new(&data[1..]),
+            );
         }
         _ => return,
     };
