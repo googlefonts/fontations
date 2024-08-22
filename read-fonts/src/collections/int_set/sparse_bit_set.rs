@@ -41,7 +41,7 @@ impl IntSet<u32> {
     /// Sparse bit sets are a specialized, compact encoding of bit sets defined in the IFT specification:
     /// <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
     pub fn from_sparse_bit_set(data: &[u8]) -> Result<IntSet<u32>, DecodingError> {
-        Self::from_sparse_bit_set_bounded(data, 0, u32::MAX as u64 + 1).map(|(set, _)| set)
+        Self::from_sparse_bit_set_bounded(data, 0, u32::MAX).map(|(set, _)| set)
     }
 
     /// Populate this set with the values obtained from decoding the provided sparse bit set bytes.
@@ -56,7 +56,7 @@ impl IntSet<u32> {
     pub fn from_sparse_bit_set_bounded(
         data: &[u8],
         bias: u32,
-        set_size_limit: u64,
+        max_value: u32,
     ) -> Result<(IntSet<u32>, &[u8]), DecodingError> {
         // This is a direct port of the decoding algorithm from:
         // <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
@@ -72,16 +72,16 @@ impl IntSet<u32> {
 
         let result = match branch_factor {
             BranchFactor::Two => {
-                Self::decode_sparse_bit_set_nodes::<2>(data, height, bias, set_size_limit)
+                Self::decode_sparse_bit_set_nodes::<2>(data, height, bias, max_value)
             }
             BranchFactor::Four => {
-                Self::decode_sparse_bit_set_nodes::<4>(data, height, bias, set_size_limit)
+                Self::decode_sparse_bit_set_nodes::<4>(data, height, bias, max_value)
             }
             BranchFactor::Eight => {
-                Self::decode_sparse_bit_set_nodes::<8>(data, height, bias, set_size_limit)
+                Self::decode_sparse_bit_set_nodes::<8>(data, height, bias, max_value)
             }
             BranchFactor::ThirtyTwo => {
-                Self::decode_sparse_bit_set_nodes::<32>(data, height, bias, set_size_limit)
+                Self::decode_sparse_bit_set_nodes::<32>(data, height, bias, max_value)
             }
         };
 
@@ -92,7 +92,7 @@ impl IntSet<u32> {
         data: &[u8],
         height: u8,
         bias: u32,
-        set_size_limit: u64,
+        max_value: u32,
     ) -> Result<(BitSet, &[u8]), DecodingError> {
         let mut out = BitSet::empty();
         if height == 0 {
@@ -106,38 +106,34 @@ impl IntSet<u32> {
         let mut queue = VecDeque::<NextNode>::new();
         queue.push_back(NextNode { start: 0, depth: 1 });
 
-        let mut size_count = 0u64;
-        while let Some(next) = queue.pop_front() {
+        'outer: while let Some(next) = queue.pop_front() {
             let mut bits = bits.next().ok_or(DecodingError)?;
             if bits == 0 {
                 // all bits were zeroes which is a special command to completely fill in
                 // all integers covered by this node.
                 let exp = (height as u32) - next.depth + 1;
                 let node_size = (BF as u64).pow(exp);
-                // TODO(garretrieger): implement special insert_range on the builder as well.
-                let start = u32::try_from(next.start).or(Err(DecodingError))?;
-                let end = u32::try_from(next.start + node_size - 1).or(Err(DecodingError))?;
 
-                size_count += (end as u64 - start as u64) + 1;
-                if size_count > set_size_limit {
-                    return Err(DecodingError);
-                }
-
-                let (Some(start), Some(end)) = (start.checked_add(bias), end.checked_add(bias))
+                let Some(start) = u32::try_from(next.start)
+                    .ok()
+                    .and_then(|start| start.checked_add(bias))
+                    .filter(|start| *start <= max_value)
                 else {
-                    return Err(DecodingError);
+                    // start is outside the valid range of the set, so skip this range.
+                    continue;
                 };
+
+                let end = u32::try_from(next.start + node_size - 1)
+                    .unwrap_or(u32::MAX)
+                    .saturating_add(bias)
+                    .min(max_value);
+
+                // TODO(garretrieger): implement special insert_range on the builder as well.
                 builder.set.insert_range(start..=end);
                 continue;
             }
 
             let height = height as u32;
-            if next.depth == height {
-                size_count += bits.count_ones() as u64;
-                if size_count > set_size_limit {
-                    return Err(DecodingError);
-                }
-            }
 
             let exp = height - next.depth;
             let next_node_size = (BF as u64).pow(exp);
@@ -150,12 +146,20 @@ impl IntSet<u32> {
                 // TODO(garretrieger): possible optimization by having two versions of this loop
                 //                     as next.depth == height has the same value for each of the outer iterations.
                 if next.depth == height {
-                    // TODO(garretrieger): further optimize by inserting entire nodes at once (as a bit field).
-                    let start =
-                        u32::try_from(next.start + bit_index as u64).or(Err(DecodingError))?;
-                    let Some(start) = start.checked_add(bias) else {
-                        return Err(DecodingError);
+                    // TODO(garretrieger): this has a few branches, is it faster to do all the math in u64
+                    //                     then check only once for > max_value? Will need to check with a benchmark.
+                    let Some(start) = u32::try_from(next.start)
+                        .ok()
+                        .and_then(|start| start.checked_add(bit_index))
+                        .and_then(|start| start.checked_add(bias))
+                        .filter(|start| *start <= max_value)
+                    else {
+                        // At the lowest depth values are encountered in order, so if this is out of range so will be
+                        // all future values. We can break early.
+                        break 'outer;
                     };
+
+                    // TODO(garretrieger): further optimize by inserting entire nodes at once (as a bit field).
                     builder.insert(start);
                 } else {
                     let start_delta = bit_index as u64 * next_node_size;
@@ -170,6 +174,15 @@ impl IntSet<u32> {
         }
 
         builder.finish();
+
+        // If the max value was reached the loop above may have terminated early leaving some unprocessed nodes
+        // in the queue. The loop can only break once we are at the lowest depth which means that each remaining queue node
+        // will consume only one node from the bit stream. Advance the bit stream by the remaining number of nodes to
+        // correctly count the number of bytes consumed.
+        if !bits.skip_nodes(queue.len() as u32) {
+            // We ran out of bits to consume before decoding would have been finished.
+            return Err(DecodingError);
+        }
 
         Ok((out, &data[bits.bytes_consumed()..]))
     }
@@ -502,7 +515,7 @@ mod test {
         ];
         assert!(IntSet::<u32>::from_sparse_bit_set(&bytes).is_err());
 
-        // Set with values beyond u32
+        // Max height exceeded.
         let bytes = [
             0b0_01000_11, // BF 32, Depth 8
             0b00000000,
@@ -539,10 +552,30 @@ mod test {
             0b10000000, // L8
         ];
         assert!(IntSet::<u32>::from_sparse_bit_set(&bytes).is_err());
+    }
 
+    #[test]
+    fn invalid_biased_and_bounded() {
+        let bytes = [0b0_00011_01, 0b0000_0011, 0b1111_0011];
+
+        assert!(IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, u32::MAX).is_err());
+        assert!(IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 20).is_err());
+        assert!(IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 19).is_err());
+        assert!(IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 18).is_err());
+        assert!(IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 15).is_err());
+        assert!(IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 14).is_err());
+
+        assert!(IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 1, 20).is_err());
+        assert!(IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 2, 20).is_err());
+        assert!(IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 3, 20).is_err());
+        assert!(IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 6, 20).is_err());
+    }
+
+    #[test]
+    fn larger_than_u32() {
         // Set with values beyond u32
         let bytes = [
-            0b0_00111_11, // BF 32, Depth 8
+            0b0_00111_11, // BF 32, Depth 7
             0b00000000,
             0b00000000,
             0b00000000,
@@ -572,64 +605,28 @@ mod test {
             0b00000000,
             0b00000001, // L7
         ];
-        assert!(IntSet::<u32>::from_sparse_bit_set(&bytes).is_err());
+        assert_eq!(
+            IntSet::<u32>::from_sparse_bit_set(&bytes).unwrap(),
+            IntSet::<u32>::empty()
+        );
 
         // Set with filled node values beyond u32
         let bytes = [
-            0b0_00111_11, // BF 32, Depth 8
+            0b0_00111_11, // BF 32, Depth 7
             0b00000000,
             0b00000000,
             0b00000000,
+            0b10000000, // L1
             0b00000000,
+            0b00000000,
+            0b00000000,
+            0b00000000, // L2
         ];
-        assert!(IntSet::<u32>::from_sparse_bit_set(&bytes).is_err());
-    }
-
-    #[test]
-    fn from_sparse_bit_set_bounded() {
-        let bytes = [0b00001101, 0b00000011, 0b00110001];
-        let mut expected: IntSet<u32> = IntSet::<u32>::empty();
-        expected.insert_range(0..=17);
 
         assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 19).unwrap(),
-            (expected.clone(), &bytes[3..]),
+            IntSet::<u32>::from_sparse_bit_set(&bytes).unwrap(),
+            IntSet::<u32>::empty()
         );
-        assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 18).unwrap(),
-            (expected.clone(), &bytes[3..]),
-        );
-        assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 17),
-            Err(DecodingError)
-        );
-        assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 16),
-            Err(DecodingError)
-        );
-        assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 15),
-            Err(DecodingError)
-        );
-        assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 7),
-            Err(DecodingError)
-        );
-        assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 1),
-            Err(DecodingError)
-        );
-        assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 0),
-            Err(DecodingError)
-        );
-
-        let bytes = [0b00000000];
-        let set = IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 0)
-            .unwrap()
-            .0;
-        let expected: IntSet<u32> = [].iter().copied().collect();
-        assert_eq!(set, expected);
     }
 
     #[test]
@@ -646,49 +643,67 @@ mod test {
 
     #[test]
     fn from_sparse_bit_set_biased_and_bounded() {
-        let bytes = [0b00001101, 0b00000011, 0b00110001];
+        let bytes = [0b0_00011_01, 0b0000_0011, 0b1111_0011, 0b0000_0001];
         let mut expected: IntSet<u32> = IntSet::<u32>::empty();
-        expected.insert_range(5..=(17 + 5));
+        expected.insert_range(0..=20);
 
         assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 5, 19).unwrap(),
-            (expected.clone(), &bytes[3..])
+            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 20).unwrap(),
+            (expected.clone(), &bytes[4..])
         );
+
+        let mut expected: IntSet<u32> = IntSet::<u32>::empty();
+        expected.insert_range(0..=19);
         assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 5, 18).unwrap(),
-            (expected.clone(), &bytes[3..])
+            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 19).unwrap(),
+            (expected.clone(), &bytes[4..])
         );
+
+        let mut expected: IntSet<u32> = IntSet::<u32>::empty();
+        expected.insert_range(1..=20);
         assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 5, 17),
-            Err(DecodingError)
+            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 1, 20).unwrap(),
+            (expected.clone(), &bytes[4..])
         );
+
+        let mut expected: IntSet<u32> = IntSet::<u32>::empty();
+        expected.insert_range(1..=18);
         assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 5, 16),
-            Err(DecodingError)
+            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 1, 18).unwrap(),
+            (expected.clone(), &bytes[4..])
         );
+
+        let mut expected: IntSet<u32> = IntSet::<u32>::empty();
+        expected.insert_range(0..=14);
         assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 5, 15),
-            Err(DecodingError)
+            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 14).unwrap(),
+            (expected.clone(), &bytes[4..])
         );
+
+        let mut expected: IntSet<u32> = IntSet::<u32>::empty();
+        expected.insert_range(6..=20);
         assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 5, 7),
-            Err(DecodingError)
+            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 6, 20).unwrap(),
+            (expected.clone(), &bytes[4..])
         );
+
+        let mut expected: IntSet<u32> = IntSet::<u32>::empty();
+        expected.insert(0);
         assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 5, 1),
-            Err(DecodingError)
+            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 0, 0).unwrap(),
+            (expected.clone(), &bytes[4..])
         );
+
         assert_eq!(
-            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 5, 0),
-            Err(DecodingError)
+            IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 1, 0).unwrap(),
+            (IntSet::<u32>::empty().clone(), &bytes[4..])
         );
 
         let bytes = [0b00000000];
         let set = IntSet::<u32>::from_sparse_bit_set_bounded(&bytes, 5, 0)
             .unwrap()
             .0;
-        let expected: IntSet<u32> = [].iter().copied().collect();
-        assert_eq!(set, expected);
+        assert_eq!(set, IntSet::<u32>::empty());
     }
 
     #[test]

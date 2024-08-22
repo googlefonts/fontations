@@ -71,6 +71,27 @@ impl<'a, const BF: u8> InputBitStream<'a, BF> {
         }
     }
 
+    /// Skips the given number of nodes, returns true if this did not overrun the data buffer.
+    pub(crate) fn skip_nodes(&mut self, n: u32) -> bool {
+        match BF {
+            2 | 4 => {
+                let bit_index = self.sub_index + n * (BF as u32);
+                self.byte_index += (bit_index / 8) as usize;
+                self.sub_index = bit_index % 8;
+            }
+            8 => {
+                self.byte_index += n as usize;
+            }
+
+            32 => {
+                self.byte_index += 4 * (n as usize);
+            }
+            _ => panic!("Unsupported branch factor."),
+        };
+
+        self.bytes_consumed() <= self.data.len()
+    }
+
     /// Returns the number of bytes consumed so far (including partially consumed).
     pub(crate) fn bytes_consumed(&self) -> usize {
         self.byte_index + if self.sub_index > 0 { 1 } else { 0 }
@@ -131,6 +152,39 @@ mod test {
     }
 
     #[test]
+    fn skip_2() {
+        let mut stream = InputBitStream::<2>::from(&[0b00000000, 0b11_10_01_00, 0b00_01_10_11]);
+        assert_eq!(stream.bytes_consumed(), 1); // Initially one byte consumed for the header.
+
+        assert!(stream.skip_nodes(1));
+        assert_eq!(stream.bytes_consumed(), 2);
+        assert!(stream.skip_nodes(2));
+        assert_eq!(stream.bytes_consumed(), 2);
+        assert!(stream.skip_nodes(1));
+        assert_eq!(stream.bytes_consumed(), 2);
+
+        assert!(stream.skip_nodes(1));
+        assert_eq!(stream.bytes_consumed(), 3);
+        assert!(stream.skip_nodes(3));
+        assert_eq!(stream.bytes_consumed(), 3);
+        assert!(!stream.skip_nodes(1));
+    }
+
+    #[test]
+    fn skip_2_unaligned() {
+        let mut stream = InputBitStream::<2>::from(&[0b00000000, 0b11_10_01_00, 0b00_01_10_11]);
+        assert_eq!(stream.bytes_consumed(), 1); // Initially one byte consumed for the header.
+
+        assert!(stream.skip_nodes(3));
+        assert_eq!(stream.bytes_consumed(), 2);
+
+        assert!(stream.skip_nodes(3));
+        assert_eq!(stream.bytes_consumed(), 3);
+
+        assert!(!stream.skip_nodes(3));
+    }
+
+    #[test]
     fn read_4() {
         let mut stream = InputBitStream::<4>::from(&[0b00000000, 0b1110_0100, 0b0001_1011]);
         assert_eq!(stream.bytes_consumed(), 1);
@@ -152,6 +206,22 @@ mod test {
     }
 
     #[test]
+    fn skip_4() {
+        let mut stream = InputBitStream::<4>::from(&[0b00000000, 0b1110_0100, 0b0001_1011]);
+        assert_eq!(stream.bytes_consumed(), 1); // Initially one byte consumed for the header.
+
+        assert!(stream.skip_nodes(1));
+        assert_eq!(stream.bytes_consumed(), 2);
+        assert!(stream.skip_nodes(1));
+        assert_eq!(stream.bytes_consumed(), 2);
+
+        assert!(stream.skip_nodes(2));
+        assert_eq!(stream.bytes_consumed(), 3);
+
+        assert!(!stream.skip_nodes(1));
+    }
+
+    #[test]
     fn read_8() {
         let mut stream = InputBitStream::<8>::from(&[0b00000000, 0b11100100, 0b00011011]);
         assert_eq!(stream.bytes_consumed(), 1);
@@ -163,6 +233,25 @@ mod test {
 
         let mut stream = InputBitStream::<8>::from(&[]);
         assert_eq!(stream.next(), None);
+    }
+
+    #[test]
+    fn skip_8() {
+        let mut stream = InputBitStream::<8>::from(&[0b00000000, 0b11100100, 0b00011011]);
+        assert_eq!(stream.bytes_consumed(), 1);
+
+        assert!(stream.skip_nodes(1));
+        assert_eq!(stream.bytes_consumed(), 2);
+        assert!(stream.skip_nodes(1));
+        assert_eq!(stream.bytes_consumed(), 3);
+        assert!(!stream.skip_nodes(1));
+
+        let mut stream = InputBitStream::<8>::from(&[0b00000000, 0b11100100, 0b00011011]);
+        assert_eq!(stream.bytes_consumed(), 1);
+
+        assert!(stream.skip_nodes(2));
+        assert_eq!(stream.bytes_consumed(), 3);
+        assert!(!stream.skip_nodes(1));
     }
 
     #[test]
@@ -184,5 +273,18 @@ mod test {
 
         let mut stream = InputBitStream::<32>::from(&[]);
         assert_eq!(stream.next(), None);
+    }
+
+    #[test]
+    fn skip_32() {
+        let mut stream = InputBitStream::<32>::from(&[
+            0b00000000, 0b00000000, 0b11111111, 0b11100100, 0b00011011,
+        ]);
+
+        assert_eq!(stream.bytes_consumed(), 1);
+
+        assert!(stream.skip_nodes(1));
+        assert_eq!(stream.bytes_consumed(), 5);
+        assert!(!stream.skip_nodes(1));
     }
 }

@@ -16,7 +16,7 @@ use read_fonts::collections::int_set::{Domain, InDomain, IntSet};
 pub enum OperationSet {
     Standard,
     #[allow(dead_code)]
-    SparseBitSetEncoding,
+    SparseBitSetEncoding(u32, u32),
 }
 
 pub trait SetMember: Sized + Domain + Ord + Copy + Debug + Hash {
@@ -1044,7 +1044,7 @@ fn read_u8(data: &mut Cursor<&[u8]>) -> Option<u8> {
     Some(byte_val[0])
 }
 
-fn read_u32<T: SetMember>(data: &mut Cursor<&[u8]>) -> Option<T> {
+pub(crate) fn read_u32<T: SetMember>(data: &mut Cursor<&[u8]>) -> Option<T> {
     let mut byte_val = [0, 0, 0, 0];
     data.read_exact(&mut byte_val).ok()?;
 
@@ -1135,7 +1135,7 @@ where
 pub fn process_op_codes<T: SetMember + 'static>(
     operation_set: OperationSet,
     op_count_limit: u64,
-    data: &[u8],
+    mut data: Cursor<&[u8]>,
 ) -> Result<(), Box<dyn Error>> {
     let mut int_set_0 = IntSet::<T>::empty();
     let mut int_set_1 = IntSet::<T>::empty();
@@ -1143,7 +1143,6 @@ pub fn process_op_codes<T: SetMember + 'static>(
     let mut btree_set_1 = BTreeSet::<T>::new();
 
     let mut ops_counter = 0u64;
-    let mut data = Cursor::new(data);
     loop {
         let next_op = next_operation::<T>(operation_set, &mut data);
         let Some(next_op) = next_op else {
@@ -1185,11 +1184,19 @@ pub fn process_op_codes<T: SetMember + 'static>(
             assert!(int_set_0.iter().eq(btree_set_0.iter().copied()));
             assert!(int_set_1.iter().eq(btree_set_1.iter().copied()));
         }
-        OperationSet::SparseBitSetEncoding => {
+        OperationSet::SparseBitSetEncoding(bias, max_value) => {
             let u32_set: IntSet<u32> = int_set_0.iter().map(|v| v.to_u32()).collect();
             let encoding = u32_set.to_sparse_bit_set();
-            let decoded = IntSet::<u32>::from_sparse_bit_set(&encoding).unwrap();
-            assert_eq!(u32_set, decoded);
+            let (decoded, remaining) =
+                IntSet::<u32>::from_sparse_bit_set_bounded(&encoding, bias, max_value).unwrap();
+
+            let biased_u32_set: IntSet<u32> = int_set_0
+                .iter()
+                .flat_map(|v| v.to_u32().checked_add(bias))
+                .filter(|v| *v <= max_value)
+                .collect();
+            assert_eq!(remaining.len(), 0);
+            assert_eq!(biased_u32_set, decoded);
         }
     }
     Ok(())
