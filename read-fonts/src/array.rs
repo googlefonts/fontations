@@ -115,7 +115,16 @@ pub struct VarLenArray<'a, T> {
 impl<'a, T: FontRead<'a> + VarSize> VarLenArray<'a, T> {
     /// Return the item at the provided index.
     ///
-    /// This performs a linear search.
+    /// # Performance
+    ///
+    /// Determining the position of an item in this collection requires looking
+    /// at all the preceding items; that is, it is `O(n)` instead of `O(1)` as
+    /// it would be for a `Vec`.
+    ///
+    /// As a consequence, calling this method in a loop could potentially be
+    /// very slow. If this is something you need to do, it will probably be
+    /// much faster to first collect all the items into a `Vec` beforehand,
+    /// and then fetch them from there.
     pub fn get(&self, idx: usize) -> Option<Result<T, ReadError>> {
         let mut pos = 0usize;
         for _ in 0..idx {
