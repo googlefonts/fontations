@@ -11,6 +11,7 @@ retain-gids.txt
 notdef-outline.txt
 no-prune-unicode-ranges.txt
 glyph-names.txt
+retain-gids-glyph-names.txt
 
 SUBSETS:
 abc
