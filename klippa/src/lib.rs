@@ -6,12 +6,14 @@ mod hmtx;
 mod maxp;
 mod os2;
 mod parsing_util;
+mod post;
 use glyf_loca::subset_glyf_loca;
 use head::subset_head;
 use hmtx::subset_hmtx_hhea;
 use maxp::subset_maxp;
 use os2::subset_os2;
 pub use parsing_util::{parse_drop_tables, parse_unicodes, populate_gids};
+use post::subset_post;
 
 use fnv::FnvHashMap;
 use skrifa::MetadataProvider;
@@ -28,6 +30,7 @@ use write_fonts::read::{
         loca::Loca,
         name::Name,
         os2::Os2,
+        post::Post,
     },
     FontRef, TableProvider, TopLevelTable,
 };
@@ -453,6 +456,8 @@ fn subset_table<'a>(
         Maxp::TAG => subset_maxp(font, plan, builder),
 
         Os2::TAG => subset_os2(font, plan, builder),
+
+        Post::TAG => subset_post(font, plan, builder),
         _ => {
             if let Some(data) = font.data_for_tag(tag) {
                 builder.add_raw(tag, data);
