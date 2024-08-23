@@ -46,10 +46,9 @@ impl IntSet<u32> {
 
     /// Populate this set with the values obtained from decoding the provided sparse bit set bytes.
     ///
-    /// The size (in number of members) of the output set is bounded to be equal to or below the provided max size.
-    /// If the decoded set would contain more members than the limit an error will be returned.
-    ///
-    /// During decoding bias will be added to each decoded set members value.
+    /// During decoding bias will be added to each decoded set members value. The final set will not contain
+    /// any values larger than max_value: any encoded values larger than max_value after the bias is applied
+    /// are ignored.
     ///
     /// Sparse bit sets are a specialized, compact encoding of bit sets defined in the IFT specification:
     /// <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
