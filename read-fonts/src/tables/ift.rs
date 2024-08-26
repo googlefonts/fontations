@@ -144,7 +144,8 @@ mod tests {
 
     #[test]
     fn format_1_gid_to_u8_entry_iter() {
-        let table = Ift::read(test_data::SIMPLE_FORMAT1.into()).unwrap();
+        let data = test_data::simple_format1();
+        let table = Ift::read(FontData::new(&data)).unwrap();
         let Ift::Format1(map) = table else {
             panic!("Not format 1.");
         };
@@ -206,7 +207,8 @@ mod tests {
 
     #[test]
     fn compatibility_id() {
-        let table = Ift::read(test_data::SIMPLE_FORMAT1.into()).unwrap();
+        let data = test_data::simple_format1();
+        let table = Ift::read(FontData::new(&data)).unwrap();
         let Ift::Format1(map) = table else {
             panic!("Not format 1.");
         };
@@ -216,7 +218,8 @@ mod tests {
 
     #[test]
     fn is_entry_applied() {
-        let table = Ift::read(test_data::SIMPLE_FORMAT1.into()).unwrap();
+        let data = test_data::simple_format1();
+        let table = Ift::read(FontData::new(&data)).unwrap();
         let Ift::Format1(map) = table else {
             panic!("Not format 1.");
         };
@@ -227,7 +230,8 @@ mod tests {
 
     #[test]
     fn uri_template_as_string() {
-        let table = Ift::read(test_data::SIMPLE_FORMAT1.into()).unwrap();
+        let data = test_data::simple_format1();
+        let table = Ift::read(FontData::new(&data)).unwrap();
         let Ift::Format1(map) = table else {
             panic!("Not format 1.");
         };
