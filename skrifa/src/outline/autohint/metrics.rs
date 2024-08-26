@@ -5,7 +5,7 @@ use super::{
     axis::Dimension,
     style::{GlyphStyleMap, StyleClass},
 };
-use crate::{collections::SmallVec, FontRef};
+use crate::{attribute::Style, collections::SmallVec, FontRef};
 use alloc::vec::Vec;
 use raw::types::{F2Dot14, Fixed, GlyphId};
 #[cfg(feature = "std")]
@@ -219,10 +219,11 @@ pub(crate) struct Scale {
 
 impl Scale {
     /// Create initial scaling parameters from metrics and hinting target.
-    pub fn new(size: f32, units_per_em: i32, target: Target, is_italic: bool) -> Self {
+    pub fn new(size: f32, units_per_em: i32, font_style: Style, target: Target) -> Self {
         let scale =
             (Fixed::from_bits((size * 64.0) as i32) / Fixed::from_bits(units_per_em)).to_bits();
         let mut flags = 0;
+        let is_italic = font_style != Style::Normal;
         let is_mono = target == Target::Mono;
         let is_light = target.is_light() || target.preserve_linear_metrics();
         // Snap vertical stems for monochrome and horizontal LCD rendering.

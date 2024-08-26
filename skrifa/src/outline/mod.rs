@@ -594,7 +594,12 @@ impl<'a> OutlineGlyphCollection<'a> {
     /// instead.
     ///
     /// This matches the logic used in FreeType when neither of the
-    /// `FT_LOAD_FORCE_AUTOHINT` or `FT_LOAD_NO_AUTOHINT` flags are specified.
+    /// `FT_LOAD_FORCE_AUTOHINT` or `FT_LOAD_NO_AUTOHINT` load flags are
+    /// specified.
+    ///
+    /// When setting [`HintingOptions::engine`] to [`Engine::AutoFallback`],
+    /// this is used to determine whether to use the interpreter or automatic
+    /// hinter.
     pub fn prefer_interpreter(&self) -> bool {
         match &self.kind {
             OutlineCollectionKind::Glyf(glyf) => glyf.prefer_interpreter(),

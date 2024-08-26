@@ -307,7 +307,7 @@ mod tests {
         super::{latin, metrics::Scale, style},
         *,
     };
-    use crate::MetadataProvider;
+    use crate::{attribute::Style, MetadataProvider};
     use raw::{
         types::{F2Dot14, GlyphId},
         FontRef, TableProvider,
@@ -413,8 +413,8 @@ mod tests {
         let scale = Scale::new(
             size,
             font.head().unwrap().units_per_em() as i32,
+            Style::Normal,
             Default::default(),
-            false,
         );
         latin::hint_outline(&mut outline, &metrics, &scale);
         outline

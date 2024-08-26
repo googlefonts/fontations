@@ -289,7 +289,7 @@ mod tests {
         },
         *,
     };
-    use crate::MetadataProvider;
+    use crate::{attribute::Style, MetadataProvider};
     use raw::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
@@ -301,8 +301,8 @@ mod tests {
         let scale = metrics::Scale::new(
             16.0,
             font.head().unwrap().units_per_em() as i32,
+            Style::Normal,
             Default::default(),
-            false,
         );
         let scaled_metrics = latin::metrics::scale_style_metrics(&unscaled_metrics, scale);
         let glyphs = font.outline_glyphs();

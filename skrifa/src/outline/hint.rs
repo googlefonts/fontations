@@ -43,11 +43,13 @@ pub enum Engine {
     /// Glyph styles can be precomputed per font and may be provided here
     /// as an optimization to avoid recomputing them for each instance.
     Auto(Option<GlyphStyles>),
-    /// Selects the engine based on the same rules that FreeType uses in
-    /// the default configuration.
+    /// Selects the engine based on the same rules that FreeType uses when
+    /// neither of the `FT_LOAD_NO_AUTOHINT` or `FT_LOAD_FORCE_AUTOHINT`
+    /// load flags are specified.
     ///
-    /// Specifically, PostScript fonts will always use the interpreter and
-    /// TrueType fonts will use the interpreter if one of the `fpgm` or `prep`
+    /// Specifically, PostScript (CFF/CFF2) fonts will always use the hinting
+    /// engine in the PostScript interpreter and TrueType fonts will use the
+    /// interpreter for TrueType isntructions if one of the `fpgm` or `prep`
     /// tables is non-empty, falling back to the automatic hinter otherwise.
     ///
     /// This uses [`OutlineGlyphCollection::prefer_interpreter`] to make a
