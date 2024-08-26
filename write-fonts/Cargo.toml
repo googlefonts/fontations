@@ -29,7 +29,7 @@ diff = "0.1.12"
 ansi_term = "0.12.1"
 font-test-data = { workspace = true }
 read-fonts = { workspace = true, features = [
-  "codegen_test",
+  "codegen_test", "experimental_traverse"
 ] }
 rstest = "0.18.0"
 bincode = "1.0"

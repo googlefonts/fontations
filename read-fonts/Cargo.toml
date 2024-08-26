@@ -16,7 +16,7 @@ scaler_test = []
 # this feature is not stable, but provides untyped traversal of font tables.
 # we do not consider this feature public API for the purposes of semver.
 experimental_traverse = ["std"]
-default = ["experimental_traverse"]
+default = ["std"]
 serde = ["dep:serde", "font-types/serde"]
 libm = ["dep:core_maths"]
 
