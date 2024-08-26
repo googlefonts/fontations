@@ -145,7 +145,7 @@ impl<'a> SomeTable<'a> for Gsub<'a> {
                 "feature_variations_offset",
                 FieldType::offset(
                     self.feature_variations_offset().unwrap(),
-                    self.feature_variations().unwrap(),
+                    self.feature_variations(),
                 ),
             )),
             _ => None,

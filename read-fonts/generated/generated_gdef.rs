@@ -199,15 +199,12 @@ impl<'a> SomeTable<'a> for Gdef<'a> {
                 "mark_glyph_sets_def_offset",
                 FieldType::offset(
                     self.mark_glyph_sets_def_offset().unwrap(),
-                    self.mark_glyph_sets_def().unwrap(),
+                    self.mark_glyph_sets_def(),
                 ),
             )),
             6usize if version.compatible((1u16, 3u16)) => Some(Field::new(
                 "item_var_store_offset",
-                FieldType::offset(
-                    self.item_var_store_offset().unwrap(),
-                    self.item_var_store().unwrap(),
-                ),
+                FieldType::offset(self.item_var_store_offset().unwrap(), self.item_var_store()),
             )),
             _ => None,
         }
