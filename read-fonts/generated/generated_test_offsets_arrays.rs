@@ -231,7 +231,7 @@ impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
                 "versioned_nullable_record_array_offset",
                 traversal::FieldType::offset_to_array_of_records(
                     self.versioned_nullable_record_array_offset().unwrap(),
-                    self.versioned_nullable_record_array().unwrap(),
+                    self.versioned_nullable_record_array(),
                     stringify!(Shmecord),
                     self.offset_data(),
                 ),
@@ -247,7 +247,7 @@ impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
                 "versioned_nullable_offset",
                 FieldType::offset(
                     self.versioned_nullable_offset().unwrap(),
-                    self.versioned_nullable().unwrap(),
+                    self.versioned_nullable(),
                 ),
             )),
             _ => None,

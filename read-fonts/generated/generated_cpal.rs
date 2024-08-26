@@ -244,21 +244,21 @@ impl<'a> SomeTable<'a> for Cpal<'a> {
                 "palette_types_array_offset",
                 FieldType::offset_to_array_of_scalars(
                     self.palette_types_array_offset().unwrap(),
-                    self.palette_types_array().unwrap(),
+                    self.palette_types_array(),
                 ),
             )),
             7usize if version.compatible(1u16) => Some(Field::new(
                 "palette_labels_array_offset",
                 FieldType::offset_to_array_of_scalars(
                     self.palette_labels_array_offset().unwrap(),
-                    self.palette_labels_array().unwrap(),
+                    self.palette_labels_array(),
                 ),
             )),
             8usize if version.compatible(1u16) => Some(Field::new(
                 "palette_entry_labels_array_offset",
                 FieldType::offset_to_array_of_scalars(
                     self.palette_entry_labels_array_offset().unwrap(),
-                    self.palette_entry_labels_array().unwrap(),
+                    self.palette_entry_labels_array(),
                 ),
             )),
             _ => None,

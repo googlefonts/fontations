@@ -368,6 +368,7 @@ fn traversal_arm_for_field(
     let name_str = &fld.name.to_string();
     let name = &fld.name;
     let maybe_unwrap = fld.attrs.conditional.is_some().then(|| quote!(.unwrap()));
+    let maybe_unwrap_getter = maybe_unwrap.as_ref().filter(|_| !fld.is_nullable());
     if let Some(traverse_with) = &fld.attrs.traverse_with {
         let traverse_fn = &traverse_with.attr;
         if traverse_fn == "skip" {
@@ -389,7 +390,7 @@ fn traversal_arm_for_field(
                     #name_str,
                     traversal::FieldType::offset_to_array_of_records(
                         self.#name()#maybe_unwrap,
-                        self.#getter(#pass_data)#maybe_unwrap,
+                        self.#getter(#pass_data)#maybe_unwrap_getter,
                         stringify!(#typ),
                         #offset_data,
                     )
@@ -401,7 +402,7 @@ fn traversal_arm_for_field(
                 OffsetTarget::Array(_) => quote!(offset_to_array_of_scalars),
             };
             let getter = fld.offset_getter_name();
-            quote!(Field::new(#name_str, FieldType::#constructor_name(self.#name()#maybe_unwrap, self.#getter(#pass_data)#maybe_unwrap)))
+            quote!(Field::new(#name_str, FieldType::#constructor_name(self.#name()#maybe_unwrap, self.#getter(#pass_data)#maybe_unwrap_getter)))
         }
         FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name()#maybe_unwrap)),
 
