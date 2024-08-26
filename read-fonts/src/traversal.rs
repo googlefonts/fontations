@@ -1,4 +1,4 @@
-//! Generic traversal of font tables.
+//! Experimental generic traversal of font tables.
 //!
 //! This module defines functionality that allows untyped access to font table
 //! data. This is used as the basis for things like debug printing.
@@ -7,6 +7,11 @@
 //! all font tables. This trait provides the table's name, as well as ordered access
 //! to the table's fields. Using this, it is possible to iterate through a table
 //! and its subtables, records, and values.
+//!
+//! # Warning
+//!
+//! This functionality is considered experimental, and the API may break or be
+//! removed without warning.
 
 use std::{fmt::Debug, ops::Deref};
 
