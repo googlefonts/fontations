@@ -909,6 +909,7 @@ impl<'a> std::fmt::Debug for MappingEntries<'a> {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct EntryDataMarker {
+    entry_id_string_data_offset: Offset32,
     feature_count_byte_start: Option<usize>,
     feature_tags_byte_start: Option<usize>,
     feature_tags_byte_len: Option<usize>,
@@ -919,6 +920,7 @@ pub struct EntryDataMarker {
     copy_indices_byte_start: Option<usize>,
     copy_indices_byte_len: Option<usize>,
     entry_id_delta_byte_start: Option<usize>,
+    entry_id_delta_byte_len: Option<usize>,
     patch_encoding_byte_start: Option<usize>,
     codepoint_data_byte_len: usize,
 }
@@ -954,7 +956,7 @@ impl EntryDataMarker {
     }
     fn entry_id_delta_byte_range(&self) -> Option<Range<usize>> {
         let start = self.entry_id_delta_byte_start?;
-        Some(start..start + Int24::RAW_BYTE_LEN)
+        Some(start..start + self.entry_id_delta_byte_len?)
     }
     fn patch_encoding_byte_range(&self) -> Option<Range<usize>> {
         let start = self.patch_encoding_byte_start?;
@@ -966,8 +968,13 @@ impl EntryDataMarker {
     }
 }
 
-impl<'a> FontRead<'a> for EntryData<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+impl ReadArgs for EntryData<'_> {
+    type Args = Offset32;
+}
+
+impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
+    fn read_with_args(data: FontData<'a>, args: &Offset32) -> Result<Self, ReadError> {
+        let entry_id_string_data_offset = *args;
         let mut cursor = data.cursor();
         let format_flags: EntryFormatFlags = cursor.read()?;
         let feature_count_byte_start = format_flags
@@ -1043,9 +1050,14 @@ impl<'a> FontRead<'a> for EntryData<'a> {
             .contains(EntryFormatFlags::ENTRY_ID_DELTA)
             .then(|| cursor.position())
             .transpose()?;
-        format_flags
+        let entry_id_delta_byte_len = format_flags
             .contains(EntryFormatFlags::ENTRY_ID_DELTA)
-            .then(|| cursor.advance::<Int24>());
+            .then_some(<IdDeltaOrLength as ComputeSize>::compute_size(
+                &entry_id_string_data_offset,
+            )?);
+        if let Some(value) = entry_id_delta_byte_len {
+            cursor.advance_by(value);
+        }
         let patch_encoding_byte_start = format_flags
             .contains(EntryFormatFlags::PATCH_ENCODING)
             .then(|| cursor.position())
@@ -1057,6 +1069,7 @@ impl<'a> FontRead<'a> for EntryData<'a> {
             cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(codepoint_data_byte_len);
         cursor.finish(EntryDataMarker {
+            entry_id_string_data_offset,
             feature_count_byte_start,
             feature_tags_byte_start,
             feature_tags_byte_len,
@@ -1067,9 +1080,24 @@ impl<'a> FontRead<'a> for EntryData<'a> {
             copy_indices_byte_start,
             copy_indices_byte_len,
             entry_id_delta_byte_start,
+            entry_id_delta_byte_len,
             patch_encoding_byte_start,
             codepoint_data_byte_len,
         })
+    }
+}
+
+impl<'a> EntryData<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(
+        data: FontData<'a>,
+        entry_id_string_data_offset: Offset32,
+    ) -> Result<Self, ReadError> {
+        let args = entry_id_string_data_offset;
+        Self::read_with_args(data, &args)
     }
 }
 
@@ -1111,9 +1139,13 @@ impl<'a> EntryData<'a> {
         Some(self.data.read_array(range).unwrap())
     }
 
-    pub fn entry_id_delta(&self) -> Option<Int24> {
+    pub fn entry_id_delta(&self) -> Option<IdDeltaOrLength> {
         let range = self.shape.entry_id_delta_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(
+            self.data
+                .read_with_args(range, &self.entry_id_string_data_offset())
+                .unwrap(),
+        )
     }
 
     pub fn patch_encoding(&self) -> Option<u8> {
@@ -1124,6 +1156,10 @@ impl<'a> EntryData<'a> {
     pub fn codepoint_data(&self) -> &'a [u8] {
         let range = self.shape.codepoint_data_byte_range();
         self.data.read_array(range).unwrap()
+    }
+
+    pub(crate) fn entry_id_string_data_offset(&self) -> Offset32 {
+        self.shape.entry_id_string_data_offset
     }
 }
 
@@ -1162,7 +1198,7 @@ impl<'a> SomeTable<'a> for EntryData<'a> {
                 Some(Field::new("copy_indices", self.copy_indices().unwrap()))
             }
             7usize if format_flags.contains(EntryFormatFlags::ENTRY_ID_DELTA) => {
-                Some(Field::new("entry_id_delta", self.entry_id_delta().unwrap()))
+                Some(Field::new("entry_id_delta", traversal::FieldType::Unknown))
             }
             8usize if format_flags.contains(EntryFormatFlags::PATCH_ENCODING) => {
                 Some(Field::new("patch_encoding", self.patch_encoding().unwrap()))

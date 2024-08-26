@@ -5,13 +5,16 @@
 
 use std::collections::BTreeSet;
 use std::collections::HashMap;
+use std::io::Cursor;
+use std::io::Read;
 use std::ops::RangeInclusive;
 
 use crate::GlyphId;
 use crate::Tag;
 use raw::tables::ift::EntryFormatFlags;
+use raw::types::Offset32;
 use raw::types::Uint24;
-use raw::{FontData, FontRead, FontRef};
+use raw::{FontData, FontRef};
 use read_fonts::{
     tables::ift::{EntryData, EntryMapRecord, Ift, PatchMapFormat1, PatchMapFormat2},
     ReadError, TableProvider,
@@ -279,12 +282,18 @@ fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Entry>, ReadError
     let mut entries_data = FontData::new(entries_data);
     let mut entries: Vec<Entry> = vec![];
 
+    let mut id_string_data = map
+        .entry_id_string_data()
+        .transpose()?
+        .map(|table| table.id_data())
+        .map(|data| Cursor::new(data));
     while entry_count > 0 {
         entries_data = decode_format2_entry(
             entries_data,
             &compat_id,
             uri_template,
             &default_encoding,
+            &mut id_string_data,
             &mut entries,
         )?;
         entry_count -= 1;
@@ -298,11 +307,14 @@ fn decode_format2_entry<'a>(
     compat_id: &[u32; 4],
     uri_template: &str,
     default_encoding: &PatchEncoding,
+    id_string_data: &mut Option<Cursor<&[u8]>>,
     entries: &mut Vec<Entry>,
 ) -> Result<FontData<'a>, ReadError> {
-    let entry_data = EntryData::read(data)?;
+    let entry_data = EntryData::read(
+        data,
+        Offset32::new(if id_string_data.is_none() { 0 } else { 1 }),
+    )?;
     let mut entry = Entry::new(uri_template, compat_id, default_encoding);
-    let last_entry_index = entries.last().map(|e| e.uri.index).unwrap_or(0);
 
     // Features
     if let Some(features) = entry_data.feature_tags() {
@@ -344,8 +356,7 @@ fn decode_format2_entry<'a>(
     }
 
     // Entry ID
-    // TODO(garretrieger): handle the alternate ID string path.
-    entry.uri.index = compute_format2_new_entry_index(&entry_data, last_entry_index)?;
+    entry.uri.id = format2_new_entry_id(&entry_data, entries.last(), id_string_data)?;
 
     // Encoding
     if let Some(patch_encoding) = entry_data.patch_encoding() {
@@ -370,17 +381,51 @@ fn decode_format2_entry<'a>(
     Ok(FontData::new(remaining_data))
 }
 
+fn format2_new_entry_id(
+    entry_data: &EntryData,
+    last_entry: Option<&Entry>,
+    id_string_data: &mut Option<Cursor<&[u8]>>,
+) -> Result<PatchId, ReadError> {
+    let Some(id_string_data) = id_string_data else {
+        let last_entry_index = last_entry
+            .and_then(|e| match e.uri.id {
+                PatchId::Numeric(index) => Some(index),
+                _ => None,
+            })
+            .unwrap_or(0);
+        return Ok(PatchId::Numeric(compute_format2_new_entry_index(
+            &entry_data,
+            last_entry_index,
+        )?));
+    };
+
+    let Some(id_string_length) = entry_data.entry_id_delta().map(|v| v.get()) else {
+        let last_id_string = last_entry
+            .and_then(|e| match &e.uri.id {
+                PatchId::String(id_string) => Some(id_string.clone()),
+                _ => None,
+            })
+            .unwrap_or_default();
+        return Ok(PatchId::String(last_id_string));
+    };
+
+    let mut id_string: Vec<u8> = vec![0; id_string_length as usize];
+    id_string_data
+        .read_exact(id_string.as_mut_slice())
+        .map_err(|_| ReadError::MalformedData("ID string is out of bounds."))?;
+    Ok(PatchId::String(id_string))
+}
+
 fn compute_format2_new_entry_index(
     entry_data: &EntryData,
     last_entry_index: u32,
 ) -> Result<u32, ReadError> {
     let new_index = (last_entry_index as i64)
         + 1
-        + if let Some(id_delta) = entry_data.entry_id_delta() {
-            id_delta.to_i32() as i64
-        } else {
-            0
-        };
+        + entry_data
+            .entry_id_delta()
+            .map(|v| v.get() as i64)
+            .unwrap_or(0);
     if new_index.is_negative() {
         return Err(ReadError::MalformedData("Negative entry id encountered."));
     }
@@ -456,6 +501,12 @@ impl PatchEncoding {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+enum PatchId {
+    Numeric(u32),
+    String(Vec<u8>), // TODO(garretrieger): Make this a reference?
+}
+
 /// Stores the information needed to create the URI which points to and incremental font transfer patch.
 ///
 /// Stores a template and the arguments used to instantiate it. See:
@@ -465,8 +516,8 @@ impl PatchEncoding {
 /// the numeric index is supported.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct PatchUri {
-    template: String, // TODO: Make this a reference?
-    index: u32,       // TODO(garretrieger): define a maximum size in the spec and match it here.
+    template: String, // TODO(garretrieger): Make this a reference?
+    id: PatchId,
     encoding: PatchEncoding,
 }
 
@@ -474,7 +525,7 @@ impl PatchUri {
     fn from_index(uri_template: &str, entry_index: u32, encoding: PatchEncoding) -> PatchUri {
         PatchUri {
             template: uri_template.to_string(),
-            index: entry_index,
+            id: PatchId::Numeric(entry_index),
             encoding,
         }
     }
@@ -526,7 +577,7 @@ struct Entry {
 
     // Value
     uri: PatchUri,
-    compatibility_id: [u32; 4], // TODO: Make this a reference?
+    compatibility_id: [u32; 4], // TODO(garretrieger): Make this a reference?
 }
 
 impl Entry {
@@ -1188,12 +1239,15 @@ mod tests {
     }
 
     // TODO(garretrieger): test decoding of other entry features for format 2
+    // - id strings
+    //   - regular cases.
+    //   - cases where id string is copied from last entry (including where there is no last entry).
+    //   - cases where id string data is too short.
     // - invalid cases: add once spec has been updated with validation requirements.
     //   - start < end for ds segments
     //   - sparse bit set to short
     //   - negative entry indices
     //   - too large entry indices
-    // - id strings
     // - 24 bit bias.
     // - no codepoints
     // - ignored entries can still be copied
