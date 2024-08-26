@@ -66,14 +66,14 @@ impl<'a> NameString<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> traversal::SomeString<'a> for NameString<'a> {
     fn iter_chars(&self) -> Box<dyn Iterator<Item = char> + 'a> {
         Box::new(self.into_iter())
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl NameRecord {
     fn traverse_string<'a>(&self, data: FontData<'a>) -> traversal::FieldType<'a> {
         FieldType::StringOffset(traversal::StringOffset {
@@ -83,7 +83,7 @@ impl NameRecord {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl LangTagRecord {
     fn traverse_lang_tag<'a>(&self, data: FontData<'a>) -> traversal::FieldType<'a> {
         FieldType::StringOffset(traversal::StringOffset {

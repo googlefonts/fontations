@@ -197,7 +197,7 @@ impl<'a, T> FontRead<'a> for TypedLookup<'a, T> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a, T> SomeTable<'a> for TypedLookup<'a, T> {
     fn type_name(&self) -> &str {
         "TypedLookup"
@@ -362,7 +362,7 @@ impl<'a> FontRead<'a> for StateTable<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for StateTable<'a> {
     fn type_name(&self) -> &str {
         "StateTable"
@@ -422,7 +422,7 @@ impl<'a, T> FontRead<'a> for ExtendedStateTable<'a, T> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a, T> SomeTable<'a> for ExtendedStateTable<'a, T> {
     fn type_name(&self) -> &str {
         "ExtendedStateTable"

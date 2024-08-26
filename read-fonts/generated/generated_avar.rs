@@ -74,7 +74,7 @@ impl<'a> Avar<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Avar<'a> {
     fn type_name(&self) -> &str {
         "Avar"
@@ -96,7 +96,7 @@ impl<'a> SomeTable<'a> for Avar<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Avar<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -124,7 +124,7 @@ impl<'a> SegmentMaps<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for SegmentMaps<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -173,7 +173,7 @@ impl FixedSize for AxisValueMap {
     const RAW_BYTE_LEN: usize = F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for AxisValueMap {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {

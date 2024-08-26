@@ -62,7 +62,7 @@ impl<'a> FontRead<'a> for Ift<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> Ift<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
         match self {
@@ -72,14 +72,14 @@ impl<'a> Ift<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Ift<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Ift<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
@@ -266,7 +266,7 @@ impl<'a> PatchMapFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PatchMapFormat1<'a> {
     fn type_name(&self) -> &str {
         "PatchMapFormat1"
@@ -304,7 +304,7 @@ impl<'a> SomeTable<'a> for PatchMapFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PatchMapFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -384,7 +384,7 @@ impl<'a> GlyphMap<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for GlyphMap<'a> {
     fn type_name(&self) -> &str {
         "GlyphMap"
@@ -398,7 +398,7 @@ impl<'a> SomeTable<'a> for GlyphMap<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for GlyphMap<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -490,7 +490,7 @@ impl<'a> FeatureMap<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for FeatureMap<'a> {
     fn type_name(&self) -> &str {
         "FeatureMap"
@@ -505,7 +505,7 @@ impl<'a> SomeTable<'a> for FeatureMap<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for FeatureMap<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -578,7 +578,7 @@ impl<'a> FeatureRecord {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for FeatureRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -654,7 +654,7 @@ impl<'a> EntryMapRecord {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for EntryMapRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -811,7 +811,7 @@ impl<'a> PatchMapFormat2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PatchMapFormat2<'a> {
     fn type_name(&self) -> &str {
         "PatchMapFormat2"
@@ -846,7 +846,7 @@ impl<'a> SomeTable<'a> for PatchMapFormat2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PatchMapFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -886,7 +886,7 @@ impl<'a> MappingEntries<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MappingEntries<'a> {
     fn type_name(&self) -> &str {
         "MappingEntries"
@@ -899,7 +899,7 @@ impl<'a> SomeTable<'a> for MappingEntries<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for MappingEntries<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1158,7 +1158,7 @@ impl<'a> EntryData<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for EntryData<'a> {
     fn type_name(&self) -> &str {
         "EntryData"
@@ -1204,7 +1204,7 @@ impl<'a> SomeTable<'a> for EntryData<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for EntryData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1534,7 +1534,7 @@ impl font_types::Scalar for EntryFormatFlags {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<EntryFormatFlags> for FieldType<'a> {
     fn from(src: EntryFormatFlags) -> FieldType<'a> {
         src.bits().into()
@@ -1568,7 +1568,7 @@ impl FixedSize for DesignSpaceSegment {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Fixed::RAW_BYTE_LEN + Fixed::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for DesignSpaceSegment {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -1615,7 +1615,7 @@ impl<'a> IdStringData<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for IdStringData<'a> {
     fn type_name(&self) -> &str {
         "IdStringData"
@@ -1628,7 +1628,7 @@ impl<'a> SomeTable<'a> for IdStringData<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for IdStringData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

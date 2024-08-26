@@ -82,7 +82,7 @@ impl<'a> Ankr<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Ankr<'a> {
     fn type_name(&self) -> &str {
         "Ankr"
@@ -104,7 +104,7 @@ impl<'a> SomeTable<'a> for Ankr<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Ankr<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -158,7 +158,7 @@ impl<'a> GlyphDataEntry<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for GlyphDataEntry<'a> {
     fn type_name(&self) -> &str {
         "GlyphDataEntry"
@@ -179,7 +179,7 @@ impl<'a> SomeTable<'a> for GlyphDataEntry<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for GlyphDataEntry<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -209,7 +209,7 @@ impl FixedSize for AnchorPoint {
     const RAW_BYTE_LEN: usize = i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for AnchorPoint {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {

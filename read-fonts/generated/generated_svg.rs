@@ -64,7 +64,7 @@ impl<'a> Svg<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Svg<'a> {
     fn type_name(&self) -> &str {
         "Svg"
@@ -81,7 +81,7 @@ impl<'a> SomeTable<'a> for Svg<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Svg<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -137,7 +137,7 @@ impl<'a> SVGDocumentList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SVGDocumentList<'a> {
     fn type_name(&self) -> &str {
         "SVGDocumentList"
@@ -158,7 +158,7 @@ impl<'a> SomeTable<'a> for SVGDocumentList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for SVGDocumentList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -209,7 +209,7 @@ impl FixedSize for SVGDocumentRecord {
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for SVGDocumentRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {

@@ -104,7 +104,7 @@ impl<'a> Mvar<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Mvar<'a> {
     fn type_name(&self) -> &str {
         "Mvar"
@@ -134,7 +134,7 @@ impl<'a> SomeTable<'a> for Mvar<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Mvar<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -175,7 +175,7 @@ impl FixedSize for ValueRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for ValueRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {

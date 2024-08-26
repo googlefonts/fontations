@@ -9,7 +9,7 @@ use crate::{
 };
 use types::{BigEndian, GlyphId, Tag};
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 use crate::traversal;
 
 /// The [loca] table.
@@ -86,7 +86,7 @@ impl<'a> FontReadWithArgs<'a> for Loca<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> traversal::SomeTable<'a> for Loca<'a> {
     fn type_name(&self) -> &str {
         "loca"
@@ -100,7 +100,7 @@ impl<'a> traversal::SomeTable<'a> for Loca<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> traversal::SomeArray<'a> for Loca<'a> {
     fn len(&self) -> usize {
         self.len()
@@ -115,7 +115,7 @@ impl<'a> traversal::SomeArray<'a> for Loca<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Loca<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn traversal::SomeTable<'a>).fmt(f)

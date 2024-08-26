@@ -29,7 +29,7 @@ pub type Glyf<'a> = TableRef<'a, GlyfMarker>;
 
 impl<'a> Glyf<'a> {}
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Glyf<'a> {
     fn type_name(&self) -> &str {
         "Glyf"
@@ -44,7 +44,7 @@ impl<'a> SomeTable<'a> for Glyf<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Glyf<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -190,7 +190,7 @@ impl<'a> SimpleGlyph<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SimpleGlyph<'a> {
     fn type_name(&self) -> &str {
         "SimpleGlyph"
@@ -214,7 +214,7 @@ impl<'a> SomeTable<'a> for SimpleGlyph<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for SimpleGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -612,7 +612,7 @@ impl font_types::Scalar for SimpleGlyphFlags {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<SimpleGlyphFlags> for FieldType<'a> {
     fn from(src: SimpleGlyphFlags) -> FieldType<'a> {
         src.bits().into()
@@ -714,7 +714,7 @@ impl<'a> CompositeGlyph<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CompositeGlyph<'a> {
     fn type_name(&self) -> &str {
         "CompositeGlyph"
@@ -732,7 +732,7 @@ impl<'a> SomeTable<'a> for CompositeGlyph<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for CompositeGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1111,7 +1111,7 @@ impl font_types::Scalar for CompositeGlyphFlags {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<CompositeGlyphFlags> for FieldType<'a> {
     fn from(src: CompositeGlyphFlags) -> FieldType<'a> {
         src.bits().into()
@@ -1190,7 +1190,7 @@ impl<'a> FontRead<'a> for Glyph<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> Glyph<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
         match self {
@@ -1200,14 +1200,14 @@ impl<'a> Glyph<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Glyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Glyph<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()

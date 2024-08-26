@@ -20,7 +20,7 @@ impl<'a, T: FontRead<'a>> Lookup<'a, T> {
         self.resolve_offset(offset)
     }
 
-    #[cfg(feature = "traversal")]
+    #[cfg(feature = "experimental_traverse")]
     fn traverse_lookup_flag(&self) -> traversal::FieldType<'a> {
         self.lookup_flag().to_bits().into()
     }
@@ -118,7 +118,7 @@ impl<'a> FontReadWithArgs<'a> for FeatureParams<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for FeatureParams<'a> {
     fn type_name(&self) -> &str {
         match self {

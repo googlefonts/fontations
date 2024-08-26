@@ -228,7 +228,7 @@ impl<'a> Colr<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Colr<'a> {
     fn type_name(&self) -> &str {
         "Colr"
@@ -291,7 +291,7 @@ impl<'a> SomeTable<'a> for Colr<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Colr<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -332,7 +332,7 @@ impl FixedSize for BaseGlyph {
     const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for BaseGlyph {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -375,7 +375,7 @@ impl FixedSize for Layer {
     const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for Layer {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -437,7 +437,7 @@ impl<'a> BaseGlyphList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for BaseGlyphList<'a> {
     fn type_name(&self) -> &str {
         "BaseGlyphList"
@@ -461,7 +461,7 @@ impl<'a> SomeTable<'a> for BaseGlyphList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for BaseGlyphList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -503,7 +503,7 @@ impl FixedSize for BaseGlyphPaint {
     const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for BaseGlyphPaint {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -576,7 +576,7 @@ impl<'a> LayerList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LayerList<'a> {
     fn type_name(&self) -> &str {
         "LayerList"
@@ -603,7 +603,7 @@ impl<'a> SomeTable<'a> for LayerList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for LayerList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -668,7 +668,7 @@ impl<'a> ClipList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ClipList<'a> {
     fn type_name(&self) -> &str {
         "ClipList"
@@ -690,7 +690,7 @@ impl<'a> SomeTable<'a> for ClipList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for ClipList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -740,7 +740,7 @@ impl FixedSize for Clip {
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for Clip {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -827,7 +827,7 @@ impl<'a> FontRead<'a> for ClipBox<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> ClipBox<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
         match self {
@@ -837,14 +837,14 @@ impl<'a> ClipBox<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for ClipBox<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ClipBox<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
@@ -933,7 +933,7 @@ impl<'a> ClipBoxFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ClipBoxFormat1<'a> {
     fn type_name(&self) -> &str {
         "ClipBoxFormat1"
@@ -950,7 +950,7 @@ impl<'a> SomeTable<'a> for ClipBoxFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for ClipBoxFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1047,7 +1047,7 @@ impl<'a> ClipBoxFormat2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ClipBoxFormat2<'a> {
     fn type_name(&self) -> &str {
         "ClipBoxFormat2"
@@ -1065,7 +1065,7 @@ impl<'a> SomeTable<'a> for ClipBoxFormat2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for ClipBoxFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1099,7 +1099,7 @@ impl FixedSize for ColorIndex {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for ColorIndex {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -1148,7 +1148,7 @@ impl FixedSize for VarColorIndex {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for VarColorIndex {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -1198,7 +1198,7 @@ impl FixedSize for ColorStop {
     const RAW_BYTE_LEN: usize = F2Dot14::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for ColorStop {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -1256,7 +1256,7 @@ impl FixedSize for VarColorStop {
         F2Dot14::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for VarColorStop {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -1332,7 +1332,7 @@ impl<'a> ColorLine<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ColorLine<'a> {
     fn type_name(&self) -> &str {
         "ColorLine"
@@ -1354,7 +1354,7 @@ impl<'a> SomeTable<'a> for ColorLine<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for ColorLine<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1421,7 +1421,7 @@ impl<'a> VarColorLine<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for VarColorLine<'a> {
     fn type_name(&self) -> &str {
         "VarColorLine"
@@ -1443,7 +1443,7 @@ impl<'a> SomeTable<'a> for VarColorLine<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for VarColorLine<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1490,7 +1490,7 @@ impl font_types::Scalar for Extend {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<Extend> for FieldType<'a> {
     fn from(src: Extend) -> FieldType<'a> {
         (src as u8).into()
@@ -1675,7 +1675,7 @@ impl<'a> FontRead<'a> for Paint<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> Paint<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
         match self {
@@ -1715,14 +1715,14 @@ impl<'a> Paint<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Paint<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Paint<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
@@ -1789,7 +1789,7 @@ impl<'a> PaintColrLayers<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintColrLayers<'a> {
     fn type_name(&self) -> &str {
         "PaintColrLayers"
@@ -1804,7 +1804,7 @@ impl<'a> SomeTable<'a> for PaintColrLayers<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintColrLayers<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1868,7 +1868,7 @@ impl<'a> PaintSolid<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintSolid<'a> {
     fn type_name(&self) -> &str {
         "PaintSolid"
@@ -1883,7 +1883,7 @@ impl<'a> SomeTable<'a> for PaintSolid<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintSolid<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1958,7 +1958,7 @@ impl<'a> PaintVarSolid<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintVarSolid<'a> {
     fn type_name(&self) -> &str {
         "PaintVarSolid"
@@ -1974,7 +1974,7 @@ impl<'a> SomeTable<'a> for PaintVarSolid<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintVarSolid<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2099,7 +2099,7 @@ impl<'a> PaintLinearGradient<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintLinearGradient<'a> {
     fn type_name(&self) -> &str {
         "PaintLinearGradient"
@@ -2122,7 +2122,7 @@ impl<'a> SomeTable<'a> for PaintLinearGradient<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintLinearGradient<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2264,7 +2264,7 @@ impl<'a> PaintVarLinearGradient<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintVarLinearGradient<'a> {
     fn type_name(&self) -> &str {
         "PaintVarLinearGradient"
@@ -2288,7 +2288,7 @@ impl<'a> SomeTable<'a> for PaintVarLinearGradient<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintVarLinearGradient<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2413,7 +2413,7 @@ impl<'a> PaintRadialGradient<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintRadialGradient<'a> {
     fn type_name(&self) -> &str {
         "PaintRadialGradient"
@@ -2436,7 +2436,7 @@ impl<'a> SomeTable<'a> for PaintRadialGradient<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintRadialGradient<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2576,7 +2576,7 @@ impl<'a> PaintVarRadialGradient<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintVarRadialGradient<'a> {
     fn type_name(&self) -> &str {
         "PaintVarRadialGradient"
@@ -2600,7 +2600,7 @@ impl<'a> SomeTable<'a> for PaintVarRadialGradient<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintVarRadialGradient<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2705,7 +2705,7 @@ impl<'a> PaintSweepGradient<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintSweepGradient<'a> {
     fn type_name(&self) -> &str {
         "PaintSweepGradient"
@@ -2726,7 +2726,7 @@ impl<'a> SomeTable<'a> for PaintSweepGradient<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintSweepGradient<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2844,7 +2844,7 @@ impl<'a> PaintVarSweepGradient<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintVarSweepGradient<'a> {
     fn type_name(&self) -> &str {
         "PaintVarSweepGradient"
@@ -2866,7 +2866,7 @@ impl<'a> SomeTable<'a> for PaintVarSweepGradient<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintVarSweepGradient<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2936,7 +2936,7 @@ impl<'a> PaintGlyph<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintGlyph<'a> {
     fn type_name(&self) -> &str {
         "PaintGlyph"
@@ -2954,7 +2954,7 @@ impl<'a> SomeTable<'a> for PaintGlyph<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3007,7 +3007,7 @@ impl<'a> PaintColrGlyph<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintColrGlyph<'a> {
     fn type_name(&self) -> &str {
         "PaintColrGlyph"
@@ -3021,7 +3021,7 @@ impl<'a> SomeTable<'a> for PaintColrGlyph<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintColrGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3097,7 +3097,7 @@ impl<'a> PaintTransform<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintTransform<'a> {
     fn type_name(&self) -> &str {
         "PaintTransform"
@@ -3118,7 +3118,7 @@ impl<'a> SomeTable<'a> for PaintTransform<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintTransform<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3194,7 +3194,7 @@ impl<'a> PaintVarTransform<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintVarTransform<'a> {
     fn type_name(&self) -> &str {
         "PaintVarTransform"
@@ -3215,7 +3215,7 @@ impl<'a> SomeTable<'a> for PaintVarTransform<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintVarTransform<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3308,7 +3308,7 @@ impl<'a> Affine2x3<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Affine2x3<'a> {
     fn type_name(&self) -> &str {
         "Affine2x3"
@@ -3326,7 +3326,7 @@ impl<'a> SomeTable<'a> for Affine2x3<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Affine2x3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3434,7 +3434,7 @@ impl<'a> VarAffine2x3<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for VarAffine2x3<'a> {
     fn type_name(&self) -> &str {
         "VarAffine2x3"
@@ -3453,7 +3453,7 @@ impl<'a> SomeTable<'a> for VarAffine2x3<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for VarAffine2x3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3534,7 +3534,7 @@ impl<'a> PaintTranslate<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintTranslate<'a> {
     fn type_name(&self) -> &str {
         "PaintTranslate"
@@ -3553,7 +3553,7 @@ impl<'a> SomeTable<'a> for PaintTranslate<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintTranslate<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3645,7 +3645,7 @@ impl<'a> PaintVarTranslate<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintVarTranslate<'a> {
     fn type_name(&self) -> &str {
         "PaintVarTranslate"
@@ -3665,7 +3665,7 @@ impl<'a> SomeTable<'a> for PaintVarTranslate<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintVarTranslate<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3746,7 +3746,7 @@ impl<'a> PaintScale<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintScale<'a> {
     fn type_name(&self) -> &str {
         "PaintScale"
@@ -3765,7 +3765,7 @@ impl<'a> SomeTable<'a> for PaintScale<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintScale<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3859,7 +3859,7 @@ impl<'a> PaintVarScale<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintVarScale<'a> {
     fn type_name(&self) -> &str {
         "PaintVarScale"
@@ -3879,7 +3879,7 @@ impl<'a> SomeTable<'a> for PaintVarScale<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintVarScale<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3982,7 +3982,7 @@ impl<'a> PaintScaleAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintScaleAroundCenter<'a> {
     fn type_name(&self) -> &str {
         "PaintScaleAroundCenter"
@@ -4003,7 +4003,7 @@ impl<'a> SomeTable<'a> for PaintScaleAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintScaleAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4121,7 +4121,7 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintVarScaleAroundCenter<'a> {
     fn type_name(&self) -> &str {
         "PaintVarScaleAroundCenter"
@@ -4143,7 +4143,7 @@ impl<'a> SomeTable<'a> for PaintVarScaleAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintVarScaleAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4213,7 +4213,7 @@ impl<'a> PaintScaleUniform<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintScaleUniform<'a> {
     fn type_name(&self) -> &str {
         "PaintScaleUniform"
@@ -4231,7 +4231,7 @@ impl<'a> SomeTable<'a> for PaintScaleUniform<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintScaleUniform<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4313,7 +4313,7 @@ impl<'a> PaintVarScaleUniform<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintVarScaleUniform<'a> {
     fn type_name(&self) -> &str {
         "PaintVarScaleUniform"
@@ -4332,7 +4332,7 @@ impl<'a> SomeTable<'a> for PaintVarScaleUniform<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintVarScaleUniform<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4424,7 +4424,7 @@ impl<'a> PaintScaleUniformAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintScaleUniformAroundCenter<'a> {
     fn type_name(&self) -> &str {
         "PaintScaleUniformAroundCenter"
@@ -4444,7 +4444,7 @@ impl<'a> SomeTable<'a> for PaintScaleUniformAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintScaleUniformAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4551,7 +4551,7 @@ impl<'a> PaintVarScaleUniformAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintVarScaleUniformAroundCenter<'a> {
     fn type_name(&self) -> &str {
         "PaintVarScaleUniformAroundCenter"
@@ -4572,7 +4572,7 @@ impl<'a> SomeTable<'a> for PaintVarScaleUniformAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintVarScaleUniformAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4643,7 +4643,7 @@ impl<'a> PaintRotate<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintRotate<'a> {
     fn type_name(&self) -> &str {
         "PaintRotate"
@@ -4661,7 +4661,7 @@ impl<'a> SomeTable<'a> for PaintRotate<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintRotate<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4743,7 +4743,7 @@ impl<'a> PaintVarRotate<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintVarRotate<'a> {
     fn type_name(&self) -> &str {
         "PaintVarRotate"
@@ -4762,7 +4762,7 @@ impl<'a> SomeTable<'a> for PaintVarRotate<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintVarRotate<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4855,7 +4855,7 @@ impl<'a> PaintRotateAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintRotateAroundCenter<'a> {
     fn type_name(&self) -> &str {
         "PaintRotateAroundCenter"
@@ -4875,7 +4875,7 @@ impl<'a> SomeTable<'a> for PaintRotateAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintRotateAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4981,7 +4981,7 @@ impl<'a> PaintVarRotateAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintVarRotateAroundCenter<'a> {
     fn type_name(&self) -> &str {
         "PaintVarRotateAroundCenter"
@@ -5002,7 +5002,7 @@ impl<'a> SomeTable<'a> for PaintVarRotateAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintVarRotateAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -5085,7 +5085,7 @@ impl<'a> PaintSkew<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintSkew<'a> {
     fn type_name(&self) -> &str {
         "PaintSkew"
@@ -5104,7 +5104,7 @@ impl<'a> SomeTable<'a> for PaintSkew<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintSkew<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -5200,7 +5200,7 @@ impl<'a> PaintVarSkew<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintVarSkew<'a> {
     fn type_name(&self) -> &str {
         "PaintVarSkew"
@@ -5220,7 +5220,7 @@ impl<'a> SomeTable<'a> for PaintVarSkew<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintVarSkew<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -5325,7 +5325,7 @@ impl<'a> PaintSkewAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintSkewAroundCenter<'a> {
     fn type_name(&self) -> &str {
         "PaintSkewAroundCenter"
@@ -5346,7 +5346,7 @@ impl<'a> SomeTable<'a> for PaintSkewAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintSkewAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -5466,7 +5466,7 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintVarSkewAroundCenter<'a> {
     fn type_name(&self) -> &str {
         "PaintVarSkewAroundCenter"
@@ -5488,7 +5488,7 @@ impl<'a> SomeTable<'a> for PaintVarSkewAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintVarSkewAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -5575,7 +5575,7 @@ impl<'a> PaintComposite<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PaintComposite<'a> {
     fn type_name(&self) -> &str {
         "PaintComposite"
@@ -5597,7 +5597,7 @@ impl<'a> SomeTable<'a> for PaintComposite<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for PaintComposite<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -5694,7 +5694,7 @@ impl font_types::Scalar for CompositeMode {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<CompositeMode> for FieldType<'a> {
     fn from(src: CompositeMode) -> FieldType<'a> {
         (src as u8).into()

@@ -13,8 +13,10 @@ repository.workspace = true
 std = ["font-types/std"]
 codegen_test = []
 scaler_test = []
-traversal = ["std"]
-default = ["traversal"]
+# this feature is not stable, but provides untyped traversal of font tables.
+# we do not consider this feature public API for the purposes of semver.
+experimental_traverse = ["std"]
+default = ["experimental_traverse"]
 serde = ["dep:serde", "font-types/serde"]
 libm = ["dep:core_maths"]
 

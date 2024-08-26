@@ -44,7 +44,7 @@ impl font_types::Scalar for MyEnum1 {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<MyEnum1> for FieldType<'a> {
     fn from(src: MyEnum1) -> FieldType<'a> {
         (src as u16).into()
@@ -89,7 +89,7 @@ impl font_types::Scalar for MyEnum2 {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<MyEnum2> for FieldType<'a> {
     fn from(src: MyEnum2) -> FieldType<'a> {
         (src as u16).into()
@@ -118,7 +118,7 @@ impl FixedSize for MyRecord {
     const RAW_BYTE_LEN: usize = MyEnum1::RAW_BYTE_LEN + MyEnum2::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for MyRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {

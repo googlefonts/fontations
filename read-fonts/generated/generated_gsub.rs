@@ -120,7 +120,7 @@ impl<'a> Gsub<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Gsub<'a> {
     fn type_name(&self) -> &str {
         "Gsub"
@@ -153,7 +153,7 @@ impl<'a> SomeTable<'a> for Gsub<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Gsub<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -208,7 +208,7 @@ impl<'a> SubstitutionLookup<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SubstitutionLookup<'a> {
     fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
         match self {
@@ -224,7 +224,7 @@ impl<'a> SubstitutionLookup<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SubstitutionLookup<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         self.dyn_inner().get_field(idx)
@@ -234,7 +234,7 @@ impl<'a> SomeTable<'a> for SubstitutionLookup<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for SubstitutionLookup<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
@@ -286,7 +286,7 @@ impl<'a> FontRead<'a> for SingleSubst<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SingleSubst<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
         match self {
@@ -296,14 +296,14 @@ impl<'a> SingleSubst<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for SingleSubst<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SingleSubst<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
@@ -377,7 +377,7 @@ impl<'a> SingleSubstFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SingleSubstFormat1<'a> {
     fn type_name(&self) -> &str {
         "SingleSubstFormat1"
@@ -395,7 +395,7 @@ impl<'a> SomeTable<'a> for SingleSubstFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for SingleSubstFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -484,7 +484,7 @@ impl<'a> SingleSubstFormat2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SingleSubstFormat2<'a> {
     fn type_name(&self) -> &str {
         "SingleSubstFormat2"
@@ -506,7 +506,7 @@ impl<'a> SomeTable<'a> for SingleSubstFormat2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for SingleSubstFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -603,7 +603,7 @@ impl<'a> MultipleSubstFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MultipleSubstFormat1<'a> {
     fn type_name(&self) -> &str {
         "MultipleSubstFormat1"
@@ -635,7 +635,7 @@ impl<'a> SomeTable<'a> for MultipleSubstFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for MultipleSubstFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -692,7 +692,7 @@ impl<'a> Sequence<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Sequence<'a> {
     fn type_name(&self) -> &str {
         "Sequence"
@@ -709,7 +709,7 @@ impl<'a> SomeTable<'a> for Sequence<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Sequence<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -806,7 +806,7 @@ impl<'a> AlternateSubstFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AlternateSubstFormat1<'a> {
     fn type_name(&self) -> &str {
         "AlternateSubstFormat1"
@@ -841,7 +841,7 @@ impl<'a> SomeTable<'a> for AlternateSubstFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for AlternateSubstFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -897,7 +897,7 @@ impl<'a> AlternateSet<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AlternateSet<'a> {
     fn type_name(&self) -> &str {
         "AlternateSet"
@@ -914,7 +914,7 @@ impl<'a> SomeTable<'a> for AlternateSet<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for AlternateSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1011,7 +1011,7 @@ impl<'a> LigatureSubstFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigatureSubstFormat1<'a> {
     fn type_name(&self) -> &str {
         "LigatureSubstFormat1"
@@ -1043,7 +1043,7 @@ impl<'a> SomeTable<'a> for LigatureSubstFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for LigatureSubstFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1107,7 +1107,7 @@ impl<'a> LigatureSet<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigatureSet<'a> {
     fn type_name(&self) -> &str {
         "LigatureSet"
@@ -1134,7 +1134,7 @@ impl<'a> SomeTable<'a> for LigatureSet<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for LigatureSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1202,7 +1202,7 @@ impl<'a> Ligature<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Ligature<'a> {
     fn type_name(&self) -> &str {
         "Ligature"
@@ -1220,7 +1220,7 @@ impl<'a> SomeTable<'a> for Ligature<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Ligature<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1335,7 +1335,7 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionSubstFormat1<'a, T> {
     fn type_name(&self) -> &str {
         "ExtensionSubstFormat1"
@@ -1356,7 +1356,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionSubstF
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for ExtensionSubstFormat1<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1408,7 +1408,7 @@ impl<'a> ExtensionSubtable<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> ExtensionSubtable<'a> {
     fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
         match self {
@@ -1423,7 +1423,7 @@ impl<'a> ExtensionSubtable<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ExtensionSubtable<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         self.dyn_inner().get_field(idx)
@@ -1433,7 +1433,7 @@ impl<'a> SomeTable<'a> for ExtensionSubtable<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for ExtensionSubtable<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
@@ -1592,7 +1592,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
     fn type_name(&self) -> &str {
         "ReverseChainSingleSubstFormat1"
@@ -1650,7 +1650,7 @@ impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for ReverseChainSingleSubstFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

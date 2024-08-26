@@ -141,7 +141,7 @@ impl<'a> Gvar<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Gvar<'a> {
     fn type_name(&self) -> &str {
         "Gvar"
@@ -170,7 +170,7 @@ impl<'a> SomeTable<'a> for Gvar<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Gvar<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -471,7 +471,7 @@ impl font_types::Scalar for GvarFlags {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<GvarFlags> for FieldType<'a> {
     fn from(src: GvarFlags) -> FieldType<'a> {
         src.bits().into()
@@ -541,7 +541,7 @@ impl<'a> SharedTuples<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SharedTuples<'a> {
     fn type_name(&self) -> &str {
         "SharedTuples"
@@ -557,7 +557,7 @@ impl<'a> SomeTable<'a> for SharedTuples<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for SharedTuples<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -632,7 +632,7 @@ impl<'a> GlyphVariationDataHeader<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for GlyphVariationDataHeader<'a> {
     fn type_name(&self) -> &str {
         "GlyphVariationDataHeader"
@@ -656,7 +656,7 @@ impl<'a> SomeTable<'a> for GlyphVariationDataHeader<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for GlyphVariationDataHeader<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

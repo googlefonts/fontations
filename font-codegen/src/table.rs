@@ -256,7 +256,7 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
             }
         }
 
-        #[cfg(feature = "traversal")]
+        #[cfg(feature = "experimental_traverse")]
         impl<'a> #name <'a> {
             fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
                 match self {
@@ -265,7 +265,7 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
             }
         }
 
-        #[cfg(feature = "traversal")]
+        #[cfg(feature = "experimental_traverse")]
         impl<'a> SomeTable<'a> for #name <'a> {
 
             fn get_field(&self, idx: usize) -> Option<Field<'a>> {
@@ -277,7 +277,7 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
             }
         }
 
-        #[cfg(feature = "traversal")]
+        #[cfg(feature = "experimental_traverse")]
         impl<'a> std::fmt::Debug for #name<'a> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 self.dyn_inner().fmt(f)
@@ -311,7 +311,7 @@ fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
     });
 
     Ok(quote! {
-        #[cfg(feature = "traversal")]
+        #[cfg(feature = "experimental_traverse")]
         impl<'a, #generic #generic_bounds> SomeTable<'a> for #name <'a, #generic> {
             fn type_name(&self) -> &str {
                 #name_str
@@ -328,7 +328,7 @@ fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
             }
         }
 
-        #[cfg(feature = "traversal")]
+        #[cfg(feature = "experimental_traverse")]
         impl<'a, #generic #generic_bounds> std::fmt::Debug for #name<'a, #generic> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 (self as &dyn SomeTable<'a>).fmt(f)
@@ -842,7 +842,7 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
             }
         }
 
-        #[cfg(feature = "traversal")]
+        #[cfg(feature = "experimental_traverse")]
         impl<'a> #name<'a> {
             fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
                 match self {
@@ -851,14 +851,14 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
             }
         }
 
-        #[cfg(feature = "traversal")]
+        #[cfg(feature = "experimental_traverse")]
         impl<'a> std::fmt::Debug for #name<'a> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 self.dyn_inner().fmt(f)
             }
         }
 
-        #[cfg(feature = "traversal")]
+        #[cfg(feature = "experimental_traverse")]
         impl<'a> SomeTable<'a> for #name<'a> {
             fn type_name(&self) -> &str {
                 self.dyn_inner().type_name()

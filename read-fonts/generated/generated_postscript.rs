@@ -79,7 +79,7 @@ impl<'a> Index1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Index1<'a> {
     fn type_name(&self) -> &str {
         "Index1"
@@ -95,7 +95,7 @@ impl<'a> SomeTable<'a> for Index1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Index1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -176,7 +176,7 @@ impl<'a> Index2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Index2<'a> {
     fn type_name(&self) -> &str {
         "Index2"
@@ -192,7 +192,7 @@ impl<'a> SomeTable<'a> for Index2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Index2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -239,7 +239,7 @@ impl<'a> FontRead<'a> for FdSelect<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> FdSelect<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
         match self {
@@ -250,14 +250,14 @@ impl<'a> FdSelect<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for FdSelect<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for FdSelect<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
@@ -316,7 +316,7 @@ impl<'a> FdSelectFormat0<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for FdSelectFormat0<'a> {
     fn type_name(&self) -> &str {
         "FdSelectFormat0"
@@ -330,7 +330,7 @@ impl<'a> SomeTable<'a> for FdSelectFormat0<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for FdSelectFormat0<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -410,7 +410,7 @@ impl<'a> FdSelectFormat3<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for FdSelectFormat3<'a> {
     fn type_name(&self) -> &str {
         "FdSelectFormat3"
@@ -433,7 +433,7 @@ impl<'a> SomeTable<'a> for FdSelectFormat3<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for FdSelectFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -467,7 +467,7 @@ impl FixedSize for FdSelectRange3 {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for FdSelectRange3 {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -555,7 +555,7 @@ impl<'a> FdSelectFormat4<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for FdSelectFormat4<'a> {
     fn type_name(&self) -> &str {
         "FdSelectFormat4"
@@ -578,7 +578,7 @@ impl<'a> SomeTable<'a> for FdSelectFormat4<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for FdSelectFormat4<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -612,7 +612,7 @@ impl FixedSize for FdSelectRange4 {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for FdSelectRange4 {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {

@@ -69,7 +69,7 @@ impl<'a> Cmap<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cmap<'a> {
     fn type_name(&self) -> &str {
         "Cmap"
@@ -91,7 +91,7 @@ impl<'a> SomeTable<'a> for Cmap<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Cmap<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -144,7 +144,7 @@ impl FixedSize for EncodingRecord {
         PlatformId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for EncodingRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -207,7 +207,7 @@ impl font_types::Scalar for PlatformId {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<PlatformId> for FieldType<'a> {
     fn from(src: PlatformId) -> FieldType<'a> {
         (src as u16).into()
@@ -278,7 +278,7 @@ impl<'a> FontRead<'a> for CmapSubtable<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> CmapSubtable<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
         match self {
@@ -295,14 +295,14 @@ impl<'a> CmapSubtable<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for CmapSubtable<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CmapSubtable<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
@@ -388,7 +388,7 @@ impl<'a> Cmap0<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cmap0<'a> {
     fn type_name(&self) -> &str {
         "Cmap0"
@@ -404,7 +404,7 @@ impl<'a> SomeTable<'a> for Cmap0<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Cmap0<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -488,7 +488,7 @@ impl<'a> Cmap2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cmap2<'a> {
     fn type_name(&self) -> &str {
         "Cmap2"
@@ -504,7 +504,7 @@ impl<'a> SomeTable<'a> for Cmap2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Cmap2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -553,7 +553,7 @@ impl FixedSize for SubHeader {
         u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for SubHeader {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -762,7 +762,7 @@ impl<'a> Cmap4<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cmap4<'a> {
     fn type_name(&self) -> &str {
         "Cmap4"
@@ -786,7 +786,7 @@ impl<'a> SomeTable<'a> for Cmap4<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Cmap4<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -891,7 +891,7 @@ impl<'a> Cmap6<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cmap6<'a> {
     fn type_name(&self) -> &str {
         "Cmap6"
@@ -909,7 +909,7 @@ impl<'a> SomeTable<'a> for Cmap6<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Cmap6<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1026,7 +1026,7 @@ impl<'a> Cmap8<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cmap8<'a> {
     fn type_name(&self) -> &str {
         "Cmap8"
@@ -1051,7 +1051,7 @@ impl<'a> SomeTable<'a> for Cmap8<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Cmap8<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1100,7 +1100,7 @@ impl FixedSize for SequentialMapGroup {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for SequentialMapGroup {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -1218,7 +1218,7 @@ impl<'a> Cmap10<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cmap10<'a> {
     fn type_name(&self) -> &str {
         "Cmap10"
@@ -1236,7 +1236,7 @@ impl<'a> SomeTable<'a> for Cmap10<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Cmap10<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1333,7 +1333,7 @@ impl<'a> Cmap12<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cmap12<'a> {
     fn type_name(&self) -> &str {
         "Cmap12"
@@ -1357,7 +1357,7 @@ impl<'a> SomeTable<'a> for Cmap12<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Cmap12<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1454,7 +1454,7 @@ impl<'a> Cmap13<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cmap13<'a> {
     fn type_name(&self) -> &str {
         "Cmap13"
@@ -1478,7 +1478,7 @@ impl<'a> SomeTable<'a> for Cmap13<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Cmap13<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1521,7 +1521,7 @@ impl FixedSize for ConstantMapGroup {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for ConstantMapGroup {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -1612,7 +1612,7 @@ impl<'a> Cmap14<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cmap14<'a> {
     fn type_name(&self) -> &str {
         "Cmap14"
@@ -1638,7 +1638,7 @@ impl<'a> SomeTable<'a> for Cmap14<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Cmap14<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1705,7 +1705,7 @@ impl FixedSize for VariationSelector {
         Uint24::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for VariationSelector {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -1774,7 +1774,7 @@ impl<'a> DefaultUvs<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for DefaultUvs<'a> {
     fn type_name(&self) -> &str {
         "DefaultUvs"
@@ -1798,7 +1798,7 @@ impl<'a> SomeTable<'a> for DefaultUvs<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for DefaultUvs<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1852,7 +1852,7 @@ impl<'a> NonDefaultUvs<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for NonDefaultUvs<'a> {
     fn type_name(&self) -> &str {
         "NonDefaultUvs"
@@ -1873,7 +1873,7 @@ impl<'a> SomeTable<'a> for NonDefaultUvs<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for NonDefaultUvs<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1907,7 +1907,7 @@ impl FixedSize for UvsMapping {
     const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for UvsMapping {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -1949,7 +1949,7 @@ impl FixedSize for UnicodeRange {
     const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for UnicodeRange {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {

@@ -83,7 +83,7 @@ impl<'a> Vorg<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Vorg<'a> {
     fn type_name(&self) -> &str {
         "Vorg"
@@ -112,7 +112,7 @@ impl<'a> SomeTable<'a> for Vorg<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Vorg<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -146,7 +146,7 @@ impl FixedSize for VertOriginYMetrics {
     const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for VertOriginYMetrics {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {

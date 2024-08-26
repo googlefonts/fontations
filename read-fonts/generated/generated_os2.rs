@@ -351,7 +351,7 @@ impl font_types::Scalar for SelectionFlags {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<SelectionFlags> for FieldType<'a> {
     fn from(src: SelectionFlags) -> FieldType<'a> {
         src.bits().into()
@@ -913,7 +913,7 @@ impl<'a> Os2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Os2<'a> {
     fn type_name(&self) -> &str {
         "Os2"
@@ -1012,7 +1012,7 @@ impl<'a> SomeTable<'a> for Os2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Os2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

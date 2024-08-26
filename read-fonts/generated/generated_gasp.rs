@@ -65,7 +65,7 @@ impl<'a> Gasp<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Gasp<'a> {
     fn type_name(&self) -> &str {
         "Gasp"
@@ -87,7 +87,7 @@ impl<'a> SomeTable<'a> for Gasp<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Gasp<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -120,7 +120,7 @@ impl FixedSize for GaspRange {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + GaspRangeBehavior::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for GaspRange {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -451,7 +451,7 @@ impl font_types::Scalar for GaspRangeBehavior {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<GaspRangeBehavior> for FieldType<'a> {
     fn from(src: GaspRangeBehavior) -> FieldType<'a> {
         src.bits().into()

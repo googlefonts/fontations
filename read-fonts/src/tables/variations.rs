@@ -147,7 +147,7 @@ impl types::Scalar for TupleVariationCount {
 }
 
 impl<'a> TupleVariationHeader<'a> {
-    #[cfg(feature = "traversal")]
+    #[cfg(feature = "experimental_traverse")]
     fn traverse_tuple_index(&self) -> traversal::FieldType<'a> {
         self.tuple_index().0.into()
     }

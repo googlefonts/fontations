@@ -37,7 +37,7 @@ pub mod offsets_arrays {
     }
 
     #[test]
-    #[cfg(feature = "traversal")]
+    #[cfg(feature = "experimental_traverse")]
     fn array_offsets_traverse() {
         let mut builder = crate::test_helpers::BeBuffer::new()
             .push(MajorMinor::VERSION_1_1)

@@ -212,7 +212,7 @@ impl<'a> Cpal<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cpal<'a> {
     fn type_name(&self) -> &str {
         "Cpal"
@@ -266,7 +266,7 @@ impl<'a> SomeTable<'a> for Cpal<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Cpal<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -580,7 +580,7 @@ impl font_types::Scalar for PaletteType {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<PaletteType> for FieldType<'a> {
     fn from(src: PaletteType) -> FieldType<'a> {
         src.bits().into()
@@ -629,7 +629,7 @@ impl FixedSize for ColorRecord {
         u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for ColorRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {

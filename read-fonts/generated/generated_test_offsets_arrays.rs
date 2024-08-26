@@ -196,7 +196,7 @@ impl<'a> KindsOfOffsets<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
     fn type_name(&self) -> &str {
         "KindsOfOffsets"
@@ -255,7 +255,7 @@ impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for KindsOfOffsets<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -416,7 +416,7 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
     fn type_name(&self) -> &str {
         "KindsOfArraysOfOffsets"
@@ -487,7 +487,7 @@ impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for KindsOfArraysOfOffsets<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -619,7 +619,7 @@ impl<'a> KindsOfArrays<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for KindsOfArrays<'a> {
     fn type_name(&self) -> &str {
         "KindsOfArrays"
@@ -655,7 +655,7 @@ impl<'a> SomeTable<'a> for KindsOfArrays<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for KindsOfArrays<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -695,7 +695,7 @@ impl<'a> Dummy<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Dummy<'a> {
     fn type_name(&self) -> &str {
         "Dummy"
@@ -708,7 +708,7 @@ impl<'a> SomeTable<'a> for Dummy<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Dummy<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -737,7 +737,7 @@ impl FixedSize for Shmecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for Shmecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {

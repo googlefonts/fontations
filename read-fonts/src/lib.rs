@@ -78,7 +78,7 @@ mod read;
 mod table_provider;
 mod table_ref;
 pub mod tables;
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 pub mod traversal;
 
 #[cfg(any(test, feature = "codegen_test"))]
@@ -116,12 +116,12 @@ pub(crate) mod codegen_prelude {
 
     pub use types::*;
 
-    #[cfg(feature = "traversal")]
+    #[cfg(feature = "experimental_traverse")]
     pub use crate::traversal::{self, Field, FieldType, RecordResolver, SomeRecord, SomeTable};
 
     // used in generated traversal code to get type names of offset fields, which
     // may include generics
-    #[cfg(feature = "traversal")]
+    #[cfg(feature = "experimental_traverse")]
     pub(crate) fn better_type_name<T>() -> &'static str {
         let raw_name = std::any::type_name::<T>();
         let last = raw_name.rsplit("::").next().unwrap_or(raw_name);

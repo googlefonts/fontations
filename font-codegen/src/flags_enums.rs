@@ -294,7 +294,7 @@ pub(crate) fn generate_flags(raw: &BitFlags) -> proc_macro2::TokenStream {
             }
         }
 
-        #[cfg(feature = "traversal")]
+        #[cfg(feature = "experimental_traverse")]
         impl<'a> From<#name> for FieldType<'a> {
             fn from(src: #name) -> FieldType<'a> {
                 src.bits().into()
@@ -377,7 +377,7 @@ pub(crate) fn generate_raw_enum(raw: &RawEnum) -> TokenStream {
             }
         }
 
-        #[cfg(feature = "traversal")]
+        #[cfg(feature = "experimental_traverse")]
         impl<'a> From<#name> for FieldType<'a> {
             fn from(src: #name) -> FieldType<'a> {
                 (src as #typ).into()
