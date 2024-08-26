@@ -79,7 +79,7 @@ impl<'a> Feat<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Feat<'a> {
     fn type_name(&self) -> &str {
         "Feat"
@@ -101,7 +101,7 @@ impl<'a> SomeTable<'a> for Feat<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Feat<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -175,7 +175,7 @@ impl FixedSize for FeatureName {
         + NameId::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for FeatureName {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -246,7 +246,7 @@ impl<'a> SettingNameArray<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SettingNameArray<'a> {
     fn type_name(&self) -> &str {
         "SettingNameArray"
@@ -266,7 +266,7 @@ impl<'a> SomeTable<'a> for SettingNameArray<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for SettingNameArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -300,7 +300,7 @@ impl FixedSize for SettingName {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for SettingName {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {

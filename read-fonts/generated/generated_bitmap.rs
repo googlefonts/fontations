@@ -115,7 +115,7 @@ impl FixedSize for BitmapSize {
         + BitmapFlags::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for BitmapSize {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -230,7 +230,7 @@ impl FixedSize for SbitLineMetrics {
         + i8::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for SbitLineMetrics {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -562,7 +562,7 @@ impl font_types::Scalar for BitmapFlags {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<BitmapFlags> for FieldType<'a> {
     fn from(src: BitmapFlags) -> FieldType<'a> {
         src.bits().into()
@@ -645,7 +645,7 @@ impl FixedSize for BigGlyphMetrics {
         + u8::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for BigGlyphMetrics {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -718,7 +718,7 @@ impl FixedSize for SmallGlyphMetrics {
         + u8::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for SmallGlyphMetrics {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -789,7 +789,7 @@ impl<'a> IndexSubtableArray<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for IndexSubtableArray<'a> {
     fn type_name(&self) -> &str {
         "IndexSubtableArray"
@@ -807,7 +807,7 @@ impl<'a> SomeTable<'a> for IndexSubtableArray<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for IndexSubtableArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -884,7 +884,7 @@ impl<'a> FontRead<'a> for IndexSubtable<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> IndexSubtable<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
         match self {
@@ -897,14 +897,14 @@ impl<'a> IndexSubtable<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for IndexSubtable<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for IndexSubtable<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
@@ -987,7 +987,7 @@ impl<'a> IndexSubtable1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for IndexSubtable1<'a> {
     fn type_name(&self) -> &str {
         "IndexSubtable1"
@@ -1003,7 +1003,7 @@ impl<'a> SomeTable<'a> for IndexSubtable1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for IndexSubtable1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1094,7 +1094,7 @@ impl<'a> IndexSubtable2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for IndexSubtable2<'a> {
     fn type_name(&self) -> &str {
         "IndexSubtable2"
@@ -1118,7 +1118,7 @@ impl<'a> SomeTable<'a> for IndexSubtable2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for IndexSubtable2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1198,7 +1198,7 @@ impl<'a> IndexSubtable3<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for IndexSubtable3<'a> {
     fn type_name(&self) -> &str {
         "IndexSubtable3"
@@ -1214,7 +1214,7 @@ impl<'a> SomeTable<'a> for IndexSubtable3<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for IndexSubtable3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1307,7 +1307,7 @@ impl<'a> IndexSubtable4<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for IndexSubtable4<'a> {
     fn type_name(&self) -> &str {
         "IndexSubtable4"
@@ -1331,7 +1331,7 @@ impl<'a> SomeTable<'a> for IndexSubtable4<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for IndexSubtable4<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1365,7 +1365,7 @@ impl FixedSize for GlyphIdOffsetPair {
     const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for GlyphIdOffsetPair {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -1491,7 +1491,7 @@ impl<'a> IndexSubtable5<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for IndexSubtable5<'a> {
     fn type_name(&self) -> &str {
         "IndexSubtable5"
@@ -1517,7 +1517,7 @@ impl<'a> SomeTable<'a> for IndexSubtable5<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for IndexSubtable5<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1558,7 +1558,7 @@ impl FixedSize for BdtComponent {
     const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + i8::RAW_BYTE_LEN + i8::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for BdtComponent {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {

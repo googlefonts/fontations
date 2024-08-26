@@ -306,7 +306,7 @@ impl font_types::Scalar for HeaderFlags {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<HeaderFlags> for FieldType<'a> {
     fn from(src: HeaderFlags) -> FieldType<'a> {
         src.bits().into()
@@ -421,7 +421,7 @@ impl<'a> Sbix<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Sbix<'a> {
     fn type_name(&self) -> &str {
         "Sbix"
@@ -451,7 +451,7 @@ impl<'a> SomeTable<'a> for Sbix<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Sbix<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -534,7 +534,7 @@ impl<'a> Strike<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Strike<'a> {
     fn type_name(&self) -> &str {
         "Strike"
@@ -549,7 +549,7 @@ impl<'a> SomeTable<'a> for Strike<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Strike<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -623,7 +623,7 @@ impl<'a> GlyphData<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for GlyphData<'a> {
     fn type_name(&self) -> &str {
         "GlyphData"
@@ -639,7 +639,7 @@ impl<'a> SomeTable<'a> for GlyphData<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for GlyphData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

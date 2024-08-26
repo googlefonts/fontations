@@ -140,7 +140,7 @@ fn generate_traversal(item: &Record) -> syn::Result<TokenStream> {
     let field_arms = item.fields.iter_field_traversal_match_arms(true);
 
     Ok(quote! {
-        #[cfg(feature = "traversal")]
+        #[cfg(feature = "experimental_traverse")]
         impl<'a> SomeRecord<'a> for #name #lifetime {
             fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
                 RecordResolver {

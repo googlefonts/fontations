@@ -81,7 +81,7 @@ impl<'a> MajorMinorVersion<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MajorMinorVersion<'a> {
     fn type_name(&self) -> &str {
         "MajorMinorVersion"
@@ -102,7 +102,7 @@ impl<'a> SomeTable<'a> for MajorMinorVersion<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for MajorMinorVersion<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -407,7 +407,7 @@ impl font_types::Scalar for GotFlags {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<GotFlags> for FieldType<'a> {
     fn from(src: GotFlags) -> FieldType<'a> {
         src.bits().into()
@@ -508,7 +508,7 @@ impl<'a> FlagDay<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for FlagDay<'a> {
     fn type_name(&self) -> &str {
         "FlagDay"
@@ -528,7 +528,7 @@ impl<'a> SomeTable<'a> for FlagDay<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for FlagDay<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -659,7 +659,7 @@ impl<'a> FieldsAfterConditionals<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for FieldsAfterConditionals<'a> {
     fn type_name(&self) -> &str {
         "FieldsAfterConditionals"
@@ -679,7 +679,7 @@ impl<'a> SomeTable<'a> for FieldsAfterConditionals<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for FieldsAfterConditionals<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

@@ -167,7 +167,7 @@ impl<'a> Gdef<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Gdef<'a> {
     fn type_name(&self) -> &str {
         "Gdef"
@@ -211,7 +211,7 @@ impl<'a> SomeTable<'a> for Gdef<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Gdef<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -260,7 +260,7 @@ impl font_types::Scalar for GlyphClassDef {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<GlyphClassDef> for FieldType<'a> {
     fn from(src: GlyphClassDef) -> FieldType<'a> {
         (src as u16).into()
@@ -341,7 +341,7 @@ impl<'a> AttachList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AttachList<'a> {
     fn type_name(&self) -> &str {
         "AttachList"
@@ -372,7 +372,7 @@ impl<'a> SomeTable<'a> for AttachList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for AttachList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -428,7 +428,7 @@ impl<'a> AttachPoint<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AttachPoint<'a> {
     fn type_name(&self) -> &str {
         "AttachPoint"
@@ -442,7 +442,7 @@ impl<'a> SomeTable<'a> for AttachPoint<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for AttachPoint<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -523,7 +523,7 @@ impl<'a> LigCaretList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigCaretList<'a> {
     fn type_name(&self) -> &str {
         "LigCaretList"
@@ -554,7 +554,7 @@ impl<'a> SomeTable<'a> for LigCaretList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for LigCaretList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -618,7 +618,7 @@ impl<'a> LigGlyph<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigGlyph<'a> {
     fn type_name(&self) -> &str {
         "LigGlyph"
@@ -645,7 +645,7 @@ impl<'a> SomeTable<'a> for LigGlyph<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for LigGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -692,7 +692,7 @@ impl<'a> FontRead<'a> for CaretValue<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> CaretValue<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
         match self {
@@ -703,14 +703,14 @@ impl<'a> CaretValue<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for CaretValue<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CaretValue<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
@@ -766,7 +766,7 @@ impl<'a> CaretValueFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CaretValueFormat1<'a> {
     fn type_name(&self) -> &str {
         "CaretValueFormat1"
@@ -780,7 +780,7 @@ impl<'a> SomeTable<'a> for CaretValueFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for CaretValueFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -833,7 +833,7 @@ impl<'a> CaretValueFormat2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CaretValueFormat2<'a> {
     fn type_name(&self) -> &str {
         "CaretValueFormat2"
@@ -850,7 +850,7 @@ impl<'a> SomeTable<'a> for CaretValueFormat2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for CaretValueFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -922,7 +922,7 @@ impl<'a> CaretValueFormat3<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CaretValueFormat3<'a> {
     fn type_name(&self) -> &str {
         "CaretValueFormat3"
@@ -940,7 +940,7 @@ impl<'a> SomeTable<'a> for CaretValueFormat3<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for CaretValueFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1019,7 +1019,7 @@ impl<'a> MarkGlyphSets<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
     fn type_name(&self) -> &str {
         "MarkGlyphSets"
@@ -1050,7 +1050,7 @@ impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for MarkGlyphSets<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

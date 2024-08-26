@@ -88,7 +88,7 @@ impl<'a> Cvar<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cvar<'a> {
     fn type_name(&self) -> &str {
         "Cvar"
@@ -110,7 +110,7 @@ impl<'a> SomeTable<'a> for Cvar<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Cvar<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

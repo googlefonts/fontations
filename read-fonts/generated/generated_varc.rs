@@ -125,7 +125,7 @@ impl<'a> Varc<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Varc<'a> {
     fn type_name(&self) -> &str {
         "Varc"
@@ -161,7 +161,7 @@ impl<'a> SomeTable<'a> for Varc<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Varc<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -254,7 +254,7 @@ impl<'a> MultiItemVariationStore<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MultiItemVariationStore<'a> {
     fn type_name(&self) -> &str {
         "MultiItemVariationStore"
@@ -289,7 +289,7 @@ impl<'a> SomeTable<'a> for MultiItemVariationStore<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for MultiItemVariationStore<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -348,7 +348,7 @@ impl<'a> SparseVariationRegionList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SparseVariationRegionList<'a> {
     fn type_name(&self) -> &str {
         "SparseVariationRegionList"
@@ -375,7 +375,7 @@ impl<'a> SomeTable<'a> for SparseVariationRegionList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for SparseVariationRegionList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -427,7 +427,7 @@ impl<'a> SparseVariationRegion<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SparseVariationRegion<'a> {
     fn type_name(&self) -> &str {
         "SparseVariationRegion"
@@ -448,7 +448,7 @@ impl<'a> SomeTable<'a> for SparseVariationRegion<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for SparseVariationRegion<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -488,7 +488,7 @@ impl FixedSize for SparseRegionAxisCoordinates {
         u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for SparseRegionAxisCoordinates {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -578,7 +578,7 @@ impl<'a> MultiItemVariationData<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MultiItemVariationData<'a> {
     fn type_name(&self) -> &str {
         "MultiItemVariationData"
@@ -594,7 +594,7 @@ impl<'a> SomeTable<'a> for MultiItemVariationData<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for MultiItemVariationData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -653,7 +653,7 @@ impl<'a> ConditionList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ConditionList<'a> {
     fn type_name(&self) -> &str {
         "ConditionList"
@@ -680,7 +680,7 @@ impl<'a> SomeTable<'a> for ConditionList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for ConditionList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1078,7 +1078,7 @@ impl font_types::Scalar for VarcFlags {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<VarcFlags> for FieldType<'a> {
     fn from(src: VarcFlags) -> FieldType<'a> {
         src.bits().into()

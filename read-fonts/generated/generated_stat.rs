@@ -143,7 +143,7 @@ impl<'a> Stat<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Stat<'a> {
     fn type_name(&self) -> &str {
         "Stat"
@@ -180,7 +180,7 @@ impl<'a> SomeTable<'a> for Stat<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for Stat<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -227,7 +227,7 @@ impl FixedSize for AxisRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for AxisRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -305,7 +305,7 @@ impl<'a> AxisValueArray<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AxisValueArray<'a> {
     fn type_name(&self) -> &str {
         "AxisValueArray"
@@ -331,7 +331,7 @@ impl<'a> SomeTable<'a> for AxisValueArray<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for AxisValueArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -403,7 +403,7 @@ impl<'a> FontRead<'a> for AxisValue<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> AxisValue<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
         match self {
@@ -415,14 +415,14 @@ impl<'a> AxisValue<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for AxisValue<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AxisValue<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
@@ -514,7 +514,7 @@ impl<'a> AxisValueFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AxisValueFormat1<'a> {
     fn type_name(&self) -> &str {
         "AxisValueFormat1"
@@ -531,7 +531,7 @@ impl<'a> SomeTable<'a> for AxisValueFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for AxisValueFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -644,7 +644,7 @@ impl<'a> AxisValueFormat2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AxisValueFormat2<'a> {
     fn type_name(&self) -> &str {
         "AxisValueFormat2"
@@ -663,7 +663,7 @@ impl<'a> SomeTable<'a> for AxisValueFormat2<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for AxisValueFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -763,7 +763,7 @@ impl<'a> AxisValueFormat3<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AxisValueFormat3<'a> {
     fn type_name(&self) -> &str {
         "AxisValueFormat3"
@@ -781,7 +781,7 @@ impl<'a> SomeTable<'a> for AxisValueFormat3<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for AxisValueFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -877,7 +877,7 @@ impl<'a> AxisValueFormat4<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AxisValueFormat4<'a> {
     fn type_name(&self) -> &str {
         "AxisValueFormat4"
@@ -901,7 +901,7 @@ impl<'a> SomeTable<'a> for AxisValueFormat4<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for AxisValueFormat4<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -937,7 +937,7 @@ impl FixedSize for AxisValueRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Fixed::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for AxisValueRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -1263,7 +1263,7 @@ impl font_types::Scalar for AxisValueTableFlags {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<AxisValueTableFlags> for FieldType<'a> {
     fn from(src: AxisValueTableFlags) -> FieldType<'a> {
         src.bits().into()

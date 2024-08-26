@@ -6,7 +6,7 @@ use types::{BigEndian, FixedSize, Offset16};
 use super::ValueFormat;
 use crate::{tables::layout::DeviceOrVariationIndex, ResolveNullableOffset};
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 use crate::traversal::{Field, FieldType, RecordResolver, SomeRecord};
 use crate::{ComputeSize, FontData, FontReadWithArgs, ReadArgs, ReadError};
 
@@ -177,7 +177,7 @@ impl ComputeSize for ValueRecord {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> ValueRecord {
     pub(crate) fn traversal_type(&self, data: FontData<'a>) -> FieldType<'a> {
         FieldType::Record(self.clone().traverse(data))
@@ -220,7 +220,7 @@ impl<'a> ValueRecord {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for ValueRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {

@@ -644,7 +644,7 @@ impl Iterator for ComponentGlyphIdFlagsIter<'_> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Component {
     fn type_name(&self) -> &str {
         "Component"

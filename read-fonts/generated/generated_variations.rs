@@ -99,7 +99,7 @@ impl<'a> TupleVariationHeader<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for TupleVariationHeader<'a> {
     fn type_name(&self) -> &str {
         "TupleVariationHeader"
@@ -116,7 +116,7 @@ impl<'a> SomeTable<'a> for TupleVariationHeader<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for TupleVariationHeader<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -182,7 +182,7 @@ impl<'a> Tuple<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for Tuple<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -270,7 +270,7 @@ impl<'a> DeltaSetIndexMapFormat0<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for DeltaSetIndexMapFormat0<'a> {
     fn type_name(&self) -> &str {
         "DeltaSetIndexMapFormat0"
@@ -286,7 +286,7 @@ impl<'a> SomeTable<'a> for DeltaSetIndexMapFormat0<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for DeltaSetIndexMapFormat0<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -367,7 +367,7 @@ impl<'a> DeltaSetIndexMapFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for DeltaSetIndexMapFormat1<'a> {
     fn type_name(&self) -> &str {
         "DeltaSetIndexMapFormat1"
@@ -383,7 +383,7 @@ impl<'a> SomeTable<'a> for DeltaSetIndexMapFormat1<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for DeltaSetIndexMapFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -443,7 +443,7 @@ impl<'a> FontRead<'a> for DeltaSetIndexMap<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> DeltaSetIndexMap<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
         match self {
@@ -453,14 +453,14 @@ impl<'a> DeltaSetIndexMap<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for DeltaSetIndexMap<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for DeltaSetIndexMap<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
@@ -774,7 +774,7 @@ impl font_types::Scalar for EntryFormat {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> From<EntryFormat> for FieldType<'a> {
     fn from(src: EntryFormat) -> FieldType<'a> {
         src.bits().into()
@@ -843,7 +843,7 @@ impl<'a> VariationRegionList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for VariationRegionList<'a> {
     fn type_name(&self) -> &str {
         "VariationRegionList"
@@ -865,7 +865,7 @@ impl<'a> SomeTable<'a> for VariationRegionList<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for VariationRegionList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -923,7 +923,7 @@ impl<'a> VariationRegion<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for VariationRegion<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -979,7 +979,7 @@ impl FixedSize for RegionAxisCoordinates {
         F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for RegionAxisCoordinates {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
@@ -1083,7 +1083,7 @@ impl<'a> ItemVariationStore<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ItemVariationStore<'a> {
     fn type_name(&self) -> &str {
         "ItemVariationStore"
@@ -1121,7 +1121,7 @@ impl<'a> SomeTable<'a> for ItemVariationStore<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for ItemVariationStore<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1217,7 +1217,7 @@ impl<'a> ItemVariationData<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ItemVariationData<'a> {
     fn type_name(&self) -> &str {
         "ItemVariationData"
@@ -1234,7 +1234,7 @@ impl<'a> SomeTable<'a> for ItemVariationData<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> std::fmt::Debug for ItemVariationData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

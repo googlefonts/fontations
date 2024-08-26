@@ -12,7 +12,7 @@ repository.workspace = true
 [features]
 default = ["traversal"]
 std = ["read-fonts/std"]
-traversal = ["std", "read-fonts/traversal"]
+traversal = ["std", "read-fonts/experimental_traverse"]
 libm = ["dep:core_maths", "read-fonts/libm"]
 
 [dependencies]

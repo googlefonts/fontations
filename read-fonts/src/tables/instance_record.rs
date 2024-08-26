@@ -2,7 +2,7 @@
 
 use types::{BigEndian, Fixed, FixedSize, NameId};
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 use crate::traversal::{Field, RecordResolver, SomeRecord};
 use crate::{ComputeSize, FontData, FontReadWithArgs, ReadArgs, ReadError};
 
@@ -69,7 +69,7 @@ impl ComputeSize for InstanceRecord<'_> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> InstanceRecord<'a> {
     pub(crate) fn get_field(&self, idx: usize, _data: FontData<'a>) -> Option<Field<'a>> {
         match idx {
@@ -82,7 +82,7 @@ impl<'a> InstanceRecord<'a> {
     }
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for InstanceRecord<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {

@@ -347,7 +347,7 @@ fn read_big_metrics(cursor: &mut Cursor) -> Result<BigGlyphMetrics, ReadError> {
     Ok(cursor.read_array::<BigGlyphMetrics>(1)?[0])
 }
 
-#[cfg(feature = "traversal")]
+#[cfg(feature = "experimental_traverse")]
 impl SbitLineMetrics {
     pub(crate) fn traversal_type<'a>(&self, data: FontData<'a>) -> FieldType<'a> {
         FieldType::Record(self.traverse(data))

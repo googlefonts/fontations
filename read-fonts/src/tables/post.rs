@@ -33,7 +33,7 @@ impl<'a> Post<'a> {
 
     //FIXME: how do we want to traverse this? I want to stop needing to
     // add special cases for things...
-    #[cfg(feature = "traversal")]
+    #[cfg(feature = "experimental_traverse")]
     fn traverse_string_data(&self) -> FieldType<'a> {
         FieldType::I8(-42) // meaningless value
     }
