@@ -1,5 +1,6 @@
 FONTS:
 Roboto-Regular.abc.ttf
+Comfortaa-Regular-new.ttf
 NanumMyeongjo-Regular-subset.ttf
 
 PROFILES:
@@ -10,6 +11,7 @@ retain-gids.txt
 notdef-outline.txt
 no-prune-unicode-ranges.txt
 glyph-names.txt
+retain-gids-glyph-names.txt
 
 SUBSETS:
 abc

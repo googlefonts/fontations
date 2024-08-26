@@ -21,7 +21,9 @@ use write_fonts::{
     FontBuilder,
 };
 
-pub fn subset_glyf_loca(
+// reference: subset() for glyf/loca/head in harfbuzz
+// https://github.com/harfbuzz/harfbuzz/blob/main/src/OT/glyf/glyf.hh#L77
+pub(crate) fn subset_glyf_loca(
     plan: &Plan,
     font: &FontRef,
     builder: &mut FontBuilder,

@@ -162,6 +162,7 @@ fn field_type_name(field_type: &FieldType) -> Cow<'static, str> {
         FieldType::U16(_) => "u16".into(),
         FieldType::I32(_) => "i32".into(),
         FieldType::U32(_) => "u32".into(),
+        FieldType::I24(_) => "i24".into(),
         FieldType::U24(_) => "u24".into(),
         FieldType::Tag(_) => "Tag".into(),
         FieldType::FWord(_) => "FWord".into(),

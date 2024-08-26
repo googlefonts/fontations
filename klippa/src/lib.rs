@@ -4,12 +4,16 @@ mod glyf_loca;
 mod head;
 mod hmtx;
 mod maxp;
+mod os2;
 mod parsing_util;
+mod post;
 use glyf_loca::subset_glyf_loca;
 use head::subset_head;
 use hmtx::subset_hmtx_hhea;
 use maxp::subset_maxp;
-pub use parsing_util::{parse_unicodes, populate_gids};
+use os2::subset_os2;
+pub use parsing_util::{parse_drop_tables, parse_unicodes, populate_gids};
+use post::subset_post;
 
 use fnv::FnvHashMap;
 use skrifa::MetadataProvider;
@@ -25,6 +29,8 @@ use write_fonts::read::{
         head::Head,
         loca::Loca,
         name::Name,
+        os2::Os2,
+        post::Post,
     },
     FontRef, TableProvider, TopLevelTable,
 };
@@ -149,6 +155,7 @@ pub struct Plan {
     codepoint_to_glyph: FnvHashMap<u32, GlyphId>,
 
     subset_flags: SubsetFlags,
+    drop_tables: IntSet<Tag>,
 }
 
 impl Plan {
@@ -157,10 +164,12 @@ impl Plan {
         input_unicodes: &IntSet<u32>,
         font: &FontRef,
         flags: SubsetFlags,
+        drop_tables: &IntSet<Tag>,
     ) -> Self {
         let mut this = Plan {
             font_num_glyphs: get_font_num_glyphs(font),
             subset_flags: flags,
+            drop_tables: drop_tables.clone(),
             ..Default::default()
         };
 
@@ -255,8 +264,12 @@ impl Plan {
         //skip glyph closure for MATH table, it's not supported yet
 
         //glyph closure for COLR
-        self.colr_closure(font);
-        remove_invalid_gids(&mut self.glyphset_colred, self.font_num_glyphs);
+        if !self.drop_tables.contains(Tag::new(b"COLR")) {
+            self.colr_closure(font);
+            remove_invalid_gids(&mut self.glyphset_colred, self.font_num_glyphs);
+        } else {
+            self.glyphset_colred = self.glyphset_gsub.clone();
+        }
 
         /* Populate a full set of glyphs to retain by adding all referenced composite glyphs. */
         let loca = font.loca(None).expect("Error reading loca table");
@@ -395,6 +408,9 @@ pub enum SubsetError {
     #[error("Invalid unicode range {start}-{end}")]
     InvalidUnicodeRange { start: u32, end: u32 },
 
+    #[error("Invalid tag {0}")]
+    InvalidTag(String),
+
     #[error("Subsetting table '{0}' failed")]
     SubsetTableError(Tag),
 }
@@ -409,6 +425,9 @@ pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> 
 
     for record in font.table_directory.table_records() {
         let tag = record.tag();
+        if plan.drop_tables.contains(tag) {
+            continue;
+        }
         subset_table(tag, font, plan, &mut builder)?;
     }
     Ok(builder.build())
@@ -421,42 +440,33 @@ fn subset_table<'a>(
     builder: &mut FontBuilder<'a>,
 ) -> Result<(), SubsetError> {
     match tag {
-        Glyf::TAG => {
-            subset_glyf_loca(plan, font, builder)?;
-        }
-        Head::TAG => {
-            //handled by glyf table if exists
-            if let Ok(_glyf) = font.glyf() {
-                return Ok(());
-            } else {
-                subset_head(font, plan, builder)?;
-            }
-        }
+        Glyf::TAG => subset_glyf_loca(plan, font, builder),
+        //handled by glyf table if exists
+        Head::TAG => font
+            .glyf()
+            .map(|_| ())
+            .or_else(|_| subset_head(font, plan, builder)),
         //Skip, handled by Hmtx
-        Hhea::TAG => {
-            return Ok(());
-        }
+        Hhea::TAG => Ok(()),
 
-        Hmtx::TAG => {
-            subset_hmtx_hhea(font, plan, builder)?;
-        }
+        Hmtx::TAG => subset_hmtx_hhea(font, plan, builder),
         //Skip, handled by glyf
-        Loca::TAG => {
-            return Ok(());
-        }
+        Loca::TAG => Ok(()),
 
-        Maxp::TAG => {
-            subset_maxp(font, plan, builder)?;
-        }
+        Maxp::TAG => subset_maxp(font, plan, builder),
+
+        Os2::TAG => subset_os2(font, plan, builder),
+
+        Post::TAG => subset_post(font, plan, builder),
         _ => {
             if let Some(data) = font.data_for_tag(tag) {
                 builder.add_raw(tag, data);
+                Ok(())
             } else {
-                return Err(SubsetError::SubsetTableError(tag));
+                Err(SubsetError::SubsetTableError(tag))
             }
         }
     }
-    Ok(())
 }
 
 pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -> usize {

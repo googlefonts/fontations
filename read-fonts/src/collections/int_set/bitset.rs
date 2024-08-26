@@ -179,6 +179,10 @@ impl BitSet {
         self.len.get()
     }
 
+    pub(crate) fn num_pages(&self) -> usize {
+        self.pages.len()
+    }
+
     /// Sets the members of this set to the union of self and other.
     pub(crate) fn union(&mut self, other: &BitSet) {
         self.process(BitPage::union, other);
@@ -652,6 +656,29 @@ impl std::cmp::PartialEq for BitSet {
 }
 
 impl std::cmp::Eq for BitSet {}
+
+impl std::cmp::PartialOrd for BitSet {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl std::cmp::Ord for BitSet {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        let this_it = self.iter();
+        let other_it = other.iter();
+
+        for (us, them) in this_it.zip(other_it) {
+            match us.cmp(&them) {
+                core::cmp::Ordering::Equal => continue,
+                other => return other,
+            }
+        }
+
+        // all items in iter are the same: is one collection longer?
+        self.len().cmp(&other.len())
+    }
+}
 
 struct BitSetRangeIter<'a> {
     set: &'a BitSet,
@@ -1248,5 +1275,39 @@ mod test {
 
         let set = HashSet::from([bitset1]);
         assert!(set.contains(&bitset2));
+    }
+
+    #[test]
+    fn ordering() {
+        macro_rules! assert_ord {
+            ($lhs:expr, $rhs:expr, $ord:path) => {
+                assert_eq!(
+                    BitSet::from_iter($lhs).cmp(&BitSet::from_iter($rhs)),
+                    $ord,
+                    "{:?}, {:?}",
+                    $lhs,
+                    $rhs
+                )
+            };
+        }
+
+        const EMPTY: [u32; 0] = [];
+        assert_ord!(EMPTY, EMPTY, Ordering::Equal);
+        assert_ord!(EMPTY, [0], Ordering::Less);
+        assert_ord!([0], [0], Ordering::Equal);
+        assert_ord!([0, 1, 2], [1, 2, 3], Ordering::Less);
+        assert_ord!([0, 1, 4], [1, 2, 3], Ordering::Less);
+        assert_ord!([1, 2, 3], [0, 2, 4], Ordering::Greater);
+        assert_ord!([5, 4, 0], [1, 2, 3], Ordering::Less); // out of order
+        assert_ord!([1, 2, 3], [1, 2, 3, 4], Ordering::Less); // out of order
+        assert_ord!([2, 3, 4], [1, 2, 3, 4, 5], Ordering::Greater); // out of order
+
+        assert_ord!([1000, 2000, 3000], [1000, 2000, 3000, 4000], Ordering::Less); // out of order
+        assert_ord!([1000, 1001,], [1000, 2000], Ordering::Less); // out of order
+        assert_ord!(
+            [2000, 3000, 4000],
+            [1000, 2000, 3000, 4000, 5000],
+            Ordering::Greater
+        ); // out of order
     }
 }

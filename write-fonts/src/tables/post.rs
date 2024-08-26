@@ -14,21 +14,30 @@ pub struct PString(String);
 impl Post {
     /// Construct a new version 2.0 table from a glyph order.
     pub fn new_v2<'a>(order: impl IntoIterator<Item = &'a str>) -> Self {
-        let known_glyphs = read_fonts::tables::post::DEFAULT_GLYPH_NAMES
+        let standard_glyphs = read_fonts::tables::post::DEFAULT_GLYPH_NAMES
             .iter()
             .enumerate()
             .map(|(i, name)| (*name, i as u16))
             .collect::<HashMap<_, _>>();
+        const NUM_STANDARD: usize = 258;
         let mut name_index = Vec::new();
         let mut storage = Vec::new();
+        let mut visited_names = HashMap::new();
 
         for name in order {
-            match known_glyphs.get(name) {
+            match standard_glyphs.get(name) {
                 Some(i) => name_index.push(*i),
                 None => {
-                    let idx = (known_glyphs.len() + storage.len()).try_into().unwrap();
+                    let idx = match visited_names.get(name) {
+                        Some(i) => *i,
+                        None => {
+                            let idx = (NUM_STANDARD + storage.len()).try_into().unwrap();
+                            visited_names.insert(name, idx);
+                            storage.push(PString(name.into()));
+                            idx
+                        }
+                    };
                     name_index.push(idx);
-                    storage.push(PString(name.into()));
                 }
             }
         }
@@ -98,5 +107,30 @@ mod tests {
         assert_eq!(loaded.glyph_name(GlyphId16::new(1)), Some("A"));
         assert_eq!(loaded.glyph_name(GlyphId16::new(4)), Some("flarb"));
         assert_eq!(loaded.glyph_name(GlyphId16::new(5)), Some("C"));
+    }
+
+    #[test]
+    fn compilev2_with_duplicates() {
+        let post = Post::new_v2([".dotdef", "A", "flarb", "C", "A", "flarb"]);
+        let dumped = crate::dump_table(&post).unwrap();
+        let loaded = read_fonts::tables::post::Post::read(FontData::new(&dumped)).unwrap();
+
+        assert_eq!(post.num_glyphs, Some(6));
+        assert_eq!(post.glyph_name_index.as_ref().unwrap().len(), 6);
+        assert_eq!(post.glyph_name_index.as_ref().unwrap().first(), Some(&258));
+        assert_eq!(post.glyph_name_index.as_ref().unwrap().get(1), Some(&36));
+        assert_eq!(post.glyph_name_index.as_ref().unwrap().get(2), Some(&259));
+        assert_eq!(post.glyph_name_index.as_ref().unwrap().get(3), Some(&38));
+        assert_eq!(post.glyph_name_index.as_ref().unwrap().get(4), Some(&36));
+        assert_eq!(post.glyph_name_index.as_ref().unwrap().get(5), Some(&259));
+        assert_eq!(post.string_data.unwrap().len(), 2);
+
+        assert_eq!(loaded.version(), Version16Dot16::VERSION_2_0);
+        assert_eq!(loaded.num_glyphs(), Some(6));
+        assert_eq!(loaded.glyph_name(GlyphId16::new(1)), Some("A"));
+        assert_eq!(loaded.glyph_name(GlyphId16::new(2)), Some("flarb"));
+        assert_eq!(loaded.glyph_name(GlyphId16::new(3)), Some("C"));
+        assert_eq!(loaded.glyph_name(GlyphId16::new(4)), Some("A"));
+        assert_eq!(loaded.glyph_name(GlyphId16::new(5)), Some("flarb"));
     }
 }

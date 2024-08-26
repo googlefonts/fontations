@@ -27,6 +27,28 @@ impl<'a> Ift<'a> {
             Self::Format2(item) => item.format(),
         }
     }
+
+    /// Unique ID that identifies compatible patches.
+    pub fn compatibility_id(&self) -> &'a [BigEndian<u32>] {
+        match self {
+            Self::Format1(item) => item.compatibility_id(),
+            Self::Format2(item) => item.compatibility_id(),
+        }
+    }
+
+    pub fn uri_template_length(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.uri_template_length(),
+            Self::Format2(item) => item.uri_template_length(),
+        }
+    }
+
+    pub fn uri_template(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.uri_template(),
+            Self::Format2(item) => item.uri_template(),
+        }
+    }
 }
 
 impl<'a> FontRead<'a> for Ift<'a> {
@@ -103,7 +125,7 @@ impl PatchMapFormat1Marker {
     }
     fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.max_glyph_map_entry_index_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        start..start + Uint24::RAW_BYTE_LEN
     }
     fn glyph_map_offset_byte_range(&self) -> Range<usize> {
         let start = self.glyph_count_byte_range().end;
@@ -142,7 +164,7 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
         cursor.advance_by(compatibility_id_byte_len);
         let max_entry_index: u16 = cursor.read()?;
         cursor.advance::<u16>();
-        cursor.advance::<u32>();
+        cursor.advance::<Uint24>();
         cursor.advance::<Offset32>();
         cursor.advance::<Offset32>();
         let applied_entries_bitmap_byte_len = (transforms::bitmap_len(max_entry_index + 1))
@@ -191,7 +213,7 @@ impl<'a> PatchMapFormat1<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    pub fn glyph_count(&self) -> u32 {
+    pub fn glyph_count(&self) -> Uint24 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -308,11 +330,11 @@ impl GlyphMapMarker {
 }
 
 impl ReadArgs for GlyphMap<'_> {
-    type Args = (u32, u16);
+    type Args = (Uint24, u16);
 }
 
 impl<'a> FontReadWithArgs<'a> for GlyphMap<'a> {
-    fn read_with_args(data: FontData<'a>, args: &(u32, u16)) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: &(Uint24, u16)) -> Result<Self, ReadError> {
         let (glyph_count, max_entry_index) = *args;
         let mut cursor = data.cursor();
         let first_mapped_glyph: u16 = cursor.read()?;
@@ -334,7 +356,7 @@ impl<'a> GlyphMap<'a> {
     /// parsed.
     pub fn read(
         data: FontData<'a>,
-        glyph_count: u32,
+        glyph_count: Uint24,
         max_entry_index: u16,
     ) -> Result<Self, ReadError> {
         let args = (glyph_count, max_entry_index);
@@ -657,19 +679,50 @@ impl Format<u8> for PatchMapFormat2Marker {
     const FORMAT: u8 = 2;
 }
 
-/// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
+/// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-2)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PatchMapFormat2Marker {}
+pub struct PatchMapFormat2Marker {
+    compatibility_id_byte_len: usize,
+    uri_template_byte_len: usize,
+}
 
 impl PatchMapFormat2Marker {
     fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn todo_byte_range(&self) -> Range<usize> {
+    fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
+    }
+    fn compatibility_id_byte_range(&self) -> Range<usize> {
+        let start = self._reserved_byte_range().end;
+        start..start + self.compatibility_id_byte_len
+    }
+    fn default_patch_encoding_byte_range(&self) -> Range<usize> {
+        let start = self.compatibility_id_byte_range().end;
+        start..start + u8::RAW_BYTE_LEN
+    }
+    fn entry_count_byte_range(&self) -> Range<usize> {
+        let start = self.default_patch_encoding_byte_range().end;
+        start..start + Uint24::RAW_BYTE_LEN
+    }
+    fn entries_offset_byte_range(&self) -> Range<usize> {
+        let start = self.entry_count_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+    fn entry_id_string_data_offset_byte_range(&self) -> Range<usize> {
+        let start = self.entries_offset_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+    fn uri_template_length_byte_range(&self) -> Range<usize> {
+        let start = self.entry_id_string_data_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn uri_template_byte_range(&self) -> Range<usize> {
+        let start = self.uri_template_length_byte_range().end;
+        start..start + self.uri_template_byte_len
     }
 }
 
@@ -678,11 +731,27 @@ impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
         cursor.advance::<u32>();
-        cursor.finish(PatchMapFormat2Marker {})
+        let compatibility_id_byte_len = (4_usize)
+            .checked_mul(u32::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        cursor.advance_by(compatibility_id_byte_len);
+        cursor.advance::<u8>();
+        cursor.advance::<Uint24>();
+        cursor.advance::<Offset32>();
+        cursor.advance::<Offset32>();
+        let uri_template_length: u16 = cursor.read()?;
+        let uri_template_byte_len = (uri_template_length as usize)
+            .checked_mul(u8::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        cursor.advance_by(uri_template_byte_len);
+        cursor.finish(PatchMapFormat2Marker {
+            compatibility_id_byte_len,
+            uri_template_byte_len,
+        })
     }
 }
 
-/// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
+/// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-2)
 pub type PatchMapFormat2<'a> = TableRef<'a, PatchMapFormat2Marker>;
 
 impl<'a> PatchMapFormat2<'a> {
@@ -692,9 +761,53 @@ impl<'a> PatchMapFormat2<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    pub fn todo(&self) -> u32 {
-        let range = self.shape.todo_byte_range();
+    /// Unique ID that identifies compatible patches.
+    pub fn compatibility_id(&self) -> &'a [BigEndian<u32>] {
+        let range = self.shape.compatibility_id_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    /// Patch format number for patches referenced by this mapping.
+    pub fn default_patch_encoding(&self) -> u8 {
+        let range = self.shape.default_patch_encoding_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn entry_count(&self) -> Uint24 {
+        let range = self.shape.entry_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn entries_offset(&self) -> Offset32 {
+        let range = self.shape.entries_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`entries_offset`][Self::entries_offset].
+    pub fn entries(&self) -> Result<MappingEntries<'a>, ReadError> {
+        let data = self.data;
+        self.entries_offset().resolve(data)
+    }
+
+    pub fn entry_id_string_data_offset(&self) -> Nullable<Offset32> {
+        let range = self.shape.entry_id_string_data_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`entry_id_string_data_offset`][Self::entry_id_string_data_offset].
+    pub fn entry_id_string_data(&self) -> Option<Result<IdStringData<'a>, ReadError>> {
+        let data = self.data;
+        self.entry_id_string_data_offset().resolve(data)
+    }
+
+    pub fn uri_template_length(&self) -> u16 {
+        let range = self.shape.uri_template_length_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn uri_template(&self) -> &'a [u8] {
+        let range = self.shape.uri_template_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
@@ -706,7 +819,28 @@ impl<'a> SomeTable<'a> for PatchMapFormat2<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("todo", self.todo())),
+            1usize => Some(Field::new("compatibility_id", self.compatibility_id())),
+            2usize => Some(Field::new(
+                "default_patch_encoding",
+                self.default_patch_encoding(),
+            )),
+            3usize => Some(Field::new("entry_count", self.entry_count())),
+            4usize => Some(Field::new(
+                "entries_offset",
+                FieldType::offset(self.entries_offset(), self.entries()),
+            )),
+            5usize => Some(Field::new(
+                "entry_id_string_data_offset",
+                FieldType::offset(
+                    self.entry_id_string_data_offset(),
+                    self.entry_id_string_data(),
+                ),
+            )),
+            6usize => Some(Field::new(
+                "uri_template_length",
+                self.uri_template_length(),
+            )),
+            7usize => Some(Field::new("uri_template", self.uri_template())),
             _ => None,
         }
     }
@@ -714,6 +848,788 @@ impl<'a> SomeTable<'a> for PatchMapFormat2<'a> {
 
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for PatchMapFormat2<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct MappingEntriesMarker {
+    entry_data_byte_len: usize,
+}
+
+impl MappingEntriesMarker {
+    fn entry_data_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + self.entry_data_byte_len
+    }
+}
+
+impl<'a> FontRead<'a> for MappingEntries<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let entry_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        cursor.advance_by(entry_data_byte_len);
+        cursor.finish(MappingEntriesMarker {
+            entry_data_byte_len,
+        })
+    }
+}
+
+pub type MappingEntries<'a> = TableRef<'a, MappingEntriesMarker>;
+
+impl<'a> MappingEntries<'a> {
+    pub fn entry_data(&self) -> &'a [u8] {
+        let range = self.shape.entry_data_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for MappingEntries<'a> {
+    fn type_name(&self) -> &str {
+        "MappingEntries"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("entry_data", self.entry_data())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for MappingEntries<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct EntryDataMarker {
+    feature_count_byte_start: Option<usize>,
+    feature_tags_byte_start: Option<usize>,
+    feature_tags_byte_len: Option<usize>,
+    design_space_count_byte_start: Option<usize>,
+    design_space_segments_byte_start: Option<usize>,
+    design_space_segments_byte_len: Option<usize>,
+    copy_count_byte_start: Option<usize>,
+    copy_indices_byte_start: Option<usize>,
+    copy_indices_byte_len: Option<usize>,
+    entry_id_delta_byte_start: Option<usize>,
+    patch_encoding_byte_start: Option<usize>,
+    codepoint_data_byte_len: usize,
+}
+
+impl EntryDataMarker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + EntryFormatFlags::RAW_BYTE_LEN
+    }
+    fn feature_count_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.feature_count_byte_start?;
+        Some(start..start + u8::RAW_BYTE_LEN)
+    }
+    fn feature_tags_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.feature_tags_byte_start?;
+        Some(start..start + self.feature_tags_byte_len?)
+    }
+    fn design_space_count_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.design_space_count_byte_start?;
+        Some(start..start + u16::RAW_BYTE_LEN)
+    }
+    fn design_space_segments_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.design_space_segments_byte_start?;
+        Some(start..start + self.design_space_segments_byte_len?)
+    }
+    fn copy_count_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.copy_count_byte_start?;
+        Some(start..start + u8::RAW_BYTE_LEN)
+    }
+    fn copy_indices_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.copy_indices_byte_start?;
+        Some(start..start + self.copy_indices_byte_len?)
+    }
+    fn entry_id_delta_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.entry_id_delta_byte_start?;
+        Some(start..start + Int24::RAW_BYTE_LEN)
+    }
+    fn patch_encoding_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.patch_encoding_byte_start?;
+        Some(start..start + u8::RAW_BYTE_LEN)
+    }
+    fn codepoint_data_byte_range(&self) -> Range<usize> {
+        let start = self
+            .patch_encoding_byte_range()
+            .map(|range| range.end)
+            .unwrap_or_else(|| {
+                self.entry_id_delta_byte_range()
+                    .map(|range| range.end)
+                    .unwrap_or_else(|| {
+                        self.copy_indices_byte_range()
+                            .map(|range| range.end)
+                            .unwrap_or_else(|| {
+                                self.copy_count_byte_range()
+                                    .map(|range| range.end)
+                                    .unwrap_or_else(|| {
+                                        self.design_space_segments_byte_range()
+                                            .map(|range| range.end)
+                                            .unwrap_or_else(|| {
+                                                self.design_space_count_byte_range()
+                                                    .map(|range| range.end)
+                                                    .unwrap_or_else(|| {
+                                                        self.feature_tags_byte_range()
+                                                            .map(|range| range.end)
+                                                            .unwrap_or_else(|| {
+                                                                self.feature_count_byte_range()
+                                                                    .map(|range| range.end)
+                                                                    .unwrap_or_else(|| {
+                                                                        self.format_byte_range().end
+                                                                    })
+                                                            })
+                                                    })
+                                            })
+                                    })
+                            })
+                    })
+            });
+        start..start + self.codepoint_data_byte_len
+    }
+}
+
+impl<'a> FontRead<'a> for EntryData<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let format: EntryFormatFlags = cursor.read()?;
+        let feature_count_byte_start = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| cursor.position())
+            .transpose()?;
+        let feature_count = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| cursor.read::<u8>())
+            .transpose()?
+            .unwrap_or(0);
+        let feature_tags_byte_start = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| cursor.position())
+            .transpose()?;
+        let feature_tags_byte_len = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then_some(
+                (feature_count as usize)
+                    .checked_mul(Tag::RAW_BYTE_LEN)
+                    .ok_or(ReadError::OutOfBounds)?,
+            );
+        if let Some(value) = feature_tags_byte_len {
+            cursor.advance_by(value);
+        }
+        let design_space_count_byte_start = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| cursor.position())
+            .transpose()?;
+        let design_space_count = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| cursor.read::<u16>())
+            .transpose()?
+            .unwrap_or(0);
+        let design_space_segments_byte_start = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then(|| cursor.position())
+            .transpose()?;
+        let design_space_segments_byte_len = format
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+            .then_some(
+                (design_space_count as usize)
+                    .checked_mul(DesignSpaceSegment::RAW_BYTE_LEN)
+                    .ok_or(ReadError::OutOfBounds)?,
+            );
+        if let Some(value) = design_space_segments_byte_len {
+            cursor.advance_by(value);
+        }
+        let copy_count_byte_start = format
+            .contains(EntryFormatFlags::COPY_INDICES)
+            .then(|| cursor.position())
+            .transpose()?;
+        let copy_count = format
+            .contains(EntryFormatFlags::COPY_INDICES)
+            .then(|| cursor.read::<u8>())
+            .transpose()?
+            .unwrap_or(0);
+        let copy_indices_byte_start = format
+            .contains(EntryFormatFlags::COPY_INDICES)
+            .then(|| cursor.position())
+            .transpose()?;
+        let copy_indices_byte_len = format.contains(EntryFormatFlags::COPY_INDICES).then_some(
+            (copy_count as usize)
+                .checked_mul(Uint24::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?,
+        );
+        if let Some(value) = copy_indices_byte_len {
+            cursor.advance_by(value);
+        }
+        let entry_id_delta_byte_start = format
+            .contains(EntryFormatFlags::ENTRY_ID_DELTA)
+            .then(|| cursor.position())
+            .transpose()?;
+        format
+            .contains(EntryFormatFlags::ENTRY_ID_DELTA)
+            .then(|| cursor.advance::<Int24>());
+        let patch_encoding_byte_start = format
+            .contains(EntryFormatFlags::PATCH_ENCODING)
+            .then(|| cursor.position())
+            .transpose()?;
+        format
+            .contains(EntryFormatFlags::PATCH_ENCODING)
+            .then(|| cursor.advance::<u8>());
+        let codepoint_data_byte_len =
+            cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        cursor.advance_by(codepoint_data_byte_len);
+        cursor.finish(EntryDataMarker {
+            feature_count_byte_start,
+            feature_tags_byte_start,
+            feature_tags_byte_len,
+            design_space_count_byte_start,
+            design_space_segments_byte_start,
+            design_space_segments_byte_len,
+            copy_count_byte_start,
+            copy_indices_byte_start,
+            copy_indices_byte_len,
+            entry_id_delta_byte_start,
+            patch_encoding_byte_start,
+            codepoint_data_byte_len,
+        })
+    }
+}
+
+pub type EntryData<'a> = TableRef<'a, EntryDataMarker>;
+
+impl<'a> EntryData<'a> {
+    pub fn format(&self) -> EntryFormatFlags {
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn feature_count(&self) -> Option<u8> {
+        let range = self.shape.feature_count_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn feature_tags(&self) -> Option<&'a [BigEndian<Tag>]> {
+        let range = self.shape.feature_tags_byte_range()?;
+        Some(self.data.read_array(range).unwrap())
+    }
+
+    pub fn design_space_count(&self) -> Option<u16> {
+        let range = self.shape.design_space_count_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn design_space_segments(&self) -> Option<&'a [DesignSpaceSegment]> {
+        let range = self.shape.design_space_segments_byte_range()?;
+        Some(self.data.read_array(range).unwrap())
+    }
+
+    pub fn copy_count(&self) -> Option<u8> {
+        let range = self.shape.copy_count_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn copy_indices(&self) -> Option<&'a [BigEndian<Uint24>]> {
+        let range = self.shape.copy_indices_byte_range()?;
+        Some(self.data.read_array(range).unwrap())
+    }
+
+    pub fn entry_id_delta(&self) -> Option<Int24> {
+        let range = self.shape.entry_id_delta_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn patch_encoding(&self) -> Option<u8> {
+        let range = self.shape.patch_encoding_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn codepoint_data(&self) -> &'a [u8] {
+        let range = self.shape.codepoint_data_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for EntryData<'a> {
+    fn type_name(&self) -> &str {
+        "EntryData"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let format = self.format();
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize if format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => {
+                Some(Field::new("feature_count", self.feature_count().unwrap()))
+            }
+            2usize if format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => {
+                Some(Field::new("feature_tags", self.feature_tags().unwrap()))
+            }
+            3usize if format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => Some(
+                Field::new("design_space_count", self.design_space_count().unwrap()),
+            ),
+            4usize if format.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) => {
+                Some(Field::new(
+                    "design_space_segments",
+                    traversal::FieldType::array_of_records(
+                        stringify!(DesignSpaceSegment),
+                        self.design_space_segments().unwrap(),
+                        self.offset_data(),
+                    ),
+                ))
+            }
+            5usize if format.contains(EntryFormatFlags::COPY_INDICES) => {
+                Some(Field::new("copy_count", self.copy_count().unwrap()))
+            }
+            6usize if format.contains(EntryFormatFlags::COPY_INDICES) => {
+                Some(Field::new("copy_indices", self.copy_indices().unwrap()))
+            }
+            7usize if format.contains(EntryFormatFlags::ENTRY_ID_DELTA) => {
+                Some(Field::new("entry_id_delta", self.entry_id_delta().unwrap()))
+            }
+            8usize if format.contains(EntryFormatFlags::PATCH_ENCODING) => {
+                Some(Field::new("patch_encoding", self.patch_encoding().unwrap()))
+            }
+            9usize => Some(Field::new("codepoint_data", self.codepoint_data())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for EntryData<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
+pub struct EntryFormatFlags {
+    bits: u8,
+}
+
+impl EntryFormatFlags {
+    pub const FEATURES_AND_DESIGN_SPACE: Self = Self { bits: 0b00000001 };
+
+    pub const COPY_INDICES: Self = Self { bits: 0b00000010 };
+
+    pub const ENTRY_ID_DELTA: Self = Self { bits: 0b00000100 };
+
+    pub const PATCH_ENCODING: Self = Self { bits: 0b00001000 };
+
+    pub const CODEPOINTS_BIT_1: Self = Self { bits: 0b00010000 };
+
+    pub const CODEPOINTS_BIT_2: Self = Self { bits: 0b00100000 };
+
+    pub const IGNORED: Self = Self { bits: 0b01000000 };
+
+    pub const RESERVED: Self = Self { bits: 0b10000000 };
+}
+
+impl EntryFormatFlags {
+    ///  Returns an empty set of flags.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self { bits: 0 }
+    }
+
+    /// Returns the set containing all flags.
+    #[inline]
+    pub const fn all() -> Self {
+        Self {
+            bits: Self::FEATURES_AND_DESIGN_SPACE.bits
+                | Self::COPY_INDICES.bits
+                | Self::ENTRY_ID_DELTA.bits
+                | Self::PATCH_ENCODING.bits
+                | Self::CODEPOINTS_BIT_1.bits
+                | Self::CODEPOINTS_BIT_2.bits
+                | Self::IGNORED.bits
+                | Self::RESERVED.bits,
+        }
+    }
+
+    /// Returns the raw value of the flags currently stored.
+    #[inline]
+    pub const fn bits(&self) -> u8 {
+        self.bits
+    }
+
+    /// Convert from underlying bit representation, unless that
+    /// representation contains bits that do not correspond to a flag.
+    #[inline]
+    pub const fn from_bits(bits: u8) -> Option<Self> {
+        if (bits & !Self::all().bits()) == 0 {
+            Some(Self { bits })
+        } else {
+            None
+        }
+    }
+
+    /// Convert from underlying bit representation, dropping any bits
+    /// that do not correspond to flags.
+    #[inline]
+    pub const fn from_bits_truncate(bits: u8) -> Self {
+        Self {
+            bits: bits & Self::all().bits,
+        }
+    }
+
+    /// Returns `true` if no flags are currently stored.
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.bits() == Self::empty().bits()
+    }
+
+    /// Returns `true` if there are flags common to both `self` and `other`.
+    #[inline]
+    pub const fn intersects(&self, other: Self) -> bool {
+        !(Self {
+            bits: self.bits & other.bits,
+        })
+        .is_empty()
+    }
+
+    /// Returns `true` if all of the flags in `other` are contained within `self`.
+    #[inline]
+    pub const fn contains(&self, other: Self) -> bool {
+        (self.bits & other.bits) == other.bits
+    }
+
+    /// Inserts the specified flags in-place.
+    #[inline]
+    pub fn insert(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+
+    /// Removes the specified flags in-place.
+    #[inline]
+    pub fn remove(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+
+    /// Toggles the specified flags in-place.
+    #[inline]
+    pub fn toggle(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+
+    /// Returns the intersection between the flags in `self` and
+    /// `other`.
+    ///
+    /// Specifically, the returned set contains only the flags which are
+    /// present in *both* `self` *and* `other`.
+    ///
+    /// This is equivalent to using the `&` operator (e.g.
+    /// [`ops::BitAnd`]), as in `flags & other`.
+    ///
+    /// [`ops::BitAnd`]: https://doc.rust-lang.org/std/ops/trait.BitAnd.html
+    #[inline]
+    #[must_use]
+    pub const fn intersection(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+
+    /// Returns the union of between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags which are
+    /// present in *either* `self` *or* `other`, including any which are
+    /// present in both.
+    ///
+    /// This is equivalent to using the `|` operator (e.g.
+    /// [`ops::BitOr`]), as in `flags | other`.
+    ///
+    /// [`ops::BitOr`]: https://doc.rust-lang.org/std/ops/trait.BitOr.html
+    #[inline]
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+
+    /// Returns the difference between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags present in
+    /// `self`, except for the ones present in `other`.
+    ///
+    /// It is also conceptually equivalent to the "bit-clear" operation:
+    /// `flags & !other` (and this syntax is also supported).
+    ///
+    /// This is equivalent to using the `-` operator (e.g.
+    /// [`ops::Sub`]), as in `flags - other`.
+    ///
+    /// [`ops::Sub`]: https://doc.rust-lang.org/std/ops/trait.Sub.html
+    #[inline]
+    #[must_use]
+    pub const fn difference(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOr for EntryFormatFlags {
+    type Output = Self;
+
+    /// Returns the union of the two sets of flags.
+    #[inline]
+    fn bitor(self, other: EntryFormatFlags) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOrAssign for EntryFormatFlags {
+    /// Adds the set of flags.
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+}
+
+impl std::ops::BitXor for EntryFormatFlags {
+    type Output = Self;
+
+    /// Returns the left flags, but with all the right flags toggled.
+    #[inline]
+    fn bitxor(self, other: Self) -> Self {
+        Self {
+            bits: self.bits ^ other.bits,
+        }
+    }
+}
+
+impl std::ops::BitXorAssign for EntryFormatFlags {
+    /// Toggles the set of flags.
+    #[inline]
+    fn bitxor_assign(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+}
+
+impl std::ops::BitAnd for EntryFormatFlags {
+    type Output = Self;
+
+    /// Returns the intersection between the two sets of flags.
+    #[inline]
+    fn bitand(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+}
+
+impl std::ops::BitAndAssign for EntryFormatFlags {
+    /// Disables all flags disabled in the set.
+    #[inline]
+    fn bitand_assign(&mut self, other: Self) {
+        self.bits &= other.bits;
+    }
+}
+
+impl std::ops::Sub for EntryFormatFlags {
+    type Output = Self;
+
+    /// Returns the set difference of the two sets of flags.
+    #[inline]
+    fn sub(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::SubAssign for EntryFormatFlags {
+    /// Disables all flags enabled in the set.
+    #[inline]
+    fn sub_assign(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+}
+
+impl std::ops::Not for EntryFormatFlags {
+    type Output = Self;
+
+    /// Returns the complement of this set of flags.
+    #[inline]
+    fn not(self) -> Self {
+        Self { bits: !self.bits } & Self::all()
+    }
+}
+
+impl std::fmt::Debug for EntryFormatFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let members: &[(&str, Self)] = &[
+            ("FEATURES_AND_DESIGN_SPACE", Self::FEATURES_AND_DESIGN_SPACE),
+            ("COPY_INDICES", Self::COPY_INDICES),
+            ("ENTRY_ID_DELTA", Self::ENTRY_ID_DELTA),
+            ("PATCH_ENCODING", Self::PATCH_ENCODING),
+            ("CODEPOINTS_BIT_1", Self::CODEPOINTS_BIT_1),
+            ("CODEPOINTS_BIT_2", Self::CODEPOINTS_BIT_2),
+            ("IGNORED", Self::IGNORED),
+            ("RESERVED", Self::RESERVED),
+        ];
+        let mut first = true;
+        for (name, value) in members {
+            if self.contains(*value) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str(name)?;
+            }
+        }
+        if first {
+            f.write_str("(empty)")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Binary for EntryFormatFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Binary::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::Octal for EntryFormatFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Octal::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::LowerHex for EntryFormatFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::LowerHex::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::UpperHex for EntryFormatFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::UpperHex::fmt(&self.bits, f)
+    }
+}
+
+impl font_types::Scalar for EntryFormatFlags {
+    type Raw = <u8 as font_types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        self.bits().to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u8>::from_raw(raw);
+        Self::from_bits_truncate(t)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> From<EntryFormatFlags> for FieldType<'a> {
+    fn from(src: EntryFormatFlags) -> FieldType<'a> {
+        src.bits().into()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct DesignSpaceSegment {
+    pub axis_tag: BigEndian<Tag>,
+    pub start: BigEndian<Fixed>,
+    pub end: BigEndian<Fixed>,
+}
+
+impl DesignSpaceSegment {
+    pub fn axis_tag(&self) -> Tag {
+        self.axis_tag.get()
+    }
+
+    pub fn start(&self) -> Fixed {
+        self.start.get()
+    }
+
+    pub fn end(&self) -> Fixed {
+        self.end.get()
+    }
+}
+
+impl FixedSize for DesignSpaceSegment {
+    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Fixed::RAW_BYTE_LEN + Fixed::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for DesignSpaceSegment {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "DesignSpaceSegment",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("axis_tag", self.axis_tag())),
+                1usize => Some(Field::new("start", self.start())),
+                2usize => Some(Field::new("end", self.end())),
+                _ => None,
+            }),
+            data,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct IdStringDataMarker {
+    id_data_byte_len: usize,
+}
+
+impl IdStringDataMarker {
+    fn id_data_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + self.id_data_byte_len
+    }
+}
+
+impl<'a> FontRead<'a> for IdStringData<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let id_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        cursor.advance_by(id_data_byte_len);
+        cursor.finish(IdStringDataMarker { id_data_byte_len })
+    }
+}
+
+pub type IdStringData<'a> = TableRef<'a, IdStringDataMarker>;
+
+impl<'a> IdStringData<'a> {
+    pub fn id_data(&self) -> &'a [u8] {
+        let range = self.shape.id_data_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for IdStringData<'a> {
+    fn type_name(&self) -> &str {
+        "IdStringData"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("id_data", self.id_data())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for IdStringData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }

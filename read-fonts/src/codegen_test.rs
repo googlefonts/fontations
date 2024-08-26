@@ -153,6 +153,9 @@ pub mod conditions {
         if flags.contains(GotFlags::BAR) {
             buf = buf.push(0xba4_u16);
         }
+        if flags.contains(GotFlags::FOO) || flags.contains(GotFlags::BAZ) {
+            buf = buf.push(0xba2_u16);
+        }
         buf
     }
 
@@ -170,6 +173,7 @@ pub mod conditions {
         let table = FlagDay::read(data.font_data()).unwrap();
         assert_eq!(table.foo(), Some(0xf00));
         assert!(table.bar().is_none());
+        assert_eq!(table.baz(), Some(0xba2));
     }
 
     #[test]
@@ -178,6 +182,16 @@ pub mod conditions {
         let table = FlagDay::read(data.font_data()).unwrap();
         assert!(table.foo().is_none());
         assert_eq!(table.bar(), Some(0xba4));
+        assert!(table.baz().is_none());
+    }
+
+    #[test]
+    fn flags_baz() {
+        let data = make_flag_data(GotFlags::BAZ);
+        let table = FlagDay::read(data.font_data()).unwrap();
+        assert!(table.foo().is_none());
+        assert!(table.bar().is_none());
+        assert_eq!(table.baz(), Some(0xba2));
     }
 
     #[test]
@@ -186,5 +200,57 @@ pub mod conditions {
         let table = FlagDay::read(data.font_data()).unwrap();
         assert_eq!(table.foo(), Some(0xf00));
         assert_eq!(table.bar(), Some(0xba4));
+        assert_eq!(table.baz(), Some(0xba2));
+    }
+
+    #[test]
+    fn fields_after_conditions_all_none() {
+        let data = crate::test_helpers::BeBuffer::new()
+            .push(GotFlags::empty())
+            .extend([1u16, 2, 3]);
+
+        let table = FieldsAfterConditionals::read(data.font_data()).unwrap();
+        assert_eq!(table.always_here(), 1);
+        assert_eq!(table.also_always_here(), 2);
+        assert_eq!(table.and_me_too(), 3);
+    }
+
+    #[test]
+    #[should_panic(expected = "OutOfBounds")]
+    fn fields_after_conditions_wrong_len() {
+        let data = crate::test_helpers::BeBuffer::new()
+            .push(GotFlags::FOO)
+            .extend([1u16, 2, 3]);
+
+        let _table = FieldsAfterConditionals::read(data.font_data()).unwrap();
+    }
+
+    #[test]
+    fn fields_after_conditionals_one_present() {
+        let data = crate::test_helpers::BeBuffer::new()
+            .push(GotFlags::BAR)
+            .extend([1u16, 0xba4, 2, 3]);
+
+        let table = FieldsAfterConditionals::read(data.font_data()).unwrap();
+        assert_eq!(table.always_here(), 1);
+        assert_eq!(table.bar(), Some(0xba4));
+        assert_eq!(table.also_always_here(), 2);
+        assert!(table.foo().is_none() && table.baz().is_none());
+        assert_eq!(table.and_me_too(), 3);
+    }
+
+    #[test]
+    fn fields_after_conditions_all_present() {
+        let data = crate::test_helpers::BeBuffer::new()
+            .push(GotFlags::FOO | GotFlags::BAR | GotFlags::BAZ)
+            .extend([0xf00u16, 1, 0xba4, 0xba2, 2, 3]);
+
+        let table = FieldsAfterConditionals::read(data.font_data()).unwrap();
+        assert_eq!(table.foo(), Some(0xf00));
+        assert_eq!(table.always_here(), 1);
+        assert_eq!(table.bar(), Some(0xba4));
+        assert_eq!(table.baz(), Some(0xba2));
+        assert_eq!(table.also_always_here(), 2);
+        assert_eq!(table.and_me_too(), 3);
     }
 }

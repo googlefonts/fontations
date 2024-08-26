@@ -10,7 +10,9 @@ use write_fonts::{
     FontBuilder,
 };
 
-pub fn subset_maxp(
+// reference: subset() for maxp in harfbuzz
+// https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-ot-maxp-table.hh#L97
+pub(crate) fn subset_maxp(
     font: &FontRef,
     plan: &Plan,
     builder: &mut FontBuilder,

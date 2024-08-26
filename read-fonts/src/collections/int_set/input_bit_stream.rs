@@ -70,6 +70,11 @@ impl<'a, const BF: u8> InputBitStream<'a, BF> {
             sub_index: 0,
         }
     }
+
+    /// Returns the number of bytes consumed so far (including partially consumed).
+    pub(crate) fn bytes_consumed(&self) -> usize {
+        self.byte_index + if self.sub_index > 0 { 1 } else { 0 }
+    }
 }
 
 #[cfg(test)]
@@ -103,14 +108,22 @@ mod test {
     #[test]
     fn read_2() {
         let mut stream = InputBitStream::<2>::from(&[0b00000000, 0b11_10_01_00, 0b00_01_10_11]);
+        assert_eq!(stream.bytes_consumed(), 1); // Initially one byte consumed for the header.
+
         assert_eq!(stream.next(), Some(0b00));
+        assert_eq!(stream.bytes_consumed(), 2);
         assert_eq!(stream.next(), Some(0b01));
         assert_eq!(stream.next(), Some(0b10));
         assert_eq!(stream.next(), Some(0b11));
+        assert_eq!(stream.bytes_consumed(), 2);
+
         assert_eq!(stream.next(), Some(0b11));
+        assert_eq!(stream.bytes_consumed(), 3);
         assert_eq!(stream.next(), Some(0b10));
         assert_eq!(stream.next(), Some(0b01));
         assert_eq!(stream.next(), Some(0b00));
+        assert_eq!(stream.bytes_consumed(), 3);
+
         assert_eq!(stream.next(), None);
 
         let mut stream = InputBitStream::<2>::from(&[]);
@@ -120,10 +133,18 @@ mod test {
     #[test]
     fn read_4() {
         let mut stream = InputBitStream::<4>::from(&[0b00000000, 0b1110_0100, 0b0001_1011]);
+        assert_eq!(stream.bytes_consumed(), 1);
+
         assert_eq!(stream.next(), Some(0b0100));
+        assert_eq!(stream.bytes_consumed(), 2);
         assert_eq!(stream.next(), Some(0b1110));
+        assert_eq!(stream.bytes_consumed(), 2);
+
         assert_eq!(stream.next(), Some(0b1011));
+        assert_eq!(stream.bytes_consumed(), 3);
         assert_eq!(stream.next(), Some(0b0001));
+        assert_eq!(stream.bytes_consumed(), 3);
+
         assert_eq!(stream.next(), None);
 
         let mut stream = InputBitStream::<4>::from(&[]);
@@ -133,8 +154,11 @@ mod test {
     #[test]
     fn read_8() {
         let mut stream = InputBitStream::<8>::from(&[0b00000000, 0b11100100, 0b00011011]);
+        assert_eq!(stream.bytes_consumed(), 1);
         assert_eq!(stream.next(), Some(0b11100100));
+        assert_eq!(stream.bytes_consumed(), 2);
         assert_eq!(stream.next(), Some(0b00011011));
+        assert_eq!(stream.bytes_consumed(), 3);
         assert_eq!(stream.next(), None);
 
         let mut stream = InputBitStream::<8>::from(&[]);
@@ -146,7 +170,10 @@ mod test {
         let mut stream = InputBitStream::<32>::from(&[
             0b00000000, 0b00000000, 0b11111111, 0b11100100, 0b00011011,
         ]);
+
+        assert_eq!(stream.bytes_consumed(), 1);
         assert_eq!(stream.next(), Some(0b00011011_11100100_11111111_00000000));
+        assert_eq!(stream.bytes_consumed(), 5);
         assert_eq!(stream.next(), None);
 
         let mut stream = InputBitStream::<32>::from(&[

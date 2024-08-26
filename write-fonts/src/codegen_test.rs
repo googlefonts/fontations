@@ -85,6 +85,9 @@ mod enums {
 }
 
 pub mod conditions {
+    #[cfg(test)]
+    use read_fonts::test_helpers::BeBuffer;
+
     include!("../generated/generated_test_conditions.rs");
 
     #[test]
@@ -96,9 +99,57 @@ pub mod conditions {
     }
 
     #[test]
+    #[should_panic(expected = "if_cond is not satisfied but 'baz' is present.")]
+    fn field_present_flag_missing_any_flag() {
+        let mut flags_are_wrong = FlagDay::new(42, GotFlags::empty());
+        flags_are_wrong.baz = Some(0xf00);
+        crate::dump_table(&flags_are_wrong).unwrap();
+    }
+
+    #[test]
     #[should_panic(expected = "FOO is set but 'foo' is None")]
     fn flag_present_field_missing() {
         let flags_are_wrong = FlagDay::new(42, GotFlags::FOO);
         crate::dump_table(&flags_are_wrong).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "if_cond is satisfied by 'baz' is not present.")]
+    fn flag_present_field_missing_any_flags() {
+        let flags_are_wrong = FlagDay::new(42, GotFlags::BAZ);
+        crate::dump_table(&flags_are_wrong).unwrap();
+    }
+
+    #[test]
+    fn fields_after_conditions_empty() {
+        let table = FieldsAfterConditionals::new(GotFlags::empty(), 1, 2, 3);
+        let data = crate::dump_table(&table).unwrap();
+        let expected = BeBuffer::new().extend([0u16, 1, 2, 3]);
+        assert_eq!(expected.as_slice(), data);
+    }
+
+    #[test]
+    fn fields_after_conditions_one_present() {
+        let mut table = FieldsAfterConditionals::new(GotFlags::BAR, 1, 2, 3);
+        table.bar = Some(0xba4);
+        let data = crate::dump_table(&table).unwrap();
+        let expected = BeBuffer::new()
+            .push(GotFlags::BAR)
+            .extend([1u16, 0xba4, 2, 3]);
+        assert_eq!(expected.as_slice(), data);
+    }
+
+    #[test]
+    fn fields_after_conditions_all_present() {
+        let mut table =
+            FieldsAfterConditionals::new(GotFlags::BAR | GotFlags::BAZ | GotFlags::FOO, 1, 2, 3);
+        table.bar = Some(0xba4);
+        table.foo = Some(0xf00);
+        table.baz = Some(0xba2);
+        let data = crate::dump_table(&table).unwrap();
+        let expected = BeBuffer::new()
+            .push(GotFlags::BAR | GotFlags::BAZ | GotFlags::FOO)
+            .extend([0xf00u16, 1, 0xba4, 0xba2, 2, 3]);
+        assert_eq!(expected.as_slice(), data);
     }
 }

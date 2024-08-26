@@ -298,6 +298,7 @@ write_be_bytes!(u32);
 write_be_bytes!(i32);
 write_be_bytes!(i64);
 write_be_bytes!(types::Uint24);
+write_be_bytes!(types::Int24);
 write_be_bytes!(types::F2Dot14);
 write_be_bytes!(types::Fixed);
 write_be_bytes!(types::FWord);

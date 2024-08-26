@@ -7,9 +7,12 @@ use std::collections::BTreeSet;
 
 use crate::GlyphId;
 use crate::Tag;
-use raw::{FontData, FontRef};
+use raw::tables::ift::DesignSpaceSegment;
+use raw::tables::ift::EntryFormatFlags;
+use raw::types::Uint24;
+use raw::{FontData, FontRead, FontRef};
 use read_fonts::{
-    tables::ift::{EntryMapRecord, Ift, PatchMapFormat1},
+    tables::ift::{EntryData, EntryMapRecord, Ift, PatchMapFormat1, PatchMapFormat2},
     ReadError, TableProvider,
 };
 
@@ -47,7 +50,9 @@ fn add_intersecting_patches(
         Ift::Format1(format_1) => {
             add_intersecting_format1_patches(font, format_1, codepoints, features, patches)
         }
-        Ift::Format2(_) => todo!(),
+        Ift::Format2(format_2) => {
+            add_intersecting_format2_patches(format_2, codepoints, features, patches)
+        }
     }
 }
 
@@ -60,7 +65,7 @@ fn add_intersecting_format1_patches(
 ) -> Result<(), ReadError> {
     // Step 0: Top Level Field Validation
     let maxp = font.maxp()?;
-    if map.glyph_count() != maxp.num_glyphs() as u32 {
+    if map.glyph_count() != Uint24::new(maxp.num_glyphs() as u32) {
         return Err(ReadError::MalformedData(
             "IFT glyph count must match maxp glyph count.",
         ));
@@ -80,11 +85,7 @@ fn add_intersecting_format1_patches(
         ));
     };
 
-    let Some(encoding) = PatchEncoding::from_format_number(map.patch_encoding()) else {
-        return Err(ReadError::MalformedData(
-            "Unrecognized patch encoding format number.",
-        ));
-    };
+    let encoding = PatchEncoding::from_format_number(map.patch_encoding())?;
 
     // Step 1: Collect the glyph map entries.
     let mut entries = IntSet::<u16>::empty();
@@ -243,6 +244,146 @@ fn intersect_format1_feature_map(
     Ok(())
 }
 
+fn add_intersecting_format2_patches(
+    map: &PatchMapFormat2,
+    codepoints: &IntSet<u32>,
+    features: &BTreeSet<Tag>,
+    patches: &mut Vec<PatchUri>, // TODO(garretrieger): btree set to allow for de-duping?
+) -> Result<(), ReadError> {
+    let entries = decode_format2_entries(map)?;
+
+    for e in entries {
+        // TODO(garretrieger): skip ignored entries.
+        if !e.intersects(codepoints, features) {
+            continue;
+        }
+
+        patches.push(e.uri)
+    }
+
+    Ok(())
+}
+
+fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Entry>, ReadError> {
+    let compat_id = map.get_compatibility_id();
+    let uri_template = map.uri_template_as_string()?;
+    let entries_data = map.entries()?.entry_data();
+    let default_encoding = PatchEncoding::from_format_number(map.default_patch_encoding())?;
+
+    let mut entry_count = map.entry_count().to_u32();
+    let mut entries_data = FontData::new(entries_data);
+    let mut entries: Vec<Entry> = vec![];
+
+    while entry_count > 0 {
+        entries_data = decode_format2_entry(
+            entries_data,
+            &compat_id,
+            uri_template,
+            &default_encoding,
+            &mut entries,
+        )?;
+        entry_count -= 1;
+    }
+
+    Ok(entries)
+}
+
+fn decode_format2_entry<'a>(
+    data: FontData<'a>,
+    compat_id: &[u32; 4],
+    uri_template: &str,
+    default_encoding: &PatchEncoding,
+    entries: &mut Vec<Entry>,
+) -> Result<FontData<'a>, ReadError> {
+    let entry_data = EntryData::read(data)?;
+    let mut entry = Entry::new(uri_template, compat_id, default_encoding);
+    let last_entry_index = entries.last().map(|e| e.uri.index).unwrap_or(0);
+
+    // Features
+    if let Some(features) = entry_data.feature_tags() {
+        entry.feature_tags.extend(features.iter().map(|t| t.get()));
+    }
+
+    // TODO(garretrieger): load design space segments
+    // TODO(garretrieger): handle copy indices
+
+    // Entry ID
+    // TODO(garretrieger): handle the alternate ID string path.
+    entry.uri.index = compute_format2_new_entry_index(&entry_data, last_entry_index)?;
+
+    // Encoding
+    if let Some(patch_encoding) = entry_data.patch_encoding() {
+        entry.uri.encoding = PatchEncoding::from_format_number(patch_encoding)?;
+    }
+
+    // Codepoints
+    let (codepoints, remaining_data) = decode_format2_codepoints(&entry_data)?;
+    entry.codepoints = codepoints;
+
+    entries.push(entry);
+    Ok(FontData::new(remaining_data))
+}
+
+fn compute_format2_new_entry_index(
+    entry_data: &EntryData,
+    last_entry_index: u32,
+) -> Result<u32, ReadError> {
+    let new_index = (last_entry_index as i64)
+        + 1
+        + if let Some(id_delta) = entry_data.entry_id_delta() {
+            id_delta.to_i32() as i64
+        } else {
+            0
+        };
+    if new_index.is_negative() {
+        return Err(ReadError::MalformedData("Negative entry id encountered."));
+    }
+
+    u32::try_from(new_index).map_err(|_| {
+        ReadError::MalformedData("Entry index exceeded maximum size (unsigned 32 bit).")
+    })
+}
+
+fn decode_format2_codepoints<'a>(
+    entry_data: &EntryData<'a>,
+) -> Result<(IntSet<u32>, &'a [u8]), ReadError> {
+    let format = entry_data
+        .format()
+        .intersection(EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2);
+
+    let codepoint_data = entry_data.codepoint_data();
+
+    if format.bits() == 0 {
+        return Ok((IntSet::<u32>::empty(), codepoint_data));
+    }
+
+    // See: https://w3c.github.io/IFT/Overview.html#abstract-opdef-interpret-format-2-patch-map-entry
+    // for interpretation of codepoint bit balues.
+    let codepoint_data = FontData::new(codepoint_data);
+    let (bias, skipped) = if format == EntryFormatFlags::CODEPOINTS_BIT_2 {
+        (codepoint_data.read_at::<u16>(0)? as u32, 2)
+    } else if format == (EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2) {
+        (codepoint_data.read_at::<Uint24>(0)?.to_u32(), 3)
+    } else {
+        (0, 0)
+    };
+
+    let Some(codepoint_data) = codepoint_data.split_off(skipped) else {
+        return Err(ReadError::MalformedData("Codepoints data is too short."));
+    };
+
+    // TODO(garretrieger): the spec doesn't currently enforce a maximum set size, but here we are
+    // disallowing sets with more members then the unicode max value. The spec should be updated to
+    // provide a reasonable maximum set size.
+    let (set, remaining_data) =
+        IntSet::<u32>::from_sparse_bit_set_bounded(codepoint_data.as_bytes(), bias, 0x10FFFF)
+            .map_err(|_| {
+                ReadError::MalformedData("Failed to decode sparse bit set data stream.")
+            })?;
+
+    Ok((set, remaining_data))
+}
+
 /// Models the encoding type for a incremental font transfer patch.
 /// See: <https://w3c.github.io/IFT/Overview.html#font-patch-formats-summary>
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Copy)]
@@ -253,18 +394,18 @@ pub enum PatchEncoding {
 }
 
 impl PatchEncoding {
-    fn from_format_number(format: u8) -> Option<Self> {
+    fn from_format_number(format: u8) -> Result<Self, ReadError> {
         // Based on https://w3c.github.io/IFT/Overview.html#font-patch-formats-summary
         match format {
-            1 => Some(Self::Brotli),
-            2 => Some(Self::PerTableBrotli {
+            1 => Ok(Self::Brotli),
+            2 => Ok(Self::PerTableBrotli {
                 fully_invalidating: true,
             }),
-            3 => Some(Self::PerTableBrotli {
+            3 => Ok(Self::PerTableBrotli {
                 fully_invalidating: false,
             }),
-            4 => Some(Self::GlyphKeyed),
-            _ => None,
+            4 => Ok(Self::GlyphKeyed),
+            _ => Err(ReadError::MalformedData("Invalid encoding format number.")),
         }
     }
 }
@@ -278,8 +419,8 @@ impl PatchEncoding {
 /// the numeric index is supported.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct PatchUri {
-    template: String,
-    index: u32,
+    template: String, // TODO: Make this a reference?
+    index: u32,       // TODO(garretrieger): define a maximum size in the spec and match it here.
     encoding: PatchEncoding,
 }
 
@@ -290,6 +431,44 @@ impl PatchUri {
             index: entry_index,
             encoding,
         }
+    }
+}
+
+/// Stores a materialized version of an IFT patchmap entry.
+///
+/// See: <https://w3c.github.io/IFT/Overview.html#patch-map-dfn>
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+struct Entry {
+    // Key
+    codepoints: IntSet<u32>,
+    feature_tags: BTreeSet<Tag>,
+    design_space: Vec<DesignSpaceSegment>,
+
+    // Value
+    uri: PatchUri,
+    compatibility_id: [u32; 4], // TODO: Make this a reference?
+}
+
+impl Entry {
+    fn new(template: &str, compat_id: &[u32; 4], default_encoding: &PatchEncoding) -> Entry {
+        Entry {
+            codepoints: IntSet::empty(),
+            feature_tags: BTreeSet::new(),
+            design_space: vec![],
+
+            uri: PatchUri::from_index(template, 0, *default_encoding),
+            compatibility_id: *compat_id,
+        }
+    }
+
+    fn intersects(&self, codepoints: &IntSet<u32>, features: &BTreeSet<Tag>) -> bool {
+        // Intersection defined here: https://w3c.github.io/IFT/Overview.html#abstract-opdef-check-entry-intersection
+        let codepoints_intersects =
+            self.codepoints.is_empty() || self.codepoints.intersects_set(codepoints);
+        let features_intersects = self.feature_tags.is_empty()
+            || self.feature_tags.intersection(features).next().is_some();
+
+        codepoints_intersects && features_intersects
     }
 }
 
@@ -387,7 +566,7 @@ mod tests {
     #[test]
     fn format_1_patch_map_bad_entry_index() {
         let mut data = Vec::<u8>::from(test_data::ift::SIMPLE_FORMAT1);
-        data[51] = 0x03;
+        data[50] = 0x03;
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -450,8 +629,8 @@ mod tests {
     #[test]
     fn format_1_patch_map_bad_uri_template() {
         let mut data = Vec::<u8>::from(test_data::ift::SIMPLE_FORMAT1);
-        data[40] = 0x80;
-        data[41] = 0x81;
+        data[39] = 0x80;
+        data[40] = 0x81;
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -469,7 +648,7 @@ mod tests {
     #[test]
     fn format_1_patch_map_bad_encoding_number() {
         let mut data = Vec::<u8>::from(test_data::ift::SIMPLE_FORMAT1);
-        data[48] = 0x12;
+        data[47] = 0x12;
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -552,15 +731,15 @@ mod tests {
     #[test]
     fn format_1_patch_map_u16_entries_with_out_of_order_feature_mapping() {
         let mut data = Vec::<u8>::from(test_data::ift::FEATURE_MAP_FORMAT1);
-        data[113] = b'l';
-        data[114] = b'i';
-        data[115] = b'g';
-        data[116] = b'a';
+        data[112] = b'l';
+        data[113] = b'i';
+        data[114] = b'g';
+        data[115] = b'a';
 
-        data[121] = b'd';
-        data[122] = b'l';
-        data[123] = b'i';
-        data[124] = b'g';
+        data[120] = b'd';
+        data[121] = b'l';
+        data[122] = b'i';
+        data[123] = b'g';
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -587,15 +766,15 @@ mod tests {
     #[test]
     fn format_1_patch_map_u16_entries_with_duplicate_feature_mapping() {
         let mut data = Vec::<u8>::from(test_data::ift::FEATURE_MAP_FORMAT1);
-        data[113] = b'l';
-        data[114] = b'i';
-        data[115] = b'g';
-        data[116] = b'a';
+        data[112] = b'l';
+        data[113] = b'i';
+        data[114] = b'g';
+        data[115] = b'a';
 
-        data[121] = b'l';
-        data[122] = b'i';
-        data[123] = b'g';
-        data[124] = b'a';
+        data[120] = b'l';
+        data[121] = b'i';
+        data[122] = b'g';
+        data[123] = b'a';
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -661,4 +840,32 @@ mod tests {
             intersecting_patches(&font, &IntSet::from([0x12]), &BTreeSet::<Tag>::from([])).is_err()
         );
     }
+
+    #[test]
+    fn format_2_patch_map_codepoints_only() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(test_data::ift::CODEPOINTS_ONLY_FORMAT2),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        test_intersection(&font, [], [], []);
+        test_intersection(&font, [0x02], [], [1]);
+        test_intersection(&font, [0x15], [], [2]);
+        test_intersection(&font, [0x07], [], [1, 2]);
+
+        test_intersection_with_all(&font, [], [1, 2]);
+    }
+
+    // TODO(garretrieger): test decoding of other entry features for format 2
+    // - copy indices
+    // - feature tags
+    // - design space
+    // - custom id delta
+    // - custom encoding
+    // - id strings
+    // - ignored
+    // - 24 bit bias.
+    // - no codepoints
 }

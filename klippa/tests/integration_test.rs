@@ -13,7 +13,10 @@ use std::iter::Peekable;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tempdir::TempDir;
-use write_fonts::read::{collections::IntSet, FontRef};
+use write_fonts::{
+    read::{collections::IntSet, FontRef},
+    types::Tag,
+};
 
 static TEST_DATA_DIR: &str = "./test-data";
 static GEN_EXPECTED_OUTPUTS_VAR: &str = "GEN_EXPECTED_OUTPUTS";
@@ -302,9 +305,10 @@ impl SubsetTestCase {
         Command::new("fonttools")
             .arg("subset")
             .arg(&org_font_file)
-            .arg("--drop-tables+=DSIG,BASE")
+            .arg("--drop-tables+=DSIG,BASE,GSUB,GPOS,GDEF,name,hdmx,fpgm,prep,cvt,gasp,cvar,fvar,gvar,HVAR,STAT")
             .arg("--drop-tables-=sbix")
             .arg("--no-harfbuzz-repacker")
+            .arg("--no-prune-codepage-ranges")
             .arg(&unicodes_option)
             .arg(output_option)
             .stdout(Stdio::null())
@@ -354,8 +358,15 @@ fn gen_subset_font_file(
 
     let gids = IntSet::empty();
     let unicodes = parse_unicodes(subset).unwrap();
+    let drop_tables_str =
+        "DSIG,BASE,GSUB,GPOS,GDEF,name,hdmx,fpgm,prep,cvt,gasp,cvar,fvar,gvar,HVAR,STAT";
+    let mut drop_tables = IntSet::empty();
+    for str in drop_tables_str.split(',') {
+        let tag = Tag::new_checked(str.as_bytes()).unwrap();
+        drop_tables.insert(tag);
+    }
     //TODO: support parsing subset_flags
-    let plan = Plan::new(&gids, &unicodes, &font, profile);
+    let plan = Plan::new(&gids, &unicodes, &font, profile, &drop_tables);
 
     let subset_output = subset_font(&font, &plan).unwrap();
     std::fs::write(output_file, subset_output).unwrap();
@@ -560,9 +571,9 @@ fn parse_test() {
     assert!(test_data_dir.exists());
     let test_file = test_data_dir.join("tests/basics.tests");
     let subset_test = SubsetTestCase::new(&test_file);
-    assert_eq!(subset_test.fonts.len(), 2);
+    assert_eq!(subset_test.fonts.len(), 3);
     assert_eq!(subset_test.fonts[0], "Roboto-Regular.abc.ttf");
-    assert_eq!(subset_test.profiles.len(), 7);
+    assert_eq!(subset_test.profiles.len(), 8);
     assert_eq!(
         subset_test.profiles[0],
         (

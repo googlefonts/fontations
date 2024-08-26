@@ -7,6 +7,15 @@ use skrifa::{raw::TableProvider, FontRef};
 fn do_metadata_things(data: &[u8]) -> Result<(), Box<dyn Error>> {
     let font = FontRef::new(data)?;
 
+    if let Ok(avar) = font.avar() {
+        let _ = avar.version();
+        let _ = avar.axis_count();
+        for seg_map in avar.axis_segment_maps().iter().filter_map(Result::ok) {
+            let _ = seg_map.position_map_count.get();
+            let _ = seg_map.axis_value_maps();
+        }
+    }
+
     if let Ok(os2) = font.os2() {
         let _ = os2.fs_selection();
         let _ = os2.fs_type();

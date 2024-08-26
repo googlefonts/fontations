@@ -11,7 +11,7 @@
 use std::{fmt::Debug, ops::Deref};
 
 use types::{
-    BigEndian, F2Dot14, FWord, Fixed, GlyphId16, LongDateTime, MajorMinor, NameId, Nullable,
+    BigEndian, F2Dot14, FWord, Fixed, GlyphId16, Int24, LongDateTime, MajorMinor, NameId, Nullable,
     Offset16, Offset24, Offset32, Scalar, Tag, UfWord, Uint24, Version16Dot16,
 };
 
@@ -31,6 +31,7 @@ pub enum FieldType<'a> {
     U16(u16),
     I32(i32),
     U32(u32),
+    I24(Int24),
     U24(Uint24),
     Tag(Tag),
     FWord(FWord),
@@ -520,6 +521,7 @@ impl<'a> Debug for FieldType<'a> {
             Self::U16(arg0) => arg0.fmt(f),
             Self::I32(arg0) => arg0.fmt(f),
             Self::U32(arg0) => arg0.fmt(f),
+            Self::I24(arg0) => arg0.fmt(f),
             Self::U24(arg0) => arg0.fmt(f),
             Self::Tag(arg0) => arg0.fmt(f),
             Self::FWord(arg0) => arg0.to_i16().fmt(f),
@@ -654,6 +656,12 @@ impl<'a> From<i32> for FieldType<'a> {
 impl<'a> From<Uint24> for FieldType<'a> {
     fn from(src: Uint24) -> FieldType<'a> {
         FieldType::U24(src)
+    }
+}
+
+impl<'a> From<Int24> for FieldType<'a> {
+    fn from(src: Int24) -> FieldType<'a> {
+        FieldType::I24(src)
     }
 }
 

@@ -46,7 +46,7 @@ impl<'a> PatchMapFormat1<'a> {
     pub fn gid_to_entry_iter(&'a self) -> impl Iterator<Item = (GlyphId, u16)> + 'a {
         GidToEntryIter {
             glyph_map: self.glyph_map().ok(),
-            glyph_count: self.glyph_count(),
+            glyph_count: self.glyph_count().to_u32(),
             gid: self
                 .glyph_map()
                 .map(|glyph_map| glyph_map.first_mapped_glyph() as u32)
@@ -71,6 +71,18 @@ impl<'a> PatchMapFormat1<'a> {
             .get(byte_index as usize)
             .map(|byte| byte & bit_mask != 0)
             .unwrap_or(false)
+    }
+}
+
+impl<'a> PatchMapFormat2<'a> {
+    pub fn get_compatibility_id(&self) -> [u32; 4] {
+        let fixed_array: &[BigEndian<u32>; 4] = self.compatibility_id().try_into().unwrap();
+        fixed_array.map(|x| x.get())
+    }
+
+    pub fn uri_template_as_string(&self) -> Result<&str, ReadError> {
+        str::from_utf8(self.uri_template())
+            .map_err(|_| ReadError::MalformedData("Invalid UTF8 encoding for uri template."))
     }
 }
 
