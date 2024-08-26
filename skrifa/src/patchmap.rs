@@ -537,7 +537,7 @@ impl Entry {
 mod tests {
     use super::*;
     use font_test_data as test_data;
-    use font_test_data::ift::SIMPLE_FORMAT1;
+    use font_test_data::ift::simple_format1;
     use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
     use read_fonts::FontRef;
     use write_fonts::FontBuilder;
@@ -629,7 +629,7 @@ mod tests {
     fn format_1_patch_map_u8_entries() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(test_data::ift::SIMPLE_FORMAT1),
+            Some(&simple_format1()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
@@ -646,8 +646,8 @@ mod tests {
 
     #[test]
     fn format_1_patch_map_bad_entry_index() {
-        let mut data = Vec::<u8>::from(test_data::ift::SIMPLE_FORMAT1);
-        data[50] = 0x03;
+        let mut data = simple_format1();
+        data.write_at("entry_index[1]", 3u8);
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -661,9 +661,12 @@ mod tests {
 
     #[test]
     fn format_1_patch_map_glyph_map_too_short() {
+        let data: &[u8] = &simple_format1();
+        let data = &data[..data.len() - 1];
+
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&test_data::ift::SIMPLE_FORMAT1[..SIMPLE_FORMAT1.len() - 1]),
+            Some(data),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
@@ -681,7 +684,7 @@ mod tests {
     fn format_1_patch_map_bad_glyph_count() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::CMAP12_FONT1).unwrap(),
-            Some(test_data::ift::SIMPLE_FORMAT1),
+            Some(&simple_format1()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
@@ -697,8 +700,8 @@ mod tests {
 
     #[test]
     fn format_1_patch_map_bad_max_entry() {
-        let mut data = Vec::<u8>::from(test_data::ift::SIMPLE_FORMAT1);
-        data[24] = 0x03;
+        let mut data = simple_format1();
+        data.write_at("max_glyph_map_entry_id", 3u16);
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -718,9 +721,9 @@ mod tests {
 
     #[test]
     fn format_1_patch_map_bad_uri_template() {
-        let mut data = Vec::<u8>::from(test_data::ift::SIMPLE_FORMAT1);
-        data[39] = 0x80;
-        data[40] = 0x81;
+        let mut data = simple_format1();
+        data.write_at("uri_template[0]", 0x80u8);
+        data.write_at("uri_template[1]", 0x81u8);
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -740,8 +743,8 @@ mod tests {
 
     #[test]
     fn format_1_patch_map_bad_encoding_number() {
-        let mut data = Vec::<u8>::from(test_data::ift::SIMPLE_FORMAT1);
-        data[47] = 0x12;
+        let mut data = simple_format1();
+        data.write_at("patch_encoding", 0x12u8);
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),

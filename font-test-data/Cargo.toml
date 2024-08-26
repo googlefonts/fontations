@@ -15,3 +15,6 @@ repository.workspace = true
 # cargo-release settings
 #[package.metadata.release]
 #release = false
+
+[dependencies]
+read-fonts = { workspace = true }

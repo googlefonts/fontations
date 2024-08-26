@@ -221,40 +221,38 @@ pub mod colrv1_json {
 }
 
 pub mod ift {
+    use read_fonts::{test_helpers::BeBuffer, types::Uint24};
+
     pub static IFT_BASE: &[u8] = include_bytes!("../test_data/ttf/ift_base.ttf");
 
     // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-1
-    #[rustfmt::skip]
-    pub static SIMPLE_FORMAT1: &[u8] = &[
-        0x01,                    // 0: format
+    pub fn simple_format1() -> BeBuffer {
+        let mut buffer = BeBuffer::new()
+            // ## Header ##
+            .push(1u8) // format
+            .push(0u32) // reserved
+            .extend([1u32, 2, 3, 4]) // compat id
+            .push(2u16) // max entry id
+            .push_with_tag(2u16, "max_glyph_map_entry_id")
+            .push(Uint24::new(7)) // glyph count
+            .push_with_tag(0u32, "glyph_map_offset")
+            .push(0u32) // feature map offset
+            .push(0b00000010u8) // applied entry bitmap (entry 1)
+            .push(8u16) // uri template length
+            .push_with_tag(b'A', "uri_template[0]")
+            .push_with_tag(b'B', "uri_template[1]")
+            .extend([b'C', b'D', b'E', b'F', 0xc9, 0xa4]) // uri_template[2..7]
+            .push_with_tag(4u8, "patch_encoding") // = glyph keyed
+            // ## Glyph Map ##
+            .push_with_tag(1u16, "glyph_map") // first mapped glyph
+            .push_with_tag(2u8, "entry_index[1]")
+            .extend([1u8, 0, 1, 0, 0]); // entry index[2..6]
 
-        0x00, 0x00, 0x00, 0x00,  // 1: reserved
+        let offset = buffer.offset_for("glyph_map") as u32;
+        buffer.write_at("glyph_map_offset", offset);
 
-        0x00, 0x00, 0x00, 0x01,  // 5: compat id [0]
-        0x00, 0x00, 0x00, 0x02,  // 9: compat id [1]
-        0x00, 0x00, 0x00, 0x03,  // 13: compat id [2]
-        0x00, 0x00, 0x00, 0x04,  // 17: compat id [3]
-
-        0x00, 0x02,              // 21: max entry id
-        0x00, 0x02,              // 23: max glyph map entry id
-
-        0x00, 0x00, 0x07,        // 25: glyph count
-        0x00, 0x00, 0x00, 0x30,  // 28: glyph map offset (0x30 = 48)
-        0x00, 0x00, 0x00, 0x00,  // 32: feature map offset
-
-        0x02,                    // 36: applied entry bitmap (entry 1)
-
-        0x00, 0x08,              // 37: uriTemplateLength
-        b'A', b'B', b'C', b'D',
-        b'E', b'F', 0xc9, 0xa4,  // 39: uriTemplate[8]
-
-        0x04,                    // 47: patch encoding = glyph keyed
-
-        // ## Glyph Map ##
-        0x00, 0x01,              // 48: first mapped glyph
-        0x02, 0x01, 0x00, 0x01,  // 50: entryIndex[1..6]
-        0x00, 0x00
-    ];
+        buffer
+    }
 
     #[rustfmt::skip]
     pub static U16_ENTRIES_FORMAT1: &[u8] = &[
