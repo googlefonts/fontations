@@ -35,6 +35,40 @@ pub mod offsets_arrays {
         let array = table.array().unwrap();
         assert_eq!(array, &[0xdead, 0xbeef]);
     }
+
+    #[test]
+    #[cfg(feature = "traversal")]
+    fn array_offsets_traverse() {
+        let mut builder = crate::test_helpers::BeBuffer::new()
+            .push(MajorMinor::VERSION_1_1)
+            .push(22_u16) // offset to [0xf00, 0xba4]
+            .push(0u16) // nullable
+            .push(2u16) // array len
+            .push(26u16) // offset to [69, 70]
+            .push(30u16) // record_array_offset
+            .push(0u16) // versioned_nullable_record_array_offset
+            .push(42u16) // versioned nonnullable offset
+            .push(0u32); // versioned nullable offset
+                         //
+        let data_start = builder.len();
+        assert_eq!(data_start, 22);
+        builder = builder
+            .extend([0xf00u16, 0xba4])
+            .extend([69u16, 70])
+            .push(3u16) // shmecord[0]
+            .push(9u32)
+            .push(5u16) // shmecord[1]
+            .push(0xdead_beefu32)
+            .extend([0xb01du16, 0xface]); // versioned nonnullable offset;
+
+        let table = KindsOfOffsets::read(builder.font_data()).unwrap();
+        // traversal should not crash
+        let _ = format!("{table:?}");
+        assert_eq!(
+            table.versioned_nonnullable().unwrap().unwrap().value(),
+            0xb01d
+        );
+    }
 }
 
 pub mod flags {

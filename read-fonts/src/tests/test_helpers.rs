@@ -11,6 +11,16 @@ impl BeBuffer {
         Default::default()
     }
 
+    /// The current length of the buffer in bytes.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns `true` if the buffer contains zero bytes.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     /// Return a reference to the contents of the buffer
     pub fn as_slice(&self) -> &[u8] {
         &self.0
