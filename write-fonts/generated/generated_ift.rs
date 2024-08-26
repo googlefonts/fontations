@@ -543,7 +543,6 @@ pub struct EntryData {
     pub design_space_segments: Option<Vec<DesignSpaceSegment>>,
     pub copy_count: Option<u8>,
     pub copy_indices: Option<Vec<Uint24>>,
-    pub entry_id_delta: Option<Int24>,
     pub patch_encoding: Option<u8>,
     pub codepoint_data: Vec<u8>,
 }
@@ -560,6 +559,7 @@ impl EntryData {
 }
 
 impl FontWrite for EntryData {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.format_flags.write_into(writer);
         self.format_flags
@@ -606,14 +606,6 @@ impl FontWrite for EntryData {
             .contains(EntryFormatFlags::COPY_INDICES)
             .then(|| {
                 self.copy_indices
-                    .as_ref()
-                    .expect("missing conditional field should have failed validation")
-                    .write_into(writer)
-            });
-        self.format_flags
-            .contains(EntryFormatFlags::ENTRY_ID_DELTA)
-            .then(|| {
-                self.entry_id_delta
                     .as_ref()
                     .expect("missing conditional field should have failed validation")
                     .write_into(writer)
@@ -731,18 +723,6 @@ impl Validate for EntryData {
                     ctx.report("array exceeds max length");
                 }
             });
-            ctx.in_field("entry_id_delta", |ctx| {
-                if !(format_flags.contains(EntryFormatFlags::ENTRY_ID_DELTA))
-                    && self.entry_id_delta.is_some()
-                {
-                    ctx.report("'entry_id_delta' is present but ENTRY_ID_DELTA not set")
-                }
-                if (format_flags.contains(EntryFormatFlags::ENTRY_ID_DELTA))
-                    && self.entry_id_delta.is_none()
-                {
-                    ctx.report("ENTRY_ID_DELTA is set but 'entry_id_delta' is None")
-                }
-            });
             ctx.in_field("patch_encoding", |ctx| {
                 if !(format_flags.contains(EntryFormatFlags::PATCH_ENCODING))
                     && self.patch_encoding.is_some()
@@ -770,7 +750,6 @@ impl<'a> FromObjRef<read_fonts::tables::ift::EntryData<'a>> for EntryData {
             design_space_segments: obj.design_space_segments().to_owned_obj(offset_data),
             copy_count: obj.copy_count(),
             copy_indices: obj.copy_indices().to_owned_obj(offset_data),
-            entry_id_delta: obj.entry_id_delta(),
             patch_encoding: obj.patch_encoding(),
             codepoint_data: obj.codepoint_data().to_owned_obj(offset_data),
         }
@@ -778,12 +757,6 @@ impl<'a> FromObjRef<read_fonts::tables::ift::EntryData<'a>> for EntryData {
 }
 
 impl<'a> FromTableRef<read_fonts::tables::ift::EntryData<'a>> for EntryData {}
-
-impl<'a> FontRead<'a> for EntryData {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::tables::ift::EntryData as FontRead>::read(data).map(|x| x.to_owned_table())
-    }
-}
 
 impl FontWrite for EntryFormatFlags {
     fn write_into(&self, writer: &mut TableWriter) {

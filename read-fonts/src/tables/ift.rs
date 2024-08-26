@@ -37,6 +37,43 @@ impl U8Or16 {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct IdDeltaOrLength(i32);
+
+impl ReadArgs for IdDeltaOrLength {
+    type Args = Offset32;
+}
+
+impl ComputeSize for IdDeltaOrLength {
+    fn compute_size(entry_id_string_data_offset: &Offset32) -> Result<usize, ReadError> {
+        Ok(if entry_id_string_data_offset.is_null() {
+            3
+        } else {
+            2
+        })
+    }
+}
+
+impl FontReadWithArgs<'_> for IdDeltaOrLength {
+    fn read_with_args(
+        data: FontData<'_>,
+        entry_id_string_data_offset: &Self::Args,
+    ) -> Result<Self, ReadError> {
+        if entry_id_string_data_offset.is_null() {
+            data.read_at::<Int24>(0).map(|v| Self(i32::from(v)))
+        } else {
+            data.read_at::<u16>(0).map(|v| Self(v as i32))
+        }
+    }
+}
+
+impl IdDeltaOrLength {
+    #[inline]
+    pub fn get(self) -> i32 {
+        self.0
+    }
+}
+
 impl<'a> PatchMapFormat1<'a> {
     pub fn get_compatibility_id(&self) -> [u32; 4] {
         let fixed_array: &[BigEndian<u32>; 4] = self.compatibility_id().try_into().unwrap();

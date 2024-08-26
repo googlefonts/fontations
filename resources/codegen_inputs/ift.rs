@@ -1,6 +1,7 @@
 #![parse_module(read_fonts::tables::ift)]
 
 extern record U8Or16;
+extern record IdDeltaOrLength;
 
 format u8 Ift {
   Format1(PatchMapFormat1),
@@ -140,6 +141,7 @@ table MappingEntries {
   entry_data: [u8],
 }
 
+#[read_args(entry_id_string_data_offset: Offset32)]
 table EntryData {
   format_flags: EntryFormatFlags,
 
@@ -164,9 +166,11 @@ table EntryData {
   copy_indices: [Uint24],
 
   // ENTRY_ID_DELTA
-  // TODO(garretrieger): add alternate id string length field.
+  #[read_with($entry_id_string_data_offset)]
   #[if_flag($format_flags, EntryFormatFlags::ENTRY_ID_DELTA)]
-  entry_id_delta: Int24,
+  #[traverse_with(skip)]
+  #[compile(skip)]
+  entry_id_delta: IdDeltaOrLength,
 
   // PATCH_ENCODING
   #[if_flag($format_flags, EntryFormatFlags::PATCH_ENCODING)]
