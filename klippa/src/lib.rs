@@ -1,8 +1,11 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
 mod glyf_loca;
+mod gpos;
+mod gsub;
 mod head;
 mod hmtx;
+mod layout;
 mod maxp;
 mod os2;
 mod parsing_util;
@@ -32,6 +35,7 @@ use write_fonts::read::{
         os2::Os2,
         post::Post,
     },
+    types::NameId,
     FontRef, TableProvider, TopLevelTable,
 };
 use write_fonts::types::GlyphId;
@@ -156,6 +160,10 @@ pub struct Plan {
 
     subset_flags: SubsetFlags,
     drop_tables: IntSet<Tag>,
+    name_ids: IntSet<NameId>,
+
+    gsub_features: FnvHashMap<u16, u16>,
+    gpos_features: FnvHashMap<u16, u16>,
 }
 
 impl Plan {
@@ -287,6 +295,8 @@ impl Plan {
             );
         }
         remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
+
+        self.nameid_closure(font);
     }
 
     fn create_old_gid_to_new_gid_map(&mut self) {
@@ -338,6 +348,39 @@ impl Plan {
             //TODO: generate varstore innermaps or something similar
         } else {
             self.glyphset_colred.union(&self.glyphset_gsub);
+        }
+    }
+
+    fn nameid_closure(&mut self, font: &FontRef) {
+        if !self.drop_tables.contains(Tag::new(b"STAT")) {
+            if let Ok(stat) = font.stat() {
+                stat.collect_name_ids(self);
+            }
+        };
+
+        //TODO: skip fvar table when all axes are pinned
+        if !self.drop_tables.contains(Tag::new(b"fvar")) {
+            if let Ok(fvar) = font.fvar() {
+                fvar.collect_name_ids(self);
+            }
+        }
+
+        if !self.drop_tables.contains(Tag::new(b"CPAL")) {
+            if let Ok(cpal) = font.cpal() {
+                cpal.collect_name_ids(self);
+            }
+        }
+
+        if !self.drop_tables.contains(Tag::new(b"GSUB")) {
+            if let Ok(gsub) = font.gsub() {
+                gsub.collect_name_ids(self);
+            }
+        }
+
+        if !self.drop_tables.contains(Tag::new(b"GPOS")) {
+            if let Ok(gpos) = font.gpos() {
+                gpos.collect_name_ids(self);
+            }
         }
     }
 }
@@ -415,9 +458,9 @@ pub enum SubsetError {
     SubsetTableError(Tag),
 }
 
-pub trait Subset {
-    /// Subset this object. Returns `true` if the object should be retained.
-    fn subset(&self, font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError>;
+pub trait NameidClosure {
+    /// collect name_ids
+    fn collect_name_ids(&self, plan: &mut Plan);
 }
 
 pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
