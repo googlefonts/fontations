@@ -12,6 +12,7 @@ mod maxp;
 mod os2;
 mod parsing_util;
 mod post;
+mod stat;
 use glyf_loca::subset_glyf_loca;
 use head::subset_head;
 use hmtx::subset_hmtx_hhea;
