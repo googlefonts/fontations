@@ -314,9 +314,9 @@ mod tests {
     };
 
     #[test]
-    fn hinted_coords() {
+    fn hinted_coords_and_metrics() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let outline = hint_latin_outline(
+        let (outline, metrics) = hint_latin_outline(
             &font,
             16.0,
             Default::default(),
@@ -364,6 +364,14 @@ mod tests {
             .map(|point| (point.x, point.y))
             .collect::<Vec<_>>();
         assert_eq!(coords, expected_coords);
+        let expected_metrics = latin::HintedMetrics {
+            x_scale: 67109,
+            left_opos: 15,
+            left_pos: 0,
+            right_opos: 210,
+            right_pos: 192,
+        };
+        assert_eq!(metrics.unwrap(), expected_metrics);
     }
 
     // Specific test case for <https://issues.skia.org/issues/344529168> which
@@ -380,7 +388,8 @@ mod tests {
             // font description above more detail.
             GlyphId::new(5),
             &style::STYLE_CLASSES[style::StyleClass::LATN],
-        );
+        )
+        .0;
         let expected_coords = [(0, 1216), (1536, 1216), (1536, -320), (0, -320)];
         // See <https://issues.skia.org/issues/344529168#comment3>
         // Note that Skia inverts y coords
@@ -404,7 +413,7 @@ mod tests {
         coords: &[F2Dot14],
         gid: GlyphId,
         style: &style::StyleClass,
-    ) -> Outline {
+    ) -> (Outline, Option<latin::HintedMetrics>) {
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(gid).unwrap();
         let mut outline = Outline::default();
@@ -416,7 +425,7 @@ mod tests {
             Style::Normal,
             Default::default(),
         );
-        latin::hint_outline(&mut outline, &metrics, &scale);
-        outline
+        let hinted_metrics = latin::hint_outline(&mut outline, &metrics, &scale);
+        (outline, hinted_metrics)
     }
 }
