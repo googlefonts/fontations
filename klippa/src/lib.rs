@@ -1,6 +1,7 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
 mod cpal;
+mod fvar;
 mod glyf_loca;
 mod gpos;
 mod gsub;
