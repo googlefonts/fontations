@@ -2,14 +2,19 @@
 
 use super::{
     super::{
+        path,
+        pen::PathStyle,
         unscaled::{UnscaledOutlineSink, UnscaledPoint},
-        DrawError, LocationRef, OutlineGlyph,
+        DrawError, LocationRef, OutlineGlyph, OutlinePen,
     },
     metrics::Scale,
 };
 use crate::collections::SmallVec;
 use core::ops::Range;
-use raw::types::F2Dot14;
+use raw::{
+    tables::glyf::PointFlags,
+    types::{F26Dot6, F2Dot14},
+};
 
 /// Hinting directions.
 ///
@@ -196,6 +201,35 @@ impl Outline {
         self.units_per_em = 0;
         self.points.clear();
         self.contours.clear();
+    }
+
+    pub fn to_path(
+        &self,
+        style: PathStyle,
+        pen: &mut impl OutlinePen,
+    ) -> Result<(), path::ToPathError> {
+        for contour in &self.contours {
+            let Some(points) = self.points.get(contour.range()) else {
+                continue;
+            };
+            #[inline(always)]
+            fn to_contour_point(point: &Point) -> path::ContourPoint<F26Dot6> {
+                const FLAGS_MAP: [PointFlags; 3] = [
+                    PointFlags::on_curve(),
+                    PointFlags::off_curve_quad(),
+                    PointFlags::off_curve_cubic(),
+                ];
+                path::ContourPoint {
+                    x: F26Dot6::from_bits(point.x),
+                    y: F26Dot6::from_bits(point.y),
+                    flags: FLAGS_MAP[(point.flags & Point::CONTROL) as usize],
+                }
+            }
+            if let Some(last_point) = points.last().map(to_contour_point) {
+                path::contour_to_path(points.iter().map(to_contour_point), last_point, style, pen)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -561,10 +595,10 @@ impl UnscaledOutlineSink for Outline {
 
 #[cfg(test)]
 mod tests {
-    use super::Outline;
+    use super::super::super::{pen::SvgPen, DrawSettings};
     use super::*;
-    use crate::MetadataProvider;
-    use raw::{types::GlyphId, FontRef};
+    use crate::{prelude::Size, MetadataProvider};
+    use raw::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn direction_from_vectors() {
@@ -696,5 +730,57 @@ mod tests {
         let mut outline = Outline::default();
         outline.fill(&glyph, Default::default()).unwrap();
         outline
+    }
+
+    /// Ensure that autohint outline to path conversion produces the same
+    /// output as our other scalers for all formats and path styles including
+    /// edge cases like mostly off-curve glyphs
+    #[test]
+    fn outline_to_path_conversion() {
+        compare_outlines("MOSTLY_OFF_CURVE", font_test_data::MOSTLY_OFF_CURVE);
+        compare_outlines("STARTING_OFF_CURVE", font_test_data::STARTING_OFF_CURVE);
+        compare_outlines("CUBIC_GLYF", font_test_data::CUBIC_GLYF);
+        compare_outlines("VAZIRMATN_VAR", font_test_data::VAZIRMATN_VAR);
+        compare_outlines("CANTARELL_VF_TRIMMED", font_test_data::CANTARELL_VF_TRIMMED);
+        compare_outlines(
+            "NOTO_SERIF_DISPLAY_TRIMMED",
+            font_test_data::NOTO_SERIF_DISPLAY_TRIMMED,
+        );
+    }
+
+    fn compare_outlines(font_name: &str, font_data: &[u8]) {
+        let font = FontRef::new(font_data).unwrap();
+        let glyph_count = font.maxp().unwrap().num_glyphs();
+        let glyphs = font.outline_glyphs();
+        // Check both path styles
+        for path_style in [PathStyle::FreeType, PathStyle::HarfBuzz] {
+            // And all glyphs
+            for gid in 0..glyph_count {
+                let glyph = glyphs.get(GlyphId::from(gid)).unwrap();
+                // Unscaled, unhinted code path
+                let mut base_svg = SvgPen::default();
+                let settings = DrawSettings::unhinted(Size::unscaled(), LocationRef::default())
+                    .with_path_style(path_style);
+                glyph.draw(settings, &mut base_svg);
+                let base_svg = base_svg.to_string();
+                // Autohinter outline code path
+                let mut outline = Outline::default();
+                outline.fill(&glyph, Default::default()).unwrap();
+                // The to_path method uses the (x, y) coords which aren't filled
+                // until we scale (and we aren't doing that here) so update
+                // them with 26.6 values manually
+                for point in &mut outline.points {
+                    point.x = point.fx << 6;
+                    point.y = point.fy << 6;
+                }
+                let mut autohint_svg = SvgPen::default();
+                outline.to_path(path_style, &mut autohint_svg);
+                let autohint_svg = autohint_svg.to_string();
+                assert_eq!(
+                    base_svg, autohint_svg,
+                    "autohint outline to path comparison failed for glyph {gid} of font {font_name} with style {path_style:?}"
+                );
+            }
+        }
     }
 }

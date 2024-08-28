@@ -50,42 +50,42 @@ impl PointFlags {
     const CURVE_MASK: u8 = Self::ON_CURVE | Self::OFF_CURVE_CUBIC;
 
     /// Creates a new on curve point flag.
-    pub fn on_curve() -> Self {
+    pub const fn on_curve() -> Self {
         Self(Self::ON_CURVE)
     }
 
     /// Creates a new off curve quadratic point flag.
-    pub fn off_curve_quad() -> Self {
+    pub const fn off_curve_quad() -> Self {
         Self(0)
     }
 
     /// Creates a new off curve cubic point flag.
-    pub fn off_curve_cubic() -> Self {
+    pub const fn off_curve_cubic() -> Self {
         Self(Self::OFF_CURVE_CUBIC)
     }
 
     /// Creates a point flag from the given bits. These are truncated
     /// to ignore markers.
-    pub fn from_bits(bits: u8) -> Self {
+    pub const fn from_bits(bits: u8) -> Self {
         Self(bits & Self::CURVE_MASK)
     }
 
     /// Returns true if this is an on curve point.
-    pub fn is_on_curve(self) -> bool {
+    pub const fn is_on_curve(self) -> bool {
         self.0 & Self::ON_CURVE != 0
     }
 
     /// Returns true if this is an off curve quadratic point.
-    pub fn is_off_curve_quad(self) -> bool {
+    pub const fn is_off_curve_quad(self) -> bool {
         self.0 & Self::CURVE_MASK == 0
     }
 
     /// Returns true if this is an off curve cubic point.
-    pub fn is_off_curve_cubic(self) -> bool {
+    pub const fn is_off_curve_cubic(self) -> bool {
         self.0 & Self::OFF_CURVE_CUBIC != 0
     }
 
-    pub fn is_off_curve(self) -> bool {
+    pub const fn is_off_curve(self) -> bool {
         self.is_off_curve_quad() || self.is_off_curve_cubic()
     }
 
