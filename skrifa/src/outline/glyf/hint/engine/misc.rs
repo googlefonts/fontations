@@ -42,14 +42,15 @@ impl<'a> Engine<'a> {
             result |= FONT_VARIATIONS_RESULT_BIT;
         }
         // The following only apply for smooth hinting.
-        if self.graphics.mode.is_smooth() {
+        if self.graphics.target.is_smooth() {
             // Subpixel hinting [cleartype enabled] (selector bit: 6, result bit: 13)
             // (always enabled)
             if (selector & SUBPIXEL_HINTING_SELECTOR_BIT) != 0 {
                 result |= SUBPIXEL_HINTING_RESULT_BIT;
             }
             // Vertical LCD subpixels? (selector bit: 8, result bit: 15)
-            if (selector & VERTICAL_LCD_SELECTOR_BIT) != 0 && self.graphics.mode.is_vertical_lcd() {
+            if (selector & VERTICAL_LCD_SELECTOR_BIT) != 0 && self.graphics.target.is_vertical_lcd()
+            {
                 result |= VERTICAL_LCD_RESULT_BIT;
             }
             // Subpixel positioned? (selector bit: 10, result bit: 17)
@@ -58,16 +59,17 @@ impl<'a> Engine<'a> {
                 result |= SUBPIXEL_POSITIONED_RESULT_BIT;
             }
             // Symmetrical smoothing (selector bit: 11, result bit: 18)
-            // Note: FreeType always enables this but we deviate when our own
-            // preserve linear metrics flag is enabled.
+            // Note: FreeType always enables this but we allow direct control
+            // with our own flag.
+            // See <https://github.com/googlefonts/fontations/issues/1080>
             if (selector & SYMMETRICAL_SMOOTHING_SELECTOR_BIT) != 0
-                && !self.graphics.mode.preserve_linear_metrics()
+                && self.graphics.target.symmetric_rendering()
             {
                 result |= SYMMETRICAL_SMOOTHING_RESULT_BIT;
             }
             // ClearType hinting and grayscale rendering (selector bit: 12, result bit: 19)
             if (selector & GRAYSCALE_CLEARTYPE_SELECTOR_BIT) != 0
-                && self.graphics.mode.is_grayscale_cleartype()
+                && self.graphics.target.is_grayscale_cleartype()
             {
                 result |= GRAYSCALE_CLEARTYPE_RESULT_BIT;
             }
@@ -176,7 +178,7 @@ mod getinfo {
 #[cfg(test)]
 mod tests {
     use super::super::{
-        super::{super::super::LcdLayout, HintingMode},
+        super::super::super::{SmoothMode, Target},
         Engine, HintErrorKind, MockEngine,
     };
     use raw::types::F2Dot14;
@@ -210,7 +212,7 @@ mod tests {
         engine.axis_count = 1;
         engine.getinfo_test(FONT_VARIATIONS_SELECTOR_BIT, FONT_VARIATIONS_RESULT_BIT);
         // in strong hinting mode, the following selectors are always disabled
-        engine.graphics.mode = HintingMode::Strong;
+        engine.graphics.target = Target::Mono;
         for selector in [
             SUBPIXEL_HINTING_SELECTOR_BIT,
             VERTICAL_LCD_SELECTOR_BIT,
@@ -221,7 +223,7 @@ mod tests {
             engine.getinfo_test(selector, 0);
         }
         // set back to smooth mode
-        engine.graphics.mode = HintingMode::default();
+        engine.graphics.target = Target::default();
         for (selector, result) in [
             // default smooth mode is grayscale cleartype
             (
@@ -238,17 +240,18 @@ mod tests {
             engine.getinfo_test(selector, result);
         }
         // vertical lcd
-        engine.graphics.mode = HintingMode::Smooth {
-            lcd_subpixel: Some(LcdLayout::Vertical),
+        engine.graphics.target = Target::Smooth {
+            mode: SmoothMode::VerticalLcd,
             preserve_linear_metrics: true,
+            symmetric_rendering: false,
         };
         engine.getinfo_test(VERTICAL_LCD_SELECTOR_BIT, VERTICAL_LCD_RESULT_BIT);
-        // symmetical smoothing is disabled when preserving linear metrics
+        // symmetical smoothing is disabled
         engine.getinfo_test(SYMMETRICAL_SMOOTHING_SELECTOR_BIT, 0);
         // grayscale cleartype is disabled when lcd_subpixel is not None
         engine.getinfo_test(GRAYSCALE_CLEARTYPE_SELECTOR_BIT, 0);
         // reset to default to disable preserve linear metrics
-        engine.graphics.mode = HintingMode::default();
+        engine.graphics.target = Target::default();
         // now symmetrical smoothing is enabled
         engine.getinfo_test(
             SYMMETRICAL_SMOOTHING_SELECTOR_BIT,

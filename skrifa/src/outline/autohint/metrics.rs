@@ -1,11 +1,11 @@
 //! Autohinting specific metrics.
 
 use super::{
-    super::{HintingMode, LcdLayout},
+    super::Target,
     axis::Dimension,
     style::{GlyphStyleMap, StyleClass},
 };
-use crate::{collections::SmallVec, FontRef};
+use crate::{attribute::Style, collections::SmallVec, FontRef};
 use alloc::vec::Vec;
 use raw::types::{F2Dot14, Fixed, GlyphId};
 #[cfg(feature = "std")]
@@ -218,32 +218,24 @@ pub(crate) struct Scale {
 }
 
 impl Scale {
-    /// Create initial scaling parameters from font size, units per em
-    /// and hinting mode.
-    pub fn new(size: f32, units_per_em: i32, mode: HintingMode) -> Self {
+    /// Create initial scaling parameters from metrics and hinting target.
+    pub fn new(size: f32, units_per_em: i32, font_style: Style, target: Target) -> Self {
         let scale =
             (Fixed::from_bits((size * 64.0) as i32) / Fixed::from_bits(units_per_em)).to_bits();
-        let is_mono = mode == HintingMode::Strong;
-        let lcd = match mode {
-            HintingMode::Smooth { lcd_subpixel, .. } => lcd_subpixel,
-            _ => None,
-        };
-        // TODO: handle light hinting mode and italic flag
-        let is_light = false;
-        let is_italic = false;
-        let is_lcd = lcd == Some(LcdLayout::Horizontal);
-        let is_lcd_v = lcd == Some(LcdLayout::Horizontal);
         let mut flags = 0;
+        let is_italic = font_style != Style::Normal;
+        let is_mono = target == Target::Mono;
+        let is_light = target.is_light() || target.preserve_linear_metrics();
         // Snap vertical stems for monochrome and horizontal LCD rendering.
-        if is_mono || is_lcd {
+        if is_mono || target.is_lcd() {
             flags |= Self::HORIZONTAL_SNAP;
         }
         // Snap horizontal stems for monochrome and vertical LCD rendering.
-        if is_mono || is_lcd_v {
+        if is_mono || target.is_vertical_lcd() {
             flags |= Self::VERTICAL_SNAP;
         }
         // Adjust stems to full pixels unless in LCD or light modes.
-        if !(is_lcd || is_light) {
+        if !(target.is_lcd() || is_light) {
             flags |= Self::STEM_ADJUST;
         }
         if is_mono {
@@ -251,7 +243,7 @@ impl Scale {
         }
         // Disable horizontal hinting completely for LCD, light hinting
         // and italic fonts.
-        if is_lcd || is_light || is_italic {
+        if target.is_lcd() || is_light || is_italic {
             flags |= Self::NO_HORIZONTAL;
         }
         Self {

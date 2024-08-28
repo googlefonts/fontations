@@ -8,7 +8,7 @@ use raw::TableProvider;
 /// Set of derived glyph styles that are used for automatic hinting.
 ///
 /// These are invariant per font so can be precomputed and reused for multiple
-/// instances when requesting automatic hinting.
+/// instances when requesting automatic hinting with [`Engine::Auto`](super::super::hint::Engine::Auto).
 #[derive(Clone, Debug)]
 pub struct GlyphStyles(Arc<GlyphStyleMap>);
 

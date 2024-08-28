@@ -3,7 +3,7 @@
 use super::{
     round::RoundState,
     zone::{Zone, ZonePointer},
-    F26Dot6, HintingMode, Point,
+    F26Dot6, Point, Target,
 };
 use core::ops::{Deref, DerefMut};
 
@@ -150,11 +150,11 @@ impl<'a> GraphicsState<'a> {
     pub fn reset_retained(&mut self) {
         let scale = self.scale;
         let ppem = self.ppem;
-        let mode = self.mode;
+        let mode = self.target;
         self.retained = RetainedGraphicsState {
             scale,
             ppem,
-            mode,
+            target: mode,
             ..Default::default()
         }
     }
@@ -251,8 +251,8 @@ pub struct RetainedGraphicsState {
     ///
     /// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM04/Chap4.html#single_width_value>
     pub single_width: F26Dot6,
-    /// The user requested hinting mode.
-    pub mode: HintingMode,
+    /// The user requested hinting target.
+    pub target: Target,
     /// The scale factor for the current instance. Conversion from font units
     /// to 26.6 for current ppem.
     pub scale: i32,
@@ -265,11 +265,11 @@ pub struct RetainedGraphicsState {
 }
 
 impl RetainedGraphicsState {
-    pub fn new(scale: i32, ppem: i32, mode: HintingMode) -> Self {
+    pub fn new(scale: i32, ppem: i32, target: Target) -> Self {
         Self {
             scale,
             ppem,
-            mode,
+            target,
             ..Default::default()
         }
     }
@@ -292,7 +292,7 @@ impl Default for RetainedGraphicsState {
             scan_type: 0,
             single_width_cutin: F26Dot6::ZERO,
             single_width: F26Dot6::ZERO,
-            mode: Default::default(),
+            target: Default::default(),
             scale: 0,
             ppem: 0,
             is_rotated: false,

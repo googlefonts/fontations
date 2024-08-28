@@ -209,6 +209,7 @@ fn scale_axis_metrics(
 #[cfg(test)]
 mod tests {
     use super::{super::super::style, *};
+    use crate::attribute::Style;
     use raw::{FontRef, TableProvider};
 
     #[test]
@@ -219,6 +220,7 @@ mod tests {
         let scale = Scale::new(
             16.0,
             font.head().unwrap().units_per_em() as i32,
+            Style::Normal,
             Default::default(),
         );
         let scaled_metrics = scale_style_metrics(&unscaled_metrics, scale);

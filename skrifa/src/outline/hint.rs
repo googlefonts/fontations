@@ -4,10 +4,180 @@ use super::{
     cff,
     glyf::{self, FreeTypeScaler},
     pen::PathStyle,
-    AdjustedMetrics, DrawError, Hinting, LocationRef, NormalizedCoord, OutlineCollectionKind,
-    OutlineGlyph, OutlineGlyphCollection, OutlineKind, OutlinePen, Size,
+    AdjustedMetrics, DrawError, GlyphStyles, Hinting, LocationRef, NormalizedCoord,
+    OutlineCollectionKind, OutlineGlyph, OutlineGlyphCollection, OutlineKind, OutlinePen, Size,
 };
 use crate::alloc::{boxed::Box, vec::Vec};
+
+/// Configuration settings for a hinting instance.
+#[derive(Clone, Default, Debug)]
+pub struct HintingOptions {
+    /// Specifies the hinting engine to use.
+    ///
+    /// Defaults to [`Engine::AutoFallback`].
+    pub engine: Engine,
+    /// Defines the properties of the intended target of a hinted outline.
+    ///
+    /// Defaults to a target with [`SmoothMode::Normal`] which is equivalent
+    /// to `FT_RENDER_MODE_NORMAL` in FreeType.
+    pub target: Target,
+}
+
+impl From<Target> for HintingOptions {
+    fn from(value: Target) -> Self {
+        Self {
+            engine: Engine::AutoFallback,
+            target: value,
+        }
+    }
+}
+
+/// Specifies the backend to use when applying hints.
+#[derive(Clone, Default, Debug)]
+pub enum Engine {
+    /// The TrueType or PostScript interpreter.
+    Interpreter,
+    /// The automatic hinter that performs just-in-time adjustment of
+    /// outlines.
+    ///
+    /// Glyph styles can be precomputed per font and may be provided here
+    /// as an optimization to avoid recomputing them for each instance.
+    Auto(Option<GlyphStyles>),
+    /// Selects the engine based on the same rules that FreeType uses when
+    /// neither of the `FT_LOAD_NO_AUTOHINT` or `FT_LOAD_FORCE_AUTOHINT`
+    /// load flags are specified.
+    ///
+    /// Specifically, PostScript (CFF/CFF2) fonts will always use the hinting
+    /// engine in the PostScript interpreter and TrueType fonts will use the
+    /// interpreter for TrueType instructions if one of the `fpgm` or `prep`
+    /// tables is non-empty, falling back to the automatic hinter otherwise.
+    ///
+    /// This uses [`OutlineGlyphCollection::prefer_interpreter`] to make a
+    /// selection.
+    #[default]
+    AutoFallback,
+}
+
+impl Engine {
+    /// Converts the `AutoFallback` variant into either `Interpreter` or
+    /// `Auto` based on the given outline set's preference for interpreter
+    /// mode.
+    fn _resolve_auto_fallback(self, outlines: &OutlineGlyphCollection) -> Engine {
+        match self {
+            Self::Interpreter => Self::Interpreter,
+            Self::Auto(styles) => Self::Auto(styles),
+            Self::AutoFallback => {
+                if outlines.prefer_interpreter() {
+                    Self::Interpreter
+                } else {
+                    Self::Auto(None)
+                }
+            }
+        }
+    }
+}
+
+impl From<Engine> for HintingOptions {
+    fn from(value: Engine) -> Self {
+        Self {
+            engine: value,
+            target: Default::default(),
+        }
+    }
+}
+
+/// Defines the target settings for hinting.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum Target {
+    /// Strong hinting style that should only be used for aliased, monochromatic
+    /// rasterization.
+    ///
+    /// Corresponds to `FT_LOAD_TARGET_MONO` in FreeType.
+    Mono,
+    /// Hinting style that is suitable for anti-aliased rasterization.
+    ///
+    /// Corresponds to the non-monochrome load targets in FreeType. See
+    /// [`SmoothMode`] for more detail.
+    Smooth {
+        /// The basic mode for smooth hinting.
+        ///
+        /// Defaults to [`SmoothMode::Normal`].
+        mode: SmoothMode,
+        /// If true, TrueType bytecode may assume that the resulting outline
+        /// will be rasterized with supersampling in the vertical direction.
+        ///
+        /// When this is enabled, ClearType fonts will often generate wider
+        /// horizontal stems that may lead to blurry images when rendered with
+        /// an analytical area rasterizer (such as the one in FreeType).
+        ///
+        /// The effect of this setting is to control the "ClearType symmetric
+        /// rendering bit" of the TrueType `GETINFO` instruction. For more
+        /// detail, see this [issue](https://github.com/googlefonts/fontations/issues/1080).
+        ///
+        /// FreeType has no corresponding setting and behaves as if this is
+        /// always enabled.
+        ///
+        /// This only applies to the TrueType interpreter.
+        ///
+        /// Defaults to `true`.
+        symmetric_rendering: bool,
+        /// If true, prevents adjustment of the outline in the horizontal
+        /// direction and preserves inter-glyph spacing.
+        ///
+        /// This is useful for performing layout without concern that hinting
+        /// will modify the advance width of a glyph. Specifically, it means
+        /// that layout will not require evaluation of glyph outlines.
+        ///
+        /// FreeType has no corresponding setting and behaves as if this is
+        /// always disabled.
+        ///
+        /// This applies to the TrueType interpreter and the automatic hinter.
+        ///
+        /// Defaults to `false`.       
+        preserve_linear_metrics: bool,
+    },
+}
+
+impl Default for Target {
+    fn default() -> Self {
+        SmoothMode::Normal.into()
+    }
+}
+
+/// Mode selector for a smooth hinting target.
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+pub enum SmoothMode {
+    /// The standard smooth hinting mode.
+    ///
+    /// Corresponds to `FT_LOAD_TARGET_NORMAL` in FreeType.
+    #[default]
+    Normal,
+    /// Hinting with a lighter touch, typically meaning less aggressive
+    /// adjustment in the horizontal direction.
+    ///
+    /// Corresponds to `FT_LOAD_TARGET_LIGHT` in FreeType.
+    Light,
+    /// Hinting that is optimized for subpixel rendering with horizontal LCD
+    /// layouts.
+    ///
+    /// Corresponds to `FT_LOAD_TARGET_LCD` in FreeType.
+    Lcd,
+    /// Hinting that is optimized for subpixel rendering with vertical LCD
+    /// layouts.
+    ///
+    /// Corresponds to `FT_LOAD_TARGET_LCD_V` in FreeType.
+    VerticalLcd,
+}
+
+impl From<SmoothMode> for Target {
+    fn from(value: SmoothMode) -> Self {
+        Self::Smooth {
+            mode: value,
+            symmetric_rendering: true,
+            preserve_linear_metrics: false,
+        }
+    }
+}
 
 /// Modes that control hinting when using embedded instructions.
 ///
@@ -28,6 +198,7 @@ use crate::alloc::{boxed::Box, vec::Vec};
 /// FreeType 2.7.
 ///
 /// The default value of this type is equivalent to `FT_LOAD_TARGET_NORMAL`.
+#[doc(hidden)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HintingMode {
     /// Strong hinting mode that should only be used for aliased, monochromatic
@@ -64,7 +235,32 @@ impl Default for HintingMode {
     }
 }
 
+impl From<HintingMode> for HintingOptions {
+    fn from(value: HintingMode) -> Self {
+        let target = match value {
+            HintingMode::Strong => Target::Mono,
+            HintingMode::Smooth {
+                lcd_subpixel,
+                preserve_linear_metrics,
+            } => {
+                let mode = match lcd_subpixel {
+                    Some(LcdLayout::Horizontal) => SmoothMode::Lcd,
+                    Some(LcdLayout::Vertical) => SmoothMode::VerticalLcd,
+                    None => SmoothMode::Normal,
+                };
+                Target::Smooth {
+                    mode,
+                    preserve_linear_metrics,
+                    symmetric_rendering: true,
+                }
+            }
+        };
+        target.into()
+    }
+}
+
 /// Specifies direction of pixel layout for LCD based subpixel hinting.
+#[doc(hidden)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum LcdLayout {
     /// Subpixels are ordered horizontally.
@@ -83,7 +279,7 @@ pub enum LcdLayout {
 pub struct HintingInstance {
     size: Size,
     coords: Vec<NormalizedCoord>,
-    mode: HintingMode,
+    target: Target,
     kind: HinterKind,
 }
 
@@ -94,15 +290,16 @@ impl HintingInstance {
         outline_glyphs: &OutlineGlyphCollection,
         size: Size,
         location: impl Into<LocationRef<'a>>,
-        mode: HintingMode,
+        options: impl Into<HintingOptions>,
     ) -> Result<Self, DrawError> {
+        let options = options.into();
         let mut hinter = Self {
             size: Size::unscaled(),
             coords: vec![],
-            mode,
+            target: options.target,
             kind: HinterKind::None,
         };
-        hinter.reconfigure(outline_glyphs, size, location, mode)?;
+        hinter.reconfigure(outline_glyphs, size, location, options)?;
         Ok(hinter)
     }
 
@@ -116,9 +313,9 @@ impl HintingInstance {
         LocationRef::new(&self.coords)
     }
 
-    /// Returns the currently configured hinting mode.
-    pub fn mode(&self) -> HintingMode {
-        self.mode
+    /// Returns the currently configured hinting target.
+    pub fn target(&self) -> Target {
+        self.target
     }
 
     /// Resets the hinter state for a new font instance with the given
@@ -128,12 +325,13 @@ impl HintingInstance {
         outlines: &OutlineGlyphCollection,
         size: Size,
         location: impl Into<LocationRef<'a>>,
-        mode: HintingMode,
+        options: impl Into<HintingOptions>,
     ) -> Result<(), DrawError> {
         self.size = size;
         self.coords.clear();
         self.coords.extend_from_slice(location.into().coords());
-        self.mode = mode;
+        let options = options.into();
+        self.target = options.target;
         // Reuse memory if the font contains the same outline format
         let current_kind = core::mem::replace(&mut self.kind, HinterKind::None);
         match &outlines.kind {
@@ -148,7 +346,7 @@ impl HintingInstance {
                     glyf,
                     scale,
                     ppem.unwrap_or_default() as i32,
-                    mode,
+                    self.target,
                     &self.coords,
                 )?;
                 self.kind = HinterKind::Glyf(hint_instance);
@@ -235,4 +433,70 @@ enum HinterKind {
     None,
     Glyf(Box<glyf::HintInstance>),
     Cff(Vec<cff::Subfont>),
+}
+
+// Internal helpers for deriving various flags from the mode which
+// change the behavior of certain instructions.
+// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttgload.c#L2222>
+impl Target {
+    pub(crate) fn is_smooth(&self) -> bool {
+        matches!(self, Self::Smooth { .. })
+    }
+
+    pub(crate) fn is_grayscale_cleartype(&self) -> bool {
+        match self {
+            Self::Smooth { mode, .. } => matches!(mode, SmoothMode::Normal | SmoothMode::Light),
+            _ => false,
+        }
+    }
+
+    pub(crate) fn is_light(&self) -> bool {
+        matches!(
+            self,
+            Self::Smooth {
+                mode: SmoothMode::Light,
+                ..
+            }
+        )
+    }
+
+    pub(crate) fn is_lcd(&self) -> bool {
+        matches!(
+            self,
+            Self::Smooth {
+                mode: SmoothMode::Lcd,
+                ..
+            }
+        )
+    }
+
+    pub(crate) fn is_vertical_lcd(&self) -> bool {
+        matches!(
+            self,
+            Self::Smooth {
+                mode: SmoothMode::VerticalLcd,
+                ..
+            }
+        )
+    }
+
+    pub(crate) fn symmetric_rendering(&self) -> bool {
+        matches!(
+            self,
+            Self::Smooth {
+                symmetric_rendering: true,
+                ..
+            }
+        )
+    }
+
+    pub(crate) fn preserve_linear_metrics(&self) -> bool {
+        matches!(
+            self,
+            Self::Smooth {
+                preserve_linear_metrics: true,
+                ..
+            }
+        )
+    }
 }

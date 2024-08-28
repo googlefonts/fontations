@@ -95,7 +95,9 @@ pub mod pen;
 use common::OutlinesCommon;
 
 pub use autohint::GlyphStyles;
-pub use hint::{HintingInstance, HintingMode, LcdLayout};
+pub use hint::{
+    Engine, HintingInstance, HintingMode, HintingOptions, LcdLayout, SmoothMode, Target,
+};
 use raw::FontRef;
 #[doc(inline)]
 pub use {error::DrawError, pen::OutlinePen};
@@ -583,6 +585,26 @@ impl<'a> OutlineGlyphCollection<'a> {
             let glyph = copy.get(gid)?;
             Some((gid, glyph))
         })
+    }
+
+    /// Returns true if the interpreter engine should be used for hinting this
+    /// set of outlines.
+    ///
+    /// When this returns false, you likely want to use the automatic hinter
+    /// instead.
+    ///
+    /// This matches the logic used in FreeType when neither of the
+    /// `FT_LOAD_FORCE_AUTOHINT` or `FT_LOAD_NO_AUTOHINT` load flags are
+    /// specified.
+    ///
+    /// When setting [`HintingOptions::engine`] to [`Engine::AutoFallback`],
+    /// this is used to determine whether to use the interpreter or automatic
+    /// hinter.
+    pub fn prefer_interpreter(&self) -> bool {
+        match &self.kind {
+            OutlineCollectionKind::Glyf(glyf) => glyf.prefer_interpreter(),
+            _ => true,
+        }
     }
 
     pub(crate) fn common(&self) -> Option<&OutlinesCommon<'a>> {
@@ -1352,7 +1374,7 @@ mod tests {
             &glyphs,
             Size::new(16.0),
             LocationRef::default(),
-            HintingMode::default(),
+            HintingOptions::default(),
         )
         .unwrap();
         let glyph = glyphs.get(GlyphId::new(1)).unwrap();

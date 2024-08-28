@@ -39,9 +39,9 @@ impl<'a> Engine<'a> {
                     self.graphics.reset_retained();
                 }
                 // Set backward compatibility mode
-                if self.graphics.mode.preserve_linear_metrics() {
+                if self.graphics.target.preserve_linear_metrics() {
                     self.graphics.backward_compatibility = true;
-                } else if self.graphics.mode.is_smooth() {
+                } else if self.graphics.target.is_smooth() {
                     self.graphics.backward_compatibility =
                         (self.graphics.instruct_control & 0x4) == 0;
                 } else {

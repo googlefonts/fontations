@@ -10,7 +10,7 @@ use super::{
     program::{Program, ProgramState},
     value_stack::ValueStack,
     zone::Zone,
-    HintOutline, HintingMode, PointFlags,
+    HintOutline, PointFlags, Target,
 };
 use alloc::vec::Vec;
 use raw::{
@@ -38,7 +38,7 @@ impl HintInstance {
         outlines: &Outlines,
         scale: i32,
         ppem: i32,
-        mode: HintingMode,
+        target: Target,
         coords: &[F2Dot14],
     ) -> Result<(), HintError> {
         self.setup(outlines, scale, coords);
@@ -53,7 +53,7 @@ impl HintInstance {
         let glyph = Zone::default();
         let mut stack_buf = vec![0; self.max_stack];
         let value_stack = ValueStack::new(&mut stack_buf, false);
-        let graphics = RetainedGraphicsState::new(scale, ppem, mode);
+        let graphics = RetainedGraphicsState::new(scale, ppem, target);
         let mut engine = Engine::new(
             outlines,
             ProgramState::new(outlines.fpgm, outlines.prep, &[], Program::Font),
@@ -92,9 +92,9 @@ impl HintInstance {
     /// by the hinter settings or the `prep` table.
     pub fn backward_compatibility(&self) -> bool {
         // Set backward compatibility mode
-        if self.graphics.mode.preserve_linear_metrics() {
+        if self.graphics.target.preserve_linear_metrics() {
             true
-        } else if self.graphics.mode.is_smooth() {
+        } else if self.graphics.target.is_smooth() {
             (self.graphics.instruct_control & 0x4) == 0
         } else {
             false
