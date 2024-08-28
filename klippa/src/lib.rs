@@ -1,5 +1,6 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
+mod cpal;
 mod glyf_loca;
 mod gpos;
 mod gsub;
@@ -22,7 +23,10 @@ use fnv::FnvHashMap;
 use skrifa::MetadataProvider;
 use thiserror::Error;
 use write_fonts::read::{
-    collections::IntSet,
+    collections::{
+        int_set::{Domain, InDomain},
+        IntSet,
+    },
     tables::{
         cff::Cff,
         cff2::Cff2,
@@ -162,8 +166,14 @@ pub struct Plan {
     drop_tables: IntSet<Tag>,
     name_ids: IntSet<NameId>,
 
+    //old->new feature index map
     gsub_features: FnvHashMap<u16, u16>,
     gpos_features: FnvHashMap<u16, u16>,
+
+    //old->new colrv1 layer index map
+    colrv1_layers: FnvHashMap<u32, u32>,
+    //old->new CPAL palette index map
+    colr_palettes: FnvHashMap<u16, u16>,
 }
 
 impl Plan {
@@ -343,8 +353,8 @@ impl Plan {
                 &mut delta_set_indices,
             );
             colr.v0_closure_palette_indices(&self.glyphset_colred, &mut palette_indices);
-
-            //TODO: remap layer_indices and palette_indices
+            self.colrv1_layers = remap_indices(layer_indices);
+            self.colr_palettes = remap_palette_indices(palette_indices);
             //TODO: generate varstore innermaps or something similar
         } else {
             self.glyphset_colred.union(&self.glyphset_gsub);
@@ -435,6 +445,30 @@ fn get_font_num_glyphs(font: &FontRef) -> usize {
 
     let maxp = font.maxp().expect("Error reading maxp table");
     ret.max(maxp.num_glyphs() as usize)
+}
+
+fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash>(
+    indices: IntSet<T>,
+) -> FnvHashMap<T, T> {
+    indices
+        .iter()
+        .enumerate()
+        .map(|x| (x.1, T::from_u32(InDomain::new(x.0 as u32))))
+        .collect()
+}
+
+fn remap_palette_indices(indices: IntSet<u16>) -> FnvHashMap<u16, u16> {
+    indices
+        .iter()
+        .enumerate()
+        .map(|x| {
+            if x.1 == 0xFFFF {
+                (0xFFFF, 0xFFFF)
+            } else {
+                (x.1, x.0 as u16)
+            }
+        })
+        .collect()
 }
 
 #[derive(Debug, Error)]
