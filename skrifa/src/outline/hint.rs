@@ -49,7 +49,7 @@ pub enum Engine {
     ///
     /// Specifically, PostScript (CFF/CFF2) fonts will always use the hinting
     /// engine in the PostScript interpreter and TrueType fonts will use the
-    /// interpreter for TrueType isntructions if one of the `fpgm` or `prep`
+    /// interpreter for TrueType instructions if one of the `fpgm` or `prep`
     /// tables is non-empty, falling back to the automatic hinter otherwise.
     ///
     /// This uses [`OutlineGlyphCollection::prefer_interpreter`] to make a
