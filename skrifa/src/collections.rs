@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 ///
 /// Note that unlike the real `SmallVec`, this only works with types that
 /// are `Copy + Default` to simplify our implementation.
-#[derive(Clone)]
+#[derive(Clone, Hash)]
 pub(crate) struct SmallVec<T, const N: usize>(Storage<T, N>);
 
 impl<T, const N: usize> SmallVec<T, N>
@@ -224,7 +224,7 @@ where
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Hash)]
 enum Storage<T, const N: usize> {
     Inline([T; N], usize),
     Heap(Vec<T>),
