@@ -14,47 +14,27 @@ use raw::{
 pub(super) struct UnscaledPoint {
     pub x: i16,
     pub y: i16,
-    pub flags: u16,
+    pub flags: PointFlags,
+    pub is_contour_start: bool,
 }
 
 impl UnscaledPoint {
-    pub const ON_CURVE: u16 = 1;
-    pub const CUBIC: u16 = 2;
-    pub const CONTOUR_START: u16 = 4;
-
     pub fn from_glyf_point(
         point: Point<F26Dot6>,
-        point_flags: PointFlags,
+        flags: PointFlags,
         is_contour_start: bool,
     ) -> Self {
         let point = point.map(|x| (x.to_bits() >> 6) as i16);
-        let mut flags = is_contour_start as u16 * Self::CONTOUR_START;
-        if point_flags.is_on_curve() {
-            flags |= Self::ON_CURVE
-        } else if point_flags.is_off_curve_cubic() {
-            flags |= Self::CUBIC
-        };
         Self {
             x: point.x,
             y: point.y,
-            flags,
+            flags: flags.without_markers(),
+            is_contour_start,
         }
     }
 
     pub fn is_on_curve(self) -> bool {
-        self.flags & Self::ON_CURVE != 0
-    }
-
-    pub fn is_off_curve_quad(self) -> bool {
-        self.flags & (Self::ON_CURVE | Self::CUBIC) == 0
-    }
-
-    pub fn is_off_curve_cubic(self) -> bool {
-        self.flags & (Self::CUBIC | Self::ON_CURVE) == Self::CUBIC
-    }
-
-    pub fn is_contour_start(self) -> bool {
-        self.flags & Self::CONTOUR_START != 0
+        self.flags.is_on_curve()
     }
 }
 
@@ -129,7 +109,7 @@ impl<'a> UnscaledOutlineRef<'a> {
         let mut cur_contour = 0..0;
         let mut found_best_in_cur_contour = false;
         for (point_ix, point) in self.points.iter().enumerate() {
-            if point.is_contour_start() {
+            if point.is_contour_start {
                 if found_best_in_cur_contour {
                     best_contour = cur_contour;
                 }
@@ -181,13 +161,14 @@ impl<'a, T> UnscaledPenAdapter<'a, T>
 where
     T: UnscaledOutlineSink,
 {
-    fn push(&mut self, x: f32, y: f32, flags: u16) {
+    fn push(&mut self, x: f32, y: f32, flags: PointFlags, is_contour_start: bool) {
         if self
             .sink
             .push(UnscaledPoint {
                 x: x as i16,
                 y: y as i16,
                 flags,
+                is_contour_start,
             })
             .is_err()
         {
@@ -198,22 +179,22 @@ where
 
 impl<'a, T: UnscaledOutlineSink> super::OutlinePen for UnscaledPenAdapter<'a, T> {
     fn move_to(&mut self, x: f32, y: f32) {
-        self.push(x, y, UnscaledPoint::ON_CURVE | UnscaledPoint::CONTOUR_START);
+        self.push(x, y, PointFlags::on_curve(), true);
     }
 
     fn line_to(&mut self, x: f32, y: f32) {
-        self.push(x, y, UnscaledPoint::ON_CURVE);
+        self.push(x, y, PointFlags::on_curve(), false);
     }
 
     fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
-        self.push(cx0, cy0, 0);
-        self.push(x, y, UnscaledPoint::ON_CURVE);
+        self.push(cx0, cy0, PointFlags::off_curve_quad(), false);
+        self.push(x, y, PointFlags::on_curve(), false);
     }
 
     fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
-        self.push(cx0, cy0, UnscaledPoint::CUBIC);
-        self.push(cx1, cy1, UnscaledPoint::CUBIC);
-        self.push(x, y, UnscaledPoint::ON_CURVE);
+        self.push(cx0, cy0, PointFlags::off_curve_cubic(), false);
+        self.push(cx1, cy1, PointFlags::off_curve_cubic(), false);
+        self.push(x, y, PointFlags::on_curve(), false);
     }
 
     fn close(&mut self) {}
@@ -236,7 +217,7 @@ mod tests {
         let outline = outline.as_ref();
         let expected = [
             // contour 0
-            (400, 80, 5),
+            (400, 80, 1),
             (400, 360, 1),
             (320, 360, 1),
             (320, 600, 1),
@@ -251,7 +232,7 @@ mod tests {
             (560, 360, 1),
             (560, 80, 1),
             // contour 1
-            (480, 720, 5),
+            (480, 720, 1),
             (447, 720, 0),
             (400, 767, 0),
             (400, 800, 1),
@@ -267,7 +248,7 @@ mod tests {
         let points = outline
             .points
             .iter()
-            .map(|point| (point.x, point.y, point.flags))
+            .map(|point| (point.x, point.y, point.flags.to_bits()))
             .collect::<Vec<_>>();
         assert_eq!(points, expected);
     }
@@ -283,17 +264,17 @@ mod tests {
         let outline = outline.as_ref();
         let expected = [
             // contour 0
-            (278, 710, 5),
+            (278, 710, 1),
             (278, 470, 1),
-            (300, 500, 2),
-            (800, 500, 2),
+            (300, 500, 128),
+            (800, 500, 128),
             (998, 470, 1),
             (998, 710, 1),
         ];
         let points = outline
             .points
             .iter()
-            .map(|point| (point.x, point.y, point.flags))
+            .map(|point| (point.x, point.y, point.flags.to_bits()))
             .collect::<Vec<_>>();
         assert_eq!(points, expected);
     }
@@ -309,29 +290,29 @@ mod tests {
         let outline = outline.as_ref();
         let expected = [
             // contour 0
-            (83, 0, 5),
+            (83, 0, 1),
             (163, 0, 1),
             (163, 482, 1),
             (83, 482, 1),
             // contour 1
-            (124, 595, 5),
-            (160, 595, 2),
-            (181, 616, 2),
+            (124, 595, 1),
+            (160, 595, 128),
+            (181, 616, 128),
             (181, 652, 1),
-            (181, 688, 2),
-            (160, 709, 2),
+            (181, 688, 128),
+            (160, 709, 128),
             (124, 709, 1),
-            (88, 709, 2),
-            (67, 688, 2),
+            (88, 709, 128),
+            (67, 688, 128),
             (67, 652, 1),
-            (67, 616, 2),
-            (88, 595, 2),
+            (67, 616, 128),
+            (88, 595, 128),
             (124, 595, 1),
         ];
         let points = outline
             .points
             .iter()
-            .map(|point| (point.x, point.y, point.flags))
+            .map(|point| (point.x, point.y, point.flags.to_bits()))
             .collect::<Vec<_>>();
         assert_eq!(points, expected);
     }

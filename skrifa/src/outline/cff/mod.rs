@@ -517,11 +517,11 @@ where
     }
 
     pub fn finish(&mut self) {
-        match self.start {
-            Some((x, y)) if self.last != self.start => {
+        if let Some((x, y)) = self.start {
+            if self.last != self.start {
                 self.inner.line_to(x, y);
             }
-            _ => {}
+            self.inner.close();
         }
     }
 }
@@ -579,7 +579,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{super::pen::SvgPen, *};
+    use crate::{
+        outline::{HintingInstance, HintingOptions},
+        prelude::{LocationRef, Size},
+        MetadataProvider,
+    };
     use raw::tables::cff2::Cff2;
     use read_fonts::FontRef;
 
@@ -674,6 +679,32 @@ mod tests {
             font_test_data::NOTO_SERIF_DISPLAY_TRIMMED,
             font_test_data::NOTO_SERIF_DISPLAY_TRIMMED_GLYPHS,
         );
+    }
+
+    #[test]
+    fn unhinted_ends_with_close() {
+        let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
+        let glyph = font.outline_glyphs().get(GlyphId::new(1)).unwrap();
+        let mut svg = SvgPen::default();
+        glyph.draw(Size::unscaled(), &mut svg).unwrap();
+        assert!(svg.to_string().ends_with('Z'));
+    }
+
+    #[test]
+    fn hinted_ends_with_close() {
+        let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
+        let glyphs = font.outline_glyphs();
+        let hinter = HintingInstance::new(
+            &glyphs,
+            Size::unscaled(),
+            LocationRef::default(),
+            HintingOptions::default(),
+        )
+        .unwrap();
+        let glyph = glyphs.get(GlyphId::new(1)).unwrap();
+        let mut svg = SvgPen::default();
+        glyph.draw(&hinter, &mut svg).unwrap();
+        assert!(svg.to_string().ends_with('Z'));
     }
 
     /// For the given font data and extracted outlines, parse the extracted

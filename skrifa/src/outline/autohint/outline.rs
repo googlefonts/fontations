@@ -2,14 +2,19 @@
 
 use super::{
     super::{
+        path,
+        pen::PathStyle,
         unscaled::{UnscaledOutlineSink, UnscaledPoint},
-        DrawError, LocationRef, OutlineGlyph,
+        DrawError, LocationRef, OutlineGlyph, OutlinePen,
     },
     metrics::Scale,
 };
 use crate::collections::SmallVec;
 use core::ops::Range;
-use raw::types::F2Dot14;
+use raw::{
+    tables::glyf::{PointFlags, PointMarker},
+    types::{F26Dot6, F2Dot14},
+};
 
 /// Hinting directions.
 ///
@@ -84,7 +89,7 @@ pub(crate) enum Orientation {
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub(super) struct Point {
     /// Describes the type and hinting state of the point.
-    pub flags: u8,
+    pub flags: PointFlags,
     /// X coordinate in font units.
     pub fx: i32,
     /// Y coordinate in font units.
@@ -111,29 +116,9 @@ pub(super) struct Point {
     pub prev_ix: u16,
 }
 
-/// Point type flags.
-///
-/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.h#L210>
-impl Point {
-    /// Quadratic control point.
-    pub const QUAD: u8 = 1 << 0;
-    /// Cubic control point.
-    pub const CUBIC: u8 = 1 << 1;
-    /// Any control point.
-    pub const CONTROL: u8 = Self::QUAD | Self::CUBIC;
-    /// Touched in x direction.
-    pub const TOUCH_X: u8 = 1 << 2;
-    /// Touched in y direction.
-    pub const TOUCH_Y: u8 = 1 << 3;
-    /// Candidate for weak intepolation.
-    pub const WEAK_INTERPOLATION: u8 = 1 << 4;
-    /// Distance to next point is very small.
-    pub const NEAR: u8 = 1 << 5;
-}
-
 impl Point {
     pub fn is_on_curve(&self) -> bool {
-        self.flags & Self::CONTROL == 0
+        self.flags.is_on_curve()
     }
 
     /// Returns the index of the next point in the contour.
@@ -144,6 +129,15 @@ impl Point {
     /// Returns the index of the previous point in the contour.
     pub fn prev(&self) -> usize {
         self.prev_ix as usize
+    }
+
+    #[inline(always)]
+    fn as_contour_point(&self) -> path::ContourPoint<F26Dot6> {
+        path::ContourPoint {
+            x: F26Dot6::from_bits(self.x),
+            y: F26Dot6::from_bits(self.y),
+            flags: self.flags,
+        }
     }
 }
 
@@ -197,6 +191,27 @@ impl Outline {
         self.points.clear();
         self.contours.clear();
     }
+
+    pub fn to_path(
+        &self,
+        style: PathStyle,
+        pen: &mut impl OutlinePen,
+    ) -> Result<(), path::ToPathError> {
+        for contour in &self.contours {
+            let Some(points) = self.points.get(contour.range()) else {
+                continue;
+            };
+            if let Some(last_point) = points.last().map(Point::as_contour_point) {
+                path::contour_to_path(
+                    points.iter().map(Point::as_contour_point),
+                    last_point,
+                    style,
+                    pen,
+                )?;
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Outline {
@@ -233,7 +248,7 @@ impl Outline {
                 let out_x = point.fx - prev.fx;
                 let out_y = point.fy - prev.fy;
                 if out_x.abs() + out_y.abs() < near_limit {
-                    prev.flags |= Point::NEAR;
+                    prev.flags.set_marker(PointMarker::NEAR);
                 }
                 prev_ix = ix;
             }
@@ -285,7 +300,7 @@ impl Outline {
                 out_x += next.fx - point.fx;
                 out_y += next.fy - point.fy;
                 if out_x.abs() + out_y.abs() < near_limit {
-                    next.flags |= Point::WEAK_INTERPOLATION;
+                    next.flags.set_marker(PointMarker::WEAK_INTERPOLATION);
                     // The original code is a do-while loop, so make
                     // sure we keep this condition before the continue
                     if next_ix == first_ix {
@@ -337,7 +352,7 @@ impl Outline {
                 let out_y = next_u.fy - point.fy;
                 if (in_x ^ out_x) >= 0 || (in_y ^ out_y) >= 0 {
                     // Both vectors point into the same quadrant
-                    points[i].flags |= Point::WEAK_INTERPOLATION;
+                    points[i].flags.set_marker(PointMarker::WEAK_INTERPOLATION);
                     points[v_index].u = u_index as _;
                     points[u_index].v = v_index as _;
                 }
@@ -353,11 +368,11 @@ impl Outline {
         for i in 0..points.len() {
             let point = points[i];
             let mut make_weak = false;
-            if point.flags & Point::WEAK_INTERPOLATION != 0 {
+            if point.flags.has_marker(PointMarker::WEAK_INTERPOLATION) {
                 // Already weak
                 continue;
             }
-            if point.flags & Point::CONTROL != 0 {
+            if !point.flags.is_on_curve() {
                 // Control points are always weak
                 make_weak = true;
             } else if point.out_dir == point.in_dir {
@@ -387,7 +402,7 @@ impl Outline {
                 make_weak = true;
             }
             if make_weak {
-                points[i].flags |= Point::WEAK_INTERPOLATION;
+                points[i].flags.set_marker(PointMarker::WEAK_INTERPOLATION);
             }
         }
     }
@@ -521,15 +536,8 @@ impl UnscaledOutlineSink for Outline {
     }
 
     fn push(&mut self, point: UnscaledPoint) -> Result<(), DrawError> {
-        let flags = if point.is_off_curve_quad() {
-            Point::QUAD
-        } else if point.is_off_curve_cubic() {
-            Point::CUBIC
-        } else {
-            0
-        };
         let new_point = Point {
-            flags,
+            flags: point.flags,
             fx: point.x as i32,
             fy: point.y as i32,
             ..Default::default()
@@ -539,7 +547,7 @@ impl UnscaledOutlineSink for Outline {
             .len()
             .try_into()
             .map_err(|_| DrawError::InsufficientMemory)?;
-        if point.is_contour_start() {
+        if point.is_contour_start {
             self.contours.push(Contour {
                 first_ix: new_point_ix,
                 last_ix: new_point_ix,
@@ -561,10 +569,10 @@ impl UnscaledOutlineSink for Outline {
 
 #[cfg(test)]
 mod tests {
-    use super::Outline;
+    use super::super::super::{pen::SvgPen, DrawSettings};
     use super::*;
-    use crate::MetadataProvider;
-    use raw::{types::GlyphId, FontRef};
+    use crate::{prelude::Size, MetadataProvider};
+    use raw::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn direction_from_vectors() {
@@ -614,54 +622,54 @@ mod tests {
         use Direction::*;
         let expected = &[
             // (x, y, in_dir, out_dir, flags)
-            (107, 0, Left, Left, 16),
-            (85, 0, Left, None, 17),
-            (55, 26, None, Up, 17),
-            (55, 71, Up, Up, 16),
-            (55, 332, Up, Up, 16),
-            (55, 360, Up, None, 17),
-            (67, 411, None, None, 17),
-            (93, 459, None, None, 17),
-            (112, 481, None, Up, 0),
-            (112, 504, Up, Right, 0),
-            (168, 504, Right, Down, 0),
-            (168, 483, Down, None, 0),
-            (153, 473, None, None, 17),
-            (126, 428, None, None, 17),
-            (109, 366, None, Down, 17),
-            (109, 332, Down, Down, 16),
-            (109, 109, Down, Right, 0),
-            (407, 109, Right, Right, 16),
-            (427, 109, Right, None, 17),
-            (446, 136, None, None, 17),
-            (453, 169, None, Up, 17),
-            (453, 178, Up, Up, 16),
-            (453, 374, Up, Up, 16),
-            (453, 432, Up, None, 17),
-            (400, 483, None, Left, 17),
-            (362, 483, Left, Left, 16),
-            (109, 483, Left, Left, 16),
-            (86, 483, Left, None, 17),
-            (62, 517, None, Up, 17),
-            (62, 555, Up, Up, 16),
-            (62, 566, Up, None, 17),
-            (64, 587, None, None, 17),
-            (71, 619, None, None, 17),
-            (76, 647, None, Right, 0),
-            (103, 647, Right, Down, 32),
-            (103, 644, Down, Down, 16),
-            (103, 619, Down, None, 17),
-            (131, 592, None, Right, 17),
-            (155, 592, Right, Right, 16),
-            (386, 592, Right, Right, 16),
-            (437, 592, Right, None, 17),
-            (489, 552, None, None, 17),
-            (507, 485, None, Down, 17),
-            (507, 443, Down, Down, 16),
-            (507, 75, Down, Down, 16),
-            (507, 40, Down, None, 17),
-            (470, 0, None, Left, 17),
-            (436, 0, Left, Left, 16),
+            (107, 0, Left, Left, 3),
+            (85, 0, Left, None, 2),
+            (55, 26, None, Up, 2),
+            (55, 71, Up, Up, 3),
+            (55, 332, Up, Up, 3),
+            (55, 360, Up, None, 2),
+            (67, 411, None, None, 2),
+            (93, 459, None, None, 2),
+            (112, 481, None, Up, 1),
+            (112, 504, Up, Right, 1),
+            (168, 504, Right, Down, 1),
+            (168, 483, Down, None, 1),
+            (153, 473, None, None, 2),
+            (126, 428, None, None, 2),
+            (109, 366, None, Down, 2),
+            (109, 332, Down, Down, 3),
+            (109, 109, Down, Right, 1),
+            (407, 109, Right, Right, 3),
+            (427, 109, Right, None, 2),
+            (446, 136, None, None, 2),
+            (453, 169, None, Up, 2),
+            (453, 178, Up, Up, 3),
+            (453, 374, Up, Up, 3),
+            (453, 432, Up, None, 2),
+            (400, 483, None, Left, 2),
+            (362, 483, Left, Left, 3),
+            (109, 483, Left, Left, 3),
+            (86, 483, Left, None, 2),
+            (62, 517, None, Up, 2),
+            (62, 555, Up, Up, 3),
+            (62, 566, Up, None, 2),
+            (64, 587, None, None, 2),
+            (71, 619, None, None, 2),
+            (76, 647, None, Right, 1),
+            (103, 647, Right, Down, 9),
+            (103, 644, Down, Down, 3),
+            (103, 619, Down, None, 2),
+            (131, 592, None, Right, 2),
+            (155, 592, Right, Right, 3),
+            (386, 592, Right, Right, 3),
+            (437, 592, Right, None, 2),
+            (489, 552, None, None, 2),
+            (507, 485, None, Down, 2),
+            (507, 443, Down, Down, 3),
+            (507, 75, Down, Down, 3),
+            (507, 40, Down, None, 2),
+            (470, 0, None, Left, 2),
+            (436, 0, Left, Left, 3),
         ];
         let points = outline
             .points
@@ -672,7 +680,7 @@ mod tests {
                     point.fy,
                     point.in_dir,
                     point.out_dir,
-                    point.flags as i32,
+                    point.flags.to_bits(),
                 )
             })
             .collect::<Vec<_>>();
@@ -696,5 +704,91 @@ mod tests {
         let mut outline = Outline::default();
         outline.fill(&glyph, Default::default()).unwrap();
         outline
+    }
+
+    #[test]
+    fn mostly_off_curve_to_path_scan_backward() {
+        compare_path_conversion(font_test_data::MOSTLY_OFF_CURVE, PathStyle::FreeType);
+    }
+
+    #[test]
+    fn mostly_off_curve_to_path_scan_forward() {
+        compare_path_conversion(font_test_data::MOSTLY_OFF_CURVE, PathStyle::HarfBuzz);
+    }
+
+    #[test]
+    fn starting_off_curve_to_path_scan_backward() {
+        compare_path_conversion(font_test_data::STARTING_OFF_CURVE, PathStyle::FreeType);
+    }
+
+    #[test]
+    fn starting_off_curve_to_path_scan_forward() {
+        compare_path_conversion(font_test_data::STARTING_OFF_CURVE, PathStyle::HarfBuzz);
+    }
+
+    #[test]
+    fn cubic_to_path_scan_backward() {
+        compare_path_conversion(font_test_data::CUBIC_GLYF, PathStyle::FreeType);
+    }
+
+    #[test]
+    fn cubic_to_path_scan_forward() {
+        compare_path_conversion(font_test_data::CUBIC_GLYF, PathStyle::HarfBuzz);
+    }
+
+    #[test]
+    fn cff_to_path_scan_backward() {
+        compare_path_conversion(font_test_data::CANTARELL_VF_TRIMMED, PathStyle::FreeType);
+    }
+
+    #[test]
+    fn cff_to_path_scan_forward() {
+        compare_path_conversion(font_test_data::CANTARELL_VF_TRIMMED, PathStyle::HarfBuzz);
+    }
+
+    /// Ensures autohint path conversion matches the base scaler path
+    /// conversion for all glyphs in the given font with a certain
+    /// path style.
+    fn compare_path_conversion(font_data: &[u8], path_style: PathStyle) {
+        let font = FontRef::new(font_data).unwrap();
+        let glyph_count = font.maxp().unwrap().num_glyphs();
+        let glyphs = font.outline_glyphs();
+        let mut results = Vec::new();
+        // And all glyphs
+        for gid in 0..glyph_count {
+            let glyph = glyphs.get(GlyphId::from(gid)).unwrap();
+            // Unscaled, unhinted code path
+            let mut base_svg = SvgPen::default();
+            let settings = DrawSettings::unhinted(Size::unscaled(), LocationRef::default())
+                .with_path_style(path_style);
+            glyph.draw(settings, &mut base_svg);
+            let base_svg = base_svg.to_string();
+            // Autohinter outline code path
+            let mut outline = Outline::default();
+            outline.fill(&glyph, Default::default()).unwrap();
+            // The to_path method uses the (x, y) coords which aren't filled
+            // until we scale (and we aren't doing that here) so update
+            // them with 26.6 values manually
+            for point in &mut outline.points {
+                point.x = point.fx << 6;
+                point.y = point.fy << 6;
+            }
+            let mut autohint_svg = SvgPen::default();
+            outline.to_path(path_style, &mut autohint_svg);
+            let autohint_svg = autohint_svg.to_string();
+            if base_svg != autohint_svg {
+                results.push((gid, base_svg, autohint_svg));
+            }
+        }
+        if !results.is_empty() {
+            let report: String = results
+                .into_iter()
+                .map(|(gid, expected, got)| {
+                    format!("[glyph {gid}]\nexpected: {expected}\n     got: {got}")
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            panic!("outline to path comparison failed:\n{report}");
+        }
     }
 }
