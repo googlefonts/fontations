@@ -1,12 +1,13 @@
 //! Internal "small" style collection types.
 
 use alloc::vec::Vec;
+use core::hash::{Hash, Hasher};
 
 /// A growable vector type with inline storage optimization.
 ///
 /// Note that unlike the real `SmallVec`, this only works with types that
 /// are `Copy + Default` to simplify our implementation.
-#[derive(Clone, Hash)]
+#[derive(Clone)]
 pub(crate) struct SmallVec<T, const N: usize>(Storage<T, N>);
 
 impl<T, const N: usize> SmallVec<T, N>
@@ -143,6 +144,15 @@ impl<T, const N: usize> core::ops::Deref for SmallVec<T, N> {
 impl<T, const N: usize> core::ops::DerefMut for SmallVec<T, N> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.as_mut_slice()
+    }
+}
+
+impl<T, const N: usize> Hash for SmallVec<T, N>
+where
+    T: Hash,
+{
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_slice().hash(state);
     }
 }
 
