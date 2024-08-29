@@ -599,7 +599,9 @@ impl Entry {
 mod tests {
     use super::*;
     use font_test_data as test_data;
-    use font_test_data::ift::simple_format1;
+    use font_test_data::ift::{
+        codepoints_only_format2, feature_map_format1, simple_format1, u16_entries_format1,
+    };
     use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
     use read_fonts::FontRef;
     use write_fonts::FontBuilder;
@@ -842,7 +844,7 @@ mod tests {
     fn format_1_patch_map_u16_entries() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(test_data::ift::U16_ENTRIES_FORMAT1),
+            Some(&u16_entries_format1()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
@@ -859,7 +861,7 @@ mod tests {
     fn format_1_patch_map_u16_entries_with_feature_mapping() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(test_data::ift::FEATURE_MAP_FORMAT1),
+            Some(&feature_map_format1()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
@@ -905,16 +907,9 @@ mod tests {
 
     #[test]
     fn format_1_patch_map_u16_entries_with_out_of_order_feature_mapping() {
-        let mut data = Vec::<u8>::from(test_data::ift::FEATURE_MAP_FORMAT1);
-        data[112] = b'l';
-        data[113] = b'i';
-        data[114] = b'g';
-        data[115] = b'a';
-
-        data[120] = b'd';
-        data[121] = b'l';
-        data[122] = b'i';
-        data[123] = b'g';
+        let mut data = feature_map_format1();
+        data.write_at("FeatureRecord[0]", Tag::new(b"liga"));
+        data.write_at("FeatureRecord[1]", Tag::new(b"dlig"));
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -940,16 +935,9 @@ mod tests {
 
     #[test]
     fn format_1_patch_map_u16_entries_with_duplicate_feature_mapping() {
-        let mut data = Vec::<u8>::from(test_data::ift::FEATURE_MAP_FORMAT1);
-        data[112] = b'l';
-        data[113] = b'i';
-        data[114] = b'g';
-        data[115] = b'a';
-
-        data[120] = b'l';
-        data[121] = b'i';
-        data[122] = b'g';
-        data[123] = b'a';
+        let mut data = feature_map_format1();
+        data.write_at("FeatureRecord[0]", Tag::new(b"liga"));
+        data.write_at("FeatureRecord[1]", Tag::new(b"liga"));
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -971,10 +959,7 @@ mod tests {
     fn format_1_patch_map_feature_map_entry_record_too_short() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(
-                &test_data::ift::FEATURE_MAP_FORMAT1
-                    [..test_data::ift::FEATURE_MAP_FORMAT1.len() - 1],
-            ),
+            Some(&feature_map_format1()[..feature_map_format1().len() - 1]),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
@@ -1012,7 +997,7 @@ mod tests {
     fn format_1_patch_map_feature_record_too_short() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&test_data::ift::FEATURE_MAP_FORMAT1[..123]),
+            Some(&feature_map_format1()[..123]),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
@@ -1050,7 +1035,7 @@ mod tests {
     fn format_2_patch_map_codepoints_only() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(test_data::ift::CODEPOINTS_ONLY_FORMAT2),
+            Some(&codepoints_only_format2()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
