@@ -141,7 +141,7 @@ const MAX_INLINE_COORDS: usize = 8;
 ///
 /// This is an owned version of [`LocationRef`]. See the documentation on that
 /// type for more detail.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct Location {
     coords: SmallVec<NormalizedCoord, MAX_INLINE_COORDS>,
 }

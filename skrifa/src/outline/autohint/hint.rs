@@ -7,6 +7,8 @@
 //!
 //! The final result is a fully hinted outline.
 
+use raw::tables::glyf::PointMarker;
+
 use super::{
     axis::{Axis, Dimension},
     metrics::{fixed_div, fixed_mul, Scale},
@@ -31,10 +33,10 @@ pub(crate) fn align_edge_points(outline: &mut Outline, axis: &Axis) -> Option<()
             let point = points.get_mut(point_ix)?;
             if axis.dim == Axis::HORIZONTAL {
                 point.x = edge.pos;
-                point.flags |= Point::TOUCH_X;
+                point.flags.set_marker(PointMarker::TOUCHED_X);
             } else {
                 point.y = edge.pos;
-                point.flags |= Point::TOUCH_Y;
+                point.flags.set_marker(PointMarker::TOUCHED_Y);
             }
             if point_ix == last_ix {
                 break;
@@ -54,14 +56,17 @@ pub(crate) fn align_strong_points(outline: &mut Outline, axis: &mut Axis) -> Opt
     }
     let dim = axis.dim;
     let touch_flag = if dim == Axis::HORIZONTAL {
-        Point::TOUCH_X
+        PointMarker::TOUCHED_X
     } else {
-        Point::TOUCH_Y
+        PointMarker::TOUCHED_Y
     };
     'points: for point in &mut outline.points {
         // Skip points that are already touched; do weak interpolation in the
         // next pass
-        if point.flags & (touch_flag | Point::WEAK_INTERPOLATION) != 0 {
+        if point
+            .flags
+            .has_marker(touch_flag | PointMarker::WEAK_INTERPOLATION)
+        {
             continue;
         }
         let (u, ou) = if dim == Axis::VERTICAL {
@@ -127,25 +132,25 @@ pub(crate) fn align_strong_points(outline: &mut Outline, axis: &mut Axis) -> Opt
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L1673>
 pub(crate) fn align_weak_points(outline: &mut Outline, dim: Dimension) -> Option<()> {
-    let touch_flag = if dim == Axis::HORIZONTAL {
+    let touch_marker = if dim == Axis::HORIZONTAL {
         for point in &mut outline.points {
             point.u = point.x;
             point.v = point.ox;
         }
-        Point::TOUCH_X
+        PointMarker::TOUCHED_X
     } else {
         for point in &mut outline.points {
             point.u = point.y;
             point.v = point.oy;
         }
-        Point::TOUCH_Y
+        PointMarker::TOUCHED_Y
     };
     for contour in &outline.contours {
         let points = outline.points.get_mut(contour.range())?;
         // Find first touched point
         let Some(first_touched_ix) = points
             .iter()
-            .position(|point| point.flags & touch_flag != 0)
+            .position(|point| point.flags.has_marker(touch_marker))
         else {
             continue;
         };
@@ -154,7 +159,7 @@ pub(crate) fn align_weak_points(outline: &mut Outline, dim: Dimension) -> Option
         let mut last_touched_ix;
         'outer: loop {
             // Skip any touched neighbors
-            while point_ix < last_ix && points.get(point_ix + 1)?.flags & touch_flag != 0 {
+            while point_ix < last_ix && points.get(point_ix + 1)?.flags.has_marker(touch_marker) {
                 point_ix += 1;
             }
             last_touched_ix = point_ix;
@@ -164,7 +169,7 @@ pub(crate) fn align_weak_points(outline: &mut Outline, dim: Dimension) -> Option
                 if point_ix > last_ix {
                     break 'outer;
                 }
-                if points[point_ix].flags & touch_flag != 0 {
+                if points[point_ix].flags.has_marker(touch_marker) {
                     break;
                 }
                 point_ix += 1;
@@ -219,10 +224,10 @@ pub(crate) fn align_weak_points(outline: &mut Outline, dim: Dimension) -> Option
 fn store_point(point: &mut Point, dim: Dimension, u: i32) {
     if dim == Axis::HORIZONTAL {
         point.x = u;
-        point.flags |= Point::TOUCH_X;
+        point.flags.set_marker(PointMarker::TOUCHED_X);
     } else {
         point.y = u;
-        point.flags |= Point::TOUCH_Y;
+        point.flags.set_marker(PointMarker::TOUCHED_Y);
     }
 }
 
