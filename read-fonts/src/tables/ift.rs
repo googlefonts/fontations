@@ -159,7 +159,8 @@ mod tests {
 
     #[test]
     fn format_1_gid_to_u16_entry_iter() {
-        let table = Ift::read(test_data::U16_ENTRIES_FORMAT1.into()).unwrap();
+        let data = test_data::u16_entries_format1();
+        let table = Ift::read(FontData::new(&data)).unwrap();
         let Ift::Format1(map) = table else {
             panic!("Not format 1.");
         };
@@ -179,7 +180,8 @@ mod tests {
 
     #[test]
     fn format_1_feature_map() {
-        let table = Ift::read(test_data::FEATURE_MAP_FORMAT1.into()).unwrap();
+        let data = test_data::feature_map_format1();
+        let table = Ift::read(FontData::new(&data)).unwrap();
         let Ift::Format1(map) = table else {
             panic!("Not format 1.");
         };

@@ -101,7 +101,7 @@ macro_rules! be_buffer_add {
     ($b:ident, $v:literal) => {
         let $b = $b.push($v);
     };
-    ($b:ident, {$v:literal : $tag:literal}) => {
+    ($b:ident, {$v:tt : $tag:literal}) => {
         let $b = $b.push_with_tag($v, $tag);
     };
     ($b:ident, [$($v:literal),+]) => {
@@ -162,11 +162,12 @@ mod tests {
         let builder = be_buffer! {
             1u8,
             {2u16: "foo"},
-            3u32
+            {(u32::from(3u16)): "bar"}
         };
         let data: &[u8] = &builder;
 
         assert_eq!([1, 0, 2, 0, 0, 0, 3], data);
         assert_eq!(builder.offset_for("foo"), 1);
+        assert_eq!(builder.offset_for("bar"), 3);
     }
 }
