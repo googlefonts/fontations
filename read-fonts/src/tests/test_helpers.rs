@@ -86,3 +86,87 @@ impl std::ops::Deref for BeBuffer {
         &self.data
     }
 }
+
+/// be_buffer_add!(buffer, value) - Add an item to a be_buffer.
+///
+/// Will call the appropriate insertion method on BeBuffer depending on the values format.
+///
+/// Values can be one of three types:
+/// 1. Single numeric value, ie: 10u16
+/// 2. Array of numeric values, ie: [1u8, 2, 3]
+/// 3. Tagged value: {10u16, "tag_name"}. This will insert the numeric value
+///    and attach the provide string tag to the insertion location in the buffer.
+#[macro_export]
+macro_rules! be_buffer_add {
+    ($b:ident, $v:literal) => {
+        let $b = $b.push($v);
+    };
+    ($b:ident, {$v:literal : $tag:literal}) => {
+        let $b = $b.push_with_tag($v, $tag);
+    };
+    ($b:ident, [$($v:literal),+]) => {
+        let $b = $b.extend([$($v),*]);
+    };
+    ($b:ident, $v:tt) => {
+        let $b = $b.push($v);
+    };
+}
+
+/// be_buffer!(val1, ..., valn) - Constructs a BeBuffer from the provided list of values:
+///
+/// Values can be one of three types:
+/// 1. Single numeric value, ie: 10u16
+/// 2. Array of numeric values, ie: [1u8, 2, 3]
+/// 3. Tagged value: {10u16, "tag_name"}. This will insert the numeric value
+///    and attach the provide string tag to the insertion location in the buffer.
+#[macro_export]
+macro_rules! be_buffer {
+    ( $( $x:tt ),+ ) => {
+        {
+            let builder = BeBuffer::new();
+            $(
+                be_buffer_add!(builder, $x);
+            )*
+            builder
+        }
+    };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn be_buffer_macro() {
+        let data: &[u8] = &be_buffer! {
+            1u8,
+            2u16,
+            3u32
+        };
+
+        assert_eq!([1, 0, 2, 0, 0, 0, 3], data);
+    }
+
+    #[test]
+    fn be_buffer_macro_array() {
+        let data: &[u8] = &be_buffer! {
+            1u8,
+            [2u8, 3, 4, 5, 6]
+        };
+
+        assert_eq!([1, 2, 3, 4, 5, 6], data);
+    }
+
+    #[test]
+    fn be_buffer_macro_tagged() {
+        let builder = be_buffer! {
+            1u8,
+            {2u16: "foo"},
+            3u32
+        };
+        let data: &[u8] = &builder;
+
+        assert_eq!([1, 0, 2, 0, 0, 0, 3], data);
+        assert_eq!(builder.offset_for("foo"), 1);
+    }
+}
