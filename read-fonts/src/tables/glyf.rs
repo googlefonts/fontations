@@ -29,6 +29,24 @@ impl PointMarker {
     /// Marker that signifies that the both coordinates of a point has been touched
     /// by an IUP hinting instruction.
     pub const TOUCHED: Self = Self(Self::TOUCHED_X.0 | Self::TOUCHED_Y.0);
+
+    /// Marks this point as a candidate for weak interpolation.
+    ///
+    /// Used by the automatic hinter.
+    pub const WEAK_INTERPOLATION: Self = Self(0x2);
+
+    /// Marker for points where the distance to next point is very small.
+    ///
+    /// Used by the automatic hinter.
+    pub const NEAR: PointMarker = Self(0x8);
+}
+
+impl core::ops::BitOr for PointMarker {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0)
+    }
 }
 
 /// Flags describing the properties of a point.
@@ -123,6 +141,16 @@ impl PointFlags {
     /// Clears the given marker for this point.
     pub fn clear_marker(&mut self, marker: PointMarker) {
         self.0 &= !marker.0
+    }
+
+    /// Returns a copy with all markers cleared.
+    pub const fn without_markers(self) -> Self {
+        Self(self.0 & Self::CURVE_MASK)
+    }
+
+    /// Returns the underlying bits.
+    pub const fn to_bits(self) -> u8 {
+        self.0
     }
 }
 

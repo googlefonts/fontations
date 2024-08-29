@@ -6,6 +6,8 @@
 //! The linking stage associates pairs of segments to form stems and
 //! identifies serifs with a post-process pass.
 
+use raw::tables::glyf::PointFlags;
+
 use super::super::{
     axis::{Axis, Dimension, Segment},
     outline::{Outline, Point},
@@ -355,8 +357,8 @@ struct State {
     max_pos: i32,
     min_coord: i32,
     max_coord: i32,
-    min_flags: u8,
-    max_flags: u8,
+    min_flags: PointFlags,
+    max_flags: PointFlags,
     min_on_coord: i32,
     max_on_coord: i32,
 }
@@ -369,8 +371,8 @@ impl Default for State {
             max_pos: MIN_SCORE,
             min_coord: MAX_SCORE,
             max_coord: MIN_SCORE,
-            min_flags: 0,
-            max_flags: 0,
+            min_flags: PointFlags::default(),
+            max_flags: PointFlags::default(),
             min_on_coord: MAX_SCORE,
             max_on_coord: MIN_SCORE,
         }
@@ -384,7 +386,7 @@ impl State {
         // A segment is round if either end point is a
         // control and the length of the on points in
         // between fits within a heuristic limit.
-        if (self.min_flags | self.max_flags) & Point::CONTROL != 0
+        if (!self.min_flags.is_on_curve() || !self.max_flags.is_on_curve())
             && (self.max_on_coord - self.min_on_coord) < flat_threshold
         {
             segment.flags |= Segment::ROUND;
