@@ -234,7 +234,7 @@ where
     }
 }
 
-#[derive(Clone, Hash)]
+#[derive(Clone)]
 enum Storage<T, const N: usize> {
     Inline([T; N], usize),
     Heap(Vec<T>),
