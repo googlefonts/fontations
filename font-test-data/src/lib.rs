@@ -221,32 +221,36 @@ pub mod colrv1_json {
 }
 
 pub mod ift {
-    use read_fonts::{test_helpers::BeBuffer, types::Uint24};
+    use read_fonts::{be_buffer, be_buffer_add, test_helpers::BeBuffer, types::Uint24};
 
     pub static IFT_BASE: &[u8] = include_bytes!("../test_data/ttf/ift_base.ttf");
 
     // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-1
     pub fn simple_format1() -> BeBuffer {
-        let mut buffer = BeBuffer::new()
-            // ## Header ##
-            .push(1u8) // format
-            .push(0u32) // reserved
-            .extend([1u32, 2, 3, 4]) // compat id
-            .push(2u16) // max entry id
-            .push_with_tag(2u16, "max_glyph_map_entry_id")
-            .push(Uint24::new(7)) // glyph count
-            .push_with_tag(0u32, "glyph_map_offset")
-            .push(0u32) // feature map offset
-            .push(0b00000010u8) // applied entry bitmap (entry 1)
-            .push(8u16) // uri template length
-            .push_with_tag(b'A', "uri_template[0]")
-            .push_with_tag(b'B', "uri_template[1]")
-            .extend([b'C', b'D', b'E', b'F', 0xc9, 0xa4]) // uri_template[2..7]
-            .push_with_tag(4u8, "patch_encoding") // = glyph keyed
-            // ## Glyph Map ##
-            .push_with_tag(1u16, "glyph_map") // first mapped glyph
-            .push_with_tag(2u8, "entry_index[1]")
-            .extend([1u8, 0, 1, 0, 0]); // entry index[2..6]
+        let mut buffer = be_buffer! {
+            /* ### Header ### */
+            1u8,                    // format
+            0u32,                   // reserved
+            [1u32, 2, 3, 4],        // compat id
+            2u16,                   // max entry id
+            {2u16: "max_glyph_map_entry_id"},
+            (Uint24::new(7)),       // glyph count
+            {0u32: "glyph_map_offset"},
+            0u32,                   // feature map offset
+            0b00000010u8,           // applied entry bitmap (entry 1)
+
+            8u16,                   // uri template length
+            {b'A': "uri_template[0]"},
+            {b'B': "uri_template[1]"},
+            [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // uri_template[2..7]
+
+            {4u8: "patch_encoding"}, // = glyph keyed
+
+            /* ### Glyph Map ### */
+            {1u16: "glyph_map"},     // first mapped glyph
+            {2u8: "entry_index[1]"},
+            [1u8, 0, 1, 0, 0]        // entry index[2..6]
+        };
 
         let offset = buffer.offset_for("glyph_map") as u32;
         buffer.write_at("glyph_map_offset", offset);
