@@ -36,10 +36,8 @@ impl<'a> NameIdClosure for CharacterVariantParams<'a> {
         }
 
         let last_name_id = first_name_id.to_u16() as u32 + num_named_params as u32 - 1;
-        if (256..=0x7fff).contains(&last_name_id) {
-            plan.name_ids
-                .insert_range(first_name_id..=NameId::new(last_name_id as u16));
-        }
+        plan.name_ids
+            .insert_range(first_name_id..=NameId::new(last_name_id as u16));
     }
 }
 
