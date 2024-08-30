@@ -1,5 +1,10 @@
+//! Test data for the IFT table
+//!
+//! Used for incremental font transfer. Specification:
+//! <https://w3c.github.io/IFT/Overview.html>
+
 use read_fonts::types::Tag;
-use read_fonts::{be_buffer, be_buffer_add, test_helpers::BeBuffer, types::Uint24};
+use read_fonts::{be_buffer, be_buffer_add, test_helpers::BeBuffer, types::Int24, types::Uint24};
 
 pub static IFT_BASE: &[u8] = include_bytes!("../test_data/ttf/ift_base.ttf");
 
@@ -177,8 +182,7 @@ pub fn codepoints_only_format2() -> BeBuffer {
       [1, 2, 3, 4u32],    // compat id
 
       4u8,                // default patch encoding
-      ((Uint24::new(3))), // entry count
-
+      (Uint24::new(3)),   // entry count
       {0u32: "entries_offset"},
       0u32,               // entry string data offset
 
@@ -207,201 +211,207 @@ pub fn codepoints_only_format2() -> BeBuffer {
     buffer
 }
 
-#[rustfmt::skip]
-pub static FEATURES_AND_DESIGN_SPACE_FORMAT2: &[u8] = &[
-    0x02,                    // 0: format
+pub fn features_and_design_space_format2() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      2u8, // format
 
-    0x00, 0x00, 0x00, 0x00,  // 1: reserved
+      0u32, // reserved
 
-    0x00, 0x00, 0x00, 0x01,  // 5: compat id [0]
-    0x00, 0x00, 0x00, 0x02,  // 9: compat id [1]
-    0x00, 0x00, 0x00, 0x03,  // 13: compat id [2]
-    0x00, 0x00, 0x00, 0x04,  // 17: compat id [3]
+      [1, 2, 3, 4u32], // compat id
 
-    0x04,                    // 21: default patch encoding = glyph keyed
-    0x00, 0x00, 0x03,        // 22: entry count
-    0x00, 0x00, 0x00, 0x2b,  // 25: entries offset (0x2b = 43)
-    0x00, 0x00, 0x00, 0x00,  // 29: entry id string data = null
+      4u8, // default patch encoding
+      (Uint24::new(3)), // entry count
+      {0u32: "entries_offset"},
+      0u32, // entry id string data offset
 
-    0x00, 0x08,              // 33: uriTemplateLength
-    b'A', b'B', b'C', b'D',
-    b'E', b'F', 0xc9, 0xa4,  // 35: uriTemplate[8]
+      8u16, // uriTemplateLength
+      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
 
-    // Entries Array
-    // Entry id = 1
-    0b00010001,                         // 43: format = CODEPOINT_BIT_1 | FEATURES_AND_DESIGN_SPACE
+      /* ### Entries Array ### */
+      // Entry id = 1
+      {0b00010001u8: "entries"},          // format = CODEPOINT_BIT_1 | FEATURES_AND_DESIGN_SPACE
 
-    0x02,                               // 44: feature count = 2
-    b'l', b'i', b'g', b'a',             // 45: feature[0] = liga
-    b's', b'm', b'c', b'p',             // 49: feature[0] = smcp
+      2u8,                                // feature count = 2
+      (Tag::new(b"liga")),                // feature[0] = liga
+      (Tag::new(b"smcp")),                // feature[1] = smcp
 
-    0x00, 0x01,                         // 53: design space count = 1
-    b'w', b'd', b't', b'h',             // 55: tag = wdth
-    0x00, 0x00, 0x80, 0x00,             // 59: start = 0.5
-    0x00, 0x01, 0x00, 0x00,             // 63: end = 1.0
+      1u16,                               // design space count
+      (Tag::new(b"wdth")),                // tag = wdth
+      0x8000u32,                          // start = 0.5
+      0x10000u32,                         // end = 1.0
 
-    0b00001101, 0b00000011, 0b00110001, // 67: codepoints = [0..17]
+      [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [0..17]
 
-    // Entries Array
-    // Entry id = 2
-    0b00010001,                         // 70: format = CODEPOINT_BIT_1 | FEATURES_AND_DESIGN_SPACE
+      // Entries Array
+      // Entry id = 2
+      0b00010001u8,                       // format = CODEPOINT_BIT_1 | FEATURES_AND_DESIGN_SPACE
 
-    0x01,                               // 71: feature count = 1
-    b'r', b'l', b'i', b'g',             // 72: feature[0] = rlig
+      1u8,                                // feature count
+      (Tag::new(b"rlig")),                // feature[0]
 
-    0x00, 0x00,                         // 76: design space count = 1
+      0u16,                               // design space count
 
-    0b00001101, 0b00000011, 0b00110001, // 78: codepoints = [0..17]
+      [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [0..17]
 
-    // Entry id = 3
-    0b000100001,                         // 81: format = CODEPOINT_BIT_2 | FEATURES_AND_DESIGN_SPACE
+      // Entry id = 3
+      0b000100001u8,                      // format = CODEPOINT_BIT_2 | FEATURES_AND_DESIGN_SPACE
 
-    0x01,                               // 82: feature count = 1
-    b's', b'm', b'c', b'p',             // 83: feature[0] = smcp
+      1u8,                                // feature count = 1
+      (Tag::new(b"smcp")),                // feature[0] = smcp
 
-    0x00, 0x03,                         // 87: design space count = 2
-    b'w', b'g', b'h', b't',             // 89: tag = wght
-    0x00, 0xC8, 0x00, 0x00,             // 93: start = 200
-    0x02, 0xBC, 0x00, 0x00,             // 97: end = 700
+      3u16,                               // design space count
+      (Tag::new(b"wght")),                // tag = wght
+      0x00C8_0000u32,                     // start = 200
+      0x02BC_0000u32,                     // end = 700
 
-    b'w', b'd', b't', b'h',             // 101: tag = wdth
-    0x00, 0x00, 0x00, 0x00,             // 105: start = 0
-    0x00, 0x00, 0x80, 0x00,             // 109: end = 0.5
+      (Tag::new(b"wdth")),                // tag = wdth
+      0x0u32,                             // start = 0
+      0x8000,                             // end = 0
 
-    b'w', b'd', b't', b'h',             // 114: tag = wdth
-    0x00, 0x02, 0x00, 0x00,             // 119: start = 2.0
-    0x00, 0x02, 0x80, 0x00,             // 124: end = 2.5
+      (Tag::new(b"wdth")),                // tag = wdth
+      0x0002_0000,                        // start = 2.0
+      0x0002_8000,                        // end = 2.5
 
-    0x00, 0x05,                         // 128: bias = 5
-    0b00001101, 0b00000011, 0b00110001, // 130: codepoints = [5..22]
-];
+      5u16,                               // bias = 5
+      0b00001101, 0b00000011, 0b00110001  // codepoints = [5..22]
+    };
 
-#[rustfmt::skip]
-pub static COPY_INDICES_FORMAT2: &[u8] = &[
-    0x02,                    // 0: format
+    let offset = buffer.offset_for("entries") as u32;
+    buffer.write_at("entries_offset", offset);
 
-    0x00, 0x00, 0x00, 0x00,  // 1: reserved
+    buffer
+}
 
-    0x00, 0x00, 0x00, 0x01,  // 5: compat id [0]
-    0x00, 0x00, 0x00, 0x02,  // 9: compat id [1]
-    0x00, 0x00, 0x00, 0x03,  // 13: compat id [2]
-    0x00, 0x00, 0x00, 0x04,  // 17: compat id [3]
+pub fn copy_indices_format2() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      2u8,                      // format
 
-    0x04,                    // 21: default patch encoding = glyph keyed
-    0x00, 0x00, 0x09,        // 22: entry count 9
-    0x00, 0x00, 0x00, 0x2b,  // 25: entries offset (0x2b = 43)
-    0x00, 0x00, 0x00, 0x00,  // 29: entry id string data = null
+      0u32,                     // reserved
 
-    0x00, 0x08,              // 33: uriTemplateLength
-    b'A', b'B', b'C', b'D',
-    b'E', b'F', 0xc9, 0xa4,  // 35: uriTemplate[8]
+      [1, 2, 3, 4u32],          // compat id
 
-    // Entries Array
+      4u8,                      // default patch encoding = glyph keyed
+      (Uint24::new(9)),         // entry count
+      {0u32: "entries_offset"}, // entries offset
+      0u32,                     // entry id string data offset
 
-    // Entry id = 1
-    0b00100000,                         // : format = CODEPOINT_BIT_2
-    0x00, 0x05,                         // : bias = 5
-    0b00001101, 0b00000011, 0b00110001, // : codepoints = [5..22]
+      8u16, // uriTemplateLength
+      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
 
-    // Entry id = 2
-    0b00100000,                         // : format = CODEPOINT_BIT_2
-    0x00, 0x32,                         // : bias = 50
-    0b00001101, 0b00000011, 0b00110001, // : codepoints = [50..67]
+      // Entries Array
 
-    // Entry id = 3
-    0b00000001,                         //   : format = FEATURES_AND_DESIGN_SPACE
+      // Entry id = 1
+      {0b00100000u8: "entries"},              // format
+      5u16,                                   // bias = 5
+      [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [5..22]
 
-    0x01,                               //   : feature count = 1
-    b'r', b'l', b'i', b'g',             //   : feature[0] = rlig
+      // Entry id = 2
+      0b00100000u8,                           // format = CODEPOINT_BIT_2
+      50u16,                                  // bias
+      [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [50..67]
 
-    0x00, 0x01,                         //   : design space count = 1
-    b'w', b'g', b'h', b't',             //   : tag = wght
-    0x00, 0xC8, 0x00, 0x00,             //   : start = 200
-    0x02, 0xBC, 0x00, 0x00,             //   : end = 700
+      // Entry id = 3
+      0b00000001u8,                           // format = FEATURES_AND_DESIGN_SPACE
 
-    // Entry id = 4
-    0b00000001,                         //   : format = FEATURES_AND_DESIGN_SPACE
+      1u8,                                    // feature count = 1
+      (Tag::new(b"rlig")),                    // feature[0] = rlig
 
-    0x01,                               //   : feature count = 1
-    b'l', b'i', b'g', b'a',             //   : feature[0] = liga
+      1u16,                                   // design space count = 1
+      (Tag::new(b"wght")),                    // tag = wght
+      0x00C8_0000u32,                         // start = 200
+      0x02BC_0000u32,                         // end = 700
 
-    0x00, 0x01,                         //   : design space count = 1
-    b'w', b'g', b'h', b't',             //   : tag = wght
-    0x00, 0x32, 0x00, 0x00,             //   : start = 50
-    0x00, 0x64, 0x00, 0x00,             //   : end = 100
+      // Entry id = 4
+      0b00000001u8,                           // format = FEATURES_AND_DESIGN_SPACE
 
-    // Entry id = 5
-    0b00000010,                         //   : format = COPY_INDICES
-    0x01,                               //   : copy count = 1
-    0x00, 0x00, 0x00,                   //   : copy 0
+      1u8,                                    // feature count
+      (Tag::new(b"liga")),                    // feature[0] = liga
 
-    // Entry id = 6
-    0b00000010,                         //   : format = COPY_INDICES
-    0x01,                               //   : copy count = 1
-    0x00, 0x00, 0x02,                   //   : copy 2
+      1u16,                                   // design space count
+      (Tag::new(b"wght")),                    // tag = wght
+      0x0032_0000,                            // start = 50
+      0x0064_0000,                            // end = 100
 
-    // Entry id = 7
-    0b00000010,                         //   : format = COPY_INDICES
-    0x04,                               //   : copy count = 4
-    0x00, 0x00, 0x03,                   //   : copy 3
-    0x00, 0x00, 0x02,                   //   : copy 2
-    0x00, 0x00, 0x01,                   //   : copy 1
-    0x00, 0x00, 0x00,                   //   : copy 0
+      // Entry id = 5
+      0b00000010u8,                           // format = COPY_INDICES
+      1u8,                                    // copy count
+      (Uint24::new(0)),                       // copy
 
-    // Entry id = 8
-    0b00000010,                         //   : format = COPY_INDICES
-    0x02,                               //   : copy count = 2
-    0x00, 0x00, 0x04,                   //   : copy 4
-    0x00, 0x00, 0x05,                   //   : copy 5
+      // Entry id = 6
+      0b00000010u8,                           // format = COPY_INDICES
+      1u8,                                    // copy count
+      (Uint24::new(2)),                       // copy
 
-    // Entry id = 9
-    0b00100010,                         // : format = CODEPOINT_BIT_2 | COPY_INDICES
-    0x01,                               // : copy count = 1
-    0x00, 0x00, 0x00,                   // : copy 0
-    0x00, 0x64,                         // : bias = 100
-    0b00001101, 0b00000011, 0b00110001, // : codepoints = [100..117]
-];
+      // Entry id = 7
+      0b00000010u8,                           // format = COPY_INDICES
+      4u8,                                    // copy count
+      (Uint24::new(3)),                       // copy[0]
+      (Uint24::new(2)),                       // copy[1]
+      (Uint24::new(1)),                       // copy[2]
+      (Uint24::new(0)),                       // copy[3]
+
+      // Entry id = 8
+      0b00000010u8,                           // format = COPY_INDICES
+      2u8,                                    // copy count
+      (Uint24::new(4)),                       // copy[0]
+      (Uint24::new(5)),                       // copy[1]
+
+      // Entry id = 9
+      0b00100010u8,                           // format = CODEPOINT_BIT_2 | COPY_INDICES
+      1u8,                                    // copy count
+      (Uint24::new(0)),                       // copy[0]
+      100u16,                                 // bias
+      [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [100..117]
+    };
+
+    let offset = buffer.offset_for("entries") as u32;
+    buffer.write_at("entries_offset", offset);
+
+    buffer
+}
 
 // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-2
-#[rustfmt::skip]
-pub static CUSTOM_IDS_FORMAT_2: &[u8] = &[
-    0x02,                    // 0: format
+pub fn custom_ids_format2() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      2u8,                      // format
 
-    0x00, 0x00, 0x00, 0x00,  // 1: reserved
+      0u32,                     // reserved
 
-    0x00, 0x00, 0x00, 0x01,  // 5: compat id [0]
-    0x00, 0x00, 0x00, 0x02,  // 9: compat id [1]
-    0x00, 0x00, 0x00, 0x03,  // 13: compat id [2]
-    0x00, 0x00, 0x00, 0x04,  // 17: compat id [3]
+      [1, 2, 3, 4u32],          // compat id
 
-    0x04,                    // 21: default patch encoding = glyph keyed
-    0x00, 0x00, 0x04,        // 22: entry count
-    0x00, 0x00, 0x00, 0x2b,  // 25: entries offset (0x2b = 43)
-    0x00, 0x00, 0x00, 0x00,  // 29: entry id string data = null
+      4u8,                      // default patch encoding = glyph keyed
+      (Uint24::new(4)),         // entry count
+      {0u32: "entries_offset"}, // entries offset
+      0u32,                     // entry id string data offset
 
-    0x00, 0x08,              // 33: uriTemplateLength
-    b'A', b'B', b'C', b'D',
-    b'E', b'F', 0xc9, 0xa4,  // 35: uriTemplate[8]
+      8u16, // uriTemplateLength
+      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
 
-    // Entries Array
-    // Entry id = 0
-    0b00010100,                         // 43: format = CODEPOINT_BIT_1 | ID_DELTA
-    0xFF, 0xFF, 0xFF,                   // 44: id delta = -1
-    0b00001101, 0b00000011, 0b00110001, // 47: codepoints = [0..17]
+      // Entries Array
+      // Entry id = 0
+      {0b00010100u8: "entries"},              // format = CODEPOINT_BIT_1 | ID_DELTA
+      (Int24::new(-1)),                       // id delta
+      [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [0..17]
 
-    // Entry id = 6
-    0b00100100,                         // 50: format = CODEPOINT_BIT_2 | ID_DELTA
-    0x00, 0x00, 0x05,                   // 51: id delta 5
-    0x00, 0x05,                         // 54: bias = 6
-    0b00001101, 0b00000011, 0b00110001, // 56: codepoints = [5..22]
+      // Entry id = 6
+      0b00100100u8,                           // format = CODEPOINT_BIT_2 | ID_DELTA
+      (Int24::new(5)),                        // id delta
+      5u16,                                   // bias
+      [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [5..22]
 
-    // Entry id = 14
-    0b01000100,                         // 59: format = ID_DELTA | IGNORED
-    0x00, 0x00, 0x07,                   // 60: id delta 7
+      // Entry id = 14
+      0b01000100u8,                           // format = ID_DELTA | IGNORED
+      (Int24::new(7)),                        // id delta
 
-    // Entry id = 15
-    0b00101000,                         // 63: format = CODEPOINT_BIT_2 | PATCH_ENCODING
-    0x04,                               // 64: patch encoding = Glyph Keyed
-    0x00, 0x0A,                         // 65: bias = 10
-    0b00001101, 0b00000011, 0b00110001, // 67: codepoints = [10..27]
-];
+      // Entry id = 15
+      0b00101000u8,                           // format = CODEPOINT_BIT_2 | PATCH_ENCODING
+      {4u8: "entry[4] encoding"},             // patch encoding = Glyph Keyed
+      10u16,                                  // bias
+      [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [10..27]
+    };
+
+    let offset = buffer.offset_for("entries") as u32;
+    buffer.write_at("entries_offset", offset);
+
+    buffer
+}

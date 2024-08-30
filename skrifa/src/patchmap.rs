@@ -600,7 +600,8 @@ mod tests {
     use super::*;
     use font_test_data as test_data;
     use font_test_data::ift::{
-        codepoints_only_format2, feature_map_format1, simple_format1, u16_entries_format1,
+        codepoints_only_format2, copy_indices_format2, custom_ids_format2, feature_map_format1,
+        features_and_design_space_format2, simple_format1, u16_entries_format1,
     };
     use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
     use read_fonts::FontRef;
@@ -1052,7 +1053,7 @@ mod tests {
     fn format_2_patch_map_features_and_design_space() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(test_data::ift::FEATURES_AND_DESIGN_SPACE_FORMAT2),
+            Some(&features_and_design_space_format2()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
@@ -1119,7 +1120,7 @@ mod tests {
     fn format_2_patch_map_copy_indices() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(test_data::ift::COPY_INDICES_FORMAT2),
+            Some(&copy_indices_format2()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
@@ -1149,7 +1150,7 @@ mod tests {
     fn format_2_patch_map_custom_ids() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(test_data::ift::CUSTOM_IDS_FORMAT_2),
+            Some(&custom_ids_format2()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
@@ -1159,8 +1160,8 @@ mod tests {
 
     #[test]
     fn format_2_patch_map_custom_encoding() {
-        let mut data = Vec::<u8>::from(test_data::ift::CUSTOM_IDS_FORMAT_2);
-        data[64] = 0x01; // Brotli Full Invalidation.
+        let mut data = custom_ids_format2();
+        data.write_at("entry[4] encoding", 1u8); // Brotli Full Invalidation.
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
