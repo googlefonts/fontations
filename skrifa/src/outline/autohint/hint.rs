@@ -1,9 +1,16 @@
 //! Apply edge hints to an outline.
 //!
 //! This happens in three passes:
-//! 1. Align points that are directly attached to edges.
+//! 1. Align points that are directly attached to edges. These are the points
+//!    which originally generated the edge and are coincident with the edge
+//!    coordinate (within a threshold) for a given axis. This may include
+//!    points that were originally classified as weak.
 //! 2. Interpolate non-weak points that were not touched by the previous pass.
-//! 3. Interpolate remaining (weak) points.
+//!    This searches for the edges that enclose the point and interpolates the
+//!    coordinate based on the adjustment applied to those edges.
+//! 3. Interpolate remaining untouched points. These are generally the weak
+//!    points: those that are very near other points or lacking a dominant
+//!    inward or outward direction.
 //!
 //! The final result is a fully hinted outline.
 
@@ -371,12 +378,33 @@ mod tests {
         assert_eq!(coords, expected_coords);
         let expected_metrics = latin::HintedMetrics {
             x_scale: 67109,
-            left_opos: 15,
-            left_pos: 0,
-            right_opos: 210,
-            right_pos: 192,
+            edge_metrics: Some(latin::EdgeMetrics {
+                left_opos: 15,
+                left_pos: 0,
+                right_opos: 210,
+                right_pos: 192,
+            }),
         };
-        assert_eq!(metrics.unwrap(), expected_metrics);
+        assert_eq!(metrics, expected_metrics);
+    }
+
+    /// Empty glyphs (like spaces) have no edges and therefore no edge
+    /// metrics
+    #[test]
+    fn missing_edge_metrics() {
+        let font = FontRef::new(font_test_data::CUBIC_GLYF).unwrap();
+        let (_outline, metrics) = hint_latin_outline(
+            &font,
+            16.0,
+            Default::default(),
+            GlyphId::new(1),
+            &style::STYLE_CLASSES[style::StyleClass::LATN],
+        );
+        let expected_metrics = latin::HintedMetrics {
+            x_scale: 65536,
+            edge_metrics: None,
+        };
+        assert_eq!(metrics, expected_metrics);
     }
 
     // Specific test case for <https://issues.skia.org/issues/344529168> which
@@ -418,7 +446,7 @@ mod tests {
         coords: &[F2Dot14],
         gid: GlyphId,
         style: &style::StyleClass,
-    ) -> (Outline, Option<latin::HintedMetrics>) {
+    ) -> (Outline, latin::HintedMetrics) {
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(gid).unwrap();
         let mut outline = Outline::default();
