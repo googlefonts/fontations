@@ -1,5 +1,7 @@
 //! The [Axis Variations](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
 
+use super::variations::{DeltaSetIndexMap, ItemVariationStore};
+
 include!("../../generated/generated_avar.rs");
 
 impl<'a> SegmentMaps<'a> {

@@ -1,5 +1,7 @@
 //! The [avar](https://learn.microsoft.com/en-us/typography/opentype/spec/avar) table
 
+use super::variations::{DeltaSetIndexMap, ItemVariationStore};
+
 include!("../../generated/generated_avar.rs");
 
 impl SegmentMaps {
@@ -8,6 +10,16 @@ impl SegmentMaps {
         self.axis_value_maps
             .iter()
             .all(|av| av.from_coordinate == av.to_coordinate)
+    }
+}
+
+impl Avar {
+    fn compute_version(&self) -> MajorMinor {
+        if self.axis_index_map.is_some() || self.var_store.is_some() {
+            MajorMinor::VERSION_2_0
+        } else {
+            MajorMinor::VERSION_1_0
+        }
     }
 }
 

@@ -3,9 +3,10 @@
 /// The [avar (Axis Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
 #[tag = "avar"]
 table Avar {
-    /// Major version number of the axis variations table — set to 1.
+    /// Major version number of the axis variations table — set to 1 or 2.
     /// Minor version number of the axis variations table — set to 0.
-    #[compile(MajorMinor::VERSION_1_0)]
+    #[version]
+    #[compile(self.compute_version())]
     version: MajorMinor,
     /// Permanently reserved; set to zero.
     #[skip_getter]
@@ -15,8 +16,16 @@ table Avar {
     #[compile(array_len($axis_segment_maps))]
     axis_count: u16,
     /// The segment maps array — one segment map for each axis, in the order of axes specified in the 'fvar' table.
-    #[count(..)]
+    #[count($axis_count)]
     axis_segment_maps: VarLenArray<SegmentMaps<'a>>,
+    /// Offset to DeltaSetIndexMap table (may be NULL).
+    #[since_version(2.0)]
+    #[nullable]
+    axis_index_map_offset: Offset32<DeltaSetIndexMap>,
+    /// Offset to ItemVariationStore (may be NULL).
+    #[since_version(2.0)]
+    #[nullable]
+    var_store_offset: Offset32<ItemVariationStore>,
 }
 
 /// [SegmentMaps](https://learn.microsoft.com/en-us/typography/opentype/spec/avar#table-formats) record
