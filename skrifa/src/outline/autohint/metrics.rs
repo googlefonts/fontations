@@ -72,6 +72,12 @@ pub(crate) struct UnscaledStyleMetrics {
     pub axes: [UnscaledAxisMetrics; 2],
 }
 
+impl UnscaledStyleMetrics {
+    pub fn style_class(&self) -> &'static StyleClass {
+        &super::style::STYLE_CLASSES[self.class_ix as usize]
+    }
+}
+
 /// The set of unscaled style metrics for a single font.
 ///
 /// For a variable font, this is dependent on the location in variation space.
