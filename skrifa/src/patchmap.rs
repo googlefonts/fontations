@@ -286,7 +286,7 @@ fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Entry>, ReadError
         .entry_id_string_data()
         .transpose()?
         .map(|table| table.id_data())
-        .map(|data| Cursor::new(data));
+        .map(Cursor::new);
     while entry_count > 0 {
         entries_data = decode_format2_entry(
             entries_data,
@@ -394,7 +394,7 @@ fn format2_new_entry_id(
             })
             .unwrap_or(0);
         return Ok(PatchId::Numeric(compute_format2_new_entry_index(
-            &entry_data,
+            entry_data,
             last_entry_index,
         )?));
     };
