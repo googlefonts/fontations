@@ -1,9 +1,9 @@
 //! impl subset() for GSUB table
 
-use crate::{NameidClosure, Plan};
+use crate::{NameIdClosure, Plan};
 use write_fonts::read::tables::gsub::Gsub;
 
-impl<'a> NameidClosure for Gsub<'a> {
+impl<'a> NameIdClosure for Gsub<'a> {
     //TODO: support instancing: collect from feature substitutes if exist
     fn collect_name_ids(&self, plan: &mut Plan) {
         let Ok(feature_list) = self.feature_list() else {

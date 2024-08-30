@@ -1,9 +1,9 @@
 //! impl subset() for CPAL table
 
-use crate::{NameidClosure, Plan};
+use crate::{NameIdClosure, Plan};
 use write_fonts::read::{tables::cpal::Cpal, types::NameId};
 
-impl<'a> NameidClosure for Cpal<'a> {
+impl<'a> NameIdClosure for Cpal<'a> {
     fn collect_name_ids(&self, plan: &mut Plan) {
         if self.version() == 0 {
             return;

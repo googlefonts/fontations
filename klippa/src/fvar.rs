@@ -1,9 +1,9 @@
 //! impl subset() for fvar table
 
-use crate::{NameidClosure, Plan};
-use write_fonts::read::{tables::fvar::Fvar, types::NameId};
+use crate::{NameIdClosure, Plan};
+use write_fonts::read::tables::fvar::Fvar;
 
-impl<'a> NameidClosure for Fvar<'a> {
+impl<'a> NameIdClosure for Fvar<'a> {
     //TODO: support partial-instancing
     fn collect_name_ids(&self, plan: &mut Plan) {
         let Ok(axis_instance_array) = self.axis_instance_arrays() else {
@@ -19,9 +19,7 @@ impl<'a> NameidClosure for Fvar<'a> {
         {
             plan.name_ids.insert(instance_record.subfamily_name_id);
             if let Some(name_id) = instance_record.post_script_name_id {
-                if name_id != NameId::INVALID {
-                    plan.name_ids.insert(name_id);
-                }
+                plan.name_ids.insert(name_id);
             }
         }
     }

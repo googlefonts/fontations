@@ -25,10 +25,7 @@ use fnv::FnvHashMap;
 use skrifa::MetadataProvider;
 use thiserror::Error;
 use write_fonts::read::{
-    collections::{
-        int_set::{Domain, InDomain},
-        IntSet,
-    },
+    collections::{int_set::Domain, IntSet},
     tables::{
         cff::Cff,
         cff2::Cff2,
@@ -449,13 +446,13 @@ fn get_font_num_glyphs(font: &FontRef) -> usize {
     ret.max(maxp.num_glyphs() as usize)
 }
 
-fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash>(
+fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash + From<u32>>(
     indices: IntSet<T>,
 ) -> FnvHashMap<T, T> {
     indices
         .iter()
         .enumerate()
-        .map(|x| (x.1, T::from_u32(InDomain::new(x.0 as u32))))
+        .map(|x| (x.1, T::from(x.0 as u32)))
         .collect()
 }
 
@@ -494,7 +491,7 @@ pub enum SubsetError {
     SubsetTableError(Tag),
 }
 
-pub trait NameidClosure {
+pub trait NameIdClosure {
     /// collect name_ids
     fn collect_name_ids(&self, plan: &mut Plan);
 }

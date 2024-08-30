@@ -153,10 +153,6 @@ impl NameId {
     /// If present in a variable font, it may be used as the family prefix in the PostScript Name Generation
     /// for Variation Fonts algorithm.
     pub const VARIATIONS_POSTSCRIPT_NAME_PREFIX: Self = Self(25);
-
-    /// Invalid `name_id`.
-    /// Value to represent a nonexistent name ID.
-    pub const INVALID: Self = Self(0xFFFF);
 }
 
 impl NameId {

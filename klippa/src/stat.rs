@@ -1,9 +1,9 @@
 //! impl subset() for STAT table
 
-use crate::{NameidClosure, Plan};
+use crate::{NameIdClosure, Plan};
 use write_fonts::read::tables::stat::Stat;
 
-impl<'a> NameidClosure for Stat<'a> {
+impl<'a> NameIdClosure for Stat<'a> {
     //TODO: support instancing
     fn collect_name_ids(&self, plan: &mut Plan) {
         if let Ok(axis_records) = self.design_axes() {

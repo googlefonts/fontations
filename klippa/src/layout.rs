@@ -1,6 +1,6 @@
 //! impl subset() for layout common tables
 
-use crate::{NameidClosure, Plan};
+use crate::{NameIdClosure, Plan};
 use write_fonts::read::{
     tables::layout::{
         CharacterVariantParams, Feature, FeatureParams, SizeParams, StylisticSetParams,
@@ -8,19 +8,19 @@ use write_fonts::read::{
     types::NameId,
 };
 
-impl<'a> NameidClosure for StylisticSetParams<'a> {
+impl<'a> NameIdClosure for StylisticSetParams<'a> {
     fn collect_name_ids(&self, plan: &mut Plan) {
         plan.name_ids.insert(self.ui_name_id());
     }
 }
 
-impl<'a> NameidClosure for SizeParams<'a> {
+impl<'a> NameIdClosure for SizeParams<'a> {
     fn collect_name_ids(&self, plan: &mut Plan) {
         plan.name_ids.insert(NameId::new(self.name_entry()));
     }
 }
 
-impl<'a> NameidClosure for CharacterVariantParams<'a> {
+impl<'a> NameIdClosure for CharacterVariantParams<'a> {
     fn collect_name_ids(&self, plan: &mut Plan) {
         plan.name_ids.insert(self.feat_ui_label_name_id());
         plan.name_ids.insert(self.feat_ui_tooltip_text_name_id());
@@ -43,7 +43,7 @@ impl<'a> NameidClosure for CharacterVariantParams<'a> {
     }
 }
 
-impl<'a> NameidClosure for Feature<'a> {
+impl<'a> NameIdClosure for Feature<'a> {
     fn collect_name_ids(&self, plan: &mut Plan) {
         let Some(Ok(feature_params)) = self.feature_params() else {
             return;

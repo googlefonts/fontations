@@ -1,9 +1,9 @@
 //! impl subset() for GPOS table
 
-use crate::{NameidClosure, Plan};
+use crate::{NameIdClosure, Plan};
 use write_fonts::read::tables::gpos::Gpos;
 
-impl<'a> NameidClosure for Gpos<'a> {
+impl<'a> NameIdClosure for Gpos<'a> {
     //TODO: support instancing: collect from feature substitutes if exist
     fn collect_name_ids(&self, plan: &mut Plan) {
         let Ok(feature_list) = self.feature_list() else {
