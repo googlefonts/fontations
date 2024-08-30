@@ -46,6 +46,8 @@ impl ReadArgs for IdDeltaOrLength {
 
 impl ComputeSize for IdDeltaOrLength {
     fn compute_size(entry_id_string_data_offset: &Offset32) -> Result<usize, ReadError> {
+        // This field is either a u16 or an int24 depending on whether or not string data
+        // is present. See: <https://w3c.github.io/IFT/Overview.html#mapping-entry-entryiddelta>
         Ok(if entry_id_string_data_offset.is_null() {
             3
         } else {
@@ -69,7 +71,7 @@ impl FontReadWithArgs<'_> for IdDeltaOrLength {
 
 impl IdDeltaOrLength {
     #[inline]
-    pub fn get(self) -> i32 {
+    pub fn into_inner(self) -> i32 {
         self.0
     }
 }
