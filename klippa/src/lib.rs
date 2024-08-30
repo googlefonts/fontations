@@ -1,12 +1,18 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
+mod cpal;
+mod fvar;
 mod glyf_loca;
+mod gpos;
+mod gsub;
 mod head;
 mod hmtx;
+mod layout;
 mod maxp;
 mod os2;
 mod parsing_util;
 mod post;
+mod stat;
 use glyf_loca::subset_glyf_loca;
 use head::subset_head;
 use hmtx::subset_hmtx_hhea;
@@ -19,7 +25,7 @@ use fnv::FnvHashMap;
 use skrifa::MetadataProvider;
 use thiserror::Error;
 use write_fonts::read::{
-    collections::IntSet,
+    collections::{int_set::Domain, IntSet},
     tables::{
         cff::Cff,
         cff2::Cff2,
@@ -32,6 +38,7 @@ use write_fonts::read::{
         os2::Os2,
         post::Post,
     },
+    types::NameId,
     FontRef, TableProvider, TopLevelTable,
 };
 use write_fonts::types::GlyphId;
@@ -156,6 +163,16 @@ pub struct Plan {
 
     subset_flags: SubsetFlags,
     drop_tables: IntSet<Tag>,
+    name_ids: IntSet<NameId>,
+
+    //old->new feature index map
+    gsub_features: FnvHashMap<u16, u16>,
+    gpos_features: FnvHashMap<u16, u16>,
+
+    //old->new colrv1 layer index map
+    colrv1_layers: FnvHashMap<u32, u32>,
+    //old->new CPAL palette index map
+    colr_palettes: FnvHashMap<u16, u16>,
 }
 
 impl Plan {
@@ -287,6 +304,8 @@ impl Plan {
             );
         }
         remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
+
+        self.nameid_closure(font);
     }
 
     fn create_old_gid_to_new_gid_map(&mut self) {
@@ -333,11 +352,44 @@ impl Plan {
                 &mut delta_set_indices,
             );
             colr.v0_closure_palette_indices(&self.glyphset_colred, &mut palette_indices);
-
-            //TODO: remap layer_indices and palette_indices
+            self.colrv1_layers = remap_indices(layer_indices);
+            self.colr_palettes = remap_palette_indices(palette_indices);
             //TODO: generate varstore innermaps or something similar
         } else {
             self.glyphset_colred.union(&self.glyphset_gsub);
+        }
+    }
+
+    fn nameid_closure(&mut self, font: &FontRef) {
+        if !self.drop_tables.contains(Tag::new(b"STAT")) {
+            if let Ok(stat) = font.stat() {
+                stat.collect_name_ids(self);
+            }
+        };
+
+        //TODO: skip fvar table when all axes are pinned
+        if !self.drop_tables.contains(Tag::new(b"fvar")) {
+            if let Ok(fvar) = font.fvar() {
+                fvar.collect_name_ids(self);
+            }
+        }
+
+        if !self.drop_tables.contains(Tag::new(b"CPAL")) {
+            if let Ok(cpal) = font.cpal() {
+                cpal.collect_name_ids(self);
+            }
+        }
+
+        if !self.drop_tables.contains(Tag::new(b"GSUB")) {
+            if let Ok(gsub) = font.gsub() {
+                gsub.collect_name_ids(self);
+            }
+        }
+
+        if !self.drop_tables.contains(Tag::new(b"GPOS")) {
+            if let Ok(gpos) = font.gpos() {
+                gpos.collect_name_ids(self);
+            }
         }
     }
 }
@@ -394,6 +446,30 @@ fn get_font_num_glyphs(font: &FontRef) -> usize {
     ret.max(maxp.num_glyphs() as usize)
 }
 
+fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash + From<u32>>(
+    indices: IntSet<T>,
+) -> FnvHashMap<T, T> {
+    indices
+        .iter()
+        .enumerate()
+        .map(|x| (x.1, T::from(x.0 as u32)))
+        .collect()
+}
+
+fn remap_palette_indices(indices: IntSet<u16>) -> FnvHashMap<u16, u16> {
+    indices
+        .iter()
+        .enumerate()
+        .map(|x| {
+            if x.1 == 0xFFFF {
+                (0xFFFF, 0xFFFF)
+            } else {
+                (x.1, x.0 as u16)
+            }
+        })
+        .collect()
+}
+
 #[derive(Debug, Error)]
 pub enum SubsetError {
     #[error("Invalid input gid {0}")]
@@ -415,9 +491,9 @@ pub enum SubsetError {
     SubsetTableError(Tag),
 }
 
-pub trait Subset {
-    /// Subset this object. Returns `true` if the object should be retained.
-    fn subset(&self, font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError>;
+pub trait NameIdClosure {
+    /// collect name_ids
+    fn collect_name_ids(&self, plan: &mut Plan);
 }
 
 pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {

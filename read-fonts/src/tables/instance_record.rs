@@ -49,7 +49,11 @@ impl<'a> FontReadWithArgs<'a> for InstanceRecord<'a> {
         // or equal to the common size plus the 2 bytes for the optional field.
         let has_post_script_name_id = instance_size >= common_byte_len + u16::RAW_BYTE_LEN;
         let post_script_name_id = if has_post_script_name_id {
-            Some(cursor.read()?)
+            let id: NameId = cursor.read()?;
+            // From <https://learn.microsoft.com/en-us/typography/opentype/spec/fvar#instancerecord>:
+            // "If the value is 0xFFFF, then the value is ignored, and no
+            // PostScript name equivalent is provided for the instance."
+            (id.to_u16() != 0xFFFF).then_some(id)
         } else {
             None
         };

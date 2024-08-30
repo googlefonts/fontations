@@ -29,7 +29,7 @@ use font_types::{GlyphId, GlyphId16};
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
-use types::Tag;
+use types::{NameId, Tag};
 
 /// A fast & efficient invertible ordered set for small (up to 32-bit) unsigned integer types.
 #[derive(Clone, Debug)]
@@ -1056,6 +1056,32 @@ impl Domain for Tag {
 
     fn count() -> u64 {
         (u32::MAX as u64) - (u32::MIN as u64) + 1
+    }
+}
+
+impl Domain for NameId {
+    fn to_u32(&self) -> u32 {
+        self.to_u16() as u32
+    }
+
+    fn from_u32(member: InDomain) -> NameId {
+        NameId::new(member.value() as u16)
+    }
+
+    fn is_continuous() -> bool {
+        true
+    }
+
+    fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
+        (u16::MIN as u32)..=(u16::MAX as u32)
+    }
+
+    fn ordered_values_range(range: RangeInclusive<NameId>) -> impl DoubleEndedIterator<Item = u32> {
+        (range.start().to_u16() as u32)..=(range.end().to_u16() as u32)
+    }
+
+    fn count() -> u64 {
+        (u16::MAX as u64) - (u16::MIN as u64) + 1
     }
 }
 
