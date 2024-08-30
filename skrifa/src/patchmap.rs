@@ -652,7 +652,7 @@ mod tests {
     use font_test_data as test_data;
     use font_test_data::ift::{
         codepoints_only_format2, copy_indices_format2, custom_ids_format2, feature_map_format1,
-        features_and_design_space_format2, simple_format1, u16_entries_format1,
+        features_and_design_space_format2, simple_format1, string_ids_format2, u16_entries_format1,
     };
     use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
     use read_fonts::FontRef;
@@ -1238,11 +1238,52 @@ mod tests {
         );
     }
 
+    #[test]
+    fn format_2_id_strings() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&string_ids_format2()),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let patches = intersecting_patches(
+            &font,
+            &SubsetDefinition::new(IntSet::all(), BTreeSet::new(), HashMap::new()),
+        )
+        .unwrap();
+
+        let ids: Vec<PatchId> = patches.into_iter().map(|uri| uri.id).collect();
+        let expected_ids = vec!["", "abc", "defg", "defg", "hij", ""];
+        assert_eq!(
+            ids,
+            expected_ids
+                .into_iter()
+                .map(|s| PatchId::String(Vec::from(s)))
+                .collect::<Vec<PatchId>>()
+        );
+    }
+
+    #[test]
+    fn format_2_id_strings_too_short() {
+        let mut data = string_ids_format2();
+        data.write_at("entry[4] id length", 4u16);
+
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&data),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        assert!(intersecting_patches(
+            &font,
+            &SubsetDefinition::new(IntSet::all(), BTreeSet::new(), HashMap::new()),
+        )
+        .is_err());
+    }
+
     // TODO(garretrieger): test decoding of other entry features for format 2
-    // - id strings
-    //   - regular cases.
-    //   - cases where id string is copied from last entry (including where there is no last entry).
-    //   - cases where id string data is too short.
     // - invalid cases: add once spec has been updated with validation requirements.
     //   - start < end for ds segments
     //   - sparse bit set to short

@@ -415,3 +415,58 @@ pub fn custom_ids_format2() -> BeBuffer {
 
     buffer
 }
+
+// Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-2
+pub fn string_ids_format2() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      2u8,                      // format
+
+      0u32,                     // reserved
+
+      [1, 2, 3, 4u32],          // compat id
+
+      4u8,                      // default patch encoding = glyph keyed
+      (Uint24::new(6)),         // entry count
+      {0u32: "entries_offset"}, // entries offset
+      {0u32: "string_data_offset"},                     // entry id string data offset
+
+      8u16, // uriTemplateLength
+      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
+
+      /* ### Entry Data ### */
+
+      // Entry id = ""
+      {0b00000000u8: "entries"},              // format = {}
+
+      // Entry id = abc
+      0b00000100u8,                           // format = ID_DELTA
+      3u16,                                   // id length
+
+      // Entry id = defg
+      0b00000100u8,                           // format = ID_DELTA
+      4u16,                                   // id length
+
+      // Entry id = defg
+      0b00000000u8,                           // format = {}
+
+      // Entry id = hij
+      0b00000100u8,                           // format = ID_DELTA
+      {3u16: "entry[4] id length"},           // id length
+
+      // Entry id = ""
+      0b00000100u8,                           // format = ID_DELTA
+      0u16,                                   // id length
+
+      /* ### String Data ### */
+      {b'a': "string_data"},
+      [b'b', b'c', b'd', b'e', b'f', b'g', b'h', b'i', b'j']
+    };
+
+    let offset = buffer.offset_for("string_data") as u32;
+    buffer.write_at("string_data_offset", offset);
+
+    let offset = buffer.offset_for("entries") as u32;
+    buffer.write_at("entries_offset", offset);
+
+    buffer
+}
