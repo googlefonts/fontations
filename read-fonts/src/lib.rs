@@ -60,6 +60,8 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
 #[cfg(any(feature = "std", test))]
 #[macro_use]
 extern crate std;
