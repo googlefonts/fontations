@@ -13,7 +13,7 @@ impl<'a> NameIdClosure for Gpos<'a> {
             if !plan.gpos_features.contains_key(&(i as u16)) {
                 continue;
             }
-            let Ok(feature) = feature_record.feature(self.offset_data()) else {
+            let Ok(feature) = feature_record.feature(feature_list.offset_data()) else {
                 continue;
             };
             feature.collect_name_ids(plan);
