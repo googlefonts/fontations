@@ -158,4 +158,14 @@ mod tests {
                 .collect::<Vec<_>>()
         );
     }
+
+    #[test]
+    fn avar2() {
+        let font = FontRef::new(font_test_data::AVAR2_CHECKER).unwrap();
+        let avar = font.avar().unwrap();
+        assert_eq!(avar.version(), MajorMinor::VERSION_2_0);
+        assert!(avar.axis_index_map_offset().is_some());
+        assert!(avar.var_store_offset().is_some());
+        assert!(avar.var_store().is_some());
+    }
 }
