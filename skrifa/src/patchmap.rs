@@ -399,7 +399,7 @@ fn format2_new_entry_id(
         )?));
     };
 
-    let Some(id_string_length) = entry_data.entry_id_delta().map(|v| v.get()) else {
+    let Some(id_string_length) = entry_data.entry_id_delta().map(|v| v.into_inner()) else {
         let last_id_string = last_entry
             .and_then(|e| match &e.uri.id {
                 PatchId::String(id_string) => Some(id_string.clone()),
@@ -424,7 +424,7 @@ fn compute_format2_new_entry_index(
         + 1
         + entry_data
             .entry_id_delta()
-            .map(|v| v.get() as i64)
+            .map(|v| v.into_inner() as i64)
             .unwrap_or(0);
     if new_index.is_negative() {
         return Err(ReadError::MalformedData("Negative entry id encountered."));
