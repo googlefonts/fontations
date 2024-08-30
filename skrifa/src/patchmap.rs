@@ -333,12 +333,12 @@ fn decode_format2_entry<'a>(
     // Copy Indices
     if let Some(copy_indices) = entry_data.copy_indices() {
         for index in copy_indices {
-            let Some(entry_to_copy) = entries.get(index.get().to_u32() as usize) else {
-                return Err(ReadError::MalformedData(
-                    "copy index can only refer to a previous entry.",
-                ));
-            };
-
+            let entry_to_copy =
+                entries
+                    .get(index.get().to_u32() as usize)
+                    .ok_or(ReadError::MalformedData(
+                        "copy index can only refer to a previous entry.",
+                    ))?;
             entry.union(entry_to_copy);
         }
     }
