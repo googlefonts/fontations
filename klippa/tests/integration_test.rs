@@ -15,7 +15,7 @@ use std::process::{Command, Stdio};
 use tempdir::TempDir;
 use write_fonts::{
     read::{collections::IntSet, FontRef},
-    types::Tag,
+    types::{NameId, Tag},
 };
 
 static TEST_DATA_DIR: &str = "./test-data";
@@ -365,8 +365,21 @@ fn gen_subset_font_file(
         let tag = Tag::new_checked(str.as_bytes()).unwrap();
         drop_tables.insert(tag);
     }
+
+    let mut name_ids = IntSet::<NameId>::empty();
+    name_ids.insert_range(NameId::from(0)..=NameId::from(6));
+    let mut name_languages = IntSet::<u16>::empty();
+    name_languages.insert(0x0409);
     //TODO: support parsing subset_flags
-    let plan = Plan::new(&gids, &unicodes, &font, profile, &drop_tables);
+    let plan = Plan::new(
+        &gids,
+        &unicodes,
+        &font,
+        profile,
+        &drop_tables,
+        &name_ids,
+        &name_languages,
+    );
 
     let subset_output = subset_font(&font, &plan).unwrap();
     std::fs::write(output_file, subset_output).unwrap();
