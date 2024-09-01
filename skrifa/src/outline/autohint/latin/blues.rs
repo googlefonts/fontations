@@ -1,12 +1,17 @@
 //! Latin blue values.
 
+use core::f64::consts::E;
+
 use super::super::{
     super::unscaled::UnscaledOutlineBuf,
     cycling::{cycle_backward, cycle_forward},
     metrics::{UnscaledBlue, UnscaledBlues, MAX_BLUES},
     style::{blue_flags, ScriptClass, ScriptGroup, StyleClass},
 };
-use crate::{charmap::Charmap, FontRef, MetadataProvider, OutlineGlyph, OutlineGlyphCollection};
+use crate::{
+    charmap::Charmap, outline::unscaled::UnscaledPoint, FontRef, MetadataProvider, OutlineGlyph,
+    OutlineGlyphCollection,
+};
 use raw::types::{F2Dot14, GlyphId};
 use raw::TableProvider;
 use read_fonts::tables::glyf::Glyph;
@@ -72,13 +77,13 @@ fn adjustable_glyphs<'a>(
     glyphs: &'a OutlineGlyphCollection<'a>,
     charmap: &'a Charmap<'a>,
     blue_chars: &'a [char],
-) -> impl Iterator<Item = (char, OutlineGlyph<'a>)> {
+) -> impl Iterator<Item = (char, Option<OutlineGlyph<'a>>)> {
     blue_chars
         .into_iter()
         .filter_map(move |c| match charmap.map(*c) {
-            Some(GlyphId::NOTDEF) => None,
-            Some(gid) => glyphs.get(gid).map(|g| (*c, g)),
-            None => None,
+            Some(GlyphId::NOTDEF) => Some((*c, None)),
+            Some(gid) => Some((*c, glyphs.get(gid))),
+            None => Some((*c, None)),
         })
 }
 
@@ -102,6 +107,9 @@ fn compute_default_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass)
         let mut n_flats = 0;
         let mut n_rounds = 0;
         for (_, glyph) in adjustable_glyphs(&glyphs, &charmap, blue_chars) {
+            let Some(glyph) = glyph else {
+                continue;
+            };
             // TODO: do some shaping
             let y_offset = 0;
             outline_buf.clear();
@@ -491,6 +499,10 @@ fn compute_cjk_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass) -> 
                 is_fill = false;
                 continue;
             }
+            let Some(glyph) = glyph else {
+                continue;
+            };
+
             // TODO: do some shaping
 
             outline_buf.clear();
@@ -502,51 +514,30 @@ fn compute_cjk_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass) -> 
             if outline.points.len() <= 2 {
                 continue;
             }
-            let mut best_pos: Option<i16> = None;
-            // Find the extreme point depending on whether this is a top, left,
-            // bottom or right blue
-            if is_horizontal {
-                if is_right {
-                    outline.find_last_contour(|point| {
-                        if best_pos.is_none() || Some(point.x) > best_pos {
-                            best_pos = Some(point.x);
-                            true
-                        } else {
-                            false
-                        }
-                    });
+
+            // Step right up and find an extrema!
+            // [0] is safe because we bail out above if we have < 3 points
+            let mut best_pos = outline.points.iter().fold(
+                if is_horizontal {
+                    outline.points[0].x
                 } else {
-                    outline.find_last_contour(|point| {
-                        if best_pos.is_none() || Some(point.x) < best_pos {
-                            best_pos = Some(point.x);
-                            true
-                        } else {
-                            false
-                        }
-                    });
-                }
-            } else if is_top {
-                outline.find_last_contour(|point| {
-                    if best_pos.is_none() || Some(point.y) > best_pos {
-                        best_pos = Some(point.y);
-                        true
+                    outline.points[0].y
+                },
+                if is_horizontal {
+                    if is_right {
+                        |curr: i16, p: &UnscaledPoint| curr.max(p.x)
                     } else {
-                        false
+                        |curr: i16, p: &UnscaledPoint| curr.min(p.x)
                     }
-                });
-            } else {
-                outline.find_last_contour(|point| {
-                    if best_pos.is_none() || Some(point.y) < best_pos {
-                        best_pos = Some(point.y);
-                        true
+                } else {
+                    if is_top {
+                        |curr: i16, p: &UnscaledPoint| curr.max(p.y)
                     } else {
-                        false
+                        |curr: i16, p: &UnscaledPoint| curr.min(p.y)
                     }
-                });
-            }
-            let Some(best_pos) = best_pos else {
-                continue;
-            };
+                },
+            );
+
             if is_fill {
                 fills[n_fills] = best_pos;
                 n_fills += 1;
