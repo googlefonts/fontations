@@ -1,7 +1,5 @@
 //! Latin blue values.
 
-use core::f64::consts::E;
-
 use super::super::{
     super::unscaled::UnscaledOutlineBuf,
     cycling::{cycle_backward, cycle_forward},
@@ -516,27 +514,19 @@ fn compute_cjk_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass) -> 
             }
 
             // Step right up and find an extrema!
-            // [0] is safe because we bail out above if we have < 3 points
-            let mut best_pos = outline.points.iter().fold(
-                if is_horizontal {
-                    outline.points[0].x
-                } else {
-                    outline.points[0].y
-                },
-                if is_horizontal {
-                    if is_right {
-                        |curr: i16, p: &UnscaledPoint| curr.max(p.x)
+            // Unwrap is safe because we know per ^ that we have at least 3 points
+            let mut best_pos = outline
+                .points
+                .iter()
+                .map(|p| if is_horizontal { p.x } else { p.y })
+                .reduce(
+                    if (is_horizontal && is_right) || (!is_horizontal && is_top) {
+                        |a: i16, c: i16| a.max(c)
                     } else {
-                        |curr: i16, p: &UnscaledPoint| curr.min(p.x)
-                    }
-                } else {
-                    if is_top {
-                        |curr: i16, p: &UnscaledPoint| curr.max(p.y)
-                    } else {
-                        |curr: i16, p: &UnscaledPoint| curr.min(p.y)
-                    }
-                },
-            );
+                        |a: i16, c: i16| a.min(c)
+                    },
+                )
+                .unwrap();
 
             if is_fill {
                 fills[n_fills] = best_pos;
