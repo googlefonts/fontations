@@ -50,7 +50,6 @@ pub(crate) fn compute_unscaled_style_metrics(
         axes: [
             UnscaledAxisMetrics {
                 dim: Axis::HORIZONTAL,
-                // Latin doesn't have horizontal blues
                 blues: hblues,
                 width_metrics: hwidths.0,
                 widths: hwidths.1,
