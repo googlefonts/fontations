@@ -6,9 +6,10 @@ use super::super::{
     metrics::{UnscaledBlue, UnscaledBlues, MAX_BLUES},
     style::{blue_flags, ScriptClass, ScriptGroup, StyleClass},
 };
-use crate::{FontRef, MetadataProvider};
-use raw::types::F2Dot14;
+use crate::{charmap::Charmap, FontRef, MetadataProvider, OutlineGlyph, OutlineGlyphCollection};
+use raw::types::{F2Dot14, GlyphId};
 use raw::TableProvider;
+use read_fonts::tables::glyf::Glyph;
 
 // Chosen to maximize opportunity to avoid heap allocation while keeping stack
 // size < 2k.
@@ -41,20 +42,53 @@ pub(crate) fn compute_unscaled_blues(
     }
 }
 
+#[inline(always)]
+fn buffers<T: Copy + Default>() -> (
+    UnscaledOutlineBuf<MAX_INLINE_POINTS>,
+    [T; BLUE_STRING_MAX_LEN],
+    [T; BLUE_STRING_MAX_LEN],
+) {
+    (
+        UnscaledOutlineBuf::<MAX_INLINE_POINTS>::new(),
+        [T::default(); BLUE_STRING_MAX_LEN],
+        [T::default(); BLUE_STRING_MAX_LEN],
+    )
+}
+
+/// A thneed is something everyone needs
+#[inline(always)]
+fn things_all_blues_need<'a>(font: &FontRef<'a>) -> (OutlineGlyphCollection<'a>, Charmap<'a>, i32) {
+    (
+        font.outline_glyphs(),
+        font.charmap(),
+        font.head()
+            .map(|head| head.units_per_em())
+            .unwrap_or_default() as i32,
+    )
+}
+
+#[inline(always)]
+fn adjustable_glyphs<'a>(
+    glyphs: &'a OutlineGlyphCollection<'a>,
+    charmap: &'a Charmap<'a>,
+    blue_chars: &'a [char],
+) -> impl Iterator<Item = (char, OutlineGlyph<'a>)> {
+    blue_chars
+        .into_iter()
+        .filter_map(move |c| match charmap.map(*c) {
+            Some(GlyphId::NOTDEF) => None,
+            Some(gid) => glyphs.get(gid).map(|g| (*c, g)),
+            None => None,
+        })
+}
+
 /// Compute unscaled blue values for the default script set.
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L314>
 fn compute_default_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass) -> UnscaledBlues {
     let mut blues = UnscaledBlues::new();
-    let mut outline_buf = UnscaledOutlineBuf::<MAX_INLINE_POINTS>::new();
-    let mut flats = [0; BLUE_STRING_MAX_LEN];
-    let mut rounds = [0; BLUE_STRING_MAX_LEN];
-    let glyphs = font.outline_glyphs();
-    let charmap = font.charmap();
-    let units_per_em = font
-        .head()
-        .map(|head| head.units_per_em())
-        .unwrap_or_default() as i32;
+    let (mut outline_buf, mut flats, mut rounds) = buffers();
+    let (glyphs, charmap, units_per_em) = things_all_blues_need(font);
     let flat_threshold = units_per_em / 14;
     // Walk over each of the blue character sets for our script.
     for (blue_chars, blue_flags) in style.script.blues {
@@ -67,18 +101,9 @@ fn compute_default_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass)
         let mut descender = i16::MAX;
         let mut n_flats = 0;
         let mut n_rounds = 0;
-        for ch in *blue_chars {
+        for (_, glyph) in adjustable_glyphs(&glyphs, &charmap, blue_chars) {
             // TODO: do some shaping
             let y_offset = 0;
-            let Some(gid) = charmap.map(*ch) else {
-                continue;
-            };
-            if gid.to_u32() == 0 {
-                continue;
-            }
-            let Some(glyph) = glyphs.get(gid) else {
-                continue;
-            };
             outline_buf.clear();
             if glyph.draw_unscaled(coords, None, &mut outline_buf).is_err() {
                 continue;
@@ -440,15 +465,8 @@ fn compute_default_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass)
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L277>
 fn compute_cjk_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass) -> [UnscaledBlues; 2] {
     let mut blues = [UnscaledBlues::new(), UnscaledBlues::new()];
-    let mut outline_buf = UnscaledOutlineBuf::<MAX_INLINE_POINTS>::new();
-    let mut flats = [0; BLUE_STRING_MAX_LEN];
-    let mut fills = [0; BLUE_STRING_MAX_LEN];
-    let glyphs = font.outline_glyphs();
-    let charmap = font.charmap();
-    let units_per_em = font
-        .head()
-        .map(|head| head.units_per_em())
-        .unwrap_or_default() as i32;
+    let (mut outline_buf, mut flats, mut fills) = buffers();
+    let (glyphs, charmap, units_per_em) = things_all_blues_need(font);
     // Walk over each of the blue character sets for our script.
     for (blue_chars, blue_flags) in style.script.blues {
         let is_horizontal = blue_flags & blue_flags::CJK_HORIZ != 0;
@@ -468,21 +486,13 @@ fn compute_cjk_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass) -> 
         let mut n_flats = 0;
         let mut n_fills = 0;
         let mut is_fill = true;
-        for ch in *blue_chars {
-            if *ch == '|' {
+        for (ch, glyph) in adjustable_glyphs(&glyphs, &charmap, blue_chars) {
+            if ch == '|' {
                 is_fill = false;
                 continue;
             }
             // TODO: do some shaping
-            let Some(gid) = charmap.map(*ch) else {
-                continue;
-            };
-            if gid.to_u32() == 0 {
-                continue;
-            }
-            let Some(glyph) = glyphs.get(gid) else {
-                continue;
-            };
+
             outline_buf.clear();
             if glyph.draw_unscaled(coords, None, &mut outline_buf).is_err() {
                 continue;
