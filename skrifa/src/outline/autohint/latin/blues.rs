@@ -35,8 +35,7 @@ pub(crate) fn compute_unscaled_blues(
             Default::default(),
             compute_default_blues(font, coords, style),
         ],
-        // Coming soon
-        ScriptGroup::Cjk => Default::default(),
+        ScriptGroup::Cjk => compute_cjk_blues(font, coords, style),
         // Indic group doesn't use blue values (yet?)
         ScriptGroup::Indic => Default::default(),
     }
@@ -436,6 +435,153 @@ fn compute_default_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass)
     blues
 }
 
+/// Compute unscaled blue values for the CJK script set.
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L277>
+fn compute_cjk_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass) -> [UnscaledBlues; 2] {
+    let mut blues = [UnscaledBlues::new(), UnscaledBlues::new()];
+    let mut outline_buf = UnscaledOutlineBuf::<MAX_INLINE_POINTS>::new();
+    let mut flats = [0; BLUE_STRING_MAX_LEN];
+    let mut fills = [0; BLUE_STRING_MAX_LEN];
+    let glyphs = font.outline_glyphs();
+    let charmap = font.charmap();
+    let units_per_em = font
+        .head()
+        .map(|head| head.units_per_em())
+        .unwrap_or_default() as i32;
+    // Walk over each of the blue character sets for our script.
+    for (blue_chars, blue_flags) in style.script.blues {
+        let is_horizontal = blue_flags & blue_flags::CJK_HORIZ != 0;
+        // Note: horizontal blue zones are disabled by default and have been
+        // for many years in FreeType:
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L35>
+        // and <https://gitlab.freedesktop.org/freetype/freetype/-/commit/084abf0469d32a94b1c315bee10f621284694328>
+        if is_horizontal {
+            continue;
+        }
+        let is_right = blue_flags & blue_flags::CJK_RIGHT != 0;
+        let is_top = blue_flags & blue_flags::TOP != 0;
+        let blues = &mut blues[!is_horizontal as usize];
+        if blues.len() >= MAX_BLUES {
+            continue;
+        }
+        let mut n_flats = 0;
+        let mut n_fills = 0;
+        let mut is_fill = true;
+        for ch in *blue_chars {
+            if *ch == '|' {
+                is_fill = false;
+                continue;
+            }
+            // TODO: do some shaping
+            let Some(gid) = charmap.map(*ch) else {
+                continue;
+            };
+            if gid.to_u32() == 0 {
+                continue;
+            }
+            let Some(glyph) = glyphs.get(gid) else {
+                continue;
+            };
+            outline_buf.clear();
+            if glyph.draw_unscaled(coords, None, &mut outline_buf).is_err() {
+                continue;
+            }
+            let outline = outline_buf.as_ref();
+            // Reject glyphs that don't produce any rendering
+            if outline.points.len() <= 2 {
+                continue;
+            }
+            let mut best_pos: Option<i16> = None;
+            // Find the extreme point depending on whether this is a top, left,
+            // bottom or right blue
+            if is_horizontal {
+                if is_right {
+                    outline.find_last_contour(|point| {
+                        if best_pos.is_none() || Some(point.x) > best_pos {
+                            best_pos = Some(point.x);
+                            true
+                        } else {
+                            false
+                        }
+                    });
+                } else {
+                    outline.find_last_contour(|point| {
+                        if best_pos.is_none() || Some(point.x) < best_pos {
+                            best_pos = Some(point.x);
+                            true
+                        } else {
+                            false
+                        }
+                    });
+                }
+            } else if is_top {
+                outline.find_last_contour(|point| {
+                    if best_pos.is_none() || Some(point.y) > best_pos {
+                        best_pos = Some(point.y);
+                        true
+                    } else {
+                        false
+                    }
+                });
+            } else {
+                outline.find_last_contour(|point| {
+                    if best_pos.is_none() || Some(point.y) < best_pos {
+                        best_pos = Some(point.y);
+                        true
+                    } else {
+                        false
+                    }
+                });
+            }
+            let Some(best_pos) = best_pos else {
+                continue;
+            };
+            if is_fill {
+                fills[n_fills] = best_pos;
+                n_fills += 1;
+            } else {
+                flats[n_flats] = best_pos;
+                n_flats += 1;
+            }
+        }
+        if n_flats == 0 && n_fills == 0 {
+            continue;
+        }
+        // Now determine the reference and overshoot of the blue; simply
+        // take the median after a sort
+        fills[..n_fills].sort_unstable();
+        flats[..n_flats].sort_unstable();
+        let (blue_ref, blue_shoot) = if n_flats == 0 {
+            let value = fills[n_fills / 2];
+            (value, value)
+        } else if n_fills == 0 {
+            let value = flats[n_flats / 2];
+            (value, value)
+        } else {
+            (fills[n_fills / 2], flats[n_flats / 2])
+        };
+        let (mut blue_ref, mut blue_shoot) = (blue_ref as i32, blue_shoot as i32);
+        // Make sure blue_ref >= blue_shoot for top/right or vice versa for
+        // bottom left
+        if blue_shoot != blue_ref {
+            let under_ref = blue_shoot < blue_ref;
+            if is_top ^ under_ref {
+                blue_ref = (blue_shoot + blue_ref) / 2;
+                blue_shoot = blue_ref;
+            }
+        }
+        blues.push(UnscaledBlue {
+            position: blue_ref,
+            overshoot: blue_shoot,
+            ascender: 0,
+            descender: 0,
+            flags: blue_flags & blue_flags::TOP,
+        });
+    }
+    blues
+}
+
 #[cfg(test)]
 mod tests {
     use super::{super::super::style, blue_flags, UnscaledBlue};
@@ -522,6 +668,31 @@ mod tests {
                 overshoot: -240,
                 ascender: 647,
                 descender: -240,
+                flags: 0,
+            },
+        ];
+        assert_eq!(values, &expected);
+    }
+
+    #[test]
+    fn cjk_blues() {
+        let font = FontRef::new(font_test_data::NOTOSERIFTC_AUTOHINT_METRICS).unwrap();
+        let style = &style::STYLE_CLASSES[super::StyleClass::HANI];
+        let blues = super::compute_cjk_blues(&font, &[], style);
+        let values = blues[1].as_slice();
+        let expected = [
+            UnscaledBlue {
+                position: 837,
+                overshoot: 824,
+                ascender: 0,
+                descender: 0,
+                flags: blue_flags::TOP,
+            },
+            UnscaledBlue {
+                position: -78,
+                overshoot: -66,
+                ascender: 0,
+                descender: 0,
                 flags: 0,
             },
         ];
