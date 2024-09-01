@@ -72,6 +72,9 @@ pub static AUTOHINT_CMAP: &[u8] = include_bytes!("../test_data/ttf/autohint_cmap
 pub static NOTOSERIFHEBREW_AUTOHINT_METRICS: &[u8] =
     include_bytes!("../test_data/ttf/notoserifhebrew_autohint_metrics.ttf");
 
+pub static NOTOSERIFTC_AUTOHINT_METRICS: &[u8] =
+    include_bytes!("../test_data/ttf/notoseriftc_autohint_metrics.ttf");
+
 pub static TTHINT_SUBSET: &[u8] = include_bytes!("../test_data/ttf/tthint_subset.ttf");
 
 pub static VORG: &[u8] = include_bytes!("../test_data/ttf/vorg.ttf");

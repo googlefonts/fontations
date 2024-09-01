@@ -134,6 +134,32 @@ mod tests {
         );
     }
 
+    #[test]
+    fn cjk_computed_widths() {
+        check_widths(
+            font_test_data::NOTOSERIFTC_AUTOHINT_METRICS,
+            super::ScriptClass::HANI,
+            [
+                (
+                    WidthMetrics {
+                        edge_distance_threshold: 13,
+                        standard_width: 65,
+                        is_extra_light: false,
+                    },
+                    &[65],
+                ),
+                (
+                    WidthMetrics {
+                        edge_distance_threshold: 5,
+                        standard_width: 29,
+                        is_extra_light: false,
+                    },
+                    &[29],
+                ),
+            ],
+        );
+    }
+
     fn check_widths(font_data: &[u8], script_class: usize, expected: [(WidthMetrics, &[i32]); 2]) {
         let font = FontRef::new(font_data).unwrap();
         let script = &style::SCRIPT_CLASSES[script_class];
