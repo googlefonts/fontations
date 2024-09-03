@@ -18,7 +18,9 @@ use head::subset_head;
 use hmtx::subset_hmtx_hhea;
 use maxp::subset_maxp;
 use os2::subset_os2;
-pub use parsing_util::{parse_drop_tables, parse_unicodes, populate_gids};
+pub use parsing_util::{
+    parse_drop_tables, parse_name_ids, parse_name_languages, parse_unicodes, populate_gids,
+};
 use post::subset_post;
 
 use fnv::FnvHashMap;
@@ -164,6 +166,7 @@ pub struct Plan {
     subset_flags: SubsetFlags,
     drop_tables: IntSet<Tag>,
     name_ids: IntSet<NameId>,
+    name_languages: IntSet<u16>,
 
     //old->new feature index map
     gsub_features: FnvHashMap<u16, u16>,
@@ -182,11 +185,15 @@ impl Plan {
         font: &FontRef,
         flags: SubsetFlags,
         drop_tables: &IntSet<Tag>,
+        name_ids: &IntSet<NameId>,
+        name_languages: &IntSet<u16>,
     ) -> Self {
         let mut this = Plan {
             font_num_glyphs: get_font_num_glyphs(font),
             subset_flags: flags,
             drop_tables: drop_tables.clone(),
+            name_ids: name_ids.clone(),
+            name_languages: name_languages.clone(),
             ..Default::default()
         };
 
@@ -486,6 +493,9 @@ pub enum SubsetError {
 
     #[error("Invalid tag {0}")]
     InvalidTag(String),
+
+    #[error("Invalid ID {0}")]
+    InvalidId(String),
 
     #[error("Subsetting table '{0}' failed")]
     SubsetTableError(Tag),

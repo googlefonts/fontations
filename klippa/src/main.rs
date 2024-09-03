@@ -5,10 +5,15 @@
 //!
 
 use clap::Parser;
-use klippa::{parse_drop_tables, parse_unicodes, populate_gids, subset_font, Plan, SubsetFlags};
-use write_fonts::read::FontRef;
+use klippa::{
+    parse_drop_tables, parse_name_ids, parse_name_languages, parse_unicodes, populate_gids,
+    subset_font, Plan, SubsetFlags,
+};
+use write_fonts::read::{collections::IntSet, types::NameId, FontRef};
 
 #[derive(Parser, Debug)]
+//Allow name_IDs, so we keep the option name consistent with HB and fonttools
+#[allow(non_snake_case)]
 #[command(version, about, long_about = None)]
 struct Args {
     /// The input font file.
@@ -30,6 +35,14 @@ struct Args {
     /// Drop the specified tables.
     #[arg(long)]
     drop_tables: Option<String>,
+
+    /// List of 'name' table entry nameIDs
+    #[arg(long)]
+    name_IDs: Option<String>,
+
+    /// List of 'name' table entry langIDs
+    #[arg(long)]
+    name_languages: Option<String>,
 
     /// drop hints
     #[arg(long)]
@@ -110,9 +123,49 @@ fn main() {
         }
     };
 
+    let name_ids = match &args.name_IDs {
+        Some(name_ids_input) => match parse_name_ids(name_ids_input) {
+            Ok(name_ids) => name_ids,
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+        },
+        // default value: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-subset-input.cc#L43
+        None => {
+            let mut default_name_ids = IntSet::<NameId>::empty();
+            default_name_ids.insert_range(NameId::from(0)..=NameId::from(6));
+            default_name_ids
+        }
+    };
+
+    let name_languages = match &args.name_languages {
+        Some(name_languages_input) => match parse_name_languages(name_languages_input) {
+            Ok(name_languages) => name_languages,
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+        },
+        // default value: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-subset-input.cc#L44
+        None => {
+            let mut default_name_languages = IntSet::<u16>::empty();
+            default_name_languages.insert(0x0409);
+            default_name_languages
+        }
+    };
+
     let mut output_bytes = Vec::new();
     for _ in 0..args.num_iterations.unwrap_or(1) {
-        let plan = Plan::new(&gids, &unicodes, &font, subset_flags, &drop_tables);
+        let plan = Plan::new(
+            &gids,
+            &unicodes,
+            &font,
+            subset_flags,
+            &drop_tables,
+            &name_ids,
+            &name_languages,
+        );
         match subset_font(&font, &plan) {
             Ok(out) => {
                 output_bytes = out;
