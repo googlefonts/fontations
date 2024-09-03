@@ -9,6 +9,7 @@ mod head;
 mod hmtx;
 mod layout;
 mod maxp;
+mod name;
 mod os2;
 mod parsing_util;
 mod post;
@@ -17,6 +18,7 @@ use glyf_loca::subset_glyf_loca;
 use head::subset_head;
 use hmtx::subset_hmtx_hhea;
 use maxp::subset_maxp;
+use name::subset_name;
 use os2::subset_os2;
 pub use parsing_util::{
     parse_drop_tables, parse_name_ids, parse_name_languages, parse_unicodes, populate_gids,
@@ -540,6 +542,8 @@ fn subset_table<'a>(
         Loca::TAG => Ok(()),
 
         Maxp::TAG => subset_maxp(font, plan, builder),
+
+        Name::TAG => subset_name(font, plan, builder),
 
         Os2::TAG => subset_os2(font, plan, builder),
 
