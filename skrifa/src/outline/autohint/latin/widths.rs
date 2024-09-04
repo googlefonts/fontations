@@ -84,6 +84,8 @@ mod tests {
 
     #[test]
     fn computed_widths() {
+        // Expected data produced by internal routines in FreeType. Scraped
+        // from a debugger
         check_widths(
             font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS,
             super::ScriptClass::HEBR,
@@ -110,6 +112,8 @@ mod tests {
 
     #[test]
     fn fallback_widths() {
+        // Expected data produced by internal routines in FreeType. Scraped
+        // from a debugger
         check_widths(
             font_test_data::CANTARELL_VF_TRIMMED,
             super::ScriptClass::LATN,
@@ -136,6 +140,8 @@ mod tests {
 
     #[test]
     fn cjk_computed_widths() {
+        // Expected data produced by internal routines in FreeType. Scraped
+        // from a debugger
         check_widths(
             font_test_data::NOTOSERIFTC_AUTOHINT_METRICS,
             super::ScriptClass::HANI,
