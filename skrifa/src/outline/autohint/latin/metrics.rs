@@ -9,13 +9,13 @@
 use super::super::{
     axis::{Axis, Dimension},
     metrics::{
-        fixed_mul, fixed_mul_div, pix_round, Scale, ScaledAxisMetrics, ScaledBlue,
+        fixed_div, fixed_mul, fixed_mul_div, pix_round, Scale, ScaledAxisMetrics, ScaledBlue,
         ScaledStyleMetrics, ScaledWidth, UnscaledAxisMetrics, UnscaledBlue, UnscaledBlues,
         UnscaledStyleMetrics, WidthMetrics,
     },
     style::{blue_flags, ScriptClass, ScriptGroup, StyleClass},
 };
-use crate::{outline::autohint::metrics::fixed_div, prelude::Size, MetadataProvider};
+use crate::{prelude::Size, MetadataProvider};
 use raw::{types::F2Dot14, FontRef};
 
 /// Computes unscaled metrics for the Latin writing system.
