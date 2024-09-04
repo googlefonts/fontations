@@ -315,8 +315,14 @@ mod tests {
             Axis::new(Axis::VERTICAL, outline.orientation),
         ];
         for (dim, axis) in axes.iter_mut().enumerate() {
-            latin::segments::compute_segments(&mut outline, axis);
-            latin::segments::link_segments(&outline, axis, unscaled_metrics.axes[dim].max_width());
+            latin::segments::compute_segments(&mut outline, axis, class.script.group);
+            latin::segments::link_segments(
+                &outline,
+                axis,
+                scaled_metrics.axes[dim].scale,
+                class.script.group,
+                unscaled_metrics.axes[dim].max_width(),
+            );
             compute_edges(
                 axis,
                 &scaled_metrics.axes[dim],
