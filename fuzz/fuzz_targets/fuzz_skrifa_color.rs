@@ -58,8 +58,7 @@ fn do_color_glyph_things(
     Ok(())
 }
 
-fn do_skrifa_things(data: &[u8], size: Size, location: &Location) -> Result<(), Box<dyn Error>> {
-    let font = FontRef::new(data)?;
+fn do_skrifa_things(font: &FontRef, size: Size, location: &Location) -> Result<(), Box<dyn Error>> {
     let charmap = font.charmap();
     let color_glyphs = font.color_glyphs();
 
@@ -87,10 +86,10 @@ fn do_skrifa_things(data: &[u8], size: Size, location: &Location) -> Result<(), 
 }
 
 fuzz_target!(|data: &[u8]| {
-    // Cross (several sizes) x (default location, random location)
-    let Ok(font) = FontRef::new(data) else {
+    let Ok(font) = select_font(data) else {
         return;
     };
+    // Cross (several sizes) x (default location, random location)
     let scenarios = fuzz_sizes()
         .into_iter()
         .flat_map(|size| {
@@ -101,6 +100,6 @@ fuzz_target!(|data: &[u8]| {
         .collect::<Vec<_>>();
 
     for (size, loc) in scenarios {
-        let _ = do_skrifa_things(data, size, &loc);
+        let _ = do_skrifa_things(&font, size, &loc);
     }
 });

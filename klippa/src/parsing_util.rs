@@ -1,12 +1,15 @@
 //! subsetter input parsing util functions
-use skrifa::raw::collections::IntSet;
-use write_fonts::types::{GlyphId, Tag};
+use write_fonts::read::collections::{int_set::Domain, IntSet};
+use write_fonts::types::{GlyphId, NameId, Tag};
 
 use crate::SubsetError;
 
 pub fn populate_gids(gid_str: &str) -> Result<IntSet<GlyphId>, SubsetError> {
-    let mut result = IntSet::empty();
+    if gid_str.trim() == "*" {
+        return Ok(IntSet::<GlyphId>::all());
+    }
 
+    let mut result = IntSet::empty();
     if gid_str.is_empty() {
         return Ok(result);
     }
@@ -36,9 +39,8 @@ pub fn populate_gids(gid_str: &str) -> Result<IntSet<GlyphId>, SubsetError> {
 /// optionally prefixed with 'U+', 'u', etc. For example: --unicodes=41-5a,61-7a adds ASCII letters, so does the more verbose --unicodes=U+0041-005A,U+0061-007A.
 /// The special strings '*' will choose all Unicode characters mapped by the font.
 pub fn parse_unicodes(unicode_str: &str) -> Result<IntSet<u32>, SubsetError> {
-    if unicode_str == "*" {
-        let out = IntSet::<u32>::all();
-        return Ok(out);
+    if unicode_str.trim() == "*" {
+        return Ok(IntSet::<u32>::all());
     }
     let mut result = IntSet::empty();
     if unicode_str.is_empty() {
@@ -65,34 +67,57 @@ pub fn parse_unicodes(unicode_str: &str) -> Result<IntSet<u32>, SubsetError> {
     Ok(result)
 }
 
+/// Parse a comma or whitespace list of things
+fn parse_list<T: Domain>(
+    input_str: &str,
+    parse_one: fn(&str) -> Result<T, SubsetError>,
+) -> Result<IntSet<T>, SubsetError> {
+    if input_str.trim() == "*" {
+        return Ok(IntSet::all());
+    }
+    input_str
+        .split(&[',', ' '])
+        .filter(|raw| !raw.is_empty())
+        .map(parse_one)
+        .collect()
+}
+
 //parse input drop_tables string, which is a comma/whitespace-separated list of tables that will be dropped
 pub fn parse_drop_tables(input_str: &str) -> Result<IntSet<Tag>, SubsetError> {
-    let mut result = IntSet::empty();
+    parse_list(input_str, |raw| {
+        Tag::new_checked(raw.as_bytes()).map_err(|_| SubsetError::InvalidTag(raw.to_owned()))
+    })
+}
 
-    if input_str == "*" {
-        let out = IntSet::<Tag>::all();
-        return Ok(out);
-    }
+//parse input name_IDs string, which is a comma/whitespace-separated list of nameIDs that will be retained
+pub fn parse_name_ids(input_str: &str) -> Result<IntSet<NameId>, SubsetError> {
+    parse_list(input_str, |raw| {
+        raw.parse::<u16>()
+            .map(NameId::from)
+            .map_err(|_| SubsetError::InvalidId(raw.to_owned()))
+    })
+}
 
-    for tag in input_str.split(|c| c == ',' || c == ' ') {
-        if tag.is_empty() {
-            continue;
-        }
-        let Ok(table_tag) = Tag::new_checked(tag.as_bytes()) else {
-            return Err(SubsetError::InvalidTag(tag.to_owned()));
-        };
-        result.insert(table_tag);
-    }
-    Ok(result)
+//parse input name_languages string, which is a comma/whitespace-separated list of langIDs that will be retained
+pub fn parse_name_languages(input_str: &str) -> Result<IntSet<u16>, SubsetError> {
+    parse_list(input_str, |raw| {
+        raw.parse::<u16>()
+            .map_err(|_| SubsetError::InvalidId(raw.to_owned()))
+    })
 }
 
 #[test]
 fn test_populate_gids() {
     let input = "1,5,7";
     let output = populate_gids(input).unwrap();
-    //assert_eq!(output.len(), 3);
+    assert_eq!(output.len(), 3);
     assert!(output.contains(GlyphId::new(1)));
     assert!(output.contains(GlyphId::new(5)));
+    assert!(output.contains(GlyphId::new(7)));
+
+    let output = populate_gids("*").unwrap();
+    assert!(output.contains(GlyphId::new(1)));
+    assert!(output.contains(GlyphId::new(0)));
     assert!(output.contains(GlyphId::new(7)));
 }
 
@@ -131,4 +156,51 @@ fn test_parse_drop_tables() {
     let input = "";
     let output = parse_drop_tables(input).unwrap();
     assert!(output.is_empty());
+}
+
+#[test]
+fn test_parse_name_ids() {
+    let input = "7,8,9";
+    let output = parse_name_ids(input).unwrap();
+    assert_eq!(output.len(), 3);
+    assert!(output.contains(NameId::new(7)));
+    assert!(output.contains(NameId::new(8)));
+    assert!(output.contains(NameId::new(9)));
+
+    let input = "";
+    let output = parse_name_ids(input).unwrap();
+    assert!(output.is_empty());
+
+    let output = parse_name_ids("7,8 9").unwrap();
+    assert_eq!(output.len(), 3);
+    assert!(output.contains(NameId::new(7)));
+    assert!(output.contains(NameId::new(8)));
+    assert!(output.contains(NameId::new(9)));
+
+    let output = parse_name_ids("*").unwrap();
+    assert!(output.contains(NameId::new(7)));
+    assert!(output.contains(NameId::new(8)));
+    assert!(output.contains(NameId::new(9)));
+}
+
+#[test]
+fn test_parse_name_languages() {
+    let input = "1033, ";
+    let output = parse_name_languages(input).unwrap();
+    assert_eq!(output.len(), 1);
+    assert!(output.contains(0x409));
+
+    let input = "";
+    let output = parse_name_languages(input).unwrap();
+    assert!(output.is_empty());
+
+    let input = "*";
+    let output = parse_name_languages(input).unwrap();
+    assert!(output.contains(1));
+
+    let output = parse_name_languages("1,2 5").unwrap();
+    assert_eq!(output.len(), 3);
+    assert!(output.contains(1));
+    assert!(output.contains(2));
+    assert!(output.contains(5));
 }
