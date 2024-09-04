@@ -92,6 +92,10 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    fn gasp(&self) -> Result<tables::gasp::Gasp<'a>, ReadError> {
+        self.expect_table()
+    }
+
     /// is_long can be optionally provided, if known, otherwise we look it up in head.
     fn loca(&self, is_long: impl Into<Option<bool>>) -> Result<tables::loca::Loca<'a>, ReadError> {
         let is_long = match is_long.into() {
