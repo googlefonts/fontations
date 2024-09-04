@@ -210,7 +210,7 @@ fn scale_default_axis_metrics(
     axis
 }
 
-/// Computes scaled metrics for a single axis for the CJK script gorup.
+/// Computes scaled metrics for a single axis for the CJK script group.
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L661>
 fn scale_cjk_axis_metrics(
