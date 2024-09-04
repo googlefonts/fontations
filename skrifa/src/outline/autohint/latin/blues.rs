@@ -1,12 +1,12 @@
 //! Latin blue values.
 
 use super::super::{
-    super::unscaled::UnscaledOutlineBuf,
+    super::{unscaled::UnscaledOutlineBuf, OutlineGlyphCollection},
     cycling::{cycle_backward, cycle_forward},
     metrics::{UnscaledBlue, UnscaledBlues, MAX_BLUES},
     style::{blue_flags, ScriptClass, ScriptGroup, StyleClass},
 };
-use crate::{FontRef, MetadataProvider};
+use crate::{charmap::Charmap, FontRef, MetadataProvider};
 use raw::types::F2Dot14;
 use raw::TableProvider;
 
@@ -35,8 +35,7 @@ pub(crate) fn compute_unscaled_blues(
             Default::default(),
             compute_default_blues(font, coords, style),
         ],
-        // Coming soon
-        ScriptGroup::Cjk => Default::default(),
+        ScriptGroup::Cjk => compute_cjk_blues(font, coords, style),
         // Indic group doesn't use blue values (yet?)
         ScriptGroup::Indic => Default::default(),
     }
@@ -47,15 +46,8 @@ pub(crate) fn compute_unscaled_blues(
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L314>
 fn compute_default_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass) -> UnscaledBlues {
     let mut blues = UnscaledBlues::new();
-    let mut outline_buf = UnscaledOutlineBuf::<MAX_INLINE_POINTS>::new();
-    let mut flats = [0; BLUE_STRING_MAX_LEN];
-    let mut rounds = [0; BLUE_STRING_MAX_LEN];
-    let glyphs = font.outline_glyphs();
-    let charmap = font.charmap();
-    let units_per_em = font
-        .head()
-        .map(|head| head.units_per_em())
-        .unwrap_or_default() as i32;
+    let (mut outline_buf, mut flats, mut rounds) = buffers();
+    let (glyphs, charmap, units_per_em) = things_all_blues_need(font);
     let flat_threshold = units_per_em / 14;
     // Walk over each of the blue character sets for our script.
     for (blue_chars, blue_flags) in style.script.blues {
@@ -69,7 +61,7 @@ fn compute_default_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass)
         let mut n_flats = 0;
         let mut n_rounds = 0;
         for ch in *blue_chars {
-            // TODO: do some shaping
+            // TODO shaping: https://github.com/googlefonts/fontations/issues/1128
             let y_offset = 0;
             let Some(gid) = charmap.map(*ch) else {
                 continue;
@@ -85,7 +77,7 @@ fn compute_default_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass)
                 continue;
             }
             let outline = outline_buf.as_ref();
-            // Reject glyphs that don't produce any rendering
+            // Reject glyphs that can't produce any rendering
             if outline.points.len() <= 2 {
                 continue;
             }
@@ -436,6 +428,148 @@ fn compute_default_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass)
     blues
 }
 
+/// Compute unscaled blue values for the CJK script set.
+///
+/// Note: unlike the default code above, this produces two sets of blues,
+/// one for horizontal zones and one for vertical zones, respectively. The
+/// horizontal set is currently not generated because this has been
+/// disabled in FreeType but the code remains because we may want to revisit
+/// in the future.
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L277>
+fn compute_cjk_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass) -> [UnscaledBlues; 2] {
+    let mut blues = [UnscaledBlues::new(), UnscaledBlues::new()];
+    let (mut outline_buf, mut flats, mut fills) = buffers();
+    let (glyphs, charmap, _) = things_all_blues_need(font);
+    // Walk over each of the blue character sets for our script.
+    for (blue_chars, blue_flags) in style.script.blues {
+        let is_horizontal = blue_flags & blue_flags::CJK_HORIZ != 0;
+        // Note: horizontal blue zones are disabled by default and have been
+        // for many years in FreeType:
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L35>
+        // and <https://gitlab.freedesktop.org/freetype/freetype/-/commit/084abf0469d32a94b1c315bee10f621284694328>
+        if is_horizontal {
+            continue;
+        }
+        let is_right = blue_flags & blue_flags::CJK_RIGHT != 0;
+        let is_top = blue_flags & blue_flags::TOP != 0;
+        let blues = &mut blues[!is_horizontal as usize];
+        if blues.len() >= MAX_BLUES {
+            continue;
+        }
+        let mut n_flats = 0;
+        let mut n_fills = 0;
+        let mut is_fill = true;
+        for ch in *blue_chars {
+            // The '|' character is used as a sentinel in the blue string that
+            // signifies a switch to characters that define "flat" values
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L380>
+            if *ch == '|' {
+                is_fill = false;
+                continue;
+            }
+            // TODO shaping: https://github.com/googlefonts/fontations/issues/1128
+            let Some(gid) = charmap.map(*ch) else {
+                continue;
+            };
+            if gid.to_u32() == 0 {
+                continue;
+            }
+            let Some(glyph) = glyphs.get(gid) else {
+                continue;
+            };
+            outline_buf.clear();
+            if glyph.draw_unscaled(coords, None, &mut outline_buf).is_err() {
+                continue;
+            }
+            let outline = outline_buf.as_ref();
+            // Reject glyphs that can't produce any rendering
+            if outline.points.len() <= 2 {
+                continue;
+            }
+            // Step right up and find an extrema!
+            // Unwrap is safe because we know per ^ that we have at least 3 points
+            let best_pos = outline
+                .points
+                .iter()
+                .map(|p| if is_horizontal { p.x } else { p.y })
+                .reduce(
+                    if (is_horizontal && is_right) || (!is_horizontal && is_top) {
+                        |a: i16, c: i16| a.max(c)
+                    } else {
+                        |a: i16, c: i16| a.min(c)
+                    },
+                )
+                .unwrap();
+            if is_fill {
+                fills[n_fills] = best_pos;
+                n_fills += 1;
+            } else {
+                flats[n_flats] = best_pos;
+                n_flats += 1;
+            }
+        }
+        if n_flats == 0 && n_fills == 0 {
+            continue;
+        }
+        // Now determine the reference and overshoot of the blue; simply
+        // take the median after a sort
+        fills[..n_fills].sort_unstable();
+        flats[..n_flats].sort_unstable();
+        let (mut blue_ref, mut blue_shoot) = if n_flats == 0 {
+            let value = fills[n_fills / 2] as i32;
+            (value, value)
+        } else if n_fills == 0 {
+            let value = flats[n_flats / 2] as i32;
+            (value, value)
+        } else {
+            (fills[n_fills / 2] as i32, flats[n_flats / 2] as i32)
+        };
+        // Make sure blue_ref >= blue_shoot for top/right or vice versa for
+        // bottom left
+        if blue_shoot != blue_ref {
+            let under_ref = blue_shoot < blue_ref;
+            if is_top ^ under_ref {
+                blue_ref = (blue_shoot + blue_ref) / 2;
+                blue_shoot = blue_ref;
+            }
+        }
+        blues.push(UnscaledBlue {
+            position: blue_ref,
+            overshoot: blue_shoot,
+            ascender: 0,
+            descender: 0,
+            flags: blue_flags & blue_flags::TOP,
+        });
+    }
+    blues
+}
+
+#[inline(always)]
+fn buffers<T: Copy + Default>() -> (
+    UnscaledOutlineBuf<MAX_INLINE_POINTS>,
+    [T; BLUE_STRING_MAX_LEN],
+    [T; BLUE_STRING_MAX_LEN],
+) {
+    (
+        UnscaledOutlineBuf::<MAX_INLINE_POINTS>::new(),
+        [T::default(); BLUE_STRING_MAX_LEN],
+        [T::default(); BLUE_STRING_MAX_LEN],
+    )
+}
+
+/// A thneed is something everyone needs
+#[inline(always)]
+fn things_all_blues_need<'a>(font: &FontRef<'a>) -> (OutlineGlyphCollection<'a>, Charmap<'a>, i32) {
+    (
+        font.outline_glyphs(),
+        font.charmap(),
+        font.head()
+            .map(|head| head.units_per_em())
+            .unwrap_or_default() as i32,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::{super::super::style, blue_flags, UnscaledBlue};
@@ -522,6 +656,31 @@ mod tests {
                 overshoot: -240,
                 ascender: 647,
                 descender: -240,
+                flags: 0,
+            },
+        ];
+        assert_eq!(values, &expected);
+    }
+
+    #[test]
+    fn cjk_blues() {
+        let font = FontRef::new(font_test_data::NOTOSERIFTC_AUTOHINT_METRICS).unwrap();
+        let style = &style::STYLE_CLASSES[super::StyleClass::HANI];
+        let blues = super::compute_cjk_blues(&font, &[], style);
+        let values = blues[1].as_slice();
+        let expected = [
+            UnscaledBlue {
+                position: 837,
+                overshoot: 824,
+                ascender: 0,
+                descender: 0,
+                flags: blue_flags::TOP,
+            },
+            UnscaledBlue {
+                position: -78,
+                overshoot: -66,
+                ascender: 0,
+                descender: 0,
                 flags: 0,
             },
         ];
