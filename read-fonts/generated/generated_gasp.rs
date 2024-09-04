@@ -27,6 +27,11 @@ impl GaspMarker {
     }
 }
 
+impl TopLevelTable for Gasp<'_> {
+    /// `gasp`
+    const TAG: Tag = Tag::new(b"gasp");
+}
+
 impl<'a> FontRead<'a> for Gasp<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
