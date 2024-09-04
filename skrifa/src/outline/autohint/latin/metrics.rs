@@ -27,7 +27,7 @@ pub(crate) fn compute_unscaled_style_metrics(
     style: &StyleClass,
 ) -> UnscaledStyleMetrics {
     let [hwidths, vwidths] = super::widths::compute_widths(font, coords, style.script);
-    let blues = UnscaledBlues::new_latin(font, coords, style.script);
+    let [hblues, vblues] = super::blues::compute_unscaled_blues(font, coords, style);
     let charmap = font.charmap();
     let glyph_metrics = font.glyph_metrics(Size::unscaled(), coords);
     let mut digit_advance = None;
@@ -50,14 +50,13 @@ pub(crate) fn compute_unscaled_style_metrics(
         axes: [
             UnscaledAxisMetrics {
                 dim: Axis::HORIZONTAL,
-                // Latin doesn't have horizontal blues
-                blues: Default::default(),
+                blues: hblues,
                 width_metrics: hwidths.0,
                 widths: hwidths.1,
             },
             UnscaledAxisMetrics {
                 dim: Axis::VERTICAL,
-                blues,
+                blues: vblues,
                 width_metrics: vwidths.0,
                 widths: vwidths.1,
             },

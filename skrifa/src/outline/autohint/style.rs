@@ -286,7 +286,7 @@ pub(super) mod blue_flags {
     pub const LATIN_BLUE_ADJUSTMENT: u32 = 1 << 4;
     pub const LATIN_X_HEIGHT: u32 = 1 << 5;
     pub const LATIN_LONG: u32 = 1 << 6;
-    pub const CJK_HORIZ: u32 = 1 << 1;
+    pub const CJK_HORIZ: u32 = 1 << 2;
     pub const CJK_RIGHT: u32 = TOP;
 }
 
