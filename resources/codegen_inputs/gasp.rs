@@ -1,6 +1,7 @@
 #![parse_module(read_fonts::tables::gasp)]
 
 /// [gasp](https://learn.microsoft.com/en-us/typography/opentype/spec/gasp#gasp-table-formats)
+#[tag = "gasp"]
 table Gasp {
     /// Version number (set to 1)
     version: u16,
