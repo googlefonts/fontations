@@ -516,16 +516,15 @@ fn compute_cjk_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass) -> 
         // take the median after a sort
         fills[..n_fills].sort_unstable();
         flats[..n_flats].sort_unstable();
-        let (blue_ref, blue_shoot) = if n_flats == 0 {
-            let value = fills[n_fills / 2];
+        let (mut blue_ref, mut blue_shoot) = if n_flats == 0 {
+            let value = fills[n_fills / 2] as i32;
             (value, value)
         } else if n_fills == 0 {
-            let value = flats[n_flats / 2];
+            let value = flats[n_flats / 2] as i32;
             (value, value)
         } else {
-            (fills[n_fills / 2], flats[n_flats / 2])
+            (fills[n_fills / 2] as i32, flats[n_flats / 2] as i32)
         };
-        let (mut blue_ref, mut blue_shoot) = (blue_ref as i32, blue_shoot as i32);
         // Make sure blue_ref >= blue_shoot for top/right or vice versa for
         // bottom left
         if blue_shoot != blue_ref {
