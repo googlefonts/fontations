@@ -4,7 +4,7 @@ use super::super::{
     axis::Axis,
     metrics::{self, UnscaledWidths, WidthMetrics, MAX_WIDTHS},
     outline::Outline,
-    style::ScriptClass,
+    style::{ScriptClass, ScriptGroup},
 };
 use crate::MetadataProvider;
 use raw::{types::F2Dot14, FontRef, TableProvider};
@@ -40,8 +40,10 @@ pub(super) fn compute_widths(
             // Now process each dimension
             for (dim, (_metrics, widths)) in result.iter_mut().enumerate() {
                 axis.reset(dim, outline.orientation);
-                super::segments::compute_segments(&mut outline, &mut axis);
-                super::segments::link_segments(&outline, &mut axis, None);
+                // Segment computation for widths always uses the default
+                // script group
+                super::segments::compute_segments(&mut outline, &mut axis, ScriptGroup::Default);
+                super::segments::link_segments(&outline, &mut axis, 0, ScriptGroup::Default, None);
                 let segments = axis.segments.as_slice();
                 for (segment_ix, segment) in segments.iter().enumerate() {
                     let segment_ix = segment_ix as u16;

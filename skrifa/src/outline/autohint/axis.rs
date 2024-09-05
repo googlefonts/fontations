@@ -126,6 +126,8 @@ pub(crate) struct Segment {
     pub height: i16,
     /// Used during stem matching.
     pub score: i32,
+    /// Used during stem matching.
+    pub len: i32,
     /// Index of best candidate for a stem link.
     pub link_ix: Option<u16>,
     /// Index of best candidate for a serif link.
@@ -180,6 +182,10 @@ impl Segment {
 
     pub fn edge<'a>(&self, edges: &'a [Edge]) -> Option<&'a Edge> {
         edges.get(self.edge_ix.map(|ix| ix as usize)?)
+    }
+
+    pub fn link<'a>(&self, segments: &'a [Segment]) -> Option<&'a Segment> {
+        segments.get(self.link_ix.map(|ix| ix as usize)?)
     }
 }
 

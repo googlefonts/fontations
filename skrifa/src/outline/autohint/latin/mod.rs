@@ -56,10 +56,17 @@ pub(crate) fn hint_outline(
     let hint_top_to_bottom = metrics.style_class().script.hint_top_to_bottom;
     outline.scale(&scaled_metrics.scale);
     let mut hinted_metrics = HintedMetrics::default();
+    let group = metrics.style_class().script.group;
     for dim in 0..2 {
         axis.reset(dim, outline.orientation);
-        segments::compute_segments(outline, &mut axis);
-        segments::link_segments(outline, &mut axis, metrics.axes[dim].max_width());
+        segments::compute_segments(outline, &mut axis, group);
+        segments::link_segments(
+            outline,
+            &mut axis,
+            scaled_metrics.axes[dim].scale,
+            group,
+            metrics.axes[dim].max_width(),
+        );
         edges::compute_edges(
             &mut axis,
             &scaled_metrics.axes[dim],
