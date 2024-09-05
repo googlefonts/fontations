@@ -6,7 +6,7 @@ use write_fonts::{
 };
 
 // reference: subset() for head in harfbuzz
-// https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-ot-head-table.hh#L63
+// https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/hb-ot-head-table.hh#L63
 pub(crate) fn subset_head<'a>(
     font: &FontRef<'a>,
     _plan: &Plan,
