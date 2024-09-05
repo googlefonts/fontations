@@ -1,6 +1,6 @@
 //! impl subset() for hmtx
 
-use crate::{Plan, SubsetError, SubsetError::SubsetTableError};
+use crate::{Plan, Subset, SubsetError, SubsetError::SubsetTableError};
 use write_fonts::types::{FWord, GlyphId, UfWord};
 use write_fonts::{
     read::{
@@ -13,66 +13,68 @@ use write_fonts::{
 
 // reference: subset() for hmtx/hhea in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/hb-ot-hmtx-table.hh#L214
-pub(crate) fn subset_hmtx_hhea(
-    font: &FontRef,
-    plan: &Plan,
-    builder: &mut FontBuilder,
-) -> Result<(), SubsetError> {
-    let hmtx = font.hmtx().or(Err(SubsetTableError(Hmtx::TAG)))?;
-    let h_metrics = hmtx.h_metrics();
-    let side_bearings = hmtx.left_side_bearings();
+impl<'a> Subset for Hmtx<'a> {
+    fn subset(
+        &self,
+        plan: &Plan,
+        font: &FontRef,
+        builder: &mut FontBuilder,
+    ) -> Result<(), SubsetError> {
+        let h_metrics = self.h_metrics();
+        let side_bearings = self.left_side_bearings();
 
-    let last_gid = plan.num_output_glyphs - 1;
-    if last_gid >= h_metrics.len() + side_bearings.len() {
-        return Err(SubsetTableError(Hmtx::TAG));
-    }
-
-    let new_num_h_metrics =
-        compute_new_num_h_metrics(&hmtx, &plan.glyphset, plan.num_output_glyphs);
-    //subsetted hmtx table length
-    let hmtx_cap = new_num_h_metrics * 4 + (plan.num_output_glyphs - new_num_h_metrics) * 2;
-    let mut hmtx_out = vec![0; hmtx_cap];
-
-    for (new_gid, old_gid) in &plan.new_to_old_gid_list {
-        let new_gid = new_gid.to_u32() as usize;
-        if new_gid < new_num_h_metrics {
-            let idx = 4 * new_gid;
-            let advance = UfWord::from(hmtx.advance(*old_gid).unwrap());
-            hmtx_out
-                .get_mut(idx..idx + 2)
-                .unwrap()
-                .copy_from_slice(&advance.to_be_bytes());
-
-            let lsb = FWord::from(hmtx.side_bearing(*old_gid).unwrap());
-            hmtx_out
-                .get_mut(idx + 2..idx + 4)
-                .unwrap()
-                .copy_from_slice(&lsb.to_be_bytes());
-        } else {
-            let idx = 4 * new_num_h_metrics + (new_gid - new_num_h_metrics) * 2;
-            let lsb = FWord::from(hmtx.side_bearing(*old_gid).unwrap());
-            hmtx_out
-                .get_mut(idx..idx + 2)
-                .unwrap()
-                .copy_from_slice(&lsb.to_be_bytes());
+        let last_gid = plan.num_output_glyphs - 1;
+        if last_gid >= h_metrics.len() + side_bearings.len() {
+            return Err(SubsetTableError(Hmtx::TAG));
         }
-    }
 
-    let Ok(hhea) = font.hhea() else {
+        let new_num_h_metrics =
+            compute_new_num_h_metrics(self, &plan.glyphset, plan.num_output_glyphs);
+        //subsetted hmtx table length
+        let hmtx_cap = new_num_h_metrics * 4 + (plan.num_output_glyphs - new_num_h_metrics) * 2;
+        let mut hmtx_out = vec![0; hmtx_cap];
+
+        for (new_gid, old_gid) in &plan.new_to_old_gid_list {
+            let new_gid = new_gid.to_u32() as usize;
+            if new_gid < new_num_h_metrics {
+                let idx = 4 * new_gid;
+                let advance = UfWord::from(self.advance(*old_gid).unwrap());
+                hmtx_out
+                    .get_mut(idx..idx + 2)
+                    .unwrap()
+                    .copy_from_slice(&advance.to_be_bytes());
+
+                let lsb = FWord::from(self.side_bearing(*old_gid).unwrap());
+                hmtx_out
+                    .get_mut(idx + 2..idx + 4)
+                    .unwrap()
+                    .copy_from_slice(&lsb.to_be_bytes());
+            } else {
+                let idx = 4 * new_num_h_metrics + (new_gid - new_num_h_metrics) * 2;
+                let lsb = FWord::from(self.side_bearing(*old_gid).unwrap());
+                hmtx_out
+                    .get_mut(idx..idx + 2)
+                    .unwrap()
+                    .copy_from_slice(&lsb.to_be_bytes());
+            }
+        }
+
+        let Ok(hhea) = font.hhea() else {
+            builder.add_raw(Hmtx::TAG, hmtx_out);
+            return Ok(());
+        };
+
+        let mut hhea_out = hhea.offset_data().as_bytes().to_owned();
+        let new_num_h_metrics = (new_num_h_metrics as u16).to_be_bytes();
+        hhea_out
+            .get_mut(34..36)
+            .unwrap()
+            .copy_from_slice(&new_num_h_metrics);
+
         builder.add_raw(Hmtx::TAG, hmtx_out);
-        return Ok(());
-    };
-
-    let mut hhea_out = hhea.offset_data().as_bytes().to_owned();
-    let new_num_h_metrics = (new_num_h_metrics as u16).to_be_bytes();
-    hhea_out
-        .get_mut(34..36)
-        .unwrap()
-        .copy_from_slice(&new_num_h_metrics);
-
-    builder.add_raw(Hmtx::TAG, hmtx_out);
-    builder.add_raw(Hhea::TAG, hhea_out);
-    Ok(())
+        builder.add_raw(Hhea::TAG, hhea_out);
+        Ok(())
+    }
 }
 
 fn compute_new_num_h_metrics(
