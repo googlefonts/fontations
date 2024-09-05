@@ -236,12 +236,12 @@ mod tests {
         assert_eq!(feature_map.feature_records().len(), 3);
 
         let fr0 = feature_map.feature_records().get(0).unwrap();
-        assert_eq!(fr0.feature_tag(), Tag::new(&[b'd', b'l', b'i', b'g']));
+        assert_eq!(fr0.feature_tag(), Tag::new(b"dlig"));
         assert_eq!(*fr0.first_new_entry_index(), U8Or16(0x190));
         assert_eq!(*fr0.entry_map_count(), U8Or16(0x01));
 
         let fr1 = feature_map.feature_records().get(1).unwrap();
-        assert_eq!(fr1.feature_tag(), Tag::new(&[b'l', b'i', b'g', b'a']));
+        assert_eq!(fr1.feature_tag(), Tag::new(b"liga"));
         assert_eq!(*fr1.first_new_entry_index(), U8Or16(0x180));
         assert_eq!(*fr1.entry_map_count(), U8Or16(0x02));
     }
