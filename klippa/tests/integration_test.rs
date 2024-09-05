@@ -7,6 +7,7 @@
 //! environment variable.
 
 use klippa::{parse_unicodes, subset_font, Plan, SubsetFlags};
+use skrifa::GlyphId;
 use std::fmt::Write;
 use std::fs;
 use std::iter::Peekable;
@@ -30,7 +31,7 @@ struct SubsetTestCase {
     fonts: Vec<String>,
 
     /// command line args for subsetter
-    profiles: Vec<(String, SubsetFlags)>,
+    profiles: Vec<(String, SubsetInput)>,
 
     ///subset codepoints to retain
     subsets: Vec<String>,
@@ -44,6 +45,14 @@ struct SubsetTestCase {
 
     ///IUP optimize or not
     iup_optimize: Vec<bool>,
+}
+
+#[derive(Default)]
+struct SubsetInput {
+    pub subset_flag: SubsetFlags,
+    pub name_ids: IntSet<NameId>,
+    pub name_languages: IntSet<u16>,
+    pub gids: IntSet<GlyphId>,
 }
 
 #[derive(Default)]
@@ -127,10 +136,10 @@ impl TestCaseParser {
     fn parse_profiles(&mut self, lines: &mut LinesIter) {
         while !lines.is_end() {
             if let Some(next) = lines.next() {
-                let subset_flag = parse_profile_options(next.trim());
+                let subset_input = parse_profile_options(next.trim());
                 self.case
                     .profiles
-                    .push((next.trim().to_owned(), subset_flag));
+                    .push((next.trim().to_owned(), subset_input));
             }
         }
     }
@@ -193,10 +202,18 @@ impl TestCaseParser {
     }
 }
 
-fn parse_profile_options(file_name: &str) -> SubsetFlags {
+fn parse_profile_options(file_name: &str) -> SubsetInput {
     let file_path = Path::new(TEST_DATA_DIR).join("profiles").join(file_name);
     let input = std::fs::read_to_string(file_path).unwrap();
     let mut subset_flag = SubsetFlags::SUBSET_FLAGS_DEFAULT;
+    let mut name_ids = IntSet::empty();
+    name_ids.insert_range(NameId::from(0)..=NameId::from(6));
+
+    let mut name_languages = IntSet::<u16>::empty();
+    name_languages.insert(0x0409);
+
+    let mut gids = IntSet::empty();
+
     for line in input.lines() {
         match line.trim() {
             "--desubroutinize" => subset_flag |= SubsetFlags::SUBSET_FLAGS_DESUBROUTINIZE,
@@ -209,10 +226,26 @@ fn parse_profile_options(file_name: &str) -> SubsetFlags {
                 subset_flag |= SubsetFlags::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES
             }
             "--notdef-outline" => subset_flag |= SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE,
+            "--name-IDs=0,1,2" => {
+                name_ids.clear();
+                name_ids.insert_range(NameId::from(0)..=NameId::from(2));
+            }
+            "--name-languages=*" => {
+                name_languages.clear();
+                name_languages.invert();
+            }
+            "--gids=1,2,3" => {
+                gids.insert_range(GlyphId::new(1)..=GlyphId::new(3));
+            }
             _ => continue,
         }
     }
-    subset_flag
+    SubsetInput {
+        subset_flag,
+        name_ids,
+        name_languages,
+        gids,
+    }
 }
 
 impl SubsetTestCase {
@@ -255,7 +288,7 @@ impl SubsetTestCase {
         &self,
         font: &str,
         subset: &str,
-        profile: &(String, SubsetFlags),
+        profile: &(String, SubsetInput),
         output_dir: &Path,
     ) {
         //TODO: re-enable subset="*" once populate_unicodes_to_retain supports *
@@ -264,7 +297,7 @@ impl SubsetTestCase {
         }
         let subset_font_name = gen_subset_font_name(font, subset, profile.0.as_str());
         let output_file = output_dir.join(&subset_font_name);
-        gen_subset_font_file(font, subset, profile.1, &output_file);
+        gen_subset_font_file(font, subset, &profile.1, &output_file);
 
         let expected_file = Path::new(TEST_DATA_DIR)
             .join("expected")
@@ -277,7 +310,7 @@ impl SubsetTestCase {
         &self,
         font: &str,
         subset: &str,
-        profile: &(String, SubsetFlags),
+        profile: &(String, SubsetInput),
         output_dir: &Path,
     ) {
         //TODO: re-enable subset="*" once populate_unicodes_to_retain supports *
@@ -287,7 +320,7 @@ impl SubsetTestCase {
 
         let subset_font_name = gen_subset_font_name(font, subset, profile.0.as_str());
         let output_file = output_dir.join(&subset_font_name);
-        gen_subset_font_file(font, subset, profile.1, &output_file);
+        gen_subset_font_file(font, subset, &profile.1, &output_file);
 
         assert_has_ttx_exec();
         let mut expected_file_name = String::from(&subset_font_name);
@@ -305,7 +338,7 @@ impl SubsetTestCase {
         Command::new("fonttools")
             .arg("subset")
             .arg(&org_font_file)
-            .arg("--drop-tables+=DSIG,BASE,GSUB,GPOS,GDEF,name,hdmx,fpgm,prep,cvt,gasp,cvar,fvar,gvar,HVAR,STAT")
+            .arg("--drop-tables+=DSIG,BASE,GSUB,GPOS,GDEF,hdmx,fpgm,prep,cvt,gasp,cvar,fvar,gvar,HVAR,STAT")
             .arg("--drop-tables-=sbix")
             .arg("--no-harfbuzz-repacker")
             .arg("--no-prune-codepage-ranges")
@@ -349,17 +382,16 @@ impl SubsetTestCase {
 fn gen_subset_font_file(
     font_file: &str,
     subset: &str,
-    profile: SubsetFlags,
+    profile: &SubsetInput,
     output_file: &PathBuf,
 ) {
     let org_font_file = PathBuf::from(TEST_DATA_DIR).join("fonts").join(font_file);
     let org_font_bytes = std::fs::read(org_font_file).unwrap();
     let font = FontRef::new(&org_font_bytes).unwrap();
 
-    let gids = IntSet::empty();
     let unicodes = parse_unicodes(subset).unwrap();
     let drop_tables_str =
-        "DSIG,BASE,GSUB,GPOS,GDEF,name,hdmx,fpgm,prep,cvt,gasp,cvar,fvar,gvar,HVAR,STAT";
+        "DSIG,BASE,GSUB,GPOS,GDEF,hdmx,fpgm,prep,cvt,gasp,cvar,fvar,gvar,HVAR,STAT";
     let mut drop_tables = IntSet::empty();
     for str in drop_tables_str.split(',') {
         let tag = Tag::new_checked(str.as_bytes()).unwrap();
@@ -372,13 +404,13 @@ fn gen_subset_font_file(
     name_languages.insert(0x0409);
     //TODO: support parsing subset_flags
     let plan = Plan::new(
-        &gids,
+        &profile.gids,
         &unicodes,
         &font,
-        profile,
+        profile.subset_flag,
         &drop_tables,
-        &name_ids,
-        &name_languages,
+        &profile.name_ids,
+        &profile.name_languages,
     );
 
     let subset_output = subset_font(&font, &plan).unwrap();
@@ -584,57 +616,119 @@ fn parse_test() {
     assert!(test_data_dir.exists());
     let test_file = test_data_dir.join("tests/basics.tests");
     let subset_test = SubsetTestCase::new(&test_file);
+
     assert_eq!(subset_test.fonts.len(), 3);
     assert_eq!(subset_test.fonts[0], "Roboto-Regular.abc.ttf");
-    assert_eq!(subset_test.profiles.len(), 8);
+    assert_eq!(subset_test.profiles.len(), 12);
+    assert_eq!(subset_test.profiles[0].0, String::from("default.txt"));
     assert_eq!(
-        subset_test.profiles[0],
-        (
-            String::from("default.txt"),
-            SubsetFlags::SUBSET_FLAGS_DEFAULT
-        )
+        subset_test.profiles[0].1.subset_flag,
+        SubsetFlags::SUBSET_FLAGS_DEFAULT
+    );
+    assert_eq!(subset_test.profiles[0].1.name_ids.len(), 7);
+    assert!(subset_test.profiles[0].1.name_ids.contains(NameId::new(0)));
+    assert!(subset_test.profiles[0].1.name_ids.contains(NameId::new(1)));
+    assert!(subset_test.profiles[0].1.name_ids.contains(NameId::new(2)));
+    assert!(subset_test.profiles[0].1.name_ids.contains(NameId::new(3)));
+    assert!(subset_test.profiles[0].1.name_ids.contains(NameId::new(4)));
+    assert!(subset_test.profiles[0].1.name_ids.contains(NameId::new(5)));
+    assert!(subset_test.profiles[0].1.name_ids.contains(NameId::new(6)));
+
+    assert_eq!(subset_test.profiles[0].1.name_languages.len(), 1);
+    assert!(subset_test.profiles[0].1.name_languages.contains(0x409));
+
+    assert!(subset_test.profiles[0].1.gids.is_empty());
+
+    assert_eq!(subset_test.profiles[1].0, String::from("drop-hints.txt"));
+    assert_eq!(
+        subset_test.profiles[1].1.subset_flag,
+        SubsetFlags::SUBSET_FLAGS_NO_HINTING
+    );
+
+    assert_eq!(
+        subset_test.profiles[2].0,
+        String::from("drop-hints-retain-gids.txt")
     );
     assert_eq!(
-        subset_test.profiles[1],
-        (
-            String::from("drop-hints.txt"),
-            SubsetFlags::SUBSET_FLAGS_NO_HINTING
-        )
+        subset_test.profiles[2].1.subset_flag,
+        SubsetFlags::SUBSET_FLAGS_NO_HINTING | SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS
+    );
+
+    assert_eq!(subset_test.profiles[3].0, String::from("retain-gids.txt"));
+    assert_eq!(
+        subset_test.profiles[3].1.subset_flag,
+        SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS
+    );
+
+    assert_eq!(
+        subset_test.profiles[4].0,
+        String::from("notdef-outline.txt")
     );
     assert_eq!(
-        subset_test.profiles[2],
-        (
-            String::from("drop-hints-retain-gids.txt"),
-            SubsetFlags::SUBSET_FLAGS_NO_HINTING | SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS
-        )
+        subset_test.profiles[4].1.subset_flag,
+        SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE
+    );
+
+    assert_eq!(subset_test.profiles[5].0, String::from("name-ids.txt"));
+    assert_eq!(
+        subset_test.profiles[5].1.subset_flag,
+        SubsetFlags::SUBSET_FLAGS_DEFAULT
+    );
+    assert_eq!(subset_test.profiles[5].1.name_ids.len(), 3);
+    assert!(subset_test.profiles[5].1.name_ids.contains(NameId::new(0)));
+    assert!(subset_test.profiles[5].1.name_ids.contains(NameId::new(1)));
+    assert!(subset_test.profiles[5].1.name_ids.contains(NameId::new(2)));
+
+    assert_eq!(
+        subset_test.profiles[6].0,
+        String::from("name-languages.txt")
     );
     assert_eq!(
-        subset_test.profiles[3],
-        (
-            String::from("retain-gids.txt"),
-            SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS
-        )
+        subset_test.profiles[6].1.subset_flag,
+        SubsetFlags::SUBSET_FLAGS_DEFAULT
+    );
+    assert!(subset_test.profiles[6].1.name_languages.contains(1));
+    assert!(subset_test.profiles[6].1.name_languages.contains(2));
+    assert!(subset_test.profiles[6].1.name_languages.contains(3));
+
+    assert_eq!(subset_test.profiles[7].0, String::from("name-legacy.txt"));
+    assert_eq!(
+        subset_test.profiles[7].1.subset_flag,
+        SubsetFlags::SUBSET_FLAGS_NAME_LEGACY
+    );
+
+    assert_eq!(subset_test.profiles[8].0, String::from("gids.txt"));
+    assert_eq!(
+        subset_test.profiles[8].1.subset_flag,
+        SubsetFlags::SUBSET_FLAGS_DEFAULT
+    );
+    assert_eq!(subset_test.profiles[8].1.gids.len(), 3);
+    assert!(subset_test.profiles[8].1.gids.contains(GlyphId::new(1)));
+    assert!(subset_test.profiles[8].1.gids.contains(GlyphId::new(2)));
+    assert!(subset_test.profiles[8].1.gids.contains(GlyphId::new(3)));
+
+    assert_eq!(
+        subset_test.profiles[9].0,
+        String::from("no-prune-unicode-ranges.txt")
     );
     assert_eq!(
-        subset_test.profiles[4],
-        (
-            String::from("notdef-outline.txt"),
-            SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE
-        )
+        subset_test.profiles[9].1.subset_flag,
+        SubsetFlags::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES
+    );
+
+    assert_eq!(subset_test.profiles[10].0, String::from("glyph-names.txt"));
+    assert_eq!(
+        subset_test.profiles[10].1.subset_flag,
+        SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES
+    );
+
+    assert_eq!(
+        subset_test.profiles[11].0,
+        String::from("retain-gids-glyph-names.txt")
     );
     assert_eq!(
-        subset_test.profiles[5],
-        (
-            String::from("no-prune-unicode-ranges.txt"),
-            SubsetFlags::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES
-        )
-    );
-    assert_eq!(
-        subset_test.profiles[6],
-        (
-            String::from("glyph-names.txt"),
-            SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES
-        )
+        subset_test.profiles[11].1.subset_flag,
+        SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS | SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES
     );
     assert_eq!(subset_test.subsets.len(), 5);
     assert_eq!(subset_test.subsets[0], "61,62,63");
