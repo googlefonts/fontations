@@ -279,7 +279,7 @@ impl StyleRange {
 // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L68>
 // so that when don't need to keep two sets and adjust during blue computation.
 pub(super) mod blue_flags {
-    pub const LATIN_ACTIVE: u32 = 1 << 0;
+    pub const ACTIVE: u32 = 1 << 0;
     pub const TOP: u32 = 1 << 1;
     pub const LATIN_SUB_TOP: u32 = 1 << 2;
     pub const LATIN_NEUTRAL: u32 = 1 << 3;

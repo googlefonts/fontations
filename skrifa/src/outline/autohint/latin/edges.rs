@@ -235,7 +235,7 @@ pub(crate) fn compute_blue_edges(
         let mut best_dist = fixed_mul(scale.units_per_em / 40, scale.y_scale).min(64 / 2);
         for (unscaled_blue, blue) in unscaled_blues.iter().zip(blues) {
             // Ignore inactive blue zones
-            if blue.flags & blue_flags::LATIN_ACTIVE == 0 {
+            if blue.flags & blue_flags::ACTIVE == 0 {
                 continue;
             }
             let is_top = blue.flags & (blue_flags::TOP | blue_flags::LATIN_SUB_TOP) != 0;
