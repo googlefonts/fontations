@@ -270,6 +270,7 @@ fn scale_cjk_axis_metrics(
     for _ in 0..widths.len() {
         axis.widths.push(ScaledWidth::default());
     }
+    axis.width_metrics = width_metrics;
     axis
 }
 

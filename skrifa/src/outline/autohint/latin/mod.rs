@@ -72,6 +72,7 @@ pub(crate) fn hint_outline(
             &scaled_metrics.axes[dim],
             hint_top_to_bottom,
             scaled_metrics.scale.y_scale,
+            group,
         );
         if dim == Axis::VERTICAL {
             edges::compute_blue_edges(
@@ -79,6 +80,7 @@ pub(crate) fn hint_outline(
                 scale,
                 &metrics.axes[dim].blues,
                 &scaled_metrics.axes[dim].blues,
+                group,
             );
         } else {
             hinted_metrics.x_scale = scaled_metrics.axes[0].scale;

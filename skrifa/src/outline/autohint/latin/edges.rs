@@ -10,7 +10,7 @@ use super::super::{
     axis::{Axis, Edge, Segment},
     metrics::{fixed_div, fixed_mul, Scale, ScaledAxisMetrics, ScaledBlue, UnscaledBlue},
     outline::Direction,
-    style::blue_flags,
+    style::{blue_flags, ScriptGroup},
 };
 
 /// Links segments to edges, using feature analysis for selection.
@@ -21,10 +21,11 @@ pub(crate) fn compute_edges(
     metrics: &ScaledAxisMetrics,
     top_to_bottom_hinting: bool,
     y_scale: i32,
+    group: ScriptGroup,
 ) {
     axis.edges.clear();
     let scale = metrics.scale;
-    let top_to_bottom_hinting = if axis.dim == Axis::HORIZONTAL {
+    let top_to_bottom_hinting = if axis.dim == Axis::HORIZONTAL || group != ScriptGroup::Default {
         false
     } else {
         top_to_bottom_hinting
@@ -39,68 +40,121 @@ pub(crate) fn compute_edges(
     let segment_width_threshold = fixed_div(32, scale);
     // Ensure that edge distance threshold is less than or equal to
     // 0.25 pixels
-    let edge_distance_threshold = fixed_div(
-        fixed_mul(metrics.width_metrics.edge_distance_threshold, scale).min(64 / 4),
-        scale,
-    );
+    let initial_threshold = metrics.width_metrics.edge_distance_threshold;
+    const EDGE_DISTANCE_THRESHOLD_MAX: i32 = 64 / 4;
+    let edge_distance_threshold = if group == ScriptGroup::Default {
+        fixed_div(
+            fixed_mul(initial_threshold, scale).min(EDGE_DISTANCE_THRESHOLD_MAX),
+            scale,
+        )
+    } else {
+        // CJK uses a slightly different computation here
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1043>
+        let threshold = fixed_mul(initial_threshold, scale);
+        if threshold > EDGE_DISTANCE_THRESHOLD_MAX {
+            fixed_div(EDGE_DISTANCE_THRESHOLD_MAX, scale)
+        } else {
+            initial_threshold
+        }
+    };
     // Now build the sorted table of edges by looping over all segments
     // to find a matching edge, adding a new one if not found
-    'segments1: for segment_ix in 0..axis.segments.len() {
+    for segment_ix in 0..axis.segments.len() {
         let segment = &axis.segments[segment_ix];
-        // Ignore segments that are too short, too wide or direction-less
-        if (segment.height as i32) < segment_length_threshold
-            || (segment.delta as i32 > segment_width_threshold)
-            || segment.dir == Direction::None
-        {
-            continue;
-        }
-        // Ignore serif edges that are smaller than 1.5 pixels
-        if segment.serif_ix.is_some()
-            && (2 * segment.height as i32) < (3 * segment_length_threshold)
-        {
-            continue;
-        }
-        // Look for a corresponding edge for this segment
-        for edge_ix in 0..axis.edges.len() {
-            let edge = &axis.edges[edge_ix];
-            let dist = (segment.pos as i32 - edge.fpos as i32).abs();
-            if dist < edge_distance_threshold && edge.dir == segment.dir {
-                // We found an edge, link everything up
-                axis.append_segment_to_edge(segment_ix, edge_ix);
-                // Move to next segment
-                continue 'segments1;
+        if group == ScriptGroup::Default {
+            // Ignore segments that are too short, too wide or direction-less
+            if (segment.height as i32) < segment_length_threshold
+                || (segment.delta as i32 > segment_width_threshold)
+                || segment.dir == Direction::None
+            {
+                continue;
+            }
+            // Ignore serif edges that are smaller than 1.5 pixels
+            if segment.serif_ix.is_some()
+                && (2 * segment.height as i32) < (3 * segment_length_threshold)
+            {
+                continue;
             }
         }
-        // We couldn't find an edge, so add a new one for this segment
-        let opos = fixed_mul(segment.pos as i32, scale);
-        let edge = Edge {
-            fpos: segment.pos,
-            opos,
-            pos: opos,
-            dir: segment.dir,
-            first_ix: segment_ix as u16,
-            last_ix: segment_ix as u16,
-            ..Default::default()
-        };
-        axis.insert_edge(edge, top_to_bottom_hinting);
-        axis.segments[segment_ix].edge_next_ix = Some(segment_ix as u16);
-    }
-    // Loop again to find single point segments without a direction and
-    // associate them with an existing edge if possible
-    'segments2: for segment_ix in 0..axis.segments.len() {
-        let segment = &axis.segments[segment_ix];
-        if segment.dir != Direction::None {
-            continue;
-        }
-        // Find a matching edge
+        // Look for a corresponding edge for this segment
+        let mut best_dist = i32::MAX;
+        let mut best_edge_ix = None;
         for edge_ix in 0..axis.edges.len() {
             let edge = &axis.edges[edge_ix];
             let dist = (segment.pos as i32 - edge.fpos as i32).abs();
-            if dist < edge_distance_threshold {
-                // We found an edge, link everything up
-                axis.append_segment_to_edge(segment_ix, edge_ix);
-                // Move to next segment
-                continue 'segments2;
+            if dist < edge_distance_threshold && edge.dir == segment.dir && dist < best_dist {
+                if group == ScriptGroup::Default {
+                    best_edge_ix = Some(edge_ix);
+                    break;
+                }
+                // For CJK, we add some additional checks
+                // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1073>
+                if let Some(link) = segment.link(&axis.segments).copied() {
+                    // Check whether all linked segments of the candidate edge
+                    // can make a single edge
+                    let first_ix = edge.first_ix as usize;
+                    let mut seg1 = &axis.segments[first_ix];
+                    let mut dist2 = 0;
+                    loop {
+                        if let Some(link1) = seg1.link(&axis.segments).copied() {
+                            dist2 = (link.pos as i32 - link1.pos as i32).abs();
+                            if dist2 >= edge_distance_threshold {
+                                break;
+                            }
+                        }
+                        if seg1.edge_next_ix == Some(first_ix as u16) {
+                            break;
+                        }
+                        if let Some(next) = seg1.edge_next(&axis.segments) {
+                            seg1 = next;
+                        } else {
+                            break;
+                        }
+                    }
+                    if dist2 > edge_distance_threshold {
+                        continue;
+                    }
+                }
+                best_dist = dist;
+                best_edge_ix = Some(edge_ix);
+            }
+        }
+        if let Some(edge_ix) = best_edge_ix {
+            axis.append_segment_to_edge(segment_ix, edge_ix);
+        } else {
+            // We couldn't find an edge, so add a new one for this segment
+            let opos = fixed_mul(segment.pos as i32, scale);
+            let edge = Edge {
+                fpos: segment.pos,
+                opos,
+                pos: opos,
+                dir: segment.dir,
+                first_ix: segment_ix as u16,
+                last_ix: segment_ix as u16,
+                ..Default::default()
+            };
+            axis.insert_edge(edge, top_to_bottom_hinting);
+            axis.segments[segment_ix].edge_next_ix = Some(segment_ix as u16);
+        }
+    }
+    if group == ScriptGroup::Default {
+        // Loop again to find single point segments without a direction and
+        // associate them with an existing edge if possible
+        'segments: for segment_ix in 0..axis.segments.len() {
+            let segment = &axis.segments[segment_ix];
+            if segment.dir != Direction::None {
+                continue;
+            }
+            // Find a matching edge
+            for edge_ix in 0..axis.edges.len() {
+                let edge = &axis.edges[edge_ix];
+                let dist = (segment.pos as i32 - edge.fpos as i32).abs();
+                if dist < edge_distance_threshold {
+                    // We found an edge, link everything up
+                    axis.append_segment_to_edge(segment_ix, edge_ix);
+                    // Move to next segment
+                    continue 'segments;
+                }
             }
         }
     }
@@ -108,8 +162,8 @@ pub(crate) fn compute_edges(
     compute_edge_properties(axis);
 }
 
-/// Edges get shifted and resorted as they're built so we need to assign
-/// edge indices to segments in a second pass.
+/// Edges get reordered as they're built so we need to assign edge indices to
+/// segments in a second pass.
 fn link_segments_to_edges(axis: &mut Axis) {
     let segments = axis.segments.as_mut_slice();
     for edge_ix in 0..axis.edges.len() {
@@ -223,16 +277,25 @@ pub(crate) fn compute_blue_edges(
     scale: &Scale,
     unscaled_blues: &[UnscaledBlue],
     blues: &[ScaledBlue],
+    group: ScriptGroup,
 ) {
-    if axis.dim != Axis::VERTICAL {
+    // For the default script group, we only handle vertical blues
+    if axis.dim != Axis::VERTICAL && group == ScriptGroup::Default {
         return;
     }
+    let axis_scale = if axis.dim == Axis::HORIZONTAL {
+        scale.x_scale
+    } else {
+        scale.y_scale
+    };
+    // Initial threshold
+    let initial_best_dest = fixed_mul(scale.units_per_em / 40, axis_scale).min(64 / 2);
     for edge in &mut axis.edges {
         let mut best_blue = None;
         let mut best_is_neutral = false;
         // Initial threshold as a fraction of em size with a max distance
         // of 0.5 pixels
-        let mut best_dist = fixed_mul(scale.units_per_em / 40, scale.y_scale).min(64 / 2);
+        let mut best_dist = initial_best_dest;
         for (unscaled_blue, blue) in unscaled_blues.iter().zip(blues) {
             // Ignore inactive blue zones
             if blue.flags & blue_flags::ACTIVE == 0 {
@@ -244,27 +307,42 @@ pub(crate) fn compute_blue_edges(
             // Both directions are handled for neutral blues
             if is_top ^ is_major_dir || is_neutral {
                 // Compare to reference position
-                let dist = fixed_mul(
-                    (edge.fpos as i32 - unscaled_blue.position).abs(),
-                    scale.y_scale,
-                );
+                let (ref_pos, matching_blue) = if group == ScriptGroup::Default {
+                    (unscaled_blue.position, blue.position)
+                } else {
+                    // For CJK, we take the blue with the smallest delta
+                    // from the edge
+                    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1356>
+                    if (edge.fpos as i32 - unscaled_blue.position).abs()
+                        > (edge.fpos as i32 - unscaled_blue.overshoot).abs()
+                    {
+                        (unscaled_blue.overshoot, blue.overshoot)
+                    } else {
+                        (unscaled_blue.position, blue.position)
+                    }
+                };
+                let dist = fixed_mul((edge.fpos as i32 - ref_pos).abs(), axis_scale);
                 if dist < best_dist {
                     best_dist = dist;
-                    best_blue = Some(blue.position);
+                    best_blue = Some(matching_blue);
                     best_is_neutral = is_neutral;
                 }
-                // Now compare to overshoot position
-                if edge.flags & Edge::ROUND != 0 && dist != 0 && !is_neutral {
-                    let is_under_ref = (edge.fpos as i32) < unscaled_blue.position;
-                    if is_top ^ is_under_ref {
-                        let dist = fixed_mul(
-                            (edge.fpos as i32 - unscaled_blue.overshoot).abs(),
-                            scale.y_scale,
-                        );
-                        if dist < best_dist {
-                            best_dist = dist;
-                            best_blue = Some(blue.overshoot);
-                            best_is_neutral = is_neutral;
+                if group == ScriptGroup::Default {
+                    // Now compare to overshoot position for the default script
+                    // group
+                    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L2579>
+                    if edge.flags & Edge::ROUND != 0 && dist != 0 && !is_neutral {
+                        let is_under_ref = (edge.fpos as i32) < unscaled_blue.position;
+                        if is_top ^ is_under_ref {
+                            let dist = fixed_mul(
+                                (edge.fpos as i32 - unscaled_blue.overshoot).abs(),
+                                axis_scale,
+                            );
+                            if dist < best_dist {
+                                best_dist = dist;
+                                best_blue = Some(blue.overshoot);
+                                best_is_neutral = is_neutral;
+                            }
                         }
                     }
                 }
@@ -294,50 +372,7 @@ mod tests {
     use raw::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
-    fn edges() {
-        let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let class = &style::STYLE_CLASSES[style::StyleClass::HEBR];
-        let unscaled_metrics =
-            latin::metrics::compute_unscaled_style_metrics(&font, Default::default(), class);
-        let scale = metrics::Scale::new(
-            16.0,
-            font.head().unwrap().units_per_em() as i32,
-            Style::Normal,
-            Default::default(),
-        );
-        let scaled_metrics = latin::metrics::scale_style_metrics(&unscaled_metrics, scale);
-        let glyphs = font.outline_glyphs();
-        let glyph = glyphs.get(GlyphId::new(9)).unwrap();
-        let mut outline = Outline::default();
-        outline.fill(&glyph, Default::default()).unwrap();
-        let mut axes = [
-            Axis::new(Axis::HORIZONTAL, outline.orientation),
-            Axis::new(Axis::VERTICAL, outline.orientation),
-        ];
-        for (dim, axis) in axes.iter_mut().enumerate() {
-            latin::segments::compute_segments(&mut outline, axis, class.script.group);
-            latin::segments::link_segments(
-                &outline,
-                axis,
-                scaled_metrics.axes[dim].scale,
-                class.script.group,
-                unscaled_metrics.axes[dim].max_width(),
-            );
-            compute_edges(
-                axis,
-                &scaled_metrics.axes[dim],
-                class.script.hint_top_to_bottom,
-                scaled_metrics.axes[1].scale,
-            );
-            if dim == Axis::VERTICAL {
-                compute_blue_edges(
-                    axis,
-                    &scale,
-                    &unscaled_metrics.axes[dim].blues,
-                    &scaled_metrics.axes[dim].blues,
-                );
-            }
-        }
+    fn edges_default() {
         let expected_h_edges = [
             Edge {
                 fpos: 15,
@@ -452,7 +487,318 @@ mod tests {
                 last_ix: 1,
             },
         ];
-        assert_eq!(axes[Axis::HORIZONTAL].edges.as_slice(), &expected_h_edges);
-        assert_eq!(axes[Axis::VERTICAL].edges.as_slice(), &expected_v_edges);
+        check_edges(
+            font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS,
+            GlyphId::new(9),
+            style::StyleClass::HEBR,
+            &expected_h_edges,
+            &expected_v_edges,
+        );
+    }
+
+    #[test]
+    fn edges_cjk() {
+        let expected_h_edges = [
+            Edge {
+                fpos: 138,
+                opos: 141,
+                pos: 141,
+                flags: 0,
+                dir: Direction::Up,
+                blue_edge: None,
+                link_ix: Some(1),
+                serif_ix: None,
+                scale: 0,
+                first_ix: 8,
+                last_ix: 8,
+            },
+            Edge {
+                fpos: 201,
+                opos: 206,
+                pos: 206,
+                flags: 0,
+                dir: Direction::Down,
+                blue_edge: None,
+                link_ix: Some(0),
+                serif_ix: None,
+                scale: 0,
+                first_ix: 7,
+                last_ix: 7,
+            },
+            Edge {
+                fpos: 458,
+                opos: 469,
+                pos: 469,
+                flags: 0,
+                dir: Direction::Down,
+                blue_edge: None,
+                link_ix: None,
+                serif_ix: None,
+                scale: 0,
+                first_ix: 2,
+                last_ix: 2,
+            },
+            Edge {
+                fpos: 569,
+                opos: 583,
+                pos: 583,
+                flags: 0,
+                dir: Direction::Down,
+                blue_edge: None,
+                link_ix: None,
+                serif_ix: None,
+                scale: 0,
+                first_ix: 6,
+                last_ix: 6,
+            },
+            Edge {
+                fpos: 670,
+                opos: 686,
+                pos: 686,
+                flags: 0,
+                dir: Direction::Up,
+                blue_edge: None,
+                link_ix: Some(6),
+                serif_ix: None,
+                scale: 0,
+                first_ix: 1,
+                last_ix: 1,
+            },
+            Edge {
+                fpos: 693,
+                opos: 710,
+                pos: 710,
+                flags: 0,
+                dir: Direction::Up,
+                blue_edge: None,
+                link_ix: None,
+                serif_ix: Some(7),
+                scale: 0,
+                first_ix: 4,
+                last_ix: 4,
+            },
+            Edge {
+                fpos: 731,
+                opos: 749,
+                pos: 749,
+                flags: 0,
+                dir: Direction::Down,
+                blue_edge: None,
+                link_ix: Some(4),
+                serif_ix: None,
+                scale: 0,
+                first_ix: 0,
+                last_ix: 0,
+            },
+            Edge {
+                fpos: 849,
+                opos: 869,
+                pos: 869,
+                flags: 0,
+                dir: Direction::Up,
+                blue_edge: None,
+                link_ix: Some(8),
+                serif_ix: None,
+                scale: 0,
+                first_ix: 5,
+                last_ix: 5,
+            },
+            Edge {
+                fpos: 911,
+                opos: 933,
+                pos: 933,
+                flags: 0,
+                dir: Direction::Down,
+                blue_edge: None,
+                link_ix: Some(7),
+                serif_ix: None,
+                scale: 0,
+                first_ix: 3,
+                last_ix: 3,
+            },
+        ];
+        let expected_v_edges = [
+            Edge {
+                fpos: -78,
+                opos: -80,
+                pos: -80,
+                flags: Edge::ROUND,
+                dir: Direction::Left,
+                blue_edge: Some(ScaledWidth {
+                    scaled: -80,
+                    fitted: -64,
+                }),
+                link_ix: None,
+                serif_ix: None,
+                scale: 0,
+                first_ix: 8,
+                last_ix: 8,
+            },
+            Edge {
+                fpos: 3,
+                opos: 3,
+                pos: 3,
+                flags: Edge::ROUND,
+                dir: Direction::Right,
+                blue_edge: None,
+                link_ix: None,
+                serif_ix: None,
+                scale: 0,
+                first_ix: 4,
+                last_ix: 4,
+            },
+            Edge {
+                fpos: 133,
+                opos: 136,
+                pos: 136,
+                flags: Edge::ROUND,
+                dir: Direction::Left,
+                blue_edge: None,
+                link_ix: None,
+                serif_ix: None,
+                scale: 0,
+                first_ix: 2,
+                last_ix: 2,
+            },
+            Edge {
+                fpos: 547,
+                opos: 560,
+                pos: 560,
+                flags: 0,
+                dir: Direction::Left,
+                blue_edge: None,
+                link_ix: None,
+                serif_ix: Some(5),
+                scale: 0,
+                first_ix: 6,
+                last_ix: 6,
+            },
+            Edge {
+                fpos: 576,
+                opos: 590,
+                pos: 590,
+                flags: 0,
+                dir: Direction::Right,
+                blue_edge: None,
+                link_ix: Some(5),
+                serif_ix: None,
+                scale: 0,
+                first_ix: 5,
+                last_ix: 5,
+            },
+            Edge {
+                fpos: 576,
+                opos: 590,
+                pos: 590,
+                flags: 0,
+                dir: Direction::Left,
+                blue_edge: None,
+                link_ix: Some(4),
+                serif_ix: None,
+                scale: 0,
+                first_ix: 7,
+                last_ix: 7,
+            },
+            Edge {
+                fpos: 729,
+                opos: 746,
+                pos: 746,
+                flags: 0,
+                dir: Direction::Left,
+                blue_edge: None,
+                link_ix: Some(7),
+                serif_ix: None,
+                scale: 0,
+                first_ix: 1,
+                last_ix: 1,
+            },
+            Edge {
+                fpos: 758,
+                opos: 776,
+                pos: 776,
+                flags: 0,
+                dir: Direction::Right,
+                blue_edge: None,
+                link_ix: Some(6),
+                serif_ix: None,
+                scale: 0,
+                first_ix: 0,
+                last_ix: 3,
+            },
+            Edge {
+                fpos: 788,
+                opos: 807,
+                pos: 807,
+                flags: Edge::ROUND,
+                dir: Direction::Left,
+                blue_edge: None,
+                link_ix: None,
+                serif_ix: None,
+                scale: 0,
+                first_ix: 9,
+                last_ix: 9,
+            },
+        ];
+        check_edges(
+            font_test_data::NOTOSERIFTC_AUTOHINT_METRICS,
+            GlyphId::new(9),
+            style::StyleClass::HANI,
+            &expected_h_edges,
+            &expected_v_edges,
+        );
+    }
+
+    fn check_edges(
+        font_data: &[u8],
+        glyph_id: GlyphId,
+        style_class: usize,
+        expected_h_edges: &[Edge],
+        expected_v_edges: &[Edge],
+    ) {
+        let font = FontRef::new(font_data).unwrap();
+        let class = &style::STYLE_CLASSES[style_class];
+        let unscaled_metrics =
+            latin::metrics::compute_unscaled_style_metrics(&font, Default::default(), class);
+        let scale = metrics::Scale::new(
+            16.0,
+            font.head().unwrap().units_per_em() as i32,
+            Style::Normal,
+            Default::default(),
+        );
+        let scaled_metrics = latin::metrics::scale_style_metrics(&unscaled_metrics, scale);
+        let glyphs = font.outline_glyphs();
+        let glyph = glyphs.get(glyph_id).unwrap();
+        let mut outline = Outline::default();
+        outline.fill(&glyph, Default::default()).unwrap();
+        let mut axes = [
+            Axis::new(Axis::HORIZONTAL, outline.orientation),
+            Axis::new(Axis::VERTICAL, outline.orientation),
+        ];
+        for (dim, axis) in axes.iter_mut().enumerate() {
+            latin::segments::compute_segments(&mut outline, axis, class.script.group);
+            latin::segments::link_segments(
+                &outline,
+                axis,
+                scaled_metrics.axes[dim].scale,
+                class.script.group,
+                unscaled_metrics.axes[dim].max_width(),
+            );
+            compute_edges(
+                axis,
+                &scaled_metrics.axes[dim],
+                class.script.hint_top_to_bottom,
+                scaled_metrics.axes[1].scale,
+                class.script.group,
+            );
+            compute_blue_edges(
+                axis,
+                &scale,
+                &unscaled_metrics.axes[dim].blues,
+                &scaled_metrics.axes[dim].blues,
+                class.script.group,
+            );
+        }
+        assert_eq!(axes[Axis::HORIZONTAL].edges.as_slice(), expected_h_edges);
+        assert_eq!(axes[Axis::VERTICAL].edges.as_slice(), expected_v_edges);
     }
 }
