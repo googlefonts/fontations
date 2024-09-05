@@ -2,44 +2,46 @@
 
 use std::collections::HashMap;
 
-use crate::{Plan, SubsetError, SubsetError::SubsetTableError, SubsetFlags};
+use crate::{Plan, Subset, SubsetError, SubsetFlags};
 use write_fonts::{
     read::{
         tables::post::{Post, DEFAULT_GLYPH_NAMES},
-        FontRef, TableProvider, TopLevelTable,
+        FontRef, TopLevelTable,
     },
     types::{GlyphId, Version16Dot16},
     FontBuilder,
 };
 
 // reference: subset() for post in harfbuzz
-// https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-ot-post-table.hh#L96
-pub(crate) fn subset_post(
-    font: &FontRef,
-    plan: &Plan,
-    builder: &mut FontBuilder,
-) -> Result<(), SubsetError> {
-    let post = font.post().or(Err(SubsetTableError(Post::TAG)))?;
-    let mut out = Vec::with_capacity(post.offset_data().len());
-    // copy header
-    out.extend_from_slice(post.offset_data().as_bytes().get(0..32).unwrap());
+// https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/hb-ot-post-table.hh#L96
+impl<'a> Subset for Post<'a> {
+    fn subset(
+        &self,
+        plan: &Plan,
+        _font: &FontRef,
+        builder: &mut FontBuilder,
+    ) -> Result<(), SubsetError> {
+        let mut out = Vec::with_capacity(self.offset_data().len());
+        // copy header
+        out.extend_from_slice(self.offset_data().as_bytes().get(0..32).unwrap());
 
-    let glyph_names = plan
-        .subset_flags
-        .contains(SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES);
-    //version 3 does not have any glyph names
-    if !glyph_names {
-        let major_version = 0x3_u16.to_be_bytes();
-        out.get_mut(0..2).unwrap().copy_from_slice(&major_version);
-        out.get_mut(2..4).unwrap().fill(0);
+        let glyph_names = plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES);
+        //version 3 does not have any glyph names
+        if !glyph_names {
+            let major_version = 0x3_u16.to_be_bytes();
+            out.get_mut(0..2).unwrap().copy_from_slice(&major_version);
+            out.get_mut(2..4).unwrap().fill(0);
+        }
+
+        if glyph_names && self.version() == Version16Dot16::VERSION_2_0 {
+            subset_post_v2tail(self, plan, &mut out);
+        }
+
+        builder.add_raw(Post::TAG, out);
+        Ok(())
     }
-
-    if glyph_names && post.version() == Version16Dot16::VERSION_2_0 {
-        subset_post_v2tail(&post, plan, &mut out);
-    }
-
-    builder.add_raw(Post::TAG, out);
-    Ok(())
 }
 
 fn subset_post_v2tail(post: &Post, plan: &Plan, out: &mut Vec<u8>) {

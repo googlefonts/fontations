@@ -14,16 +14,9 @@ mod os2;
 mod parsing_util;
 mod post;
 mod stat;
-use glyf_loca::subset_glyf_loca;
-use head::subset_head;
-use hmtx::subset_hmtx_hhea;
-use maxp::subset_maxp;
-use name::subset_name;
-use os2::subset_os2;
 pub use parsing_util::{
     parse_drop_tables, parse_name_ids, parse_name_languages, parse_unicodes, populate_gids,
 };
-use post::subset_post;
 
 use fnv::FnvHashMap;
 use skrifa::MetadataProvider;
@@ -508,6 +501,17 @@ pub trait NameIdClosure {
     fn collect_name_ids(&self, plan: &mut Plan);
 }
 
+// This trait is implemented for all font tables
+pub trait Subset {
+    /// Subset this table, if successful a subset version of this table will be added to builder
+    fn subset(
+        &self,
+        plan: &Plan,
+        font: &FontRef,
+        builder: &mut FontBuilder,
+    ) -> Result<(), SubsetError>;
+}
+
 pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
     let mut builder = FontBuilder::default();
 
@@ -528,26 +532,45 @@ fn subset_table<'a>(
     builder: &mut FontBuilder<'a>,
 ) -> Result<(), SubsetError> {
     match tag {
-        Glyf::TAG => subset_glyf_loca(plan, font, builder),
-        //handled by glyf table if exists
-        Head::TAG => font
+        Glyf::TAG => font
             .glyf()
-            .map(|_| ())
-            .or_else(|_| subset_head(font, plan, builder)),
+            .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
+            .subset(plan, font, builder),
+        //handled by glyf table if exists
+        Head::TAG => font.glyf().map(|_| ()).or_else(|_| {
+            font.head()
+                .map_err(|_| SubsetError::SubsetTableError(Head::TAG))?
+                .subset(plan, font, builder)
+        }),
         //Skip, handled by Hmtx
         Hhea::TAG => Ok(()),
 
-        Hmtx::TAG => subset_hmtx_hhea(font, plan, builder),
+        Hmtx::TAG => font
+            .hmtx()
+            .map_err(|_| SubsetError::SubsetTableError(Hmtx::TAG))?
+            .subset(plan, font, builder),
         //Skip, handled by glyf
         Loca::TAG => Ok(()),
 
-        Maxp::TAG => subset_maxp(font, plan, builder),
+        Maxp::TAG => font
+            .maxp()
+            .map_err(|_| SubsetError::SubsetTableError(Maxp::TAG))?
+            .subset(plan, font, builder),
 
-        Name::TAG => subset_name(font, plan, builder),
+        Name::TAG => font
+            .name()
+            .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?
+            .subset(plan, font, builder),
 
-        Os2::TAG => subset_os2(font, plan, builder),
+        Os2::TAG => font
+            .os2()
+            .map_err(|_| SubsetError::SubsetTableError(Os2::TAG))?
+            .subset(plan, font, builder),
 
-        Post::TAG => subset_post(font, plan, builder),
+        Post::TAG => font
+            .post()
+            .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?
+            .subset(plan, font, builder),
         _ => {
             if let Some(data) = font.data_for_tag(tag) {
                 builder.add_raw(tag, data);
