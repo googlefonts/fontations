@@ -88,10 +88,11 @@ pub(crate) fn hint_outline(
         hint::hint_edges(
             &mut axis,
             &scaled_metrics.axes[dim],
+            group,
             scale,
             hint_top_to_bottom,
         );
-        super::hint::align_edge_points(outline, &axis);
+        super::hint::align_edge_points(outline, &axis, group, scale);
         super::hint::align_strong_points(outline, &mut axis);
         super::hint::align_weak_points(outline, dim);
         if dim == 0 && axis.edges.len() > 1 {

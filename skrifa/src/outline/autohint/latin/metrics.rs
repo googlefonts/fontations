@@ -89,7 +89,11 @@ pub(crate) fn scale_style_metrics(
         scale_axis(&unscaled_metrics.axes[0]),
         scale_axis(&unscaled_metrics.axes[1]),
     ];
-    ScaledStyleMetrics { scale, axes }
+    ScaledStyleMetrics {
+        scale,
+        group: unscaled_metrics.style_class().script.group,
+        axes,
+    }
 }
 
 /// Computes scaled metrics for a single axis.
@@ -102,7 +106,10 @@ fn scale_default_axis_metrics(
     blues: &[UnscaledBlue],
     scale: &mut Scale,
 ) -> ScaledAxisMetrics {
-    let mut axis = ScaledAxisMetrics::default();
+    let mut axis = ScaledAxisMetrics {
+        dim,
+        ..Default::default()
+    };
     if dim == Axis::HORIZONTAL {
         axis.scale = scale.x_scale;
         axis.delta = scale.x_delta;
@@ -220,7 +227,11 @@ fn scale_cjk_axis_metrics(
     blues: &[UnscaledBlue],
     scale: &mut Scale,
 ) -> ScaledAxisMetrics {
-    let mut axis = ScaledAxisMetrics::default();
+    let mut axis = ScaledAxisMetrics {
+        dim,
+        ..Default::default()
+    };
+    axis.dim = dim;
     if dim == Axis::HORIZONTAL {
         axis.scale = scale.x_scale;
         axis.delta = scale.x_delta;
