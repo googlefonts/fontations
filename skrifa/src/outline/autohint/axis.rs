@@ -184,7 +184,8 @@ impl Segment {
         edges.get(self.edge_ix.map(|ix| ix as usize)?)
     }
 
-    pub fn edge_next<'a>(&self, segments: &'a [Segment]) -> Option<&'a Segment> {
+    /// Returns the next segment in this segment's parent edge.
+    pub fn next_in_edge<'a>(&self, segments: &'a [Segment]) -> Option<&'a Segment> {
         segments.get(self.edge_next_ix.map(|ix| ix as usize)?)
     }
 
