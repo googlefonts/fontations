@@ -25,6 +25,9 @@ pub(crate) fn compute_edges(
 ) {
     axis.edges.clear();
     let scale = metrics.scale;
+    // This is always passed as 0 in functions that take hinting direction
+    // in CJK
+    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1114>
     let top_to_bottom_hinting = if axis.dim == Axis::HORIZONTAL || group != ScriptGroup::Default {
         false
     } else {
@@ -58,7 +61,9 @@ pub(crate) fn compute_edges(
         }
     };
     // Now build the sorted table of edges by looping over all segments
-    // to find a matching edge, adding a new one if not found
+    // to find a matching edge, adding a new one if not found.
+    // We can't iterate segments because we make mutable calls on `axis`
+    // below which causes overlapping borrows
     for segment_ix in 0..axis.segments.len() {
         let segment = &axis.segments[segment_ix];
         if group == ScriptGroup::Default {
@@ -105,7 +110,7 @@ pub(crate) fn compute_edges(
                         if seg1.edge_next_ix == Some(first_ix as u16) {
                             break;
                         }
-                        if let Some(next) = seg1.edge_next(&axis.segments) {
+                        if let Some(next) = seg1.next_in_edge(&axis.segments) {
                             seg1 = next;
                         } else {
                             break;
@@ -140,21 +145,25 @@ pub(crate) fn compute_edges(
     if group == ScriptGroup::Default {
         // Loop again to find single point segments without a direction and
         // associate them with an existing edge if possible
-        'segments: for segment_ix in 0..axis.segments.len() {
+        for segment_ix in 0..axis.segments.len() {
             let segment = &axis.segments[segment_ix];
             if segment.dir != Direction::None {
                 continue;
             }
-            // Find a matching edge
-            for edge_ix in 0..axis.edges.len() {
-                let edge = &axis.edges[edge_ix];
-                let dist = (segment.pos as i32 - edge.fpos as i32).abs();
-                if dist < edge_distance_threshold {
-                    // We found an edge, link everything up
-                    axis.append_segment_to_edge(segment_ix, edge_ix);
-                    // Move to next segment
-                    continue 'segments;
-                }
+            // Try to find an edge that coincides with this segment within the
+            // threshold
+            if let Some(edge_ix) = axis
+                .edges
+                .iter()
+                .enumerate()
+                .filter_map(|(ix, edge)| {
+                    ((segment.pos as i32 - edge.fpos as i32).abs() < edge_distance_threshold)
+                        .then_some(ix)
+                })
+                .next()
+            {
+                // We found an edge, link everything up
+                axis.append_segment_to_edge(segment_ix, edge_ix);
             }
         }
     }
@@ -279,7 +288,9 @@ pub(crate) fn compute_blue_edges(
     blues: &[ScaledBlue],
     group: ScriptGroup,
 ) {
-    // For the default script group, we only handle vertical blues
+    // For the default script group, don't compute blues in the horizontal
+    // direction
+    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L3572>
     if axis.dim != Axis::VERTICAL && group == ScriptGroup::Default {
         return;
     }
