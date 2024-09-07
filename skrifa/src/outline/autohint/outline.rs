@@ -350,7 +350,7 @@ impl Outline {
                 let in_y = point.fy - prev_v.fy;
                 let out_x = next_u.fx - point.fx;
                 let out_y = next_u.fy - point.fy;
-                if (in_x ^ out_x) >= 0 || (in_y ^ out_y) >= 0 {
+                if (in_x ^ out_x) >= 0 && (in_y ^ out_y) >= 0 {
                     // Both vectors point into the same quadrant
                     points[i].flags.set_marker(PointMarker::WEAK_INTERPOLATION);
                     points[v_index].u = u_index as _;

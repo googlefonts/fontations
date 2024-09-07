@@ -20,29 +20,49 @@ use super::{
     axis::{Axis, Dimension},
     metrics::{fixed_div, fixed_mul, Scale},
     outline::{Outline, Point},
+    style::ScriptGroup,
 };
 use core::cmp::Ordering;
 
 /// Align all points of an edge to the same coordinate value.
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L1324>
-pub(crate) fn align_edge_points(outline: &mut Outline, axis: &Axis) -> Option<()> {
+pub(crate) fn align_edge_points(
+    outline: &mut Outline,
+    axis: &Axis,
+    group: ScriptGroup,
+    scale: &Scale,
+) -> Option<()> {
     let edges = axis.edges.as_slice();
     let segments = axis.segments.as_slice();
     let points = outline.points.as_mut_slice();
+    // Snapping is configurable for CJK
+    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L2195>
+    let snap = group == ScriptGroup::Default
+        || ((axis.dim == Axis::HORIZONTAL && scale.flags & Scale::HORIZONTAL_SNAP != 0)
+            || (axis.dim == Axis::VERTICAL && scale.flags & Scale::VERTICAL_SNAP != 0));
     for segment in segments {
         let Some(edge) = segment.edge(edges) else {
             continue;
         };
+        let delta = edge.pos - edge.opos;
         let mut point_ix = segment.first();
         let last_ix = segment.last();
         loop {
             let point = points.get_mut(point_ix)?;
             if axis.dim == Axis::HORIZONTAL {
-                point.x = edge.pos;
+                if snap {
+                    point.x = edge.pos;
+                } else {
+                    point.x += delta;
+                }
                 point.flags.set_marker(PointMarker::TOUCHED_X);
             } else {
-                point.y = edge.pos;
+                if snap {
+                    point.y = edge.pos;
+                } else {
+                    point.y += delta;
+                }
                 point.flags.set_marker(PointMarker::TOUCHED_Y);
             }
             if point_ix == last_ix {
@@ -67,7 +87,8 @@ pub(crate) fn align_strong_points(outline: &mut Outline, axis: &mut Axis) -> Opt
     } else {
         PointMarker::TOUCHED_Y
     };
-    'points: for point in &mut outline.points {
+    let points = outline.points.as_mut_slice();
+    'points: for point in points {
         // Skip points that are already touched; do weak interpolation in the
         // next pass
         if point
@@ -326,15 +347,17 @@ mod tests {
     };
 
     #[test]
-    fn hinted_coords_and_metrics() {
+    fn hinted_coords_and_metrics_default() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let (outline, metrics) = hint_latin_outline(
+        let (outline, metrics) = hint_outline(
             &font,
             16.0,
             Default::default(),
             GlyphId::new(9),
             &style::STYLE_CLASSES[style::StyleClass::HEBR],
         );
+        // Expected values were painfully extracted from FreeType with some
+        // printf debugging
         #[rustfmt::skip]
         let expected_coords = [
             (133, -256),
@@ -388,12 +411,158 @@ mod tests {
         assert_eq!(metrics, expected_metrics);
     }
 
+    #[test]
+    fn hinted_coords_and_metrics_cjk() {
+        let font = FontRef::new(font_test_data::NOTOSERIFTC_AUTOHINT_METRICS).unwrap();
+        let (outline, metrics) = hint_outline(
+            &font,
+            16.0,
+            Default::default(),
+            GlyphId::new(9),
+            &style::STYLE_CLASSES[style::StyleClass::HANI],
+        );
+        // Expected values were painfully extracted from FreeType with some
+        // printf debugging
+        let expected_coords = [
+            (279, 768),
+            (568, 768),
+            (618, 829),
+            (618, 829),
+            (634, 812),
+            (657, 788),
+            (685, 758),
+            (695, 746),
+            (692, 720),
+            (667, 720),
+            (288, 720),
+            (704, 704),
+            (786, 694),
+            (785, 685),
+            (777, 672),
+            (767, 670),
+            (767, 163),
+            (767, 159),
+            (750, 148),
+            (728, 142),
+            (716, 142),
+            (704, 142),
+            (402, 767),
+            (473, 767),
+            (473, 740),
+            (450, 598),
+            (338, 357),
+            (236, 258),
+            (220, 270),
+            (274, 340),
+            (345, 499),
+            (390, 675),
+            (344, 440),
+            (398, 425),
+            (464, 384),
+            (496, 343),
+            (501, 307),
+            (486, 284),
+            (458, 281),
+            (441, 291),
+            (434, 314),
+            (398, 366),
+            (354, 416),
+            (334, 433),
+            (832, 841),
+            (934, 830),
+            (932, 819),
+            (914, 804),
+            (896, 802),
+            (896, 30),
+            (896, 5),
+            (885, -35),
+            (848, -60),
+            (809, -65),
+            (807, -51),
+            (794, -27),
+            (781, -19),
+            (767, -11),
+            (715, 0),
+            (673, 5),
+            (673, 21),
+            (673, 21),
+            (707, 18),
+            (756, 15),
+            (799, 13),
+            (807, 13),
+            (821, 13),
+            (832, 23),
+            (832, 35),
+            (407, 624),
+            (594, 624),
+            (594, 546),
+            (396, 546),
+            (569, 576),
+            (558, 576),
+            (599, 614),
+            (677, 559),
+            (671, 552),
+            (654, 547),
+            (636, 545),
+            (622, 458),
+            (572, 288),
+            (488, 130),
+            (357, -5),
+            (259, -60),
+            (246, -45),
+            (327, 9),
+            (440, 150),
+            (516, 311),
+            (558, 486),
+            (128, 542),
+            (158, 581),
+            (226, 576),
+            (223, 562),
+            (207, 543),
+            (193, 539),
+            (193, -44),
+            (193, -46),
+            (175, -56),
+            (152, -64),
+            (141, -64),
+            (128, -64),
+            (195, 850),
+            (300, 820),
+            (295, 799),
+            (259, 799),
+            (234, 712),
+            (163, 543),
+            (80, 395),
+            (33, 338),
+            (19, 347),
+            (54, 410),
+            (120, 575),
+            (176, 759),
+        ];
+        let coords = outline
+            .points
+            .iter()
+            .map(|point| (point.x, point.y))
+            .collect::<Vec<_>>();
+        assert_eq!(coords, expected_coords);
+        let expected_metrics = latin::HintedMetrics {
+            x_scale: 67109,
+            edge_metrics: Some(latin::EdgeMetrics {
+                left_opos: 141,
+                left_pos: 128,
+                right_opos: 933,
+                right_pos: 896,
+            }),
+        };
+        assert_eq!(metrics, expected_metrics);
+    }
+
     /// Empty glyphs (like spaces) have no edges and therefore no edge
     /// metrics
     #[test]
     fn missing_edge_metrics() {
         let font = FontRef::new(font_test_data::CUBIC_GLYF).unwrap();
-        let (_outline, metrics) = hint_latin_outline(
+        let (_outline, metrics) = hint_outline(
             &font,
             16.0,
             Default::default(),
@@ -413,7 +582,7 @@ mod tests {
     #[test]
     fn skia_ahem_test_case() {
         let font = FontRef::new(font_test_data::AHEM).unwrap();
-        let outline = hint_latin_outline(
+        let outline = hint_outline(
             &font,
             24.0,
             Default::default(),
@@ -440,7 +609,7 @@ mod tests {
         assert_eq!(float_coords, expected_float_coords);
     }
 
-    fn hint_latin_outline(
+    fn hint_outline(
         font: &FontRef,
         size: f32,
         coords: &[F2Dot14],

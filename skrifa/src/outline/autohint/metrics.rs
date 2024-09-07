@@ -3,7 +3,7 @@
 use super::{
     super::Target,
     axis::Dimension,
-    style::{GlyphStyleMap, StyleClass},
+    style::{GlyphStyleMap, ScriptGroup, StyleClass},
 };
 use crate::{attribute::Style, collections::SmallVec, FontRef};
 use alloc::vec::Vec;
@@ -45,6 +45,7 @@ impl UnscaledAxisMetrics {
 /// Scaled metrics for a single axis.
 #[derive(Clone, Default, Debug)]
 pub(crate) struct ScaledAxisMetrics {
+    pub dim: Dimension,
     /// Font unit to 26.6 scale in the axis direction.
     pub scale: i32,
     /// 1/64 pixel delta in the axis direction.
@@ -152,6 +153,8 @@ impl UnscaledStyleMetricsSet {
 pub(crate) struct ScaledStyleMetrics {
     /// Multidimensional scaling factors and deltas.
     pub scale: Scale,
+    /// Script set for the associated style.
+    pub group: ScriptGroup,
     /// Per-dimension scaled metrics.
     pub axes: [ScaledAxisMetrics; 2],
 }
@@ -350,6 +353,10 @@ pub(crate) fn fixed_mul_div(a: i32, b: i32, c: i32) -> i32 {
 
 pub(crate) fn pix_round(a: i32) -> i32 {
     (a + 32) & !63
+}
+
+pub(crate) fn pix_floor(a: i32) -> i32 {
+    a & !63
 }
 
 #[cfg(test)]

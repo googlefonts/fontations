@@ -200,11 +200,12 @@ impl Default for GlyphStyleMap {
 
 /// Determines which algorithms the autohinter will use while generating
 /// metrics and processing a glyph outline.
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub(crate) enum ScriptGroup {
     /// All scripts that are not CJK or Indic.
     ///
     /// FreeType calls this Latin.
+    #[default]
     Default,
     Cjk,
     Indic,
