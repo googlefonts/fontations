@@ -1,6 +1,6 @@
 //! impl subset() for glyf and loca
 use crate::{
-    estimate_subset_table_size, Plan,
+    estimate_subset_table_size, Plan, Subset,
     SubsetError::{self, SubsetTableError},
     SubsetFlags,
 };
@@ -22,58 +22,60 @@ use write_fonts::{
 };
 
 // reference: subset() for glyf/loca/head in harfbuzz
-// https://github.com/harfbuzz/harfbuzz/blob/main/src/OT/glyf/glyf.hh#L77
-pub(crate) fn subset_glyf_loca(
-    plan: &Plan,
-    font: &FontRef,
-    builder: &mut FontBuilder,
-) -> Result<(), SubsetError> {
-    let glyf = font.glyf().or(Err(SubsetTableError(Glyf::TAG)))?;
-    let loca = font.loca(None).or(Err(SubsetTableError(Loca::TAG)))?;
-    let head = font.head().or(Err(SubsetTableError(Head::TAG)))?;
+// https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/OT/glyf/glyf.hh#L77
+impl<'a> Subset for Glyf<'a> {
+    fn subset(
+        &self,
+        plan: &Plan,
+        font: &FontRef,
+        builder: &mut FontBuilder,
+    ) -> Result<(), SubsetError> {
+        let loca = font.loca(None).or(Err(SubsetTableError(Loca::TAG)))?;
+        let head = font.head().or(Err(SubsetTableError(Head::TAG)))?;
 
-    let num_output_glyphs = plan.num_output_glyphs;
-    let mut subset_glyphs = Vec::with_capacity(num_output_glyphs);
-    let mut max_offset: u32 = 0;
+        let num_output_glyphs = plan.num_output_glyphs;
+        let mut subset_glyphs = Vec::with_capacity(num_output_glyphs);
+        let mut max_offset: u32 = 0;
 
-    for (new_gid, old_gid) in &plan.new_to_old_gid_list {
-        match loca.get_glyf(*old_gid, &glyf) {
-            Ok(g) => {
-                if *old_gid == GlyphId::NOTDEF
-                    && *new_gid == GlyphId::NOTDEF
-                    && !plan
-                        .subset_flags
-                        .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
-                {
-                    subset_glyphs.push(Vec::new());
-                    continue;
+        for (new_gid, old_gid) in &plan.new_to_old_gid_list {
+            match loca.get_glyf(*old_gid, self) {
+                Ok(g) => {
+                    if *old_gid == GlyphId::NOTDEF
+                        && *new_gid == GlyphId::NOTDEF
+                        && !plan
+                            .subset_flags
+                            .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
+                    {
+                        subset_glyphs.push(Vec::new());
+                        continue;
+                    }
+
+                    let Some(glyph) = g else {
+                        subset_glyphs.push(Vec::new());
+                        continue;
+                    };
+                    let subset_glyph = subset_glyph(&glyph, plan);
+                    let trimmed_len = subset_glyph.len();
+                    max_offset += padded_size(trimmed_len) as u32;
+                    subset_glyphs.push(subset_glyph);
                 }
-
-                let Some(glyph) = g else {
-                    subset_glyphs.push(Vec::new());
-                    continue;
-                };
-                let subset_glyph = subset_glyph(&glyph, plan);
-                let trimmed_len = subset_glyph.len();
-                max_offset += padded_size(trimmed_len) as u32;
-                subset_glyphs.push(subset_glyph);
-            }
-            _ => {
-                return Err(SubsetTableError(Glyf::TAG));
+                _ => {
+                    return Err(SubsetTableError(Glyf::TAG));
+                }
             }
         }
+
+        //TODO: support force_long_loca in the plan
+        let loca_format: u8 = if max_offset < 0x1FFFF { 0 } else { 1 };
+        let (glyf_out, loca_out) = write_glyf_loca(font, plan, loca_format, &subset_glyphs);
+
+        let head_out = subset_head(&head, loca_format);
+
+        builder.add_raw(Glyf::TAG, glyf_out);
+        builder.add_raw(Loca::TAG, loca_out);
+        builder.add_raw(Head::TAG, head_out);
+        Ok(())
     }
-
-    //TODO: support force_long_loca in the plan
-    let loca_format: u8 = if max_offset < 0x1FFFF { 0 } else { 1 };
-    let (glyf_out, loca_out) = write_glyf_loca(font, plan, loca_format, &subset_glyphs);
-
-    let head_out = subset_head(&head, loca_format);
-
-    builder.add_raw(Glyf::TAG, glyf_out);
-    builder.add_raw(Loca::TAG, loca_out);
-    builder.add_raw(Head::TAG, head_out);
-    Ok(())
 }
 
 fn padded_size(len: usize) -> usize {

@@ -33,9 +33,8 @@ pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
     // 1. Parse
     debug!("Parse (mode {:?})", mode);
     // This is the one step where we can't readily intercept the error with logged_syn_error
-    let mut items: Items = syn::parse_str(code_str).map_err(|e| {
+    let mut items: Items = syn::parse_str(code_str).inspect_err(|_| {
         debug!("{}", Backtrace::capture());
-        e
     })?;
     items.sanity_check(Phase::Parse)?;
 
