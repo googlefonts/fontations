@@ -599,6 +599,7 @@ mod tests {
                 &scaled_metrics.axes[0],
                 class.script.hint_top_to_bottom,
                 scaled_metrics.axes[1].scale,
+                class.script.group,
             );
             if dim == Axis::VERTICAL {
                 latin::edges::compute_blue_edges(
@@ -606,6 +607,7 @@ mod tests {
                     &scale,
                     &unscaled_metrics.axes[dim].blues,
                     &scaled_metrics.axes[dim].blues,
+                    class.script.group,
                 );
             }
             hint_edges(
