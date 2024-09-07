@@ -63,8 +63,8 @@ impl<'a, const BF: u8> InputBitStream<'a, BF> {
         Some((branch_factor, depth_bits))
     }
 
-    pub(crate) fn from(data: &'a [u8]) -> InputBitStream<BF> {
-        InputBitStream {
+    pub(crate) fn from(data: &'a [u8]) -> Self {
+        Self {
             data,
             byte_index: 1,
             sub_index: 0,
