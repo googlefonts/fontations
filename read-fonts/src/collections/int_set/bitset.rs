@@ -597,8 +597,8 @@ pub(crate) struct BitSetBuilder<'a> {
 }
 
 impl<'a> BitSetBuilder<'a> {
-    pub(crate) fn start(set: &'a mut BitSet) -> BitSetBuilder {
-        BitSetBuilder {
+    pub(crate) fn start(set: &'a mut BitSet) -> Self {
+        Self {
             set,
             last_page_index: usize::MAX,
             last_major_value: u32::MAX,
