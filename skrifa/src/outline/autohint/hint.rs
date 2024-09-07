@@ -356,6 +356,8 @@ mod tests {
             GlyphId::new(9),
             &style::STYLE_CLASSES[style::StyleClass::HEBR],
         );
+        // Expected values were painfully extracted from FreeType with some
+        // printf debugging
         #[rustfmt::skip]
         let expected_coords = [
             (133, -256),
@@ -419,6 +421,8 @@ mod tests {
             GlyphId::new(9),
             &style::STYLE_CLASSES[style::StyleClass::HANI],
         );
+        // Expected values were painfully extracted from FreeType with some
+        // printf debugging
         let expected_coords = [
             (279, 768),
             (568, 768),
