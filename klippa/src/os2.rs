@@ -1,45 +1,47 @@
 //! impl subset() for OS/2
 use crate::SubsetFlags;
-use crate::{Plan, SubsetError, SubsetError::SubsetTableError};
+use crate::{Plan, Subset, SubsetError};
 use std::cmp::Ordering;
 use write_fonts::{
     read::{
         collections::IntSet,
         tables::os2::{Os2, OS2_UNICODE_RANGES},
-        FontRef, TableProvider, TopLevelTable,
+        FontRef, TopLevelTable,
     },
     FontBuilder,
 };
 
 // reference: subset() for OS/2 in harfbuzz
-// https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-ot-os2-table.hh#L229
-pub(crate) fn subset_os2(
-    font: &FontRef,
-    plan: &Plan,
-    builder: &mut FontBuilder,
-) -> Result<(), SubsetError> {
-    let os2 = font.os2().or(Err(SubsetTableError(Os2::TAG)))?;
-    let mut out = os2.offset_data().as_bytes().to_owned();
+// https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/hb-ot-os2-table.hh#L229
+impl<'a> Subset for Os2<'a> {
+    fn subset(
+        &self,
+        plan: &Plan,
+        _font: &FontRef,
+        builder: &mut FontBuilder,
+    ) -> Result<(), SubsetError> {
+        let mut out = self.offset_data().as_bytes().to_owned();
 
-    let us_first_char_index: u16 = plan.unicodes.first().unwrap_or(0xFFFF).min(0xFFFF) as u16;
-    out.get_mut(64..66)
-        .unwrap()
-        .copy_from_slice(&us_first_char_index.to_be_bytes());
+        let us_first_char_index: u16 = plan.unicodes.first().unwrap_or(0xFFFF).min(0xFFFF) as u16;
+        out.get_mut(64..66)
+            .unwrap()
+            .copy_from_slice(&us_first_char_index.to_be_bytes());
 
-    let us_last_char_index: u16 = plan.unicodes.last().unwrap_or(0xFFFF).min(0xFFFF) as u16;
-    out.get_mut(66..68)
-        .unwrap()
-        .copy_from_slice(&us_last_char_index.to_be_bytes());
+        let us_last_char_index: u16 = plan.unicodes.last().unwrap_or(0xFFFF).min(0xFFFF) as u16;
+        out.get_mut(66..68)
+            .unwrap()
+            .copy_from_slice(&us_last_char_index.to_be_bytes());
 
-    if !plan
-        .subset_flags
-        .contains(SubsetFlags::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES)
-    {
-        update_unicode_ranges(&plan.unicodes, out.get_mut(42..58).unwrap());
+        if !plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES)
+        {
+            update_unicode_ranges(&plan.unicodes, out.get_mut(42..58).unwrap());
+        }
+
+        builder.add_raw(Os2::TAG, out);
+        Ok(())
     }
-
-    builder.add_raw(Os2::TAG, out);
-    Ok(())
 }
 
 fn update_unicode_ranges(unicodes: &IntSet<u32>, ul_unicode_range: &mut [u8]) {

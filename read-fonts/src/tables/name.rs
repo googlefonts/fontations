@@ -27,6 +27,13 @@ impl NameRecord {
         let encoding = Encoding::new(self.platform_id(), self.encoding_id());
         Ok(NameString { data, encoding })
     }
+
+    // reference from fonttools:
+    // https://github.com/fonttools/fonttools/blob/c2119229cfb02cdb7c5a63374ef29d3d514259e8/Lib/fontTools/ttLib/tables/_n_a_m_e.py#L509
+    pub fn is_unicode(&self) -> bool {
+        self.platform_id() == 0
+            || (self.platform_id() == 3 && [0, 1, 10].contains(&self.encoding_id()))
+    }
 }
 
 impl LangTagRecord {

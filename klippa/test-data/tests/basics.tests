@@ -9,6 +9,10 @@ drop-hints.txt
 drop-hints-retain-gids.txt
 retain-gids.txt
 notdef-outline.txt
+name-ids.txt
+name-languages.txt
+name-legacy.txt
+gids.txt
 no-prune-unicode-ranges.txt
 glyph-names.txt
 retain-gids-glyph-names.txt

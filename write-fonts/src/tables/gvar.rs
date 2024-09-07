@@ -618,23 +618,6 @@ impl HasLen for SharedTuples {
     }
 }
 
-#[derive(Clone, Debug, Default)]
-struct GvarPerTupleData {
-    private_point_numbers: Option<PackedPointNumbers>,
-    x_deltas: PackedDeltas,
-    y_deltas: PackedDeltas,
-}
-
-impl FontWrite for GvarPerTupleData {
-    fn write_into(&self, writer: &mut TableWriter) {
-        if let Some(points) = &self.private_point_numbers {
-            points.write_into(writer);
-        }
-        self.x_deltas.write_into(writer);
-        self.y_deltas.write_into(writer);
-    }
-}
-
 impl FontWrite for TupleVariationCount {
     fn write_into(&self, writer: &mut TableWriter) {
         self.bits().write_into(writer)
