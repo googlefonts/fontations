@@ -9,7 +9,7 @@ use crate::{attribute::Style, collections::SmallVec, FontRef};
 use alloc::vec::Vec;
 use raw::types::{F2Dot14, Fixed, GlyphId};
 #[cfg(feature = "std")]
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 /// Maximum number of widths, same for Latin and CJK.
 ///
@@ -82,11 +82,11 @@ impl UnscaledStyleMetrics {
 /// The set of unscaled style metrics for a single font.
 ///
 /// For a variable font, this is dependent on the location in variation space.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum UnscaledStyleMetricsSet {
     Precomputed(Vec<UnscaledStyleMetrics>),
     #[cfg(feature = "std")]
-    Lazy(RwLock<Vec<Option<UnscaledStyleMetrics>>>),
+    Lazy(Arc<RwLock<Vec<Option<UnscaledStyleMetrics>>>>),
 }
 
 impl UnscaledStyleMetricsSet {
@@ -110,7 +110,7 @@ impl UnscaledStyleMetricsSet {
     #[cfg(feature = "std")]
     pub fn lazy(style_map: &GlyphStyleMap) -> Self {
         let vec = vec![None; style_map.metrics_count()];
-        Self::Lazy(RwLock::new(vec))
+        Self::Lazy(Arc::new(RwLock::new(vec)))
     }
 
     /// Returns the unscaled style metrics for the given style map and glyph
@@ -228,7 +228,13 @@ pub(crate) struct Scale {
 
 impl Scale {
     /// Create initial scaling parameters from metrics and hinting target.
-    pub fn new(size: f32, units_per_em: i32, font_style: Style, target: Target) -> Self {
+    pub fn new(
+        size: f32,
+        units_per_em: i32,
+        font_style: Style,
+        target: Target,
+        group: ScriptGroup,
+    ) -> Self {
         let scale =
             (Fixed::from_bits((size * 64.0) as i32) / Fixed::from_bits(units_per_em)).to_bits();
         let mut flags = 0;
@@ -254,6 +260,11 @@ impl Scale {
         // and italic fonts.
         if target.is_lcd() || is_light || is_italic {
             flags |= Self::NO_HORIZONTAL;
+        }
+        // CJK doesn't hint advances
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1432>
+        if group != ScriptGroup::Default {
+            flags |= Self::NO_ADVANCE;
         }
         Self {
             x_scale: scale,

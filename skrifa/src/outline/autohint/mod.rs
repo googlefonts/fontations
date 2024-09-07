@@ -13,3 +13,4 @@ mod outline;
 mod style;
 
 pub use instance::GlyphStyles;
+pub(crate) use instance::Instance;

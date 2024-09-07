@@ -1,7 +1,7 @@
 //! Support for applying embedded hinting instructions.
 
 use super::{
-    cff,
+    autohint, cff,
     glyf::{self, FreeTypeScaler},
     pen::PathStyle,
     AdjustedMetrics, DrawError, GlyphStyles, Hinting, LocationRef, NormalizedCoord,
@@ -62,7 +62,7 @@ impl Engine {
     /// Converts the `AutoFallback` variant into either `Interpreter` or
     /// `Auto` based on the given outline set's preference for interpreter
     /// mode.
-    fn _resolve_auto_fallback(self, outlines: &OutlineGlyphCollection) -> Engine {
+    fn resolve_auto_fallback(self, outlines: &OutlineGlyphCollection) -> Engine {
         match self {
             Self::Interpreter => Self::Interpreter,
             Self::Auto(styles) => Self::Auto(styles),
@@ -332,38 +332,56 @@ impl HintingInstance {
         self.coords.extend_from_slice(location.into().coords());
         let options = options.into();
         self.target = options.target;
+        let engine = options.engine.resolve_auto_fallback(outlines);
         // Reuse memory if the font contains the same outline format
         let current_kind = core::mem::replace(&mut self.kind, HinterKind::None);
-        match &outlines.kind {
-            OutlineCollectionKind::Glyf(glyf) => {
-                let mut hint_instance = match current_kind {
-                    HinterKind::Glyf(instance) => instance,
-                    _ => Box::<glyf::HintInstance>::default(),
-                };
-                let ppem = size.ppem();
-                let scale = glyf.compute_scale(ppem).1.to_bits();
-                hint_instance.reconfigure(
-                    glyf,
-                    scale,
-                    ppem.unwrap_or_default() as i32,
-                    self.target,
-                    &self.coords,
-                )?;
-                self.kind = HinterKind::Glyf(hint_instance);
-            }
-            OutlineCollectionKind::Cff(cff) => {
-                let mut subfonts = match current_kind {
-                    HinterKind::Cff(subfonts) => subfonts,
-                    _ => vec![],
-                };
-                subfonts.clear();
-                let ppem = size.ppem();
-                for i in 0..cff.subfont_count() {
-                    subfonts.push(cff.subfont(i, ppem, &self.coords)?);
+        match engine {
+            Engine::Interpreter => match &outlines.kind {
+                OutlineCollectionKind::Glyf(glyf) => {
+                    let mut hint_instance = match current_kind {
+                        HinterKind::Glyf(instance) => instance,
+                        _ => Box::<glyf::HintInstance>::default(),
+                    };
+                    let ppem = size.ppem();
+                    let scale = glyf.compute_scale(ppem).1.to_bits();
+                    hint_instance.reconfigure(
+                        glyf,
+                        scale,
+                        ppem.unwrap_or_default() as i32,
+                        self.target,
+                        &self.coords,
+                    )?;
+                    self.kind = HinterKind::Glyf(hint_instance);
                 }
-                self.kind = HinterKind::Cff(subfonts);
+                OutlineCollectionKind::Cff(cff) => {
+                    let mut subfonts = match current_kind {
+                        HinterKind::Cff(subfonts) => subfonts,
+                        _ => vec![],
+                    };
+                    subfonts.clear();
+                    let ppem = size.ppem();
+                    for i in 0..cff.subfont_count() {
+                        subfonts.push(cff.subfont(i, ppem, &self.coords)?);
+                    }
+                    self.kind = HinterKind::Cff(subfonts);
+                }
+                OutlineCollectionKind::None => {}
+            },
+            Engine::Auto(styles) => {
+                let Some(font) = outlines.common().map(|scaler| &scaler.font) else {
+                    return Ok(());
+                };
+                let instance = autohint::Instance::new(
+                    font,
+                    outlines,
+                    &self.coords,
+                    self.target,
+                    styles,
+                    true,
+                );
+                self.kind = HinterKind::Auto(instance);
             }
-            OutlineCollectionKind::None => {}
+            _ => {}
         }
         Ok(())
     }
@@ -375,7 +393,7 @@ impl HintingInstance {
     pub fn is_enabled(&self) -> bool {
         match &self.kind {
             HinterKind::Glyf(instance) => instance.is_enabled(),
-            HinterKind::Cff(_) => true,
+            HinterKind::Cff(_) | HinterKind::Auto(_) => true,
             _ => false,
         }
     }
@@ -391,6 +409,9 @@ impl HintingInstance {
         let ppem = self.size.ppem();
         let coords = self.coords.as_slice();
         match (&self.kind, &glyph.kind) {
+            (HinterKind::Auto(instance), _) => {
+                instance.draw(self.size, coords, glyph, path_style, pen)
+            }
             (HinterKind::Glyf(instance), OutlineKind::Glyf(glyf, outline)) => {
                 if matches!(path_style, PathStyle::HarfBuzz) {
                     return Err(DrawError::HarfBuzzHintingUnsupported);
@@ -433,6 +454,7 @@ enum HinterKind {
     None,
     Glyf(Box<glyf::HintInstance>),
     Cff(Vec<cff::Subfont>),
+    Auto(autohint::Instance),
 }
 
 // Internal helpers for deriving various flags from the mode which

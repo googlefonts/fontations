@@ -58,6 +58,11 @@ pub(crate) fn hint_outline(
     let mut hinted_metrics = HintedMetrics::default();
     let group = metrics.style_class().script.group;
     for dim in 0..2 {
+        if (dim == Axis::HORIZONTAL && scale.flags & Scale::NO_HORIZONTAL != 0)
+            || (dim == Axis::VERTICAL && scale.flags & Scale::NO_VERTICAL != 0)
+        {
+            continue;
+        }
         axis.reset(dim, outline.orientation);
         segments::compute_segments(outline, &mut axis, group);
         segments::link_segments(

@@ -371,6 +371,7 @@ mod tests {
             font.head().unwrap().units_per_em() as i32,
             Style::Normal,
             Default::default(),
+            class.script.group,
         );
         scale_style_metrics(&unscaled_metrics, scale)
     }

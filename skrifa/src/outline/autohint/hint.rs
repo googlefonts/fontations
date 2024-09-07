@@ -626,6 +626,7 @@ mod tests {
             font.head().unwrap().units_per_em() as i32,
             Style::Normal,
             Default::default(),
+            metrics.style_class().script.group,
         );
         let hinted_metrics = latin::hint_outline(&mut outline, &metrics, &scale);
         (outline, hinted_metrics)
