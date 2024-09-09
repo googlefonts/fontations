@@ -1,3 +1,5 @@
+use crate::Hinting;
+
 use super::{FreeTypeInstance, InstanceOptions, RegularizingPen, SkrifaInstance};
 use skrifa::{outline::pen::PathElement, GlyphId};
 use std::{io::Write, path::Path};
@@ -12,6 +14,20 @@ pub fn compare_glyphs(
     if !ft_instance.is_scalable() {
         // Don't run on bitmap fonts (yet)
         return true;
+    }
+    if let Some(Hinting::Auto(_)) = options.hinting {
+        // This font is a pathological case for autohinting due to the
+        // extreme number of generated segments and edges. To be
+        // precise, it takes longer to test this single font than the
+        // entire remainder of the Google Fonts corpus so we skip it
+        // here.
+        if ft_instance
+            .family_name()
+            .unwrap_or_default()
+            .contains("Handjet")
+        {
+            return true;
+        }
     }
     let glyph_count = skrifa_instance.glyph_count();
     let is_scaled = options.ppem != 0;
@@ -86,6 +102,7 @@ pub fn compare_glyphs(
             if exit_on_fail {
                 std::process::exit(1);
             }
+            break;
         }
     }
     ok

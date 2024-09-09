@@ -10,10 +10,10 @@ use super::super::{
     axis::{Axis, Dimension},
     metrics::{
         fixed_div, fixed_mul, fixed_mul_div, pix_round, Scale, ScaledAxisMetrics, ScaledBlue,
-        ScaledStyleMetrics, ScaledWidth, UnscaledAxisMetrics, UnscaledBlue, UnscaledBlues,
-        UnscaledStyleMetrics, WidthMetrics,
+        ScaledStyleMetrics, ScaledWidth, UnscaledAxisMetrics, UnscaledBlue, UnscaledStyleMetrics,
+        WidthMetrics,
     },
-    style::{blue_flags, ScriptClass, ScriptGroup, StyleClass},
+    style::{blue_flags, ScriptGroup, StyleClass},
 };
 use crate::{prelude::Size, MetadataProvider};
 use raw::{types::F2Dot14, FontRef};
@@ -26,9 +26,28 @@ pub(crate) fn compute_unscaled_style_metrics(
     coords: &[F2Dot14],
     style: &StyleClass,
 ) -> UnscaledStyleMetrics {
+    let charmap = font.charmap();
+    // We don't attempt to produce any metrics if we don't have a Unicode
+    // cmap
+    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L1146>
+    if charmap.is_symbol() {
+        return UnscaledStyleMetrics {
+            class_ix: style.index as u16,
+            axes: [
+                UnscaledAxisMetrics {
+                    dim: Axis::HORIZONTAL,
+                    ..Default::default()
+                },
+                UnscaledAxisMetrics {
+                    dim: Axis::VERTICAL,
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+    }
     let [hwidths, vwidths] = super::widths::compute_widths(font, coords, style.script);
     let [hblues, vblues] = super::blues::compute_unscaled_blues(font, coords, style);
-    let charmap = font.charmap();
     let glyph_metrics = font.glyph_metrics(Size::unscaled(), coords);
     let mut digit_advance = None;
     let mut digits_have_same_width = true;
@@ -89,11 +108,7 @@ pub(crate) fn scale_style_metrics(
         scale_axis(&unscaled_metrics.axes[0]),
         scale_axis(&unscaled_metrics.axes[1]),
     ];
-    ScaledStyleMetrics {
-        scale,
-        group: unscaled_metrics.style_class().script.group,
-        axes,
-    }
+    ScaledStyleMetrics { scale, axes }
 }
 
 /// Computes scaled metrics for a single axis.
@@ -132,7 +147,7 @@ fn scale_default_axis_metrics(
             for blue in blues {
                 max_height = max_height.max(blue.ascender).max(-blue.descender);
             }
-            let mut dist = fixed_mul(max_height, new_scale - axis.scale);
+            let mut dist = fixed_mul(max_height, new_scale - axis.scale).abs();
             dist &= !127;
             if dist == 0 {
                 axis.scale = new_scale;
@@ -257,7 +272,7 @@ fn scale_cjk_axis_metrics(
         };
         // A blue zone is only active if it is less than 3/4 pixels tall
         let dist = fixed_mul(unscaled_blue.position - unscaled_blue.overshoot, scale);
-        if dist <= 48 || dist >= -48 {
+        if (-48..=48).contains(&dist) {
             blue.position.fitted = pix_round(blue.position.scaled);
             // For CJK, "overshoot" is actually undershoot
             let delta1 = fixed_div(blue.position.fitted, scale) - unscaled_blue.overshoot;

@@ -4,9 +4,9 @@ use std::{
     sync::Arc,
 };
 
-use ::freetype::Library;
+use ::freetype::{face::LoadFlag, Library};
 use ::skrifa::{
-    outline::HintingMode,
+    outline::{HintingOptions, SmoothMode, Target},
     raw::{types::F2Dot14, FileRef, FontRef, TableProvider},
 };
 
@@ -16,21 +16,76 @@ mod skrifa;
 pub use freetype::FreeTypeInstance;
 pub use skrifa::SkrifaInstance;
 
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+pub enum HintingTarget {
+    #[default]
+    Normal,
+    Light,
+    Lcd,
+    VerticalLcd,
+    Mono,
+}
+
+impl HintingTarget {
+    pub fn to_skrifa_target(self) -> Target {
+        match self {
+            Self::Normal => SmoothMode::Normal.into(),
+            Self::Light => SmoothMode::Light.into(),
+            Self::Lcd => SmoothMode::Lcd.into(),
+            Self::VerticalLcd => SmoothMode::VerticalLcd.into(),
+            Self::Mono => Target::Mono,
+        }
+    }
+
+    pub fn to_freetype_load_flags(self) -> LoadFlag {
+        match self {
+            Self::Normal => LoadFlag::TARGET_NORMAL,
+            Self::Light => LoadFlag::TARGET_LIGHT,
+            Self::Lcd => LoadFlag::TARGET_LCD,
+            Self::VerticalLcd => LoadFlag::TARGET_LCD_V,
+            Self::Mono => LoadFlag::TARGET_MONO,
+        }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum Hinting {
+    Interpreter(HintingTarget),
+    Auto(HintingTarget),
+}
+
+impl Hinting {
+    pub fn skrifa_options(self) -> HintingOptions {
+        match self {
+            Self::Interpreter(target) => HintingOptions {
+                engine: ::skrifa::outline::Engine::Interpreter,
+                target: target.to_skrifa_target(),
+            },
+            Self::Auto(target) => HintingOptions {
+                engine: ::skrifa::outline::Engine::Auto(None),
+                target: target.to_skrifa_target(),
+            },
+        }
+    }
+
+    pub fn freetype_load_flags(self) -> LoadFlag {
+        match self {
+            Self::Interpreter(target) => LoadFlag::NO_AUTOHINT | target.to_freetype_load_flags(),
+            Self::Auto(target) => LoadFlag::FORCE_AUTOHINT | target.to_freetype_load_flags(),
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct InstanceOptions<'a> {
     pub index: usize,
     pub ppem: u32,
     pub coords: &'a [F2Dot14],
-    pub hinting: Option<HintingMode>,
+    pub hinting: Option<Hinting>,
 }
 
 impl<'a> InstanceOptions<'a> {
-    pub fn new(
-        index: usize,
-        ppem: u32,
-        coords: &'a [F2Dot14],
-        hinting: Option<HintingMode>,
-    ) -> Self {
+    pub fn new(index: usize, ppem: u32, coords: &'a [F2Dot14], hinting: Option<Hinting>) -> Self {
         Self {
             index,
             ppem,

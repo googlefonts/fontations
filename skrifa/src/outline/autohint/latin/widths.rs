@@ -32,11 +32,14 @@ pub(super) fn compute_widths(
     // We take the first available glyph from the standard character set.
     if let Some(glyph) = script
         .std_chars
-        .iter()
-        .filter_map(|&ch| glyphs.get(charmap.map(ch)?))
+        .split(' ')
+        .map(|cluster| cluster.chars())
+        .filter_map(|mut chars| Some((chars.next()?, chars.count())))
+        .filter(|(_ch, remaining_count)| *remaining_count == 0)
+        .filter_map(|(ch, _)| glyphs.get(charmap.map(ch)?))
         .next()
     {
-        if outline.fill(&glyph, coords).is_ok() {
+        if outline.fill(&glyph, coords).is_ok() && !outline.points.is_empty() {
             // Now process each dimension
             for (dim, (_metrics, widths)) in result.iter_mut().enumerate() {
                 axis.reset(dim, outline.orientation);
@@ -59,6 +62,13 @@ pub(super) fn compute_widths(
                             break;
                         }
                     }
+                }
+                // FreeTypes `af_sort_and_quantize_widths()`` has the side effect
+                // of always updating the width count to 1 when we don't find
+                // any...
+                // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L121>
+                if widths.is_empty() {
+                    widths.push(0);
                 }
                 // The value 100 is heuristic
                 metrics::sort_and_quantize_widths(widths, units_per_em / 100);

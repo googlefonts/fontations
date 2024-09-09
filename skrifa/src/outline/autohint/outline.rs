@@ -266,7 +266,7 @@ impl Outline {
             let mut first_ix = contour.first();
             let mut ix = first_ix;
             let mut prev_ix = contour.prev(first_ix);
-            let mut point = points[0];
+            let mut point = points[first_ix];
             while prev_ix != first_ix {
                 let prev = points[prev_ix];
                 let out_x = point.fx - prev.fx;
@@ -341,6 +341,9 @@ impl Outline {
         let points = self.points.as_mut_slice();
         for i in 0..points.len() {
             let point = points[i];
+            if point.flags.has_marker(PointMarker::WEAK_INTERPOLATION) {
+                continue;
+            }
             if point.in_dir == Direction::None && point.out_dir == Direction::None {
                 let u_index = point.u as usize;
                 let v_index = point.v as usize;
@@ -761,7 +764,7 @@ mod tests {
             let mut base_svg = SvgPen::default();
             let settings = DrawSettings::unhinted(Size::unscaled(), LocationRef::default())
                 .with_path_style(path_style);
-            glyph.draw(settings, &mut base_svg);
+            glyph.draw(settings, &mut base_svg).unwrap();
             let base_svg = base_svg.to_string();
             // Autohinter outline code path
             let mut outline = Outline::default();
@@ -774,7 +777,7 @@ mod tests {
                 point.y = point.fy << 6;
             }
             let mut autohint_svg = SvgPen::default();
-            outline.to_path(path_style, &mut autohint_svg);
+            outline.to_path(path_style, &mut autohint_svg).unwrap();
             let autohint_svg = autohint_svg.to_string();
             if base_svg != autohint_svg {
                 results.push((gid, base_svg, autohint_svg));

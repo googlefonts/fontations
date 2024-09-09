@@ -11,6 +11,7 @@ use super::{
     axis::Axis,
     metrics::{Scale, UnscaledStyleMetrics},
     outline::Outline,
+    style::{GlyphStyle, ScriptGroup},
 };
 
 pub(crate) use metrics::compute_unscaled_style_metrics;
@@ -49,14 +50,24 @@ pub(crate) fn hint_outline(
     outline: &mut Outline,
     metrics: &UnscaledStyleMetrics,
     scale: &Scale,
+    glyph_style: Option<GlyphStyle>,
 ) -> HintedMetrics {
     let scaled_metrics = metrics::scale_style_metrics(metrics, *scale);
-    let y_scale = scaled_metrics.axes[1].scale;
+    let scale = &scaled_metrics.scale;
     let mut axis = Axis::default();
     let hint_top_to_bottom = metrics.style_class().script.hint_top_to_bottom;
     outline.scale(&scaled_metrics.scale);
-    let mut hinted_metrics = HintedMetrics::default();
+    let mut hinted_metrics = HintedMetrics {
+        x_scale: scale.x_scale,
+        ..Default::default()
+    };
     let group = metrics.style_class().script.group;
+    // For default script group, we don't proceed with hinting if we're
+    // missing alignment zones. FreeType swaps in a "dummy" hinter here
+    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afglobal.c#L475>
+    if group == ScriptGroup::Default && scaled_metrics.axes[1].blues.is_empty() {
+        return hinted_metrics;
+    }
     for dim in 0..2 {
         if (dim == Axis::HORIZONTAL && scale.flags & Scale::NO_HORIZONTAL != 0)
             || (dim == Axis::VERTICAL && scale.flags & Scale::NO_VERTICAL != 0)
@@ -80,13 +91,19 @@ pub(crate) fn hint_outline(
             group,
         );
         if dim == Axis::VERTICAL {
-            edges::compute_blue_edges(
-                &mut axis,
-                scale,
-                &metrics.axes[dim].blues,
-                &scaled_metrics.axes[dim].blues,
-                group,
-            );
+            if group != ScriptGroup::Default
+                || glyph_style
+                    .map(|style| !style.is_non_base())
+                    .unwrap_or(true)
+            {
+                edges::compute_blue_edges(
+                    &mut axis,
+                    scale,
+                    &metrics.axes[dim].blues,
+                    &scaled_metrics.axes[dim].blues,
+                    group,
+                );
+            }
         } else {
             hinted_metrics.x_scale = scaled_metrics.axes[0].scale;
         }

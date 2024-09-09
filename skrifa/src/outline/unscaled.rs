@@ -115,6 +115,12 @@ impl<'a> UnscaledOutlineRef<'a> {
                 }
                 cur_contour = point_ix..point_ix;
                 found_best_in_cur_contour = false;
+                // Ignore single point contours
+                match self.points.get(point_ix + 1) {
+                    Some(next_point) if next_point.is_contour_start => continue,
+                    None => continue,
+                    _ => {}
+                }
             }
             cur_contour.end += 1;
             if f(point) {
