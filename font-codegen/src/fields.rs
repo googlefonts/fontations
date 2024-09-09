@@ -64,8 +64,7 @@ impl Fields {
                 ));
             }
 
-            if (matches!(fld.typ, FieldType::VarLenArray(_))
-                || fld.attrs.count.as_deref().map(Count::all).unwrap_or(false))
+            if matches!(fld.attrs.count.as_deref(), Some(Count::All(_)))
                 && i != self.fields.len() - 1
             {
                 return Err(logged_syn_error(
@@ -1150,6 +1149,15 @@ impl Field {
                     FieldType::ComputedArray(array) => {
                         let inner = array.raw_inner_type();
                         quote!( <#inner as ComputeSize>::compute_size(&#read_args)? )
+                    }
+                    FieldType::VarLenArray(array) => {
+                        let inner = array.raw_inner_type();
+                        return Some(quote! {
+                            {
+                                let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
+                                <#inner as VarSize>::total_len_for_count(data, #count_expr)?
+                            }
+                        });
                     }
                     _ => unreachable!("count not valid here"),
                 };

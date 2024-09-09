@@ -92,6 +92,15 @@ table KindsOfArrays {
 }
 
 #[skip_constructor]
+table VarLenHaver {
+    count: u16,
+    #[count($count)]
+    #[traverse_with(skip)]
+    var_len: VarLenArray<VarSizeDummy>,
+    other_field: u32,
+}
+
+#[skip_constructor]
 table Dummy {
     value: u16,
     /// Set to 0.
