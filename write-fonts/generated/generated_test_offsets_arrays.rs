@@ -364,6 +364,65 @@ impl<'a> FontRead<'a> for KindsOfArrays {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct VarLenHaver {
+    pub count: u16,
+    pub var_len: Vec<VarSizeDummy>,
+    pub other_field: u32,
+}
+
+impl FontWrite for VarLenHaver {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.count.write_into(writer);
+        self.var_len.write_into(writer);
+        self.other_field.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("VarLenHaver")
+    }
+}
+
+impl Validate for VarLenHaver {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("VarLenHaver", |ctx| {
+            ctx.in_field("var_len", |ctx| {
+                if self.var_len.len() > (u16::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
+                self.var_len.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::VarLenHaver<'a>> for VarLenHaver {
+    fn from_obj_ref(
+        obj: &read_fonts::codegen_test::offsets_arrays::VarLenHaver<'a>,
+        _: FontData,
+    ) -> Self {
+        let offset_data = obj.offset_data();
+        VarLenHaver {
+            count: obj.count(),
+            var_len: obj
+                .var_len()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
+            other_field: obj.other_field(),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::VarLenHaver<'a>> for VarLenHaver {}
+
+impl<'a> FontRead<'a> for VarLenHaver {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::codegen_test::offsets_arrays::VarLenHaver as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Dummy {
     pub value: u16,
 }

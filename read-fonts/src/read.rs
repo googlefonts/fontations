@@ -94,6 +94,17 @@ pub trait VarSize {
         let asu32 = data.read_at::<Self::Size>(pos).ok()?.into();
         (asu32 as usize).checked_add(Self::Size::RAW_BYTE_LEN)
     }
+
+    /// Determine the total length required to store `count` items of `Self` in
+    /// `data` starting from `start`.
+    #[doc(hidden)]
+    fn total_len_for_count(data: FontData, count: usize) -> Result<usize, ReadError> {
+        (0..count).try_fold(0usize, |current_pos, _i| {
+            Self::read_len_at(data, current_pos)
+                .and_then(|i_len| current_pos.checked_add(i_len))
+                .ok_or(ReadError::OutOfBounds)
+        })
+    }
 }
 
 /// An error that occurs when reading font data

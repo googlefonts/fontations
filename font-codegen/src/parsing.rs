@@ -1596,10 +1596,6 @@ impl Count {
         }
     }
 
-    pub(crate) fn all(&self) -> bool {
-        matches!(self, Count::All(_))
-    }
-
     pub(crate) fn iter_referenced_fields(&self) -> impl Iterator<Item = &syn::Ident> {
         let (one, two) = match self {
             Self::SingleArg(CountArg::Field(ident)) => (Some(ident), None),

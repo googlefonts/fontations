@@ -664,6 +664,82 @@ impl<'a> std::fmt::Debug for KindsOfArrays<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
+pub struct VarLenHaverMarker {
+    var_len_byte_len: usize,
+}
+
+impl VarLenHaverMarker {
+    fn count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn var_len_byte_range(&self) -> Range<usize> {
+        let start = self.count_byte_range().end;
+        start..start + self.var_len_byte_len
+    }
+    fn other_field_byte_range(&self) -> Range<usize> {
+        let start = self.var_len_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+}
+
+impl<'a> FontRead<'a> for VarLenHaver<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let count: u16 = cursor.read()?;
+        let var_len_byte_len = {
+            let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
+            <VarSizeDummy as VarSize>::total_len_for_count(data, count as usize)?
+        };
+        cursor.advance_by(var_len_byte_len);
+        cursor.advance::<u32>();
+        cursor.finish(VarLenHaverMarker { var_len_byte_len })
+    }
+}
+
+pub type VarLenHaver<'a> = TableRef<'a, VarLenHaverMarker>;
+
+impl<'a> VarLenHaver<'a> {
+    pub fn count(&self) -> u16 {
+        let range = self.shape.count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn var_len(&self) -> VarLenArray<'a, VarSizeDummy> {
+        let range = self.shape.var_len_byte_range();
+        VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
+    }
+
+    pub fn other_field(&self) -> u32 {
+        let range = self.shape.other_field_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for VarLenHaver<'a> {
+    fn type_name(&self) -> &str {
+        "VarLenHaver"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("count", self.count())),
+            1usize => Some(Field::new("var_len", traversal::FieldType::Unknown)),
+            2usize => Some(Field::new("other_field", self.other_field())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> std::fmt::Debug for VarLenHaver<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
 pub struct DummyMarker {}
 
 impl DummyMarker {
