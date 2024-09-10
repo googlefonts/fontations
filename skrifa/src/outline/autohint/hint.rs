@@ -117,23 +117,45 @@ pub(crate) fn align_strong_points(outline: &mut Outline, axis: &mut Axis) -> Opt
             store_point(point, dim, edge.pos + (ou - edge.opos));
             continue;
         }
-        // Find enclosing edges
-        let mut min_ix = 0;
-        let mut max_ix = edges.len();
-        while min_ix < max_ix {
-            let mid_ix = (min_ix + max_ix) >> 1;
-            let edge = &edges[mid_ix];
-            let fpos = edge.fpos as i32;
-            match u.cmp(&fpos) {
-                Ordering::Less => max_ix = mid_ix,
-                Ordering::Greater => min_ix = mid_ix + 1,
-                Ordering::Equal => {
-                    // We are on an edge
+        // Find enclosing edges; for a small number of edges, use a linear
+        // search.
+        // Note: this is actually critical for matching FreeType in cases where
+        // we have more than one edge with the same fpos. When this happens,
+        // linear and binary searches can produce different results.
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L1489>
+        let min_ix = if edges.len() <= 8 {
+            if let Some((min_ix, edge)) = edges
+                .iter()
+                .enumerate()
+                .find(|(_ix, edge)| edge.fpos as i32 >= u)
+            {
+                if edge.fpos as i32 == u {
                     store_point(point, dim, edge.pos);
                     continue 'points;
                 }
+                min_ix
+            } else {
+                0
             }
-        }
+        } else {
+            let mut min_ix = 0;
+            let mut max_ix = edges.len();
+            while min_ix < max_ix {
+                let mid_ix = (min_ix + max_ix) >> 1;
+                let edge = &edges[mid_ix];
+                let fpos = edge.fpos as i32;
+                match u.cmp(&fpos) {
+                    Ordering::Less => max_ix = mid_ix,
+                    Ordering::Greater => min_ix = mid_ix + 1,
+                    Ordering::Equal => {
+                        // We are on an edge
+                        store_point(point, dim, edge.pos);
+                        continue 'points;
+                    }
+                }
+            }
+            min_ix
+        };
         // Point is not on an edge
         if let Some(before_ix) = min_ix.checked_sub(1) {
             let edge_before = edges.get(before_ix)?;
@@ -628,7 +650,7 @@ mod tests {
             Default::default(),
             metrics.style_class().script.group,
         );
-        let hinted_metrics = latin::hint_outline(&mut outline, &metrics, &scale);
+        let hinted_metrics = latin::hint_outline(&mut outline, &metrics, &scale, None);
         (outline, hinted_metrics)
     }
 }

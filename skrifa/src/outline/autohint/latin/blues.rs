@@ -4,7 +4,7 @@ use super::super::{
     super::{unscaled::UnscaledOutlineBuf, OutlineGlyphCollection},
     cycling::{cycle_backward, cycle_forward},
     metrics::{UnscaledBlue, UnscaledBlues, MAX_BLUES},
-    style::{blue_flags, ScriptClass, ScriptGroup, StyleClass},
+    style::{blue_flags, ScriptGroup, StyleClass},
 };
 use crate::{charmap::Charmap, FontRef, MetadataProvider};
 use raw::types::F2Dot14;
@@ -50,7 +50,7 @@ fn compute_default_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass)
     let (glyphs, charmap, units_per_em) = things_all_blues_need(font);
     let flat_threshold = units_per_em / 14;
     // Walk over each of the blue character sets for our script.
-    for (blue_chars, blue_flags) in style.script.blues {
+    for (blue_str, blue_flags) in style.script.blues {
         let is_top_like = (blue_flags & (blue_flags::TOP | blue_flags::LATIN_SUB_TOP)) != 0;
         let is_top = blue_flags & blue_flags::TOP != 0;
         let is_x_height = blue_flags & blue_flags::LATIN_X_HEIGHT != 0;
@@ -60,10 +60,19 @@ fn compute_default_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass)
         let mut descender = i16::MAX;
         let mut n_flats = 0;
         let mut n_rounds = 0;
-        for ch in *blue_chars {
+        for cluster in blue_str.split(' ') {
             // TODO shaping: https://github.com/googlefonts/fontations/issues/1128
             let y_offset = 0;
-            let Some(gid) = charmap.map(*ch) else {
+            let mut cluster_chars = cluster.chars();
+            let Some(ch) = cluster_chars.next() else {
+                continue;
+            };
+            // Without shaping, we need to skip multi-character clusters
+            // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afshaper.c#L639>
+            if cluster_chars.next().is_some() {
+                continue;
+            }
+            let Some(gid) = charmap.map(ch) else {
                 continue;
             };
             if gid.to_u32() == 0 {
@@ -182,8 +191,9 @@ fn compute_default_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass)
                 // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L641>
                 // heuristic threshold value
                 let length_threshold = units_per_em / 25;
-                let dist =
-                    best_contour[segment_last].x as i32 - best_contour[segment_first].x as i32;
+                let dist = (best_contour[segment_last].x as i32
+                    - best_contour[segment_first].x as i32)
+                    .abs();
                 if dist < length_threshold && segment_last - segment_first + 2 <= best_contour.len()
                 {
                     // heuristic threshold value
@@ -237,6 +247,9 @@ fn compute_default_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass)
                                 <= 20 * dist
                         {
                             hit = false;
+                            if last == segment_first {
+                                break;
+                            }
                             continue;
                         }
                         if best_contour[last].is_on_curve() {
@@ -442,7 +455,7 @@ fn compute_cjk_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass) -> 
     let (mut outline_buf, mut flats, mut fills) = buffers();
     let (glyphs, charmap, _) = things_all_blues_need(font);
     // Walk over each of the blue character sets for our script.
-    for (blue_chars, blue_flags) in style.script.blues {
+    for (blue_str, blue_flags) in style.script.blues {
         let is_horizontal = blue_flags & blue_flags::CJK_HORIZ != 0;
         // Note: horizontal blue zones are disabled by default and have been
         // for many years in FreeType:
@@ -460,16 +473,25 @@ fn compute_cjk_blues(font: &FontRef, coords: &[F2Dot14], style: &StyleClass) -> 
         let mut n_flats = 0;
         let mut n_fills = 0;
         let mut is_fill = true;
-        for ch in *blue_chars {
+        for cluster in blue_str.split(' ') {
             // The '|' character is used as a sentinel in the blue string that
             // signifies a switch to characters that define "flat" values
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L380>
-            if *ch == '|' {
+            if cluster == "|" {
                 is_fill = false;
                 continue;
             }
             // TODO shaping: https://github.com/googlefonts/fontations/issues/1128
-            let Some(gid) = charmap.map(*ch) else {
+            let mut cluster_chars = cluster.chars();
+            let Some(ch) = cluster_chars.next() else {
+                continue;
+            };
+            // Without shaping, we need to skip multi-character clusters
+            // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afshaper.c#L639>
+            if cluster_chars.next().is_some() {
+                continue;
+            }
+            let Some(gid) = charmap.map(ch) else {
                 continue;
             };
             if gid.to_u32() == 0 {

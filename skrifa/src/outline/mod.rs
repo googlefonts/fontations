@@ -446,7 +446,7 @@ impl<'a> OutlineGlyph<'a> {
                     sink.try_reserve(outline.points.len())?;
                     let mut contour_start = 0;
                     for contour_end in outline.contours.iter().map(|contour| *contour as usize) {
-                        if contour_end > contour_start {
+                        if contour_end >= contour_start {
                             if let Some(points) = outline.points.get(contour_start..=contour_end) {
                                 let flags = &outline.flags[contour_start..=contour_end];
                                 sink.extend(points.iter().zip(flags).enumerate().map(

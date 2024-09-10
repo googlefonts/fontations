@@ -43,6 +43,21 @@ impl GlyphStyle {
             None
         }
     }
+
+    fn maybe_assign(&mut self, other: Self) {
+        // FreeType walks the style array in order so earlier styles
+        // have precedence. Since we walk the cmap and binary search
+        // on the full range mapping, our styles are mapped in a
+        // different order. This check allows us to replace a currently
+        // mapped style if the new style index is lower which matches
+        // FreeType's behavior.
+        //
+        // Note that we keep the extra bits because FreeType allows
+        // setting the NON_BASE bit to an already mapped style.
+        if other.0 & Self::STYLE_INDEX_MASK <= self.0 & Self::STYLE_INDEX_MASK {
+            self.0 = (self.0 & !Self::STYLE_INDEX_MASK) | other.0;
+        }
+    }
 }
 
 impl Default for GlyphStyle {
@@ -89,14 +104,11 @@ impl GlyphStyleMap {
             let Some(style) = map.styles.get_mut(gid.to_u32() as usize) else {
                 continue;
             };
-            if !style.is_unassigned() {
-                continue;
-            }
             // Charmaps enumerate in order so we're likely to encounter at least
             // a few codepoints in the same range.
             if let Some(last) = last_range {
                 if last.1.contains(ch) {
-                    *style = last.1.style;
+                    style.maybe_assign(last.1.style);
                     continue;
                 }
             }
@@ -108,7 +120,7 @@ impl GlyphStyleMap {
                 continue;
             };
             if range.contains(ch) {
-                *style = range.style;
+                style.maybe_assign(range.style);
                 if let Some(style_ix) = range.style.style_index() {
                     let style_ix = style_ix as usize;
                     if map.metrics_map[style_ix] == 0xFF {
@@ -215,25 +227,19 @@ pub(crate) enum ScriptGroup {
 /// autohinter.
 #[derive(Clone, Debug)]
 pub(crate) struct ScriptClass {
+    #[allow(unused)]
     pub name: &'static str,
     /// Group that defines how glyphs belonging to this script are hinted.
     pub group: ScriptGroup,
     /// Unicode tag for the script.
+    #[allow(unused)]
     pub tag: Tag,
-    /// Index of self in the SCRIPT_CLASSES array.
-    pub index: usize,
     /// True if outline edges are processed top to bottom.
     pub hint_top_to_bottom: bool,
     /// Characters used to define standard width and height of stems.
-    pub std_chars: &'static [char],
+    pub std_chars: &'static str,
     /// "Blue" characters used to define alignment zones.
-    pub blues: &'static [(&'static [char], u32)],
-}
-
-impl ScriptClass {
-    pub fn from_index(index: u16) -> Option<&'static ScriptClass> {
-        SCRIPT_CLASSES.get(index as usize)
-    }
+    pub blues: &'static [(&'static str, u32)],
 }
 
 /// Defines the basic properties for each style supported by the
@@ -244,6 +250,7 @@ impl ScriptClass {
 /// coverage.
 #[derive(Clone, Debug)]
 pub(crate) struct StyleClass {
+    #[allow(unused)]
     pub name: &'static str,
     /// Index of self in the STYLE_CLASSES array.
     pub index: usize,
@@ -251,6 +258,7 @@ pub(crate) struct StyleClass {
     pub script: &'static ScriptClass,
     /// OpenType feature tag for styles that derive coverage from layout
     /// tables.
+    #[allow(unused)]
     pub feature: Option<Tag>,
 }
 

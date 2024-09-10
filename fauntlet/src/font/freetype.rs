@@ -3,25 +3,11 @@ use freetype::{
     ffi::{FT_Long, FT_Vector},
     Face, Library,
 };
-use skrifa::{
-    outline::{HintingMode, LcdLayout, OutlinePen},
-    GlyphId,
-};
+use skrifa::{outline::OutlinePen, GlyphId};
 
 use std::ffi::{c_int, c_void};
 
 use super::{InstanceOptions, SharedFontData};
-
-fn load_flags_from_hinting(mode: HintingMode) -> LoadFlag {
-    match mode {
-        HintingMode::Strong => LoadFlag::TARGET_MONO,
-        HintingMode::Smooth { lcd_subpixel, .. } => match lcd_subpixel {
-            Some(LcdLayout::Horizontal) => LoadFlag::TARGET_LCD,
-            Some(LcdLayout::Vertical) => LoadFlag::TARGET_LCD_V,
-            None => LoadFlag::TARGET_NORMAL,
-        },
-    }
-}
 
 pub struct FreeTypeInstance {
     face: Face<SharedFontData>,
@@ -37,10 +23,10 @@ impl FreeTypeInstance {
         let mut face = library
             .new_memory_face2(data.clone(), options.index as isize)
             .ok()?;
-        let mut load_flags = LoadFlag::NO_AUTOHINT | LoadFlag::NO_BITMAP;
+        let mut load_flags = LoadFlag::NO_BITMAP;
         match options.hinting {
             None => load_flags |= LoadFlag::NO_HINTING,
-            Some(hinting) => load_flags |= load_flags_from_hinting(hinting),
+            Some(hinting) => load_flags |= hinting.freetype_load_flags(),
         };
         if options.ppem != 0 {
             face.set_pixel_sizes(options.ppem, options.ppem).ok()?;
@@ -74,6 +60,10 @@ impl FreeTypeInstance {
             }
         }
         Some(Self { face, load_flags })
+    }
+
+    pub fn family_name(&self) -> Option<String> {
+        self.face.family_name()
     }
 
     pub fn is_scalable(&self) -> bool {

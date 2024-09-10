@@ -40,6 +40,7 @@ impl Axis {
 }
 
 impl Axis {
+    #[cfg(test)]
     pub fn new(dim: Dimension, orientation: Option<Orientation>) -> Self {
         let mut axis = Self::default();
         axis.reset(dim, orientation);
@@ -164,20 +165,12 @@ impl Segment {
         &points[self.first()]
     }
 
-    pub fn first_point_mut<'a>(&self, points: &'a mut [Point]) -> &'a mut Point {
-        &mut points[self.first()]
-    }
-
     pub fn last(&self) -> usize {
         self.last_ix as usize
     }
 
     pub fn last_point<'a>(&self, points: &'a [Point]) -> &'a Point {
         &points[self.last()]
-    }
-
-    pub fn last_point_mut<'a>(&self, points: &'a mut [Point]) -> &'a mut Point {
-        &mut points[self.last()]
     }
 
     pub fn edge<'a>(&self, edges: &'a [Edge]) -> Option<&'a Edge> {
@@ -237,10 +230,6 @@ impl Edge {
 }
 
 impl Edge {
-    pub fn first_segment<'a>(&self, segments: &'a [Segment]) -> Option<&'a Segment> {
-        segments.get(self.first_ix as usize)
-    }
-
     pub fn link<'a>(&self, edges: &'a [Edge]) -> Option<&'a Edge> {
         edges.get(self.link_ix.map(|ix| ix as usize)?)
     }

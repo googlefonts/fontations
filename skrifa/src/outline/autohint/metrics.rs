@@ -153,8 +153,6 @@ impl UnscaledStyleMetricsSet {
 pub(crate) struct ScaledStyleMetrics {
     /// Multidimensional scaling factors and deltas.
     pub scale: Scale,
-    /// Script set for the associated style.
-    pub group: ScriptGroup,
     /// Per-dimension scaled metrics.
     pub axes: [ScaledAxisMetrics; 2],
 }
@@ -256,10 +254,17 @@ impl Scale {
         if is_mono {
             flags |= Self::MONO;
         }
-        // Disable horizontal hinting completely for LCD, light hinting
-        // and italic fonts.
-        if target.is_lcd() || is_light || is_italic {
-            flags |= Self::NO_HORIZONTAL;
+        if group == ScriptGroup::Default {
+            // Disable horizontal hinting completely for LCD, light hinting
+            // and italic fonts
+            // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L2674>
+            if target.is_lcd() || is_light || is_italic {
+                flags |= Self::NO_HORIZONTAL;
+            }
+        } else {
+            // CJK doesn't hint advances
+            // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1432>
+            flags |= Self::NO_ADVANCE;
         }
         // CJK doesn't hint advances
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1432>
@@ -375,7 +380,6 @@ mod tests {
     use super::{super::style::STYLE_CLASSES, *};
     use crate::MetadataProvider;
     use raw::TableProvider;
-    use std::sync::Arc;
 
     #[test]
     fn sort_widths() {

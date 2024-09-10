@@ -116,7 +116,7 @@ pub(crate) fn compute_edges(
                             break;
                         }
                     }
-                    if dist2 > edge_distance_threshold {
+                    if dist2 >= edge_distance_threshold {
                         continue;
                     }
                 }
@@ -207,6 +207,9 @@ fn compute_edge_properties(axis: &mut Axis) {
         let mut segment_ix = edge.first_ix as usize;
         let last_segment_ix = edge.last_ix as usize;
         loop {
+            // This loop can modify the current edge, so make sure we
+            // reload it here
+            let edge = edges[edge_ix];
             let segment = &segments[segment_ix];
             let next_segment_ix = segment.edge_next_ix;
             // Check roundness

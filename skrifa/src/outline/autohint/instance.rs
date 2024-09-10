@@ -5,7 +5,7 @@ use crate::{attribute::Style, prelude::Size, MetadataProvider};
 use super::{
     super::{
         pen::PathStyle, AdjustedMetrics, DrawError, OutlineGlyph, OutlineGlyphCollection,
-        OutlinePen, SmoothMode, Target,
+        OutlinePen, Target,
     },
     metrics::{fixed_mul, pix_round, Scale, UnscaledStyleMetricsSet},
     outline::Outline,
@@ -113,7 +113,8 @@ impl Instance {
         );
         let mut outline = Outline::default();
         outline.fill(glyph, coords)?;
-        let hinted_metrics = super::latin::hint_outline(&mut outline, &metrics, &scale);
+        let hinted_metrics =
+            super::latin::hint_outline(&mut outline, &metrics, &scale, Some(style));
         let h_advance = common.advance_width(glyph_id, coords);
         let mut pp1x = 0;
         let mut pp2x = fixed_mul(h_advance, hinted_metrics.x_scale);

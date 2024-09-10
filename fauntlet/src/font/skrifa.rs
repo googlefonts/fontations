@@ -27,8 +27,13 @@ impl<'a> SkrifaInstance<'a> {
         let outlines = font.outline_glyphs();
         let hinter = if options.ppem != 0 && options.hinting.is_some() {
             Some(
-                HintingInstance::new(&outlines, size, options.coords, options.hinting.unwrap())
-                    .ok()?,
+                HintingInstance::new(
+                    &outlines,
+                    size,
+                    options.coords,
+                    options.hinting.unwrap().skrifa_options(),
+                )
+                .ok()?,
             )
         } else {
             None

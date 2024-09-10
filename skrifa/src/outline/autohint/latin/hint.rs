@@ -5,7 +5,7 @@
 //! the original outline points.
 
 use super::super::{
-    axis::{Axis, Dimension, Edge},
+    axis::{Axis, Edge},
     metrics::{fixed_mul_div, pix_floor, pix_round, Scale, ScaledAxisMetrics, ScaledWidth},
     style::ScriptGroup,
 };
@@ -39,7 +39,7 @@ pub(crate) fn hint_edges(
     let edges = axis.edges.as_mut_slice();
     // Special case for lowercase m
     if axis.dim == Axis::HORIZONTAL && (edges.len() == 6 || edges.len() == 12) {
-        hint_lowercase_m(edges);
+        hint_lowercase_m(edges, group);
     }
     // Handle serifs and single segment edges
     if serif_count > 0 || anchor_ix.is_none() {
@@ -277,7 +277,7 @@ fn align_stem_edges(
 /// Make sure that lowercase m's maintain symmetry.
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L3365>
-fn hint_lowercase_m(edges: &mut [Edge]) {
+fn hint_lowercase_m(edges: &mut [Edge], group: ScriptGroup) {
     let (edge1_ix, edge2_ix, edge3_ix) = if edges.len() == 6 {
         (0, 2, 4)
     } else {
@@ -289,6 +289,15 @@ fn hint_lowercase_m(edges: &mut [Edge]) {
     let dist1 = edge2.opos - edge1.opos;
     let dist2 = edge3.opos - edge2.opos;
     let span = (dist1 - dist2).abs();
+    if group != ScriptGroup::Default {
+        // CJK has additional conditions on the following...
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L2090>
+        for (edge, ix) in [(edge1, edge1_ix), (edge2, edge2_ix), (edge3, edge3_ix)] {
+            if edge.link_ix != Some((ix + 1) as u16) {
+                return;
+            }
+        }
+    }
     if span < 8 {
         let delta = edge3.pos - (2 * edge2.pos - edge1.pos);
         let link_ix = edge3.link_ix.map(|ix| ix as usize);
@@ -317,7 +326,7 @@ fn align_remaining_edges(
     mut anchor_ix: Option<usize>,
 ) {
     if group == ScriptGroup::Default {
-        /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L3418>
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L3418>
         for edge_ix in 0..axis.edges.len() {
             let edges = &mut axis.edges;
             let edge = &edges[edge_ix];
@@ -576,25 +585,26 @@ fn stem_width(
                     }
                     dist = (dist - new_base_delta.abs() + 32) & !63;
                 }
-            } else {
-                // Divergent CJK behavior
-                // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1544>
-                if dist < 54 {
-                    dist += (54 - dist) / 2;
-                } else if dist < 3 * 64 {
-                    let delta = dist & 63;
-                    dist &= -64;
-                    if delta < 10 {
-                        dist += delta;
-                    } else if delta < 22 {
-                        dist += 10;
-                    } else if delta < 42 {
-                        dist += delta;
-                    } else if delta < 54 {
-                        dist += 54;
-                    } else {
-                        dist += delta;
-                    }
+            }
+        }
+        if group != ScriptGroup::Default {
+            // Divergent CJK behavior
+            // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1544>
+            if dist < 54 {
+                dist += (54 - dist) / 2;
+            } else if dist < 3 * 64 {
+                let delta = dist & 63;
+                dist &= -64;
+                if delta < 10 {
+                    dist += delta;
+                } else if delta < 22 {
+                    dist += 10;
+                } else if delta < 42 {
+                    dist += delta;
+                } else if delta < 54 {
+                    dist += 54;
+                } else {
+                    dist += delta;
                 }
             }
         }

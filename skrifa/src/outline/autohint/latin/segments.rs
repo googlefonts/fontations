@@ -6,14 +6,13 @@
 //! The linking stage associates pairs of segments to form stems and
 //! identifies serifs with a post-process pass.
 
-use raw::tables::glyf::PointFlags;
-
 use super::super::{
     axis::{Axis, Dimension, Segment},
     metrics::fixed_div,
-    outline::{Outline, Point},
+    outline::Outline,
     style::ScriptGroup,
 };
+use raw::tables::glyf::PointFlags;
 
 // Bounds for score, position and coordinate values.
 // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L1598>
@@ -23,7 +22,11 @@ const MIN_SCORE: i32 = -32000;
 /// Computes segments for the Latin writing system.
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L1537>
-pub(crate) fn compute_segments(outline: &mut Outline, axis: &mut Axis, group: ScriptGroup) -> bool {
+pub(crate) fn compute_segments(
+    outline: &mut Outline,
+    axis: &mut Axis,
+    _group: ScriptGroup,
+) -> bool {
     assign_point_uvs(outline, axis.dim);
     if !build_segments(outline, axis) {
         return false;
@@ -229,7 +232,7 @@ fn link_segments_cjk(outline: &Outline, axis: &mut Axis, scale: i32) {
             let Some(link2) = seg2.link(segments).copied() else {
                 continue;
             };
-            if link2.link_ix != Some(ix2 as u16) || link2.pos <= link1.pos {
+            if link2.link_ix != Some(ix2 as u16) || link2.pos < link1.pos {
                 continue;
             }
             if seg1.pos == seg2.pos && link1.pos == link2.pos {
@@ -398,10 +401,10 @@ fn build_segments(outline: &mut Outline, axis: &mut Axis) -> bool {
                                 // Discard previous segment
                                 state.min_pos = state.min_pos.min(prev_state.min_pos);
                                 state.max_pos = state.max_pos.max(prev_state.max_pos);
-                                let segment = &mut axis.segments[segment_ix];
+                                let mut segment = axis.segments[segment_ix];
                                 segment.last_ix = point_ix as u16;
-                                state.apply_to_segment(segment, flat_threshold);
-                                prev_segment_ix = Some(segment_ix);
+                                state.apply_to_segment(&mut segment, flat_threshold);
+                                axis.segments[prev_segment_ix.unwrap()] = segment;
                                 prev_state = state;
                             }
                         }
