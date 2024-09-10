@@ -5,7 +5,10 @@ include!("../../generated/generated_fvar.rs");
 #[path = "./instance_record.rs"]
 mod instance_record;
 
-use super::avar::Avar;
+use super::{
+    avar::Avar,
+    variations::{DeltaSetIndex, FloatItemDeltaTarget},
+};
 pub use instance_record::InstanceRecord;
 
 impl<'a> Fvar<'a> {
@@ -71,6 +74,42 @@ impl<'a> Fvar<'a> {
                 }
             }
         }
+        let Some(avar) = avar else { return };
+        if avar.version() == MajorMinor::VERSION_1_0 {
+            return;
+        }
+        let var_store = avar.var_store();
+        let var_index_map = avar.axis_index_map();
+
+        let axis_count = axes.len();
+        let mut new_coords = [F2Dot14::ZERO; 64];
+        if axis_count > 64 {
+            return; // No avar2 for monster fonts.
+        }
+        new_coords[..axis_count].copy_from_slice(normalized_coords);
+
+        for (i, v) in normalized_coords.iter().enumerate() {
+            let var_index = if let Some(Ok(ref map)) = var_index_map {
+                map.get(i as u32).ok()
+            } else {
+                Some(DeltaSetIndex {
+                    outer: 0,
+                    inner: i as u16,
+                })
+            };
+            if var_index.is_none() {
+                continue;
+            }
+            if let Some(Ok(varstore)) = var_store.as_ref() {
+                if let Ok(delta) =
+                    varstore.compute_float_delta(var_index.unwrap(), normalized_coords)
+                {
+                    new_coords[i] = F2Dot14::from_f32((*v).apply_float_delta(delta))
+                        .clamp(F2Dot14::MIN, F2Dot14::MAX);
+                }
+            }
+        }
+        normalized_coords.copy_from_slice(&new_coords[..axis_count]);
     }
 }
 
@@ -203,6 +242,33 @@ mod tests {
                 &mut normalized_coords,
             );
             assert_eq!(normalized_coords[0], F2Dot14::from_f32(normalized));
+        }
+    }
+
+    #[test]
+    fn avar2() {
+        let font = FontRef::new(font_test_data::AVAR2_CHECKER).unwrap();
+        let avar = font.avar().ok();
+        let fvar = font.fvar().unwrap();
+        let avar_axis = Tag::new(b"AVAR");
+        let avwk_axis = Tag::new(b"AVWK");
+        let mut normalized_coords = [F2Dot14::default(); 2];
+        let cases = [
+            ((100.0, 0.0), (1.0, 1.0)),
+            ((50.0, 0.0), (0.5, 0.5)),
+            ((0.0, 50.0), (0.0, 0.5)),
+        ];
+        for (user, expected) in cases {
+            fvar.user_to_normalized(
+                avar.as_ref(),
+                [
+                    (avar_axis, Fixed::from_f64(user.0)),
+                    (avwk_axis, Fixed::from_f64(user.1)),
+                ],
+                &mut normalized_coords,
+            );
+            assert_eq!(normalized_coords[0], F2Dot14::from_f32(expected.0));
+            assert_eq!(normalized_coords[1], F2Dot14::from_f32(expected.1));
         }
     }
 }

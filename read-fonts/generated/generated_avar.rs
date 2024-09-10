@@ -10,6 +10,8 @@ use crate::codegen_prelude::*;
 #[doc(hidden)]
 pub struct AvarMarker {
     axis_segment_maps_byte_len: usize,
+    axis_index_map_offset_byte_start: Option<usize>,
+    var_store_offset_byte_start: Option<usize>,
 }
 
 impl AvarMarker {
@@ -29,6 +31,14 @@ impl AvarMarker {
         let start = self.axis_count_byte_range().end;
         start..start + self.axis_segment_maps_byte_len
     }
+    fn axis_index_map_offset_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.axis_index_map_offset_byte_start?;
+        Some(start..start + Offset32::RAW_BYTE_LEN)
+    }
+    fn var_store_offset_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.var_store_offset_byte_start?;
+        Some(start..start + Offset32::RAW_BYTE_LEN)
+    }
 }
 
 impl TopLevelTable for Avar<'_> {
@@ -39,13 +49,32 @@ impl TopLevelTable for Avar<'_> {
 impl<'a> FontRead<'a> for Avar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
+        let version: MajorMinor = cursor.read()?;
         cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let axis_segment_maps_byte_len = cursor.remaining_bytes();
+        let axis_count: u16 = cursor.read()?;
+        let axis_segment_maps_byte_len = {
+            let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
+            <SegmentMaps as VarSize>::total_len_for_count(data, axis_count as usize)?
+        };
         cursor.advance_by(axis_segment_maps_byte_len);
+        let axis_index_map_offset_byte_start = version
+            .compatible((2u16, 0u16))
+            .then(|| cursor.position())
+            .transpose()?;
+        version
+            .compatible((2u16, 0u16))
+            .then(|| cursor.advance::<Offset32>());
+        let var_store_offset_byte_start = version
+            .compatible((2u16, 0u16))
+            .then(|| cursor.position())
+            .transpose()?;
+        version
+            .compatible((2u16, 0u16))
+            .then(|| cursor.advance::<Offset32>());
         cursor.finish(AvarMarker {
             axis_segment_maps_byte_len,
+            axis_index_map_offset_byte_start,
+            var_store_offset_byte_start,
         })
     }
 }
@@ -54,7 +83,7 @@ impl<'a> FontRead<'a> for Avar<'a> {
 pub type Avar<'a> = TableRef<'a, AvarMarker>;
 
 impl<'a> Avar<'a> {
-    /// Major version number of the axis variations table — set to 1.
+    /// Major version number of the axis variations table — set to 1 or 2.
     /// Minor version number of the axis variations table — set to 0.
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
@@ -72,6 +101,30 @@ impl<'a> Avar<'a> {
         let range = self.shape.axis_segment_maps_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
     }
+
+    /// Offset to DeltaSetIndexMap table (may be NULL).
+    pub fn axis_index_map_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.shape.axis_index_map_offset_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    /// Attempt to resolve [`axis_index_map_offset`][Self::axis_index_map_offset].
+    pub fn axis_index_map(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
+        let data = self.data;
+        self.axis_index_map_offset().map(|x| x.resolve(data))?
+    }
+
+    /// Offset to ItemVariationStore (may be NULL).
+    pub fn var_store_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.shape.var_store_offset_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    /// Attempt to resolve [`var_store_offset`][Self::var_store_offset].
+    pub fn var_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
+        let data = self.data;
+        self.var_store_offset().map(|x| x.resolve(data))?
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -80,6 +133,7 @@ impl<'a> SomeTable<'a> for Avar<'a> {
         "Avar"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let version = self.version();
         match idx {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new("axis_count", self.axis_count())),
@@ -90,6 +144,14 @@ impl<'a> SomeTable<'a> for Avar<'a> {
                     self.axis_segment_maps(),
                     self.offset_data(),
                 ),
+            )),
+            3usize if version.compatible((2u16, 0u16)) => Some(Field::new(
+                "axis_index_map_offset",
+                FieldType::offset(self.axis_index_map_offset().unwrap(), self.axis_index_map()),
+            )),
+            4usize if version.compatible((2u16, 0u16)) => Some(Field::new(
+                "var_store_offset",
+                FieldType::offset(self.var_store_offset().unwrap(), self.var_store()),
             )),
             _ => None,
         }

@@ -11,22 +11,36 @@ use crate::codegen_prelude::*;
 pub struct Avar {
     /// The segment maps array — one segment map for each axis, in the order of axes specified in the 'fvar' table.
     pub axis_segment_maps: Vec<SegmentMaps>,
+    /// Offset to DeltaSetIndexMap table (may be NULL).
+    pub axis_index_map: NullableOffsetMarker<DeltaSetIndexMap, WIDTH_32>,
+    /// Offset to ItemVariationStore (may be NULL).
+    pub var_store: NullableOffsetMarker<ItemVariationStore, WIDTH_32>,
 }
 
 impl Avar {
     /// Construct a new `Avar`
     pub fn new(axis_segment_maps: Vec<SegmentMaps>) -> Self {
-        Self { axis_segment_maps }
+        Self {
+            axis_segment_maps,
+            ..Default::default()
+        }
     }
 }
 
 impl FontWrite for Avar {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
+        let version = self.compute_version() as MajorMinor;
+        version.write_into(writer);
         (0 as u16).write_into(writer);
         (array_len(&self.axis_segment_maps).unwrap() as u16).write_into(writer);
         self.axis_segment_maps.write_into(writer);
+        version
+            .compatible((2u16, 0u16))
+            .then(|| self.axis_index_map.write_into(writer));
+        version
+            .compatible((2u16, 0u16))
+            .then(|| self.var_store.write_into(writer));
     }
     fn table_type(&self) -> TableType {
         TableType::TopLevel(Avar::TAG)
@@ -37,7 +51,16 @@ impl Validate for Avar {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Avar", |ctx| {
             ctx.in_field("axis_segment_maps", |ctx| {
+                if self.axis_segment_maps.len() > (u16::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
                 self.axis_segment_maps.validate_impl(ctx);
+            });
+            ctx.in_field("axis_index_map", |ctx| {
+                self.axis_index_map.validate_impl(ctx);
+            });
+            ctx.in_field("var_store", |ctx| {
+                self.var_store.validate_impl(ctx);
             });
         })
     }
@@ -56,6 +79,8 @@ impl<'a> FromObjRef<read_fonts::tables::avar::Avar<'a>> for Avar {
                 .iter()
                 .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
                 .collect(),
+            axis_index_map: obj.axis_index_map().to_owned_table(),
+            var_store: obj.var_store().to_owned_table(),
         }
     }
 }
