@@ -47,7 +47,7 @@ impl GlyphStyle {
     fn maybe_assign(&mut self, other: Self) {
         // FreeType walks the style array in order so earlier styles
         // have precedence. Since we walk the cmap and binary search
-        // on a the full range mapping, our styles are mapped in a
+        // on the full range mapping, our styles are mapped in a
         // different order. This check allows us to replace a currently
         // mapped style if the new style index is lower which matches
         // FreeType's behavior.

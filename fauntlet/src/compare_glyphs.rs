@@ -21,6 +21,7 @@ pub fn compare_glyphs(
         // precise, it takes longer to test this single font than the
         // entire remainder of the Google Fonts corpus so we skip it
         // here.
+        // Discussion at <https://github.com/googlefonts/fontations/issues/1147>
         if ft_instance
             .family_name()
             .unwrap_or_default()
