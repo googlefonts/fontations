@@ -17,7 +17,29 @@ pub mod formats {
 }
 
 pub mod offsets_arrays {
+
     include!("../generated/generated_test_offsets_arrays.rs");
+
+    pub struct VarSizeDummy<'a> {
+        #[allow(dead_code)]
+        count: u16,
+        pub bytes: &'a [u8],
+    }
+
+    impl VarSize for VarSizeDummy<'_> {
+        type Size = u16;
+    }
+
+    impl<'a> FontRead<'a> for VarSizeDummy<'a> {
+        fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+            let count: u16 = data.read_at(0)?;
+            let bytes = data
+                .as_bytes()
+                .get(2..2 + (count as usize))
+                .ok_or(ReadError::OutOfBounds)?;
+            Ok(Self { count, bytes })
+        }
+    }
 
     #[test]
     fn array_offsets() {
@@ -34,6 +56,39 @@ pub mod offsets_arrays {
 
         let array = table.array().unwrap();
         assert_eq!(array, &[0xdead, 0xbeef]);
+    }
+
+    #[test]
+    fn var_len_array_empty() {
+        let builder = crate::test_helpers::BeBuffer::new()
+            .push(0u16)
+            .push(0xdeadbeef_u32);
+
+        let table = VarLenHaver::read(builder.font_data()).unwrap();
+        assert_eq!(table.other_field(), 0xdeadbeef);
+    }
+
+    #[test]
+    fn var_len_array_some() {
+        let builder = crate::test_helpers::BeBuffer::new()
+            .push(3u16)
+            .push(0u16) // first item in array is empty
+            .push(2u16)
+            .extend([1u8, 1])
+            .push(5u16)
+            .extend([7u8, 7, 7, 7, 7])
+            .push(0xdeadbeef_u32);
+
+        let table = VarLenHaver::read(builder.font_data()).unwrap();
+        let kids = table
+            .var_len()
+            .iter()
+            .map(|x| x.unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(kids[0].bytes, &[]);
+        assert_eq!(kids[1].bytes, &[1, 1]);
+        assert_eq!(kids[2].bytes, &[7, 7, 7, 7, 7]);
+        assert_eq!(table.other_field(), 0xdeadbeef)
     }
 
     #[test]

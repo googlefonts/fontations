@@ -266,6 +266,11 @@ impl Scale {
             // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1432>
             flags |= Self::NO_ADVANCE;
         }
+        // CJK doesn't hint advances
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1432>
+        if group != ScriptGroup::Default {
+            flags |= Self::NO_ADVANCE;
+        }
         Self {
             x_scale: scale,
             y_scale: scale,

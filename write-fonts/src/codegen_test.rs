@@ -71,6 +71,33 @@ mod formats {
 
 mod offsets_arrays {
     include!("../generated/generated_test_offsets_arrays.rs");
+    #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+    pub struct VarSizeDummy {
+        bytes: Vec<u8>,
+    }
+
+    impl Validate for VarSizeDummy {
+        fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+    }
+
+    impl FontWrite for VarSizeDummy {
+        fn write_into(&self, writer: &mut TableWriter) {
+            (self.bytes.len() as u16).write_into(writer);
+            self.bytes.write_into(writer);
+        }
+    }
+
+    impl FromObjRef<read_fonts::codegen_test::offsets_arrays::VarSizeDummy<'_>> for VarSizeDummy {
+        fn from_obj_ref(
+            from: &read_fonts::codegen_test::offsets_arrays::VarSizeDummy,
+            _: FontData,
+        ) -> Self {
+            Self {
+                bytes: from.bytes.to_owned(),
+            }
+        }
+    }
 }
 
 mod enums {
