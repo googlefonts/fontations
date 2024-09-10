@@ -877,6 +877,7 @@ mod tests {
             font.head().unwrap().units_per_em() as i32,
             Style::Normal,
             Default::default(),
+            class.script.group,
         );
         let scaled_metrics = latin::metrics::scale_style_metrics(&unscaled_metrics, scale);
         let glyphs = font.outline_glyphs();

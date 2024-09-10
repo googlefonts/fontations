@@ -276,6 +276,14 @@ impl<'a> OutlineGlyph<'a> {
         }
     }
 
+    /// Returns the glyph identifier for this outline.
+    pub fn glyph_id(&self) -> GlyphId {
+        match &self.kind {
+            OutlineKind::Glyf(_, glyph) => glyph.glyph_id,
+            OutlineKind::Cff(_, gid, _) => *gid,
+        }
+    }
+
     /// Returns a value indicating if the outline may contain overlapping
     /// contours or components.
     ///
