@@ -80,7 +80,14 @@ impl<'a> Fvar<'a> {
         }
         let var_store = avar.var_store();
         let var_index_map = avar.axis_index_map();
-        let mut new_coords = normalized_coords.to_vec();
+
+        let axis_count = axes.len();
+        let mut new_coords = [F2Dot14::ZERO; 64];
+        if axis_count > 64 {
+            return; // No avar2 for monster fonts.
+        }
+        new_coords[..axis_count].copy_from_slice(normalized_coords);
+
         for (i, v) in normalized_coords.iter().enumerate() {
             let var_index = if let Some(Ok(ref map)) = var_index_map {
                 map.get(i as u32).ok()
@@ -102,7 +109,7 @@ impl<'a> Fvar<'a> {
                 }
             }
         }
-        normalized_coords.copy_from_slice(&new_coords);
+        normalized_coords.copy_from_slice(&new_coords[..axis_count]);
     }
 }
 
