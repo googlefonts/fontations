@@ -74,10 +74,10 @@ impl<'a> Fvar<'a> {
                 }
             }
         }
-        if avar.is_none() || avar.map(|a| a.version()) == Some(MajorMinor::new(1, 0)) {
+        let Some(avar) = avar else { return };
+        if avar.version() == MajorMinor::VERSION_1_0 {
             return;
         }
-        let avar = avar.unwrap();
         let var_store = avar.var_store();
         let var_index_map = avar.axis_index_map();
         let mut new_coords = normalized_coords.to_vec();
