@@ -81,12 +81,17 @@ impl<'a> Fvar<'a> {
         let var_store = avar.var_store();
         let var_index_map = avar.axis_index_map();
 
-        let axis_count = axes.len();
+        let actual_len = axes.len().min(normalized_coords.len());
         let mut new_coords = [F2Dot14::ZERO; 64];
-        if axis_count > 64 {
-            return; // No avar2 for monster fonts.
+        if actual_len > 64 {
+            // No avar2 for monster fonts.
+            // <https://github.com/googlefonts/fontations/issues/1148>
+            return;
         }
-        new_coords[..axis_count].copy_from_slice(normalized_coords);
+
+        let new_coords = &mut new_coords[..actual_len];
+        let normalized_coords = &mut normalized_coords[..actual_len];
+        new_coords.copy_from_slice(normalized_coords);
 
         for (i, v) in normalized_coords.iter().enumerate() {
             let var_index = if let Some(Ok(ref map)) = var_index_map {
@@ -109,7 +114,7 @@ impl<'a> Fvar<'a> {
                 }
             }
         }
-        normalized_coords.copy_from_slice(&new_coords[..axis_count]);
+        normalized_coords.copy_from_slice(new_coords);
     }
 }
 
@@ -270,5 +275,19 @@ mod tests {
             assert_eq!(normalized_coords[0], F2Dot14::from_f32(expected.0));
             assert_eq!(normalized_coords[1], F2Dot14::from_f32(expected.1));
         }
+    }
+
+    #[test]
+    fn avar2_no_panic_with_wrong_size_coords_array() {
+        // this font has 2 axes
+        let font = FontRef::new(font_test_data::AVAR2_CHECKER).unwrap();
+        let avar = font.avar().ok();
+        let fvar = font.fvar().unwrap();
+        // output array too small
+        let mut normalized_coords = [F2Dot14::default(); 1];
+        fvar.user_to_normalized(avar.as_ref(), [], &mut normalized_coords);
+        // output array too large
+        let mut normalized_coords = [F2Dot14::default(); 4];
+        fvar.user_to_normalized(avar.as_ref(), [], &mut normalized_coords);
     }
 }
