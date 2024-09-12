@@ -49,7 +49,7 @@ pub struct Head {
     pub x_max: i16,
     /// Maximum y coordinate across all glyph bounding boxes.
     pub y_max: i16,
-    /// see somewhere else
+    /// Bits identifying the font's style; see [MacStyle]
     pub mac_style: MacStyle,
     /// Smallest readable size in pixels.
     pub lowest_rec_ppem: u16,
