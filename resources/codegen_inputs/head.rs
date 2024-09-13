@@ -58,7 +58,7 @@ table Head {
     x_max: i16,
     /// Maximum y coordinate across all glyph bounding boxes.
     y_max: i16,
-    /// see somewhere else
+    /// Bits identifying the font's style; see [MacStyle]
     mac_style: MacStyle,
     /// Smallest readable size in pixels.
     lowest_rec_ppem: u16,
