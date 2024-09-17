@@ -198,6 +198,60 @@ impl FromObjRef<read_fonts::tables::gpos::PositionLookup<'_>> for PositionLookup
 
 impl FromTableRef<read_fonts::tables::gpos::PositionLookup<'_>> for PositionLookup {}
 
+impl From<Lookup<SinglePos>> for PositionLookup {
+    fn from(src: Lookup<SinglePos>) -> PositionLookup {
+        PositionLookup::Single(src)
+    }
+}
+
+impl From<Lookup<PairPos>> for PositionLookup {
+    fn from(src: Lookup<PairPos>) -> PositionLookup {
+        PositionLookup::Pair(src)
+    }
+}
+
+impl From<Lookup<CursivePosFormat1>> for PositionLookup {
+    fn from(src: Lookup<CursivePosFormat1>) -> PositionLookup {
+        PositionLookup::Cursive(src)
+    }
+}
+
+impl From<Lookup<MarkBasePosFormat1>> for PositionLookup {
+    fn from(src: Lookup<MarkBasePosFormat1>) -> PositionLookup {
+        PositionLookup::MarkToBase(src)
+    }
+}
+
+impl From<Lookup<MarkLigPosFormat1>> for PositionLookup {
+    fn from(src: Lookup<MarkLigPosFormat1>) -> PositionLookup {
+        PositionLookup::MarkToLig(src)
+    }
+}
+
+impl From<Lookup<MarkMarkPosFormat1>> for PositionLookup {
+    fn from(src: Lookup<MarkMarkPosFormat1>) -> PositionLookup {
+        PositionLookup::MarkToMark(src)
+    }
+}
+
+impl From<Lookup<PositionSequenceContext>> for PositionLookup {
+    fn from(src: Lookup<PositionSequenceContext>) -> PositionLookup {
+        PositionLookup::Contextual(src)
+    }
+}
+
+impl From<Lookup<PositionChainContext>> for PositionLookup {
+    fn from(src: Lookup<PositionChainContext>) -> PositionLookup {
+        PositionLookup::ChainContextual(src)
+    }
+}
+
+impl From<Lookup<ExtensionSubtable>> for PositionLookup {
+    fn from(src: Lookup<ExtensionSubtable>) -> PositionLookup {
+        PositionLookup::Extension(src)
+    }
+}
+
 impl FontWrite for ValueFormat {
     fn write_into(&self, writer: &mut TableWriter) {
         writer.write_slice(&self.bits().to_be_bytes())
@@ -2204,3 +2258,51 @@ impl FromObjRef<read_fonts::tables::gpos::ExtensionSubtable<'_>> for ExtensionSu
 }
 
 impl FromTableRef<read_fonts::tables::gpos::ExtensionSubtable<'_>> for ExtensionSubtable {}
+
+impl From<ExtensionPosFormat1<SinglePos>> for ExtensionSubtable {
+    fn from(src: ExtensionPosFormat1<SinglePos>) -> ExtensionSubtable {
+        ExtensionSubtable::Single(src)
+    }
+}
+
+impl From<ExtensionPosFormat1<PairPos>> for ExtensionSubtable {
+    fn from(src: ExtensionPosFormat1<PairPos>) -> ExtensionSubtable {
+        ExtensionSubtable::Pair(src)
+    }
+}
+
+impl From<ExtensionPosFormat1<CursivePosFormat1>> for ExtensionSubtable {
+    fn from(src: ExtensionPosFormat1<CursivePosFormat1>) -> ExtensionSubtable {
+        ExtensionSubtable::Cursive(src)
+    }
+}
+
+impl From<ExtensionPosFormat1<MarkBasePosFormat1>> for ExtensionSubtable {
+    fn from(src: ExtensionPosFormat1<MarkBasePosFormat1>) -> ExtensionSubtable {
+        ExtensionSubtable::MarkToBase(src)
+    }
+}
+
+impl From<ExtensionPosFormat1<MarkLigPosFormat1>> for ExtensionSubtable {
+    fn from(src: ExtensionPosFormat1<MarkLigPosFormat1>) -> ExtensionSubtable {
+        ExtensionSubtable::MarkToLig(src)
+    }
+}
+
+impl From<ExtensionPosFormat1<MarkMarkPosFormat1>> for ExtensionSubtable {
+    fn from(src: ExtensionPosFormat1<MarkMarkPosFormat1>) -> ExtensionSubtable {
+        ExtensionSubtable::MarkToMark(src)
+    }
+}
+
+impl From<ExtensionPosFormat1<PositionSequenceContext>> for ExtensionSubtable {
+    fn from(src: ExtensionPosFormat1<PositionSequenceContext>) -> ExtensionSubtable {
+        ExtensionSubtable::Contextual(src)
+    }
+}
+
+impl From<ExtensionPosFormat1<PositionChainContext>> for ExtensionSubtable {
+    fn from(src: ExtensionPosFormat1<PositionChainContext>) -> ExtensionSubtable {
+        ExtensionSubtable::ChainContextual(src)
+    }
+}

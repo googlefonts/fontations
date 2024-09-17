@@ -193,6 +193,54 @@ impl FromObjRef<read_fonts::tables::gsub::SubstitutionLookup<'_>> for Substituti
 
 impl FromTableRef<read_fonts::tables::gsub::SubstitutionLookup<'_>> for SubstitutionLookup {}
 
+impl From<Lookup<SingleSubst>> for SubstitutionLookup {
+    fn from(src: Lookup<SingleSubst>) -> SubstitutionLookup {
+        SubstitutionLookup::Single(src)
+    }
+}
+
+impl From<Lookup<MultipleSubstFormat1>> for SubstitutionLookup {
+    fn from(src: Lookup<MultipleSubstFormat1>) -> SubstitutionLookup {
+        SubstitutionLookup::Multiple(src)
+    }
+}
+
+impl From<Lookup<AlternateSubstFormat1>> for SubstitutionLookup {
+    fn from(src: Lookup<AlternateSubstFormat1>) -> SubstitutionLookup {
+        SubstitutionLookup::Alternate(src)
+    }
+}
+
+impl From<Lookup<LigatureSubstFormat1>> for SubstitutionLookup {
+    fn from(src: Lookup<LigatureSubstFormat1>) -> SubstitutionLookup {
+        SubstitutionLookup::Ligature(src)
+    }
+}
+
+impl From<Lookup<SubstitutionSequenceContext>> for SubstitutionLookup {
+    fn from(src: Lookup<SubstitutionSequenceContext>) -> SubstitutionLookup {
+        SubstitutionLookup::Contextual(src)
+    }
+}
+
+impl From<Lookup<SubstitutionChainContext>> for SubstitutionLookup {
+    fn from(src: Lookup<SubstitutionChainContext>) -> SubstitutionLookup {
+        SubstitutionLookup::ChainContextual(src)
+    }
+}
+
+impl From<Lookup<ExtensionSubtable>> for SubstitutionLookup {
+    fn from(src: Lookup<ExtensionSubtable>) -> SubstitutionLookup {
+        SubstitutionLookup::Extension(src)
+    }
+}
+
+impl From<Lookup<ReverseChainSingleSubstFormat1>> for SubstitutionLookup {
+    fn from(src: Lookup<ReverseChainSingleSubstFormat1>) -> SubstitutionLookup {
+        SubstitutionLookup::Reverse(src)
+    }
+}
+
 /// LookupType 1: [Single Substitution](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#lookuptype-1-single-substitution-subtable) Subtable
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -990,6 +1038,48 @@ impl FromObjRef<read_fonts::tables::gsub::ExtensionSubtable<'_>> for ExtensionSu
 }
 
 impl FromTableRef<read_fonts::tables::gsub::ExtensionSubtable<'_>> for ExtensionSubtable {}
+
+impl From<ExtensionSubstFormat1<SingleSubst>> for ExtensionSubtable {
+    fn from(src: ExtensionSubstFormat1<SingleSubst>) -> ExtensionSubtable {
+        ExtensionSubtable::Single(src)
+    }
+}
+
+impl From<ExtensionSubstFormat1<MultipleSubstFormat1>> for ExtensionSubtable {
+    fn from(src: ExtensionSubstFormat1<MultipleSubstFormat1>) -> ExtensionSubtable {
+        ExtensionSubtable::Multiple(src)
+    }
+}
+
+impl From<ExtensionSubstFormat1<AlternateSubstFormat1>> for ExtensionSubtable {
+    fn from(src: ExtensionSubstFormat1<AlternateSubstFormat1>) -> ExtensionSubtable {
+        ExtensionSubtable::Alternate(src)
+    }
+}
+
+impl From<ExtensionSubstFormat1<LigatureSubstFormat1>> for ExtensionSubtable {
+    fn from(src: ExtensionSubstFormat1<LigatureSubstFormat1>) -> ExtensionSubtable {
+        ExtensionSubtable::Ligature(src)
+    }
+}
+
+impl From<ExtensionSubstFormat1<SubstitutionSequenceContext>> for ExtensionSubtable {
+    fn from(src: ExtensionSubstFormat1<SubstitutionSequenceContext>) -> ExtensionSubtable {
+        ExtensionSubtable::Contextual(src)
+    }
+}
+
+impl From<ExtensionSubstFormat1<SubstitutionChainContext>> for ExtensionSubtable {
+    fn from(src: ExtensionSubstFormat1<SubstitutionChainContext>) -> ExtensionSubtable {
+        ExtensionSubtable::ChainContextual(src)
+    }
+}
+
+impl From<ExtensionSubstFormat1<ReverseChainSingleSubstFormat1>> for ExtensionSubtable {
+    fn from(src: ExtensionSubstFormat1<ReverseChainSingleSubstFormat1>) -> ExtensionSubtable {
+        ExtensionSubtable::Reverse(src)
+    }
+}
 
 /// [Reverse Chaining Contextual Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#81-reverse-chaining-contextual-single-substitution-format-1-coverage-based-glyph-contexts)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
