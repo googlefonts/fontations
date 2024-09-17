@@ -2,10 +2,12 @@
 
 #[path = "./lookupflag.rs"]
 mod lookupflag;
+mod script;
 
 use core::cmp::Ordering;
 
 pub use lookupflag::LookupFlag;
+pub use script::{script_tags_from_unicode, ScriptTags, SelectedScript};
 
 use super::variations::DeltaSetIndex;
 
