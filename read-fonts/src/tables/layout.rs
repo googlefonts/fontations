@@ -7,7 +7,7 @@ mod script;
 use core::cmp::Ordering;
 
 pub use lookupflag::LookupFlag;
-pub use script::{script_tags_from_unicode, ScriptTags, SelectedScript};
+pub use script::{ScriptTags, SelectedScript, UNICODE_TO_NEW_OPENTYPE_SCRIPT_TAGS};
 
 use super::variations::DeltaSetIndex;
 
