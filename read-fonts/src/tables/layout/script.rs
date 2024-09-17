@@ -71,7 +71,7 @@ impl<'a> ScriptList<'a> {
 /// tag.
 ///
 /// This is useful as input to [`ScriptList::select`] when you have a Unicode
-/// script and would like to find the appropiate OpenType script for shaping.
+/// script and would like to find the appropriate OpenType script for shaping.
 #[derive(Copy, Clone, PartialEq, Eq, Default)]
 pub struct ScriptTags {
     tags: [Tag; 3],
