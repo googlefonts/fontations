@@ -435,6 +435,7 @@ pub(crate) fn generate_group_compile(
     let mut validate_match_arms = Vec::new();
     let mut from_obj_match_arms = Vec::new();
     let mut type_arms = Vec::new();
+    let mut from_impls = Vec::new();
     let from_type = quote!(#parse_module :: #name);
     for var in &item.variants {
         let var_name = &var.name;
@@ -447,6 +448,13 @@ pub(crate) fn generate_group_compile(
             quote! { #from_type :: #var_name(table) => Self :: #var_name(table.to_owned_obj(data)) },
         );
         type_arms.push(quote! { Self:: #var_name(table) => table.table_type()  });
+        from_impls.push(quote! {
+            impl From<#inner <#typ>> for #name {
+                fn from(src: #inner <#typ>) -> #name {
+                    #name :: #var_name ( src )
+                }
+            }
+        });
     }
     let first_var_name = &item.variants.first().unwrap().name;
 
@@ -495,6 +503,9 @@ pub(crate) fn generate_group_compile(
         }
 
         impl FromTableRef< #from_type <'_>> for #name {}
+
+        #( #from_impls )*
+
     })
 }
 
