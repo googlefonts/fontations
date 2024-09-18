@@ -5,6 +5,7 @@ mod fvar;
 mod glyf_loca;
 mod gpos;
 mod gsub;
+mod gvar;
 mod head;
 mod hmtx;
 mod layout;
@@ -29,6 +30,7 @@ use write_fonts::read::{
         glyf::{Glyf, Glyph},
         gpos::Gpos,
         gsub::Gsub,
+        gvar::Gvar,
         head::Head,
         loca::Loca,
         name::Name,
@@ -535,6 +537,11 @@ fn subset_table<'a>(
         Glyf::TAG => font
             .glyf()
             .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
+            .subset(plan, font, builder),
+
+        Gvar::TAG => font
+            .gvar()
+            .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?
             .subset(plan, font, builder),
         //handled by glyf table if exists
         Head::TAG => font.glyf().map(|_| ()).or_else(|_| {
