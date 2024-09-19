@@ -1,5 +1,6 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
+mod cmap;
 mod cpal;
 mod fvar;
 mod glyf_loca;
@@ -27,6 +28,7 @@ use write_fonts::read::{
     tables::{
         cff::Cff,
         cff2::Cff2,
+        cmap::Cmap,
         glyf::{Glyf, Glyph},
         gpos::Gpos,
         gsub::Gsub,
@@ -519,6 +521,9 @@ pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> 
 
     for record in font.table_directory.table_records() {
         let tag = record.tag();
+        if tag != Cmap::TAG {
+            continue;
+        }
         if plan.drop_tables.contains(tag) {
             continue;
         }
@@ -534,6 +539,11 @@ fn subset_table<'a>(
     builder: &mut FontBuilder<'a>,
 ) -> Result<(), SubsetError> {
     match tag {
+        Cmap::TAG => font
+            .cmap()
+            .map_err(|_| SubsetError::SubsetTableError(Cmap::TAG))?
+            .subset(plan, font, builder),
+
         Glyf::TAG => font
             .glyf()
             .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?

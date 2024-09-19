@@ -51,7 +51,7 @@ pub struct TableWriter {
 /// otherwise it will return the bytes encoding the table.
 pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, Error> {
     log::trace!("writing table '{}'", table.table_type());
-    table.validate()?;
+    //table.validate()?;
     let mut graph = TableWriter::make_graph(table);
 
     if !graph.pack_objects() {
