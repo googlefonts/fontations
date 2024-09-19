@@ -237,7 +237,7 @@ pub fn features_and_design_space_format2() -> BeBuffer {
 
       1u16,                               // design space count
       (Tag::new(b"wdth")),                // tag = wdth
-      0x8000u32,                          // start = 0.5
+      {0x8000u32: "wdth start"},          // start = 0.5
       0x10000u32,                         // end = 1.0
 
       [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [0..17]
@@ -373,16 +373,16 @@ pub fn copy_indices_format2() -> BeBuffer {
 // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-2
 pub fn custom_ids_format2() -> BeBuffer {
     let mut buffer = be_buffer! {
-      2u8,                      // format
+      2u8,                               // format
 
-      0u32,                     // reserved
+      0u32,                              // reserved
 
-      [1, 2, 3, 4u32],          // compat id
+      [1, 2, 3, 4u32],                   // compat id
 
-      4u8,                      // default patch encoding = glyph keyed
-      (Uint24::new(4)),         // entry count
-      {0u32: "entries_offset"}, // entries offset
-      0u32,                     // entry id string data offset
+      4u8,                               // default patch encoding = glyph keyed
+      {(Uint24::new(4)): "entry_count"}, // entry count
+      {0u32: "entries_offset"},          // entries offset
+      0u32,                              // entry id string data offset
 
       8u16, // uriTemplateLength
       [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
@@ -395,13 +395,13 @@ pub fn custom_ids_format2() -> BeBuffer {
 
       // Entry id = 6
       0b00100100u8,                           // format = CODEPOINT_BIT_2 | ID_DELTA
-      (Int24::new(5)),                        // id delta
+      {(Int24::new(5)): "id delta"},            // id delta
       5u16,                                   // bias
       [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [5..22]
 
       // Entry id = 14
       0b01000100u8,                           // format = ID_DELTA | IGNORED
-      (Int24::new(7)),                        // id delta
+      {(Int24::new(7)): "id delta - ignored entry"}, // id delta
 
       // Entry id = 15
       0b00101000u8,                           // format = CODEPOINT_BIT_2 | PATCH_ENCODING
