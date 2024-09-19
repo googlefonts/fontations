@@ -219,3 +219,35 @@ table IdStringData {
   #[count(..)]
   id_data: [u8],
 }
+
+/// [Per Table Brotli Patch](https://w3c.github.io/IFT/Overview.html#per-table-brotli)
+table PerTableBrotliPatch {
+  format: Tag,
+  #[skip_getter]
+  #[compile(0)]
+  _reserved: u32,
+
+  /// Unique ID that identifies compatible patches.
+  #[count(4)]
+  compatibility_id: [u32],
+
+  patches_count: u16,
+  #[count(add($patches_count, 1))]
+  patch_offsets: [Offset32<TablePatch>],
+}
+
+/// [TablePatch](https://w3c.github.io/IFT/Overview.html#tablepatch)
+table TablePatch {
+  tag: Tag,
+  flags: TablePatchFlags,
+  uncompressed_length: u32,
+  #[count(..)]
+  brotli_stream: [u8],
+}
+
+// See <https://w3c.github.io/IFT/Overview.html#tablepatch-flags>
+flags u8 TablePatchFlags {
+  NONE = 0b0,
+  REPLACE_TABLE = 0b01,
+  DROP_TABLE = 0b10,
+}

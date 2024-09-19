@@ -1639,3 +1639,520 @@ impl<'a> std::fmt::Debug for IdStringData<'a> {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
+
+/// [Per Table Brotli Patch](https://w3c.github.io/IFT/Overview.html#per-table-brotli)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct PerTableBrotliPatchMarker {
+    compatibility_id_byte_len: usize,
+    patch_offsets_byte_len: usize,
+}
+
+impl PerTableBrotliPatchMarker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + Tag::RAW_BYTE_LEN
+    }
+    fn _reserved_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn compatibility_id_byte_range(&self) -> Range<usize> {
+        let start = self._reserved_byte_range().end;
+        start..start + self.compatibility_id_byte_len
+    }
+    fn patches_count_byte_range(&self) -> Range<usize> {
+        let start = self.compatibility_id_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn patch_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.patches_count_byte_range().end;
+        start..start + self.patch_offsets_byte_len
+    }
+}
+
+impl<'a> FontRead<'a> for PerTableBrotliPatch<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<Tag>();
+        cursor.advance::<u32>();
+        let compatibility_id_byte_len = (4_usize)
+            .checked_mul(u32::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        cursor.advance_by(compatibility_id_byte_len);
+        let patches_count: u16 = cursor.read()?;
+        let patch_offsets_byte_len = (transforms::add(patches_count, 1_usize))
+            .checked_mul(Offset32::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        cursor.advance_by(patch_offsets_byte_len);
+        cursor.finish(PerTableBrotliPatchMarker {
+            compatibility_id_byte_len,
+            patch_offsets_byte_len,
+        })
+    }
+}
+
+/// [Per Table Brotli Patch](https://w3c.github.io/IFT/Overview.html#per-table-brotli)
+pub type PerTableBrotliPatch<'a> = TableRef<'a, PerTableBrotliPatchMarker>;
+
+impl<'a> PerTableBrotliPatch<'a> {
+    pub fn format(&self) -> Tag {
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Unique ID that identifies compatible patches.
+    pub fn compatibility_id(&self) -> &'a [BigEndian<u32>] {
+        let range = self.shape.compatibility_id_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    pub fn patches_count(&self) -> u16 {
+        let range = self.shape.patches_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn patch_offsets(&self) -> &'a [BigEndian<Offset32>] {
+        let range = self.shape.patch_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    /// A dynamically resolving wrapper for [`patch_offsets`][Self::patch_offsets].
+    pub fn patchs(&self) -> ArrayOfOffsets<'a, TablePatch<'a>, Offset32> {
+        let data = self.data;
+        let offsets = self.patch_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for PerTableBrotliPatch<'a> {
+    fn type_name(&self) -> &str {
+        "PerTableBrotliPatch"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("compatibility_id", self.compatibility_id())),
+            2usize => Some(Field::new("patches_count", self.patches_count())),
+            3usize => Some({
+                let data = self.data;
+                Field::new(
+                    "patch_offsets",
+                    FieldType::array_of_offsets(
+                        better_type_name::<TablePatch>(),
+                        self.patch_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<TablePatch>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
+                )
+            }),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> std::fmt::Debug for PerTableBrotliPatch<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+/// [TablePatch](https://w3c.github.io/IFT/Overview.html#tablepatch)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct TablePatchMarker {
+    brotli_stream_byte_len: usize,
+}
+
+impl TablePatchMarker {
+    fn tag_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + Tag::RAW_BYTE_LEN
+    }
+    fn flags_byte_range(&self) -> Range<usize> {
+        let start = self.tag_byte_range().end;
+        start..start + TablePatchFlags::RAW_BYTE_LEN
+    }
+    fn uncompressed_length_byte_range(&self) -> Range<usize> {
+        let start = self.flags_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn brotli_stream_byte_range(&self) -> Range<usize> {
+        let start = self.uncompressed_length_byte_range().end;
+        start..start + self.brotli_stream_byte_len
+    }
+}
+
+impl<'a> FontRead<'a> for TablePatch<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<Tag>();
+        cursor.advance::<TablePatchFlags>();
+        cursor.advance::<u32>();
+        let brotli_stream_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        cursor.advance_by(brotli_stream_byte_len);
+        cursor.finish(TablePatchMarker {
+            brotli_stream_byte_len,
+        })
+    }
+}
+
+/// [TablePatch](https://w3c.github.io/IFT/Overview.html#tablepatch)
+pub type TablePatch<'a> = TableRef<'a, TablePatchMarker>;
+
+impl<'a> TablePatch<'a> {
+    pub fn tag(&self) -> Tag {
+        let range = self.shape.tag_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn flags(&self) -> TablePatchFlags {
+        let range = self.shape.flags_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn uncompressed_length(&self) -> u32 {
+        let range = self.shape.uncompressed_length_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn brotli_stream(&self) -> &'a [u8] {
+        let range = self.shape.brotli_stream_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for TablePatch<'a> {
+    fn type_name(&self) -> &str {
+        "TablePatch"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("tag", self.tag())),
+            1usize => Some(Field::new("flags", self.flags())),
+            2usize => Some(Field::new(
+                "uncompressed_length",
+                self.uncompressed_length(),
+            )),
+            3usize => Some(Field::new("brotli_stream", self.brotli_stream())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> std::fmt::Debug for TablePatch<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
+pub struct TablePatchFlags {
+    bits: u8,
+}
+
+impl TablePatchFlags {
+    pub const REPLACE_TABLE: Self = Self { bits: 0b01 };
+
+    pub const DROP_TABLE: Self = Self { bits: 0b10 };
+}
+
+impl TablePatchFlags {
+    ///  Returns an empty set of flags.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self { bits: 0 }
+    }
+
+    /// Returns the set containing all flags.
+    #[inline]
+    pub const fn all() -> Self {
+        Self {
+            bits: Self::REPLACE_TABLE.bits | Self::DROP_TABLE.bits,
+        }
+    }
+
+    /// Returns the raw value of the flags currently stored.
+    #[inline]
+    pub const fn bits(&self) -> u8 {
+        self.bits
+    }
+
+    /// Convert from underlying bit representation, unless that
+    /// representation contains bits that do not correspond to a flag.
+    #[inline]
+    pub const fn from_bits(bits: u8) -> Option<Self> {
+        if (bits & !Self::all().bits()) == 0 {
+            Some(Self { bits })
+        } else {
+            None
+        }
+    }
+
+    /// Convert from underlying bit representation, dropping any bits
+    /// that do not correspond to flags.
+    #[inline]
+    pub const fn from_bits_truncate(bits: u8) -> Self {
+        Self {
+            bits: bits & Self::all().bits,
+        }
+    }
+
+    /// Returns `true` if no flags are currently stored.
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.bits() == Self::empty().bits()
+    }
+
+    /// Returns `true` if there are flags common to both `self` and `other`.
+    #[inline]
+    pub const fn intersects(&self, other: Self) -> bool {
+        !(Self {
+            bits: self.bits & other.bits,
+        })
+        .is_empty()
+    }
+
+    /// Returns `true` if all of the flags in `other` are contained within `self`.
+    #[inline]
+    pub const fn contains(&self, other: Self) -> bool {
+        (self.bits & other.bits) == other.bits
+    }
+
+    /// Inserts the specified flags in-place.
+    #[inline]
+    pub fn insert(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+
+    /// Removes the specified flags in-place.
+    #[inline]
+    pub fn remove(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+
+    /// Toggles the specified flags in-place.
+    #[inline]
+    pub fn toggle(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+
+    /// Returns the intersection between the flags in `self` and
+    /// `other`.
+    ///
+    /// Specifically, the returned set contains only the flags which are
+    /// present in *both* `self` *and* `other`.
+    ///
+    /// This is equivalent to using the `&` operator (e.g.
+    /// [`ops::BitAnd`]), as in `flags & other`.
+    ///
+    /// [`ops::BitAnd`]: https://doc.rust-lang.org/std/ops/trait.BitAnd.html
+    #[inline]
+    #[must_use]
+    pub const fn intersection(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+
+    /// Returns the union of between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags which are
+    /// present in *either* `self` *or* `other`, including any which are
+    /// present in both.
+    ///
+    /// This is equivalent to using the `|` operator (e.g.
+    /// [`ops::BitOr`]), as in `flags | other`.
+    ///
+    /// [`ops::BitOr`]: https://doc.rust-lang.org/std/ops/trait.BitOr.html
+    #[inline]
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+
+    /// Returns the difference between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags present in
+    /// `self`, except for the ones present in `other`.
+    ///
+    /// It is also conceptually equivalent to the "bit-clear" operation:
+    /// `flags & !other` (and this syntax is also supported).
+    ///
+    /// This is equivalent to using the `-` operator (e.g.
+    /// [`ops::Sub`]), as in `flags - other`.
+    ///
+    /// [`ops::Sub`]: https://doc.rust-lang.org/std/ops/trait.Sub.html
+    #[inline]
+    #[must_use]
+    pub const fn difference(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOr for TablePatchFlags {
+    type Output = Self;
+
+    /// Returns the union of the two sets of flags.
+    #[inline]
+    fn bitor(self, other: TablePatchFlags) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOrAssign for TablePatchFlags {
+    /// Adds the set of flags.
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+}
+
+impl std::ops::BitXor for TablePatchFlags {
+    type Output = Self;
+
+    /// Returns the left flags, but with all the right flags toggled.
+    #[inline]
+    fn bitxor(self, other: Self) -> Self {
+        Self {
+            bits: self.bits ^ other.bits,
+        }
+    }
+}
+
+impl std::ops::BitXorAssign for TablePatchFlags {
+    /// Toggles the set of flags.
+    #[inline]
+    fn bitxor_assign(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+}
+
+impl std::ops::BitAnd for TablePatchFlags {
+    type Output = Self;
+
+    /// Returns the intersection between the two sets of flags.
+    #[inline]
+    fn bitand(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+}
+
+impl std::ops::BitAndAssign for TablePatchFlags {
+    /// Disables all flags disabled in the set.
+    #[inline]
+    fn bitand_assign(&mut self, other: Self) {
+        self.bits &= other.bits;
+    }
+}
+
+impl std::ops::Sub for TablePatchFlags {
+    type Output = Self;
+
+    /// Returns the set difference of the two sets of flags.
+    #[inline]
+    fn sub(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::SubAssign for TablePatchFlags {
+    /// Disables all flags enabled in the set.
+    #[inline]
+    fn sub_assign(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+}
+
+impl std::ops::Not for TablePatchFlags {
+    type Output = Self;
+
+    /// Returns the complement of this set of flags.
+    #[inline]
+    fn not(self) -> Self {
+        Self { bits: !self.bits } & Self::all()
+    }
+}
+
+impl std::fmt::Debug for TablePatchFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let members: &[(&str, Self)] = &[
+            ("REPLACE_TABLE", Self::REPLACE_TABLE),
+            ("DROP_TABLE", Self::DROP_TABLE),
+        ];
+        let mut first = true;
+        for (name, value) in members {
+            if self.contains(*value) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str(name)?;
+            }
+        }
+        if first {
+            f.write_str("(empty)")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Binary for TablePatchFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Binary::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::Octal for TablePatchFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Octal::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::LowerHex for TablePatchFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::LowerHex::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::UpperHex for TablePatchFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::UpperHex::fmt(&self.bits, f)
+    }
+}
+
+impl font_types::Scalar for TablePatchFlags {
+    type Raw = <u8 as font_types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        self.bits().to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u8>::from_raw(raw);
+        Self::from_bits_truncate(t)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> From<TablePatchFlags> for FieldType<'a> {
+    fn from(src: TablePatchFlags) -> FieldType<'a> {
+        src.bits().into()
+    }
+}
