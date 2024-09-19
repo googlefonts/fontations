@@ -1096,8 +1096,9 @@ mod tests {
         test_intersection(&font, [0x02], [], [1]);
         test_intersection(&font, [0x15], [], [3]);
         test_intersection(&font, [0x07], [], [1, 3]);
+        test_intersection(&font, [80_007], [], [4]);
 
-        test_intersection_with_all(&font, [], [1, 3]);
+        test_intersection_with_all(&font, [], [1, 3, 4]);
     }
 
     #[test]
@@ -1415,7 +1416,6 @@ mod tests {
     }
 
     // TODO(garretrieger): test decoding of other entry features for format 2
-    // - 24 bit bias.
     // - no codepoints
     // - ignored entries can still be copied
 }

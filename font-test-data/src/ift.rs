@@ -182,7 +182,7 @@ pub fn codepoints_only_format2() -> BeBuffer {
       [1, 2, 3, 4u32],    // compat id
 
       4u8,                // default patch encoding
-      (Uint24::new(3)),   // entry count
+      (Uint24::new(4)),   // entry count
       {0u32: "entries_offset"},
       0u32,               // entry string data offset
 
@@ -202,7 +202,12 @@ pub fn codepoints_only_format2() -> BeBuffer {
       // Entry id = 3
       0b00100000u8,                           // format = CODEPOINT_BIT_2
       5u16,                                   // bias
-      [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [5..22]
+      [0b00001101, 0b00000011, 0b00110001u8],  // codepoints = [5..22]
+
+      // Entry id = 4
+      0b00110000u8,                           // format = CODEPOINT_BIT_1 | CODEPOINT_BIT_2
+      (Uint24::new(80_000)),                  // bias
+      [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [80_005..80_022]
     };
 
     let offset = buffer.offset_for("entries") as u32;
