@@ -306,7 +306,7 @@ pub fn copy_indices_format2() -> BeBuffer {
       // Entries Array
 
       // Entry id = 1
-      {0b00100000u8: "entries"},              // format
+      {0b01100000u8: "entries"},              // format = CODEPOINT_BIT_2 | IGNORED
       5u16,                                   // bias = 5
       [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [5..22]
 

@@ -1178,7 +1178,7 @@ mod tests {
         let font = FontRef::new(&font_bytes).unwrap();
 
         test_intersection(&font, [], [], []);
-        test_intersection(&font, [0x05], [], [1, 5, 9]);
+        test_intersection(&font, [0x05], [], [5, 9]);
         test_intersection(&font, [0x65], [], [9]);
 
         test_design_space_intersection(
@@ -1194,7 +1194,7 @@ mod tests {
             [0x05],
             [Tag::new(b"rlig")],
             [(Tag::new(b"wght"), vec![500.0..=500.0])],
-            [1, 3, 5, 6, 7, 8, 9],
+            [3, 5, 6, 7, 8, 9],
         );
     }
 
@@ -1414,8 +1414,4 @@ mod tests {
         )
         .is_err());
     }
-
-    // TODO(garretrieger): test decoding of other entry features for format 2
-    // - no codepoints
-    // - ignored entries can still be copied
 }
