@@ -1643,12 +1643,12 @@ impl<'a> std::fmt::Debug for IdStringData<'a> {
 /// [Per Table Brotli Patch](https://w3c.github.io/IFT/Overview.html#per-table-brotli)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PerTableBrotliPatchMarker {
+pub struct TableKeyedPatchMarker {
     compatibility_id_byte_len: usize,
     patch_offsets_byte_len: usize,
 }
 
-impl PerTableBrotliPatchMarker {
+impl TableKeyedPatchMarker {
     fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + Tag::RAW_BYTE_LEN
@@ -1671,7 +1671,7 @@ impl PerTableBrotliPatchMarker {
     }
 }
 
-impl<'a> FontRead<'a> for PerTableBrotliPatch<'a> {
+impl<'a> FontRead<'a> for TableKeyedPatch<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Tag>();
@@ -1685,7 +1685,7 @@ impl<'a> FontRead<'a> for PerTableBrotliPatch<'a> {
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(patch_offsets_byte_len);
-        cursor.finish(PerTableBrotliPatchMarker {
+        cursor.finish(TableKeyedPatchMarker {
             compatibility_id_byte_len,
             patch_offsets_byte_len,
         })
@@ -1693,9 +1693,9 @@ impl<'a> FontRead<'a> for PerTableBrotliPatch<'a> {
 }
 
 /// [Per Table Brotli Patch](https://w3c.github.io/IFT/Overview.html#per-table-brotli)
-pub type PerTableBrotliPatch<'a> = TableRef<'a, PerTableBrotliPatchMarker>;
+pub type TableKeyedPatch<'a> = TableRef<'a, TableKeyedPatchMarker>;
 
-impl<'a> PerTableBrotliPatch<'a> {
+impl<'a> TableKeyedPatch<'a> {
     pub fn format(&self) -> Tag {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1726,9 +1726,9 @@ impl<'a> PerTableBrotliPatch<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PerTableBrotliPatch<'a> {
+impl<'a> SomeTable<'a> for TableKeyedPatch<'a> {
     fn type_name(&self) -> &str {
-        "PerTableBrotliPatch"
+        "TableKeyedPatch"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
@@ -1755,7 +1755,7 @@ impl<'a> SomeTable<'a> for PerTableBrotliPatch<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for PerTableBrotliPatch<'a> {
+impl<'a> std::fmt::Debug for TableKeyedPatch<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -1777,12 +1777,12 @@ impl TablePatchMarker {
         let start = self.tag_byte_range().end;
         start..start + TablePatchFlags::RAW_BYTE_LEN
     }
-    fn uncompressed_length_byte_range(&self) -> Range<usize> {
+    fn max_uncompressed_length_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
     fn brotli_stream_byte_range(&self) -> Range<usize> {
-        let start = self.uncompressed_length_byte_range().end;
+        let start = self.max_uncompressed_length_byte_range().end;
         start..start + self.brotli_stream_byte_len
     }
 }
@@ -1815,8 +1815,8 @@ impl<'a> TablePatch<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    pub fn uncompressed_length(&self) -> u32 {
-        let range = self.shape.uncompressed_length_byte_range();
+    pub fn max_uncompressed_length(&self) -> u32 {
+        let range = self.shape.max_uncompressed_length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -1836,8 +1836,8 @@ impl<'a> SomeTable<'a> for TablePatch<'a> {
             0usize => Some(Field::new("tag", self.tag())),
             1usize => Some(Field::new("flags", self.flags())),
             2usize => Some(Field::new(
-                "uncompressed_length",
-                self.uncompressed_length(),
+                "max_uncompressed_length",
+                self.max_uncompressed_length(),
             )),
             3usize => Some(Field::new("brotli_stream", self.brotli_stream())),
             _ => None,

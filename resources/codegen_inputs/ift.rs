@@ -221,7 +221,7 @@ table IdStringData {
 }
 
 /// [Per Table Brotli Patch](https://w3c.github.io/IFT/Overview.html#per-table-brotli)
-table PerTableBrotliPatch {
+table TableKeyedPatch {
   format: Tag,
   #[skip_getter]
   #[compile(0)]
@@ -240,14 +240,13 @@ table PerTableBrotliPatch {
 table TablePatch {
   tag: Tag,
   flags: TablePatchFlags,
-  uncompressed_length: u32,
+  max_uncompressed_length: u32,
   #[count(..)]
   brotli_stream: [u8],
 }
 
 // See <https://w3c.github.io/IFT/Overview.html#tablepatch-flags>
 flags u8 TablePatchFlags {
-  NONE = 0b0,
   REPLACE_TABLE = 0b01,
   DROP_TABLE = 0b10,
 }
