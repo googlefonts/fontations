@@ -64,8 +64,8 @@ impl<'a> Subset for Gvar<'a> {
     }
 }
 
-fn subset_with_offset_type<'a, OffsetType: GvarOffset>(
-    gvar: &Gvar<'a>,
+fn subset_with_offset_type<OffsetType: GvarOffset>(
+    gvar: &Gvar<'_>,
     plan: &Plan,
     num_glyphs: u16,
     mut out: Vec<u8>,
