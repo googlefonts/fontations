@@ -856,7 +856,7 @@ impl<'a> FontRead<'a> for IdStringData {
 /// [Per Table Brotli Patch](https://w3c.github.io/IFT/Overview.html#per-table-brotli)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct PerTableBrotliPatch {
+pub struct TableKeyedPatch {
     pub format: Tag,
     /// Unique ID that identifies compatible patches.
     pub compatibility_id: Vec<u32>,
@@ -864,8 +864,8 @@ pub struct PerTableBrotliPatch {
     pub patchs: Vec<OffsetMarker<TablePatch, WIDTH_32>>,
 }
 
-impl PerTableBrotliPatch {
-    /// Construct a new `PerTableBrotliPatch`
+impl TableKeyedPatch {
+    /// Construct a new `TableKeyedPatch`
     pub fn new(
         format: Tag,
         compatibility_id: Vec<u32>,
@@ -881,7 +881,7 @@ impl PerTableBrotliPatch {
     }
 }
 
-impl FontWrite for PerTableBrotliPatch {
+impl FontWrite for TableKeyedPatch {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.format.write_into(writer);
@@ -891,13 +891,13 @@ impl FontWrite for PerTableBrotliPatch {
         self.patchs.write_into(writer);
     }
     fn table_type(&self) -> TableType {
-        TableType::Named("PerTableBrotliPatch")
+        TableType::Named("TableKeyedPatch")
     }
 }
 
-impl Validate for PerTableBrotliPatch {
+impl Validate for TableKeyedPatch {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("PerTableBrotliPatch", |ctx| {
+        ctx.in_table("TableKeyedPatch", |ctx| {
             ctx.in_field("patchs", |ctx| {
                 self.patchs.validate_impl(ctx);
             });
@@ -905,10 +905,10 @@ impl Validate for PerTableBrotliPatch {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::tables::ift::PerTableBrotliPatch<'a>> for PerTableBrotliPatch {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::PerTableBrotliPatch<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::ift::TableKeyedPatch<'a>> for TableKeyedPatch {
+    fn from_obj_ref(obj: &read_fonts::tables::ift::TableKeyedPatch<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
-        PerTableBrotliPatch {
+        TableKeyedPatch {
             format: obj.format(),
             compatibility_id: obj.compatibility_id().to_owned_obj(offset_data),
             patches_count: obj.patches_count(),
@@ -917,11 +917,11 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PerTableBrotliPatch<'a>> for PerTab
     }
 }
 
-impl<'a> FromTableRef<read_fonts::tables::ift::PerTableBrotliPatch<'a>> for PerTableBrotliPatch {}
+impl<'a> FromTableRef<read_fonts::tables::ift::TableKeyedPatch<'a>> for TableKeyedPatch {}
 
-impl<'a> FontRead<'a> for PerTableBrotliPatch {
+impl<'a> FontRead<'a> for TableKeyedPatch {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::tables::ift::PerTableBrotliPatch as FontRead>::read(data)
+        <read_fonts::tables::ift::TableKeyedPatch as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -932,7 +932,7 @@ impl<'a> FontRead<'a> for PerTableBrotliPatch {
 pub struct TablePatch {
     pub tag: Tag,
     pub flags: TablePatchFlags,
-    pub uncompressed_length: u32,
+    pub max_uncompressed_length: u32,
     pub brotli_stream: Vec<u8>,
 }
 
@@ -941,13 +941,13 @@ impl TablePatch {
     pub fn new(
         tag: Tag,
         flags: TablePatchFlags,
-        uncompressed_length: u32,
+        max_uncompressed_length: u32,
         brotli_stream: Vec<u8>,
     ) -> Self {
         Self {
             tag,
             flags,
-            uncompressed_length,
+            max_uncompressed_length,
             brotli_stream: brotli_stream.into_iter().map(Into::into).collect(),
         }
     }
@@ -957,7 +957,7 @@ impl FontWrite for TablePatch {
     fn write_into(&self, writer: &mut TableWriter) {
         self.tag.write_into(writer);
         self.flags.write_into(writer);
-        self.uncompressed_length.write_into(writer);
+        self.max_uncompressed_length.write_into(writer);
         self.brotli_stream.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -975,7 +975,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::TablePatch<'a>> for TablePatch {
         TablePatch {
             tag: obj.tag(),
             flags: obj.flags(),
-            uncompressed_length: obj.uncompressed_length(),
+            max_uncompressed_length: obj.max_uncompressed_length(),
             brotli_stream: obj.brotli_stream().to_owned_obj(offset_data),
         }
     }
