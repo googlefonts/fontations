@@ -3,6 +3,7 @@
 use super::{
     super::Target,
     axis::Dimension,
+    shape::{Shaper, ShaperMode},
     style::{GlyphStyleMap, ScriptGroup, StyleClass},
 };
 use crate::{attribute::Style, collections::SmallVec, FontRef};
@@ -92,15 +93,21 @@ pub(crate) enum UnscaledStyleMetricsSet {
 impl UnscaledStyleMetricsSet {
     /// Creates a precomputed style metrics set containing all metrics
     /// required by the glyph map.
-    pub fn precomputed(font: &FontRef, coords: &[F2Dot14], style_map: &GlyphStyleMap) -> Self {
+    pub fn precomputed(
+        font: &FontRef,
+        coords: &[F2Dot14],
+        shaper_mode: ShaperMode,
+        style_map: &GlyphStyleMap,
+    ) -> Self {
         // The metrics_styles() iterator does not report exact size so we
         // preallocate and extend here rather than collect to avoid
         // over allocating memory.
+        let shaper = Shaper::new(font, shaper_mode);
         let mut vec = Vec::with_capacity(style_map.metrics_count());
         vec.extend(
             style_map
                 .metrics_styles()
-                .map(|style| super::latin::compute_unscaled_style_metrics(font, coords, style)),
+                .map(|style| super::latin::compute_unscaled_style_metrics(&shaper, coords, style)),
         );
         Self::Precomputed(vec)
     }
@@ -119,6 +126,7 @@ impl UnscaledStyleMetricsSet {
         &self,
         font: &FontRef,
         coords: &[F2Dot14],
+        shaper_mode: ShaperMode,
         style_map: &GlyphStyleMap,
         glyph_id: GlyphId,
     ) -> Option<UnscaledStyleMetrics> {
@@ -137,9 +145,10 @@ impl UnscaledStyleMetricsSet {
                 // The std RwLock doesn't support upgrading and contention is
                 // expected to be low, so let's just race to compute the new
                 // metrics.
+                let shaper = Shaper::new(font, shaper_mode);
                 let style_class = style.style_class()?;
                 let metrics =
-                    super::latin::compute_unscaled_style_metrics(font, coords, style_class);
+                    super::latin::compute_unscaled_style_metrics(&shaper, coords, style_class);
                 let mut entry = lazy.write().unwrap();
                 *entry.get_mut(index)? = Some(metrics.clone());
                 Some(metrics)
@@ -406,7 +415,8 @@ mod tests {
         let coords = &[];
         let glyph_count = font.maxp().unwrap().num_glyphs() as u32;
         let style_map = GlyphStyleMap::new(glyph_count, &font.charmap());
-        let style_set = UnscaledStyleMetricsSet::precomputed(&font, coords, &style_map);
+        let style_set =
+            UnscaledStyleMetricsSet::precomputed(&font, coords, ShaperMode::Nominal, &style_map);
         let UnscaledStyleMetricsSet::Precomputed(set) = &style_set else {
             panic!("we definitely made a precomputed style set");
         };
@@ -432,7 +442,13 @@ mod tests {
         assert_eq!(all_empty, [false; 3]);
         // First load a CJK glyph
         let metrics2 = style_set
-            .get(&font, coords, &style_map, GlyphId::new(0))
+            .get(
+                &font,
+                coords,
+                ShaperMode::Nominal,
+                &style_map,
+                GlyphId::new(0),
+            )
             .unwrap();
         assert_eq!(
             STYLE_CLASSES[metrics2.class_ix as usize].name,
@@ -442,14 +458,26 @@ mod tests {
         assert_eq!(only_cjk, [false, false, true]);
         // Then a Hebrew glyph
         let metrics1 = style_set
-            .get(&font, coords, &style_map, GlyphId::new(1))
+            .get(
+                &font,
+                coords,
+                ShaperMode::Nominal,
+                &style_map,
+                GlyphId::new(1),
+            )
             .unwrap();
         assert_eq!(STYLE_CLASSES[metrics1.class_ix as usize].name, "Hebrew");
         let hebrew_and_cjk = lazy_set_presence(&style_set);
         assert_eq!(hebrew_and_cjk, [false, true, true]);
         // And finally a Latin glyph
         let metrics0 = style_set
-            .get(&font, coords, &style_map, GlyphId::new(15))
+            .get(
+                &font,
+                coords,
+                ShaperMode::Nominal,
+                &style_map,
+                GlyphId::new(15),
+            )
             .unwrap();
         assert_eq!(STYLE_CLASSES[metrics0.class_ix as usize].name, "Latin");
         let all_present = lazy_set_presence(&style_set);

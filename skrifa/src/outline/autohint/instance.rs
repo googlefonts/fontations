@@ -9,6 +9,7 @@ use super::{
     },
     metrics::{fixed_mul, pix_round, Scale, UnscaledStyleMetricsSet},
     outline::Outline,
+    shape::ShaperMode,
     style::GlyphStyleMap,
 };
 use alloc::sync::Arc;
@@ -66,10 +67,11 @@ impl Instance {
         let metrics = if lazy_metrics {
             UnscaledStyleMetricsSet::lazy(&styles.0)
         } else {
-            UnscaledStyleMetricsSet::precomputed(font, coords, &styles.0)
+            UnscaledStyleMetricsSet::precomputed(font, coords, ShaperMode::Nominal, &styles.0)
         };
         #[cfg(not(feature = "std"))]
-        let metrics = UnscaledStyleMetricsSet::precomputed(font, coords, &styles.0);
+        let metrics =
+            UnscaledStyleMetricsSet::precomputed(font, coords, ShaperMode::Nominal, &styles.0);
         let is_fixed_width = font
             .post()
             .map(|post| post.is_fixed_pitch() != 0)
@@ -101,7 +103,13 @@ impl Instance {
             .ok_or(DrawError::GlyphNotFound(glyph_id))?;
         let metrics = self
             .metrics
-            .get(&common.font, coords, &self.styles.0, glyph_id)
+            .get(
+                &common.font,
+                coords,
+                ShaperMode::Nominal,
+                &self.styles.0,
+                glyph_id,
+            )
             .ok_or(DrawError::GlyphNotFound(glyph_id))?;
         let units_per_em = glyph.units_per_em() as i32;
         let scale = Scale::new(
