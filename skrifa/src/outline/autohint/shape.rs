@@ -6,6 +6,12 @@ use crate::{charmap::Charmap, collections::SmallVec, FontRef, GlyphId, MetadataP
 
 /// Determines the fidelity with which we apply shaping in the
 /// autohinter.
+///
+/// Shaping only affects glyph style classification and the glyphs that
+/// are chosen for metrics computations. We keep the `Nominal` mode around
+/// to enable validation of internal algorithms against a configuration that
+/// is known to match FreeType. The `BestEffort` mode should always be
+/// used for actual rendering.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub(crate) enum ShaperMode {
     /// Characters are mapped to nominal glyph identifiers and layout tables
@@ -22,6 +28,11 @@ pub(crate) enum ShaperMode {
 #[derive(Copy, Clone, Default, Debug)]
 pub(crate) struct ShapedGlyph {
     pub id: GlyphId,
+    /// This may be used for computing vertical alignment zones, particularly
+    /// for glyphs like super/subscripts which might have adjustments in GPOS.
+    ///
+    /// Note that we don't do the same in the horizontal direction which
+    /// means that we don't care about the x-offset.
     pub y_offset: i32,
 }
 
@@ -29,6 +40,11 @@ pub(crate) struct ShapedGlyph {
 /// for expansion from multiple substitution tables.
 const SHAPED_CLUSTER_INLINE_SIZE: usize = 16;
 
+/// Container for storing the result of shaping a cluster.
+///
+/// Some of our input "characters" for metrics computations are actually
+/// multi-character [grapheme clusters](https://www.unicode.org/reports/tr29/#Grapheme_Cluster_Boundaries)
+/// that may expand to multiple glyphs.
 pub(crate) type ShapedCluster = SmallVec<ShapedGlyph, SHAPED_CLUSTER_INLINE_SIZE>;
 
 /// Maps characters to glyphs and handles extended style coverage beyond
