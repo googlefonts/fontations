@@ -40,7 +40,9 @@ core_maths = "0.1"
 font-test-data = { path = "font-test-data" }
 font-types = { version = "0.7.1", path = "font-types" }
 read-fonts = { version = "0.22.0", path = "read-fonts", default-features = false }
-skrifa = { version = "0.22.0", path = "skrifa" }
+# Disable default-features so that fauntlet can use skrifa without autohint
+# shaping support
+skrifa = { version = "0.22.0", path = "skrifa", default-features = false, features = ["std"] }
 write-fonts = { version = "0.29.0", path = "write-fonts" }
 
 [workspace.metadata.release]

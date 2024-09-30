@@ -75,6 +75,9 @@ pub static NOTOSERIFHEBREW_AUTOHINT_METRICS: &[u8] =
 pub static NOTOSERIFTC_AUTOHINT_METRICS: &[u8] =
     include_bytes!("../test_data/ttf/notoseriftc_autohint_metrics.ttf");
 
+pub static NOTOSERIF_AUTOHINT_SHAPING: &[u8] =
+    include_bytes!("../test_data/ttf/notoserif_autohint_shaping.ttf");
+
 pub static TTHINT_SUBSET: &[u8] = include_bytes!("../test_data/ttf/tthint_subset.ttf");
 
 pub static VORG: &[u8] = include_bytes!("../test_data/ttf/vorg.ttf");

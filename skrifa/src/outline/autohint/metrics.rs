@@ -386,8 +386,13 @@ pub(crate) fn pix_floor(a: i32) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::style::STYLE_CLASSES, *};
-    use crate::MetadataProvider;
+    use super::{
+        super::{
+            shape::{Shaper, ShaperMode},
+            style::STYLE_CLASSES,
+        },
+        *,
+    };
     use raw::TableProvider;
 
     #[test]
@@ -413,8 +418,9 @@ mod tests {
     fn precomputed_style_set() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
         let coords = &[];
+        let shaper = Shaper::new(&font, ShaperMode::Nominal);
         let glyph_count = font.maxp().unwrap().num_glyphs() as u32;
-        let style_map = GlyphStyleMap::new(glyph_count, &font.charmap());
+        let style_map = GlyphStyleMap::new(glyph_count, &shaper);
         let style_set =
             UnscaledStyleMetricsSet::precomputed(&font, coords, ShaperMode::Nominal, &style_map);
         let UnscaledStyleMetricsSet::Precomputed(set) = &style_set else {
@@ -434,8 +440,9 @@ mod tests {
     fn lazy_style_set() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
         let coords = &[];
+        let shaper = Shaper::new(&font, ShaperMode::Nominal);
         let glyph_count = font.maxp().unwrap().num_glyphs() as u32;
-        let style_map = GlyphStyleMap::new(glyph_count, &font.charmap());
+        let style_map = GlyphStyleMap::new(glyph_count, &shaper);
         let style_set = UnscaledStyleMetricsSet::lazy(&style_map);
         let all_empty = lazy_set_presence(&style_set);
         // Set starts out all empty
