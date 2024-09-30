@@ -63,6 +63,16 @@ Describes the provenance, usage and generation procedures for font data used for
     pyftsubset NotoSerifTC-Regular.ttf --text=他你們和对就我時来能說这齊军已既是民现理置軍配開露顾个人以你個到大對我時来要说主因想理當着者著过进過還面些你們和她將年情样理說这通即吧呢响师收斷眼间陈除随隨事學將想政新樣沒然现球經起例别动吗增明期物种调费都间田囗
     ```
 
+* _notoserif_autohint_shaping_
+  * font: Noto Serif Regular
+  * source: https://fonts.google.com/noto/specimen/Noto+Serif
+  * license: [Open Font License][OFL]
+  * usage: testing autohinting shaper capture of OpenType features
+  * subset: fi ligatures and c2sc support
+    ```shell
+    pyftsubset notoserif-regular.ttf --layout-features+=c2sc --no-hinting --text=Hfix
+    ```
+
 * _avar2checker_
   * font: avar2 checker
   * source: https://github.com/Lorp/fencer/tree/main/src/fonts
