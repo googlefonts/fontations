@@ -475,7 +475,7 @@ impl<'a> GsubHandler<'a> {
             // we ignore the style. Clear the GSUB marker for any touched
             // glyphs
             for glyph in &mut self.glyph_styles[range] {
-                glyph.clear_shaping();
+                glyph.clear_from_gsub();
             }
             None
         } else {
@@ -507,7 +507,7 @@ impl<'a> GsubHandler<'a> {
     fn capture_glyph(&mut self, gid: u32) {
         let gid = gid as usize;
         if let Some(style) = self.glyph_styles.get_mut(gid) {
-            style.set_gsub_output();
+            style.set_from_gsub_output();
             self.min_gid = gid.min(self.min_gid);
             self.max_gid = gid.max(self.max_gid);
         }
