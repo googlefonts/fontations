@@ -106,6 +106,7 @@ where
     pub flags: &'a mut [PointFlags],
     pub contours: &'a mut [u16],
     pub phantom_points: [Point<C>; 4],
+    pub hdmx_width: Option<u8>,
 }
 
 impl<'a, C> ScaledOutline<'a, C>
@@ -117,6 +118,7 @@ where
         phantom_points: [Point<C>; 4],
         flags: &'a mut [PointFlags],
         contours: &'a mut [u16],
+        hdmx_width: Option<u8>,
     ) -> Self {
         let x_shift = phantom_points[0].x;
         if x_shift != C::zeroed() {
@@ -129,6 +131,7 @@ where
             flags,
             contours,
             phantom_points,
+            hdmx_width,
         }
     }
 
@@ -137,7 +140,14 @@ where
     }
 
     pub fn adjusted_advance_width(&self) -> C {
-        self.phantom_points[1].x - self.phantom_points[0].x
+        // Prefer widths from hdmx, otherwise take difference between first
+        // two phantom points
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttgload.c#L1996>
+        if let Some(hdmx_width) = self.hdmx_width {
+            C::from_i32(hdmx_width as i32)
+        } else {
+            self.phantom_points[1].x - self.phantom_points[0].x
+        }
     }
 
     pub fn to_path(
