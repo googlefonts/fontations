@@ -23,6 +23,7 @@ pub mod glyf;
 pub mod gpos;
 pub mod gsub;
 pub mod gvar;
+pub mod hdmx;
 pub mod head;
 pub mod hhea;
 pub mod hmtx;

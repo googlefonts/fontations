@@ -48,6 +48,12 @@ pub trait TableProvider<'a> {
         tables::hmtx::Hmtx::read(data, number_of_h_metrics, num_glyphs)
     }
 
+    fn hdmx(&self) -> Result<tables::hdmx::Hdmx<'a>, ReadError> {
+        let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
+        let data = self.expect_data_for_tag(tables::hdmx::Hdmx::TAG)?;
+        tables::hdmx::Hdmx::read(data, num_glyphs)
+    }
+
     fn vmtx(&self) -> Result<tables::vmtx::Vmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
