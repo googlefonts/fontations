@@ -1200,6 +1200,15 @@ impl Field {
                 let count = self.attrs.count.as_ref().unwrap().count_expr();
                 quote!(cursor.read_computed_array(#count, &#args)?)
             }
+            FieldType::Scalar { typ } => {
+                if typ == "u8" {
+                    // We don't wrap u8 in BigEndian so we need to read it
+                    // directly
+                    quote!(cursor.read()?)
+                } else {
+                    quote!(cursor.read_be()?)
+                }
+            }
             _ => match self
                 .attrs
                 .read_with_args
