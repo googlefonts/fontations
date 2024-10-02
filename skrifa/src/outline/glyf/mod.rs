@@ -22,6 +22,7 @@ use read_fonts::{
             Anchor, CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, PointMarker, SimpleGlyph,
         },
         gvar::Gvar,
+        hdmx::Hdmx,
         loca::Loca,
     },
     types::{F26Dot6, F2Dot14, Fixed, GlyphId, Point, Tag},
@@ -38,6 +39,7 @@ pub struct Outlines<'a> {
     loca: Loca<'a>,
     glyf: Glyf<'a>,
     gvar: Option<Gvar<'a>>,
+    hdmx: Option<Hdmx<'a>>,
     fpgm: &'a [u8],
     prep: &'a [u8],
     cvt_len: u32,
@@ -112,6 +114,7 @@ impl<'a> Outlines<'a> {
             loca: font.loca(None).ok()?,
             glyf: font.glyf().ok()?,
             gvar: font.gvar().ok(),
+            hdmx: font.hdmx().ok(),
             fpgm,
             prep,
             cvt_len,
@@ -231,6 +234,21 @@ impl<'a> Outlines<'a> {
         }
         Ok(())
     }
+
+    fn hdmx_width(&self, ppem: f32, glyph_id: GlyphId) -> Option<u8> {
+        let hdmx = self.hdmx.as_ref()?;
+        let ppem_u8 = ppem as u8;
+        // Make sure our ppem is integral and fits into u8
+        if ppem_u8 as f32 == ppem {
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttgload.c#L1996>
+            hdmx.record_for_size(ppem_u8)?
+                .widths
+                .get(glyph_id.to_u32() as usize)
+                .copied()
+        } else {
+            None
+        }
+    }
 }
 
 trait Scaler {
@@ -290,6 +308,7 @@ pub(crate) struct HarfBuzzScaler<'a> {
     point_count: usize,
     contour_count: usize,
     component_delta_count: usize,
+    ppem: f32,
     scale: F26Dot6,
     is_scaled: bool,
     /// Phantom points. These are 4 extra points appended to the end of an
@@ -318,6 +337,7 @@ impl<'a> HarfBuzzScaler<'a> {
             point_count: 0,
             contour_count: 0,
             component_delta_count: 0,
+            ppem: ppem.unwrap_or_default(),
             scale,
             is_scaled,
             phantom: Default::default(),
@@ -335,6 +355,7 @@ impl<'a> HarfBuzzScaler<'a> {
             self.phantom,
             &mut self.memory.flags[..self.point_count],
             &mut self.memory.contours[..self.contour_count],
+            self.outlines.hdmx_width(self.ppem, glyph_id),
         ))
     }
 }
@@ -347,6 +368,7 @@ pub(crate) struct FreeTypeScaler<'a> {
     point_count: usize,
     contour_count: usize,
     component_delta_count: usize,
+    ppem: f32,
     scale: F26Dot6,
     is_scaled: bool,
     is_hinted: bool,
@@ -378,6 +400,7 @@ impl<'a> FreeTypeScaler<'a> {
             point_count: 0,
             contour_count: 0,
             component_delta_count: 0,
+            ppem: ppem.unwrap_or_default(),
             scale,
             is_scaled,
             is_hinted: false,
@@ -406,6 +429,7 @@ impl<'a> FreeTypeScaler<'a> {
             point_count: 0,
             contour_count: 0,
             component_delta_count: 0,
+            ppem: ppem.unwrap_or_default(),
             scale,
             is_scaled,
             // We don't hint unscaled outlines
@@ -427,6 +451,7 @@ impl<'a> FreeTypeScaler<'a> {
             self.phantom,
             &mut self.memory.flags[..self.point_count],
             &mut self.memory.contours[..self.contour_count],
+            self.outlines.hdmx_width(self.ppem, glyph_id),
         ))
     }
 }
