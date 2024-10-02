@@ -431,7 +431,11 @@ impl HintingInstance {
                     Ok(AdjustedMetrics {
                         has_overlaps: outline.has_overlaps,
                         lsb: Some(scaled_outline.adjusted_lsb().to_f32()),
-                        advance_width: Some(scaled_outline.adjusted_advance_width().to_f32()),
+                        // When hinting is requested, we round the advance
+                        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/ftobjs.c#L889>
+                        advance_width: Some(
+                            scaled_outline.adjusted_advance_width().round().to_f32(),
+                        ),
                     })
                 })
             }

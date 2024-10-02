@@ -1391,4 +1391,44 @@ mod tests {
             .draw(DrawSettings::hinted(&hinting, true), &mut BezPen::default())
             .unwrap();
     }
+
+    #[test]
+    fn empty_glyph_advance_unhinted() {
+        let font = FontRef::new(font_test_data::HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP).unwrap();
+        let outlines = font.outline_glyphs();
+        let coords = [NormalizedCoord::from_f32(0.5)];
+        let gid = font.charmap().map(' ').unwrap();
+        let outline = outlines.get(gid).unwrap();
+        let advance = outline
+            .draw(
+                (Size::new(24.0), LocationRef::new(&coords)),
+                &mut super::pen::NullPen,
+            )
+            .unwrap()
+            .advance_width
+            .unwrap();
+        assert_eq!(advance, 10.796875);
+    }
+
+    #[test]
+    fn empty_glyph_advance_hinted() {
+        let font = FontRef::new(font_test_data::HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP).unwrap();
+        let outlines = font.outline_glyphs();
+        let coords = [NormalizedCoord::from_f32(0.5)];
+        let hinter = HintingInstance::new(
+            &outlines,
+            Size::new(24.0),
+            LocationRef::new(&coords),
+            HintingOptions::default(),
+        )
+        .unwrap();
+        let gid = font.charmap().map(' ').unwrap();
+        let outline = outlines.get(gid).unwrap();
+        let advance = outline
+            .draw(&hinter, &mut super::pen::NullPen)
+            .unwrap()
+            .advance_width
+            .unwrap();
+        assert_eq!(advance, 11.0);
+    }
 }
