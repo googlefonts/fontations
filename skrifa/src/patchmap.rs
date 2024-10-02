@@ -478,8 +478,7 @@ fn decode_format2_codepoints<'a>(
 /// See: <https://w3c.github.io/IFT/Overview.html#font-patch-formats-summary>
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Copy)]
 pub enum PatchEncoding {
-    Brotli,
-    PerTableBrotli { fully_invalidating: bool },
+    TableKeyed { fully_invalidating: bool },
     GlyphKeyed,
 }
 
@@ -487,14 +486,13 @@ impl PatchEncoding {
     fn from_format_number(format: u8) -> Result<Self, ReadError> {
         // Based on https://w3c.github.io/IFT/Overview.html#font-patch-formats-summary
         match format {
-            1 => Ok(Self::Brotli),
-            2 => Ok(Self::PerTableBrotli {
+            1 => Ok(Self::TableKeyed {
                 fully_invalidating: true,
             }),
-            3 => Ok(Self::PerTableBrotli {
+            2 => Ok(Self::TableKeyed {
                 fully_invalidating: false,
             }),
-            4 => Ok(Self::GlyphKeyed),
+            3 => Ok(Self::GlyphKeyed),
             _ => Err(ReadError::MalformedData("Invalid encoding format number.")),
         }
     }
@@ -1213,7 +1211,7 @@ mod tests {
     #[test]
     fn format_2_patch_map_custom_encoding() {
         let mut data = custom_ids_format2();
-        data.write_at("entry[4] encoding", 1u8); // Brotli Full Invalidation.
+        data.write_at("entry[4] encoding", 1u8); // Tabled Keyed Full Invalidation.
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -1234,7 +1232,9 @@ mod tests {
             vec![
                 PatchEncoding::GlyphKeyed,
                 PatchEncoding::GlyphKeyed,
-                PatchEncoding::Brotli,
+                PatchEncoding::TableKeyed {
+                    fully_invalidating: true,
+                },
             ]
         );
     }
