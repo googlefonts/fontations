@@ -12,6 +12,7 @@ members = [
     "fauntlet",
     "klippa",
     "fuzz",
+    "shared-brotli",
 ]
 
 [workspace.package]
@@ -44,6 +45,7 @@ read-fonts = { version = "0.22.2", path = "read-fonts", default-features = false
 # shaping support
 skrifa = { version = "0.22.2", path = "skrifa", default-features = false, features = ["std"] }
 write-fonts = { version = "0.29.0", path = "write-fonts" }
+shared-brotli = { version = "0.1.0", path = "shared-brotli" }
 
 [workspace.metadata.release]
 allow-branch = ["main"]

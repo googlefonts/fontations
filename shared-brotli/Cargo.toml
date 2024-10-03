@@ -1,0 +1,15 @@
+[package]
+name = "shared-brotli"
+version = "0.1.0"
+description = "Wrapper around brotli-sys which allows for decoding shared brotli (https://datatracker.ietf.org/doc/draft-vandevenne-shared-brotli-format/) encoded data."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[package.metadata.docs.rs]
+# To build locally:
+# RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features
+all-features = true
+
+[dependencies]
+brotlic-sys = {version = "0.2.2"}
