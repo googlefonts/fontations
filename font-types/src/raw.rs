@@ -97,6 +97,7 @@ impl<T: Scalar> BigEndian<T> {
     }
 
     /// Convert this raw type to its native representation.
+    #[inline(always)]
     pub fn get(&self) -> T {
         T::from_raw(self.0)
     }
@@ -169,6 +170,7 @@ macro_rules! newtype_scalar {
                 self.0.to_raw()
             }
 
+            #[inline(always)]
             fn from_raw(raw: $raw) -> Self {
                 Self($crate::raw::Scalar::from_raw(raw))
             }
@@ -184,6 +186,7 @@ macro_rules! int_scalar {
                 self.to_be_bytes()
             }
 
+            #[inline(always)]
             fn from_raw(raw: $raw) -> $ty {
                 Self::from_be_bytes(raw)
             }

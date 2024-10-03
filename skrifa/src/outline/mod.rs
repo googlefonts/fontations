@@ -391,7 +391,7 @@ impl<'a> OutlineGlyph<'a> {
                     let (lsb, advance_width) = match path_style {
                         PathStyle::FreeType => {
                             let scaled_outline =
-                                FreeTypeScaler::unhinted(glyf.clone(), outline, buf, ppem, coords)?
+                                FreeTypeScaler::unhinted(glyf, outline, buf, ppem, coords)?
                                     .scale(&outline.glyph, outline.glyph_id)?;
                             scaled_outline.to_path(path_style, pen)?;
                             (
@@ -401,7 +401,7 @@ impl<'a> OutlineGlyph<'a> {
                         }
                         PathStyle::HarfBuzz => {
                             let scaled_outline =
-                                HarfBuzzScaler::unhinted(glyf.clone(), outline, buf, ppem, coords)?
+                                HarfBuzzScaler::unhinted(glyf, outline, buf, ppem, coords)?
                                     .scale(&outline.glyph, outline.glyph_id)?;
                             scaled_outline.to_path(path_style, pen)?;
                             (
@@ -440,9 +440,8 @@ impl<'a> OutlineGlyph<'a> {
         match &self.kind {
             OutlineKind::Glyf(glyf, outline) => {
                 with_glyf_memory(outline, Hinting::None, user_memory, |buf| {
-                    let outline =
-                        FreeTypeScaler::unhinted(glyf.clone(), outline, buf, ppem, coords)?
-                            .scale(&outline.glyph, outline.glyph_id)?;
+                    let outline = FreeTypeScaler::unhinted(glyf, outline, buf, ppem, coords)?
+                        .scale(&outline.glyph, outline.glyph_id)?;
                     sink.try_reserve(outline.points.len())?;
                     let mut contour_start = 0;
                     for contour_end in outline.contours.iter().map(|contour| *contour as usize) {
@@ -642,13 +641,6 @@ impl Debug for OutlineCollectionKind<'_> {
     }
 }
 
-/// Arbitrarily chosen smallish size for stack allocation to avoid the heap
-/// when possible while drawing glyf outlines.
-///
-/// Upcoming work on TrueType hinting will likely adjust this to use bucketed
-/// sizes based on actual data captured from fonts.
-const GLYF_DRAW_STACK_BUFFER_SIZE: usize = 4096;
-
 /// Invokes the callback with a memory buffer suitable for drawing
 /// the given TrueType outline.
 pub(super) fn with_glyf_memory<R>(
@@ -660,15 +652,23 @@ pub(super) fn with_glyf_memory<R>(
     // Wrap in a function and prevent inlining to avoid stack allocation
     // and zeroing if we don't take this code path.
     #[inline(never)]
-    fn stack_mem<R>(mut f: impl FnMut(&mut [u8]) -> R) -> R {
-        f(&mut [0u8; GLYF_DRAW_STACK_BUFFER_SIZE])
+    fn stack_mem<const STACK_SIZE: usize, R>(mut f: impl FnMut(&mut [u8]) -> R) -> R {
+        f(&mut [0u8; STACK_SIZE])
     }
     match memory {
         Some(buf) => f(buf),
         None => {
             let buf_size = outline.required_buffer_size(hinting);
-            if buf_size <= GLYF_DRAW_STACK_BUFFER_SIZE {
-                stack_mem(f)
+            // Use bucketed stack allocations to prevent excessive zeroing of
+            // memory
+            if buf_size <= 512 {
+                stack_mem::<512, _>(f)
+            } else if buf_size <= 1024 {
+                stack_mem::<1024, _>(f)
+            } else if buf_size <= 2048 {
+                stack_mem::<2048, _>(f)
+            } else if buf_size <= 4096 {
+                stack_mem::<4096, _>(f)
             } else {
                 f(&mut vec![0u8; buf_size])
             }
