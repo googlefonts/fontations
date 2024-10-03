@@ -73,15 +73,15 @@ pub(crate) fn to_path<C: PointCoord>(
             return Err(ToPathError::ContourOrder(contour_ix));
         }
         let points = &points[start_ix..=end_ix];
+        if points.is_empty() {
+            continue;
+        }
         let flags = flags
             .get(start_ix..=end_ix)
             .ok_or(ToPathError::PointFlagMismatch {
                 num_points: points.len(),
                 num_flags: flags.len(),
             })?;
-        if points.is_empty() {
-            continue;
-        }
         let last_point = points.last().unwrap();
         let last_flags = flags.last().unwrap();
         let last_point = ContourPoint {
@@ -124,14 +124,14 @@ where
     T: PointCoord,
 {
     fn point_f32(&self) -> Point<f32> {
-        Point::new(self.x, self.y).map(|x| x.to_f32())
+        Point::new(self.x.to_f32(), self.y.to_f32())
     }
 
-    fn midpoint(&self, other: &Self) -> ContourPoint<T> {
-        let mid = Point::new(self.x.midpoint(other.x), self.y.midpoint(other.y));
+    fn midpoint(&self, other: Self) -> ContourPoint<T> {
+        let (x, y) = (self.x.midpoint(other.x), self.y.midpoint(other.y));
         Self {
-            x: mid.x,
-            y: mid.y,
+            x,
+            y,
             flags: other.flags,
         }
     }
@@ -179,7 +179,7 @@ pub(crate) fn contour_to_path<C: PointCoord>(
                     last_point
                 } else {
                     // It's also an off curve, so take implicit midpoint
-                    last_point.midpoint(&first_point)
+                    last_point.midpoint(first_point)
                 }
             }
             PathStyle::HarfBuzz => {
@@ -198,7 +198,7 @@ pub(crate) fn contour_to_path<C: PointCoord>(
                 } else {
                     // It's also an off curve, so take the implicit midpoint
                     trailing_points = [Some((0, first_point)), None];
-                    first_point.midpoint(&next_point)
+                    first_point.midpoint(next_point)
                 }
             }
         }
@@ -209,147 +209,121 @@ pub(crate) fn contour_to_path<C: PointCoord>(
     };
     let point = start_point.point_f32();
     pen.move_to(point.x, point.y);
-    let mut emitter = ContourPathEmitter::default();
-    while let Some((ix, point)) = points.next() {
-        if omit_last && points.peek().is_none() {
-            break;
+    let mut state = PendingState::default();
+    if omit_last {
+        while let Some((ix, point)) = points.next() {
+            if points.peek().is_none() {
+                break;
+            }
+            state.emit(ix, point, pen)?;
         }
-        emitter.emit(ix, point, pen)?;
+    } else {
+        while let Some((ix, point)) = points.next() {
+            state.emit(ix, point, pen)?;
+        }
     }
     for (ix, point) in trailing_points.iter().filter_map(|x| *x) {
-        emitter.emit(ix, point, pen)?;
+        state.emit(ix, point, pen)?;
     }
-    emitter.finish(start_point, pen)?;
+    state.finish(0, start_point, pen)?;
     Ok(())
 }
 
-#[derive(Default)]
-struct ContourPathEmitter<C> {
-    pending: [(usize, ContourPoint<C>); 2],
-    num_pending: usize,
+#[derive(Copy, Clone, Default)]
+enum PendingState<C> {
+    /// No pending points.
+    #[default]
+    Empty,
+    /// Pending off-curve quad point.
+    PendingQuad(ContourPoint<C>),
+    /// Single pending off-curve cubic point.
+    PendingCubic(ContourPoint<C>),
+    /// Two pending off-curve cubic points.
+    TwoPendingCubics(ContourPoint<C>, ContourPoint<C>),
 }
 
-impl<C: PointCoord> ContourPathEmitter<C> {
+impl<C> PendingState<C>
+where
+    C: PointCoord,
+{
+    #[inline(always)]
     fn emit(
         &mut self,
         ix: usize,
         point: ContourPoint<C>,
         pen: &mut impl OutlinePen,
     ) -> Result<(), ToPathError> {
-        if point.flags.is_off_curve_quad() {
-            // Quads can have 0 or 1 buffered point. If there is one, draw a
-            // quad to the implicit oncurve
-            if self.num_pending > 0 {
-                self.quad_to(point, OnCurve::Implicit, pen)?;
+        let flags = point.flags;
+        match *self {
+            Self::Empty => {
+                if flags.is_off_curve_quad() {
+                    *self = Self::PendingQuad(point);
+                } else if flags.is_off_curve_cubic() {
+                    *self = Self::PendingCubic(point);
+                } else {
+                    let p = point.point_f32();
+                    pen.line_to(p.x, p.y);
+                }
             }
-            self.push_off_curve((ix, point));
-        } else if point.flags.is_off_curve_cubic() {
-            // If this is the third consecutive cubic off-curve there's an
-            // implicit oncurve between the last two
-            if self.num_pending > 1 {
-                self.cubic_to(point, OnCurve::Implicit, pen)?;
+            Self::PendingQuad(quad) => {
+                if flags.is_off_curve_quad() {
+                    let c0 = quad.point_f32();
+                    let p = quad.midpoint(point).point_f32();
+                    pen.quad_to(c0.x, c0.y, p.x, p.y);
+                    *self = Self::PendingQuad(point);
+                } else if flags.is_off_curve_cubic() {
+                    return Err(ToPathError::ExpectedQuadOrOnCurve(ix));
+                } else {
+                    let c0 = quad.point_f32();
+                    let p = point.point_f32();
+                    pen.quad_to(c0.x, c0.y, p.x, p.y);
+                    *self = Self::Empty;
+                }
             }
-            self.push_off_curve((ix, point));
-        } else if point.flags.is_on_curve() {
-            // A real on curve! What to draw depends on how many off curves are
-            // pending
-            self.flush(point, pen)?;
+            Self::PendingCubic(cubic) => {
+                if flags.is_off_curve_cubic() {
+                    *self = Self::TwoPendingCubics(cubic, point);
+                } else {
+                    return Err(ToPathError::ExpectedCubic(ix));
+                }
+            }
+            Self::TwoPendingCubics(cubic0, cubic1) => {
+                if flags.is_off_curve_quad() {
+                    return Err(ToPathError::ExpectedCubic(ix));
+                } else if flags.is_off_curve_cubic() {
+                    let c0 = cubic0.point_f32();
+                    let c1 = cubic1.point_f32();
+                    let p = cubic1.midpoint(point).point_f32();
+                    pen.curve_to(c0.x, c0.y, c1.x, c1.y, p.x, p.y);
+                    *self = Self::PendingCubic(point);
+                } else {
+                    let c0 = cubic0.point_f32();
+                    let c1 = cubic1.point_f32();
+                    let p = point.point_f32();
+                    pen.curve_to(c0.x, c0.y, c1.x, c1.y, p.x, p.y);
+                    *self = Self::Empty;
+                }
+            }
         }
         Ok(())
     }
 
     fn finish(
         mut self,
-        start_point: ContourPoint<C>,
+        start_ix: usize,
+        mut start_point: ContourPoint<C>,
         pen: &mut impl OutlinePen,
     ) -> Result<(), ToPathError> {
-        if self.num_pending != 0 {
-            self.flush(start_point, pen)?;
+        match self {
+            Self::Empty => {}
+            _ => {
+                // We always want to end with an explicit on-curve
+                start_point.flags = PointFlags::on_curve();
+                self.emit(start_ix, start_point, pen)?;
+            }
         }
         pen.close();
         Ok(())
-    }
-
-    fn push_off_curve(&mut self, off_curve: (usize, ContourPoint<C>)) {
-        self.pending[self.num_pending] = off_curve;
-        self.num_pending += 1;
-    }
-
-    fn quad_to(
-        &mut self,
-        curr: ContourPoint<C>,
-        oncurve: OnCurve,
-        pen: &mut impl OutlinePen,
-    ) -> Result<(), ToPathError> {
-        let (ix, c0) = self.pending[0];
-        if !c0.flags.is_off_curve_quad() {
-            return Err(ToPathError::ExpectedQuad(ix));
-        }
-        let end = oncurve.endpoint(c0, curr);
-        let c0 = c0.point_f32();
-        pen.quad_to(c0.x, c0.y, end.x, end.y);
-        self.num_pending = 0;
-        Ok(())
-    }
-
-    fn cubic_to(
-        &mut self,
-        curr: ContourPoint<C>,
-        oncurve: OnCurve,
-        pen: &mut impl OutlinePen,
-    ) -> Result<(), ToPathError> {
-        let (ix0, c0) = self.pending[0];
-        if !c0.flags.is_off_curve_cubic() {
-            return Err(ToPathError::ExpectedQuad(ix0));
-        }
-        let (ix1, c1) = self.pending[1];
-        if !c1.flags.is_off_curve_cubic() {
-            return Err(ToPathError::ExpectedCubic(ix1));
-        }
-        let c0 = c0.point_f32();
-        let end = oncurve.endpoint(c1, curr);
-        let c1 = c1.point_f32();
-        pen.curve_to(c0.x, c0.y, c1.x, c1.y, end.x, end.y);
-        self.num_pending = 0;
-        Ok(())
-    }
-
-    fn flush(
-        &mut self,
-        curr: ContourPoint<C>,
-        pen: &mut impl OutlinePen,
-    ) -> Result<(), ToPathError> {
-        match self.num_pending {
-            2 => self.cubic_to(curr, OnCurve::Explicit, pen)?,
-            1 => self.quad_to(curr, OnCurve::Explicit, pen)?,
-            _ => {
-                // only zero should match and that's a line
-                debug_assert!(self.num_pending == 0);
-                let curr = curr.point_f32();
-                pen.line_to(curr.x, curr.y);
-            }
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-enum OnCurve {
-    Implicit,
-    Explicit,
-}
-
-impl OnCurve {
-    #[inline(always)]
-    fn endpoint<C: PointCoord>(
-        &self,
-        last_offcurve: ContourPoint<C>,
-        current: ContourPoint<C>,
-    ) -> Point<f32> {
-        match self {
-            OnCurve::Implicit => last_offcurve.midpoint(&current).point_f32(),
-            OnCurve::Explicit => current.point_f32(),
-        }
     }
 }
 

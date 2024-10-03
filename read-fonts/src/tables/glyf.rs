@@ -89,16 +89,19 @@ impl PointFlags {
     }
 
     /// Returns true if this is an on curve point.
+    #[inline]
     pub const fn is_on_curve(self) -> bool {
         self.0 & Self::ON_CURVE != 0
     }
 
     /// Returns true if this is an off curve quadratic point.
+    #[inline]
     pub const fn is_off_curve_quad(self) -> bool {
         self.0 & Self::CURVE_MASK == 0
     }
 
     /// Returns true if this is an off curve cubic point.
+    #[inline]
     pub const fn is_off_curve_cubic(self) -> bool {
         self.0 & Self::OFF_CURVE_CUBIC != 0
     }
@@ -739,14 +742,17 @@ impl PointCoord for F26Dot6 {
         x.to_f26dot6()
     }
 
+    #[inline]
     fn from_i32(x: i32) -> Self {
         Self::from_i32(x)
     }
 
+    #[inline]    
     fn to_f32(self) -> f32 {
         self.to_f32()
     }
 
+    #[inline]
     fn midpoint(self, other: Self) -> Self {
         // FreeType uses integer division on 26.6 to compute midpoints.
         // See: https://github.com/freetype/freetype/blob/de8b92dd7ec634e9e2b25ef534c54a3537555c11/src/base/ftoutln.c#L123
