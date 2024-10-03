@@ -314,7 +314,7 @@ impl<T: Domain> IntSet<T> {
         };
 
         // If next is <= end then there is at least one value in the input range.
-        return next.to_u32() <= range.end().to_u32();
+        next.to_u32() <= range.end().to_u32()
     }
 
     /// Returns true if this set contains at least one element in 'other'.
