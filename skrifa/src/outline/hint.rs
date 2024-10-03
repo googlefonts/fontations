@@ -418,7 +418,7 @@ impl HintingInstance {
                 }
                 super::with_glyf_memory(outline, Hinting::Embedded, memory, |buf| {
                     let scaled_outline = FreeTypeScaler::hinted(
-                        glyf.clone(),
+                        glyf,
                         outline,
                         buf,
                         ppem,

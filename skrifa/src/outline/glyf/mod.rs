@@ -304,7 +304,7 @@ trait Scaler {
 
 /// f32 all the things. Hold your rounding. No hinting.
 pub(crate) struct HarfBuzzScaler<'a> {
-    outlines: Outlines<'a>,
+    outlines: &'a Outlines<'a>,
     memory: HarfBuzzOutlineMemory<'a>,
     coords: &'a [F2Dot14],
     point_count: usize,
@@ -323,7 +323,7 @@ pub(crate) struct HarfBuzzScaler<'a> {
 
 impl<'a> HarfBuzzScaler<'a> {
     pub(crate) fn unhinted(
-        outlines: Outlines<'a>,
+        outlines: &'a Outlines<'a>,
         outline: &'a Outline,
         buf: &'a mut [u8],
         ppem: Option<f32>,
@@ -364,7 +364,7 @@ impl<'a> HarfBuzzScaler<'a> {
 
 /// F26Dot6 coords, Fixed deltas, and a penchant for rounding
 pub(crate) struct FreeTypeScaler<'a> {
-    outlines: Outlines<'a>,
+    outlines: &'a Outlines<'a>,
     memory: FreeTypeOutlineMemory<'a>,
     coords: &'a [F2Dot14],
     point_count: usize,
@@ -386,7 +386,7 @@ pub(crate) struct FreeTypeScaler<'a> {
 
 impl<'a> FreeTypeScaler<'a> {
     pub(crate) fn unhinted(
-        outlines: Outlines<'a>,
+        outlines: &'a Outlines<'a>,
         outline: &'a Outline,
         buf: &'a mut [u8],
         ppem: Option<f32>,
@@ -413,7 +413,7 @@ impl<'a> FreeTypeScaler<'a> {
     }
 
     pub(crate) fn hinted(
-        outlines: Outlines<'a>,
+        outlines: &'a Outlines<'a>,
         outline: &'a Outline,
         buf: &'a mut [u8],
         ppem: Option<f32>,
@@ -486,7 +486,7 @@ impl<'a> Scaler for FreeTypeScaler<'a> {
     }
 
     fn outlines(&self) -> &Outlines {
-        &self.outlines
+        self.outlines
     }
 
     fn load_empty(&mut self, glyph_id: GlyphId) -> Result<(), DrawError> {
@@ -690,7 +690,7 @@ impl<'a> Scaler for FreeTypeScaler<'a> {
                     is_composite: false,
                     coords: self.coords,
                 };
-                let hint_res = hinter.hint(&self.outlines, &mut input, self.pedantic_hinting);
+                let hint_res = hinter.hint(self.outlines, &mut input, self.pedantic_hinting);
                 if let (Err(e), true) = (hint_res, self.pedantic_hinting) {
                     return Err(e)?;
                 }
@@ -963,7 +963,7 @@ impl<'a> Scaler for FreeTypeScaler<'a> {
                     is_composite: true,
                     coords: self.coords,
                 };
-                let hint_res = hinter.hint(&self.outlines, &mut input, self.pedantic_hinting);
+                let hint_res = hinter.hint(self.outlines, &mut input, self.pedantic_hinting);
                 if let (Err(e), true) = (hint_res, self.pedantic_hinting) {
                     return Err(e)?;
                 }
@@ -1007,7 +1007,7 @@ impl<'a> Scaler for HarfBuzzScaler<'a> {
     }
 
     fn outlines(&self) -> &Outlines {
-        &self.outlines
+        self.outlines
     }
 
     fn load_empty(&mut self, glyph_id: GlyphId) -> Result<(), DrawError> {
@@ -1314,21 +1314,19 @@ mod tests {
     #[test]
     fn empty_glyph_advance() {
         let font = FontRef::new(font_test_data::HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP).unwrap();
-        let outlines = Outlines::new(&OutlinesCommon::new(&font).unwrap()).unwrap();
+        let mut outlines = Outlines::new(&OutlinesCommon::new(&font).unwrap()).unwrap();
         let coords = [F2Dot14::from_f32(0.5)];
         let ppem = Some(24.0);
         let gid = font.charmap().map(' ').unwrap();
         let outline = outlines.outline(gid).unwrap();
         // Make sure this is an empty outline since that's what we're testing
         assert_eq!(outline.points, 0);
-        let scaler =
-            FreeTypeScaler::unhinted(outlines.clone(), &outline, &mut [], ppem, &coords).unwrap();
+        let scaler = FreeTypeScaler::unhinted(&outlines, &outline, &mut [], ppem, &coords).unwrap();
         let scaled = scaler.scale(&outline.glyph, gid).unwrap();
         let advance_hvar = scaled.adjusted_advance_width();
         // Set HVAR table to None to force loading metrics from gvar
-        let mut scaler =
-            FreeTypeScaler::unhinted(outlines, &outline, &mut [], ppem, &coords).unwrap();
-        scaler.outlines.common.hvar = None;
+        outlines.common.hvar = None;
+        let scaler = FreeTypeScaler::unhinted(&outlines, &outline, &mut [], ppem, &coords).unwrap();
         let scaled = scaler.scale(&outline.glyph, gid).unwrap();
         let advance_gvar = scaled.adjusted_advance_width();
         // Make sure we have an advance and that the two are the same
