@@ -218,7 +218,7 @@ pub(crate) fn contour_to_path<C: PointCoord>(
             state.emit(ix, point, pen)?;
         }
     } else {
-        while let Some((ix, point)) = points.next() {
+        for (ix, point) in points {
             state.emit(ix, point, pen)?;
         }
     }
