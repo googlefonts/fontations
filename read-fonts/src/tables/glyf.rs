@@ -747,7 +747,7 @@ impl PointCoord for F26Dot6 {
         Self::from_i32(x)
     }
 
-    #[inline]    
+    #[inline]
     fn to_f32(self) -> f32 {
         self.to_f32()
     }
