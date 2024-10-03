@@ -434,7 +434,7 @@ impl<'a> OutlineGlyph<'a> {
         location: impl Into<LocationRef<'a>>,
         user_memory: Option<&mut [u8]>,
         sink: &mut impl unscaled::UnscaledOutlineSink,
-    ) -> Result<(), DrawError> {
+    ) -> Result<i32, DrawError> {
         let coords = location.into().coords();
         let ppem = None;
         match &self.kind {
@@ -462,7 +462,7 @@ impl<'a> OutlineGlyph<'a> {
                         }
                         contour_start = contour_end + 1;
                     }
-                    Ok(())
+                    Ok(outline.adjusted_advance_width().to_bits() >> 6)
                 })
             }
             OutlineKind::Cff(cff, glyph_id, subfont_ix) => {
@@ -470,7 +470,8 @@ impl<'a> OutlineGlyph<'a> {
                 let mut adapter = unscaled::UnscaledPenAdapter::new(sink);
                 cff.draw(&subfont, *glyph_id, coords, false, &mut adapter)?;
                 adapter.finish()?;
-                Ok(())
+                let advance = cff.common.advance_width(*glyph_id, coords);
+                Ok(advance)
             }
         }
     }

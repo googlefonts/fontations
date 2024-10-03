@@ -90,13 +90,15 @@ impl FreeTypeInstance {
         })
     }
 
-    pub fn outline(&mut self, glyph_id: GlyphId, pen: &mut impl OutlinePen) -> Option<()> {
+    /// Returns the advance width from the glyph slot.
+    pub fn outline(&mut self, glyph_id: GlyphId, pen: &mut impl OutlinePen) -> Option<f32> {
         self.face
             .load_glyph(glyph_id.to_u32(), self.load_flags())
             .ok()?;
+        let is_scaled = !self.load_flags.contains(LoadFlag::NO_SCALE);
         let mut ft_pen = FreeTypePen {
             inner: pen,
-            is_scaled: !self.load_flags.contains(LoadFlag::NO_SCALE),
+            is_scaled,
         };
         let funcs = freetype::freetype_sys::FT_Outline_Funcs {
             move_to: ft_move_to,
@@ -113,7 +115,8 @@ impl FreeTypeInstance {
                 (&mut ft_pen) as *mut FreeTypePen as *mut _,
             );
         }
-        Some(())
+        let advance_factor = if is_scaled { 64.0 } else { 1.0 };
+        Some(self.face.glyph().metrics().horiAdvance as f32 / advance_factor)
     }
 
     fn load_flags(&self) -> LoadFlag {

@@ -514,7 +514,7 @@ impl<'a> Scaler for FreeTypeScaler<'a> {
             }
         } else {
             for (phantom, unscaled) in self.phantom.iter_mut().zip(&unscaled) {
-                *phantom = unscaled.map(F26Dot6::from_bits);
+                *phantom = unscaled.map(F26Dot6::from_i32);
             }
         }
         Ok(())
