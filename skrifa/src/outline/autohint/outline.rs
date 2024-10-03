@@ -153,13 +153,15 @@ pub(super) struct Outline {
     pub orientation: Option<Orientation>,
     pub points: SmallVec<Point, MAX_INLINE_POINTS>,
     pub contours: SmallVec<Contour, MAX_INLINE_CONTOURS>,
+    pub advance: i32,
 }
 
 impl Outline {
     /// Fills the outline from the given glyph.
     pub fn fill(&mut self, glyph: &OutlineGlyph, coords: &[F2Dot14]) -> Result<(), DrawError> {
         self.clear();
-        glyph.draw_unscaled(LocationRef::new(coords), None, self)?;
+        let advance = glyph.draw_unscaled(LocationRef::new(coords), None, self)?;
+        self.advance = advance;
         self.units_per_em = glyph.units_per_em() as i32;
         // Heuristic value
         let near_limit = 20 * self.units_per_em / 2048;
@@ -190,6 +192,7 @@ impl Outline {
         self.units_per_em = 0;
         self.points.clear();
         self.contours.clear();
+        self.advance = 0;
     }
 
     pub fn to_path(

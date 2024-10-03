@@ -122,7 +122,7 @@ impl Instance {
         outline.fill(glyph, coords)?;
         let hinted_metrics =
             super::latin::hint_outline(&mut outline, &metrics, &scale, Some(style));
-        let h_advance = common.advance_width(glyph_id, coords);
+        let h_advance = outline.advance;
         let mut pp1x = 0;
         let mut pp2x = fixed_mul(h_advance, hinted_metrics.x_scale);
         let is_light = self.target.is_light() || self.target.preserve_linear_metrics();
@@ -136,7 +136,7 @@ impl Instance {
                 let old_lsb = edge_metrics.left_opos;
                 let new_lsb = edge_metrics.left_pos;
                 let mut pp1x_uh = new_lsb - old_lsb;
-                let mut pp2x_uh = edge_metrics.right_opos + old_rsb;
+                let mut pp2x_uh = edge_metrics.right_pos + old_rsb;
                 if old_lsb < 24 {
                     pp1x_uh -= 8;
                 }
@@ -177,7 +177,7 @@ impl Instance {
         Ok(AdjustedMetrics {
             has_overlaps: glyph.has_overlaps().unwrap_or_default(),
             lsb: None,
-            advance_width: Some(F26Dot6::from_bits(advance).to_f32()),
+            advance_width: Some(F26Dot6::from_bits(pix_round(advance)).to_f32()),
         })
     }
 }

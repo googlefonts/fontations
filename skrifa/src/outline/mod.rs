@@ -434,7 +434,7 @@ impl<'a> OutlineGlyph<'a> {
         location: impl Into<LocationRef<'a>>,
         user_memory: Option<&mut [u8]>,
         sink: &mut impl unscaled::UnscaledOutlineSink,
-    ) -> Result<(), DrawError> {
+    ) -> Result<i32, DrawError> {
         let coords = location.into().coords();
         let ppem = None;
         match &self.kind {
@@ -462,7 +462,7 @@ impl<'a> OutlineGlyph<'a> {
                         }
                         contour_start = contour_end + 1;
                     }
-                    Ok(())
+                    Ok(outline.adjusted_advance_width().to_bits() >> 6)
                 })
             }
             OutlineKind::Cff(cff, glyph_id, subfont_ix) => {
@@ -470,7 +470,8 @@ impl<'a> OutlineGlyph<'a> {
                 let mut adapter = unscaled::UnscaledPenAdapter::new(sink);
                 cff.draw(&subfont, *glyph_id, coords, false, &mut adapter)?;
                 adapter.finish()?;
-                Ok(())
+                let advance = cff.common.advance_width(*glyph_id, coords);
+                Ok(advance)
             }
         }
     }
@@ -1390,5 +1391,45 @@ mod tests {
         glyph
             .draw(DrawSettings::hinted(&hinting, true), &mut BezPen::default())
             .unwrap();
+    }
+
+    #[test]
+    fn empty_glyph_advance_unhinted() {
+        let font = FontRef::new(font_test_data::HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP).unwrap();
+        let outlines = font.outline_glyphs();
+        let coords = [NormalizedCoord::from_f32(0.5)];
+        let gid = font.charmap().map(' ').unwrap();
+        let outline = outlines.get(gid).unwrap();
+        let advance = outline
+            .draw(
+                (Size::new(24.0), LocationRef::new(&coords)),
+                &mut super::pen::NullPen,
+            )
+            .unwrap()
+            .advance_width
+            .unwrap();
+        assert_eq!(advance, 10.796875);
+    }
+
+    #[test]
+    fn empty_glyph_advance_hinted() {
+        let font = FontRef::new(font_test_data::HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP).unwrap();
+        let outlines = font.outline_glyphs();
+        let coords = [NormalizedCoord::from_f32(0.5)];
+        let hinter = HintingInstance::new(
+            &outlines,
+            Size::new(24.0),
+            LocationRef::new(&coords),
+            HintingOptions::default(),
+        )
+        .unwrap();
+        let gid = font.charmap().map(' ').unwrap();
+        let outline = outlines.get(gid).unwrap();
+        let advance = outline
+            .draw(&hinter, &mut super::pen::NullPen)
+            .unwrap()
+            .advance_width
+            .unwrap();
+        assert_eq!(advance, 11.0);
     }
 }

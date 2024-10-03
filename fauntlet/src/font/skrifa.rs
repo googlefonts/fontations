@@ -60,20 +60,21 @@ impl<'a> SkrifaInstance<'a> {
             .advance_width(glyph_id)
     }
 
+    /// Returns the scaler adjusted advance width when available.
     pub fn outline(
         &mut self,
         glyph_id: GlyphId,
         pen: &mut impl OutlinePen,
-    ) -> Result<(), DrawError> {
+    ) -> Result<Option<f32>, DrawError> {
         let outline = self
             .outlines
             .get(glyph_id)
             .ok_or(DrawError::GlyphNotFound(glyph_id))?;
-        if let Some(hinter) = self.hinter.as_ref() {
-            outline.draw(DrawSettings::hinted(hinter, false), pen)?;
+        let metrics = if let Some(hinter) = self.hinter.as_ref() {
+            outline.draw(DrawSettings::hinted(hinter, false), pen)?
         } else {
-            outline.draw((self.size, self.coords.as_slice()), pen)?;
-        }
-        Ok(())
+            outline.draw((self.size, self.coords.as_slice()), pen)?
+        };
+        Ok(metrics.advance_width)
     }
 }

@@ -262,6 +262,7 @@ trait Scaler {
         tsb: i32,
         vadvance: i32,
     );
+    fn load_empty(&mut self, glyph_id: GlyphId) -> Result<(), DrawError>;
     fn load_simple(&mut self, glyph: &SimpleGlyph, glyph_id: GlyphId) -> Result<(), DrawError>;
     fn load_composite(
         &mut self,
@@ -279,12 +280,10 @@ trait Scaler {
         if recurse_depth > GLYF_COMPOSITE_RECURSION_LIMIT {
             return Err(DrawError::RecursionLimitExceeded(glyph_id));
         }
-        let glyph = match &glyph {
-            Some(glyph) => glyph,
-            // This is a valid empty glyph
-            None => return Ok(()),
+        let bounds = match &glyph {
+            Some(glyph) => [glyph.x_min(), glyph.x_max(), glyph.y_min(), glyph.y_max()],
+            _ => [0; 4],
         };
-        let bounds = [glyph.x_min(), glyph.x_max(), glyph.y_min(), glyph.y_max()];
         let outlines = self.outlines();
         let coords: &[F2Dot14] = self.coords();
         let lsb = outlines.common.lsb(glyph_id, coords);
@@ -294,8 +293,11 @@ trait Scaler {
         let vadvance = ascent - descent;
         self.setup_phantom_points(bounds, lsb, advance, tsb, vadvance);
         match glyph {
-            Glyph::Simple(simple) => self.load_simple(simple, glyph_id),
-            Glyph::Composite(composite) => self.load_composite(composite, glyph_id, recurse_depth),
+            Some(Glyph::Simple(simple)) => self.load_simple(simple, glyph_id),
+            Some(Glyph::Composite(composite)) => {
+                self.load_composite(composite, glyph_id, recurse_depth)
+            }
+            None => self.load_empty(glyph_id),
         }
     }
 }
@@ -485,6 +487,37 @@ impl<'a> Scaler for FreeTypeScaler<'a> {
 
     fn outlines(&self) -> &Outlines {
         &self.outlines
+    }
+
+    fn load_empty(&mut self, glyph_id: GlyphId) -> Result<(), DrawError> {
+        // Roughly corresponds to the FreeType code at
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttgload.c#L1572>
+        let scale = self.scale;
+        let mut unscaled = self.phantom.map(|point| point.map(|x| x.to_bits()));
+        if self.outlines.common.hvar.is_none()
+            && self.outlines.gvar.is_some()
+            && !self.coords.is_empty()
+        {
+            if let Ok(deltas) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
+                &self.outlines.glyf,
+                &self.outlines.loca,
+                self.coords,
+                glyph_id,
+            ) {
+                unscaled[0].x += deltas[0].to_i32();
+                unscaled[1].x += deltas[1].to_i32();
+            }
+        }
+        if self.is_scaled {
+            for (phantom, unscaled) in self.phantom.iter_mut().zip(&unscaled) {
+                *phantom = unscaled.map(F26Dot6::from_bits) * scale;
+            }
+        } else {
+            for (phantom, unscaled) in self.phantom.iter_mut().zip(&unscaled) {
+                *phantom = unscaled.map(F26Dot6::from_i32);
+            }
+        }
+        Ok(())
     }
 
     fn load_simple(&mut self, glyph: &SimpleGlyph, glyph_id: GlyphId) -> Result<(), DrawError> {
@@ -977,6 +1010,37 @@ impl<'a> Scaler for HarfBuzzScaler<'a> {
         &self.outlines
     }
 
+    fn load_empty(&mut self, glyph_id: GlyphId) -> Result<(), DrawError> {
+        // HB doesn't have an equivalent so this version just copies the
+        // FreeType version above but changed to use floating point
+        let scale = self.scale.to_f32();
+        let mut unscaled = self.phantom;
+        if self.outlines.common.hvar.is_none()
+            && self.outlines.gvar.is_some()
+            && !self.coords.is_empty()
+        {
+            if let Ok(deltas) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
+                &self.outlines.glyf,
+                &self.outlines.loca,
+                self.coords,
+                glyph_id,
+            ) {
+                unscaled[0].x += deltas[0].to_f32();
+                unscaled[1].x += deltas[1].to_f32();
+            }
+        }
+        if self.is_scaled {
+            for (phantom, unscaled) in self.phantom.iter_mut().zip(&unscaled) {
+                *phantom = *unscaled * scale;
+            }
+        } else {
+            for (phantom, unscaled) in self.phantom.iter_mut().zip(&unscaled) {
+                *phantom = *unscaled;
+            }
+        }
+        Ok(())
+    }
+
     fn load_simple(&mut self, glyph: &SimpleGlyph, glyph_id: GlyphId) -> Result<(), DrawError> {
         use DrawError::InsufficientMemory;
         // Compute the ranges for our point/flag buffers and slice them.
@@ -1214,6 +1278,7 @@ fn map_point(transform: [f32; 6], p: Point<f32>) -> Point<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MetadataProvider;
     use read_fonts::{FontRef, TableProvider};
 
     #[test]
@@ -1244,5 +1309,30 @@ mod tests {
         let outlines = Outlines::new(&OutlinesCommon::new(&font).unwrap()).unwrap();
         // so let's use it
         assert!(outlines.prefer_interpreter());
+    }
+
+    #[test]
+    fn empty_glyph_advance() {
+        let font = FontRef::new(font_test_data::HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP).unwrap();
+        let outlines = Outlines::new(&OutlinesCommon::new(&font).unwrap()).unwrap();
+        let coords = [F2Dot14::from_f32(0.5)];
+        let ppem = Some(24.0);
+        let gid = font.charmap().map(' ').unwrap();
+        let outline = outlines.outline(gid).unwrap();
+        // Make sure this is an empty outline since that's what we're testing
+        assert_eq!(outline.points, 0);
+        let scaler =
+            FreeTypeScaler::unhinted(outlines.clone(), &outline, &mut [], ppem, &coords).unwrap();
+        let scaled = scaler.scale(&outline.glyph, gid).unwrap();
+        let advance_hvar = scaled.adjusted_advance_width();
+        // Set HVAR table to None to force loading metrics from gvar
+        let mut scaler =
+            FreeTypeScaler::unhinted(outlines, &outline, &mut [], ppem, &coords).unwrap();
+        scaler.outlines.common.hvar = None;
+        let scaled = scaler.scale(&outline.glyph, gid).unwrap();
+        let advance_gvar = scaled.adjusted_advance_width();
+        // Make sure we have an advance and that the two are the same
+        assert!(advance_hvar != F26Dot6::ZERO);
+        assert_eq!(advance_hvar, advance_gvar);
     }
 }

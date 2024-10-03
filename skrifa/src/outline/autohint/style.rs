@@ -197,6 +197,17 @@ impl GlyphStyleMap {
         if need_hani {
             map.use_style(StyleClass::HANI);
         }
+        // Step 5: Mark ASCII digits
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afglobal.c#L251>
+        for digit_char in '0'..='9' {
+            if let Some(style) = shaper
+                .charmap()
+                .map(digit_char)
+                .and_then(|gid| map.styles.get_mut(gid.to_u32() as usize))
+            {
+                style.0 |= GlyphStyle::DIGIT;
+            }
+        }
         map
     }
 
