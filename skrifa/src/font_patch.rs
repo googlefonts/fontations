@@ -21,32 +21,55 @@ use shared_brotli_patch_decoder::{shared_brotli_decode, DecodeError};
 use std::collections::BTreeSet;
 use write_fonts::FontBuilder;
 
-pub fn apply_patch(
-    font: &FontRef,
-    compatibility_id: &[u32; 4],
-    patch_data: &[u8],
-    encoding: PatchEncoding,
-) -> Result<Vec<u8>, ReadError> {
-    // TODO(garretrieger): Return a custom error type instead of ReadError?
-    let patch = match encoding {
-        PatchEncoding::TableKeyed { .. } => parse_per_table_brotli_patch(patch_data)?,
-        PatchEncoding::GlyphKeyed => {
-            todo!()
-        }
-    };
-
-    patch.apply(font, compatibility_id)
+pub trait IncrementalFontPatchBase {
+    fn apply_patch(
+        &self,
+        compatibility_id: &[u32; 4],
+        patch_data: &[u8],
+        encoding: PatchEncoding,
+    ) -> Result<Vec<u8>, ReadError>;
 }
 
-fn parse_per_table_brotli_patch(patch_data: &[u8]) -> Result<impl FontPatch + '_, ReadError> {
-    TableKeyedPatch::read(FontData::new(patch_data))
-}
-
-trait FontPatch {
+pub trait IncrementalFontPatch {
     fn apply(&self, font: &FontRef, compatibility_id: &[u32; 4]) -> Result<Vec<u8>, ReadError>;
 }
 
-impl<'a> FontPatch for TableKeyedPatch<'a> {
+impl IncrementalFontPatchBase for FontRef<'_> {
+    fn apply_patch(
+        &self,
+        compatibility_id: &[u32; 4],
+        patch_data: &[u8],
+        encoding: PatchEncoding,
+    ) -> Result<Vec<u8>, ReadError> {
+        // TODO(garretrieger): Return a custom error type instead of ReadError?
+        let patch = match encoding {
+            PatchEncoding::TableKeyed { .. } => parse_table_keyed_patch(patch_data)?,
+            PatchEncoding::GlyphKeyed => {
+                todo!()
+            }
+        };
+
+        patch.apply(self, compatibility_id)
+    }
+}
+
+impl IncrementalFontPatchBase for &[u8] {
+    fn apply_patch(
+        &self,
+        compatibility_id: &[u32; 4],
+        patch_data: &[u8],
+        encoding: PatchEncoding,
+    ) -> Result<Vec<u8>, ReadError> {
+        let font_ref = FontRef::new(self)?;
+        font_ref.apply_patch(compatibility_id, patch_data, encoding)
+    }
+}
+
+fn parse_table_keyed_patch(patch_data: &[u8]) -> Result<impl IncrementalFontPatch + '_, ReadError> {
+    TableKeyedPatch::read(FontData::new(patch_data))
+}
+
+impl IncrementalFontPatch for TableKeyedPatch<'_> {
     fn apply(&self, font: &FontRef, compatibility_id: &[u32; 4]) -> Result<Vec<u8>, ReadError> {
         if self.compatibility_id() != compatibility_id {
             return Err(ReadError::ValidationError);
@@ -181,11 +204,7 @@ mod tests {
 
     #[test]
     fn table_keyed_patch_test() {
-        let font = test_font();
-        let font = FontRef::new(&font).unwrap();
-
-        let r = apply_patch(
-            &font,
+        let r = test_font().as_slice().apply_patch(
             &[1, 2, 3, 4],
             table_keyed_patch().as_slice(),
             PatchEncoding::TableKeyed {
@@ -214,11 +233,7 @@ mod tests {
 
     #[test]
     fn noop_table_keyed_patch_test() {
-        let font = test_font();
-        let font = FontRef::new(&font).unwrap();
-
-        let r = apply_patch(
-            &font,
+        let r = test_font().as_slice().apply_patch(
             &[1, 2, 3, 4],
             noop_table_keyed_patch().as_slice(),
             PatchEncoding::TableKeyed {
@@ -245,13 +260,9 @@ mod tests {
 
     #[test]
     fn table_keyed_patch_compat_id_mismatch() {
-        let font = test_font();
-        let font = FontRef::new(&font).unwrap();
-
         assert_eq!(
             Err(ReadError::ValidationError),
-            apply_patch(
-                &font,
+            test_font().as_slice().apply_patch(
                 &[1, 2, 2, 4],
                 table_keyed_patch().as_slice(),
                 PatchEncoding::TableKeyed {
@@ -263,17 +274,13 @@ mod tests {
 
     #[test]
     fn table_keyed_patch_bad_top_level_tag() {
-        let font = test_font();
-        let font = FontRef::new(&font).unwrap();
-
         let mut patch = table_keyed_patch();
         patch.write_at("tag", Tag::new(b"ifgk"));
         let patch = patch.as_slice();
 
         assert_eq!(
             Err(ReadError::ValidationError),
-            apply_patch(
-                &font,
+            test_font().as_slice().apply_patch(
                 &[1, 2, 3, 4],
                 patch,
                 PatchEncoding::TableKeyed {
@@ -285,17 +292,13 @@ mod tests {
 
     #[test]
     fn table_keyed_ignore_duplicates() {
-        let font = test_font();
-        let font = FontRef::new(&font).unwrap();
-
         // add a duplicate entry requesting dropping of tab2,
         // should be ignored.
         let mut patch = table_keyed_patch();
         patch.write_at("patch[2]", Tag::new(b"tab2"));
         let patch = patch.as_slice();
 
-        let r = apply_patch(
-            &font,
+        let r = test_font().as_slice().apply_patch(
             &[1, 2, 3, 4],
             patch,
             PatchEncoding::TableKeyed {
@@ -328,9 +331,6 @@ mod tests {
 
     #[test]
     fn table_keyed_patch_unsorted_offsets() {
-        let font = test_font();
-        let font = FontRef::new(&font).unwrap();
-
         // reorder the offsets
         let mut patch = table_keyed_patch();
 
@@ -346,8 +346,7 @@ mod tests {
             Err(ReadError::MalformedData(
                 "Patch offsets are not in sorted order."
             )),
-            apply_patch(
-                &font,
+            test_font().as_slice().apply_patch(
                 &[1, 2, 3, 4],
                 patch,
                 PatchEncoding::TableKeyed {
@@ -359,9 +358,6 @@ mod tests {
 
     #[test]
     fn table_keyed_patch_out_of_bounds_offsets() {
-        let font = test_font();
-        let font = FontRef::new(&font).unwrap();
-
         // set last offset out of bounds
         let mut patch = table_keyed_patch();
         let offset = (patch.offset_for("end") + 5) as u32;
@@ -371,8 +367,7 @@ mod tests {
 
         assert_eq!(
             Err(ReadError::OutOfBounds),
-            apply_patch(
-                &font,
+            test_font().as_slice().apply_patch(
                 &[1, 2, 3, 4],
                 patch,
                 PatchEncoding::TableKeyed {
@@ -384,16 +379,12 @@ mod tests {
 
     #[test]
     fn table_keyed_patch_drop_and_replace() {
-        let font = test_font();
-        let font = FontRef::new(&font).unwrap();
-
         let mut patch = table_keyed_patch();
         patch.write_at("flags[2]", 3u8);
         let patch = patch.as_slice();
 
         // When DROP and REPLACE are both set DROP takes priority.
-        let r = apply_patch(
-            &font,
+        let r = test_font().as_slice().apply_patch(
             &[1, 2, 3, 4],
             patch,
             PatchEncoding::TableKeyed {
@@ -422,9 +413,6 @@ mod tests {
 
     #[test]
     fn table_keyed_patch_missing_table() {
-        let font = test_font();
-        let font = FontRef::new(&font).unwrap();
-
         let mut patch = table_keyed_patch();
         patch.write_at("flags[1]", 0u8);
         patch.write_at("patch[1]", Tag::new(b"tab5"));
@@ -432,8 +420,7 @@ mod tests {
 
         assert_eq!(
             Err(ReadError::ValidationError),
-            apply_patch(
-                &font,
+            test_font().as_slice().apply_patch(
                 &[1, 2, 3, 4],
                 patch,
                 PatchEncoding::TableKeyed {
@@ -445,15 +432,11 @@ mod tests {
 
     #[test]
     fn table_keyed_replace_missing_table() {
-        let font = test_font();
-        let font = FontRef::new(&font).unwrap();
-
         let mut patch = table_keyed_patch();
         patch.write_at("patch[1]", Tag::new(b"tab5"));
         let patch = patch.as_slice();
 
-        let r = apply_patch(
-            &font,
+        let r = test_font().as_slice().apply_patch(
             &[1, 2, 3, 4],
             patch,
             PatchEncoding::TableKeyed {
@@ -486,15 +469,11 @@ mod tests {
 
     #[test]
     fn table_keyed_drop_missing_table() {
-        let font = test_font();
-        let font = FontRef::new(&font).unwrap();
-
         let mut patch = table_keyed_patch();
         patch.write_at("patch[2]", Tag::new(b"tab5"));
         let patch = patch.as_slice();
 
-        let r = apply_patch(
-            &font,
+        let r = test_font().as_slice().apply_patch(
             &[1, 2, 3, 4],
             patch,
             PatchEncoding::TableKeyed {
@@ -527,17 +506,13 @@ mod tests {
 
     #[test]
     fn table_keyed_patch_uncompressed_len_too_small() {
-        let font = test_font();
-        let font = FontRef::new(&font).unwrap();
-
         let mut patch = table_keyed_patch();
         patch.write_at("decompressed_len[0]", 28u32);
         let patch = patch.as_slice();
 
         assert_eq!(
             Err(ReadError::OutOfBounds),
-            apply_patch(
-                &font,
+            test_font().as_slice().apply_patch(
                 &[1, 2, 3, 4],
                 patch,
                 PatchEncoding::TableKeyed {
