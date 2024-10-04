@@ -1718,7 +1718,7 @@ impl<'a> TableKeyedPatch<'a> {
     }
 
     /// A dynamically resolving wrapper for [`patch_offsets`][Self::patch_offsets].
-    pub fn patchs(&self) -> ArrayOfOffsets<'a, TablePatch<'a>, Offset32> {
+    pub fn patches(&self) -> ArrayOfOffsets<'a, TablePatch<'a>, Offset32> {
         let data = self.data;
         let offsets = self.patch_offsets();
         ArrayOfOffsets::new(offsets, data, ())
