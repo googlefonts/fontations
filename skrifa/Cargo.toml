@@ -23,14 +23,14 @@ traversal = ["std", "read-fonts/experimental_traverse"]
 # we want the ability to disable it for testing against FreeType.
 autohint_shaping = []
 libm = ["dep:core_maths", "read-fonts/libm"]
-ift = ["read-fonts/std", "dep:write-fonts", "dep:shared-brotli"]
+ift = ["read-fonts/std", "dep:write-fonts", "dep:shared-brotli-patch-decoder"]
 
 [dependencies]
 read-fonts = { workspace = true, default-features = false }
 write-fonts = { workspace = true, optional = true }
 core_maths = { workspace = true, optional = true }
 bytemuck = { workspace = true }
-shared-brotli = { workspace = true, optional = true }
+shared-brotli-patch-decoder = { workspace = true, optional = true }
 
 [dev-dependencies]
 font-test-data = { workspace = true }

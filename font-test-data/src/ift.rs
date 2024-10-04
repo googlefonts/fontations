@@ -493,23 +493,23 @@ pub fn table_keyed_patch() -> BeBuffer {
         // patch[0]
         {(Tag::new(b"tab1")): "patch[0]"},
         0u8,       // flags
-        29u32,     // max decompressed length
+        {29u32: "decompressed_len[0]"},     // max decompressed length
         // brotli stream (w/ shared dict)
         [0xa1, 0xe0, 0x00, 0xc0, 0x2f, 0x3a, 0x38, 0xf4, 0x01, 0xd1, 0xaf, 0x54, 0x84, 0x14, 0x71,
          0x2a, 0x80, 0x04, 0xa2, 0x1c, 0xd3, 0xdd, 0x07u8],
 
          // patch[1]
         {(Tag::new(b"tab2")): "patch[1]"},
-        1u8,       // flags (REPLACEMENT)
-        29u32,     // max decompressed length
-        // brotli stream (w/ shared dict)
-        [0xa1, 0xe0, 0x00, 0xc0, 0x2f, 0x96, 0x1c, 0xf3, 0x03, 0xb1, 0xcf, 0x45, 0x95, 0x22, 0x4a,
-         0xc5, 0x03, 0x21, 0xb2, 0x9a, 0x58, 0xd4, 0x7c, 0xf6, 0x1e, 0x00u8],
+        {1u8: "flags[1]"},  // flags (REPLACEMENT)
+        30u32,              // max decompressed length
+        // brotli stream (w/o shared dict)
+        [0xa1, 0xe8, 0x00, 0xc0, 0xef, 0x48, 0x9d, 0xfa, 0xdc, 0xf1, 0xc2, 0xac, 0xc5, 0xde, 0xe4, 0xf4,
+         0xb4, 0x02, 0x48, 0x98, 0x98, 0x52, 0x64, 0xa8, 0x50, 0x20, 0x29, 0x75, 0x0bu8],
 
          // patch[2]
         {(Tag::new(b"tab3")): "patch[2]"},
-        2u8,           // flags (DROP)
-        {0u32: "end"}  // max decompressed length
+        {2u8: "flags[2]"}, // flags (DROP)
+        {0u32: "end"}      // max decompressed length
     };
 
     let offset = buffer.offset_for("patch[0]") as u32;
@@ -525,4 +525,17 @@ pub fn table_keyed_patch() -> BeBuffer {
     buffer.write_at("patch_off[3]", offset);
 
     buffer
+}
+
+// Format specification: https://w3c.github.io/IFT/Overview.html#table-keyed
+pub fn noop_table_keyed_patch() -> BeBuffer {
+    be_buffer! {
+        {(Tag::new(b"iftk")): "tag"},
+        0u32,                 // reserved
+        [1, 2, 3, 4u32],       // compat id
+        0u16,                 // patch count
+
+        // patch_offsets[1]
+        {0u32: "patch_off[0]"}
+    }
 }
