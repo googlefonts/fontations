@@ -22,6 +22,12 @@ use std::collections::BTreeSet;
 use write_fonts::FontBuilder;
 
 pub trait IncrementalFontPatchBase {
+    /// Apply an incremental font patch (<https://w3c.github.io/IFT/Overview.html#font-patch-formats>)
+    ///
+    /// Applies the patch to this base. In the base the patch is associated with the supplied
+    /// compatibility_id and has the specified encoding.
+    ///
+    /// Returns the byte data for the new font produced as a result of the patch application.
     fn apply_patch(
         &self,
         compatibility_id: &[u32; 4],
@@ -31,6 +37,11 @@ pub trait IncrementalFontPatchBase {
 }
 
 pub trait IncrementalFontPatch {
+    /// Applies this patch to the given font.
+    ///
+    /// In the font this patch is associated with the supplied compatibility_id.
+    ///
+    /// Returns the byte data for the new font produced as a result of the patch application.
     fn apply(&self, font: &FontRef, compatibility_id: &[u32; 4]) -> Result<Vec<u8>, ReadError>;
 }
 

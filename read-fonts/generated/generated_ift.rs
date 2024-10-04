@@ -1640,7 +1640,7 @@ impl<'a> std::fmt::Debug for IdStringData<'a> {
     }
 }
 
-/// [Per Table Brotli Patch](https://w3c.github.io/IFT/Overview.html#per-table-brotli)
+/// [Table Keyed Patch](https://w3c.github.io/IFT/Overview.html#table-keyed)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct TableKeyedPatchMarker {
@@ -1692,7 +1692,7 @@ impl<'a> FontRead<'a> for TableKeyedPatch<'a> {
     }
 }
 
-/// [Per Table Brotli Patch](https://w3c.github.io/IFT/Overview.html#per-table-brotli)
+/// [Table Keyed Patch](https://w3c.github.io/IFT/Overview.html#table-keyed)
 pub type TableKeyedPatch<'a> = TableRef<'a, TableKeyedPatchMarker>;
 
 impl<'a> TableKeyedPatch<'a> {
