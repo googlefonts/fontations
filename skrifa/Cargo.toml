@@ -26,7 +26,6 @@ libm = ["dep:core_maths", "read-fonts/libm"]
 
 [dependencies]
 read-fonts = { workspace = true, default-features = false }
-write-fonts = { workspace = true, optional = true }
 core_maths = { workspace = true, optional = true }
 bytemuck = { workspace = true }
 
