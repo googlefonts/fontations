@@ -220,7 +220,7 @@ table IdStringData {
   id_data: [u8],
 }
 
-/// [Per Table Brotli Patch](https://w3c.github.io/IFT/Overview.html#per-table-brotli)
+/// [Table Keyed Patch](https://w3c.github.io/IFT/Overview.html#table-keyed)
 table TableKeyedPatch {
   format: Tag,
   #[skip_getter]
