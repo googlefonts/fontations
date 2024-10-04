@@ -63,7 +63,7 @@ impl<'a> FontPatch for TableKeyedPatch<'a> {
             let i = i as usize;
             let next = i + 1;
 
-            let table_patch = self.patchs().get(i)?;
+            let table_patch = self.patches().get(i)?;
             let (Some(offset), Some(next_offset)) =
                 (self.patch_offsets().get(i), self.patch_offsets().get(next))
             else {

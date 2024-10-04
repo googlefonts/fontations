@@ -861,7 +861,7 @@ pub struct TableKeyedPatch {
     /// Unique ID that identifies compatible patches.
     pub compatibility_id: Vec<u32>,
     pub patches_count: u16,
-    pub patchs: Vec<OffsetMarker<TablePatch, WIDTH_32>>,
+    pub patches: Vec<OffsetMarker<TablePatch, WIDTH_32>>,
 }
 
 impl TableKeyedPatch {
@@ -870,13 +870,13 @@ impl TableKeyedPatch {
         format: Tag,
         compatibility_id: Vec<u32>,
         patches_count: u16,
-        patchs: Vec<TablePatch>,
+        patches: Vec<TablePatch>,
     ) -> Self {
         Self {
             format,
             compatibility_id: compatibility_id.into_iter().map(Into::into).collect(),
             patches_count,
-            patchs: patchs.into_iter().map(Into::into).collect(),
+            patches: patches.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -888,7 +888,7 @@ impl FontWrite for TableKeyedPatch {
         (0 as u32).write_into(writer);
         self.compatibility_id.write_into(writer);
         self.patches_count.write_into(writer);
-        self.patchs.write_into(writer);
+        self.patches.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("TableKeyedPatch")
@@ -898,8 +898,8 @@ impl FontWrite for TableKeyedPatch {
 impl Validate for TableKeyedPatch {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("TableKeyedPatch", |ctx| {
-            ctx.in_field("patchs", |ctx| {
-                self.patchs.validate_impl(ctx);
+            ctx.in_field("patches", |ctx| {
+                self.patches.validate_impl(ctx);
             });
         })
     }
@@ -912,7 +912,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::TableKeyedPatch<'a>> for TableKeyed
             format: obj.format(),
             compatibility_id: obj.compatibility_id().to_owned_obj(offset_data),
             patches_count: obj.patches_count(),
-            patchs: obj.patchs().to_owned_table(),
+            patches: obj.patches().to_owned_table(),
         }
     }
 }
