@@ -853,7 +853,7 @@ impl<'a> FontRead<'a> for IdStringData {
     }
 }
 
-/// [Per Table Brotli Patch](https://w3c.github.io/IFT/Overview.html#per-table-brotli)
+/// [Table Keyed Patch](https://w3c.github.io/IFT/Overview.html#table-keyed)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TableKeyedPatch {
