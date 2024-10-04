@@ -46,7 +46,7 @@ impl std::error::Error for DecodeError {}
 pub fn shared_brotli_decode(
     encoded: &[u8],
     shared_dictionary: Option<&[u8]>,
-    max_uncompressed_length: u32,
+    max_uncompressed_length: usize,
 ) -> Result<Vec<u8>, DecodeError> {
     let decoder = unsafe { BrotliDecoderCreateInstance(None, None, ptr::null_mut()) };
     if decoder.is_null() {
@@ -70,7 +70,7 @@ pub fn shared_brotli_decode(
         }
     }
 
-    let mut sink = vec![0u8; max_uncompressed_length as usize];
+    let mut sink = vec![0u8; max_uncompressed_length];
 
     let mut next_in = encoded.as_ptr();
     let mut available_in = encoded.len();
@@ -159,11 +159,7 @@ mod tests {
     fn brotli_decode_with_shared_dict() {
         assert_eq!(
             Ok(TARGET.to_vec()),
-            shared_brotli_decode(
-                &SHARED_DICT_PATCH,
-                Some(BASE.as_bytes()),
-                TARGET.len() as u32,
-            )
+            shared_brotli_decode(&SHARED_DICT_PATCH, Some(BASE.as_bytes()), TARGET.len(),)
         );
     }
 
@@ -173,13 +169,13 @@ mod tests {
 
         assert_eq!(
             Ok(TARGET.to_vec()),
-            shared_brotli_decode(&NO_DICT_PATCH, None, TARGET.len() as u32)
+            shared_brotli_decode(&NO_DICT_PATCH, None, TARGET.len())
         );
 
         // Check that empty base is handled the same as no base.
         assert_eq!(
             Ok(TARGET.to_vec()),
-            shared_brotli_decode(&NO_DICT_PATCH, Some(base), TARGET.len() as u32)
+            shared_brotli_decode(&NO_DICT_PATCH, Some(base), TARGET.len())
         );
     }
 
@@ -187,11 +183,7 @@ mod tests {
     fn brotli_decode_too_little_output() {
         assert_eq!(
             Err(DecodeError::MaxSizeExceeded),
-            shared_brotli_decode(
-                &SHARED_DICT_PATCH,
-                Some(BASE.as_bytes()),
-                (TARGET.len() - 1) as u32
-            )
+            shared_brotli_decode(&SHARED_DICT_PATCH, Some(BASE.as_bytes()), TARGET.len() - 1)
         );
     }
 
@@ -199,11 +191,7 @@ mod tests {
     fn brotli_decode_excess_output() {
         assert_eq!(
             Ok(TARGET.to_vec()),
-            shared_brotli_decode(
-                &SHARED_DICT_PATCH,
-                Some(BASE.as_bytes()),
-                (TARGET.len() + 1) as u32,
-            )
+            shared_brotli_decode(&SHARED_DICT_PATCH, Some(BASE.as_bytes()), TARGET.len() + 1,)
         );
     }
 
@@ -214,7 +202,7 @@ mod tests {
 
         assert_eq!(
             Err(DecodeError::ExcessInputData),
-            shared_brotli_decode(&patch, None, TARGET.len() as u32)
+            shared_brotli_decode(&patch, None, TARGET.len())
         );
     }
 
@@ -224,7 +212,7 @@ mod tests {
         let patch: Vec<u8> = NO_DICT_PATCH[..NO_DICT_PATCH.len() - 1].to_vec();
         assert_eq!(
             Err(DecodeError::InvalidStream),
-            shared_brotli_decode(&patch, None, TARGET.len() as u32)
+            shared_brotli_decode(&patch, None, TARGET.len())
         );
     }
 
