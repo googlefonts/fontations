@@ -36,11 +36,6 @@ pub mod instance;
 pub mod metrics;
 pub mod outline;
 
-#[cfg(feature = "ift")]
-pub mod font_patch;
-#[cfg(feature = "ift")]
-pub mod patchmap;
-
 pub mod setting;
 pub mod string;
 

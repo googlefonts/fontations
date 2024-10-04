@@ -12,10 +12,10 @@
 
 use crate::patchmap::PatchEncoding;
 
-use raw::tables::ift::TablePatchFlags;
-use raw::types::Tag;
-use raw::{FontData, FontRef};
+use read_fonts::tables::ift::TablePatchFlags;
 use read_fonts::tables::ift::{TableKeyedPatch, TablePatch};
+use read_fonts::types::Tag;
+use read_fonts::{FontData, FontRef};
 use read_fonts::{FontRead, ReadError};
 use shared_brotli_patch_decoder::{shared_brotli_decode, DecodeError};
 use std::collections::BTreeSet;
@@ -195,7 +195,7 @@ fn apply_table_patch(
 mod tests {
     use super::*;
     use font_test_data::ift::{noop_table_keyed_patch, table_keyed_patch};
-    use raw::FontRef;
+    use read_fonts::FontRef;
     use read_fonts::ReadError;
     use write_fonts::FontBuilder;
 

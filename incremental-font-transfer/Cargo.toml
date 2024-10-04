@@ -1,0 +1,29 @@
+[package]
+name = "incremental-font-transfer"
+version = "0.1.0"
+description = "Client side implementation of the Incremental Font Transfer standard (https://w3c.github.io/IFT/Overview.html)"
+readme = "README.md"
+categories = ["text-processing", "parsing", "graphics"]
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[package.metadata.docs.rs]
+# To build locally:
+# RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features
+all-features = true
+
+[features]
+default = ["read-fonts/std"]
+
+[dependencies]
+read-fonts = { workspace = true }
+write-fonts = { workspace = true }
+font-types = { workspace = true }
+skrifa = { workspace = true }
+shared-brotli-patch-decoder = { workspace = true }
+
+[dev-dependencies]
+font-test-data = { workspace = true }
+read-fonts = { workspace = true }

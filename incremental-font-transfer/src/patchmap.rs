@@ -9,20 +9,20 @@ use std::io::Cursor;
 use std::io::Read;
 use std::ops::RangeInclusive;
 
-use crate::GlyphId;
-use crate::Tag;
-use raw::tables::ift::EntryFormatFlags;
-use raw::types::Offset32;
-use raw::types::Uint24;
-use raw::{FontData, FontRef};
+use font_types::GlyphId;
+use font_types::Tag;
+use read_fonts::tables::ift::EntryFormatFlags;
+use read_fonts::types::Offset32;
+use read_fonts::types::Uint24;
 use read_fonts::{
     tables::ift::{EntryData, EntryMapRecord, Ift, PatchMapFormat1, PatchMapFormat2},
     ReadError, TableProvider,
 };
+use read_fonts::{FontData, FontRef};
 
 use read_fonts::collections::IntSet;
 
-use crate::charmap::Charmap;
+use skrifa::charmap::Charmap;
 
 // TODO(garretrieger): implement support for building and compiling mapping tables.
 
@@ -651,8 +651,8 @@ mod tests {
         codepoints_only_format2, copy_indices_format2, custom_ids_format2, feature_map_format1,
         features_and_design_space_format2, simple_format1, string_ids_format2, u16_entries_format1,
     };
-    use raw::types::Int24;
     use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
+    use read_fonts::types::Int24;
     use read_fonts::FontRef;
     use write_fonts::FontBuilder;
 
