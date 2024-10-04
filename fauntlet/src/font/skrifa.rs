@@ -70,11 +70,13 @@ impl<'a> SkrifaInstance<'a> {
             .outlines
             .get(glyph_id)
             .ok_or(DrawError::GlyphNotFound(glyph_id))?;
-        let metrics = if let Some(hinter) = self.hinter.as_ref() {
-            outline.draw(DrawSettings::hinted(hinter, false), pen)?
+        let draw_settings = if let Some(hinter) = self.hinter.as_ref() {
+            DrawSettings::hinted(hinter, false)
         } else {
-            outline.draw((self.size, self.coords.as_slice()), pen)?
+            DrawSettings::unhinted(self.size, self.coords.as_slice())
         };
-        Ok(metrics.advance_width)
+        outline
+            .draw(draw_settings, pen)
+            .map(|metrics| metrics.advance_width)
     }
 }
