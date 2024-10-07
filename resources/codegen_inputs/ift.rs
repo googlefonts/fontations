@@ -2,6 +2,7 @@
 
 extern record U8Or16;
 extern record IdDeltaOrLength;
+extern scalar CompatibilityId;
 
 format u8 Ift {
   Format1(PatchMapFormat1),
@@ -19,8 +20,8 @@ table PatchMapFormat1 {
   _reserved: u32,
 
   /// Unique ID that identifies compatible patches.
-  #[count(4)]
-  compatibility_id: [u32],
+  #[traverse_with(skip)]
+  compatibility_id: CompatibilityId,
 
   /// Largest entry index which appears in either the glyph map or feature map.
   max_entry_index: u16,
@@ -117,8 +118,8 @@ table PatchMapFormat2 {
   _reserved: u32,
 
   /// Unique ID that identifies compatible patches.
-  #[count(4)]
-  compatibility_id: [u32],
+  #[traverse_with(skip)]
+  compatibility_id: CompatibilityId,
 
   /// Patch format number for patches referenced by this mapping.
   default_patch_encoding: u8,
@@ -228,8 +229,8 @@ table TableKeyedPatch {
   _reserved: u32,
 
   /// Unique ID that identifies compatible patches.
-  #[count(4)]
-  compatibility_id: [u32],
+  #[traverse_with(skip)]
+  compatibility_id: CompatibilityId,
 
   patches_count: u16,
   #[count(add($patches_count, 1))]

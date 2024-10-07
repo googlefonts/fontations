@@ -7,6 +7,44 @@ use std::str;
 pub const IFT_TAG: types::Tag = Tag::new(b"IFT ");
 pub const IFTX_TAG: types::Tag = Tag::new(b"IFTX");
 
+#[derive(Clone, Debug, PartialEq, Eq, Default, Ord, PartialOrd, Hash)]
+pub struct CompatibilityId([u8; 16]);
+
+impl CompatibilityId {
+    pub fn new(value: [u8; 16]) -> Self {
+        CompatibilityId(value)
+    }
+
+    pub fn from_u32s(values: [u32; 4]) -> Self {
+        let mut data = [0u8; 16];
+
+        for i in 0..4 {
+            let be_bytes = values[i].to_be_bytes();
+            for j in 0..4 {
+                data[i * 4 + j] = be_bytes[j];
+            }
+        }
+
+        CompatibilityId(data)
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl Scalar for CompatibilityId {
+    type Raw = [u8; 16];
+
+    fn from_raw(raw: Self::Raw) -> Self {
+        CompatibilityId(raw)
+    }
+
+    fn to_raw(self) -> Self::Raw {
+        self.0
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct U8Or16(u16);
 
@@ -77,11 +115,6 @@ impl IdDeltaOrLength {
 }
 
 impl<'a> PatchMapFormat1<'a> {
-    pub fn get_compatibility_id(&self) -> [u32; 4] {
-        let fixed_array: &[BigEndian<u32>; 4] = self.compatibility_id().try_into().unwrap();
-        fixed_array.map(|x| x.get())
-    }
-
     pub fn gid_to_entry_iter(&'a self) -> impl Iterator<Item = (GlyphId, u16)> + 'a {
         GidToEntryIter {
             glyph_map: self.glyph_map().ok(),
@@ -114,11 +147,6 @@ impl<'a> PatchMapFormat1<'a> {
 }
 
 impl<'a> PatchMapFormat2<'a> {
-    pub fn get_compatibility_id(&self) -> [u32; 4] {
-        let fixed_array: &[BigEndian<u32>; 4] = self.compatibility_id().try_into().unwrap();
-        fixed_array.map(|x| x.get())
-    }
-
     pub fn uri_template_as_string(&self) -> Result<&str, ReadError> {
         str::from_utf8(self.uri_template())
             .map_err(|_| ReadError::MalformedData("Invalid UTF8 encoding for uri template."))
@@ -254,7 +282,10 @@ mod tests {
             panic!("Not format 1.");
         };
 
-        assert_eq!(map.get_compatibility_id(), [1, 2, 3, 4]);
+        assert_eq!(
+            map.compatibility_id(),
+            CompatibilityId::from_u32s([1, 2, 3, 4])
+        );
     }
 
     #[test]

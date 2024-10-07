@@ -12,7 +12,7 @@
 
 use crate::patchmap::PatchEncoding;
 
-use read_fonts::tables::ift::TablePatchFlags;
+use read_fonts::tables::ift::{CompatibilityId, TablePatchFlags};
 use read_fonts::tables::ift::{TableKeyedPatch, TablePatch};
 use read_fonts::types::Tag;
 use read_fonts::{FontData, FontRef};
@@ -23,7 +23,7 @@ use write_fonts::FontBuilder;
 
 /// A trait for types to which an incremental font transfer patch can be applied.
 ///
-/// See: https://w3c.github.io/IFT/Overview.html#font-patch-formats for details on the format of patches.
+/// See: <https://w3c.github.io/IFT/Overview.html#font-patch-formats> for details on the format of patches.
 pub trait IncrementalFontPatchBase {
     /// Apply an incremental font patch (<https://w3c.github.io/IFT/Overview.html#font-patch-formats>)
     ///
@@ -33,7 +33,7 @@ pub trait IncrementalFontPatchBase {
     /// Returns the byte data for the new font produced as a result of the patch application.
     fn apply_patch(
         &self,
-        expected_compatibility_id: &[u32; 4],
+        expected_compatibility_id: &CompatibilityId,
         patch_data: &[u8],
         encoding: PatchEncoding,
     ) -> Result<Vec<u8>, ReadError>;
@@ -45,13 +45,17 @@ trait IncrementalFontPatch {
     /// In the font this patch is associated with the supplied compatibility_id.
     ///
     /// Returns the byte data for the new font produced as a result of the patch application.
-    fn apply(&self, font: &FontRef, compatibility_id: &[u32; 4]) -> Result<Vec<u8>, ReadError>;
+    fn apply(
+        &self,
+        font: &FontRef,
+        compatibility_id: &CompatibilityId,
+    ) -> Result<Vec<u8>, ReadError>;
 }
 
 impl IncrementalFontPatchBase for FontRef<'_> {
     fn apply_patch(
         &self,
-        compatibility_id: &[u32; 4],
+        compatibility_id: &CompatibilityId,
         patch_data: &[u8],
         encoding: PatchEncoding,
     ) -> Result<Vec<u8>, ReadError> {
@@ -78,7 +82,7 @@ impl IncrementalFontPatchBase for FontRef<'_> {
 impl IncrementalFontPatchBase for &[u8] {
     fn apply_patch(
         &self,
-        compatibility_id: &[u32; 4],
+        compatibility_id: &CompatibilityId,
         patch_data: &[u8],
         encoding: PatchEncoding,
     ) -> Result<Vec<u8>, ReadError> {
@@ -88,8 +92,12 @@ impl IncrementalFontPatchBase for &[u8] {
 }
 
 impl IncrementalFontPatch for TableKeyedPatch<'_> {
-    fn apply(&self, font: &FontRef, compatibility_id: &[u32; 4]) -> Result<Vec<u8>, ReadError> {
-        if self.compatibility_id() != compatibility_id {
+    fn apply(
+        &self,
+        font: &FontRef,
+        compatibility_id: &CompatibilityId,
+    ) -> Result<Vec<u8>, ReadError> {
+        if self.compatibility_id() != *compatibility_id {
             return Err(ReadError::ValidationError);
         }
 
@@ -207,13 +215,19 @@ mod tests {
     use read_fonts::ReadError;
     use write_fonts::FontBuilder;
 
+    const IFT_TABLE: &[u8] = "IFT PATCH MAP".as_bytes();
     const TABLE_1_FINAL_STATE: &[u8] = "hijkabcdeflmnohijkabcdeflmno\n".as_bytes();
     const TABLE_2_FINAL_STATE: &[u8] = "foobarbaz foobarbaz foobarbaz\n".as_bytes();
     const TABLE_3_FINAL_STATE: &[u8] = "foobaz\n".as_bytes();
     const TABLE_4_FINAL_STATE: &[u8] = "unchanged\n".as_bytes();
 
+    fn compat_id() -> CompatibilityId {
+        CompatibilityId::from_u32s([1, 2, 3, 4])
+    }
+
     fn test_font() -> Vec<u8> {
         let mut font_builder = FontBuilder::new();
+        font_builder.add_raw(Tag::new(b"IFT "), IFT_TABLE);
         font_builder.add_raw(Tag::new(b"tab1"), "abcdef\n".as_bytes());
         font_builder.add_raw(Tag::new(b"tab2"), "foobar\n".as_bytes());
         font_builder.add_raw(Tag::new(b"tab3"), "foobaz\n".as_bytes());
@@ -224,7 +238,7 @@ mod tests {
     #[test]
     fn table_keyed_patch_test() {
         let r = test_font().as_slice().apply_patch(
-            &[1, 2, 3, 4],
+            &&compat_id(),
             table_keyed_patch().as_slice(),
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
@@ -234,8 +248,12 @@ mod tests {
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
 
-        assert_eq!(font.table_directory.num_tables(), 3);
+        assert_eq!(font.table_directory.num_tables(), 4);
 
+        assert_eq!(
+            font.table_data(Tag::new(b"IFT ")).unwrap().as_bytes(),
+            IFT_TABLE
+        );
         assert_eq!(
             font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
             TABLE_1_FINAL_STATE
@@ -253,7 +271,7 @@ mod tests {
     #[test]
     fn noop_table_keyed_patch_test() {
         let r = test_font().as_slice().apply_patch(
-            &[1, 2, 3, 4],
+            &compat_id(),
             noop_table_keyed_patch().as_slice(),
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
@@ -282,7 +300,7 @@ mod tests {
         assert_eq!(
             Err(ReadError::ValidationError),
             test_font().as_slice().apply_patch(
-                &[1, 2, 2, 4],
+                &CompatibilityId::from_u32s([1, 2, 2, 4]),
                 table_keyed_patch().as_slice(),
                 PatchEncoding::TableKeyed {
                     fully_invalidating: false,
@@ -300,7 +318,7 @@ mod tests {
         assert_eq!(
             Err(ReadError::ValidationError),
             test_font().as_slice().apply_patch(
-                &[1, 2, 3, 4],
+                &compat_id(),
                 patch,
                 PatchEncoding::TableKeyed {
                     fully_invalidating: false,
@@ -318,7 +336,7 @@ mod tests {
         let patch = patch.as_slice();
 
         let r = test_font().as_slice().apply_patch(
-            &[1, 2, 3, 4],
+            &compat_id(),
             patch,
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
@@ -328,8 +346,12 @@ mod tests {
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
 
-        assert_eq!(font.table_directory.num_tables(), 4);
+        assert_eq!(font.table_directory.num_tables(), 5);
 
+        assert_eq!(
+            font.table_data(Tag::new(b"IFT ")).unwrap().as_bytes(),
+            IFT_TABLE
+        );
         assert_eq!(
             font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
             TABLE_1_FINAL_STATE
@@ -366,7 +388,7 @@ mod tests {
                 "Patch offsets are not in sorted order."
             )),
             test_font().as_slice().apply_patch(
-                &[1, 2, 3, 4],
+                &compat_id(),
                 patch,
                 PatchEncoding::TableKeyed {
                     fully_invalidating: false,
@@ -387,7 +409,7 @@ mod tests {
         assert_eq!(
             Err(ReadError::OutOfBounds),
             test_font().as_slice().apply_patch(
-                &[1, 2, 3, 4],
+                &compat_id(),
                 patch,
                 PatchEncoding::TableKeyed {
                     fully_invalidating: false,
@@ -404,7 +426,7 @@ mod tests {
 
         // When DROP and REPLACE are both set DROP takes priority.
         let r = test_font().as_slice().apply_patch(
-            &[1, 2, 3, 4],
+            &compat_id(),
             patch,
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
@@ -414,8 +436,12 @@ mod tests {
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
 
-        assert_eq!(font.table_directory.num_tables(), 3);
+        assert_eq!(font.table_directory.num_tables(), 4);
 
+        assert_eq!(
+            font.table_data(Tag::new(b"IFT ")).unwrap().as_bytes(),
+            IFT_TABLE
+        );
         assert_eq!(
             font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
             TABLE_1_FINAL_STATE
@@ -440,7 +466,7 @@ mod tests {
         assert_eq!(
             Err(ReadError::ValidationError),
             test_font().as_slice().apply_patch(
-                &[1, 2, 3, 4],
+                &compat_id(),
                 patch,
                 PatchEncoding::TableKeyed {
                     fully_invalidating: false,
@@ -456,7 +482,7 @@ mod tests {
         let patch = patch.as_slice();
 
         let r = test_font().as_slice().apply_patch(
-            &[1, 2, 3, 4],
+            &compat_id(),
             patch,
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
@@ -466,8 +492,12 @@ mod tests {
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
 
-        assert_eq!(font.table_directory.num_tables(), 4);
+        assert_eq!(font.table_directory.num_tables(), 5);
 
+        assert_eq!(
+            font.table_data(Tag::new(b"IFT ")).unwrap().as_bytes(),
+            IFT_TABLE
+        );
         assert_eq!(
             font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
             TABLE_1_FINAL_STATE
@@ -493,7 +523,7 @@ mod tests {
         let patch = patch.as_slice();
 
         let r = test_font().as_slice().apply_patch(
-            &[1, 2, 3, 4],
+            &compat_id(),
             patch,
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
@@ -503,8 +533,12 @@ mod tests {
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
 
-        assert_eq!(font.table_directory.num_tables(), 4);
+        assert_eq!(font.table_directory.num_tables(), 5);
 
+        assert_eq!(
+            font.table_data(Tag::new(b"IFT ")).unwrap().as_bytes(),
+            IFT_TABLE
+        );
         assert_eq!(
             font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
             TABLE_1_FINAL_STATE
@@ -532,7 +566,7 @@ mod tests {
         assert_eq!(
             Err(ReadError::OutOfBounds),
             test_font().as_slice().apply_patch(
-                &[1, 2, 3, 4],
+                &compat_id(),
                 patch,
                 PatchEncoding::TableKeyed {
                     fully_invalidating: false,

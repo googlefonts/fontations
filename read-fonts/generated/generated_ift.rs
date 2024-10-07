@@ -29,7 +29,7 @@ impl<'a> Ift<'a> {
     }
 
     /// Unique ID that identifies compatible patches.
-    pub fn compatibility_id(&self) -> &'a [BigEndian<u32>] {
+    pub fn compatibility_id(&self) -> CompatibilityId {
         match self {
             Self::Format1(item) => item.compatibility_id(),
             Self::Format2(item) => item.compatibility_id(),
@@ -97,7 +97,6 @@ impl Format<u8> for PatchMapFormat1Marker {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct PatchMapFormat1Marker {
-    compatibility_id_byte_len: usize,
     applied_entries_bitmap_byte_len: usize,
     uri_template_byte_len: usize,
 }
@@ -113,7 +112,7 @@ impl PatchMapFormat1Marker {
     }
     fn compatibility_id_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
-        start..start + self.compatibility_id_byte_len
+        start..start + CompatibilityId::RAW_BYTE_LEN
     }
     fn max_entry_index_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
@@ -158,10 +157,7 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
         cursor.advance::<u32>();
-        let compatibility_id_byte_len = (4_usize)
-            .checked_mul(u32::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(compatibility_id_byte_len);
+        cursor.advance::<CompatibilityId>();
         let max_entry_index: u16 = cursor.read()?;
         cursor.advance::<u16>();
         cursor.advance::<Uint24>();
@@ -178,7 +174,6 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
         cursor.advance_by(uri_template_byte_len);
         cursor.advance::<u8>();
         cursor.finish(PatchMapFormat1Marker {
-            compatibility_id_byte_len,
             applied_entries_bitmap_byte_len,
             uri_template_byte_len,
         })
@@ -196,9 +191,9 @@ impl<'a> PatchMapFormat1<'a> {
     }
 
     /// Unique ID that identifies compatible patches.
-    pub fn compatibility_id(&self) -> &'a [BigEndian<u32>] {
+    pub fn compatibility_id(&self) -> CompatibilityId {
         let range = self.shape.compatibility_id_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Largest entry index which appears in either the glyph map or feature map.
@@ -274,7 +269,10 @@ impl<'a> SomeTable<'a> for PatchMapFormat1<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("compatibility_id", self.compatibility_id())),
+            1usize => Some(Field::new(
+                "compatibility_id",
+                traversal::FieldType::Unknown,
+            )),
             2usize => Some(Field::new("max_entry_index", self.max_entry_index())),
             3usize => Some(Field::new(
                 "max_glyph_map_entry_index",
@@ -683,7 +681,6 @@ impl Format<u8> for PatchMapFormat2Marker {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct PatchMapFormat2Marker {
-    compatibility_id_byte_len: usize,
     uri_template_byte_len: usize,
 }
 
@@ -698,7 +695,7 @@ impl PatchMapFormat2Marker {
     }
     fn compatibility_id_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
-        start..start + self.compatibility_id_byte_len
+        start..start + CompatibilityId::RAW_BYTE_LEN
     }
     fn default_patch_encoding_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
@@ -731,10 +728,7 @@ impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
         cursor.advance::<u32>();
-        let compatibility_id_byte_len = (4_usize)
-            .checked_mul(u32::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(compatibility_id_byte_len);
+        cursor.advance::<CompatibilityId>();
         cursor.advance::<u8>();
         cursor.advance::<Uint24>();
         cursor.advance::<Offset32>();
@@ -745,7 +739,6 @@ impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(uri_template_byte_len);
         cursor.finish(PatchMapFormat2Marker {
-            compatibility_id_byte_len,
             uri_template_byte_len,
         })
     }
@@ -762,9 +755,9 @@ impl<'a> PatchMapFormat2<'a> {
     }
 
     /// Unique ID that identifies compatible patches.
-    pub fn compatibility_id(&self) -> &'a [BigEndian<u32>] {
+    pub fn compatibility_id(&self) -> CompatibilityId {
         let range = self.shape.compatibility_id_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Patch format number for patches referenced by this mapping.
@@ -819,7 +812,10 @@ impl<'a> SomeTable<'a> for PatchMapFormat2<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("compatibility_id", self.compatibility_id())),
+            1usize => Some(Field::new(
+                "compatibility_id",
+                traversal::FieldType::Unknown,
+            )),
             2usize => Some(Field::new(
                 "default_patch_encoding",
                 self.default_patch_encoding(),
@@ -1644,7 +1640,6 @@ impl<'a> std::fmt::Debug for IdStringData<'a> {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct TableKeyedPatchMarker {
-    compatibility_id_byte_len: usize,
     patch_offsets_byte_len: usize,
 }
 
@@ -1659,7 +1654,7 @@ impl TableKeyedPatchMarker {
     }
     fn compatibility_id_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
-        start..start + self.compatibility_id_byte_len
+        start..start + CompatibilityId::RAW_BYTE_LEN
     }
     fn patches_count_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
@@ -1676,17 +1671,13 @@ impl<'a> FontRead<'a> for TableKeyedPatch<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<Tag>();
         cursor.advance::<u32>();
-        let compatibility_id_byte_len = (4_usize)
-            .checked_mul(u32::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(compatibility_id_byte_len);
+        cursor.advance::<CompatibilityId>();
         let patches_count: u16 = cursor.read()?;
         let patch_offsets_byte_len = (transforms::add(patches_count, 1_usize))
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(patch_offsets_byte_len);
         cursor.finish(TableKeyedPatchMarker {
-            compatibility_id_byte_len,
             patch_offsets_byte_len,
         })
     }
@@ -1702,9 +1693,9 @@ impl<'a> TableKeyedPatch<'a> {
     }
 
     /// Unique ID that identifies compatible patches.
-    pub fn compatibility_id(&self) -> &'a [BigEndian<u32>] {
+    pub fn compatibility_id(&self) -> CompatibilityId {
         let range = self.shape.compatibility_id_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_at(range.start).unwrap()
     }
 
     pub fn patches_count(&self) -> u16 {
@@ -1733,7 +1724,10 @@ impl<'a> SomeTable<'a> for TableKeyedPatch<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("compatibility_id", self.compatibility_id())),
+            1usize => Some(Field::new(
+                "compatibility_id",
+                traversal::FieldType::Unknown,
+            )),
             2usize => Some(Field::new("patches_count", self.patches_count())),
             3usize => Some({
                 let data = self.data;

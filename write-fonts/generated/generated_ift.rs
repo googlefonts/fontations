@@ -18,7 +18,7 @@ impl Ift {
     /// Construct a new `PatchMapFormat1` subtable
     #[allow(clippy::too_many_arguments)]
     pub fn format_1(
-        compatibility_id: Vec<u32>,
+        compatibility_id: CompatibilityId,
         max_entry_index: u16,
         max_glyph_map_entry_index: u16,
         glyph_count: Uint24,
@@ -45,7 +45,7 @@ impl Ift {
 
     /// Construct a new `PatchMapFormat2` subtable
     pub fn format_2(
-        compatibility_id: Vec<u32>,
+        compatibility_id: CompatibilityId,
         default_patch_encoding: u8,
         entry_count: Uint24,
         entries: MappingEntries,
@@ -130,7 +130,7 @@ impl From<PatchMapFormat2> for Ift {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PatchMapFormat1 {
     /// Unique ID that identifies compatible patches.
-    pub compatibility_id: Vec<u32>,
+    pub compatibility_id: CompatibilityId,
     /// Largest entry index which appears in either the glyph map or feature map.
     pub max_entry_index: u16,
     /// Largest entry index which appears in the glyph map.
@@ -151,7 +151,7 @@ impl PatchMapFormat1 {
     /// Construct a new `PatchMapFormat1`
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        compatibility_id: Vec<u32>,
+        compatibility_id: CompatibilityId,
         max_entry_index: u16,
         max_glyph_map_entry_index: u16,
         glyph_count: Uint24,
@@ -163,7 +163,7 @@ impl PatchMapFormat1 {
         patch_encoding: u8,
     ) -> Self {
         Self {
-            compatibility_id: compatibility_id.into_iter().map(Into::into).collect(),
+            compatibility_id,
             max_entry_index,
             max_glyph_map_entry_index,
             glyph_count,
@@ -220,7 +220,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat1<'a>> for PatchMapFo
     fn from_obj_ref(obj: &read_fonts::tables::ift::PatchMapFormat1<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         PatchMapFormat1 {
-            compatibility_id: obj.compatibility_id().to_owned_obj(offset_data),
+            compatibility_id: obj.compatibility_id(),
             max_entry_index: obj.max_entry_index(),
             max_glyph_map_entry_index: obj.max_glyph_map_entry_index(),
             glyph_count: obj.glyph_count(),
@@ -394,7 +394,7 @@ impl FromObjRef<read_fonts::tables::ift::EntryMapRecord> for EntryMapRecord {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PatchMapFormat2 {
     /// Unique ID that identifies compatible patches.
-    pub compatibility_id: Vec<u32>,
+    pub compatibility_id: CompatibilityId,
     /// Patch format number for patches referenced by this mapping.
     pub default_patch_encoding: u8,
     pub entry_count: Uint24,
@@ -407,7 +407,7 @@ pub struct PatchMapFormat2 {
 impl PatchMapFormat2 {
     /// Construct a new `PatchMapFormat2`
     pub fn new(
-        compatibility_id: Vec<u32>,
+        compatibility_id: CompatibilityId,
         default_patch_encoding: u8,
         entry_count: Uint24,
         entries: MappingEntries,
@@ -416,7 +416,7 @@ impl PatchMapFormat2 {
         uri_template: Vec<u8>,
     ) -> Self {
         Self {
-            compatibility_id: compatibility_id.into_iter().map(Into::into).collect(),
+            compatibility_id,
             default_patch_encoding,
             entry_count,
             entries: entries.into(),
@@ -467,7 +467,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat2<'a>> for PatchMapFo
     fn from_obj_ref(obj: &read_fonts::tables::ift::PatchMapFormat2<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         PatchMapFormat2 {
-            compatibility_id: obj.compatibility_id().to_owned_obj(offset_data),
+            compatibility_id: obj.compatibility_id(),
             default_patch_encoding: obj.default_patch_encoding(),
             entry_count: obj.entry_count(),
             entries: obj.entries().to_owned_table(),
@@ -859,7 +859,7 @@ impl<'a> FontRead<'a> for IdStringData {
 pub struct TableKeyedPatch {
     pub format: Tag,
     /// Unique ID that identifies compatible patches.
-    pub compatibility_id: Vec<u32>,
+    pub compatibility_id: CompatibilityId,
     pub patches_count: u16,
     pub patches: Vec<OffsetMarker<TablePatch, WIDTH_32>>,
 }
@@ -868,13 +868,13 @@ impl TableKeyedPatch {
     /// Construct a new `TableKeyedPatch`
     pub fn new(
         format: Tag,
-        compatibility_id: Vec<u32>,
+        compatibility_id: CompatibilityId,
         patches_count: u16,
         patches: Vec<TablePatch>,
     ) -> Self {
         Self {
             format,
-            compatibility_id: compatibility_id.into_iter().map(Into::into).collect(),
+            compatibility_id,
             patches_count,
             patches: patches.into_iter().map(Into::into).collect(),
         }
@@ -907,10 +907,9 @@ impl Validate for TableKeyedPatch {
 
 impl<'a> FromObjRef<read_fonts::tables::ift::TableKeyedPatch<'a>> for TableKeyedPatch {
     fn from_obj_ref(obj: &read_fonts::tables::ift::TableKeyedPatch<'a>, _: FontData) -> Self {
-        let offset_data = obj.offset_data();
         TableKeyedPatch {
             format: obj.format(),
-            compatibility_id: obj.compatibility_id().to_owned_obj(offset_data),
+            compatibility_id: obj.compatibility_id(),
             patches_count: obj.patches_count(),
             patches: obj.patches().to_owned_table(),
         }
