@@ -516,6 +516,9 @@ pub struct PatchUri {
     template: String, // TODO(garretrieger): Make this a reference?
     id: PatchId,
     encoding: PatchEncoding,
+    // TODO(garretrieger): add "expected compatibility id" here.
+    // TODO(garretrieger): add a resolve method which when supplied the bytes associated with the URL
+    //                     produces an object suitable for passing to the font_patch API.
 }
 
 impl PatchUri {
