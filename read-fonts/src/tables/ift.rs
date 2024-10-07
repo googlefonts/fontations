@@ -7,6 +7,7 @@ use std::str;
 pub const IFT_TAG: types::Tag = Tag::new(b"IFT ");
 pub const IFTX_TAG: types::Tag = Tag::new(b"IFTX");
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, PartialEq, Eq, Default, Ord, PartialOrd, Hash)]
 pub struct CompatibilityId([u8; 16]);
 
