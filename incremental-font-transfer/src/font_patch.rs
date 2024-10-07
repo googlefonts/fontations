@@ -21,6 +21,8 @@ use shared_brotli_patch_decoder::{shared_brotli_decode, DecodeError};
 use std::collections::BTreeSet;
 use write_fonts::FontBuilder;
 
+// TODO(garretrieger): introduce a custom error type.
+
 /// An incremental font patch which can be used to extend a font.
 ///
 /// See: <https://w3c.github.io/IFT/Overview.html#font-patch-formats>
@@ -133,7 +135,6 @@ fn apply_table_keyed_patch(
             .and_then(|v| v.checked_sub(STREAM_START))
         // brotli stream starts at the (u32 tag + u8 flags + u32 length) = 9th byte
         else {
-            // TODO(garretrieger): update spec to clarify this case is an error.
             return Err(ReadError::MalformedData(
                 "Patch offsets are not in sorted order.",
             ));
@@ -150,9 +151,6 @@ fn apply_table_keyed_patch(
         }
 
         if table_patch.flags().contains(TablePatchFlags::DROP_TABLE) {
-            // TODO(garretrieger): spec needs to be clarified on what happens when DROP_TABLE and REPLACE_TABLE are
-            // both set.
-
             // Table will not be copied, skip any further processing.
             continue;
         }
@@ -181,14 +179,11 @@ fn apply_table_patch(
     stream_length: u32,
     replacement: bool,
 ) -> Result<Vec<u8>, ReadError> {
-    // TODO(garretrieger): spec needs to be clarified what happens when replacement = false, but the source table
-    // does not exist in the font.
     let stream_length = stream_length as usize;
     let base_data = font.table_data(table_patch.tag());
     let stream = if table_patch.brotli_stream().len() >= stream_length {
         &table_patch.brotli_stream()[..stream_length]
     } else {
-        // TODO(garretrieger): update spec to clarify this case is an error.
         return Err(ReadError::OutOfBounds);
     };
     let r = match (base_data, replacement) {
