@@ -77,7 +77,7 @@ impl IncrementalFontPatch<'_> {
     fn apply_to(&self, font: &FontRef) -> Result<Vec<u8>, ReadError> {
         match self {
             IncrementalFontPatch::TableKeyed(patch_data) => {
-                apply_table_keyed_patch(patch_data, &font)
+                apply_table_keyed_patch(patch_data, font)
             }
         }
     }
