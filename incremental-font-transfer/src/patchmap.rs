@@ -11,6 +11,7 @@ use std::ops::RangeInclusive;
 
 use font_types::GlyphId;
 use font_types::Tag;
+use read_fonts::tables::ift::CompatibilityId;
 use read_fonts::tables::ift::EntryFormatFlags;
 use read_fonts::types::Offset32;
 use read_fonts::types::Uint24;
@@ -109,7 +110,14 @@ fn add_intersecting_format1_patches(
             // Entry 0 is the entry for codepoints already in the font, so it's always considered applied and skipped.
             .filter(|index| *index > 0)
             .filter(|index| !map.is_entry_applied(*index))
-            .map(|index| PatchUri::from_index(uri_template, index as u32, encoding)),
+            .map(|index| {
+                PatchUri::from_index(
+                    uri_template,
+                    index as u32,
+                    &map.compatibility_id(),
+                    encoding,
+                )
+            }),
     );
     Ok(())
 }
@@ -275,7 +283,7 @@ fn add_intersecting_format2_patches(
 }
 
 fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Entry>, ReadError> {
-    let compat_id = map.get_compatibility_id();
+    let compat_id = map.compatibility_id();
     let uri_template = map.uri_template_as_string()?;
     let entries_data = map.entries()?.entry_data();
     let default_encoding = PatchEncoding::from_format_number(map.default_patch_encoding())?;
@@ -306,7 +314,7 @@ fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Entry>, ReadError
 
 fn decode_format2_entry<'a>(
     data: FontData<'a>,
-    compat_id: &[u32; 4],
+    compat_id: &CompatibilityId,
     uri_template: &str,
     default_encoding: &PatchEncoding,
     id_string_data: &mut Option<Cursor<&[u8]>>,
@@ -499,7 +507,7 @@ impl PatchEncoding {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-enum PatchId {
+pub enum PatchId {
     Numeric(u32),
     String(Vec<u8>), // TODO(garretrieger): Make this a reference?
 }
@@ -516,16 +524,22 @@ pub struct PatchUri {
     template: String, // TODO(garretrieger): Make this a reference?
     id: PatchId,
     encoding: PatchEncoding,
-    // TODO(garretrieger): add "expected compatibility id" here.
+    expected_compatibility_id: CompatibilityId,
     // TODO(garretrieger): add a resolve method which when supplied the bytes associated with the URL
     //                     produces an object suitable for passing to the font_patch API.
 }
 
 impl PatchUri {
-    fn from_index(uri_template: &str, entry_index: u32, encoding: PatchEncoding) -> PatchUri {
+    fn from_index(
+        uri_template: &str,
+        entry_index: u32,
+        expected_compatibility_id: &CompatibilityId,
+        encoding: PatchEncoding,
+    ) -> PatchUri {
         PatchUri {
             template: uri_template.to_string(),
             id: PatchId::Numeric(entry_index),
+            expected_compatibility_id: expected_compatibility_id.clone(),
             encoding,
         }
     }
@@ -577,11 +591,11 @@ struct Entry {
 
     // Value
     uri: PatchUri,
-    compatibility_id: [u32; 4], // TODO(garretrieger): Make this a reference?
+    compatibility_id: CompatibilityId,
 }
 
 impl Entry {
-    fn new(template: &str, compat_id: &[u32; 4], default_encoding: &PatchEncoding) -> Entry {
+    fn new(template: &str, compat_id: &CompatibilityId, default_encoding: &PatchEncoding) -> Entry {
         Entry {
             subset_definition: SubsetDefinition {
                 codepoints: IntSet::empty(),
@@ -590,8 +604,8 @@ impl Entry {
             },
             ignored: false,
 
-            uri: PatchUri::from_index(template, 0, *default_encoding),
-            compatibility_id: *compat_id,
+            uri: PatchUri::from_index(template, 0, compat_id, *default_encoding),
+            compatibility_id: compat_id.clone(),
         }
     }
 
@@ -659,6 +673,10 @@ mod tests {
     use read_fonts::FontRef;
     use write_fonts::FontBuilder;
 
+    fn compat_id() -> CompatibilityId {
+        CompatibilityId::from_u32s([1, 2, 3, 4])
+    }
+
     fn create_ift_font(font: FontRef, ift: Option<&[u8]>, iftx: Option<&[u8]>) -> Vec<u8> {
         let mut builder = FontBuilder::default();
 
@@ -717,7 +735,9 @@ mod tests {
 
         let expected: Vec<PatchUri> = expected_entries
             .iter()
-            .map(|index| PatchUri::from_index("ABCDEFɤ", *index, PatchEncoding::GlyphKeyed))
+            .map(|index| {
+                PatchUri::from_index("ABCDEFɤ", *index, &compat_id(), PatchEncoding::GlyphKeyed)
+            })
             .collect();
 
         assert_eq!(patches, expected);
@@ -740,7 +760,9 @@ mod tests {
 
         let expected: Vec<PatchUri> = expected_entries
             .iter()
-            .map(|index| PatchUri::from_index("ABCDEFɤ", *index, PatchEncoding::GlyphKeyed))
+            .map(|index| {
+                PatchUri::from_index("ABCDEFɤ", *index, &compat_id(), PatchEncoding::GlyphKeyed)
+            })
             .collect();
 
         assert_eq!(expected, patches);
