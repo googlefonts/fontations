@@ -21,22 +21,25 @@ use shared_brotli_patch_decoder::{shared_brotli_decode, DecodeError};
 use std::collections::BTreeSet;
 use write_fonts::FontBuilder;
 
+/// A trait for types to which an incremental font transfer patch can be applied.
+///
+/// See: https://w3c.github.io/IFT/Overview.html#font-patch-formats for details on the format of patches.
 pub trait IncrementalFontPatchBase {
     /// Apply an incremental font patch (<https://w3c.github.io/IFT/Overview.html#font-patch-formats>)
     ///
     /// Applies the patch to this base. In the base the patch is associated with the supplied
-    /// compatibility_id and has the specified encoding.
+    /// expected_compatibility_id and has the specified encoding.
     ///
     /// Returns the byte data for the new font produced as a result of the patch application.
     fn apply_patch(
         &self,
-        compatibility_id: &[u32; 4],
+        expected_compatibility_id: &[u32; 4],
         patch_data: &[u8],
         encoding: PatchEncoding,
     ) -> Result<Vec<u8>, ReadError>;
 }
 
-pub trait IncrementalFontPatch {
+trait IncrementalFontPatch {
     /// Applies this patch to the given font.
     ///
     /// In the font this patch is associated with the supplied compatibility_id.
@@ -52,9 +55,17 @@ impl IncrementalFontPatchBase for FontRef<'_> {
         patch_data: &[u8],
         encoding: PatchEncoding,
     ) -> Result<Vec<u8>, ReadError> {
+        if self.table_data(Tag::new(b"IFT ")).is_none()
+            && self.table_data(Tag::new(b"IFTX")).is_none()
+        {
+            // This base is not an incremental font, which is an error.
+            // See: https://w3c.github.io/IFT/Overview.html#apply-table-keyed
+            return Err(ReadError::ValidationError);
+        }
+
         // TODO(garretrieger): Return a custom error type instead of ReadError?
         let patch = match encoding {
-            PatchEncoding::TableKeyed { .. } => parse_table_keyed_patch(patch_data)?,
+            PatchEncoding::TableKeyed { .. } => TableKeyedPatch::read(FontData::new(patch_data))?,
             PatchEncoding::GlyphKeyed => {
                 todo!()
             }
@@ -76,10 +87,6 @@ impl IncrementalFontPatchBase for &[u8] {
     }
 }
 
-fn parse_table_keyed_patch(patch_data: &[u8]) -> Result<impl IncrementalFontPatch + '_, ReadError> {
-    TableKeyedPatch::read(FontData::new(patch_data))
-}
-
 impl IncrementalFontPatch for TableKeyedPatch<'_> {
     fn apply(&self, font: &FontRef, compatibility_id: &[u32; 4]) -> Result<Vec<u8>, ReadError> {
         if self.compatibility_id() != compatibility_id {
@@ -90,6 +97,7 @@ impl IncrementalFontPatch for TableKeyedPatch<'_> {
             return Err(ReadError::ValidationError);
         }
 
+        const STREAM_START: u32 = 9;
         let mut font_builder = FontBuilder::new();
         let mut processed_tables = BTreeSet::<Tag>::new();
         // TODO(garretrieger): enforce a max combined size of all decoded tables? say something in the spec about this?
@@ -108,7 +116,7 @@ impl IncrementalFontPatch for TableKeyedPatch<'_> {
             let next_offset = next_offset.get().to_u32();
             let Some(stream_length) = next_offset
                 .checked_sub(offset)
-                .and_then(|v| v.checked_sub(9))
+                .and_then(|v| v.checked_sub(STREAM_START))
             // brotli stream starts at the (u32 tag + u8 flags + u32 length) = 9th byte
             else {
                 // TODO(garretrieger): update spec to clarify this case is an error.
