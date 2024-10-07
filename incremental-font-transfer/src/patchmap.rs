@@ -530,7 +530,15 @@ pub struct PatchUri {
 }
 
 impl PatchUri {
-    fn from_index(
+    pub fn encoding(&self) -> PatchEncoding {
+        self.encoding
+    }
+
+    pub fn expected_compatibility_id(&self) -> &CompatibilityId {
+        &self.expected_compatibility_id
+    }
+
+    pub(crate) fn from_index(
         uri_template: &str,
         entry_index: u32,
         expected_compatibility_id: &CompatibilityId,
