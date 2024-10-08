@@ -5,7 +5,7 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-pub use read_fonts::tables::ift::{EntryFormatFlags, TablePatchFlags};
+pub use read_fonts::tables::ift::{EntryFormatFlags, GlyphKeyedFlags, TablePatchFlags};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -991,5 +991,196 @@ impl<'a> FontRead<'a> for TablePatch {
 impl FontWrite for TablePatchFlags {
     fn write_into(&self, writer: &mut TableWriter) {
         writer.write_slice(&self.bits().to_be_bytes())
+    }
+}
+
+/// [Glyph Keyed Patch](https://w3c.github.io/IFT/Overview.html#glyph-keyed)
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct GlyphKeyedPatch {
+    pub format: Tag,
+    pub flags: GlyphKeyedFlags,
+    pub compatibility_id: CompatibilityId,
+    pub max_uncompressed_length: u32,
+    pub brotli_stream: Vec<u8>,
+}
+
+impl GlyphKeyedPatch {
+    /// Construct a new `GlyphKeyedPatch`
+    pub fn new(
+        format: Tag,
+        flags: GlyphKeyedFlags,
+        compatibility_id: CompatibilityId,
+        max_uncompressed_length: u32,
+        brotli_stream: Vec<u8>,
+    ) -> Self {
+        Self {
+            format,
+            flags,
+            compatibility_id,
+            max_uncompressed_length,
+            brotli_stream: brotli_stream.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for GlyphKeyedPatch {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.format.write_into(writer);
+        (0 as u32).write_into(writer);
+        self.flags.write_into(writer);
+        self.compatibility_id.write_into(writer);
+        self.max_uncompressed_length.write_into(writer);
+        self.brotli_stream.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("GlyphKeyedPatch")
+    }
+}
+
+impl Validate for GlyphKeyedPatch {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl<'a> FromObjRef<read_fonts::tables::ift::GlyphKeyedPatch<'a>> for GlyphKeyedPatch {
+    fn from_obj_ref(obj: &read_fonts::tables::ift::GlyphKeyedPatch<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        GlyphKeyedPatch {
+            format: obj.format(),
+            flags: obj.flags(),
+            compatibility_id: obj.compatibility_id(),
+            max_uncompressed_length: obj.max_uncompressed_length(),
+            brotli_stream: obj.brotli_stream().to_owned_obj(offset_data),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::tables::ift::GlyphKeyedPatch<'a>> for GlyphKeyedPatch {}
+
+impl<'a> FontRead<'a> for GlyphKeyedPatch {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::ift::GlyphKeyedPatch as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+impl FontWrite for GlyphKeyedFlags {
+    fn write_into(&self, writer: &mut TableWriter) {
+        writer.write_slice(&self.bits().to_be_bytes())
+    }
+}
+
+/// [GlyphPatches](https://w3c.github.io/IFT/Overview.html#glyphpatches)
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct GlyphPatches {
+    pub glyph_count: u32,
+    pub table_count: u8,
+    pub tables: Vec<Tag>,
+    pub glyph_data: Vec<OffsetMarker<GlyphData, WIDTH_32>>,
+}
+
+impl GlyphPatches {
+    /// Construct a new `GlyphPatches`
+    pub fn new(
+        glyph_count: u32,
+        table_count: u8,
+        tables: Vec<Tag>,
+        glyph_data: Vec<GlyphData>,
+    ) -> Self {
+        Self {
+            glyph_count,
+            table_count,
+            tables: tables.into_iter().map(Into::into).collect(),
+            glyph_data: glyph_data.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for GlyphPatches {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.glyph_count.write_into(writer);
+        self.table_count.write_into(writer);
+        self.tables.write_into(writer);
+        self.glyph_data.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("GlyphPatches")
+    }
+}
+
+impl Validate for GlyphPatches {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("GlyphPatches", |ctx| {
+            ctx.in_field("tables", |ctx| {
+                if self.tables.len() > (u8::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+            ctx.in_field("glyph_data", |ctx| {
+                self.glyph_data.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::ift::GlyphPatches<'a>> for GlyphPatches {
+    fn from_obj_ref(obj: &read_fonts::tables::ift::GlyphPatches<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        GlyphPatches {
+            glyph_count: obj.glyph_count(),
+            table_count: obj.table_count(),
+            tables: obj.tables().to_owned_obj(offset_data),
+            glyph_data: obj.glyph_data().to_owned_table(),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::tables::ift::GlyphPatches<'a>> for GlyphPatches {}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct GlyphData {
+    pub data: Vec<u8>,
+}
+
+impl GlyphData {
+    /// Construct a new `GlyphData`
+    pub fn new(data: Vec<u8>) -> Self {
+        Self {
+            data: data.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for GlyphData {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.data.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("GlyphData")
+    }
+}
+
+impl Validate for GlyphData {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl<'a> FromObjRef<read_fonts::tables::ift::GlyphData<'a>> for GlyphData {
+    fn from_obj_ref(obj: &read_fonts::tables::ift::GlyphData<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        GlyphData {
+            data: obj.data().to_owned_obj(offset_data),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::tables::ift::GlyphData<'a>> for GlyphData {}
+
+impl<'a> FontRead<'a> for GlyphData {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::ift::GlyphData as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
