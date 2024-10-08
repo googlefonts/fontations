@@ -26,6 +26,8 @@ use read_fonts::collections::IntSet;
 use skrifa::charmap::Charmap;
 
 // TODO(garretrieger): implement support for building and compiling mapping tables.
+// TODO(garretrieger): implement coalescing of patches by patch URI, ensuring that all entries with the same
+//                     uri have matching encoding and compat id.
 
 /// Find the set of patches which intersect the specified subset definition.
 pub fn intersecting_patches(
@@ -161,6 +163,8 @@ fn intersect_format1_glyph_map_inner(
         } else {
             glyph_map
                 .entry_index()
+                // TODO(garretrieger): this branches to determine item size on each individual lookup, would
+                //                     likely be faster if we bypassed that since all items have the same length.
                 .get((gid.to_u32() - first_gid) as usize)?
                 .get()
         };

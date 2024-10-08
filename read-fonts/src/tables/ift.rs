@@ -232,10 +232,10 @@ impl<'a> GlyphPatches<'a> {
     /// Returns an iterator over the per glyph data for the table with the given index.
     pub fn glyph_data_for_table(
         &'a self,
-        table_index: u32,
+        table_index: usize,
     ) -> impl Iterator<Item = Result<(GlyphId, &'a [u8]), ReadError>> {
         let glyph_count = self.glyph_count() as usize;
-        let start_index = table_index as usize * glyph_count;
+        let start_index = table_index * glyph_count;
         let start_it = self.glyph_data_offsets().iter().skip(start_index);
         let end_it = self.glyph_data_offsets().iter().skip(start_index + 1);
         let glyphs = self.glyph_ids().iter().take(glyph_count);
