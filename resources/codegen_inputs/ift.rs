@@ -1,6 +1,7 @@
 #![parse_module(read_fonts::tables::ift)]
 
 extern record U8Or16;
+extern record U16Or24;
 extern record IdDeltaOrLength;
 extern scalar CompatibilityId;
 
@@ -250,4 +251,47 @@ table TablePatch {
 flags u8 TablePatchFlags {
   REPLACE_TABLE = 0b01,
   DROP_TABLE = 0b10,
+}
+
+/// [Glyph Keyed Patch](https://w3c.github.io/IFT/Overview.html#glyph-keyed)
+table GlyphKeyedPatch {
+  format: Tag,
+  #[skip_getter]
+  #[compile(0)]
+  _reserved: u32,
+  flags: GlyphKeyedFlags,
+  #[traverse_with(skip)]
+  compatibility_id: CompatibilityId,
+  max_uncompressed_length: u32,
+  #[count(..)]
+  brotli_stream: [u8],
+}
+
+flags u8 GlyphKeyedFlags {
+  NONE = 0b0,
+  WIDE_GLYPH_IDS = 0b1,
+}
+
+/// [GlyphPatches](https://w3c.github.io/IFT/Overview.html#glyphpatches)
+#[read_args(flags: GlyphKeyedFlags)]
+table GlyphPatches {
+  glyph_count: u32,
+  table_count: u8,
+
+  #[count($glyph_count)]
+  #[read_with($flags)]
+  #[traverse_with(skip)]
+  #[compile(skip)] // TODO remove this once write fonts side is implemented.
+  glyph_ids: ComputedArray<U16Or24>,
+
+  #[count($table_count)]
+  tables: [Tag],
+
+  #[count(multiply_add($glyph_count, $table_count, 1))]
+  glyph_data_offsets: [Offset32<GlyphData>],
+}
+
+table GlyphData {
+  #[count(..)]
+  data: [u8],
 }

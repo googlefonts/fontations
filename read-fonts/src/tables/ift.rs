@@ -77,6 +77,41 @@ impl U8Or16 {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct U16Or24(u32);
+
+impl ReadArgs for U16Or24 {
+    type Args = GlyphKeyedFlags;
+}
+
+impl ComputeSize for U16Or24 {
+    fn compute_size(flags: &GlyphKeyedFlags) -> Result<usize, ReadError> {
+        // See: https://w3c.github.io/IFT/Overview.html#glyph-keyed-patch-flags
+        Ok(if flags.contains(GlyphKeyedFlags::WIDE_GLYPH_IDS) {
+            3
+        } else {
+            2
+        })
+    }
+}
+
+impl FontReadWithArgs<'_> for U16Or24 {
+    fn read_with_args(data: FontData<'_>, flags: &Self::Args) -> Result<Self, ReadError> {
+        if flags.contains(GlyphKeyedFlags::WIDE_GLYPH_IDS) {
+            data.read_at::<Uint24>(0).map(|v| Self(v.to_u32()))
+        } else {
+            data.read_at::<u16>(0).map(|v| Self(v as u32))
+        }
+    }
+}
+
+impl U16Or24 {
+    #[inline]
+    pub fn get(self) -> u32 {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct IdDeltaOrLength(i32);
 
 impl ReadArgs for IdDeltaOrLength {

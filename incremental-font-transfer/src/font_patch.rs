@@ -595,4 +595,6 @@ mod tests {
             test_font().as_slice().apply_patch(patch),
         );
     }
+
+    // TODO glyph keyed test with large number of offsets to check type conversion on (glyphCount * tableCount)
 }
