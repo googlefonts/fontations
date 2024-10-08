@@ -721,6 +721,61 @@ where
     }
 }
 
+/* ### Iter Excluded Ranges ### */
+
+struct IterExcludedRangesOp;
+
+impl IterExcludedRangesOp {
+    fn parse_args<T>() -> Option<Box<dyn Operation<T>>>
+    where
+        T: SetMember,
+    {
+        Some(Box::new(Self))
+    }
+}
+
+impl<T> Operation<T> for IterExcludedRangesOp
+where
+    T: SetMember,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
+        let mut btree_ranges: Vec<RangeInclusive<T>> = vec![];
+        let mut cur_range: Option<RangeInclusive<T>> = None;
+
+        let inverted: BTreeSet<_> = T::ordered_values()
+            .map(|v| T::create(v).unwrap())
+            .filter(|v| !input.btree_set.contains(v))
+            .collect();
+
+        for v in inverted.iter().copied() {
+            if let Some(range) = cur_range {
+                let mut end = *range.end();
+                end.increment();
+                if end == v {
+                    cur_range = Some(*range.start()..=v);
+                    continue;
+                }
+                btree_ranges.push(range);
+            }
+
+            cur_range = Some(v..=v);
+        }
+
+        if let Some(range) = cur_range {
+            btree_ranges.push(range);
+        }
+
+        assert!(input
+            .int_set
+            .iter_excluded_ranges()
+            .eq(btree_ranges.iter().cloned()));
+    }
+
+    fn size(&self, length: u64) -> u64 {
+        length
+    }
+}
+
 /* ### Iter After ### */
 
 struct IterAfterOp<T>(T);
@@ -914,14 +969,10 @@ where
     fn operate(&self, input: Input<T>, _: Input<T>) {
         input.int_set.invert();
 
-        let mut inverted = BTreeSet::<T>::new();
-
-        for v in T::ordered_values() {
-            let v = T::create(v).unwrap();
-            if !input.btree_set.contains(&v) {
-                inverted.insert(v);
-            }
-        }
+        let mut inverted: BTreeSet<_> = T::ordered_values()
+            .map(|v| T::create(v).unwrap())
+            .filter(|v| !input.btree_set.contains(v))
+            .collect();
         std::mem::swap(input.btree_set, &mut inverted);
     }
 
@@ -1114,17 +1165,13 @@ where
         19 if is_standard => UnionOp::parse_args(),
         20 if is_standard => IntersectOp::parse_args(),
         21 if is_standard => IsInvertedOp::parse_args(),
-        22 if is_standard => {
-            if T::can_be_inverted() {
-                InvertOp::parse_args()
-            } else {
-                None
-            }
-        }
+        22 if is_standard && T::can_be_inverted() => InvertOp::parse_args(),
         23 if is_standard => HashOp::parse_args(),
         24 if is_standard => EqualOp::parse_args(),
         25 if is_standard => CmpOp::parse_args(),
         26 if is_standard => IntersectsSetOp::parse_args(),
+        27 if is_standard && T::can_be_inverted() => IterExcludedRangesOp::parse_args(),
+
         _ => None,
     };
 
