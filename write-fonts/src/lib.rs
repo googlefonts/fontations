@@ -34,6 +34,8 @@
 //! you want to modify. For example:
 //!
 //! ```no_run
+//! use write_fonts::ToOwnedTable;
+//! // ...
 //! let mut head: Head = font.head().expect("missing 'head' table").to_owned_table();
 //! head.modified = seconds_since_font_epoch();
 //! ```
