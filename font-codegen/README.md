@@ -200,8 +200,8 @@ The following annotations are supported on top-level objects:
   in a table), the name of a field (preceded by the `$` token) or a literal
   integer. The less-simple form begins with a function identifier, and then one
   or more arguments, comma separated. Currently accepted function identifiers
-  are 'add', 'subtract', 'add_multiply', 'half', 'map_delta_size', and
-  'delta_value_count'.
+  are 'add', 'subtract', 'add_multiply', 'multiply_add', 'half', 'map_delta_size',
+  and 'delta_value_count'.
 - `#[compile(arg)]`: If present, this field will not be included in the compile
   type. The value may be either the literal 'skip', or an expression that
   evaluates to the field's type: the skip case is only expected in cases where

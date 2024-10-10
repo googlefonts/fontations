@@ -229,6 +229,7 @@ impl<'a> Iterator for GidToEntryIter<'a> {
 }
 
 impl<'a> GlyphPatches<'a> {
+    /// Returns an iterator over the per glyph data for the table with the given index.
     pub fn glyph_data_for_table(
         &'a self,
         table_index: u32,

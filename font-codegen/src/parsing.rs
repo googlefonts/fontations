@@ -302,7 +302,7 @@ pub(crate) enum CountTransform {
     Add,
     /// requires exactly three args, defined as ($arg1 + $arg2) * $arg3
     AddMul,
-    /// requires exactly three args, defined as ($arg1 * $arg2) + 1
+    /// requires exactly three args, defined as ($arg1 * $arg2) + $arg3
     MulAdd,
     /// requires exactly one arg. defined as $arg1 / 2
     Half,
