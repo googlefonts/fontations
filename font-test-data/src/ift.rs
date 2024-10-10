@@ -539,3 +539,161 @@ pub fn noop_table_keyed_patch() -> BeBuffer {
         {0u32: "patch_off[0]"}
     }
 }
+
+// Format specification: https://w3c.github.io/IFT/Overview.html#glyphpatches
+pub fn glyf_u16_glyph_patches() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      5u32,       // glyph count
+      {1u8: "table_count"},        // table count
+
+      // glyph ids * 5
+      [2, 7u16],
+      {8u16: "gid_8"},
+      [9, 13u16],
+
+      (Tag::new(b"glyf")),   // tables * 1
+
+      // glyph data offsets * 6
+      {0u32: "gid_2_offset"},
+      {0u32: "gid_7_offset"},
+      {0u32: "gid_8_offset"},
+      {0u32: "gid_9_offset"},
+      {0u32: "gid_13_offset"},
+      {0u32: "end_offset"},
+
+      // data blocks
+      {b'a': "gid_2_data"},
+      [b'b', b'c'],
+
+      {b'd': "gid_7_data"},
+      [b'e', b'f', b'g'],
+
+      {b'h': "gid_8_and_9_data"},
+      [b'i', b'j', b'k', b'l'],
+
+      {b'm': "gid_13_data"},
+      [b'n']
+    };
+
+    let offset = buffer.offset_for("gid_2_data") as u32;
+    buffer.write_at("gid_2_offset", offset);
+
+    let offset = buffer.offset_for("gid_7_data") as u32;
+    buffer.write_at("gid_7_offset", offset);
+
+    let offset = buffer.offset_for("gid_8_and_9_data") as u32;
+    buffer.write_at("gid_8_offset", offset);
+
+    let offset = buffer.offset_for("gid_8_and_9_data") as u32;
+    buffer.write_at("gid_9_offset", offset);
+
+    let offset = buffer.offset_for("gid_13_data") as u32;
+    buffer.write_at("gid_13_offset", offset);
+    buffer.write_at("end_offset", offset + 2);
+
+    buffer
+}
+
+// Format specification: https://w3c.github.io/IFT/Overview.html#glyphpatches
+pub fn glyf_u24_glyph_patches() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      5u32,       // glyph count
+      1u8,        // table count
+      (Uint24::new(2)), (Uint24::new(7)), (Uint24::new(8)), (Uint24::new(9)), (Uint24::new(13)),   // glyph ids * 5
+      (Tag::new(b"glyf")),   // tables * 1
+
+      // glyph data offsets * 6
+      {0u32: "gid_2_offset"},
+      {0u32: "gid_7_offset"},
+      {0u32: "gid_8_offset"},
+      {0u32: "gid_9_offset"},
+      {0u32: "gid_13_offset"},
+      {0u32: "end_offset"},
+
+      // data blocks
+      {b'a': "gid_2_data"},
+      [b'b', b'c'],
+
+      {b'd': "gid_7_data"},
+      [b'e', b'f', b'g'],
+
+      {b'h': "gid_8_and_9_data"},
+      [b'i', b'j', b'k', b'l'],
+
+      {b'm': "gid_13_data"},
+      [b'n']
+    };
+
+    let offset = buffer.offset_for("gid_2_data") as u32;
+    buffer.write_at("gid_2_offset", offset);
+
+    let offset = buffer.offset_for("gid_7_data") as u32;
+    buffer.write_at("gid_7_offset", offset);
+
+    let offset = buffer.offset_for("gid_8_and_9_data") as u32;
+    buffer.write_at("gid_8_offset", offset);
+
+    let offset = buffer.offset_for("gid_8_and_9_data") as u32;
+    buffer.write_at("gid_9_offset", offset);
+
+    let offset = buffer.offset_for("gid_13_data") as u32;
+    buffer.write_at("gid_13_offset", offset);
+    buffer.write_at("end_offset", offset + 2);
+
+    buffer
+}
+
+// Format specification: https://w3c.github.io/IFT/Overview.html#glyphpatches
+pub fn glyf_and_gvar_u16_glyph_patches() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      3u32,       // glyph count
+      2u8,        // table count
+      [2, 7, 8u16],   // glyph ids * 3
+      (Tag::new(b"glyf")),   // tables[0]
+      (Tag::new(b"gvar")),   // tables[1]
+
+      // glyph data offsets * 7
+      {0u32: "glyf_gid_2_offset"},
+      {0u32: "glyf_gid_7_offset"},
+      {0u32: "glyf_gid_8_offset"},
+      {0u32: "gvar_gid_2_offset"},
+      {0u32: "gvar_gid_7_offset"},
+      {0u32: "gvar_gid_8_offset"},
+      {0u32: "end_offset"},
+
+      // data blocks
+      {b'a': "glyf_gid_2_data"},
+      [b'b', b'c'],
+
+      {b'd': "glyf_gid_7_data"},
+      [b'e', b'f', b'g'],
+
+      {b'h': "glyf_gid_8_data"},
+      [b'i', b'j', b'k', b'l'],
+
+      {b'm': "gvar_gid_2_data"},
+      [b'n'],
+
+      {b'o': "gvar_gid_7_data"},
+      [b'p', b'q'],
+
+      {b'r': "gvar_gid_8_data"}
+    };
+
+    let offset = buffer.offset_for("glyf_gid_2_data") as u32;
+    buffer.write_at("glyf_gid_2_offset", offset);
+    let offset = buffer.offset_for("glyf_gid_7_data") as u32;
+    buffer.write_at("glyf_gid_7_offset", offset);
+    let offset = buffer.offset_for("glyf_gid_8_data") as u32;
+    buffer.write_at("glyf_gid_8_offset", offset);
+
+    let offset = buffer.offset_for("gvar_gid_2_data") as u32;
+    buffer.write_at("gvar_gid_2_offset", offset);
+    let offset = buffer.offset_for("gvar_gid_7_data") as u32;
+    buffer.write_at("gvar_gid_7_offset", offset);
+    let offset = buffer.offset_for("gvar_gid_8_data") as u32;
+    buffer.write_at("gvar_gid_8_offset", offset);
+    buffer.write_at("end_offset", offset + 1);
+
+    buffer
+}
