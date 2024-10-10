@@ -73,6 +73,16 @@ Describes the provenance, usage and generation procedures for font data used for
     pyftsubset notoserif-regular.ttf --layout-features+=c2sc --no-hinting --text=Hfix
     ```
 
+* _material_icons_subset_
+  * font: Google Material Icons Regular
+  * source: https://fonts.googleapis.com/icon?family=Material+Icons
+  * license: [Apache 2][Apache2]
+  * usage: testing empty Private DICT and scaling with upem=512, ppem=8
+  * subset: just a single glyph to check scaling
+    ```shell
+    pyftsubset material_icons.otf --gids=2
+    ```
+
 * _avar2checker_
   * font: avar2 checker
   * source: https://github.com/Lorp/fencer/tree/main/src/fonts
