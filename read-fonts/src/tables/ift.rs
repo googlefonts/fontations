@@ -228,6 +228,91 @@ impl<'a> Iterator for GidToEntryIter<'a> {
     }
 }
 
+impl<'a> GlyphPatches<'a> {
+    pub fn glyph_data_for_table(
+        &'a self,
+        table_index: u32,
+    ) -> impl Iterator<Item = Result<(GlyphId, &'a [u8]), ReadError>> {
+        let glyph_count = self.glyph_count() as usize;
+        let start_index = table_index as usize * glyph_count;
+        let start_it = self.glyph_data_offsets().iter().skip(start_index);
+        let end_it = self.glyph_data_offsets().iter().skip(start_index + 1);
+        let glyphs = self.glyph_ids().iter().take(glyph_count);
+
+        let it = glyphs.zip(start_it.zip(end_it)).map(|(gid, (start, end))| {
+            let start = start.get();
+            let end = end.get();
+            (gid, start, end)
+        });
+        GlyphDataIterator {
+            patches: self,
+            offset_iterator: it,
+            failed: false,
+        }
+    }
+}
+
+/// Custom iterator for glyph keyed glyph data which allows us to terminate the iterator on the first error.
+struct GlyphDataIterator<'a, T>
+where
+    T: Iterator<Item = (Result<U16Or24, ReadError>, Offset32, Offset32)>,
+{
+    patches: &'a GlyphPatches<'a>,
+    offset_iterator: T,
+    failed: bool,
+}
+
+impl<'a, T> Iterator for GlyphDataIterator<'a, T>
+where
+    T: Iterator<Item = (Result<U16Or24, ReadError>, Offset32, Offset32)>,
+{
+    type Item = Result<(GlyphId, &'a [u8]), ReadError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.failed {
+            return None;
+        }
+
+        let (gid, start, end) = self.offset_iterator.next()?;
+        let gid = match gid {
+            Ok(gid) => GlyphId::new(gid.get()),
+            Err(err) => {
+                self.failed = true;
+                return Some(Err(err));
+            }
+        };
+
+        let len = match end
+            .to_u32()
+            .checked_sub(start.to_u32())
+            .ok_or(ReadError::MalformedData(
+                "glyph data offsets are not ascending.",
+            )) {
+            Ok(len) => len as usize,
+            Err(err) => {
+                self.failed = true;
+                return Some(Err(err));
+            }
+        };
+
+        let data: Result<GlyphData<'a>, ReadError> = self.patches.resolve_offset(start);
+        let data = match data {
+            Ok(data) => data.data,
+            Err(err) => {
+                self.failed = true;
+                return Some(Err(err));
+            }
+        };
+
+        let Some(data) = data.as_bytes().get(..len) else {
+            self.failed = true;
+            return Some(Err(ReadError::OutOfBounds));
+        };
+
+        Some(Ok((gid, data)))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -345,5 +430,147 @@ mod tests {
         };
 
         assert_eq!(Ok("ABCDEFɤ"), map.uri_template_as_string());
+    }
+
+    #[test]
+    fn glyph_keyed_glyph_data_for_one_table() {
+        let data = test_data::glyf_u16_glyph_patches();
+        let table = GlyphPatches::read(FontData::new(&data), GlyphKeyedFlags::NONE).unwrap();
+
+        let it = table.glyph_data_for_table(0);
+
+        assert_eq!(
+            it.collect::<Vec<_>>(),
+            vec![
+                Ok((GlyphId::new(2), b"abc".as_slice())),
+                Ok((GlyphId::new(7), b"defg".as_slice())),
+                Ok((GlyphId::new(8), b"".as_slice())),
+                Ok((GlyphId::new(9), b"hijkl".as_slice())),
+                Ok((GlyphId::new(13), b"mn".as_slice())),
+            ]
+        );
+
+        assert_eq!(table.glyph_data_for_table(1).collect::<Vec<_>>(), vec![]);
+    }
+
+    #[test]
+    fn glyph_keyed_glyph_data_for_one_table_u24_ids() {
+        let data = test_data::glyf_u24_glyph_patches();
+        let table =
+            GlyphPatches::read(FontData::new(&data), GlyphKeyedFlags::WIDE_GLYPH_IDS).unwrap();
+
+        let it = table.glyph_data_for_table(0);
+
+        assert_eq!(
+            it.collect::<Vec<_>>(),
+            vec![
+                Ok((GlyphId::new(2), b"abc".as_slice())),
+                Ok((GlyphId::new(7), b"defg".as_slice())),
+                Ok((GlyphId::new(8), b"".as_slice())),
+                Ok((GlyphId::new(9), b"hijkl".as_slice())),
+                Ok((GlyphId::new(13), b"mn".as_slice())),
+            ]
+        );
+
+        assert_eq!(table.glyph_data_for_table(1).collect::<Vec<_>>(), vec![]);
+    }
+
+    #[test]
+    fn glyph_keyed_glyph_data_for_multiple_tables() {
+        let data = test_data::glyf_and_gvar_u16_glyph_patches();
+        let table = GlyphPatches::read(FontData::new(&data), GlyphKeyedFlags::NONE).unwrap();
+
+        assert_eq!(
+            table.glyph_data_for_table(0).collect::<Vec<_>>(),
+            vec![
+                Ok((GlyphId::new(2), b"abc".as_slice())),
+                Ok((GlyphId::new(7), b"defg".as_slice())),
+                Ok((GlyphId::new(8), b"hijkl".as_slice())),
+            ]
+        );
+
+        assert_eq!(
+            table.glyph_data_for_table(1).collect::<Vec<_>>(),
+            vec![
+                Ok((GlyphId::new(2), b"mn".as_slice())),
+                Ok((GlyphId::new(7), b"opq".as_slice())),
+                Ok((GlyphId::new(8), b"r".as_slice())),
+            ]
+        );
+
+        assert_eq!(table.glyph_data_for_table(2).collect::<Vec<_>>(), vec![]);
+    }
+
+    #[test]
+    fn glyph_keyed_glyph_data_for_one_table_non_ascending_offsets() {
+        let mut builder = test_data::glyf_u16_glyph_patches();
+        let gid_13 = builder.offset_for("gid_13_data") as u32;
+        let gid_9 = builder.offset_for("gid_8_and_9_data") as u32;
+        builder.write_at("gid_13_offset", gid_9);
+        builder.write_at("gid_9_offset", gid_13);
+
+        let table =
+            GlyphPatches::read(FontData::new(builder.as_slice()), GlyphKeyedFlags::NONE).unwrap();
+
+        let it = table.glyph_data_for_table(0);
+
+        assert_eq!(
+            it.collect::<Vec<_>>(),
+            vec![
+                Ok((GlyphId::new(2), b"abc".as_slice())),
+                Ok((GlyphId::new(7), b"defg".as_slice())),
+                Ok((GlyphId::new(8), b"hijkl".as_slice())), // TODO XXXXX
+                Err(ReadError::MalformedData(
+                    "glyph data offsets are not ascending."
+                )),
+            ]
+        );
+
+        assert_eq!(table.glyph_data_for_table(1).collect::<Vec<_>>(), vec![]);
+    }
+
+    #[test]
+    fn glyph_keyed_glyph_data_for_one_table_gids_truncated() {
+        let builder = test_data::glyf_u16_glyph_patches();
+        let len = builder.offset_for("table_count") as usize;
+        let data = &builder.as_slice()[..len];
+
+        let Err(err) = GlyphPatches::read(FontData::new(data), GlyphKeyedFlags::NONE) else {
+            panic!("Expected to fail.");
+        };
+        assert_eq!(ReadError::OutOfBounds, err);
+    }
+
+    #[test]
+    fn glyph_keyed_glyph_data_for_one_table_data_truncated() {
+        let builder = test_data::glyf_u16_glyph_patches();
+        let len = builder.offset_for("gid_8_and_9_data") as usize;
+        let data = &builder.as_slice()[..len];
+
+        let table = GlyphPatches::read(FontData::new(data), GlyphKeyedFlags::NONE).unwrap();
+
+        let it = table.glyph_data_for_table(0);
+
+        assert_eq!(
+            it.collect::<Vec<_>>(),
+            vec![
+                Ok((GlyphId::new(2), b"abc".as_slice())),
+                Ok((GlyphId::new(7), b"defg".as_slice())),
+                Ok((GlyphId::new(8), b"".as_slice())),
+                Err(ReadError::OutOfBounds),
+            ]
+        );
+    }
+
+    #[test]
+    fn glyph_keyed_glyph_data_for_one_table_offset_array_truncated() {
+        let builder = test_data::glyf_u16_glyph_patches();
+        let len = builder.offset_for("gid_9_offset") as usize;
+        let data = &builder.as_slice()[..len];
+
+        let Err(err) = GlyphPatches::read(FontData::new(data), GlyphKeyedFlags::NONE) else {
+            panic!("Expected to fail.");
+        };
+        assert_eq!(ReadError::OutOfBounds, err);
     }
 }
