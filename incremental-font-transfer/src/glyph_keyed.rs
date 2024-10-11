@@ -12,9 +12,9 @@ use read_fonts::ReadError;
 use read_fonts::{FontData, FontRef, TableProvider};
 use shared_brotli_patch_decoder::shared_brotli_decode;
 use skrifa::GlyphId;
-use std::cmp::min;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
+use std::ops::RangeInclusive;
 
 use write_fonts::FontBuilder;
 
@@ -35,6 +35,15 @@ pub(crate) fn apply_glyph_keyed_patch(
     let glyph_patches = GlyphPatches::read(FontData::new(&raw_data), patch.flags())
         .map_err(PatchingError::PatchParsingFailed)?;
 
+    let num_glyphs = font
+        .maxp()
+        .map_err(PatchingError::FontParsingFailed)?
+        .num_glyphs();
+
+    let max_glyph_id = GlyphId::new(num_glyphs.checked_sub(1).ok_or(
+        PatchingError::FontParsingFailed(ReadError::MalformedData("Font has no glyphs.")),
+    )? as u32);
+
     let mut processed_tables = BTreeSet::<Tag>::new();
     let mut font_builder = FontBuilder::new();
     for table_tag in glyph_patches.tables().iter() {
@@ -51,9 +60,11 @@ pub(crate) fn apply_glyph_keyed_patch(
                 &[glyph_patches.clone()],
                 glyf.as_bytes(),
                 loca,
-                GlyphId::new(0),
+                max_glyph_id,
                 &mut font_builder,
             )?;
+            // glyf patch application also generates a loca table.
+            processed_tables.insert(Tag::new(b"loca"));
         } else {
             return Err(PatchingError::InvalidPatch(
                 "Glyph keyed patch against unsupported table.",
@@ -68,14 +79,6 @@ pub(crate) fn apply_glyph_keyed_patch(
     copy_unprocessed_tables(font, processed_tables, &mut font_builder);
 
     Ok(font_builder.build())
-}
-
-fn table_tag_list<'a>(glyph_patches: impl Iterator<Item = &'a GlyphPatches<'a>>) -> BTreeSet<Tag> {
-    let mut result = BTreeSet::new();
-    for glyph_patch in glyph_patches {
-        result.extend(glyph_patch.tables().iter().map(|tag| tag.get()));
-    }
-    result
 }
 
 fn dedup_gid_replacement_data<'a>(
@@ -120,19 +123,33 @@ fn dedup_gid_replacement_data<'a>(
     Ok((gids, deduped))
 }
 
-fn retained_glyph_total_size<'a>(
+fn retained_glyphs_in_font(
+    replace_gids: &IntSet<GlyphId>,
+    max_glyph_id: GlyphId,
+) -> impl Iterator<Item = RangeInclusive<GlyphId>> + '_ {
+    replace_gids
+        .iter_excluded_ranges()
+        .filter_map(move |range| {
+            // Filter out values beyond max_glyp_id.
+            if *range.start() > max_glyph_id {
+                return None;
+            }
+            if *range.end() > max_glyph_id {
+                return Some(*range.start()..=max_glyph_id);
+            }
+            Some(range)
+        })
+}
+
+fn retained_glyph_total_size(
     gids: &IntSet<GlyphId>,
-    loca: &Loca<'a>,
+    loca: &Loca,
     max_glyph_id: GlyphId,
 ) -> Result<u64, PatchingError> {
     let mut total_size = 0u64;
-    for keep_range in gids.iter_excluded_ranges() {
-        if *keep_range.start() > max_glyph_id {
-            break;
-        }
-
+    for keep_range in retained_glyphs_in_font(gids, max_glyph_id) {
         let start = keep_range.start();
-        let end = min(*keep_range.end(), max_glyph_id);
+        let end = keep_range.end();
 
         let start_offset = loca
             .get_raw(start.to_u32() as usize)
@@ -164,13 +181,14 @@ impl LocaOffset for u32 {
 
 impl LocaOffset for u16 {
     fn write_to(self, dest: &mut [u8]) {
-        let data: [u8; 2] = self.to_raw();
+        let data: [u8; 2] = (self / 2).to_raw();
         dest[..2].copy_from_slice(&data);
     }
 }
 
 fn synthesize_glyf_and_loca<OffsetType: LocaOffset + TryFrom<usize>>(
     gids: &IntSet<GlyphId>,
+    max_glyph_id: GlyphId,
     replacement_data: &[&[u8]],
     glyf: &[u8],
     loca: &Loca<'_>,
@@ -178,7 +196,7 @@ fn synthesize_glyf_and_loca<OffsetType: LocaOffset + TryFrom<usize>>(
     new_loca: &mut [u8],
 ) -> Result<(), PatchingError> {
     let mut replace_it = gids.iter_ranges().peekable();
-    let mut keep_it = gids.iter_excluded_ranges().peekable();
+    let mut keep_it = retained_glyphs_in_font(gids, max_glyph_id).peekable();
     let mut replacement_data_it = replacement_data.iter();
     let mut write_index = 0;
     let is_short_loca = match loca {
@@ -220,6 +238,7 @@ fn synthesize_glyf_and_loca<OffsetType: LocaOffset + TryFrom<usize>>(
                 let loca_off: OffsetType = write_index
                     .try_into()
                     .map_err(|_| PatchingError::InternalError)?;
+
                 loca_off.write_to(
                     new_loca
                         .get_mut(gid * off_size..)
@@ -234,7 +253,7 @@ fn synthesize_glyf_and_loca<OffsetType: LocaOffset + TryFrom<usize>>(
             }
         } else {
             let start_off = loca.get_raw(start).ok_or(PatchingError::InternalError)? as usize;
-            let end_off = loca.get_raw(end).ok_or(PatchingError::InternalError)? as usize;
+            let end_off = loca.get_raw(end + 1).ok_or(PatchingError::InternalError)? as usize;
             let len = end_off
                 .checked_sub(start_off)
                 .ok_or(PatchingError::InternalError)?;
@@ -249,6 +268,7 @@ fn synthesize_glyf_and_loca<OffsetType: LocaOffset + TryFrom<usize>>(
             for gid in start..=end {
                 let cur_off = loca.get_raw(gid).ok_or(PatchingError::InternalError)? as usize;
                 let new_off = cur_off - start_off + write_index;
+
                 let new_off: OffsetType = new_off
                     .try_into()
                     .map_err(|_| PatchingError::InternalError)?;
@@ -302,9 +322,12 @@ fn patch_glyf_and_loca<'a>(
     // Step 1: determine the new total size of glyf
     let mut total_glyf_size = retained_glyph_total_size(&gids, &loca, max_glyph_id)?;
     for data in replacement_data.iter() {
-        total_glyf_size += data.len() as u64;
+        let len = data.len() as u64;
+        // note: include padding as needed for short loca
+        total_glyf_size += len + if is_short { len % 2 } else { 0 };
     }
 
+    // TODO(garretrieger): pre-check loca has all ascending offsets.
     // TODO(garretrieger): check if loca format will need to switch, if so that's an error.
 
     if gids.last().unwrap_or(GlyphId::new(0)) > max_glyph_id {
@@ -314,12 +337,13 @@ fn patch_glyf_and_loca<'a>(
     }
 
     // Step 2: patch together the new glyf (by copying in ranges of data in the correct order).
-    let loca_size = (max_glyph_id.to_u32() as usize + 1) * if is_short { 2 } else { 4 };
+    let loca_size = (max_glyph_id.to_u32() as usize + 2) * if is_short { 2 } else { 4 };
     let mut new_glyf = vec![0u8; total_glyf_size as usize];
     let mut new_loca = vec![0u8; loca_size];
     if is_short {
         synthesize_glyf_and_loca::<u16>(
             &gids,
+            max_glyph_id,
             &replacement_data,
             glyf,
             &loca,
@@ -329,6 +353,7 @@ fn patch_glyf_and_loca<'a>(
     } else {
         synthesize_glyf_and_loca::<u32>(
             &gids,
+            max_glyph_id,
             &replacement_data,
             glyf,
             &loca,
@@ -346,8 +371,78 @@ fn patch_glyf_and_loca<'a>(
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
+
+    use brotlic::CompressorWriter;
+    use read_fonts::{
+        tables::ift::GlyphKeyedPatch, test_helpers::BeBuffer, FontData, FontRead, TableProvider,
+    };
+
+    use font_test_data::ift::{
+        glyf_u16_glyph_patches, glyph_keyed_patch_header, test_font_for_patching,
+    };
+    use skrifa::{FontRef, Tag};
+
+    use crate::glyph_keyed::apply_glyph_keyed_patch;
+
+    fn assemble_patch(mut header: BeBuffer, payload: BeBuffer) -> BeBuffer {
+        let payload_data: &[u8] = &payload;
+        let mut compressor = CompressorWriter::new(Vec::new());
+        compressor.write_all(payload_data).unwrap();
+        let compressed = compressor.into_inner().unwrap();
+
+        header.write_at("max_uncompressed_length", payload_data.len() as u32);
+        header.extend(compressed)
+    }
+
     #[test]
     fn basic_glyph_keyed() {
-        todo!()
+        let patch = assemble_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+
+        let font = test_font_for_patching();
+        let font = FontRef::new(&font).unwrap();
+
+        let patched = apply_glyph_keyed_patch(&patch, &font).unwrap();
+        let patched = FontRef::new(&patched).unwrap();
+
+        let new_glyf: &[u8] = patched.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
+        assert_eq!(
+            &[
+                1, 2, 3, 4, 5, 0, // gid 0
+                6, 7, 8, 0, // gid 1
+                b'a', b'b', b'c', 0, // gid2
+                b'd', b'e', b'f', b'g', // gid 7
+                b'h', b'i', b'j', b'k', b'l', 0, // gid 8 + 9
+                b'm', b'n', // gid 13
+            ],
+            new_glyf
+        );
+
+        let new_loca = patched.loca(None).unwrap();
+        let indices: Vec<u32> = (0..=15).map(|gid| new_loca.get_raw(gid).unwrap()).collect();
+
+        assert_eq!(
+            vec![
+                0,  // gid 0
+                6,  // gid 1
+                10, // gid 2
+                14, // gid 3
+                14, // gid 4
+                14, // gid 5
+                14, // gid 6
+                14, // gid 7
+                18, // gid 8
+                18, // gid 9
+                24, // gid 10
+                24, // gid 11
+                24, // gid 12
+                24, // gid 13
+                26, // gid 14
+                26, // end
+            ],
+            indices
+        );
     }
 }

@@ -18,3 +18,5 @@ repository.workspace = true
 
 [dependencies]
 read-fonts = { workspace = true }
+write-fonts = { workspace = true }
+

@@ -5,6 +5,10 @@
 
 use read_fonts::types::Tag;
 use read_fonts::{be_buffer, be_buffer_add, test_helpers::BeBuffer, types::Int24, types::Uint24};
+use write_fonts::tables::head::Head;
+use write_fonts::tables::loca::Loca;
+use write_fonts::tables::maxp::Maxp;
+use write_fonts::FontBuilder;
 
 pub static IFT_BASE: &[u8] = include_bytes!("../test_data/ttf/ift_base.ttf");
 
@@ -537,6 +541,73 @@ pub fn noop_table_keyed_patch() -> BeBuffer {
 
         // patch_offsets[1]
         {0u32: "patch_off[0]"}
+    }
+}
+
+pub fn test_font_for_patching() -> Vec<u8> {
+    let mut font_builder = FontBuilder::new();
+
+    let maxp = Maxp {
+        num_glyphs: 15,
+        ..Default::default()
+    };
+    font_builder.add_table(&maxp).unwrap();
+
+    let head = Head {
+        index_to_loc_format: 0,
+        ..Default::default()
+    };
+    font_builder.add_table(&head).unwrap();
+
+    // ## glyf ##
+    // glyphs are padded to even number of bytes since loca format wil be short.
+    let glyf = BeBuffer::new()
+        .push_with_tag(1u8, "gid_0")
+        .extend([2, 3, 4, 5u8, 0u8])
+        .push_with_tag(6u8, "gid_1")
+        .extend([7, 8u8, 0u8])
+        .push_with_tag(9u8, "gid_8")
+        .extend([10, 11, 12u8]);
+
+    // ## loca ##
+    let gid_1 = glyf.offset_for("gid_1") as u32;
+    let gid_8 = glyf.offset_for("gid_8") as u32;
+    let end = gid_8 + 4;
+    let loca = Loca::new(vec![
+        0,     // gid 0
+        gid_1, // gid 1
+        gid_8, // gid 2
+        gid_8, // gid 3
+        gid_8, // gid 4
+        gid_8, // gid 5
+        gid_8, // gid 6
+        gid_8, // gid 7
+        gid_8, // gid 8
+        end,   // gid 9
+        end,   // gid 10
+        end,   // gid 11
+        end,   // gid 12
+        end,   // gid 13
+        end,   // gid 14
+        end,   // gid 15
+        end,   // end
+    ]);
+
+    let glyf: &[u8] = &glyf;
+    font_builder.add_raw(Tag::new(b"glyf"), glyf);
+    font_builder.add_table(&loca).unwrap();
+
+    font_builder.build()
+}
+
+// Format specification: https://w3c.github.io/IFT/Overview.html#glyph-keyed
+pub fn glyph_keyed_patch_header() -> BeBuffer {
+    be_buffer! {
+      (Tag::new(b"ifgk")), // format
+      0u32,                // reserved
+      0u8,                 // flags (0 = u16 gids)
+      [1, 2, 3, 4u32],     // compatibility id
+      {0u32: "max_uncompressed_length"}
     }
 }
 
