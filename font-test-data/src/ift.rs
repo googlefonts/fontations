@@ -666,6 +666,48 @@ pub fn glyf_u16_glyph_patches() -> BeBuffer {
 }
 
 // Format specification: https://w3c.github.io/IFT/Overview.html#glyphpatches
+pub fn glyf_u16_glyph_patches_2() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      3u32,       // glyph count
+      {1u8: "table_count"},        // table count
+
+      // glyph ids * 3
+      7u16,
+      12u16,
+      14u16,
+
+      (Tag::new(b"glyf")),   // tables * 1
+
+      // glyph data offsets * 6
+      {0u32: "gid_7_offset"},
+      {0u32: "gid_12_offset"},
+      {0u32: "gid_14_offset"},
+      {0u32: "end_offset"},
+
+      // data blocks
+      {b'q': "gid_7_data"},
+      [b'r'],
+
+      {b's': "gid_12_data"},
+      [b't', b'u'],
+
+      {b'v': "gid_14_data"}
+    };
+
+    let offset = buffer.offset_for("gid_7_data") as u32;
+    buffer.write_at("gid_7_offset", offset);
+
+    let offset = buffer.offset_for("gid_12_data") as u32;
+    buffer.write_at("gid_12_offset", offset);
+
+    let offset = buffer.offset_for("gid_14_data") as u32;
+    buffer.write_at("gid_14_offset", offset);
+    buffer.write_at("end_offset", offset + 1);
+
+    buffer
+}
+
+// Format specification: https://w3c.github.io/IFT/Overview.html#glyphpatches
 pub fn glyf_u24_glyph_patches() -> BeBuffer {
     let mut buffer = be_buffer! {
       5u32,       // glyph count
