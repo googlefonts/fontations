@@ -29,6 +29,7 @@ use write_fonts::FontBuilder;
 /// An incremental font patch which can be used to extend a font.
 ///
 /// See: <https://w3c.github.io/IFT/Overview.html#font-patch-formats>
+#[derive(Clone)]
 pub enum IncrementalFontPatch<'a> {
     TableKeyed(TableKeyedPatch<'a>),
     GlyphKeyed(GlyphKeyedPatch<'a>),
@@ -64,13 +65,13 @@ impl PatchUri {
 ///
 /// See: <https://w3c.github.io/IFT/Overview.html#font-patch-formats> for details on the format of patches.
 pub trait IncrementalFontPatchBase {
-    /// Apply an incremental font patch (<https://w3c.github.io/IFT/Overview.html#font-patch-formats>)
+    /// Apply a set of incremental font patches (<https://w3c.github.io/IFT/Overview.html#font-patch-formats>)
     ///
-    /// Applies the patch to this base. In the base the patch is associated with the supplied
+    /// Applies the patches to this base. In the base the patch is associated with the supplied
     /// expected_compatibility_id and has the specified encoding.
     ///
-    /// Returns the byte data for the new font produced as a result of the patch application.
-    fn apply_patch(&self, patch: IncrementalFontPatch) -> Result<Vec<u8>, PatchingError>;
+    /// Returns the byte data for the new font produced as a result of the patch applications.
+    fn apply_patch(&self, patch: &[IncrementalFontPatch]) -> Result<Vec<u8>, PatchingError>;
 }
 
 /// An error that occurs while trying to apply an IFT patch to a font file.
@@ -79,6 +80,7 @@ pub enum PatchingError {
     PatchParsingFailed(ReadError),
     FontParsingFailed(ReadError),
     IncompatiblePatch,
+    IncompatiblePatches,
     NonIncrementalFont,
     InvalidPatch(&'static str),
     InternalError,
@@ -112,6 +114,12 @@ impl std::fmt::Display for PatchingError {
             PatchingError::IncompatiblePatch => {
                 write!(f, "Compatibility ID of the patch does not match the font.")
             }
+            PatchingError::IncompatiblePatches => {
+                write!(
+                    f,
+                    "Cannot apply multiple patches that are incompatible with each other."
+                )
+            }
             PatchingError::NonIncrementalFont => {
                 write!(
                     f,
@@ -136,21 +144,12 @@ impl IncrementalFontPatch<'_> {
             IncrementalFontPatch::GlyphKeyed(patch_data) => patch_data.compatibility_id(),
         }
     }
-
-    fn apply_to(&self, font: &FontRef) -> Result<Vec<u8>, PatchingError> {
-        match self {
-            IncrementalFontPatch::TableKeyed(patch_data) => {
-                apply_table_keyed_patch(patch_data, font)
-            }
-            IncrementalFontPatch::GlyphKeyed(patch_data) => {
-                apply_glyph_keyed_patch(&[patch_data.clone()], font)
-            }
-        }
-    }
 }
 
 impl IncrementalFontPatchBase for FontRef<'_> {
-    fn apply_patch(&self, patch: IncrementalFontPatch) -> Result<Vec<u8>, PatchingError> {
+    fn apply_patch(&self, patches: &[IncrementalFontPatch]) -> Result<Vec<u8>, PatchingError> {
+        // TODO(garretrieger): we can support table keyed + glyph keyed where the table keyed is partially invalidation
+        // and has a different compat id then the glyph keyed patches.
         if self.table_data(Tag::new(b"IFT ")).is_none()
             && self.table_data(Tag::new(b"IFTX")).is_none()
         {
@@ -159,14 +158,41 @@ impl IncrementalFontPatchBase for FontRef<'_> {
             return Err(PatchingError::NonIncrementalFont);
         }
 
-        patch.apply_to(self)
+        let first = patches.first().ok_or(PatchingError::InvalidPatch(
+            "At least one patch must be provided.",
+        ))?;
+
+        match first {
+            IncrementalFontPatch::TableKeyed(patch_data) => {
+                if patches.len() > 1 {
+                    // table keyed patches can only be applied one at a time
+                    // (as they are at a minimum partial invalidating)
+                    return Err(PatchingError::IncompatiblePatches);
+                }
+                apply_table_keyed_patch(patch_data, self)
+            }
+            IncrementalFontPatch::GlyphKeyed(_) => {
+                let glyph_keyed_patches: Vec<_> = patches
+                    .iter()
+                    .filter_map(|patch| match patch {
+                        IncrementalFontPatch::GlyphKeyed(patch_data) => Some(patch_data.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                // glyph keyed patches are no invalidation so any number of them may be applied simultaneously
+                if glyph_keyed_patches.len() != patches.len() {
+                    return Err(PatchingError::IncompatiblePatches);
+                }
+                apply_glyph_keyed_patch(&glyph_keyed_patches, self)
+            }
+        }
     }
 }
 
 impl IncrementalFontPatchBase for &[u8] {
-    fn apply_patch(&self, patch: IncrementalFontPatch) -> Result<Vec<u8>, PatchingError> {
+    fn apply_patch(&self, patches: &[IncrementalFontPatch]) -> Result<Vec<u8>, PatchingError> {
         let font_ref = FontRef::new(self).map_err(PatchingError::FontParsingFailed)?;
-        font_ref.apply_patch(patch)
+        font_ref.apply_patch(patches)
     }
 }
 
@@ -285,7 +311,9 @@ fn apply_table_patch(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use font_test_data::ift::{noop_table_keyed_patch, table_keyed_patch};
+    use font_test_data::ift::{
+        glyph_keyed_patch_header, noop_table_keyed_patch, table_keyed_patch,
+    };
     use read_fonts::FontRef;
     use read_fonts::ReadError;
     use write_fonts::FontBuilder;
@@ -307,6 +335,15 @@ mod tests {
         )
     }
 
+    fn glyph_keyed_patch_uri() -> PatchUri {
+        PatchUri::from_index(
+            "",
+            0,
+            &CompatibilityId::from_u32s([6, 7, 8, 9]),
+            PatchEncoding::GlyphKeyed,
+        )
+    }
+
     fn test_font() -> Vec<u8> {
         let mut font_builder = FontBuilder::new();
         font_builder.add_raw(Tag::new(b"IFT "), IFT_TABLE);
@@ -324,7 +361,7 @@ mod tests {
             .into_patch(patch_data.as_slice())
             .unwrap();
 
-        let r = test_font().as_slice().apply_patch(patch);
+        let r = test_font().as_slice().apply_patch(&[patch]);
 
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
@@ -356,7 +393,7 @@ mod tests {
             .into_patch(patch_data.as_slice())
             .unwrap();
 
-        let r = test_font().as_slice().apply_patch(patch);
+        let r = test_font().as_slice().apply_patch(&[patch]);
 
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
@@ -402,7 +439,7 @@ mod tests {
 
         assert_eq!(
             Err(PatchingError::InvalidPatch("Patch file tag is not 'iftk'")),
-            test_font().as_slice().apply_patch(patch)
+            test_font().as_slice().apply_patch(&[patch])
         );
     }
 
@@ -416,7 +453,7 @@ mod tests {
             .into_patch(patch_data.as_slice())
             .unwrap();
 
-        let r = test_font().as_slice().apply_patch(patch);
+        let r = test_font().as_slice().apply_patch(&[patch]);
 
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
@@ -464,7 +501,7 @@ mod tests {
             Err(PatchingError::InvalidPatch(
                 "Patch offsets are not in sorted order."
             )),
-            test_font().as_slice().apply_patch(patch)
+            test_font().as_slice().apply_patch(&[patch])
         );
     }
 
@@ -481,7 +518,7 @@ mod tests {
 
         assert_eq!(
             Err(PatchingError::PatchParsingFailed(ReadError::OutOfBounds)),
-            test_font().as_slice().apply_patch(patch,)
+            test_font().as_slice().apply_patch(&[patch])
         );
     }
 
@@ -495,7 +532,7 @@ mod tests {
             .unwrap();
 
         // When DROP and REPLACE are both set DROP takes priority.
-        let r = test_font().as_slice().apply_patch(patch);
+        let r = test_font().as_slice().apply_patch(&[patch]);
 
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
@@ -534,7 +571,7 @@ mod tests {
             Err(PatchingError::InvalidPatch(
                 "Trying to patch a base table that doesn't exist."
             )),
-            test_font().as_slice().apply_patch(patch),
+            test_font().as_slice().apply_patch(&[patch]),
         );
     }
 
@@ -547,7 +584,7 @@ mod tests {
             .into_patch(patch_data.as_slice())
             .unwrap();
 
-        let r = test_font().as_slice().apply_patch(patch);
+        let r = test_font().as_slice().apply_patch(&[patch]);
 
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
@@ -585,7 +622,7 @@ mod tests {
             .into_patch(patch_data.as_slice())
             .unwrap();
 
-        let r = test_font().as_slice().apply_patch(patch);
+        let r = test_font().as_slice().apply_patch(&[patch]);
 
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
@@ -624,10 +661,52 @@ mod tests {
 
         assert_eq!(
             Err(PatchingError::InvalidPatch("Max size exceeded.")),
-            test_font().as_slice().apply_patch(patch),
+            test_font().as_slice().apply_patch(&[patch]),
         );
     }
 
-    // TODO glyph keyed test with large number of offsets to check type conversion on (glyphCount * tableCount)
-    // TODO glyph keyed test with multiple patches that have different bytes for the same gid.
+    #[test]
+    fn multiple_table_keyed_patches() {
+        let patch_data = table_keyed_patch();
+        let patch1 = table_keyed_patch_uri()
+            .into_patch(patch_data.as_slice())
+            .unwrap();
+
+        let patch_data = noop_table_keyed_patch();
+        let patch2 = table_keyed_patch_uri()
+            .into_patch(patch_data.as_slice())
+            .unwrap();
+
+        assert_eq!(
+            Err(PatchingError::IncompatiblePatches),
+            test_font().as_slice().apply_patch(&[patch1, patch2])
+        );
+    }
+
+    #[test]
+    fn mixed_table_and_glyph_keyed_patches() {
+        let patch_data = table_keyed_patch();
+        let patch1 = table_keyed_patch_uri()
+            .into_patch(patch_data.as_slice())
+            .unwrap();
+
+        let patch_data = glyph_keyed_patch_header();
+        let patch2 = glyph_keyed_patch_uri()
+            .into_patch(patch_data.as_slice())
+            .unwrap();
+
+        assert_eq!(
+            Err(PatchingError::IncompatiblePatches),
+            test_font()
+                .as_slice()
+                .apply_patch(&[patch1.clone(), patch2.clone()])
+        );
+        assert_eq!(
+            Err(PatchingError::IncompatiblePatches),
+            test_font().as_slice().apply_patch(&[patch2, patch1])
+        );
+    }
+
+    // TODO(garretrieger): single glyph keyed patch test
+    // TODO(garretrieger): multiple glyph keyed
 }
