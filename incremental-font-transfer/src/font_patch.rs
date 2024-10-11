@@ -24,8 +24,6 @@ use std::collections::BTreeSet;
 
 use write_fonts::FontBuilder;
 
-// TODO(garretrieger): support applying multiple glyph keyed patches in a single operation at the top level API.
-
 /// An incremental font patch which can be used to extend a font.
 ///
 /// See: <https://w3c.github.io/IFT/Overview.html#font-patch-formats>

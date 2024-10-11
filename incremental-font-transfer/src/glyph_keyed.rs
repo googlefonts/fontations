@@ -1,5 +1,11 @@
-//! TODO write me.
-
+/// Implementation of Glyph Keyed patch application.
+///
+/// Glyph Keyed patches are a type of incremental font patch which stores opaque data blobs
+/// keyed by glyph id. Patch application places the data blobs into the appropriate place
+/// in the base font based on the associated glyph id.
+///
+/// Glyph Keyed patches are specified here:
+/// <https://w3c.github.io/IFT/Overview.html#glyph-keyed>
 use crate::font_patch::copy_unprocessed_tables;
 use crate::font_patch::PatchingError;
 
@@ -314,9 +320,6 @@ fn synthesize_glyf_and_loca<OffsetType: LocaOffset + TryFrom<usize>>(
     Ok(())
 }
 
-// TODO: Idea - can we actually construct the new glyf table on the fly during the brotli decompression process?
-//              ie. eliminate the intermediate buffer that stores GlyphPatches?
-
 fn patch_glyf_and_loca<'a>(
     glyph_patches: &'a [GlyphPatches<'a>],
     glyf: &[u8],
@@ -331,7 +334,7 @@ fn patch_glyf_and_loca<'a>(
         Loca::Long(_) => false,
     };
 
-    // Step 0: merge the invidual patches into a list of replacement data for gid.
+    // Step 0: merge the individual patches into a list of replacement data for gid.
     // TODO(garretrieger): special case where gids is empty, just returned umodified copy of glyf + loca?
     let (gids, replacement_data) =
         dedup_gid_replacement_data(glyph_patches.iter(), Tag::new(b"glyf"))
