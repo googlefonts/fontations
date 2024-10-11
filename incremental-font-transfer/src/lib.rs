@@ -12,4 +12,5 @@
 #![forbid(unsafe_code)]
 
 pub mod font_patch;
+pub mod glyph_keyed;
 pub mod patchmap;
