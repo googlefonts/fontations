@@ -27,3 +27,4 @@ shared-brotli-patch-decoder = { workspace = true }
 [dev-dependencies]
 font-test-data = { workspace = true }
 read-fonts = { workspace = true }
+brotlic = {version = "0.8.2"}
