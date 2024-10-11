@@ -148,7 +148,7 @@ fn retained_glyphs_in_font(
     replace_gids
         .iter_excluded_ranges()
         .filter_map(move |range| {
-            // Filter out values beyond max_glyp_id.
+            // Filter out values beyond max_glyph_id.
             if *range.start() > max_glyph_id {
                 return None;
             }
@@ -159,7 +159,7 @@ fn retained_glyphs_in_font(
         })
 }
 
-fn retained_glyph_total_size(
+fn retained_glyphs_total_size(
     gids: &IntSet<GlyphId>,
     loca: &Loca,
     max_glyph_id: GlyphId,
@@ -338,7 +338,7 @@ fn patch_glyf_and_loca<'a>(
             .map_err(PatchingError::PatchParsingFailed)?;
 
     // Step 1: determine the new total size of glyf
-    let mut total_glyf_size = retained_glyph_total_size(&gids, &loca, max_glyph_id)?;
+    let mut total_glyf_size = retained_glyphs_total_size(&gids, &loca, max_glyph_id)?;
     for data in replacement_data.iter() {
         let len = data.len() as u64;
         // note: include padding as needed for short loca
@@ -389,7 +389,7 @@ fn patch_glyf_and_loca<'a>(
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
+    use std::{collections::BTreeSet, io::Write};
 
     use brotlic::CompressorWriter;
     use read_fonts::{
@@ -398,7 +398,7 @@ mod tests {
 
     use font_test_data::ift::{
         glyf_u16_glyph_patches, glyf_u16_glyph_patches_2, glyph_keyed_patch_header,
-        test_font_for_patching,
+        noop_glyf_glyph_patches, test_font_for_patching,
     };
     use skrifa::{FontRef, Tag};
 
@@ -412,6 +412,43 @@ mod tests {
 
         header.write_at("max_uncompressed_length", payload_data.len() as u32);
         header.extend(compressed)
+    }
+
+    fn check_tables_equal(a: &FontRef, b: &FontRef, excluding: BTreeSet<Tag>) {
+        let it_a = a
+            .table_directory
+            .table_records()
+            .iter()
+            .map(|r| r.tag())
+            .filter(|tag| !excluding.contains(tag));
+        let it_b = b
+            .table_directory
+            .table_records()
+            .iter()
+            .map(|r| r.tag())
+            .filter(|tag| !excluding.contains(tag));
+
+        for (tag_a, tag_b) in it_a.zip(it_b) {
+            assert_eq!(tag_a, tag_b);
+            let data_a = a.table_data(tag_a).unwrap();
+            let data_b = b.table_data(tag_b).unwrap();
+            assert_eq!(data_a.as_bytes(), data_b.as_bytes(), "{}", tag_a);
+        }
+    }
+
+    #[test]
+    fn noop_glyph_keyed() {
+        let patch = assemble_patch(glyph_keyed_patch_header(), noop_glyf_glyph_patches());
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+
+        let font = test_font_for_patching();
+        let font = FontRef::new(&font).unwrap();
+
+        let patched = apply_glyph_keyed_patch(&[patch], &font).unwrap();
+        let patched = FontRef::new(&patched).unwrap();
+
+        check_tables_equal(&font, &patched, BTreeSet::default());
     }
 
     #[test]
@@ -462,6 +499,12 @@ mod tests {
                 26, // end
             ],
             indices
+        );
+
+        check_tables_equal(
+            &font,
+            &patched,
+            [Tag::new(b"glyf"), Tag::new(b"loca")].into(),
         );
     }
 
@@ -520,11 +563,17 @@ mod tests {
             ],
             indices
         );
+
+        check_tables_equal(
+            &font,
+            &patched,
+            [Tag::new(b"glyf"), Tag::new(b"loca")].into(),
+        );
     }
 
-    // TODO test of noop patch.
     // TODO test of invalid cases:
     // - loca offsets unordered
     // - patch data offsets unordered.
     // - bad decompressed length.
+    // TODO glyph keyed test with large number of offsets to check type conversion on (glyphCount * tableCount)
 }

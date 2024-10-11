@@ -589,7 +589,6 @@ pub fn test_font_for_patching() -> Vec<u8> {
         end,   // gid 12
         end,   // gid 13
         end,   // gid 14
-        end,   // gid 15
         end,   // end
     ]);
 
@@ -606,8 +605,21 @@ pub fn glyph_keyed_patch_header() -> BeBuffer {
       (Tag::new(b"ifgk")), // format
       0u32,                // reserved
       0u8,                 // flags (0 = u16 gids)
-      [1, 2, 3, 4u32],     // compatibility id
+      [6, 7, 8, 9u32],     // compatibility id
       {0u32: "max_uncompressed_length"}
+    }
+}
+
+// Format specification: https://w3c.github.io/IFT/Overview.html#glyphpatches
+pub fn noop_glyf_glyph_patches() -> BeBuffer {
+    be_buffer! {
+      0u32,       // glyph count
+      {1u8: "table_count"},        // table count
+
+      (Tag::new(b"glyf")),   // tables * 1
+
+      // glyph data offsets * 1
+      0u32
     }
 }
 
