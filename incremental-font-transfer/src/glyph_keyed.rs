@@ -19,21 +19,33 @@ use std::ops::RangeInclusive;
 use write_fonts::FontBuilder;
 
 pub(crate) fn apply_glyph_keyed_patch(
-    patch: &GlyphKeyedPatch<'_>,
+    patches: &[GlyphKeyedPatch<'_>],
     font: &FontRef,
 ) -> Result<Vec<u8>, PatchingError> {
-    if patch.format() != Tag::new(b"ifgk") {
-        return Err(PatchingError::InvalidPatch("Patch file tag is not 'iftk'"));
+    let mut decompression_buffer: Vec<Vec<u8>> = Vec::with_capacity(patches.len());
+
+    for patch in patches {
+        if patch.format() != Tag::new(b"ifgk") {
+            return Err(PatchingError::InvalidPatch("Patch file tag is not 'iftk'"));
+        }
+
+        decompression_buffer.push(
+            shared_brotli_decode(
+                patch.brotli_stream(),
+                None,
+                patch.max_uncompressed_length() as usize,
+            )
+            .map_err(PatchingError::from)?,
+        );
     }
 
-    let raw_data = shared_brotli_decode(
-        patch.brotli_stream(),
-        None,
-        patch.max_uncompressed_length() as usize,
-    )
-    .map_err(PatchingError::from)?;
-    let glyph_patches = GlyphPatches::read(FontData::new(&raw_data), patch.flags())
-        .map_err(PatchingError::PatchParsingFailed)?;
+    let mut glyph_patches: Vec<GlyphPatches<'_>> = vec![];
+    for (raw_data, patch) in decompression_buffer.iter().zip(patches) {
+        glyph_patches.push(
+            GlyphPatches::read(FontData::new(raw_data), patch.flags())
+                .map_err(PatchingError::PatchParsingFailed)?,
+        );
+    }
 
     let num_glyphs = font
         .maxp()
@@ -46,8 +58,7 @@ pub(crate) fn apply_glyph_keyed_patch(
 
     let mut processed_tables = BTreeSet::<Tag>::new();
     let mut font_builder = FontBuilder::new();
-    for table_tag in glyph_patches.tables().iter() {
-        let table_tag = table_tag.get();
+    for table_tag in table_tag_list(&glyph_patches) {
         // TODO(garretrieger): add CFF, CFF2, and gvar support as well.
         if table_tag == Tag::new(b"glyf") {
             let (Some(glyf), Ok(loca)) = (font.table_data(Tag::new(b"glyf")), font.loca(None))
@@ -57,7 +68,7 @@ pub(crate) fn apply_glyph_keyed_patch(
                 ));
             };
             patch_glyf_and_loca(
-                &[glyph_patches.clone()],
+                &glyph_patches,
                 glyf.as_bytes(),
                 loca,
                 max_glyph_id,
@@ -81,11 +92,18 @@ pub(crate) fn apply_glyph_keyed_patch(
     Ok(font_builder.build())
 }
 
+fn table_tag_list(glyph_patches: &[GlyphPatches]) -> BTreeSet<Tag> {
+    glyph_patches
+        .iter()
+        .flat_map(|patch| patch.tables())
+        .map(|tag| tag.get())
+        .collect::<BTreeSet<Tag>>()
+}
+
 fn dedup_gid_replacement_data<'a>(
     glyph_patches: impl Iterator<Item = &'a GlyphPatches<'a>>,
     table_tag: Tag,
 ) -> Result<(IntSet<GlyphId>, Vec<&'a [u8]>), ReadError> {
-    // TODO consider making return an iterator?
     // TODO in the spec require sorted glyph ids?
 
     // Since the specification allows us to freely choose patch application order (for groups of glyph keyed patches,
@@ -379,7 +397,8 @@ mod tests {
     };
 
     use font_test_data::ift::{
-        glyf_u16_glyph_patches, glyph_keyed_patch_header, test_font_for_patching,
+        glyf_u16_glyph_patches, glyf_u16_glyph_patches_2, glyph_keyed_patch_header,
+        test_font_for_patching,
     };
     use skrifa::{FontRef, Tag};
 
@@ -404,7 +423,7 @@ mod tests {
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
-        let patched = apply_glyph_keyed_patch(&patch, &font).unwrap();
+        let patched = apply_glyph_keyed_patch(&[patch], &font).unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let new_glyf: &[u8] = patched.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
@@ -445,4 +464,67 @@ mod tests {
             indices
         );
     }
+
+    #[test]
+    fn multiple_glyph_keyed() {
+        let patch = assemble_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
+        let patch: &[u8] = &patch;
+        let patch1 = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+
+        let patch = assemble_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches_2());
+        let patch: &[u8] = &patch;
+        let patch2 = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+
+        let font = test_font_for_patching();
+        let font = FontRef::new(&font).unwrap();
+
+        let patched = apply_glyph_keyed_patch(&[patch2, patch1], &font).unwrap();
+        let patched = FontRef::new(&patched).unwrap();
+
+        let new_glyf: &[u8] = patched.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
+        assert_eq!(
+            &[
+                1, 2, 3, 4, 5, 0, // gid 0
+                6, 7, 8, 0, // gid 1
+                b'a', b'b', b'c', 0, // gid2
+                b'q', b'r', // gid 7
+                b'h', b'i', b'j', b'k', b'l', 0, // gid 8 + 9
+                b's', b't', b'u', 0, // gid 12
+                b'm', b'n', // gid 13
+                b'v', 0, // gid 14
+            ],
+            new_glyf
+        );
+
+        let new_loca = patched.loca(None).unwrap();
+        let indices: Vec<u32> = (0..=15).map(|gid| new_loca.get_raw(gid).unwrap()).collect();
+
+        assert_eq!(
+            vec![
+                0,  // gid 0
+                6,  // gid 1
+                10, // gid 2
+                14, // gid 3
+                14, // gid 4
+                14, // gid 5
+                14, // gid 6
+                14, // gid 7
+                16, // gid 8
+                16, // gid 9
+                22, // gid 10
+                22, // gid 11
+                22, // gid 12
+                26, // gid 13
+                28, // gid 14
+                30, // end
+            ],
+            indices
+        );
+    }
+
+    // TODO test of noop patch.
+    // TODO test of invalid cases:
+    // - loca offsets unordered
+    // - patch data offsets unordered.
+    // - bad decompressed length.
 }

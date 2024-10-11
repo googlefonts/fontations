@@ -143,7 +143,7 @@ impl IncrementalFontPatch<'_> {
                 apply_table_keyed_patch(patch_data, font)
             }
             IncrementalFontPatch::GlyphKeyed(patch_data) => {
-                apply_glyph_keyed_patch(patch_data, font)
+                apply_glyph_keyed_patch(&[patch_data.clone()], font)
             }
         }
     }
