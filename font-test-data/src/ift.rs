@@ -560,7 +560,7 @@ pub fn test_font_for_patching() -> Vec<u8> {
     font_builder.add_table(&head).unwrap();
 
     // ## glyf ##
-    // glyphs are padded to even number of bytes since loca format wil be short.
+    // glyphs are padded to even number of bytes since loca format will be short.
     let glyf = BeBuffer::new()
         .push_with_tag(1u8, "gid_0")
         .extend([2, 3, 4, 5u8, 0u8])
