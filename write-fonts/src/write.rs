@@ -330,9 +330,8 @@ impl<T: FontWrite> FontWrite for Vec<T> {
 
 impl<T: FontWrite> FontWrite for Option<T> {
     fn write_into(&self, writer: &mut TableWriter) {
-        match self {
-            Some(obj) => obj.write_into(writer),
-            None => (),
+        if let Some(obj) = self {
+            obj.write_into(writer)
         }
     }
 }
