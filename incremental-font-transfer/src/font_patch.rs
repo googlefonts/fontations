@@ -81,6 +81,7 @@ pub enum PatchingError {
     IncompatiblePatches,
     NonIncrementalFont,
     InvalidPatch(&'static str),
+    EmptyPatchList,
     InternalError,
 }
 
@@ -125,6 +126,7 @@ impl std::fmt::Display for PatchingError {
                 )
             }
             PatchingError::InvalidPatch(msg) => write!(f, "Invalid patch file: '{msg}'"),
+            PatchingError::EmptyPatchList => write!(f, "At least one patch file must be provided."),
             PatchingError::InternalError => write!(
                 f,
                 "Internal constraint violated, typically should not happen."
@@ -156,9 +158,7 @@ impl IncrementalFontPatchBase for FontRef<'_> {
             return Err(PatchingError::NonIncrementalFont);
         }
 
-        let first = patches.first().ok_or(PatchingError::InvalidPatch(
-            "At least one patch must be provided.",
-        ))?;
+        let first = patches.first().ok_or(PatchingError::EmptyPatchList)?;
 
         match first {
             IncrementalFontPatch::TableKeyed(patch_data) => {
@@ -705,6 +705,7 @@ mod tests {
         );
     }
 
+    // TODO(garretrieger): test empty patch list fails.
     // TODO(garretrieger): single glyph keyed patch test
     // TODO(garretrieger): multiple glyph keyed
 }
