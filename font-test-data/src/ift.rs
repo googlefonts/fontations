@@ -5,10 +5,10 @@
 
 use read_fonts::types::Tag;
 use read_fonts::{be_buffer, be_buffer_add, test_helpers::BeBuffer, types::Int24, types::Uint24};
-use write_fonts::tables::head::Head;
-use write_fonts::tables::loca::Loca;
-use write_fonts::tables::maxp::Maxp;
-use write_fonts::FontBuilder;
+use write_fonts::{
+    tables::{head::Head, loca::Loca, maxp::Maxp},
+    FontBuilder,
+};
 
 pub static IFT_BASE: &[u8] = include_bytes!("../test_data/ttf/ift_base.ttf");
 
