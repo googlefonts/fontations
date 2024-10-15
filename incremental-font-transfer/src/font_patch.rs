@@ -84,8 +84,8 @@ pub enum PatchingError {
     InternalError,
 }
 
-impl PatchingError {
-    pub(crate) fn from(decoding_error: DecodeError) -> Self {
+impl From<DecodeError> for PatchingError {
+    fn from(decoding_error: DecodeError) -> Self {
         match decoding_error {
             DecodeError::InitFailure => {
                 PatchingError::InvalidPatch("Failure to init brotli encoder.")
