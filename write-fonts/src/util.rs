@@ -100,3 +100,29 @@ impl Default for FloatComparator {
 pub fn isclose(a: f64, b: f64) -> bool {
     FloatComparator::default().isclose(a, b)
 }
+
+/// Search range values used in various tables
+#[derive(Clone, Copy, Debug)]
+pub struct SearchRange {
+    pub search_range: u16,
+    pub entry_selector: u16,
+    pub range_shift: u16,
+}
+
+impl SearchRange {
+    //https://github.com/fonttools/fonttools/blob/729b3d2960ef/Lib/fontTools/ttLib/ttFont.py#L1147
+    /// calculate searchRange, entrySelector, and rangeShift
+    ///
+    /// these values are used in various tables.
+    pub fn compute(n_items: usize, item_size: usize) -> Self {
+        let entry_selector = (n_items as f64).log2().floor() as usize;
+        let search_range = (2.0_f64.powi(entry_selector as i32) * item_size as f64) as usize;
+        // The result doesn't really make sense with 0 tables but ... let's at least not fail
+        let range_shift = (n_items * item_size).saturating_sub(search_range);
+        SearchRange {
+            search_range: search_range.try_into().unwrap(),
+            entry_selector: entry_selector.try_into().unwrap(),
+            range_shift: range_shift.try_into().unwrap(),
+        }
+    }
+}
