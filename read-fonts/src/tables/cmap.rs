@@ -524,7 +524,9 @@ impl<'a> Iterator for NonDefaultUvsIter<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{test_helpers::BeBuffer, FontRef, GlyphId, TableProvider};
+    use crate::{
+        be_buffer, be_buffer_add, test_helpers::BeBuffer, FontRef, GlyphId, TableProvider,
+    };
 
     #[test]
     fn map_codepoints() {
@@ -649,23 +651,27 @@ mod tests {
         assert_eq!(count, 10);
     }
 
+    // reconstructed cmap from <https://oss-fuzz.com/testcase-detail/5141969742397440>
+    fn cmap12_overflow_data() -> BeBuffer {
+        be_buffer! {
+            12u16,      // format
+            0u16,       // reserved, set to 0
+            0u32,       // length, ignored
+            0u32,       // language, ignored
+            2u32,       // numGroups
+            // groups: [startCode, endCode, startGlyphID]
+            [0u32, 16777215, 0], // group 0
+            [255u32, 0xFFFFFFFF, 0] // group 1
+        }
+    }
+
     // oss-fuzz: detected integer addition overflow in Cmap12::group()
     // ref: https://oss-fuzz.com/testcase-detail/5141969742397440
     // and https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=69547
     #[test]
-    #[ignore]
     fn cmap12_iter_avoid_overflow() {
-        let test_case = &[
-            79, 84, 84, 79, 0, 5, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,
-            32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 0, 10, 32, 32, 32, 32, 32, 32, 32,
-            99, 109, 97, 112, 32, 32, 32, 32, 0, 0, 0, 33, 0, 0, 0, 84, 32, 32, 32, 32, 32, 32, 0,
-            12, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 0, 0, 0, 2, 32, 32, 32, 32, 32, 32, 32, 32,
-            32, 32, 32, 32, 32, 32, 32, 32, 255, 255, 255, 255, 255, 255, 255, 32, 32, 32, 32, 0,
-            0, 32, 32, 0, 0, 0, 33,
-        ];
-        let font = FontRef::new(test_case).unwrap();
-        let cmap = font.cmap().unwrap();
-        let cmap12 = find_cmap12(&cmap).unwrap();
+        let data = cmap12_overflow_data();
+        let cmap12 = Cmap12::read(data.font_data()).unwrap();
         let _ = cmap12.iter().count();
     }
 
@@ -673,42 +679,25 @@ mod tests {
     // ref: https://oss-fuzz.com/testcase-detail/4628971063934976
     // and https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=69540
     #[test]
-    #[ignore]
     fn cmap12_iter_avoid_timeout() {
-        let test_case = &[
-            0, 1, 0, 0, 0, 5, 0, 1, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 48, 0, 93, 0, 0, 3, 8, 0, 0,
-            151, 3, 0, 0, 0, 0, 0, 0, 0, 64, 255, 103, 5, 7, 221, 0, 99, 109, 97, 112, 0, 0, 3, 0,
-            0, 0, 0, 2, 0, 0, 0, 97, 97, 97, 159, 158, 158, 149, 0, 12, 255, 255, 249, 2, 0, 1, 0,
-            0, 0, 23, 0, 0, 0, 1, 0, 0, 0, 170, 79, 84, 84, 79, 0, 5, 5, 0, 1, 0, 0, 5, 5, 5, 5,
-            48, 5, 5, 5, 5, 0, 4, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 33, 0, 5,
-            3, 5, 5, 5, 5, 74, 5, 255, 255, 32, 1, 5, 44, 0, 0, 10, 116, 0, 33, 0, 0, 0, 102, 0, 0,
-            0, 0, 0, 0, 0, 0, 78, 0, 0, 0, 0, 0, 0, 0, 0, 0, 33, 0, 0, 87, 250, 181, 250, 250, 159,
-            0, 4, 0, 0, 0, 0, 0, 99, 109, 97, 112, 4, 64, 138, 0, 0, 0, 0, 33, 0, 0, 3, 0, 0, 0,
-            102, 0, 0, 0, 0, 0, 0, 0, 0, 78, 0, 0, 0, 0, 0, 255, 255, 96, 0, 0, 0, 12, 32, 0, 1, 0,
-            0, 5, 5, 97, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 149, 97, 0, 0, 4, 0, 0,
-            128, 5, 53, 37, 5, 5, 44, 5, 5, 0, 3, 5,
-        ];
-        let font = FontRef::new(test_case).unwrap();
-        let cmap = font.cmap().unwrap();
         // ranges: [SequentialMapGroup { start_char_code: 170, end_char_code: 1330926671, start_glyph_id: 328960 }]
-        let cmap12 = find_cmap12(&cmap).unwrap();
+        let cmap12_data = be_buffer! {
+            12u16,      // format
+            0u16,       // reserved, set to 0
+            0u32,       // length, ignored
+            0u32,       // language, ignored
+            1u32,       // numGroups
+            // groups: [startCode, endCode, startGlyphID]
+            [170u32, 1330926671, 328960] // group 0
+        };
+        let cmap12 = Cmap12::read(cmap12_data.font_data()).unwrap();
         assert!(cmap12.iter().count() <= char::MAX as usize + 1);
     }
 
     #[test]
-    #[ignore]
     fn cmap12_iter_range_clamping() {
-        let test_case = &[
-            79, 84, 84, 79, 0, 5, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,
-            32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 0, 10, 32, 32, 32, 32, 32, 32, 32,
-            99, 109, 97, 112, 32, 32, 32, 32, 0, 0, 0, 33, 0, 0, 0, 84, 32, 32, 32, 32, 32, 32, 0,
-            12, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 0, 0, 0, 2, 0, 0, 0, 0, 0, 255, 255, 255,
-            32, 32, 32, 32, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 32, 32, 32, 32, 0, 0,
-            32, 32, 0, 0, 0, 33,
-        ];
-        let font = FontRef::new(test_case).unwrap();
-        let cmap = font.cmap().unwrap();
-        let cmap12 = find_cmap12(&cmap).unwrap();
+        let data = cmap12_overflow_data();
+        let cmap12 = Cmap12::read(data.font_data()).unwrap();
         let ranges = cmap12
             .groups()
             .iter()
