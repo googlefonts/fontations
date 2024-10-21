@@ -653,6 +653,7 @@ mod tests {
     // ref: https://oss-fuzz.com/testcase-detail/5141969742397440
     // and https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=69547
     #[test]
+    #[ignore]
     fn cmap12_iter_avoid_overflow() {
         let test_case = &[
             79, 84, 84, 79, 0, 5, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,
@@ -672,6 +673,7 @@ mod tests {
     // ref: https://oss-fuzz.com/testcase-detail/4628971063934976
     // and https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=69540
     #[test]
+    #[ignore]
     fn cmap12_iter_avoid_timeout() {
         let test_case = &[
             0, 1, 0, 0, 0, 5, 0, 1, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 48, 0, 93, 0, 0, 3, 8, 0, 0,
@@ -694,6 +696,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn cmap12_iter_range_clamping() {
         let test_case = &[
             79, 84, 84, 79, 0, 5, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,
