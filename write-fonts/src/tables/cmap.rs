@@ -6,6 +6,8 @@ include!("../../generated/generated_cmap.rs");
 
 use std::collections::HashMap;
 
+use crate::util::SearchRange;
+
 // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#windows-platform-platform-id--3
 const WINDOWS_BMP_ENCODING: u16 = 1;
 const WINDOWS_FULL_REPERTOIRE_ENCODING: u16 = 10;
@@ -96,26 +98,16 @@ impl CmapSubtable {
         );
 
         let seg_count: u16 = start_code.len().try_into().unwrap();
-        // Spec: Log2 of the maximum power of 2 less than or equal to segCount (log2(searchRange/2),
-        // which is equal to floor(log2(segCount)))
-        let entry_selector = (seg_count as f32).log2().floor();
 
-        // Spec: Maximum power of 2 less than or equal to segCount, times 2
-        // ((2**floor(log2(segCount))) * 2, where “**” is an exponentiation operator)
-        let search_range = 2u16.pow(entry_selector as u32).checked_mul(2).unwrap();
-
-        // if 2^entry_selector*2 is a u16 then so is entry_selector
-        let entry_selector = entry_selector as u16;
-        let range_shift = seg_count * 2 - search_range;
-
+        let computed = SearchRange::compute(seg_count as _, u16::RAW_BYTE_LEN);
         let id_range_offsets = vec![0; id_deltas.len()];
         Some(CmapSubtable::format_4(
             size_of_cmap4(seg_count, 0),
             0, // 'lang' set to zero for all 'cmap' subtables whose platform IDs are other than Macintosh
             seg_count * 2,
-            search_range,
-            entry_selector,
-            range_shift,
+            computed.search_range,
+            computed.entry_selector,
+            computed.range_shift,
             end_code,
             start_code,
             id_deltas,
