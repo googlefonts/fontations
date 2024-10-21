@@ -267,14 +267,17 @@ impl HintState {
     ///
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psblues.c#L465>
     fn capture(&self, bottom_edge: &mut Hint, top_edge: &mut Hint) -> bool {
+        // We use some wrapping arithmetic on this value below to avoid panics
+        // on overflow and match FreeType's behavior
+        // See <https://github.com/googlefonts/fontations/issues/1193>
         let fuzz = self.blue_fuzz;
         let mut captured = false;
         let mut adjustment = Fixed::ZERO;
         for zone in self.zones() {
             if zone.is_bottom
                 && bottom_edge.is_bottom()
-                && (zone.cs_bottom_edge - fuzz) <= bottom_edge.cs_coord
-                && bottom_edge.cs_coord <= (zone.cs_top_edge + fuzz)
+                && zone.cs_bottom_edge.wrapping_sub(fuzz) <= bottom_edge.cs_coord
+                && bottom_edge.cs_coord <= zone.cs_top_edge.wrapping_add(fuzz)
             {
                 // Bottom edge captured by bottom zone.
                 adjustment = if self.suppress_overshoot {
@@ -294,8 +297,8 @@ impl HintState {
             }
             if !zone.is_bottom
                 && top_edge.is_top()
-                && (zone.cs_bottom_edge - fuzz) <= top_edge.cs_coord
-                && top_edge.cs_coord <= (zone.cs_top_edge + fuzz)
+                && zone.cs_bottom_edge.wrapping_sub(fuzz) <= top_edge.cs_coord
+                && top_edge.cs_coord <= zone.cs_top_edge.wrapping_add(fuzz)
             {
                 // Top edge captured by top zone.
                 adjustment = if self.suppress_overshoot {

@@ -212,7 +212,7 @@ impl Stack {
                 .iter_mut()
                 .zip(&mut self.value_is_fixed)
             {
-                sum += if *is_fixed {
+                let fixed_value = if *is_fixed {
                     // FreeType reads delta values using cff_parse_num which
                     // which truncates the fractional parts of 16.16 values
                     // See delta parsing:
@@ -224,6 +224,12 @@ impl Stack {
                 } else {
                     Fixed::from_i32(*value)
                 };
+                // See <https://github.com/googlefonts/fontations/issues/1193>
+                // The "DIN Alternate" font contains incorrect blue values
+                // that cause an overflow in this computation. FreeType does
+                // not use checked arithmetic so we need to explicitly use
+                // wrapping behavior to produce matching outlines.
+                sum = sum.wrapping_add(fixed_value);
                 *value = sum.to_bits();
                 *is_fixed = true;
             }
