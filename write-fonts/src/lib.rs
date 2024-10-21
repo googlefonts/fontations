@@ -34,8 +34,11 @@
 //! you want to modify. For example:
 //!
 //! ```no_run
-//! use write_fonts::ToOwnedTable;
+//! use read_fonts::{FontRef, TableProvider};
+//! use write_fonts::{from_obj::ToOwnedTable, tables::head::Head, types::LongDateTime};
 //! // ...
+//! # let font: FontRef<'static> = todo!();
+//! # fn seconds_since_font_epoch() -> font_types::LongDateTime { todo!() }
 //! let mut head: Head = font.head().expect("missing 'head' table").to_owned_table();
 //! head.modified = seconds_since_font_epoch();
 //! ```
