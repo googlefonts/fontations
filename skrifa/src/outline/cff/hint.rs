@@ -282,7 +282,7 @@ impl HintState {
                 // Bottom edge captured by bottom zone.
                 adjustment = if self.suppress_overshoot {
                     zone.ds_flat_edge
-                } else if zone.cs_top_edge - bottom_edge.cs_coord >= self.blue_shift {
+                } else if zone.cs_top_edge.wrapping_sub(bottom_edge.cs_coord) >= self.blue_shift {
                     // Guarantee minimum of 1 pixel overshoot
                     bottom_edge
                         .ds_coord
@@ -303,7 +303,7 @@ impl HintState {
                 // Top edge captured by top zone.
                 adjustment = if self.suppress_overshoot {
                     zone.ds_flat_edge
-                } else if top_edge.cs_coord - zone.cs_bottom_edge >= self.blue_shift {
+                } else if top_edge.cs_coord.wrapping_sub(zone.cs_bottom_edge) >= self.blue_shift {
                     // Guarantee minimum of 1 pixel overshoot
                     top_edge
                         .ds_coord

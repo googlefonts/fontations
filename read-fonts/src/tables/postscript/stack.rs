@@ -204,6 +204,9 @@ impl Stack {
     /// "The second and subsequent numbers in a delta are encoded as the
     /// difference between successive values."
     ///
+    /// Roughly equivalent to the FreeType logic at
+    /// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/cff/cffparse.c#L1431>
+    ///
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-6-operand-types>
     pub fn apply_delta_prefix_sum(&mut self) {
         if self.top > 1 {
