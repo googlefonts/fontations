@@ -41,10 +41,10 @@ core_maths = "0.1"
 # that want default features will have to enable them directly.
 font-test-data = { path = "font-test-data" }
 font-types = { version = "0.7.2", path = "font-types" }
-read-fonts = { version = "0.22.3", path = "read-fonts", default-features = false }
+read-fonts = { version = "0.23.0", path = "read-fonts", default-features = false }
 # Disable default-features so that fauntlet can use skrifa without autohint
 # shaping support
-skrifa = { version = "0.23.0", path = "skrifa", default-features = false, features = ["std"] }
+skrifa = { version = "0.24.0", path = "skrifa", default-features = false, features = ["std"] }
 write-fonts = { version = "0.29.0", path = "write-fonts" }
 shared-brotli-patch-decoder = { version = "0.1.0", path = "shared-brotli-patch-decoder" }
 incremental-font-transfer = { version = "0.1.0", path = "incremental-font-transfer" }
