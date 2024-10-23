@@ -3,7 +3,7 @@
 use std::ops::Range;
 
 use super::{BlendState, Error, Number, Stack, StringId};
-use crate::{types::Fixed, Cursor};
+use crate::{types::Fixed, Cursor, ReadError};
 
 /// PostScript DICT operator.
 ///
@@ -334,7 +334,8 @@ fn parse_entry(op: Operator, stack: &mut Stack) -> Result<Entry, Error> {
         PrivateDictRange => {
             let len = stack.get_i32(0)? as usize;
             let start = stack.get_i32(1)? as usize;
-            Entry::PrivateDictRange(start..start + len)
+            let end = start.checked_add(len).ok_or(ReadError::OutOfBounds)?;
+            Entry::PrivateDictRange(start..end)
         }
         VariationStoreOffset => Entry::VariationStoreOffset(stack.pop_i32()? as usize),
         Copyright => Entry::Copyright(stack.pop_i32()?.into()),
