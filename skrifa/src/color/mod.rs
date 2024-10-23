@@ -433,7 +433,8 @@ impl<'a> ColorGlyphCollection<'a> {
 mod tests {
 
     use crate::{
-        color::traversal_tests::test_glyph_defs::PAINTCOLRGLYPH_CYCLE, prelude::LocationRef,
+        color::traversal_tests::test_glyph_defs::PAINTCOLRGLYPH_CYCLE,
+        prelude::{LocationRef, Size},
         MetadataProvider,
     };
 
@@ -516,5 +517,19 @@ mod tests {
             .unwrap()
             .paint(LocationRef::default(), &mut color_painter);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn colrv0_no_bbox_test() {
+        let colr_font = font_test_data::COLRV0V1;
+        let font = FontRef::new(colr_font).unwrap();
+        let colrv0_glyph_id = GlyphId::new(168);
+        let colrv0_glyph = font
+            .color_glyphs()
+            .get_with_format(colrv0_glyph_id, super::ColorGlyphFormat::ColrV0)
+            .unwrap();
+        assert!(colrv0_glyph
+            .bounding_box(LocationRef::default(), Size::unscaled())
+            .is_none());
     }
 }
