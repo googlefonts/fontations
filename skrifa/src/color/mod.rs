@@ -296,8 +296,8 @@ impl<'a> ColorGlyph<'a> {
 
     /// Returns the bounding box.
     ///
-    /// For COLRv1 glyphs, this is clip box of the specified COLRv1 glyph, or
-    /// `None` if clip boxes are not present or if there is none for the
+    /// For COLRv1 glyphs, this is the clip box of the specified COLRv1 glyph,
+    /// or `None` if clip boxes are not present or if there is none for the
     /// particular glyph.
     ///
     /// Always returns `None` for COLRv0 glyphs because precomputed clip boxes
