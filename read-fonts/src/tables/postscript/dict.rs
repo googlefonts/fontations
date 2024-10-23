@@ -555,8 +555,8 @@ fn parse_bcd(cursor: &mut Cursor) -> Result<Fixed, Error> {
 mod tests {
     use super::*;
     use crate::{
-        tables::variations::ItemVariationStore, types::F2Dot14, FontData, FontRead, FontRef,
-        TableProvider,
+        tables::variations::ItemVariationStore, test_helpers::BeBuffer, types::F2Dot14, FontData,
+        FontRead, FontRef, TableProvider,
     };
 
     #[test]
@@ -691,5 +691,24 @@ mod tests {
             CharstringsOffset(521),
         ];
         assert_eq!(&entries, expected);
+    }
+
+    // Fuzzer caught add with overflow when constructing private DICT
+    // range.
+    // See <https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=71746>
+    // and <https://oss-fuzz.com/testcase?key=4591358306746368>
+    #[test]
+    fn private_dict_range_avoid_overflow() {
+        // A Private DICT that tries to construct a range from -1..(-1 + -1)
+        // which overflows when converted to usize
+        let private_dict = BeBuffer::new()
+            .push(29u8) // integer operator
+            .push(-1i32) // integer value
+            .push(29u8) // integer operator
+            .push(-1i32) // integer value
+            .push(18u8) // PrivateDICT operator
+            .to_vec();
+        // Just don't panic
+        let _ = entries(&private_dict, None).count();
     }
 }
