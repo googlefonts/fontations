@@ -294,27 +294,34 @@ impl<'a> ColorGlyph<'a> {
         }
     }
 
-    /// Returns the bounding box. For COLRv1 glyphs, this is clipbox of the
-    /// specified COLRv1 glyph, or `None` if there is
-    /// none for the particular glyph.  The `size` argument can optionally be used
-    /// to scale the bounding box to a particular font size. `location` allows
-    /// specifycing a variation instance.
+    /// Returns the bounding box.
+    ///
+    /// For COLRv1 glyphs, this is clip box of the specified COLRv1 glyph, or
+    /// `None` if clip boxes are not present or if there is none for the
+    /// particular glyph.
+    ///
+    /// Always returns `None` for COLRv0 glyphs because precomputed clip boxes
+    /// are never available.
+    ///
+    /// The `size` argument can optionally be used to scale the bounding box
+    /// to a particular font size and `location` allows specifying a variation
+    /// instance.
     pub fn bounding_box(
         &self,
         location: impl Into<LocationRef<'a>>,
         size: Size,
     ) -> Option<BoundingBox<f32>> {
-        let instance = instance::ColrInstance::new(self.colr.clone(), location.into().coords());
-
         match &self.root_paint_ref {
             ColorGlyphRoot::V1Paint(_paint, _paint_id, glyph_id, upem) => {
+                let instance =
+                    instance::ColrInstance::new(self.colr.clone(), location.into().coords());
                 let resolved_bounding_box = get_clipbox_font_units(&instance, *glyph_id);
                 resolved_bounding_box.map(|bounding_box| {
                     let scale_factor = size.linear_scale((*upem).clone().unwrap_or(0));
                     bounding_box.scale(scale_factor)
                 })
             }
-            _ => todo!(),
+            _ => None,
         }
     }
 
