@@ -1,12 +1,12 @@
 //! OpenType Layout common table formats
 
-#[path = "./lookupflag.rs"]
-mod lookupflag;
+mod feature;
+mod lookup_flag;
 mod script;
 
 use core::cmp::Ordering;
 
-pub use lookupflag::LookupFlag;
+pub use lookup_flag::LookupFlag;
 pub use script::{ScriptTags, SelectedScript, UNICODE_TO_NEW_OPENTYPE_SCRIPT_TAGS};
 
 use super::variations::DeltaSetIndex;
