@@ -602,7 +602,7 @@ pub fn test_font_for_patching() -> Vec<u8> {
 // Format specification: https://w3c.github.io/IFT/Overview.html#glyph-keyed
 pub fn glyph_keyed_patch_header() -> BeBuffer {
     be_buffer! {
-      (Tag::new(b"ifgk")), // format
+      {(Tag::new(b"ifgk")): "format"}, // format
       0u32,                // reserved
       0u8,                 // flags (0 = u16 gids)
       [6, 7, 8, 9u32],     // compatibility id
@@ -774,8 +774,8 @@ pub fn glyf_and_gvar_u16_glyph_patches() -> BeBuffer {
       3u32,       // glyph count
       2u8,        // table count
       [2, 7, 8u16],   // glyph ids * 3
-      (Tag::new(b"glyf")),   // tables[0]
-      (Tag::new(b"gvar")),   // tables[1]
+      (Tag::new(b"glyf")),               // tables[0]
+      {(Tag::new(b"gvar")): "gvar_tag"}, // tables[1]
 
       // glyph data offsets * 7
       {0u32: "glyf_gid_2_offset"},
