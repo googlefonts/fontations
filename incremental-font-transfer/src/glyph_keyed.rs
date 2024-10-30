@@ -637,7 +637,7 @@ mod tests {
     }
 
     #[test]
-    fn glyph_keyed_unkown_table() {
+    fn glyph_keyed_unknown_table() {
         let mut builder = glyf_and_gvar_u16_glyph_patches();
         builder.write_at("gvar_tag", Tag::new(b"hijk"));
 
