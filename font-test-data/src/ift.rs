@@ -632,7 +632,8 @@ pub fn glyf_u16_glyph_patches() -> BeBuffer {
       // glyph ids * 5
       [2, 7u16],
       {8u16: "gid_8"},
-      [9, 13u16],
+      [9u16],
+      {13u16: "gid_13"},
 
       (Tag::new(b"glyf")),   // tables * 1
 
