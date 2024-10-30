@@ -544,7 +544,10 @@ pub fn noop_table_keyed_patch() -> BeBuffer {
     }
 }
 
-pub fn test_font_for_patching() -> Vec<u8> {
+pub fn test_font_for_patching_with_loca_mod<F>(loca_mod: F) -> Vec<u8>
+where
+    F: Fn(&mut Vec<u32>),
+{
     let mut font_builder = FontBuilder::new();
 
     let maxp = Maxp {
@@ -573,7 +576,8 @@ pub fn test_font_for_patching() -> Vec<u8> {
     let gid_1 = glyf.offset_for("gid_1") as u32;
     let gid_8 = glyf.offset_for("gid_8") as u32;
     let end = gid_8 + 4;
-    let loca = Loca::new(vec![
+
+    let mut loca = vec![
         0,     // gid 0
         gid_1, // gid 1
         gid_8, // gid 2
@@ -590,13 +594,21 @@ pub fn test_font_for_patching() -> Vec<u8> {
         end,   // gid 13
         end,   // gid 14
         end,   // end
-    ]);
+    ];
+
+    loca_mod(&mut loca);
+
+    let loca = Loca::new(loca);
+    font_builder.add_table(&loca).unwrap();
 
     let glyf: &[u8] = &glyf;
     font_builder.add_raw(Tag::new(b"glyf"), glyf);
-    font_builder.add_table(&loca).unwrap();
 
     font_builder.build()
+}
+
+pub fn test_font_for_patching() -> Vec<u8> {
+    test_font_for_patching_with_loca_mod(|_| {})
 }
 
 // Format specification: https://w3c.github.io/IFT/Overview.html#glyph-keyed

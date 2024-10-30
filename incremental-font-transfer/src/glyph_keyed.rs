@@ -236,6 +236,12 @@ fn synthesize_glyf_and_loca<OffsetType: LocaOffset + TryFrom<usize>>(
     new_glyf: &mut [u8],
     new_loca: &mut [u8],
 ) -> Result<(), PatchingError> {
+    if !loca.all_offsets_are_ascending() {
+        return Err(PatchingError::FontParsingFailed(ReadError::MalformedData(
+            "loca contains unordered offsets.",
+        )));
+    }
+
     let mut replace_it = gids.iter_ranges().peekable();
     let mut keep_it = retained_glyphs_in_font(gids, max_glyph_id).peekable();
     let mut replacement_data_it = replacement_data.iter();
@@ -420,6 +426,7 @@ mod tests {
     use font_test_data::ift::{
         glyf_and_gvar_u16_glyph_patches, glyf_u16_glyph_patches, glyf_u16_glyph_patches_2,
         glyph_keyed_patch_header, noop_glyf_glyph_patches, test_font_for_patching,
+        test_font_for_patching_with_loca_mod,
     };
     use skrifa::{FontRef, Tag};
 
@@ -800,9 +807,32 @@ mod tests {
         );
     }
 
+    #[test]
+    fn glyph_keyed_unordered_loca_offsets() {
+        let patch = assemble_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+
+        // unorder offsets related to a glyph not being replaced
+        let font = test_font_for_patching_with_loca_mod(|loca| {
+            let loca_gid_1 = loca[1];
+            let loca_gid_2 = loca[2];
+            loca[1] = loca_gid_2;
+            loca[2] = loca_gid_1;
+        });
+
+        let font = FontRef::new(&font).unwrap();
+
+        assert_eq!(
+            apply_glyph_keyed_patches(&[patch], &font),
+            Err(PatchingError::FontParsingFailed(ReadError::MalformedData(
+                "loca contains unordered offsets."
+            ))),
+        );
+    }
+
     // TODO test of invalid cases:
-    // - loca offsets unordered
     // - patch data offsets unordered.
     // - loca offset type switch required.
-    // TODO glyph keyed test with large number of offsets to check type conversion on (glyphCount * tableCount)
+    // - glyph keyed test with large number of offsets to check type conversion on (glyphCount * tableCount)
 }
