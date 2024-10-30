@@ -42,6 +42,20 @@ impl OtRound<u16> for f32 {
     }
 }
 
+impl OtRound<f64> for f64 {
+    #[inline]
+    fn ot_round(self) -> f64 {
+        (self + 0.5).floor()
+    }
+}
+
+impl OtRound<f32> for f32 {
+    #[inline]
+    fn ot_round(self) -> f32 {
+        (self + 0.5).floor()
+    }
+}
+
 impl OtRound<(i16, i16)> for kurbo::Point {
     #[inline]
     fn ot_round(self) -> (i16, i16) {
