@@ -24,7 +24,7 @@ use std::ops::RangeInclusive;
 
 use write_fonts::FontBuilder;
 
-pub(crate) fn apply_glyph_keyed_patch(
+pub(crate) fn apply_glyph_keyed_patches(
     patches: &[GlyphKeyedPatch<'_>],
     font: &FontRef,
 ) -> Result<Vec<u8>, PatchingError> {
@@ -64,8 +64,18 @@ pub(crate) fn apply_glyph_keyed_patch(
 
     let mut processed_tables = BTreeSet::<Tag>::new();
     let mut font_builder = FontBuilder::new();
+
+    let mut prev_table_tag: Option<Tag> = None;
     for table_tag in table_tag_list(&glyph_patches) {
-        // TODO(garretrieger): add CFF, CFF2, and gvar support as well.
+        if let Some(prev_table_tag) = prev_table_tag {
+            if table_tag <= prev_table_tag {
+                return Err(PatchingError::InvalidPatch(
+                    "Table tags are unsorted or contain duplicate entries.",
+                ));
+            }
+        }
+        prev_table_tag = Some(table_tag);
+
         if table_tag == Tag::new(b"glyf") {
             let (Some(glyf), Ok(loca)) = (font.table_data(Tag::new(b"glyf")), font.loca(None))
             else {
@@ -81,14 +91,20 @@ pub(crate) fn apply_glyph_keyed_patch(
                 &mut font_builder,
             )?;
             // glyf patch application also generates a loca table.
+            processed_tables.insert(table_tag);
             processed_tables.insert(Tag::new(b"loca"));
-        } else {
+        } else if table_tag == Tag::new(b"CFF ")
+            || table_tag == Tag::new(b"CFF2")
+            || table_tag == Tag::new(b"gvar")
+        {
+            // TODO(garretrieger): add CFF, CFF2, and gvar support as well.
             return Err(PatchingError::InvalidPatch(
-                "Glyph keyed patch against unsupported table.",
+                "CFF, CFF2, and gvar patches are not yet supported.",
             ));
+        } else {
+            // All other table tags are ignored.
+            continue;
         }
-
-        processed_tables.insert(table_tag);
     }
 
     // TODO(garretrieger): mark the patch applied in the appropriate IFT table.
@@ -110,8 +126,6 @@ fn dedup_gid_replacement_data<'a>(
     glyph_patches: impl Iterator<Item = &'a GlyphPatches<'a>>,
     table_tag: Tag,
 ) -> Result<(IntSet<GlyphId>, Vec<&'a [u8]>), ReadError> {
-    // TODO in the spec require sorted glyph ids?
-
     // Since the specification allows us to freely choose patch application order (for groups of glyph keyed patches,
     // see: https://w3c.github.io/IFT/Overview.html#extend-font-subset) if two patches affect the same gid we can choose
     // one arbitrarily to remain applied. In this case we choose the first applied patch for each gid be the one that takes
@@ -405,7 +419,7 @@ mod tests {
     };
     use skrifa::{FontRef, Tag};
 
-    use crate::glyph_keyed::apply_glyph_keyed_patch;
+    use crate::glyph_keyed::apply_glyph_keyed_patches;
 
     fn assemble_patch(mut header: BeBuffer, payload: BeBuffer) -> BeBuffer {
         let payload_data: &[u8] = &payload;
@@ -448,7 +462,7 @@ mod tests {
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
-        let patched = apply_glyph_keyed_patch(&[patch], &font).unwrap();
+        let patched = apply_glyph_keyed_patches(&[patch], &font).unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         check_tables_equal(&font, &patched, BTreeSet::default());
@@ -463,7 +477,7 @@ mod tests {
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
-        let patched = apply_glyph_keyed_patch(&[patch], &font).unwrap();
+        let patched = apply_glyph_keyed_patches(&[patch], &font).unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let new_glyf: &[u8] = patched.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
@@ -524,7 +538,7 @@ mod tests {
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
-        let patched = apply_glyph_keyed_patch(&[patch2, patch1], &font).unwrap();
+        let patched = apply_glyph_keyed_patches(&[patch2, patch1], &font).unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let new_glyf: &[u8] = patched.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
@@ -575,8 +589,13 @@ mod tests {
     }
 
     // TODO test of invalid cases:
+    // - bad format value
+    // - ignore unsupported tables.
+    // - table tags unordered
     // - loca offsets unordered
     // - patch data offsets unordered.
     // - bad decompressed length.
+    // - gid tags unordered
+    // - loca offset type switch required.
     // TODO glyph keyed test with large number of offsets to check type conversion on (glyphCount * tableCount)
 }

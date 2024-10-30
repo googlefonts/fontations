@@ -12,7 +12,7 @@
 
 use crate::patchmap::{PatchEncoding, PatchUri};
 
-use crate::glyph_keyed::apply_glyph_keyed_patch;
+use crate::glyph_keyed::apply_glyph_keyed_patches;
 use read_fonts::tables::ift::{
     CompatibilityId, GlyphKeyedPatch, TableKeyedPatch, TablePatch, TablePatchFlags,
 };
@@ -181,7 +181,7 @@ impl IncrementalFontPatchBase for FontRef<'_> {
                 if glyph_keyed_patches.len() != patches.len() {
                     return Err(PatchingError::IncompatiblePatches);
                 }
-                apply_glyph_keyed_patch(&glyph_keyed_patches, self)
+                apply_glyph_keyed_patches(&glyph_keyed_patches, self)
             }
         }
     }
