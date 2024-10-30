@@ -32,7 +32,7 @@ pub(crate) fn apply_glyph_keyed_patches(
 
     for patch in patches {
         if patch.format() != Tag::new(b"ifgk") {
-            return Err(PatchingError::InvalidPatch("Patch file tag is not 'iftk'"));
+            return Err(PatchingError::InvalidPatch("Patch file tag is not 'ifgk'"));
         }
 
         decompression_buffer.push(
@@ -65,17 +65,7 @@ pub(crate) fn apply_glyph_keyed_patches(
     let mut processed_tables = BTreeSet::<Tag>::new();
     let mut font_builder = FontBuilder::new();
 
-    let mut prev_table_tag: Option<Tag> = None;
-    for table_tag in table_tag_list(&glyph_patches) {
-        if let Some(prev_table_tag) = prev_table_tag {
-            if table_tag <= prev_table_tag {
-                return Err(PatchingError::InvalidPatch(
-                    "Table tags are unsorted or contain duplicate entries.",
-                ));
-            }
-        }
-        prev_table_tag = Some(table_tag);
-
+    for table_tag in table_tag_list(&glyph_patches)? {
         if table_tag == Tag::new(b"glyf") {
             let (Some(glyf), Ok(loca)) = (font.table_data(Tag::new(b"glyf")), font.loca(None))
             else {
@@ -114,12 +104,25 @@ pub(crate) fn apply_glyph_keyed_patches(
     Ok(font_builder.build())
 }
 
-fn table_tag_list(glyph_patches: &[GlyphPatches]) -> BTreeSet<Tag> {
-    glyph_patches
+fn table_tag_list(glyph_patches: &[GlyphPatches]) -> Result<BTreeSet<Tag>, PatchingError> {
+    for patches in glyph_patches {
+        if patches
+            .tables()
+            .iter()
+            .zip(patches.tables().iter().skip(1))
+            .any(|(prev_tag, next_tag)| next_tag <= prev_tag)
+        {
+            return Err(PatchingError::InvalidPatch(
+                "Duplicate or unsorted table tag.",
+            ));
+        }
+    }
+
+    Ok(glyph_patches
         .iter()
         .flat_map(|patch| patch.tables())
         .map(|tag| tag.get())
-        .collect::<BTreeSet<Tag>>()
+        .collect::<BTreeSet<Tag>>())
 }
 
 fn dedup_gid_replacement_data<'a>(
@@ -414,12 +417,12 @@ mod tests {
     };
 
     use font_test_data::ift::{
-        glyf_u16_glyph_patches, glyf_u16_glyph_patches_2, glyph_keyed_patch_header,
-        noop_glyf_glyph_patches, test_font_for_patching,
+        glyf_and_gvar_u16_glyph_patches, glyf_u16_glyph_patches, glyf_u16_glyph_patches_2,
+        glyph_keyed_patch_header, noop_glyf_glyph_patches, test_font_for_patching,
     };
     use skrifa::{FontRef, Tag};
 
-    use crate::glyph_keyed::apply_glyph_keyed_patches;
+    use crate::{font_patch::PatchingError, glyph_keyed::apply_glyph_keyed_patches};
 
     fn assemble_patch(mut header: BeBuffer, payload: BeBuffer) -> BeBuffer {
         let payload_data: &[u8] = &payload;
@@ -588,14 +591,146 @@ mod tests {
         );
     }
 
+    #[test]
+    fn glyph_keyed_bad_format() {
+        let mut header_builder = glyph_keyed_patch_header();
+        header_builder.write_at("format", Tag::new(b"iftk"));
+        let patch = assemble_patch(header_builder, glyf_u16_glyph_patches());
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+
+        let font = test_font_for_patching();
+        let font = FontRef::new(&font).unwrap();
+
+        assert_eq!(
+            apply_glyph_keyed_patches(&[patch], &font),
+            Err(PatchingError::InvalidPatch("Patch file tag is not 'ifgk'"))
+        );
+    }
+
+    #[test]
+    fn glyph_keyed_unsupported_table() {
+        let patch = assemble_patch(
+            glyph_keyed_patch_header(),
+            glyf_and_gvar_u16_glyph_patches(),
+        );
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+
+        let font = test_font_for_patching();
+        let font = FontRef::new(&font).unwrap();
+
+        assert_eq!(
+            apply_glyph_keyed_patches(&[patch], &font),
+            Err(PatchingError::InvalidPatch(
+                "CFF, CFF2, and gvar patches are not yet supported."
+            ))
+        );
+    }
+
+    #[test]
+    fn glyph_keyed_unkown_table() {
+        let mut builder = glyf_and_gvar_u16_glyph_patches();
+        builder.write_at("gvar_tag", Tag::new(b"hijk"));
+
+        let patch = assemble_patch(glyph_keyed_patch_header(), builder);
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+
+        let font = test_font_for_patching();
+        let font = FontRef::new(&font).unwrap();
+
+        let patched = apply_glyph_keyed_patches(&[patch], &font).unwrap();
+        let patched = FontRef::new(&patched).unwrap();
+
+        let new_glyf: &[u8] = patched.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
+        assert_eq!(
+            &[
+                1, 2, 3, 4, 5, 0, // gid 0
+                6, 7, 8, 0, // gid 1
+                b'a', b'b', b'c', 0, // gid2
+                b'd', b'e', b'f', b'g', // gid 7
+                b'h', b'i', b'j', b'k', b'l', 0, // gid 8
+            ],
+            new_glyf
+        );
+
+        let new_loca = patched.loca(None).unwrap();
+        let indices: Vec<u32> = (0..=15).map(|gid| new_loca.get_raw(gid).unwrap()).collect();
+
+        assert_eq!(
+            vec![
+                0,  // gid 0
+                6,  // gid 1
+                10, // gid 2
+                14, // gid 3
+                14, // gid 4
+                14, // gid 5
+                14, // gid 6
+                14, // gid 7
+                18, // gid 8
+                24, // gid 9
+                24, // gid 10
+                24, // gid 11
+                24, // gid 12
+                24, // gid 13
+                24, // gid 14
+                24, // end
+            ],
+            indices
+        );
+
+        check_tables_equal(
+            &font,
+            &patched,
+            [Tag::new(b"glyf"), Tag::new(b"loca")].into(),
+        );
+    }
+
+    #[test]
+    fn glyph_keyed_unsorted_tables() {
+        let mut builder = glyf_and_gvar_u16_glyph_patches();
+        builder.write_at("gvar_tag", Tag::new(b"glye"));
+        let patch = assemble_patch(glyph_keyed_patch_header(), builder);
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+
+        let font = test_font_for_patching();
+        let font = FontRef::new(&font).unwrap();
+
+        assert_eq!(
+            apply_glyph_keyed_patches(&[patch], &font),
+            Err(PatchingError::InvalidPatch(
+                "Duplicate or unsorted table tag."
+            ))
+        );
+    }
+
+    #[test]
+    fn glyph_keyed_duplicate_tables() {
+        let mut builder = glyf_and_gvar_u16_glyph_patches();
+        builder.write_at("gvar_tag", Tag::new(b"glyf"));
+        let patch = assemble_patch(glyph_keyed_patch_header(), builder);
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+
+        let font = test_font_for_patching();
+        let font = FontRef::new(&font).unwrap();
+
+        assert_eq!(
+            apply_glyph_keyed_patches(&[patch], &font),
+            Err(PatchingError::InvalidPatch(
+                "Duplicate or unsorted table tag."
+            ))
+        );
+    }
+
     // TODO test of invalid cases:
-    // - bad format value
-    // - ignore unsupported tables.
-    // - table tags unordered
+    // - gid tags unordered
+    // - bad decompressed length.
     // - loca offsets unordered
     // - patch data offsets unordered.
-    // - bad decompressed length.
-    // - gid tags unordered
     // - loca offset type switch required.
+    // - num glyphs exceeded.
     // TODO glyph keyed test with large number of offsets to check type conversion on (glyphCount * tableCount)
 }
