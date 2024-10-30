@@ -113,15 +113,15 @@ impl<'a> LangSys<'a> {
     /// [Gpos](crate::tables::gpos::Gpos) tables.
     pub fn feature_index_for_tag(&self, list: &FeatureList, tag: Tag) -> Option<u16> {
         let records = list.feature_records();
-        for feature_ix in self.feature_indices() {
-            let feature_ix = feature_ix.get();
-            if let Some(rec) = records.get(feature_ix as usize) {
-                if rec.feature_tag() == tag {
-                    return Some(feature_ix);
-                }
-            }
-        }
-        None
+        self.feature_indices()
+            .iter()
+            .map(|ix| ix.get())
+            .find(|&feature_ix| {
+                records
+                    .get(feature_ix as usize)
+                    .map(|rec| rec.feature_tag())
+                    == Some(tag)
+            })
     }
 }
 
