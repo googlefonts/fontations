@@ -413,7 +413,8 @@ mod tests {
 
     use brotlic::CompressorWriter;
     use read_fonts::{
-        tables::ift::GlyphKeyedPatch, test_helpers::BeBuffer, FontData, FontRead, TableProvider,
+        tables::ift::GlyphKeyedPatch, test_helpers::BeBuffer, FontData, FontRead, ReadError,
+        TableProvider,
     };
 
     use font_test_data::ift::{
@@ -725,12 +726,83 @@ mod tests {
         );
     }
 
+    #[test]
+    fn glyph_keyed_unsorted_gids() {
+        let mut builder = glyf_u16_glyph_patches();
+        builder.write_at("gid_8", 6);
+        let patch = assemble_patch(glyph_keyed_patch_header(), builder);
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+
+        let font = test_font_for_patching();
+        let font = FontRef::new(&font).unwrap();
+
+        assert_eq!(
+            apply_glyph_keyed_patches(&[patch], &font),
+            Err(PatchingError::PatchParsingFailed(ReadError::MalformedData(
+                "Glyph IDs are unsorted or duplicated."
+            ))),
+        );
+    }
+
+    #[test]
+    fn glyph_keyed_duplicate_gids() {
+        let mut builder = glyf_u16_glyph_patches();
+        builder.write_at("gid_8", 7);
+        let patch = assemble_patch(glyph_keyed_patch_header(), builder);
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+
+        let font = test_font_for_patching();
+        let font = FontRef::new(&font).unwrap();
+
+        assert_eq!(
+            apply_glyph_keyed_patches(&[patch], &font),
+            Err(PatchingError::PatchParsingFailed(ReadError::MalformedData(
+                "Glyph IDs are unsorted or duplicated."
+            ))),
+        );
+    }
+
+    #[test]
+    fn glyph_keyed_uncompressed_length_to_small() {
+        let len = glyf_u16_glyph_patches().as_slice().len();
+        let mut patch = assemble_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
+        patch.write_at("max_uncompressed_length", len as u32 - 1);
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+
+        let font = test_font_for_patching();
+        let font = FontRef::new(&font).unwrap();
+
+        assert_eq!(
+            apply_glyph_keyed_patches(&[patch], &font),
+            Err(PatchingError::InvalidPatch("Max size exceeded.")),
+        );
+    }
+
+    #[test]
+    fn glyph_keyed_max_glyph_exceeded() {
+        let mut builder = glyf_u16_glyph_patches();
+        builder.write_at("gid_13", 15u16);
+        let patch = assemble_patch(glyph_keyed_patch_header(), builder);
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+
+        let font = test_font_for_patching();
+        let font = FontRef::new(&font).unwrap();
+
+        assert_eq!(
+            apply_glyph_keyed_patches(&[patch], &font),
+            Err(PatchingError::InvalidPatch(
+                "Patch would add a glyph beyond this fonts maximum."
+            )),
+        );
+    }
+
     // TODO test of invalid cases:
-    // - gid tags unordered
-    // - bad decompressed length.
     // - loca offsets unordered
     // - patch data offsets unordered.
     // - loca offset type switch required.
-    // - num glyphs exceeded.
     // TODO glyph keyed test with large number of offsets to check type conversion on (glyphCount * tableCount)
 }
