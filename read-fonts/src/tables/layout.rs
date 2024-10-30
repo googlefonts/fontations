@@ -365,6 +365,31 @@ impl From<VariationIndex<'_>> for DeltaSetIndex {
     }
 }
 
+/// Combination of a tag and a child table.
+///
+/// Used in script and feature lists where a data structure has an array
+/// of records with each containing a tag and an offset to a table. This
+/// allows us to provide convenience methods that return both values.
+#[derive(Clone)]
+pub struct TaggedElement<T> {
+    pub tag: Tag,
+    pub element: T,
+}
+
+impl<T> TaggedElement<T> {
+    pub fn new(tag: Tag, element: T) -> Self {
+        Self { tag, element }
+    }
+}
+
+impl<T> std::ops::Deref for TaggedElement<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.element
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
