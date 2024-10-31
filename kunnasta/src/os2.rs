@@ -1,6 +1,10 @@
-// unicode range array generated from the ot spec:
-// (https://docs.microsoft.com/en-us/typography/opentype/spec/os2#ur).
-// sorted by range start codepoints
+//! OS/2 table constants
+
+/// OS/2 Unicode ranges
+///
+/// Unicode range array generated from the ot spec:
+/// (https://docs.microsoft.com/en-us/typography/opentype/spec/os2#ur).
+/// sorted by range start codepoints
 pub static UNICODE_RANGES: [(u32, u32, u8); 169] = [
     (0x0, 0x7F, 0),           // Basic Latin
     (0x80, 0xFF, 1),          // Latin-1 Supplement

@@ -1,3 +1,6 @@
+//! Panose Classification settings
+//!
+//! See the [PANOSE Classification Metrics Guide](https://monotype.github.io/panose/pan1.html)
 use num_enum::IntoPrimitive;
 
 #[derive(IntoPrimitive)]
