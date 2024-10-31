@@ -1,0 +1,108 @@
+//! OpenType layout tag registry
+//!
+//! Valid as at OpenType 1.9.1
+
+/// List of valid OpenType script tags
+pub const VALID_SCRIPT_TAGS: [&str; 170] = [
+    "DFLT", "adlm", "ahom", "hluw", "arab", "armn", "avst", "bali", "bamu", "bass", "batk", "beng",
+    "bng2", "bhks", "bopo", "brah", "brai", "bugi", "buhd", "byzm", "cans", "cari", "aghb", "cakm",
+    "cham", "cher", "chrs", "hani", "copt", "cprt", "cyrl", "DFLT", "dsrt", "deva", "dev2", "diak",
+    "dogr", "dupl", "egyp", "elba", "elym", "ethi", "geor", "glag", "goth", "gran", "grek", "gujr",
+    "gjr2", "gong", "guru", "gur2", "hang", "jamo", "rohg", "hano", "hatr", "hebr", "kana", "armi",
+    "phli", "prti", "java", "kthi", "knda", "knd2", "kana", "kali", "khar", "kits", "khmr", "khoj",
+    "sind", "lao ", "latn", "lepc", "limb", "lina", "linb", "lisu", "lyci", "lydi", "mahj", "maka",
+    "mlym", "mlm2", "mand", "mani", "marc", "gonm", "math", "medf", "mtei", "mend", "merc", "mero",
+    "plrd", "modi", "mong", "mroo", "mult", "musc", "mymr", "mym2", "nbat", "nand", "newa", "talu",
+    "nko ", "nshu", "hmnp", "orya", "ory2", "ogam", "olck", "ital", "hung", "narb", "perm", "xpeo",
+    "sogo", "sarb", "orkh", "osge", "osma", "hmng", "palm", "pauc", "phag", "phnx", "phlp", "rjng",
+    "runr", "samr", "saur", "shrd", "shaw", "sidd", "sgnw", "sinh", "sogd", "sora", "soyo", "xsux",
+    "sund", "sylo", "syrc", "tglg", "tagb", "tale", "lana", "tavt", "takr", "taml", "tml2", "tang",
+    "telu", "tel2", "thaa", "thai", "tibt", "tfng", "tirh", "ugar", "vai ", "wcho", "wara", "yezi",
+    "yi  ", "zanb",
+];
+
+/// List of valid OpenType language tags
+pub const VALID_LANG_TAGS: [&str; 612] = [
+    "dflt", "ABA ", "ABK ", "ACH ", "ACR ", "ADY ", "AFK ", "AFR ", "AGW ", "AIO ", "AKA ", "AKB ",
+    "ALS ", "ALT ", "AMH ", "ANG ", "APPH", "ARA ", "ARG ", "ARI ", "ARK ", "ASM ", "AST ", "ATH ",
+    "AVR ", "AWA ", "AYM ", "AZB ", "AZE ", "BAD ", "BAD0", "BAG ", "BAL ", "BAN ", "BAR ", "BAU ",
+    "BBC ", "BBR ", "BCH ", "BCR ", "BDY ", "BEL ", "BEM ", "BEN ", "BGC ", "BGQ ", "BGR ", "BHI ",
+    "BHO ", "BIK ", "BIL ", "BIS ", "BJJ ", "BKF ", "BLI ", "BLK ", "BLN ", "BLT ", "BMB ", "BML ",
+    "BOS ", "BPY ", "BRE ", "BRH ", "BRI ", "BRM ", "BRX ", "BSH ", "BSK ", "BTD ", "BTI ", "BTK ",
+    "BTM ", "BTS ", "BTX ", "BTZ ", "BUG ", "BYV ", "CAK ", "CAT ", "CBK ", "CCHN", "CEB ", "CGG ",
+    "CHA ", "CHE ", "CHG ", "CHH ", "CHI ", "CHK ", "CHK0", "CHO ", "CHP ", "CHR ", "CHU ", "CHY ",
+    "CJA ", "CJM ", "CMR ", "COP ", "COR ", "COS ", "CPP ", "CRE ", "CRR ", "CRT ", "CSB ", "CSL ",
+    "CSY ", "CTG ", "CUK ", "DAG ", "DAN ", "DAR ", "DAX ", "DCR ", "DEU ", "DGO ", "DGR ", "DHG ",
+    "DHV ", "DIQ ", "DIV ", "DJR ", "DJR0", "DNG ", "DNJ ", "DNK ", "DRI ", "DUJ ", "DUN ", "DZN ",
+    "EBI ", "ECR ", "EDO ", "EFI ", "ELL ", "EMK ", "ENG ", "ERZ ", "ESP ", "ESU ", "ETI ", "EUQ ",
+    "EVK ", "EVN ", "EWE ", "FAN ", "FAN0", "FAR ", "FAT ", "FIN ", "FJI ", "FLE ", "FMP ", "FNE ",
+    "FON ", "FOS ", "FRA ", "FRC ", "FRI ", "FRL ", "FRP ", "FTA ", "FUL ", "FUV ", "GAD ", "GAE ",
+    "GAG ", "GAL ", "GAR ", "GAW ", "GEZ ", "GIH ", "GIL ", "GIL0", "GKP ", "GLK ", "GMZ ", "GNN ",
+    "GOG ", "GON ", "GRN ", "GRO ", "GUA ", "GUC ", "GUF ", "GUJ ", "GUZ ", "HAI ", "HAL ", "HAR ",
+    "HAU ", "HAW ", "HAY ", "HAZ ", "HBN ", "HER ", "HIL ", "HIN ", "HMA ", "HMN ", "HMO ", "HND ",
+    "HO  ", "HRI ", "HRV ", "HUN ", "HYE ", "HYE0", "IBA ", "IBB ", "IBO ", "IDO ", "IJO ", "ILE ",
+    "ILO ", "INA ", "IND ", "ING ", "INU ", "IPK ", "IPPH", "IRI ", "IRT ", "ISL ", "ISM ", "ITA ",
+    "IWR ", "JAM ", "JAN ", "JAV ", "JBO ", "JCT ", "JII ", "JUD ", "JUL ", "KAB ", "KAB0", "KAC ",
+    "KAL ", "KAN ", "KAR ", "KAT ", "KAZ ", "KDE ", "KEA ", "KEB ", "KEK ", "KGE ", "KHA ", "KHK ",
+    "KHM ", "KHS ", "KHT ", "KHV ", "KHW ", "KIK ", "KIR ", "KIS ", "KIU ", "KJD ", "KJP ", "KJZ ",
+    "KKN ", "KLM ", "KMB ", "KMN ", "KMO ", "KMS ", "KMZ ", "KNR ", "KOD ", "KOH ", "KOK ", "KOM ",
+    "KON ", "KON0", "KOP ", "KOR ", "KOS ", "KOZ ", "KPL ", "KRI ", "KRK ", "KRL ", "KRM ", "KRN ",
+    "KRT ", "KSH ", "KSH0", "KSI ", "KSM ", "KSW ", "KUA ", "KUI ", "KUL ", "KUM ", "KUR ", "KUU ",
+    "KUY ", "KYK ", "KYU ", "LAD ", "LAH ", "LAK ", "LAM ", "LAO ", "LAT ", "LAZ ", "LCR ", "LDK ",
+    "LEZ ", "LIJ ", "LIM ", "LIN ", "LIS ", "LJP ", "LKI ", "LMA ", "LMB ", "LMO ", "LMW ", "LOM ",
+    "LRC ", "LSB ", "LSM ", "LTH ", "LTZ ", "LUA ", "LUB ", "LUG ", "LUH ", "LUO ", "LVI ", "MAD ",
+    "MAG ", "MAH ", "MAJ ", "MAK ", "MAL ", "MAM ", "MAN ", "MAP ", "MAR ", "MAW ", "MBN ", "MBO ",
+    "MCH ", "MCR ", "MDE ", "MDR ", "MEN ", "MER ", "MFA ", "MFE ", "MIN ", "MIZ ", "MKD ", "MKR ",
+    "MKW ", "MLE ", "MLG ", "MLN ", "MLR ", "MLY ", "MND ", "MNG ", "MNI ", "MNK ", "MNX ", "MOH ",
+    "MOK ", "MOL ", "MON ", "MOR ", "MOS ", "MRI ", "MTH ", "MTS ", "MUN ", "MUS ", "MWL ", "MWW ",
+    "MYN ", "MZN ", "NAG ", "NAH ", "NAN ", "NAP ", "NAS ", "NAU ", "NAV ", "NCR ", "NDB ", "NDC ",
+    "NDG ", "NDS ", "NEP ", "NEW ", "NGA ", "NGR ", "NHC ", "NIS ", "NIU ", "NKL ", "NKO ", "NLD ",
+    "NOE ", "NOG ", "NOR ", "NOV ", "NSM ", "NSO ", "NTA ", "NTO ", "NYM ", "NYN ", "NZA ", "OCI ",
+    "OCR ", "OJB ", "ORI ", "ORO ", "OSS ", "PAA ", "PAG ", "PAL ", "PAM ", "PAN ", "PAP ", "PAP0",
+    "PAS ", "PAU ", "PCC ", "PCD ", "PDC ", "PGR ", "PHK ", "PIH ", "PIL ", "PLG ", "PLK ", "PMS ",
+    "PNB ", "POH ", "PON ", "PRO ", "PTG ", "PWO ", "QIN ", "QUC ", "QUH ", "QUZ ", "QVI ", "QWH ",
+    "RAJ ", "RAR ", "RBU ", "RCR ", "REJ ", "RIA ", "RIF ", "RIT ", "RKW ", "RMS ", "RMY ", "ROM ",
+    "ROY ", "RSY ", "RTM ", "RUA ", "RUN ", "RUP ", "RUS ", "SAD ", "SAN ", "SAS ", "SAT ", "SAY ",
+    "SCN ", "SCO ", "SCS ", "SEK ", "SEL ", "SGA ", "SGO ", "SGS ", "SHI ", "SHN ", "SIB ", "SID ",
+    "SIG ", "SKS ", "SKY ", "SLA ", "SLV ", "SML ", "SMO ", "SNA ", "SNA0", "SND ", "SNH ", "SNK ",
+    "SOG ", "SOP ", "SOT ", "SQI ", "SRB ", "SRD ", "SRK ", "SRR ", "SSL ", "SSM ", "STQ ", "SUK ",
+    "SUN ", "SUR ", "SVA ", "SVE ", "SWA ", "SWK ", "SWZ ", "SXT ", "SXU ", "SYL ", "SYR ", "SYRE",
+    "SYRJ", "SYRN", "SZL ", "TAB ", "TAJ ", "TAM ", "TAT ", "TCR ", "TDD ", "TEL ", "TET ", "TGL ",
+    "TGN ", "TGR ", "TGY ", "THA ", "THT ", "TIB ", "TIV ", "TKM ", "TMH ", "TMN ", "TNA ", "TNE ",
+    "TNG ", "TOD ", "TOD0", "TPI ", "TRK ", "TSG ", "TSJ ", "TUA ", "TUL ", "TUM ", "TUV ", "TVL ",
+    "TWI ", "TYZ ", "TZM ", "TZO ", "UDM ", "UKR ", "UMB ", "URD ", "USB ", "UYG ", "UZB ", "VEC ",
+    "VEN ", "VIT ", "VOL ", "VRO ", "WA  ", "WAG ", "WAR ", "WCR ", "WEL ", "WLF ", "WLN ", "WTM ",
+    "XBD ", "XHS ", "XJB ", "XKF ", "XOG ", "XPE ", "YAK ", "YAO ", "YAP ", "YBA ", "YCR ", "YIC ",
+    "YIM ", "ZEA ", "ZGH ", "ZHA ", "ZHH ", "ZHP ", "ZHS ", "ZHT ", "ZHTM", "ZND ", "ZUL ", "ZZA ",
+];
+
+/// List of valid OpenType feature tags
+#[rustfmt::skip]
+pub const VALID_FEATURE_TAGS: [&str; 241] = [
+    "aalt", "abvf", "abvm", "abvs", "afrc", "akhn", "blwf", "blwm", "blws", "c2pc", "c2sc", "calt",
+    "case", "ccmp", "cfar", "chws", "cjct", "clig", "cpct", "cpsp", "cswh", "curs", "dist", "dlig",
+    "dnom", "dtls", "expt", "falt", "fin2", "fin3", "fina", "flac", "frac", "fwid", "half", "haln",
+    "halt", "hist", "hkna", "hlig", "hngl", "hojo", "hwid", "init", "isol", "ital", "jalt", "jp04",
+    "jp78", "jp83", "jp90", "kern", "lfbd", "liga", "ljmo", "lnum", "locl", "ltra", "ltrm", "mark",
+    "med2", "medi", "mgrk", "mkmk", "mset", "nalt", "nlck", "nukt", "numr", "onum", "opbd", "ordn",
+    "ornm", "palt", "pcap", "pkna", "pnum", "pref", "pres", "pstf", "psts", "pwid", "qwid", "rand",
+    "rclt", "rkrf", "rlig", "rphf", "rtbd", "rtla", "rtlm", "ruby", "rvrn", "salt", "sinf", "size",
+    "smcp", "smpl", "ssty", "stch", "subs", "sups", "swsh", "titl", "tjmo", "tnam", "tnum", "trad",
+    "twid", "unic", "valt", "vatu", "vchw", "vert", "vhal", "vjmo", "vkna", "vkrn", "vpal", "vrt2",
+    "vrtr", "zero",
+    
+    // Character variations
+    "cv01", "cv02", "cv03", "cv04", "cv05", "cv06", "cv07", "cv08", "cv09", "cv10", "cv11", "cv12",
+    "cv13", "cv14", "cv15", "cv16", "cv17", "cv18", "cv19", "cv20", "cv21", "cv22", "cv23", "cv24",
+    "cv25", "cv26", "cv27", "cv28", "cv29", "cv30", "cv31", "cv32", "cv33", "cv34", "cv35", "cv36",
+    "cv37", "cv38", "cv39", "cv40", "cv41", "cv42", "cv43", "cv44", "cv45", "cv46", "cv47", "cv48",
+    "cv49", "cv50", "cv51", "cv52", "cv53", "cv54", "cv55", "cv56", "cv57", "cv58", "cv59", "cv60",
+    "cv61", "cv62", "cv63", "cv64", "cv65", "cv66", "cv67", "cv68", "cv69", "cv70", "cv71", "cv72",
+    "cv73", "cv74", "cv75", "cv76", "cv77", "cv78", "cv79", "cv80", "cv81", "cv82", "cv83", "cv84",
+    "cv85", "cv86", "cv87", "cv88", "cv89", "cv90", "cv91", "cv92", "cv93", "cv94", "cv95", "cv96",
+    "cv97", "cv98", "cv99",
+    
+    // Stylistic sets (OT spec only supports 20)
+    "ss01", "ss02", "ss03", "ss04", "ss05", "ss06", "ss07", "ss08", "ss09", "ss10", "ss11", "ss12",
+    "ss13", "ss14", "ss15", "ss16", "ss17", "ss18", "ss19", "ss20",
+];
