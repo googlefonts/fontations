@@ -1,13 +1,9 @@
 //! impl subset() for OS/2
-use crate::SubsetFlags;
-use crate::{Plan, Subset, SubsetError};
+use crate::{Plan, Subset, SubsetError, SubsetFlags};
+use kunnasta::os2::UNICODE_RANGES;
 use std::cmp::Ordering;
 use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::os2::{Os2, OS2_UNICODE_RANGES},
-        FontRef, TopLevelTable,
-    },
+    read::{collections::IntSet, tables::os2::Os2, FontRef, TopLevelTable},
     FontBuilder,
 };
 
@@ -78,10 +74,10 @@ fn update_unicode_ranges(unicodes: &IntSet<u32>, ul_unicode_range: &mut [u8]) {
 
 // Returns the bit to be set in os/2 ulUnicodeOS2Range for a given codepoint.
 fn get_unicode_range_bit(cp: u32) -> Option<u8> {
-    OS2_UNICODE_RANGES
+    UNICODE_RANGES
         .binary_search_by(|&(a, b, _)| OS2Range::new(a, b).cmp(cp))
         .ok()
-        .map(|i| OS2_UNICODE_RANGES[i].2)
+        .map(|i| UNICODE_RANGES[i].2)
 }
 
 pub struct OS2Range {
