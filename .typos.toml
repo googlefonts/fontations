@@ -9,6 +9,7 @@ extend-exclude = [
     # /.git isn't in .gitignore, because git never tracks it.
     # Typos doesn't know that, though.
     '/.git',
+    'kunnasta/src/layout.rs', # Lots of tags that look like words but aren't
 ]
 
 # Corrections take the form of a key/value pair. The key is the incorrect word
