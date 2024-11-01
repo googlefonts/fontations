@@ -50,6 +50,7 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
     let (mut outline_buf, mut flats, mut rounds) = buffers();
     let (glyphs, units_per_em) = things_all_blues_need(shaper.font());
     let flat_threshold = units_per_em / 14;
+    let mut cluster_shaper = shaper.cluster_shaper(style);
     let mut shaped_cluster = ShapedCluster::default();
     // Walk over each of the blue character sets for our script.
     for (blue_str, blue_flags) in style.script.blues {
@@ -65,7 +66,7 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
         for cluster in blue_str.split(' ') {
             let mut best_y_extremum = if is_top { i32::MIN } else { i32::MAX };
             let mut best_is_round = false;
-            shaper.shape_cluster(cluster, &mut shaped_cluster);
+            cluster_shaper.shape(cluster, &mut shaped_cluster);
             for (glyph, y_offset) in shaped_cluster
                 .iter()
                 .filter(|g| g.id.to_u32() != 0)
@@ -449,6 +450,7 @@ fn compute_cjk_blues(
     let mut blues = [UnscaledBlues::new(), UnscaledBlues::new()];
     let (mut outline_buf, mut flats, mut fills) = buffers();
     let (glyphs, _) = things_all_blues_need(shaper.font());
+    let mut cluster_shaper = shaper.cluster_shaper(style);
     let mut shaped_cluster = ShapedCluster::default();
     // Walk over each of the blue character sets for our script.
     for (blue_str, blue_flags) in style.script.blues {
@@ -477,7 +479,7 @@ fn compute_cjk_blues(
                 is_fill = false;
                 continue;
             }
-            shaper.shape_cluster(cluster, &mut shaped_cluster);
+            cluster_shaper.shape(cluster, &mut shaped_cluster);
             for glyph in shaped_cluster
                 .iter()
                 .filter(|g| g.id.to_u32() != 0)
@@ -694,6 +696,33 @@ mod tests {
                 position: -78,
                 overshoot: -66,
                 ascender: 0,
+                descender: 0,
+                flags: 0,
+            },
+        ];
+        assert_eq!(values, &expected);
+    }
+
+    #[test]
+    fn c2sc_shaped_blues() {
+        let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
+        let shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        let style = &style::STYLE_CLASSES[super::StyleClass::LATN_C2SC];
+        let blues = super::compute_default_blues(&shaper, &[], style);
+        let values = blues.as_slice();
+        // Captured from FreeType with HarfBuzz enabled
+        let expected = [
+            UnscaledBlue {
+                position: 571,
+                overshoot: 571,
+                ascender: 571,
+                descender: 0,
+                flags: blue_flags::TOP,
+            },
+            UnscaledBlue {
+                position: 0,
+                overshoot: 0,
+                ascender: 571,
                 descender: 0,
                 flags: 0,
             },
