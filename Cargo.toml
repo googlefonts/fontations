@@ -14,6 +14,7 @@ members = [
     "fuzz",
     "shared-brotli-patch-decoder",
     "incremental-font-transfer",
+    "kunnasta",
 ]
 
 [workspace.package]
@@ -42,6 +43,7 @@ core_maths = "0.1"
 font-test-data = { path = "font-test-data" }
 font-types = { version = "0.7.2", path = "font-types" }
 read-fonts = { version = "0.23.0", path = "read-fonts", default-features = false }
+kunnasta = { version = "0.1.0", path = "kunnasta" }
 # Disable default-features so that fauntlet can use skrifa without autohint
 # shaping support
 skrifa = { version = "0.24.0", path = "skrifa", default-features = false, features = ["std"] }
