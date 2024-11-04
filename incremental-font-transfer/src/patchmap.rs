@@ -527,7 +527,6 @@ pub enum PatchId {
 pub struct PatchUri {
     template: String, // TODO(garretrieger): Make this a reference?
     id: PatchId,
-    source_table: Tag,
     encoding: PatchEncoding,
     expected_compatibility_id: CompatibilityId,
     // TODO(garretrieger): add a resolve method which when supplied the bytes associated with the URL
@@ -535,9 +534,11 @@ pub struct PatchUri {
 }
 
 impl PatchUri {
-    pub fn source_table(&self) -> Tag {
-        self.source_table
+    pub fn uri(&self) -> String {
+        // TODO(garretrieger): implement template substitution.
+        self.template.clone()
     }
+
     pub fn encoding(&self) -> PatchEncoding {
         self.encoding
     }
