@@ -11,19 +11,23 @@ use std::ops::RangeInclusive;
 
 use font_types::GlyphId;
 use font_types::Tag;
-use read_fonts::tables::ift::CompatibilityId;
-use read_fonts::tables::ift::EntryFormatFlags;
-use read_fonts::types::Offset32;
-use read_fonts::types::Uint24;
-use read_fonts::{
-    tables::ift::{EntryData, EntryMapRecord, Ift, PatchMapFormat1, PatchMapFormat2},
-    ReadError, TableProvider,
-};
-use read_fonts::{FontData, FontRef};
 
-use read_fonts::collections::IntSet;
+use data_encoding::BASE64URL;
+use data_encoding_macro::new_encoding;
+
+use read_fonts::{
+    collections::IntSet,
+    tables::ift::{
+        CompatibilityId, EntryData, EntryFormatFlags, EntryMapRecord, Ift, PatchMapFormat1,
+        PatchMapFormat2,
+    },
+    types::{Offset32, Uint24},
+    FontData, FontRef, ReadError, TableProvider,
+};
 
 use skrifa::charmap::Charmap;
+
+use uritemplate::UriTemplate;
 
 // TODO(garretrieger): implement support for building and compiling mapping tables.
 // TODO(garretrieger): implement coalescing of patches by patch URI, ensuring that all entries with the same
@@ -534,9 +538,56 @@ pub struct PatchUri {
 }
 
 impl PatchUri {
-    pub fn uri(&self) -> String {
-        // TODO(garretrieger): implement template substitution.
-        self.template.clone()
+    const BASE32HEX_NO_PADDING: data_encoding::Encoding = new_encoding! {
+        symbols: "0123456789ABCDEFGHIJKLMNOPQRSTUV",
+    };
+
+    pub fn uri_string(&self) -> String {
+        let (id_string, id64_string) = match &self.id {
+            PatchId::Numeric(id) => {
+                let id = id.to_be_bytes();
+                let id = &id[Self::count_leading_zeroes(&id)..];
+                (Self::BASE32HEX_NO_PADDING.encode(id), BASE64URL.encode(id))
+            }
+            PatchId::String(id) => (
+                Self::BASE32HEX_NO_PADDING.encode(&id),
+                BASE64URL.encode(&id),
+            ),
+        };
+
+        let mut template = UriTemplate::new(&self.template);
+
+        let id_string_len = id_string.len();
+
+        for (n, name) in [(1, "d1"), (2, "d2"), (3, "d3"), (4, "d4")] {
+            template.set(
+                name,
+                id_string_len
+                    .checked_sub(n)
+                    .and_then(|index| {
+                        id_string
+                            .get(index..index + 1)
+                            .map(|digit| digit.to_string())
+                    })
+                    .unwrap_or_else(|| "_".to_string()),
+            );
+        }
+
+        template.set("id", id_string);
+        template.set("id64", id64_string);
+
+        template.build()
+    }
+
+    fn count_leading_zeroes(id: &[u8]) -> usize {
+        let mut leading_bytes = 0;
+        for b in id {
+            if *b != 0 {
+                break;
+            }
+            leading_bytes += 1;
+        }
+        leading_bytes
     }
 
     pub fn encoding(&self) -> PatchEncoding {
@@ -556,6 +607,20 @@ impl PatchUri {
         PatchUri {
             template: uri_template.to_string(),
             id: PatchId::Numeric(entry_index),
+            expected_compatibility_id: expected_compatibility_id.clone(),
+            encoding,
+        }
+    }
+
+    pub(crate) fn from_string(
+        uri_template: &str,
+        entry_id: &str,
+        expected_compatibility_id: &CompatibilityId,
+        encoding: PatchEncoding,
+    ) -> PatchUri {
+        PatchUri {
+            template: uri_template.to_string(),
+            id: PatchId::String(entry_id.as_bytes().iter().map(|v| *v).collect()),
             expected_compatibility_id: expected_compatibility_id.clone(),
             encoding,
         }
@@ -783,6 +848,63 @@ mod tests {
             .collect();
 
         assert_eq!(expected, patches);
+    }
+
+    fn check_uri_template_substitution(template: &str, value: u32, expected: &str) {
+        assert_eq!(
+            PatchUri::from_index(
+                template,
+                value,
+                &Default::default(),
+                PatchEncoding::GlyphKeyed,
+            )
+            .uri_string(),
+            expected,
+        );
+    }
+
+    fn check_string_uri_template_substitution(template: &str, value: &str, expected: &str) {
+        assert_eq!(
+            PatchUri::from_string(
+                template,
+                value,
+                &Default::default(),
+                PatchEncoding::GlyphKeyed,
+            )
+            .uri_string(),
+            expected,
+        );
+    }
+
+    #[test]
+    fn uri_template_substitution() {
+        // Test cases are from specification:
+        // https://w3c.github.io/IFT/Overview.html#uri-templates
+        check_uri_template_substitution("//foo.bar/{id}", 123, "//foo.bar/FC");
+        check_uri_template_substitution("//foo.bar{/d1,d2,id}", 478, "//foo.bar/0/F/07F0");
+        check_uri_template_substitution("//foo.bar{/d1,d2,d3,id}", 123, "//foo.bar/C/F/_/FC");
+
+        check_string_uri_template_substitution(
+            "//foo.bar{/d1,d2,d3,id}",
+            "baz",
+            "//foo.bar/K/N/G/C9GNK",
+        );
+        check_string_uri_template_substitution(
+            "//foo.bar{/d1,d2,d3,id}",
+            "z",
+            "//foo.bar/8/F/_/F8",
+        );
+        check_string_uri_template_substitution(
+            "//foo.bar{/d1,d2,d3,id}",
+            "àbc",
+            "//foo.bar/O/O/4/OEG64OO",
+        );
+
+        check_uri_template_substitution("//foo.bar/{id64}", 14_000_000, "//foo.bar/1Z-A");
+        check_uri_template_substitution("//foo.bar/{id64}", 17_000_000, "//foo.bar/AQNmQA%3D%3D");
+
+        check_string_uri_template_substitution("//foo.bar{/id64}", "àbc", "//foo.bar/w6BiYw%3D%3D");
+        check_string_uri_template_substitution("//foo.bar/{+id64}", "àbcd", "//foo.bar/w6BiY2Q=");
     }
 
     #[test]

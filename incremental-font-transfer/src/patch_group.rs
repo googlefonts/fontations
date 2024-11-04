@@ -177,7 +177,7 @@ where
 {
     fn from(value: PatchUri) -> Self {
         PatchInfo {
-            uri: value.uri(),
+            uri: value.uri_string(),
             data: None,
             _phantom: Default::default(),
         }
