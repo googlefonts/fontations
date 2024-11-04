@@ -184,7 +184,12 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
                         - best_contour[segment_first].x as i32)
                         .abs();
                     if dist < length_threshold
-                        && segment_last - segment_first + 2 <= best_contour.len()
+                        // segment_last can be less than segment_first and
+                        // FreeType uses signed arithmetic here, allowing
+                        // this condition to succeed in that case. We'll
+                        // do the same to avoid an overflow and panic
+                        // <https://github.com/googlefonts/fontations/issues/1218>
+                        && segment_last as i32 - segment_first as i32 + 2 <= best_contour.len() as i32
                     {
                         // heuristic threshold value
                         let height_threshold = units_per_em / 4;
