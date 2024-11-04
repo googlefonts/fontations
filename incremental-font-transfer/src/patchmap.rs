@@ -878,7 +878,14 @@ mod tests {
 
     #[test]
     fn uri_template_substitution() {
-        // Test cases are from specification:
+        // These test cases are used in other tests.
+        check_uri_template_substitution("//foo.bar/{id}", 1, "//foo.bar/04");
+        check_uri_template_substitution("//foo.bar/{id}", 2, "//foo.bar/08");
+        check_uri_template_substitution("//foo.bar/{id}", 3, "//foo.bar/0C");
+        check_uri_template_substitution("//foo.bar/{id}", 4, "//foo.bar/0G");
+        check_uri_template_substitution("//foo.bar/{id}", 5, "//foo.bar/0K");
+
+        // These test cases are from specification:
         // https://w3c.github.io/IFT/Overview.html#uri-templates
         check_uri_template_substitution("//foo.bar/{id}", 123, "//foo.bar/FC");
         check_uri_template_substitution("//foo.bar{/d1,d2,id}", 478, "//foo.bar/0/F/07F0");
