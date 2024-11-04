@@ -1,5 +1,5 @@
 use font_types::Tag;
-use read_fonts::{FontRef, ReadError};
+use read_fonts::{tables::ift::CompatibilityId, FontRef, ReadError, TableProvider};
 use std::{collections::BTreeMap, marker::PhantomData};
 
 use crate::patchmap::{intersecting_patches, PatchEncoding, PatchUri, SubsetDefinition};
@@ -17,7 +17,11 @@ impl PatchApplicationGroup<'_> {
         subset_definition: &SubsetDefinition,
     ) -> Result<PatchApplicationGroup<'a>, ReadError> {
         let candidates = intersecting_patches(&font, subset_definition)?;
-        let compat_group = Self::select_next_patches_from_candidates(candidates)?;
+        let compat_group = Self::select_next_patches_from_candidates(
+            candidates,
+            font.ift()?.compatibility_id(),
+            font.iftx()?.compatibility_id(),
+        )?;
 
         Ok(PatchApplicationGroup {
             font,
@@ -27,6 +31,8 @@ impl PatchApplicationGroup<'_> {
 
     fn select_next_patches_from_candidates(
         candidates: Vec<PatchUri>,
+        ift_compat_id: CompatibilityId,
+        iftx_compat_id: CompatibilityId,
     ) -> Result<CompatibleGroup, ReadError> {
         // Some notes about this implementation:
         // - From candidates we need to form the largest possible group of patches which follow the selection criteria
@@ -57,12 +63,12 @@ impl PatchApplicationGroup<'_> {
                 PatchEncoding::TableKeyed {
                     fully_invalidating: false,
                 } => {
-                    if uri.source_table() == Tag::new(b"IFT ") {
+                    if *uri.expected_compatibility_id() == ift_compat_id {
                         partial_invalidation_ift.push(PartialInvalidationPatch::<AffectsIft>(
                             uri.into(),
                             Default::default(),
                         ))
-                    } else if uri.source_table() == Tag::new(b"IFTX") {
+                    } else if *uri.expected_compatibility_id() == iftx_compat_id {
                         partial_invalidation_iftx.push(PartialInvalidationPatch::<AffectsIftx>(
                             uri.into(),
                             Default::default(),
@@ -70,12 +76,12 @@ impl PatchApplicationGroup<'_> {
                     }
                 }
                 PatchEncoding::GlyphKeyed => {
-                    if uri.source_table() == Tag::new(b"IFT ") {
+                    if *uri.expected_compatibility_id() == ift_compat_id {
                         no_invalidation_ift.insert(
                             "TODO".to_string(), // TODO(garretrieger): key should be the fully subbed URI string.
                             NoInvalidationPatch::<AffectsIft>(uri.into(), Default::default()),
                         );
-                    } else if uri.source_table() == Tag::new(b"IFTX") {
+                    } else if *uri.expected_compatibility_id() == iftx_compat_id {
                         no_invalidation_iftx.insert(
                             "TODO".to_string(), // TODO(garretrieger): key should be the fully subbed URI string.
                             NoInvalidationPatch::<AffectsIftx>(uri.into(), Default::default()),
@@ -170,7 +176,11 @@ where
     T: PatchScope,
 {
     fn from(value: PatchUri) -> Self {
-        todo!()
+        PatchInfo {
+            uri: value.uri(),
+            data: None,
+            _phantom: Default::default(),
+        }
     }
 }
 
@@ -207,3 +217,6 @@ where
     PartialInvalidation(PartialInvalidationPatch<T>),
     NoInvalidation(BTreeMap<String, NoInvalidationPatch<T>>),
 }
+
+// TODO Tests
+// - tests where both tables have same compat id.
