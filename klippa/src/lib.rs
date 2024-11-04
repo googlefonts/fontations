@@ -14,6 +14,7 @@ mod name;
 mod os2;
 mod parsing_util;
 mod post;
+mod serialize;
 mod stat;
 pub use parsing_util::{
     parse_drop_tables, parse_name_ids, parse_name_languages, parse_unicodes, populate_gids,
