@@ -148,6 +148,9 @@ impl IncrementalFontPatch<'_> {
 
 impl IncrementalFontPatchBase for FontRef<'_> {
     fn apply_patch(&self, patches: &[IncrementalFontPatch]) -> Result<Vec<u8>, PatchingError> {
+        // TODO(garretrieger): we should be verifying the compat ID's match, would need to know the source mapping table from
+        //                     the patch uri.
+
         // TODO(garretrieger): we can support table keyed + glyph keyed where the table keyed is partially invalidation
         // and has a different compat id then the glyph keyed patches.
         if self.table_data(Tag::new(b"IFT ")).is_none()
