@@ -1,4 +1,3 @@
-use font_types::Tag;
 use read_fonts::{tables::ift::CompatibilityId, FontRef, ReadError, TableProvider};
 use std::{collections::BTreeMap, marker::PhantomData};
 
@@ -29,7 +28,7 @@ impl PatchApplicationGroup<'_> {
         })
     }
 
-    fn select_next_patches_from_candidates(
+    pub(crate) fn select_next_patches_from_candidates(
         candidates: Vec<PatchUri>,
         ift_compat_id: CompatibilityId,
         iftx_compat_id: CompatibilityId,
@@ -147,12 +146,15 @@ impl PatchApplicationGroup<'_> {
 trait PatchScope {}
 
 /// This patch affects only the "IFT " table.
+#[derive(PartialEq, Eq, Debug)]
 struct AffectsIft;
 
 /// This patch affects only the "IFTX" table.
+#[derive(PartialEq, Eq, Debug)]
 struct AffectsIftx;
 
 /// This patch affects both the "IFT " and "IFTX" table.
+#[derive(PartialEq, Eq, Debug)]
 struct AffectsBoth;
 
 impl PatchScope for AffectsIft {}
@@ -160,6 +162,7 @@ impl PatchScope for AffectsIftx {}
 impl PatchScope for AffectsBoth {}
 
 /// Tracks information related to a patch necessary to apply that patch.
+#[derive(PartialEq, Eq, Debug)]
 struct PatchInfo<T>
 where
     T: PatchScope,
@@ -185,20 +188,24 @@ where
 }
 
 /// Type for a single non invalidating patch.
+#[derive(PartialEq, Eq, Debug)]
 struct NoInvalidationPatch<T>(PatchInfo<T>, PhantomData<T>)
 where
     T: PatchScope;
 
 /// Type for a single partially invalidating patch.
+#[derive(PartialEq, Eq, Debug)]
 struct PartialInvalidationPatch<T>(PatchInfo<T>, PhantomData<T>)
 where
     T: PatchScope;
 
 /// Type for a single fully invalidating patch.
+#[derive(PartialEq, Eq, Debug)]
 struct FullInvalidationPatch(PatchInfo<AffectsBoth>);
 
 /// Represents a group of patches which are valid (compatible) to be applied together to
 /// an IFT font.
+#[derive(PartialEq, Eq, Debug)]
 enum CompatibleGroup {
     Full(FullInvalidationPatch),
     Mixed {
@@ -209,6 +216,7 @@ enum CompatibleGroup {
 
 /// A set of zero or more compatible patches that are derived from the same scope
 /// ("IFT " vs "IFTX")
+#[derive(PartialEq, Eq, Debug)]
 enum ScopedGroup<T>
 where
     T: PatchScope,
@@ -220,3 +228,56 @@ where
 
 // TODO Tests
 // - tests where both tables have same compat id.
+// - tests where duplicate uri's are present.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn full_invalidation() {
+        let cid_1 = CompatibilityId::from_u32s([0, 0, 0, 1]);
+        let cid_2 = CompatibilityId::from_u32s([0, 0, 0, 2]);
+        let p1 = PatchUri::from_index(
+            "//foo.bar/{id}",
+            1,
+            &cid_1,
+            PatchEncoding::TableKeyed {
+                fully_invalidating: true,
+            },
+        );
+        let p2 = PatchUri::from_index(
+            "//foo.bar/{id}",
+            2,
+            &cid_1,
+            PatchEncoding::TableKeyed {
+                fully_invalidating: false,
+            },
+        );
+        let p3 = PatchUri::from_index(
+            "//foo.bar/{id}",
+            3,
+            &cid_2,
+            PatchEncoding::TableKeyed {
+                fully_invalidating: false,
+            },
+        );
+        let p4 = PatchUri::from_index("//foo.bar/{id}", 4, &cid_1, PatchEncoding::GlyphKeyed);
+        let p5 = PatchUri::from_index("//foo.bar/{id}", 5, &cid_2, PatchEncoding::GlyphKeyed);
+
+        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+            vec![p1, p2, p3, p4, p5],
+            cid_1.clone(),
+            cid_2.clone(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Full(FullInvalidationPatch(PatchInfo {
+                uri: "//foo.bar/04".to_string(),
+                data: None,
+                _phantom: Default::default(),
+            }))
+        )
+    }
+}
