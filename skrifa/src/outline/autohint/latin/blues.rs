@@ -187,7 +187,7 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
                         && satisfies_min_long_segment_len(
                             segment_first,
                             segment_last,
-                            best_contour.len(),
+                            best_contour.len() - 1,
                         )
                     {
                         // heuristic threshold value
@@ -440,8 +440,21 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
 /// Given inclusive indices and a contour length, returns true if the segment
 /// is of sufficient size to test for bumps when detecting "long" Hebrew
 /// alignment zones.
-fn satisfies_min_long_segment_len(first_ix: usize, last_ix: usize, contour_len: usize) -> bool {
-    last_ix - first_ix + 2 <= contour_len
+fn satisfies_min_long_segment_len(first_ix: usize, last_ix: usize, contour_last: usize) -> bool {
+    let inclusive_diff = if first_ix <= last_ix {
+        last_ix - first_ix
+    } else {
+        // If first_ix > last_ix, then we want to capture the sum of the ranges
+        // [first_ix, contour_last] and [0, last_ix]
+        // We add 1 here to ensure the element that crosses the boundary is
+        // included. For example, if first_ix == contour_last and
+        // last_ix == 0, then we want the result to be 1
+        contour_last - first_ix + 1 + last_ix
+    };
+    // The +2 matches FreeType. The assumption is that this includes sufficient
+    // points to detect a bump and extend the segment?
+    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L663>
+    inclusive_diff + 2 <= contour_last
 }
 
 /// Compute unscaled blue values for the CJK script set.
@@ -745,8 +758,11 @@ mod tests {
     /// <https://github.com/googlefonts/fontations/issues/1218>
     #[test]
     fn long_segment_len_avoid_overflow() {
-        // Test font above triggers overflow with
-        // first = 22, last = 0, contour.len() = 23
-        satisfies_min_long_segment_len(22, 0, 23);
+        // Test font in issue above triggers overflow with
+        // first = 22, last = 0, contour_last = 22 (all inclusive).
+        // FreeType succeeds on this with suspicious signed
+        // arithmetic and we should too with our code that
+        // takes the boundary into account
+        assert!(satisfies_min_long_segment_len(22, 0, 22));
     }
 }
