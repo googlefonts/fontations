@@ -5,7 +5,7 @@ use crate::patchmap::{intersecting_patches, PatchEncoding, PatchUri, SubsetDefin
 
 /// A group of patches derived from a single IFT font which can be applied simulatenously
 /// to that font.
-pub(crate) struct PatchApplicationGroup<'a> {
+pub struct PatchApplicationGroup<'a> {
     font: FontRef<'a>,
     patches: CompatibleGroup,
 }
@@ -55,6 +55,8 @@ impl PatchApplicationGroup<'_> {
 
         // Step 1: sort the candidates into separate lists based on invalidation characteristics.
         for uri in candidates.into_iter() {
+            // TODO(garretrieger): for efficiency can we delay uri template resolution until we have actually selected patches?
+            // TODO(garretrieger): for btree construction don't recompute the resolved uri, cache inside the patch uri object?
             match uri.encoding() {
                 PatchEncoding::TableKeyed {
                     fully_invalidating: true,
@@ -63,27 +65,23 @@ impl PatchApplicationGroup<'_> {
                     fully_invalidating: false,
                 } => {
                     if *uri.expected_compatibility_id() == ift_compat_id {
-                        partial_invalidation_ift.push(PartialInvalidationPatch::<AffectsIft>(
-                            uri.into(),
-                            Default::default(),
-                        ))
+                        partial_invalidation_ift
+                            .push(PartialInvalidationPatch::<AffectsIft>(uri.into()))
                     } else if *uri.expected_compatibility_id() == iftx_compat_id {
-                        partial_invalidation_iftx.push(PartialInvalidationPatch::<AffectsIftx>(
-                            uri.into(),
-                            Default::default(),
-                        ))
+                        partial_invalidation_iftx
+                            .push(PartialInvalidationPatch::<AffectsIftx>(uri.into()))
                     }
                 }
                 PatchEncoding::GlyphKeyed => {
                     if *uri.expected_compatibility_id() == ift_compat_id {
                         no_invalidation_ift.insert(
-                            "TODO".to_string(), // TODO(garretrieger): key should be the fully subbed URI string.
-                            NoInvalidationPatch::<AffectsIft>(uri.into(), Default::default()),
+                            uri.uri_string(),
+                            NoInvalidationPatch::<AffectsIft>(uri.into()),
                         );
                     } else if *uri.expected_compatibility_id() == iftx_compat_id {
                         no_invalidation_iftx.insert(
-                            "TODO".to_string(), // TODO(garretrieger): key should be the fully subbed URI string.
-                            NoInvalidationPatch::<AffectsIftx>(uri.into(), Default::default()),
+                            uri.uri_string(),
+                            NoInvalidationPatch::<AffectsIftx>(uri.into()),
                         );
                     }
                 }
@@ -143,19 +141,19 @@ impl PatchApplicationGroup<'_> {
 }
 
 /// Marks which mappinng table is affected (via invalidation) by application of a patch.
-trait PatchScope {}
+pub(crate) trait PatchScope {}
 
 /// This patch affects only the "IFT " table.
 #[derive(PartialEq, Eq, Debug)]
-struct AffectsIft;
+pub(crate) struct AffectsIft;
 
 /// This patch affects only the "IFTX" table.
 #[derive(PartialEq, Eq, Debug)]
-struct AffectsIftx;
+pub(crate) struct AffectsIftx;
 
 /// This patch affects both the "IFT " and "IFTX" table.
 #[derive(PartialEq, Eq, Debug)]
-struct AffectsBoth;
+pub(crate) struct AffectsBoth;
 
 impl PatchScope for AffectsIft {}
 impl PatchScope for AffectsIftx {}
@@ -163,7 +161,7 @@ impl PatchScope for AffectsBoth {}
 
 /// Tracks information related to a patch necessary to apply that patch.
 #[derive(PartialEq, Eq, Debug)]
-struct PatchInfo<T>
+pub(crate) struct PatchInfo<T>
 where
     T: PatchScope,
 {
@@ -189,24 +187,24 @@ where
 
 /// Type for a single non invalidating patch.
 #[derive(PartialEq, Eq, Debug)]
-struct NoInvalidationPatch<T>(PatchInfo<T>, PhantomData<T>)
+pub(crate) struct NoInvalidationPatch<T>(PatchInfo<T>)
 where
     T: PatchScope;
 
 /// Type for a single partially invalidating patch.
 #[derive(PartialEq, Eq, Debug)]
-struct PartialInvalidationPatch<T>(PatchInfo<T>, PhantomData<T>)
+pub(crate) struct PartialInvalidationPatch<T>(PatchInfo<T>)
 where
     T: PatchScope;
 
 /// Type for a single fully invalidating patch.
 #[derive(PartialEq, Eq, Debug)]
-struct FullInvalidationPatch(PatchInfo<AffectsBoth>);
+pub(crate) struct FullInvalidationPatch(PatchInfo<AffectsBoth>);
 
 /// Represents a group of patches which are valid (compatible) to be applied together to
 /// an IFT font.
 #[derive(PartialEq, Eq, Debug)]
-enum CompatibleGroup {
+pub(crate) enum CompatibleGroup {
     Full(FullInvalidationPatch),
     Mixed {
         ift: ScopedGroup<AffectsIft>,
@@ -217,11 +215,10 @@ enum CompatibleGroup {
 /// A set of zero or more compatible patches that are derived from the same scope
 /// ("IFT " vs "IFTX")
 #[derive(PartialEq, Eq, Debug)]
-enum ScopedGroup<T>
+pub(crate) enum ScopedGroup<T>
 where
     T: PatchScope,
 {
-    None,
     PartialInvalidation(PartialInvalidationPatch<T>),
     NoInvalidation(BTreeMap<String, NoInvalidationPatch<T>>),
 }
@@ -233,51 +230,177 @@ where
 mod tests {
     use super::*;
 
-    #[test]
-    fn full_invalidation() {
-        let cid_1 = CompatibilityId::from_u32s([0, 0, 0, 1]);
-        let cid_2 = CompatibilityId::from_u32s([0, 0, 0, 2]);
-        let p1 = PatchUri::from_index(
+    fn cid_1() -> CompatibilityId {
+        CompatibilityId::from_u32s([0, 0, 0, 1])
+    }
+
+    fn cid_2() -> CompatibilityId {
+        CompatibilityId::from_u32s([0, 0, 0, 2])
+    }
+
+    fn p1_full() -> PatchUri {
+        PatchUri::from_index(
             "//foo.bar/{id}",
             1,
-            &cid_1,
+            &cid_1(),
             PatchEncoding::TableKeyed {
                 fully_invalidating: true,
             },
-        );
-        let p2 = PatchUri::from_index(
+        )
+    }
+
+    fn p2_partial_c1() -> PatchUri {
+        PatchUri::from_index(
             "//foo.bar/{id}",
             2,
-            &cid_1,
+            &cid_1(),
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
             },
-        );
-        let p3 = PatchUri::from_index(
+        )
+    }
+
+    fn p3_partial_c2() -> PatchUri {
+        PatchUri::from_index(
             "//foo.bar/{id}",
             3,
-            &cid_2,
+            &cid_2(),
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
             },
-        );
-        let p4 = PatchUri::from_index("//foo.bar/{id}", 4, &cid_1, PatchEncoding::GlyphKeyed);
-        let p5 = PatchUri::from_index("//foo.bar/{id}", 5, &cid_2, PatchEncoding::GlyphKeyed);
+        )
+    }
 
+    fn p4_no_c1() -> PatchUri {
+        PatchUri::from_index("//foo.bar/{id}", 4, &cid_1(), PatchEncoding::GlyphKeyed)
+    }
+
+    fn p5_no_c2() -> PatchUri {
+        PatchUri::from_index("//foo.bar/{id}", 5, &cid_2(), PatchEncoding::GlyphKeyed)
+    }
+
+    fn patch_info<T>(uri: &str) -> PatchInfo<T>
+    where
+        T: PatchScope,
+    {
+        PatchInfo {
+            uri: uri.to_string(),
+            data: None,
+            _phantom: Default::default(),
+        }
+    }
+
+    #[test]
+    fn full_invalidation() {
         let group = PatchApplicationGroup::select_next_patches_from_candidates(
-            vec![p1, p2, p3, p4, p5],
-            cid_1.clone(),
-            cid_2.clone(),
+            vec![p1_full()],
+            cid_1(),
+            cid_2(),
         )
         .unwrap();
 
         assert_eq!(
             group,
-            CompatibleGroup::Full(FullInvalidationPatch(PatchInfo {
-                uri: "//foo.bar/04".to_string(),
-                data: None,
-                _phantom: Default::default(),
-            }))
+            CompatibleGroup::Full(FullInvalidationPatch(patch_info("//foo.bar/04")))
+        );
+
+        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+            vec![
+                p1_full(),
+                p2_partial_c1(),
+                p3_partial_c2(),
+                p4_no_c1(),
+                p5_no_c2(),
+            ],
+            cid_1(),
+            cid_2(),
         )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Full(FullInvalidationPatch(patch_info("//foo.bar/04"),))
+        );
+    }
+
+    #[test]
+    fn mixed() {
+        // (partial, no)
+        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+            vec![p2_partial_c1(), p4_no_c1(), p5_no_c2()],
+            cid_1(),
+            cid_2(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info(
+                    "//foo.bar/08"
+                ),)),
+                iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
+                    "//foo.bar/0K".to_string(),
+                    NoInvalidationPatch(patch_info("//foo.bar/0K"))
+                )]))
+            }
+        );
+
+        // (no, partial)
+        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+            vec![p3_partial_c2(), p4_no_c1(), p5_no_c2()],
+            cid_1(),
+            cid_2(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
+                    "//foo.bar/0G".to_string(),
+                    NoInvalidationPatch(patch_info("//foo.bar/0G"))
+                )])),
+                iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info(
+                    "//foo.bar/0C"
+                ),))
+            }
+        );
+
+        // (partial, empty)
+        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+            vec![p2_partial_c1(), p4_no_c1()],
+            cid_1(),
+            cid_2(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info(
+                    "//foo.bar/08"
+                ),)),
+                iftx: ScopedGroup::NoInvalidation(BTreeMap::default()),
+            }
+        );
+
+        // (empty, partial)
+        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+            vec![p3_partial_c2(), p5_no_c2()],
+            cid_1(),
+            cid_2(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::NoInvalidation(BTreeMap::default()),
+                iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info(
+                    "//foo.bar/0C"
+                ),)),
+            }
+        );
     }
 }
