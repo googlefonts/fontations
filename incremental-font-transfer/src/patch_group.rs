@@ -1,6 +1,7 @@
 use read_fonts::{tables::ift::CompatibilityId, FontRef, ReadError, TableProvider};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
+    hash::Hash,
     marker::PhantomData,
 };
 
@@ -9,26 +10,47 @@ use crate::patchmap::{intersecting_patches, PatchEncoding, PatchUri, SubsetDefin
 /// A group of patches derived from a single IFT font which can be applied simulatenously
 /// to that font.
 pub struct PatchApplicationGroup<'a> {
-    font: FontRef<'a>,
+    _font: FontRef<'a>,
     patches: CompatibleGroup,
 }
 
 impl PatchApplicationGroup<'_> {
+    /// Intersect the available and unapplied patches in ift_font against subset_definition and return a group
+    /// of patches which would be applied next.
     pub fn select_next_patches<'a>(
-        font: FontRef<'a>,
+        ift_font: FontRef<'a>,
         subset_definition: &SubsetDefinition,
     ) -> Result<PatchApplicationGroup<'a>, ReadError> {
-        let candidates = intersecting_patches(&font, subset_definition)?;
+        let candidates = intersecting_patches(&ift_font, subset_definition)?;
         let compat_group = Self::select_next_patches_from_candidates(
             candidates,
-            font.ift()?.compatibility_id(),
-            font.iftx()?.compatibility_id(),
+            ift_font.ift()?.compatibility_id(),
+            ift_font.iftx()?.compatibility_id(),
         )?;
 
         Ok(PatchApplicationGroup {
-            font,
+            _font: ift_font,
             patches: compat_group,
         })
+    }
+
+    /// Returns the list of URIs in this group which do not yet have patch data supplied for them.
+    pub fn pending_uris(&self) -> HashSet<&str> {
+        // TODO(garretrieger): filter out uri's which have data associated with them.
+        match &self.patches {
+            CompatibleGroup::Full(FullInvalidationPatch(info)) => {
+                if let Some(_) = info.data {
+                    return HashSet::default();
+                };
+                HashSet::from([info.uri.as_str()])
+            }
+            CompatibleGroup::Mixed { ift, iftx } => {
+                let mut uris: HashSet<&str> = Default::default();
+                ift.collect_pending_uris(&mut uris);
+                iftx.collect_pending_uris(&mut uris);
+                uris
+            }
+        }
     }
 
     pub(crate) fn select_next_patches_from_candidates(
@@ -166,10 +188,6 @@ impl PatchApplicationGroup<'_> {
         todo!()
     }
 
-    fn pending_uris(&self) -> Vec<&str> {
-        todo!()
-    }
-
     // How do we ensure all patch data is present? should we set this up so data is non optional.
     fn apply_to(&self, font: FontRef) {
         todo!()
@@ -257,6 +275,28 @@ where
 {
     PartialInvalidation(PartialInvalidationPatch<T>),
     NoInvalidation(BTreeMap<String, NoInvalidationPatch<T>>),
+}
+
+impl<T> ScopedGroup<T>
+where
+    T: PatchScope,
+{
+    pub fn collect_pending_uris<'a>(&'a self, uris: &mut HashSet<&'a str>) {
+        match self {
+            ScopedGroup::PartialInvalidation(PartialInvalidationPatch::<T>(info)) => {
+                if info.data.is_none() {
+                    uris.insert(&info.uri);
+                }
+            }
+            ScopedGroup::NoInvalidation(uri_map) => {
+                for (key, value) in uri_map.iter() {
+                    if value.0.data.is_none() {
+                        uris.insert(&key);
+                    }
+                }
+            }
+        }
+    }
 }
 
 // TODO Tests
@@ -587,4 +627,63 @@ mod tests {
             }
         );
     }
+
+    fn create_group_for(uris: Vec<PatchUri>) -> PatchApplicationGroup<'static> {
+        let data = FontRef::new(font_test_data::CMAP12_FONT1).unwrap();
+        let group =
+            PatchApplicationGroup::select_next_patches_from_candidates(uris, cid_1(), cid_2())
+                .unwrap();
+
+        PatchApplicationGroup {
+            _font: data,
+            patches: group,
+        }
+    }
+
+    #[test]
+    fn pending_uris() {
+        assert_eq!(
+            create_group_for(vec![]).pending_uris(),
+            [].into_iter().collect()
+        );
+
+        assert_eq!(
+            create_group_for(vec![p1_full()]).pending_uris(),
+            ["//foo.bar/04"].into_iter().collect()
+        );
+
+        assert_eq!(
+            create_group_for(vec![p2_partial_c1(), p3_partial_c2()]).pending_uris(),
+            ["//foo.bar/08", "//foo.bar/0C"].into_iter().collect()
+        );
+
+        assert_eq!(
+            create_group_for(vec![p2_partial_c1()]).pending_uris(),
+            ["//foo.bar/08",].into_iter().collect()
+        );
+
+        assert_eq!(
+            create_group_for(vec![p3_partial_c2()]).pending_uris(),
+            ["//foo.bar/0C"].into_iter().collect()
+        );
+
+        assert_eq!(
+            create_group_for(vec![p2_partial_c1(), p4_no_c2(), p5_no_c2()]).pending_uris(),
+            ["//foo.bar/08", "//foo.bar/0G", "//foo.bar/0K"]
+                .into_iter()
+                .collect()
+        );
+
+        assert_eq!(
+            create_group_for(vec![p3_partial_c2(), p4_no_c1()]).pending_uris(),
+            ["//foo.bar/0C", "//foo.bar/0G"].into_iter().collect()
+        );
+
+        assert_eq!(
+            create_group_for(vec![p4_no_c1(), p5_no_c2()]).pending_uris(),
+            ["//foo.bar/0G", "//foo.bar/0K"].into_iter().collect()
+        );
+    }
+
+    // TODO(garretrieger): pending_uris test after data has been supplied.
 }
