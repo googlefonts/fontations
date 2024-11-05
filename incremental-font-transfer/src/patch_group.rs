@@ -1,5 +1,8 @@
 use read_fonts::{tables::ift::CompatibilityId, FontRef, ReadError, TableProvider};
-use std::{collections::BTreeMap, marker::PhantomData};
+use std::{
+    collections::{BTreeMap, HashSet},
+    marker::PhantomData,
+};
 
 use crate::patchmap::{intersecting_patches, PatchEncoding, PatchUri, SubsetDefinition};
 
@@ -42,8 +45,13 @@ impl PatchApplicationGroup<'_> {
         //
         // - When multiple valid choices exist the specification allows the implementation to take one of it's choosing.
         //   Here we use a heuristic that tries to select the patch which has the most value to the extension request.
-
-        // TODO: On construction we need to ensure that there are no PatchInfo's with duplicate URIs.
+        //
+        // - During selection we need to ensure that there are no PatchInfo's with duplicate URIs. The spec doesn't
+        //   require erroring on this case, and it's resolved by:
+        //   - In the spec algo patches are selected and applied one at a time.
+        //   - Further it specifically disallows re-applying the same URI later.
+        //   - So therefore we de-dup by retaining the particular instance which has the highest selection
+        //     priority.
 
         let mut full_invalidation: Vec<FullInvalidationPatch> = vec![];
         let mut partial_invalidation_ift: Vec<PartialInvalidationPatch<AffectsIft>> = vec![];
@@ -94,17 +102,39 @@ impl PatchApplicationGroup<'_> {
             return Ok(CompatibleGroup::Full(patch));
         }
 
+        let mut ift_selected_uri: Option<String> = None;
         let ift_scope = partial_invalidation_ift
             .into_iter()
             // TODO(garretrieger): use a heuristic to select the best patch
             .next()
-            .map(|patch| ScopedGroup::<AffectsIft>::PartialInvalidation(patch));
+            .map(|patch| {
+                ift_selected_uri = Some(patch.0.uri.clone());
+                ScopedGroup::<AffectsIft>::PartialInvalidation(patch)
+            });
 
+        let mut iftx_selected_uri: Option<String> = None;
         let iftx_scope = partial_invalidation_iftx
             .into_iter()
+            .filter(|patch| {
+                let Some(selected) = &ift_selected_uri else {
+                    return true;
+                };
+                selected != &patch.0.uri
+            })
             // TODO(garretrieger): use a heuristic to select the best patch
             .next()
-            .map(|patch| ScopedGroup::<AffectsIftx>::PartialInvalidation(patch));
+            .map(|patch| {
+                iftx_selected_uri = Some(patch.0.uri.clone());
+                ScopedGroup::<AffectsIftx>::PartialInvalidation(patch)
+            });
+
+        // URI's which have been selected for use above should not show up in other selections.
+        if let (Some(uri), None) = (&ift_selected_uri, &iftx_selected_uri) {
+            no_invalidation_iftx.remove(uri);
+        }
+        if let (None, Some(uri)) = (ift_selected_uri, iftx_selected_uri) {
+            no_invalidation_ift.remove(&uri);
+        }
 
         match (ift_scope, iftx_scope) {
             (Some(scope1), Some(scope2)) => Ok(CompatibleGroup::Mixed {
@@ -119,10 +149,16 @@ impl PatchApplicationGroup<'_> {
                 ift: ScopedGroup::NoInvalidation::<AffectsIft>(no_invalidation_ift),
                 iftx: scope2,
             }),
-            (None, None) => Ok(CompatibleGroup::Mixed {
-                ift: ScopedGroup::NoInvalidation::<AffectsIft>(no_invalidation_ift),
-                iftx: ScopedGroup::NoInvalidation::<AffectsIftx>(no_invalidation_iftx),
-            }),
+            (None, None) => {
+                // The two groups can't contain any duplicate URIs so remove all URIs in ift from iftx.
+                for uri in no_invalidation_ift.keys() {
+                    no_invalidation_iftx.remove(uri);
+                }
+                Ok(CompatibleGroup::Mixed {
+                    ift: ScopedGroup::NoInvalidation::<AffectsIft>(no_invalidation_ift),
+                    iftx: ScopedGroup::NoInvalidation::<AffectsIftx>(no_invalidation_iftx),
+                })
+            }
         }
     }
 
@@ -260,6 +296,21 @@ mod tests {
         )
     }
 
+    fn p2_partial_c2() -> PatchUri {
+        PatchUri::from_index(
+            "//foo.bar/{id}",
+            2,
+            &cid_2(),
+            PatchEncoding::TableKeyed {
+                fully_invalidating: false,
+            },
+        )
+    }
+
+    fn p2_no_c2() -> PatchUri {
+        PatchUri::from_index("//foo.bar/{id}", 2, &cid_2(), PatchEncoding::GlyphKeyed)
+    }
+
     fn p3_partial_c2() -> PatchUri {
         PatchUri::from_index(
             "//foo.bar/{id}",
@@ -271,8 +322,16 @@ mod tests {
         )
     }
 
+    fn p3_no_c1() -> PatchUri {
+        PatchUri::from_index("//foo.bar/{id}", 3, &cid_1(), PatchEncoding::GlyphKeyed)
+    }
+
     fn p4_no_c1() -> PatchUri {
         PatchUri::from_index("//foo.bar/{id}", 4, &cid_1(), PatchEncoding::GlyphKeyed)
+    }
+
+    fn p4_no_c2() -> PatchUri {
+        PatchUri::from_index("//foo.bar/{id}", 4, &cid_2(), PatchEncoding::GlyphKeyed)
     }
 
     fn p5_no_c2() -> PatchUri {
@@ -325,7 +384,7 @@ mod tests {
 
     #[test]
     fn mixed() {
-        // (partial, no)
+        // (partial, no inval)
         let group = PatchApplicationGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p4_no_c1(), p5_no_c2()],
             cid_1(),
@@ -346,7 +405,7 @@ mod tests {
             }
         );
 
-        // (no, partial)
+        // (no inval, partial)
         let group = PatchApplicationGroup::select_next_patches_from_candidates(
             vec![p3_partial_c2(), p4_no_c1(), p5_no_c2()],
             cid_1(),
@@ -400,6 +459,131 @@ mod tests {
                 iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info(
                     "//foo.bar/0C"
                 ),)),
+            }
+        );
+    }
+
+    #[test]
+    fn tables_have_same_compat_id() {
+        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+            vec![p2_partial_c1(), p3_partial_c2(), p4_no_c1(), p5_no_c2()],
+            cid_2(),
+            cid_2(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info(
+                    "//foo.bar/0C"
+                ),)),
+                iftx: ScopedGroup::NoInvalidation(BTreeMap::new()),
+            }
+        );
+    }
+
+    #[test]
+    fn dedups_uris() {
+        // Duplicates inside a scope
+        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+            vec![p4_no_c1(), p4_no_c1()],
+            cid_1(),
+            cid_2(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
+                    "//foo.bar/0G".to_string(),
+                    NoInvalidationPatch(patch_info("//foo.bar/0G"))
+                )])),
+                iftx: ScopedGroup::NoInvalidation(BTreeMap::new()),
+            }
+        );
+
+        // Duplicates across scopes (no invalidation + no invalidation)
+        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+            vec![p4_no_c1(), p4_no_c2(), p5_no_c2()],
+            cid_1(),
+            cid_2(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
+                    "//foo.bar/0G".to_string(),
+                    NoInvalidationPatch(patch_info("//foo.bar/0G"))
+                )])),
+                iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
+                    "//foo.bar/0K".to_string(),
+                    NoInvalidationPatch(patch_info("//foo.bar/0K"))
+                )])),
+            }
+        );
+
+        // Duplicates across scopes (partial + partial)
+        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+            vec![p2_partial_c1(), p2_partial_c2(), p3_partial_c2()],
+            cid_1(),
+            cid_2(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info(
+                    "//foo.bar/08"
+                ))),
+                iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info(
+                    "//foo.bar/0C"
+                ))),
+            }
+        );
+
+        // Duplicates across scopes (partial + no invalidation)
+        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+            vec![p2_partial_c1(), p2_no_c2(), p5_no_c2()],
+            cid_1(),
+            cid_2(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info(
+                    "//foo.bar/08"
+                ))),
+                iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
+                    "//foo.bar/0K".to_string(),
+                    NoInvalidationPatch(patch_info("//foo.bar/0K"))
+                )])),
+            }
+        );
+
+        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+            vec![p3_partial_c2(), p3_no_c1(), p4_no_c1()],
+            cid_1(),
+            cid_2(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
+                    "//foo.bar/0G".to_string(),
+                    NoInvalidationPatch(patch_info("//foo.bar/0G"))
+                )])),
+                iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info(
+                    "//foo.bar/0C"
+                ))),
             }
         );
     }
