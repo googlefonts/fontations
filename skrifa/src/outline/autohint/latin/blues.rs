@@ -184,12 +184,11 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
                         - best_contour[segment_first].x as i32)
                         .abs();
                     if dist < length_threshold
-                        // segment_last can be less than segment_first and
-                        // FreeType uses signed arithmetic here, allowing
-                        // this condition to succeed in that case. We'll
-                        // do the same to avoid an overflow and panic
-                        // <https://github.com/googlefonts/fontations/issues/1218>
-                        && segment_last as i32 - segment_first as i32 + 2 <= best_contour.len() as i32
+                        && satisfies_min_long_segment_len(
+                            segment_first,
+                            segment_last,
+                            best_contour.len(),
+                        )
                     {
                         // heuristic threshold value
                         let height_threshold = units_per_em / 4;
@@ -438,6 +437,13 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
     blues
 }
 
+/// Given inclusive indices and a contour length, returns true if the segment
+/// is of sufficient size to test for bumps when detecting "long" Hebrew
+/// alignment zones.
+fn satisfies_min_long_segment_len(first_ix: usize, last_ix: usize, contour_len: usize) -> bool {
+    last_ix - first_ix + 2 <= contour_len
+}
+
 /// Compute unscaled blue values for the CJK script set.
 ///
 /// Note: unlike the default code above, this produces two sets of blues,
@@ -589,7 +595,7 @@ mod tests {
             shape::{Shaper, ShaperMode},
             style,
         },
-        blue_flags, UnscaledBlue,
+        blue_flags, satisfies_min_long_segment_len, UnscaledBlue,
     };
     use raw::FontRef;
 
@@ -733,5 +739,14 @@ mod tests {
             },
         ];
         assert_eq!(values, &expected);
+    }
+
+    /// Avoid subtraction overflow raised in
+    /// <https://github.com/googlefonts/fontations/issues/1218>
+    #[test]
+    fn long_segment_len_avoid_overflow() {
+        // Test font above triggers overflow with
+        // first = 22, last = 0, contour.len() = 23
+        satisfies_min_long_segment_len(22, 0, 23);
     }
 }
