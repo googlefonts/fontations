@@ -1,17 +1,19 @@
 use read_fonts::{tables::ift::CompatibilityId, FontRef, ReadError, TableProvider};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
-    hash::Hash,
+    collections::{btree_map::Entry, BTreeMap, HashSet},
     marker::PhantomData,
 };
 
-use crate::patchmap::{intersecting_patches, PatchEncoding, PatchUri, SubsetDefinition};
+use crate::{
+    font_patch::PatchingError,
+    patchmap::{intersecting_patches, PatchEncoding, PatchUri, SubsetDefinition},
+};
 
 /// A group of patches derived from a single IFT font which can be applied simulatenously
 /// to that font.
 pub struct PatchApplicationGroup<'a> {
     _font: FontRef<'a>,
-    patches: CompatibleGroup,
+    patches: Option<CompatibleGroup>,
 }
 
 impl PatchApplicationGroup<'_> {
@@ -30,14 +32,18 @@ impl PatchApplicationGroup<'_> {
 
         Ok(PatchApplicationGroup {
             _font: ift_font,
-            patches: compat_group,
+            patches: Some(compat_group),
         })
     }
 
     /// Returns the list of URIs in this group which do not yet have patch data supplied for them.
     pub fn pending_uris(&self) -> HashSet<&str> {
+        let Some(patches) = &self.patches else {
+            return Default::default();
+        };
+
         // TODO(garretrieger): filter out uri's which have data associated with them.
-        match &self.patches {
+        match patches {
             CompatibleGroup::Full(FullInvalidationPatch(info)) => {
                 if let Some(_) = info.data {
                     return HashSet::default();
@@ -51,6 +57,51 @@ impl PatchApplicationGroup<'_> {
                 uris
             }
         }
+    }
+
+    pub fn has_pending_uris(&self) -> bool {
+        let Some(patches) = &self.patches else {
+            return false;
+        };
+        match patches {
+            CompatibleGroup::Full(FullInvalidationPatch(info)) => info.data.is_none(),
+            CompatibleGroup::Mixed { ift, iftx } => {
+                ift.has_pending_uris() || iftx.has_pending_uris()
+            }
+        }
+    }
+
+    /// Supply patch data for a uri. Once all patches have been supplied this will trigger patch application and
+    /// the optional return will contain the new font.
+    pub fn add_patch_data(
+        &mut self,
+        uri: &str,
+        data: Vec<u8>,
+    ) -> Option<Result<Vec<u8>, PatchingError>> {
+        let Some(patches) = &mut self.patches else {
+            return None;
+        };
+
+        match patches {
+            CompatibleGroup::Full(FullInvalidationPatch(info)) => {
+                if info.uri == uri {
+                    info.data = Some(data);
+                }
+            }
+            CompatibleGroup::Mixed { ift, iftx } => {
+                if let Some(data) = ift.add_patch_data(uri, data) {
+                    iftx.add_patch_data(uri, data);
+                }
+            }
+        };
+
+        if self.has_pending_uris() {
+            return None;
+        }
+
+        // TODO(garretrieger): implement patch application.
+        self.patches = None;
+        Some(Err(PatchingError::InternalError))
     }
 
     pub(crate) fn select_next_patches_from_candidates(
@@ -78,6 +129,7 @@ impl PatchApplicationGroup<'_> {
         let mut full_invalidation: Vec<FullInvalidationPatch> = vec![];
         let mut partial_invalidation_ift: Vec<PartialInvalidationPatch<AffectsIft>> = vec![];
         let mut partial_invalidation_iftx: Vec<PartialInvalidationPatch<AffectsIftx>> = vec![];
+        // TODO(garretrieger): do we need sorted order, use HashMap instead?
         let mut no_invalidation_ift: BTreeMap<String, NoInvalidationPatch<AffectsIft>> =
             Default::default();
         let mut no_invalidation_iftx: BTreeMap<String, NoInvalidationPatch<AffectsIftx>> =
@@ -183,15 +235,6 @@ impl PatchApplicationGroup<'_> {
             }
         }
     }
-
-    fn add_patch_data(&mut self, uri: String, data: Vec<u8>) {
-        todo!()
-    }
-
-    // How do we ensure all patch data is present? should we set this up so data is non optional.
-    fn apply_to(&self, font: FontRef) {
-        todo!()
-    }
 }
 
 /// Marks which mappinng table is affected (via invalidation) by application of a patch.
@@ -281,7 +324,7 @@ impl<T> ScopedGroup<T>
 where
     T: PatchScope,
 {
-    pub fn collect_pending_uris<'a>(&'a self, uris: &mut HashSet<&'a str>) {
+    fn collect_pending_uris<'a>(&'a self, uris: &mut HashSet<&'a str>) {
         match self {
             ScopedGroup::PartialInvalidation(PartialInvalidationPatch::<T>(info)) => {
                 if info.data.is_none() {
@@ -295,6 +338,42 @@ where
                     }
                 }
             }
+        }
+    }
+
+    fn has_pending_uris(&self) -> bool {
+        match self {
+            ScopedGroup::PartialInvalidation(PartialInvalidationPatch::<T>(info)) => {
+                info.data.is_none()
+            }
+            ScopedGroup::NoInvalidation(uri_map) => {
+                for (_, value) in uri_map.iter() {
+                    if value.0.data.is_none() {
+                        return true;
+                    }
+                }
+                false
+            }
+        }
+    }
+
+    fn add_patch_data(&mut self, uri: &str, data: Vec<u8>) -> Option<Vec<u8>> {
+        match self {
+            ScopedGroup::PartialInvalidation(PartialInvalidationPatch::<T>(info)) => {
+                if info.uri == uri {
+                    info.data = Some(data);
+                    None
+                } else {
+                    Some(data)
+                }
+            }
+            ScopedGroup::NoInvalidation(uri_map) => match &mut uri_map.entry(uri.to_string()) {
+                Entry::Occupied(e) => {
+                    e.get_mut().0.data = Some(data);
+                    None
+                }
+                Entry::Vacant(_) => Some(data),
+            },
         }
     }
 }
@@ -636,7 +715,7 @@ mod tests {
 
         PatchApplicationGroup {
             _font: data,
-            patches: group,
+            patches: Some(group),
         }
     }
 
@@ -685,5 +764,63 @@ mod tests {
         );
     }
 
-    // TODO(garretrieger): pending_uris test after data has been supplied.
+    #[test]
+    fn add_patch_data() {
+        // Full
+        let mut g = create_group_for(vec![p1_full()]);
+        assert!(g.has_pending_uris());
+        assert_eq!(
+            g.add_patch_data("//foo.bar/04", vec![1]),
+            // TODO: patch application isn't implemented yet, update this once it is.
+            Some(Err(PatchingError::InternalError))
+        );
+        assert_eq!(g.pending_uris(), [].into_iter().collect());
+        assert!(!g.has_pending_uris());
+
+        // Mixed
+        let mut g = create_group_for(vec![p2_partial_c1(), p3_partial_c2()]);
+        assert!(g.has_pending_uris());
+        assert_eq!(g.add_patch_data("//foo.bar/0C", vec![1]), None);
+        assert_eq!(g.pending_uris(), ["//foo.bar/08"].into_iter().collect());
+        assert!(g.has_pending_uris());
+
+        let mut g = create_group_for(vec![p4_no_c2(), p5_no_c2(), p2_partial_c1()]);
+        assert!(g.has_pending_uris());
+        assert_eq!(g.add_patch_data("//foo.bar/0K", vec![1]), None);
+        assert_eq!(
+            g.pending_uris(),
+            ["//foo.bar/08", "//foo.bar/0G"].into_iter().collect()
+        );
+        assert!(g.has_pending_uris());
+
+        assert_eq!(g.add_patch_data("//foo.bar/08", vec![1]), None);
+        assert_eq!(
+            g.add_patch_data("//foo.bar/0G", vec![1]),
+            // TODO: patch application isn't implemented yet, update this once it is.
+            Some(Err(PatchingError::InternalError))
+        );
+        assert_eq!(g.pending_uris(), [].into_iter().collect());
+        assert!(!g.has_pending_uris());
+    }
+
+    #[test]
+    fn add_patch_data_ignores_unknown() {
+        let mut g = create_group_for(vec![p1_full()]);
+        assert!(g.has_pending_uris());
+        assert_eq!(g.add_patch_data("//foo.bar/foo", vec![1]), None);
+        assert_eq!(g.pending_uris(), ["//foo.bar/04"].into_iter().collect());
+        assert!(g.has_pending_uris());
+
+        let mut g = create_group_for(vec![p2_partial_c1()]);
+        assert!(g.has_pending_uris());
+        assert_eq!(g.add_patch_data("//foo.bar/foo", vec![1]), None);
+        assert_eq!(g.pending_uris(), ["//foo.bar/08"].into_iter().collect());
+        assert!(g.has_pending_uris());
+
+        let mut g = create_group_for(vec![p4_no_c2()]);
+        assert!(g.has_pending_uris());
+        assert_eq!(g.add_patch_data("//foo.bar/foo", vec![1]), None);
+        assert_eq!(g.pending_uris(), ["//foo.bar/0G"].into_iter().collect());
+        assert!(g.has_pending_uris());
+    }
 }
