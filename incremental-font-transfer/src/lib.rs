@@ -15,3 +15,4 @@ pub mod font_patch;
 pub mod glyph_keyed;
 pub mod patch_group;
 pub mod patchmap;
+pub mod table_keyed;

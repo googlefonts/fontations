@@ -5,14 +5,14 @@ use std::{
 };
 
 use crate::{
-    font_patch::PatchingError,
+    font_patch::{IncrementalFontPatchBase, PatchingError},
     patchmap::{intersecting_patches, PatchEncoding, PatchUri, SubsetDefinition},
 };
 
 /// A group of patches derived from a single IFT font which can be applied simulatenously
 /// to that font.
 pub struct PatchApplicationGroup<'a> {
-    _font: FontRef<'a>,
+    font: FontRef<'a>,
     patches: Option<CompatibleGroup>,
 }
 
@@ -31,7 +31,7 @@ impl PatchApplicationGroup<'_> {
         )?;
 
         Ok(PatchApplicationGroup {
-            _font: ift_font,
+            font: ift_font,
             patches: Some(compat_group),
         })
     }
@@ -99,9 +99,71 @@ impl PatchApplicationGroup<'_> {
             return None;
         }
 
-        // TODO(garretrieger): implement patch application.
+        let r = self.apply_patches();
         self.patches = None;
-        Some(Err(PatchingError::InternalError))
+        Some(r)
+    }
+
+    pub(crate) fn apply_patches(&self) -> Result<Vec<u8>, PatchingError> {
+        let Some(patches) = &self.patches else {
+            return Err(PatchingError::InternalError);
+        };
+        match patches {
+            CompatibleGroup::Full(FullInvalidationPatch(info)) => {
+                self.font.apply_table_keyed_patch(info)
+            }
+            CompatibleGroup::Mixed { ift, iftx } => {
+                // Apply partial invalidation patches first
+                let base = self.apply_partial_invalidation_patch(ift, None)?;
+                let base = self.apply_partial_invalidation_patch(
+                    iftx,
+                    base.as_ref().map(|base| base.as_slice()),
+                )?;
+
+                // Then apply no invalidation patches
+                let empty = BTreeMap::<String, NoInvalidationPatch<AffectsIft>>::new();
+                let ift_patches = match ift {
+                    ScopedGroup::NoInvalidation(patches) => patches.iter(),
+                    _ => empty.iter(),
+                };
+                let empty = BTreeMap::<String, NoInvalidationPatch<AffectsIftx>>::new();
+                let iftx_patches = match iftx {
+                    ScopedGroup::NoInvalidation(patches) => patches.iter(),
+                    _ => empty.iter(),
+                };
+
+                let font = base
+                    .as_ref()
+                    .map(|base| FontRef::new(base.as_slice()))
+                    .transpose()
+                    .map_err(PatchingError::FontParsingFailed)?;
+                let font = font.as_ref().unwrap_or(&self.font);
+
+                font.apply_glyph_keyed_patches(
+                    ift_patches.map(|(_, v)| &v.0),
+                    iftx_patches.map(|(_, v)| &v.0),
+                )
+            }
+        }
+    }
+
+    pub(crate) fn apply_partial_invalidation_patch<T: PatchScope>(
+        &self,
+        scoped_group: &ScopedGroup<T>,
+        new_base: Option<&[u8]>,
+    ) -> Result<Option<Vec<u8>>, PatchingError> {
+        let font = new_base
+            .as_ref()
+            .map(|base| FontRef::new(base))
+            .transpose()
+            .map_err(PatchingError::FontParsingFailed)?;
+        let font = font.as_ref().unwrap_or(&self.font);
+        match scoped_group {
+            ScopedGroup::PartialInvalidation(patch) => {
+                Ok(Some(font.apply_table_keyed_patch(&patch.0)?))
+            }
+            _ => Ok(None),
+        }
     }
 
     pub(crate) fn select_next_patches_from_candidates(
@@ -238,7 +300,9 @@ impl PatchApplicationGroup<'_> {
 }
 
 /// Marks which mappinng table is affected (via invalidation) by application of a patch.
-pub(crate) trait PatchScope {}
+pub(crate) trait PatchScope {
+    fn compat_id(font: &FontRef<'_>) -> Result<CompatibilityId, ReadError>;
+}
 
 /// This patch affects only the "IFT " table.
 #[derive(PartialEq, Eq, Debug)]
@@ -252,9 +316,22 @@ pub(crate) struct AffectsIftx;
 #[derive(PartialEq, Eq, Debug)]
 pub(crate) struct AffectsBoth;
 
-impl PatchScope for AffectsIft {}
-impl PatchScope for AffectsIftx {}
-impl PatchScope for AffectsBoth {}
+impl PatchScope for AffectsIft {
+    fn compat_id(font: &FontRef<'_>) -> Result<CompatibilityId, ReadError> {
+        Ok(font.ift()?.compatibility_id())
+    }
+}
+impl PatchScope for AffectsIftx {
+    fn compat_id(font: &FontRef<'_>) -> Result<CompatibilityId, ReadError> {
+        Ok(font.iftx()?.compatibility_id())
+    }
+}
+impl PatchScope for AffectsBoth {
+    fn compat_id(_font: &FontRef<'_>) -> Result<CompatibilityId, ReadError> {
+        // TODO: need to track what the source table is.
+        todo!()
+    }
+}
 
 /// Tracks information related to a patch necessary to apply that patch.
 #[derive(PartialEq, Eq, Debug)]
@@ -267,6 +344,16 @@ where
     _phantom: PhantomData<T>,
     // TODO: details for how to mark the patch applied in the mapping table (ie. bit index to flip).
     // TODO: Signals for heuristic patch selection:
+}
+
+impl<T: PatchScope> PatchInfo<T> {
+    pub(crate) fn data(&self) -> Option<&[u8]> {
+        self.data.as_ref().map(|v| v.as_slice())
+    }
+
+    pub(crate) fn font_compat_id(&self, font: &FontRef<'_>) -> Result<CompatibilityId, ReadError> {
+        T::compat_id(font)
+    }
 }
 
 impl<T> From<PatchUri> for PatchInfo<T>
@@ -714,7 +801,7 @@ mod tests {
                 .unwrap();
 
         PatchApplicationGroup {
-            _font: data,
+            font: data,
             patches: Some(group),
         }
     }

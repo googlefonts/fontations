@@ -1,3 +1,4 @@
+use crate::font_patch::PatchingError;
 /// Implementation of Glyph Keyed patch application.
 ///
 /// Glyph Keyed patches are a type of incremental font patch which stores opaque data blobs
@@ -6,8 +7,7 @@
 ///
 /// Glyph Keyed patches are specified here:
 /// <https://w3c.github.io/IFT/Overview.html#glyph-keyed>
-use crate::font_patch::copy_unprocessed_tables;
-use crate::font_patch::PatchingError;
+use crate::table_keyed::copy_unprocessed_tables;
 
 use font_types::Scalar;
 use read_fonts::collections::IntSet;
