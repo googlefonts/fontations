@@ -6,8 +6,6 @@ use crate::{
     patchmap::{intersecting_patches, IftTableTag, PatchEncoding, PatchUri, SubsetDefinition},
 };
 
-// TODO XXXXX can we remove uses of font.ift() and font.iftx()
-
 /// A group of patches derived from a single IFT font which can be applied simulatenously
 /// to that font.
 pub struct PatchApplicationGroup<'a> {
@@ -42,10 +40,9 @@ impl PatchApplicationGroup<'_> {
             return Default::default();
         };
 
-        // TODO(garretrieger): filter out uri's which have data associated with them.
         match patches {
             CompatibleGroup::Full(FullInvalidationPatch(info)) => {
-                if let Some(_) = info.data {
+                if info.data.is_some() {
                     return HashSet::default();
                 };
                 HashSet::from([info.uri.as_str()])
@@ -115,23 +112,22 @@ impl PatchApplicationGroup<'_> {
             CompatibleGroup::Mixed { ift, iftx } => {
                 // Apply partial invalidation patches first
                 let base = self.apply_partial_invalidation_patch(ift, None)?;
-                let base = self.apply_partial_invalidation_patch(
-                    iftx,
-                    base.as_ref().map(|base| base.as_slice()),
-                )?;
+                let base = self.apply_partial_invalidation_patch(iftx, base.as_deref())?;
 
                 // Then apply no invalidation patches
-                let ift_patches = ift.no_invalidation_iter();
-                let iftx_patches = iftx.no_invalidation_iter();
+                let mut combined = ift
+                    .no_invalidation_iter()
+                    .chain(iftx.no_invalidation_iter())
+                    .peekable();
 
-                let font = base
-                    .as_ref()
-                    .map(|base| FontRef::new(base.as_slice()))
-                    .transpose()
-                    .map_err(PatchingError::FontParsingFailed)?;
-                let font = font.as_ref().unwrap_or(&self.font);
-
-                font.apply_glyph_keyed_patches(ift_patches.chain(iftx_patches))
+                if combined.peek().is_some() {
+                    match base {
+                        Some(base) => base.as_slice().apply_glyph_keyed_patches(combined),
+                        None => self.font.apply_glyph_keyed_patches(combined),
+                    }
+                } else {
+                    base.ok_or(PatchingError::EmptyPatchList)
+                }
             }
         }
     }
@@ -141,15 +137,12 @@ impl PatchApplicationGroup<'_> {
         scoped_group: &ScopedGroup,
         new_base: Option<&[u8]>,
     ) -> Result<Option<Vec<u8>>, PatchingError> {
-        let font = new_base
-            .as_ref()
-            .map(|base| FontRef::new(base))
-            .transpose()
-            .map_err(PatchingError::FontParsingFailed)?;
-        let font = font.as_ref().unwrap_or(&self.font);
-        match scoped_group {
-            ScopedGroup::PartialInvalidation(patch) => {
-                Ok(Some(font.apply_table_keyed_patch(&patch.0)?))
+        match (scoped_group, new_base) {
+            (ScopedGroup::PartialInvalidation(patch), Some(new_base)) => {
+                Ok(Some(new_base.apply_table_keyed_patch(&patch.0)?))
+            }
+            (ScopedGroup::PartialInvalidation(patch), None) => {
+                Ok(Some(self.font.apply_table_keyed_patch(&patch.0)?))
             }
             _ => Ok(None),
         }
@@ -232,14 +225,13 @@ impl PatchApplicationGroup<'_> {
         let mut iftx_selected_uri: Option<String> = None;
         let iftx_scope = partial_invalidation_iftx
             .into_iter()
-            .filter(|patch| {
+            .find(|patch| {
+                // TODO(garretrieger): use a heuristic to select the best patch
                 let Some(selected) = &ift_selected_uri else {
                     return true;
                 };
                 selected != &patch.0.uri
             })
-            // TODO(garretrieger): use a heuristic to select the best patch
-            .next()
             .map(|patch| {
                 iftx_selected_uri = Some(patch.0.uri.clone());
                 ScopedGroup::PartialInvalidation(patch)
@@ -292,7 +284,7 @@ pub(crate) struct PatchInfo {
 
 impl PatchInfo {
     pub(crate) fn data(&self) -> Option<&[u8]> {
-        self.data.as_ref().map(|v| v.as_slice())
+        self.data.as_deref()
     }
 
     pub(crate) fn tag(&self) -> &IftTableTag {
@@ -349,7 +341,7 @@ impl ScopedGroup {
             ScopedGroup::NoInvalidation(uri_map) => {
                 for (key, value) in uri_map.iter() {
                     if value.0.data.is_none() {
-                        uris.insert(&key);
+                        uris.insert(key);
                     }
                 }
             }
@@ -420,7 +412,6 @@ where
 }
 
 // TODO Tests
-// - tests where both tables have same compat id.
 // - tests where duplicate uri's are present.
 #[cfg(test)]
 mod tests {
@@ -438,7 +429,7 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             1,
-            &IftTableTag::IFT(cid_1()),
+            &IftTableTag::Ift(cid_1()),
             PatchEncoding::TableKeyed {
                 fully_invalidating: true,
             },
@@ -449,7 +440,7 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             2,
-            &IftTableTag::IFT(cid_1()),
+            &IftTableTag::Ift(cid_1()),
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
             },
@@ -460,7 +451,7 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             2,
-            &IftTableTag::IFTX(cid_2()),
+            &IftTableTag::Iftx(cid_2()),
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
             },
@@ -471,7 +462,7 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             2,
-            &IftTableTag::IFTX(cid_2()),
+            &IftTableTag::Iftx(cid_2()),
             PatchEncoding::GlyphKeyed,
         )
     }
@@ -480,7 +471,7 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             2,
-            &IftTableTag::IFT(cid_2()),
+            &IftTableTag::Ift(cid_2()),
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
             },
@@ -491,7 +482,7 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             3,
-            &IftTableTag::IFTX(cid_2()),
+            &IftTableTag::Iftx(cid_2()),
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
             },
@@ -502,7 +493,7 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             3,
-            &IftTableTag::IFT(cid_1()),
+            &IftTableTag::Ift(cid_1()),
             PatchEncoding::GlyphKeyed,
         )
     }
@@ -511,7 +502,7 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             4,
-            &IftTableTag::IFT(cid_1()),
+            &IftTableTag::Ift(cid_1()),
             PatchEncoding::GlyphKeyed,
         )
     }
@@ -520,7 +511,7 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             4,
-            &IftTableTag::IFTX(cid_2()),
+            &IftTableTag::Iftx(cid_2()),
             PatchEncoding::GlyphKeyed,
         )
     }
@@ -529,7 +520,7 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             5,
-            &IftTableTag::IFTX(cid_2()),
+            &IftTableTag::Iftx(cid_2()),
             PatchEncoding::GlyphKeyed,
         )
     }
@@ -538,7 +529,7 @@ mod tests {
         PatchInfo {
             uri: uri.to_string(),
             data: None,
-            source_table: IftTableTag::IFT(cid_1()),
+            source_table: IftTableTag::Ift(cid_1()),
         }
     }
 
@@ -546,7 +537,7 @@ mod tests {
         PatchInfo {
             uri: uri.to_string(),
             data: None,
-            source_table: IftTableTag::IFT(cid_2()),
+            source_table: IftTableTag::Ift(cid_2()),
         }
     }
 
@@ -554,7 +545,7 @@ mod tests {
         PatchInfo {
             uri: uri.to_string(),
             data: None,
-            source_table: IftTableTag::IFTX(cid_2()),
+            source_table: IftTableTag::Iftx(cid_2()),
         }
     }
 
@@ -943,4 +934,8 @@ mod tests {
         assert_eq!(g.pending_uris(), ["//foo.bar/0G"].into_iter().collect());
         assert!(g.has_pending_uris());
     }
+
+    // TODO(garretrieger): apply_patches on group with no patches returns error.
+    // TODO(garretrieger): tests of select_next_patches()
+    // TODO(garretrieger): add tests which results in no intersecting patches.
 }
