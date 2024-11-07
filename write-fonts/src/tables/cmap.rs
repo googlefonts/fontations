@@ -19,7 +19,7 @@ const UNICODE_FULL_REPERTOIRE_ENCODING: u16 = 4;
 impl CmapSubtable {
     /// Create a new format 4 `CmapSubtable` from a list of `(char, GlyphId)` pairs.
     ///
-    /// The pairs are expected to be already sorted by codepoint.
+    /// The pairs are expected to be already sorted and deduplicated.
     /// Characters beyond the BMP are ignored. If all characters are beyond the BMP
     /// then `None` is returned.
     fn create_format_4(mappings: &[(char, GlyphId)]) -> Option<Self> {
@@ -29,17 +29,14 @@ impl CmapSubtable {
 
         let mut prev = (u16::MAX - 1, u16::MAX - 1);
         for (cp, gid) in mappings {
-            let gid = gid.to_u32();
-            if gid > 0xFFFF {
+            let Ok(gid) = u16::try_from(gid.to_u32()) else {
                 // Should we just fail here?
                 continue;
-            }
-            let gid = gid as u16;
-            if *cp > '\u{FFFF}' {
+            };
+            let Ok(cp) = u16::try_from(*cp as u32) else {
                 // mappings is sorted, so the rest will be beyond the BMP too.
                 break;
-            }
-            let cp = (*cp as u32).try_into().unwrap();
+            };
             let next_in_run = (
                 prev.0.checked_add(1).unwrap(),
                 prev.1.checked_add(1).unwrap(),
@@ -163,13 +160,18 @@ impl std::fmt::Display for CmapConflict {
 impl std::error::Error for CmapConflict {}
 
 impl Cmap {
-    /// Generates a [cmap](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap) that is expected to work in most modern environments.
+    /// Generates a ['cmap'] that is expected to work in most modern environments.
     ///
-    /// This emits [format 4](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values)
-    /// and [format 12](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage)
-    /// subtables, respectively for the Basic Multilingual Plane and Full Unicode Repertoire.
+    /// The input is not required to be sorted.
+    ///
+    /// This emits [format 4] and [format 12] subtables, respectively for the
+    /// Basic Multilingual Plane and Full Unicode Repertoire.
     ///
     /// Also see: <https://learn.microsoft.com/en-us/typography/opentype/spec/recom#cmap-table>
+    ///
+    /// [`cmap`]: https://learn.microsoft.com/en-us/typography/opentype/spec/cmap
+    /// [format 4]: https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values
+    /// [format 12]: https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage
     pub fn from_mappings(
         mappings: impl IntoIterator<Item = (char, GlyphId)>,
     ) -> Result<Cmap, CmapConflict> {
@@ -237,6 +239,184 @@ impl Cmap {
         ))
     }
 }
+// a helper for iterating over ranges for cmap 4
+struct Format4Ranges<'a> {
+    mappings: &'a [(char, GlyphId)],
+    seg_start: usize,
+    currently_contiguous: bool,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Format4Segment {
+    // indices are into the source mappings
+    start_ix: usize,
+    end_ix: usize,
+    id_delta: Option<i32>,
+}
+
+impl Format4Segment {
+    fn len(&self) -> usize {
+        self.end_ix - self.start_ix + 1
+    }
+
+    // cost in bytes of this segment
+    fn cost(&self) -> usize {
+        const BASE_COST: usize = 8; // 4 u16s for a new segment
+        let glyph_id_cost = self
+            .id_delta
+            .is_none()
+            .then(|| self.len() * u16::RAW_BYTE_LEN)
+            .unwrap_or(0);
+        BASE_COST + glyph_id_cost
+    }
+
+    fn combine(&self, other: Format4Segment) -> Format4Segment {
+        assert_eq!(other.start_ix, self.end_ix + 1);
+        Format4Segment {
+            start_ix: self.start_ix,
+            end_ix: other.end_ix,
+            id_delta: None,
+        }
+    }
+}
+
+impl<'a> Format4Ranges<'a> {
+    fn new(mappings: &'a [(char, GlyphId)]) -> Self {
+        // ignore chars above BMP:
+        let mappings = mappings
+            .iter()
+            .position(|(c, _)| u16::try_from(*c as u32).is_err())
+            .map(|bad_idx| &mappings[..bad_idx])
+            .unwrap_or(mappings);
+        Self {
+            mappings,
+            seg_start: 0,
+            currently_contiguous: false,
+        }
+    }
+
+    /// a convenience method called from our iter in the various cases where
+    /// we emit a segment.
+    fn make_segment(&mut self, seg_len: usize) -> Format4Segment {
+        let result = Format4Segment {
+            start_ix: self.seg_start,
+            end_ix: self.seg_start + seg_len,
+            id_delta: self
+                .currently_contiguous
+                .then_some(
+                    self.mappings
+                        .get(self.seg_start)
+                        .map(|(cp, gid)| gid.to_u32() as i32 - *cp as u32 as i32),
+                )
+                .flatten(),
+        };
+        self.seg_start += seg_len + 1;
+        self.currently_contiguous = false;
+        result
+    }
+}
+
+// this iterator creates segments greedily, that is it will create a new segment
+// at every opportunity. These are then recombined by the caller to generate
+// the most efficient overall sequence of segments.
+impl<'a> Iterator for Format4Ranges<'a> {
+    type Item = Format4Segment;
+    fn next(&mut self) -> Option<Format4Segment> {
+        if self.seg_start == self.mappings.len() {
+            return None;
+        }
+
+        let Some(((mut prev_cp, mut prev_gid), rest)) =
+            self.mappings[self.seg_start..].split_first()
+        else {
+            // if this is the last element, make a final segment
+            return Some(self.make_segment(0));
+        };
+
+        for (i, (cp, gid)) in rest.iter().enumerate() {
+            // first: all segments must be a contiguous range of codepoints
+            if *cp as u32 - prev_cp as u32 > 1 {
+                return Some(self.make_segment(i));
+            }
+            let next_is_contiguous = gid.to_u32().saturating_sub(prev_gid.to_u32()) == 1;
+            if !next_is_contiguous {
+                // next: if prev gids were ordered but this one isn't, end prev segment
+                if self.currently_contiguous {
+                    return Some(self.make_segment(i));
+                }
+            // and the funny case:
+            // if we were not previously contiguous but are now:
+            // - if i == 0, then this is the first item in a new segment;
+            //   set is_contiguous and continue
+            // - if i > 0, we need to back up one
+            } else if !self.currently_contiguous {
+                if i == 0 {
+                    self.currently_contiguous = true;
+                } else {
+                    return Some(self.make_segment(i - 1));
+                }
+            }
+            prev_cp = *cp;
+            prev_gid = *gid;
+        }
+
+        // if we're done looping then create the last segment:
+        let last_idx = self.mappings.len() - 1;
+        return Some(self.make_segment(last_idx - self.seg_start));
+    }
+}
+
+/// Computes an efficient set of segments
+fn compute_format_4_segments(mappings: &[(char, GlyphId)]) -> Vec<Format4Segment> {
+    assert!(!mappings.is_empty());
+    let mut iter = Format4Ranges::new(mappings).peekable();
+    let Some(first) = iter.next() else {
+        return Default::default();
+    };
+
+    let mut result = vec![first];
+
+    // now we want to collect the segments, combining smaller segments where
+    // that leads to a size savings.
+    //
+    // This differs from the python, which starts from larger segments and then
+    // subdivides them, but the overall idea is the same.
+    // (https://github.com/fonttools/fonttools/blob/f1d3e116d54f/Lib/fontTools/ttLib/tables/_c_m_a_p.py#L783)
+    while let Some(segment) = iter.next() {
+        let prev = result.last_mut().unwrap();
+        let is_contiguous_with_prev =
+            mappings[prev.end_ix].0 as u32 + 1 == mappings[segment.start_ix].0 as u32;
+        let is_contiguous_with_next = iter
+            .peek()
+            .map(|next| mappings[segment.end_ix].0 as u32 + 1 == mappings[next.start_ix].0 as u32)
+            .unwrap_or(false);
+        // first: if segment is not contiguous with either prev or next, it can't be
+        // combined, so just push and continue
+
+        if !(is_contiguous_with_prev | is_contiguous_with_next) {
+            result.push(segment);
+            continue;
+        }
+
+        // next: if chars are contiguous and neither has a delta, we always combine
+        // this will mostly happen if we've combined the previous, previously
+        // delta-having segment
+        if is_contiguous_with_prev && prev.id_delta.is_none() && segment.id_delta.is_none() {
+            *prev = prev.combine(segment);
+            continue;
+        }
+        // next: if contiguous, combine only if it saves bytes
+        if is_contiguous_with_prev {
+            let combined = prev.combine(segment);
+            if combined.cost() < prev.cost() + segment.cost() {
+                *prev = combined;
+                continue;
+            }
+        }
+        result.push(segment);
+    }
+    result
+}
 
 impl Cmap4 {
     fn compute_length(&self) -> u16 {
@@ -280,6 +460,8 @@ impl Cmap12 {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::RangeInclusive;
+
     use font_types::GlyphId;
     use read_fonts::{
         tables::cmap::{Cmap, CmapSubtable, PlatformId},
@@ -538,5 +720,84 @@ mod tests {
         let result = write::Cmap::from_mappings(mappings);
 
         assert_eq!(result, Err(CmapConflict { ch, gid1, gid2 }))
+    }
+
+    // input is a sequence of ranges representing contiguous gids,
+    // output is how they're grouped into segments
+    fn compute_ranges(
+        iter: impl IntoIterator<Item = RangeInclusive<char>>,
+    ) -> Vec<RangeInclusive<char>> {
+        let mut next_gid = 0u16;
+        let mappings = iter
+            .into_iter()
+            .flat_map(|range| {
+                // start of new range means we aren't contiguous:
+                let start_gid = next_gid;
+                next_gid += 1 + range.clone().count() as u16;
+                range
+                    .enumerate()
+                    .map(move |(i, c)| (c, GlyphId::new((start_gid + i as u16) as _)))
+            })
+            .collect::<Vec<_>>();
+
+        super::compute_format_4_segments(&mappings)
+            .into_iter()
+            .map(|seg| mappings[seg.start_ix].0..=mappings[seg.end_ix].0)
+            .collect()
+    }
+
+    #[derive(Default)]
+    struct MappingBuilder {
+        mappings: Vec<(char, GlyphId)>,
+        next_gid: u16,
+    }
+
+    impl MappingBuilder {
+        fn extend(mut self, range: impl IntoIterator<Item = char>) -> Self {
+            for c in range {
+                let gid = GlyphId::new(self.next_gid as _);
+                self.mappings.push((c, gid));
+                self.next_gid += 1;
+            }
+            self
+        }
+
+        // compute the segments for the mapping
+        fn compute(&mut self) -> Vec<RangeInclusive<char>> {
+            self.mappings.sort();
+            super::compute_format_4_segments(&self.mappings)
+                .into_iter()
+                .map(|seg| self.mappings[seg.start_ix].0..=self.mappings[seg.end_ix].0)
+                .collect()
+        }
+    }
+
+    #[test]
+    fn f4_segments_simple() {
+        let mut one_big_discontiguous_mapping = MappingBuilder::default().extend(('a'..='z').rev());
+        assert_eq!(one_big_discontiguous_mapping.compute(), ['a'..='z']);
+    }
+
+    #[test]
+    fn f4_segments_combine_small() {
+        let mut mapping = MappingBuilder::default()
+            // backwards so gids are not contiguous
+            .extend(['e', 'd', 'c', 'b', 'a'])
+            // these two contiguous ranges aren't worth the cost, should merge
+            // into the first and last respectively
+            .extend('f'..='g')
+            .extend('m'..='n')
+            .extend(('o'..='z').rev());
+
+        assert_eq!(mapping.compute(), ['a'..='g', 'm'..='z']);
+    }
+
+    #[test]
+    fn f4_segments_keep() {
+        let mut mapping = MappingBuilder::default()
+            .extend('a'..='m')
+            .extend(['o', 'n']);
+
+        assert_eq!(mapping.compute(), ['a'..='m', 'n'..='o']);
     }
 }
