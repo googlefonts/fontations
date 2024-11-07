@@ -10,11 +10,15 @@
 //!    glyph id + table. The patch inserts these blobs into the table at the location for
 //!    the corresponding glyph id.
 
-use crate::patch_group::{AffectsIft, AffectsIftx, PatchInfo, PatchScope};
+use std::collections::HashMap;
+
+use crate::patch_group::PatchInfo;
 
 use crate::glyph_keyed::apply_glyph_keyed_patches;
+
 use crate::table_keyed::apply_table_keyed_patch;
-use read_fonts::tables::ift::{GlyphKeyedPatch, TableKeyedPatch};
+use font_types::Tag;
+use read_fonts::tables::ift::{CompatibilityId, GlyphKeyedPatch, TableKeyedPatch};
 
 use read_fonts::{FontData, FontRead, FontRef, ReadError};
 
@@ -29,10 +33,7 @@ pub(crate) trait IncrementalFontPatchBase {
     /// Applies the patches to this base.
     ///
     /// Returns the byte data for the new font produced as a result of the patch applications.
-    fn apply_table_keyed_patch<T: PatchScope>(
-        &self,
-        patch: &PatchInfo<T>,
-    ) -> Result<Vec<u8>, PatchingError>;
+    fn apply_table_keyed_patch(&self, patch: &PatchInfo) -> Result<Vec<u8>, PatchingError>;
 
     /// Apply a set of glyph keyed incremental font patches (<https://w3c.github.io/IFT/Overview.html#font-patch-formats>)
     ///
@@ -41,8 +42,7 @@ pub(crate) trait IncrementalFontPatchBase {
     /// Returns the byte data for the new font produced as a result of the patch applications.
     fn apply_glyph_keyed_patches<'a>(
         &self,
-        patches_ift: impl Iterator<Item = &'a PatchInfo<AffectsIft>>,
-        patches_iftx: impl Iterator<Item = &'a PatchInfo<AffectsIftx>>,
+        patches: impl Iterator<Item = &'a PatchInfo>,
     ) -> Result<Vec<u8>, PatchingError>;
 }
 
@@ -106,11 +106,11 @@ impl std::fmt::Display for PatchingError {
 impl std::error::Error for PatchingError {}
 
 impl IncrementalFontPatchBase for FontRef<'_> {
-    fn apply_table_keyed_patch<T: PatchScope>(
-        &self,
-        patch: &PatchInfo<T>,
-    ) -> Result<Vec<u8>, PatchingError> {
-        let font_compat_id = T::compat_id(self).map_err(PatchingError::FontParsingFailed)?;
+    fn apply_table_keyed_patch(&self, patch: &PatchInfo) -> Result<Vec<u8>, PatchingError> {
+        let font_compat_id = patch
+            .tag()
+            .font_compat_id(self)
+            .map_err(PatchingError::FontParsingFailed)?;
 
         let patch_data = patch.data().ok_or(PatchingError::InternalError)?;
         let patch = TableKeyedPatch::read(FontData::new(patch_data))
@@ -125,36 +125,44 @@ impl IncrementalFontPatchBase for FontRef<'_> {
 
     fn apply_glyph_keyed_patches<'a>(
         &self,
-        patches_ift: impl Iterator<Item = &'a PatchInfo<AffectsIft>>,
-        patches_iftx: impl Iterator<Item = &'a PatchInfo<AffectsIftx>>,
+        patches: impl Iterator<Item = &'a PatchInfo>,
     ) -> Result<Vec<u8>, PatchingError> {
-        let patches_ift =
-            patches_ift.flat_map(|info| info.data().map(|data| (info.font_compat_id(self), data)));
-        let patches_iftx =
-            patches_iftx.flat_map(|info| info.data().map(|data| (info.font_compat_id(self), data)));
+        let mut cached_compat_ids: HashMap<Tag, Result<CompatibilityId, PatchingError>> =
+            Default::default();
 
-        let mut patches: Vec<GlyphKeyedPatch<'_>> = vec![];
-        for (font_compat_id, data) in patches_ift.chain(patches_iftx) {
-            let font_compat_id = font_compat_id.map_err(PatchingError::FontParsingFailed)?;
+        let mut raw_patches: Vec<GlyphKeyedPatch<'_>> = vec![];
+        for patch in patches {
+            let tag = patch.tag();
+            let font_compat_id = cached_compat_ids
+                .entry(tag.tag())
+                .or_insert_with(|| {
+                    Ok(tag
+                        .font_compat_id(self)
+                        .map_err(PatchingError::FontParsingFailed)?)
+                })
+                .as_ref()
+                .map_err(Clone::clone)?;
+
+            let Some(data) = patch.data() else {
+                continue;
+            };
+
             let patch = GlyphKeyedPatch::read(FontData::new(data))
                 .map_err(PatchingError::PatchParsingFailed)?;
 
-            if font_compat_id != patch.compatibility_id() {
+            if *font_compat_id != patch.compatibility_id() {
                 return Err(PatchingError::IncompatiblePatch);
             }
 
-            patches.push(patch);
+            raw_patches.push(patch);
         }
 
-        apply_glyph_keyed_patches(&patches, self)
+        apply_glyph_keyed_patches(&raw_patches, self)
     }
 }
 
 impl IncrementalFontPatchBase for &[u8] {
-    fn apply_table_keyed_patch<T: PatchScope>(
-        &self,
-        patch: &PatchInfo<T>,
-    ) -> Result<Vec<u8>, PatchingError> {
+    fn apply_table_keyed_patch(&self, patch: &PatchInfo) -> Result<Vec<u8>, PatchingError> {
         FontRef::new(self)
             .map_err(PatchingError::FontParsingFailed)?
             .apply_table_keyed_patch(patch)
@@ -162,12 +170,11 @@ impl IncrementalFontPatchBase for &[u8] {
 
     fn apply_glyph_keyed_patches<'a>(
         &self,
-        patches_ift: impl Iterator<Item = &'a PatchInfo<AffectsIft>>,
-        patches_iftx: impl Iterator<Item = &'a PatchInfo<AffectsIftx>>,
+        patches: impl Iterator<Item = &'a PatchInfo>,
     ) -> Result<Vec<u8>, PatchingError> {
         FontRef::new(self)
             .map_err(PatchingError::FontParsingFailed)?
-            .apply_glyph_keyed_patches(patches_ift, patches_iftx)
+            .apply_glyph_keyed_patches(patches)
     }
 }
 
