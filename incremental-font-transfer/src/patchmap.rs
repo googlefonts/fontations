@@ -15,6 +15,7 @@ use font_types::Tag;
 use data_encoding::BASE64URL;
 use data_encoding_macro::new_encoding;
 
+use read_fonts::FontRead;
 use read_fonts::{
     collections::IntSet,
     tables::ift::{
@@ -41,18 +42,17 @@ pub fn intersecting_patches(
     // TODO(garretrieger): move this function to a struct so we can optionally store
     //  indexes or other data to accelerate intersection.
     let mut result: Vec<PatchUri> = vec![];
-    if let Ok(ift) = font.ift() {
-        add_intersecting_patches(font, &ift, subset_definition, &mut result)?;
-    };
-    if let Ok(iftx) = font.iftx() {
-        add_intersecting_patches(font, &iftx, subset_definition, &mut result)?;
-    };
+
+    for (tag, table) in IftTableTag::tables_in(font) {
+        add_intersecting_patches(font, tag, &table, subset_definition, &mut result)?;
+    }
 
     Ok(result)
 }
 
 fn add_intersecting_patches(
     font: &FontRef,
+    source_table: IftTableTag,
     ift: &Ift,
     subset_definition: &SubsetDefinition,
     patches: &mut Vec<PatchUri>,
@@ -60,19 +60,21 @@ fn add_intersecting_patches(
     match ift {
         Ift::Format1(format_1) => add_intersecting_format1_patches(
             font,
+            &source_table,
             format_1,
             &subset_definition.codepoints,
             &subset_definition.feature_tags,
             patches,
         ),
         Ift::Format2(format_2) => {
-            add_intersecting_format2_patches(format_2, subset_definition, patches)
+            add_intersecting_format2_patches(&source_table, format_2, subset_definition, patches)
         }
     }
 }
 
 fn add_intersecting_format1_patches(
     font: &FontRef,
+    source_table: &IftTableTag,
     map: &PatchMapFormat1,
     codepoints: &IntSet<u32>,
     features: &BTreeSet<Tag>,
@@ -116,14 +118,7 @@ fn add_intersecting_format1_patches(
             // Entry 0 is the entry for codepoints already in the font, so it's always considered applied and skipped.
             .filter(|index| *index > 0)
             .filter(|index| !map.is_entry_applied(*index))
-            .map(|index| {
-                PatchUri::from_index(
-                    uri_template,
-                    index as u32,
-                    &map.compatibility_id(),
-                    encoding,
-                )
-            }),
+            .map(|index| PatchUri::from_index(uri_template, index as u32, source_table, encoding)),
     );
     Ok(())
 }
@@ -269,11 +264,12 @@ fn intersect_format1_feature_map(
 }
 
 fn add_intersecting_format2_patches(
+    source_table: &IftTableTag,
     map: &PatchMapFormat2,
     subset_definition: &SubsetDefinition,
     patches: &mut Vec<PatchUri>, // TODO(garretrieger): btree set to allow for de-duping?
 ) -> Result<(), ReadError> {
-    let entries = decode_format2_entries(map)?;
+    let entries = decode_format2_entries(source_table, map)?;
 
     for e in entries {
         if e.ignored {
@@ -290,8 +286,10 @@ fn add_intersecting_format2_patches(
     Ok(())
 }
 
-fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Entry>, ReadError> {
-    let compat_id = map.compatibility_id();
+fn decode_format2_entries(
+    source_table: &IftTableTag,
+    map: &PatchMapFormat2,
+) -> Result<Vec<Entry>, ReadError> {
     let uri_template = map.uri_template_as_string()?;
     let entries_data = map.entries()?.entry_data();
     let default_encoding = PatchEncoding::from_format_number(map.default_patch_encoding())?;
@@ -308,7 +306,7 @@ fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Entry>, ReadError
     while entry_count > 0 {
         entries_data = decode_format2_entry(
             entries_data,
-            &compat_id,
+            source_table,
             uri_template,
             &default_encoding,
             &mut id_string_data,
@@ -322,7 +320,7 @@ fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Entry>, ReadError
 
 fn decode_format2_entry<'a>(
     data: FontData<'a>,
-    compat_id: &CompatibilityId,
+    source_table: &IftTableTag,
     uri_template: &str,
     default_encoding: &PatchEncoding,
     id_string_data: &mut Option<Cursor<&[u8]>>,
@@ -332,7 +330,7 @@ fn decode_format2_entry<'a>(
         data,
         Offset32::new(if id_string_data.is_none() { 0 } else { 1 }),
     )?;
-    let mut entry = Entry::new(uri_template, compat_id, default_encoding);
+    let mut entry = Entry::new(uri_template, source_table, default_encoding);
 
     // Features
     if let Some(features) = entry_data.feature_tags() {
@@ -514,10 +512,54 @@ impl PatchEncoding {
     }
 }
 
+/// Id for a patch which will be subbed into a URI template. The spec allows integer or string IDs.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum PatchId {
     Numeric(u32),
     String(Vec<u8>), // TODO(garretrieger): Make this a reference?
+}
+
+/// List of possible IFT mapping table tags.
+#[derive(PartialEq, Eq, Debug, Clone, Hash)]
+pub(crate) enum IftTableTag {
+    IFT(CompatibilityId),
+    IFTX(CompatibilityId),
+}
+
+impl IftTableTag {
+    pub(crate) fn tables_in<'a>(font: &'a FontRef) -> impl Iterator<Item = (IftTableTag, Ift<'a>)> {
+        let ift = font
+            .ift()
+            .map(|t| (IftTableTag::IFT(t.compatibility_id()), t))
+            .into_iter();
+        let iftx = font
+            .iftx()
+            .map(|t| (IftTableTag::IFTX(t.compatibility_id()), t))
+            .into_iter();
+        ift.chain(iftx)
+    }
+
+    pub(crate) fn font_compat_id(&self, font: &FontRef) -> Result<CompatibilityId, ReadError> {
+        Ok(self.mapping_table(font)?.compatibility_id())
+    }
+
+    pub(crate) fn tag(&self) -> Tag {
+        match self {
+            Self::IFT(_) => Tag::new(b"IFT "),
+            Self::IFTX(_) => Tag::new(b"IFTx"),
+        }
+    }
+
+    pub(crate) fn mapping_table<'a>(&self, font: &'a FontRef) -> Result<Ift<'a>, ReadError> {
+        font.expect_data_for_tag(self.tag())
+            .and_then(FontRead::read)
+    }
+
+    pub(crate) fn expected_compat_id(&self) -> &CompatibilityId {
+        match self {
+            Self::IFT(cid) | Self::IFTX(cid) => cid,
+        }
+    }
 }
 
 /// Stores the information needed to create the URI which points to and incremental font transfer patch.
@@ -532,7 +574,7 @@ pub struct PatchUri {
     template: String, // TODO(garretrieger): Make this a reference?
     id: PatchId,
     encoding: PatchEncoding,
-    expected_compatibility_id: CompatibilityId,
+    source_table: IftTableTag,
     // TODO(garretrieger): add a resolve method which when supplied the bytes associated with the URL
     //                     produces an object suitable for passing to the font_patch API.
 }
@@ -579,6 +621,10 @@ impl PatchUri {
         template.build()
     }
 
+    pub(crate) fn source_table(self) -> IftTableTag {
+        self.source_table
+    }
+
     fn count_leading_zeroes(id: &[u8]) -> usize {
         let mut leading_bytes = 0;
         for b in id {
@@ -595,33 +641,19 @@ impl PatchUri {
     }
 
     pub fn expected_compatibility_id(&self) -> &CompatibilityId {
-        &self.expected_compatibility_id
+        &self.source_table.expected_compat_id()
     }
 
     pub(crate) fn from_index(
         uri_template: &str,
         entry_index: u32,
-        expected_compatibility_id: &CompatibilityId,
+        source_table: &IftTableTag,
         encoding: PatchEncoding,
     ) -> PatchUri {
         PatchUri {
             template: uri_template.to_string(),
             id: PatchId::Numeric(entry_index),
-            expected_compatibility_id: expected_compatibility_id.clone(),
-            encoding,
-        }
-    }
-
-    pub(crate) fn from_string(
-        uri_template: &str,
-        entry_id: &str,
-        expected_compatibility_id: &CompatibilityId,
-        encoding: PatchEncoding,
-    ) -> PatchUri {
-        PatchUri {
-            template: uri_template.to_string(),
-            id: PatchId::String(entry_id.as_bytes().iter().map(|v| *v).collect()),
-            expected_compatibility_id: expected_compatibility_id.clone(),
+            source_table: source_table.clone(),
             encoding,
         }
     }
@@ -673,11 +705,10 @@ struct Entry {
 
     // Value
     uri: PatchUri,
-    compatibility_id: CompatibilityId,
 }
 
 impl Entry {
-    fn new(template: &str, compat_id: &CompatibilityId, default_encoding: &PatchEncoding) -> Entry {
+    fn new(template: &str, source_table: &IftTableTag, default_encoding: &PatchEncoding) -> Entry {
         Entry {
             subset_definition: SubsetDefinition {
                 codepoints: IntSet::empty(),
@@ -686,8 +717,7 @@ impl Entry {
             },
             ignored: false,
 
-            uri: PatchUri::from_index(template, 0, compat_id, *default_encoding),
-            compatibility_id: compat_id.clone(),
+            uri: PatchUri::from_index(template, 0, source_table, *default_encoding),
         }
     }
 
@@ -755,6 +785,22 @@ mod tests {
     use read_fonts::FontRef;
     use write_fonts::FontBuilder;
 
+    impl PatchUri {
+        fn from_string(
+            uri_template: &str,
+            entry_id: &str,
+            source_table: &IftTableTag,
+            encoding: PatchEncoding,
+        ) -> PatchUri {
+            PatchUri {
+                template: uri_template.to_string(),
+                id: PatchId::String(entry_id.as_bytes().iter().map(|v| *v).collect()),
+                source_table: source_table.clone(),
+                encoding,
+            }
+        }
+    }
+
     fn compat_id() -> CompatibilityId {
         CompatibilityId::from_u32s([1, 2, 3, 4])
     }
@@ -818,7 +864,12 @@ mod tests {
         let expected: Vec<PatchUri> = expected_entries
             .iter()
             .map(|index| {
-                PatchUri::from_index("ABCDEFɤ", *index, &compat_id(), PatchEncoding::GlyphKeyed)
+                PatchUri::from_index(
+                    "ABCDEFɤ",
+                    *index,
+                    &IftTableTag::IFT(compat_id()),
+                    PatchEncoding::GlyphKeyed,
+                )
             })
             .collect();
 
@@ -843,7 +894,12 @@ mod tests {
         let expected: Vec<PatchUri> = expected_entries
             .iter()
             .map(|index| {
-                PatchUri::from_index("ABCDEFɤ", *index, &compat_id(), PatchEncoding::GlyphKeyed)
+                PatchUri::from_index(
+                    "ABCDEFɤ",
+                    *index,
+                    &IftTableTag::IFT(compat_id()),
+                    PatchEncoding::GlyphKeyed,
+                )
             })
             .collect();
 
@@ -855,7 +911,7 @@ mod tests {
             PatchUri::from_index(
                 template,
                 value,
-                &Default::default(),
+                &IftTableTag::IFT(Default::default()),
                 PatchEncoding::GlyphKeyed,
             )
             .uri_string(),
@@ -868,7 +924,7 @@ mod tests {
             PatchUri::from_string(
                 template,
                 value,
-                &Default::default(),
+                &IftTableTag::IFT(Default::default()),
                 PatchEncoding::GlyphKeyed,
             )
             .uri_string(),
