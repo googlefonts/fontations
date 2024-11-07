@@ -522,19 +522,19 @@ pub enum PatchId {
 /// List of possible IFT mapping table tags.
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub(crate) enum IftTableTag {
-    IFT(CompatibilityId),
-    IFTX(CompatibilityId),
+    Ift(CompatibilityId),
+    Iftx(CompatibilityId),
 }
 
 impl IftTableTag {
     pub(crate) fn tables_in<'a>(font: &'a FontRef) -> impl Iterator<Item = (IftTableTag, Ift<'a>)> {
         let ift = font
             .ift()
-            .map(|t| (IftTableTag::IFT(t.compatibility_id()), t))
+            .map(|t| (IftTableTag::Ift(t.compatibility_id()), t))
             .into_iter();
         let iftx = font
             .iftx()
-            .map(|t| (IftTableTag::IFTX(t.compatibility_id()), t))
+            .map(|t| (IftTableTag::Iftx(t.compatibility_id()), t))
             .into_iter();
         ift.chain(iftx)
     }
@@ -545,8 +545,8 @@ impl IftTableTag {
 
     pub(crate) fn tag(&self) -> Tag {
         match self {
-            Self::IFT(_) => Tag::new(b"IFT "),
-            Self::IFTX(_) => Tag::new(b"IFTx"),
+            Self::Ift(_) => Tag::new(b"IFT "),
+            Self::Iftx(_) => Tag::new(b"IFTX"),
         }
     }
 
@@ -557,7 +557,7 @@ impl IftTableTag {
 
     pub(crate) fn expected_compat_id(&self) -> &CompatibilityId {
         match self {
-            Self::IFT(cid) | Self::IFTX(cid) => cid,
+            Self::Ift(cid) | Self::Iftx(cid) => cid,
         }
     }
 }
@@ -591,10 +591,7 @@ impl PatchUri {
                 let id = &id[Self::count_leading_zeroes(&id)..];
                 (Self::BASE32HEX_NO_PADDING.encode(id), BASE64URL.encode(id))
             }
-            PatchId::String(id) => (
-                Self::BASE32HEX_NO_PADDING.encode(&id),
-                BASE64URL.encode(&id),
-            ),
+            PatchId::String(id) => (Self::BASE32HEX_NO_PADDING.encode(id), BASE64URL.encode(id)),
         };
 
         let mut template = UriTemplate::new(&self.template);
@@ -641,7 +638,7 @@ impl PatchUri {
     }
 
     pub fn expected_compatibility_id(&self) -> &CompatibilityId {
-        &self.source_table.expected_compat_id()
+        self.source_table.expected_compat_id()
     }
 
     pub(crate) fn from_index(
@@ -794,7 +791,7 @@ mod tests {
         ) -> PatchUri {
             PatchUri {
                 template: uri_template.to_string(),
-                id: PatchId::String(entry_id.as_bytes().iter().map(|v| *v).collect()),
+                id: PatchId::String(entry_id.as_bytes().to_vec()),
                 source_table: source_table.clone(),
                 encoding,
             }
@@ -867,7 +864,7 @@ mod tests {
                 PatchUri::from_index(
                     "ABCDEFɤ",
                     *index,
-                    &IftTableTag::IFT(compat_id()),
+                    &IftTableTag::Ift(compat_id()),
                     PatchEncoding::GlyphKeyed,
                 )
             })
@@ -897,7 +894,7 @@ mod tests {
                 PatchUri::from_index(
                     "ABCDEFɤ",
                     *index,
-                    &IftTableTag::IFT(compat_id()),
+                    &IftTableTag::Ift(compat_id()),
                     PatchEncoding::GlyphKeyed,
                 )
             })
@@ -911,7 +908,7 @@ mod tests {
             PatchUri::from_index(
                 template,
                 value,
-                &IftTableTag::IFT(Default::default()),
+                &IftTableTag::Ift(Default::default()),
                 PatchEncoding::GlyphKeyed,
             )
             .uri_string(),
@@ -924,7 +921,7 @@ mod tests {
             PatchUri::from_string(
                 template,
                 value,
-                &IftTableTag::IFT(Default::default()),
+                &IftTableTag::Ift(Default::default()),
                 PatchEncoding::GlyphKeyed,
             )
             .uri_string(),

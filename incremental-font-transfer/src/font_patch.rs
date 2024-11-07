@@ -136,9 +136,8 @@ impl IncrementalFontPatchBase for FontRef<'_> {
             let font_compat_id = cached_compat_ids
                 .entry(tag.tag())
                 .or_insert_with(|| {
-                    Ok(tag
-                        .font_compat_id(self)
-                        .map_err(PatchingError::FontParsingFailed)?)
+                    tag.font_compat_id(self)
+                        .map_err(PatchingError::FontParsingFailed)
                 })
                 .as_ref()
                 .map_err(Clone::clone)?;
