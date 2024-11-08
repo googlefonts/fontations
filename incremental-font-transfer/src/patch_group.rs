@@ -7,28 +7,46 @@ use crate::{
 };
 
 /// A group of patches derived from a single IFT font which can be applied simulatenously
-/// to that font.
-pub struct PatchApplicationGroup<'a> {
+/// to that font. Patches are initially missing data which must be fetched and supplied to
+/// the group before it can be applied to the font.
+pub struct PatchGroup<'a> {
     font: FontRef<'a>,
     patches: Option<CompatibleGroup>,
 }
 
-impl PatchApplicationGroup<'_> {
+/// A group of patches and associated patch data which is ready to apply to the base font.
+pub struct AppliablePatchGroup<'a> {
+    font: FontRef<'a>,
+    patches: CompatibleGroup,
+}
+
+pub enum AddDataResult<'a> {
+    NeedsMoreData(PatchGroup<'a>),
+    Ready(AppliablePatchGroup<'a>),
+}
+
+impl<'a> PatchGroup<'a> {
     /// Intersect the available and unapplied patches in ift_font against subset_definition and return a group
     /// of patches which would be applied next.
-    pub fn select_next_patches<'a>(
-        ift_font: FontRef<'a>,
+    pub fn select_next_patches<'b>(
+        ift_font: FontRef<'b>,
         subset_definition: &SubsetDefinition,
-    ) -> Result<PatchApplicationGroup<'a>, ReadError> {
-        // TODO(garretrieger): what happens when there are no intersecting patches? add tests
+    ) -> Result<PatchGroup<'b>, ReadError> {
         let candidates = intersecting_patches(&ift_font, subset_definition)?;
+        if candidates.is_empty() {
+            return Ok(PatchGroup {
+                font: ift_font,
+                patches: None,
+            });
+        }
+
         let compat_group = Self::select_next_patches_from_candidates(
             candidates,
             ift_font.ift()?.compatibility_id(),
             ift_font.iftx()?.compatibility_id(),
         )?;
 
-        Ok(PatchApplicationGroup {
+        Ok(PatchGroup {
             font: ift_font,
             patches: Some(compat_group),
         })
@@ -70,9 +88,9 @@ impl PatchApplicationGroup<'_> {
 
     /// Supply patch data for a uri. Once all patches have been supplied this will trigger patch application and
     /// the optional return will contain the new font.
-    pub fn add_patch_data(&mut self, uri: &str, data: Vec<u8>) {
+    pub fn add_patch_data(mut self, uri: &'a str, data: Vec<u8>) -> AddDataResult {
         let Some(patches) = &mut self.patches else {
-            return;
+            return AddDataResult::NeedsMoreData(self);
         };
 
         match patches {
@@ -87,61 +105,18 @@ impl PatchApplicationGroup<'_> {
                 }
             }
         };
-    }
-
-    pub fn apply_patches(self) -> Result<Vec<u8>, PatchingError> {
-        let Some(patches) = &self.patches else {
-            return Err(PatchingError::InternalError);
-        };
 
         if self.has_pending_uris() {
-            return Err(PatchingError::MissingPatches);
+            return AddDataResult::NeedsMoreData(self);
         }
 
-        match patches {
-            CompatibleGroup::Full(FullInvalidationPatch(info)) => {
-                self.font.apply_table_keyed_patch(info)
-            }
-            CompatibleGroup::Mixed { ift, iftx } => {
-                // Apply partial invalidation patches first
-                let base = self.apply_partial_invalidation_patch(ift, None)?;
-                let base = self.apply_partial_invalidation_patch(iftx, base.as_deref())?;
-
-                // Then apply no invalidation patches
-                let mut combined = ift
-                    .no_invalidation_iter()
-                    .chain(iftx.no_invalidation_iter())
-                    .peekable();
-
-                if combined.peek().is_some() {
-                    match base {
-                        Some(base) => base.as_slice().apply_glyph_keyed_patches(combined),
-                        None => self.font.apply_glyph_keyed_patches(combined),
-                    }
-                } else {
-                    base.ok_or(PatchingError::EmptyPatchList)
-                }
-            }
-        }
+        AddDataResult::Ready(AppliablePatchGroup {
+            font: self.font,
+            patches: self.patches.unwrap(),
+        })
     }
 
-    pub(crate) fn apply_partial_invalidation_patch(
-        &self,
-        scoped_group: &ScopedGroup,
-        new_base: Option<&[u8]>,
-    ) -> Result<Option<Vec<u8>>, PatchingError> {
-        match (scoped_group, new_base) {
-            (ScopedGroup::PartialInvalidation(patch), Some(new_base)) => {
-                Ok(Some(new_base.apply_table_keyed_patch(&patch.0)?))
-            }
-            (ScopedGroup::PartialInvalidation(patch), None) => {
-                Ok(Some(self.font.apply_table_keyed_patch(&patch.0)?))
-            }
-            _ => Ok(None),
-        }
-    }
-
-    pub(crate) fn select_next_patches_from_candidates(
+    fn select_next_patches_from_candidates(
         candidates: Vec<PatchUri>,
         ift_compat_id: CompatibilityId,
         iftx_compat_id: CompatibilityId,
@@ -265,6 +240,52 @@ impl PatchApplicationGroup<'_> {
     }
 }
 
+impl AppliablePatchGroup<'_> {
+    pub fn apply_patches(self) -> Result<Vec<u8>, PatchingError> {
+        match &self.patches {
+            CompatibleGroup::Full(FullInvalidationPatch(info)) => {
+                self.font.apply_table_keyed_patch(info)
+            }
+            CompatibleGroup::Mixed { ift, iftx } => {
+                // Apply partial invalidation patches first
+                let base = self.apply_partial_invalidation_patch(ift, None)?;
+                let base = self.apply_partial_invalidation_patch(iftx, base.as_deref())?;
+
+                // Then apply no invalidation patches
+                let mut combined = ift
+                    .no_invalidation_iter()
+                    .chain(iftx.no_invalidation_iter())
+                    .peekable();
+
+                if combined.peek().is_some() {
+                    match base {
+                        Some(base) => base.as_slice().apply_glyph_keyed_patches(combined),
+                        None => self.font.apply_glyph_keyed_patches(combined),
+                    }
+                } else {
+                    base.ok_or(PatchingError::EmptyPatchList)
+                }
+            }
+        }
+    }
+
+    fn apply_partial_invalidation_patch(
+        &self,
+        scoped_group: &ScopedGroup,
+        new_base: Option<&[u8]>,
+    ) -> Result<Option<Vec<u8>>, PatchingError> {
+        match (scoped_group, new_base) {
+            (ScopedGroup::PartialInvalidation(patch), Some(new_base)) => {
+                Ok(Some(new_base.apply_table_keyed_patch(&patch.0)?))
+            }
+            (ScopedGroup::PartialInvalidation(patch), None) => {
+                Ok(Some(self.font.apply_table_keyed_patch(&patch.0)?))
+            }
+            _ => Ok(None),
+        }
+    }
+}
+
 /// Tracks information related to a patch necessary to apply that patch.
 #[derive(PartialEq, Eq, Debug)]
 pub(crate) struct PatchInfo {
@@ -297,20 +318,20 @@ impl From<PatchUri> for PatchInfo {
 
 /// Type for a single non invalidating patch.
 #[derive(PartialEq, Eq, Debug)]
-pub(crate) struct NoInvalidationPatch(PatchInfo);
+struct NoInvalidationPatch(PatchInfo);
 
 /// Type for a single partially invalidating patch.
 #[derive(PartialEq, Eq, Debug)]
-pub(crate) struct PartialInvalidationPatch(PatchInfo);
+struct PartialInvalidationPatch(PatchInfo);
 
 /// Type for a single fully invalidating patch.
 #[derive(PartialEq, Eq, Debug)]
-pub(crate) struct FullInvalidationPatch(PatchInfo);
+struct FullInvalidationPatch(PatchInfo);
 
 /// Represents a group of patches which are valid (compatible) to be applied together to
 /// an IFT font.
 #[derive(PartialEq, Eq, Debug)]
-pub(crate) enum CompatibleGroup {
+enum CompatibleGroup {
     Full(FullInvalidationPatch),
     Mixed { ift: ScopedGroup, iftx: ScopedGroup },
 }
@@ -318,7 +339,7 @@ pub(crate) enum CompatibleGroup {
 /// A set of zero or more compatible patches that are derived from the same scope
 /// ("IFT " vs "IFTX")
 #[derive(PartialEq, Eq, Debug)]
-pub(crate) enum ScopedGroup {
+enum ScopedGroup {
     PartialInvalidation(PartialInvalidationPatch),
     NoInvalidation(BTreeMap<String, NoInvalidationPatch>),
 }
@@ -409,6 +430,22 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    impl<'a> AddDataResult<'a> {
+        fn unwrap_ready(self) -> AppliablePatchGroup<'a> {
+            match self {
+                AddDataResult::Ready(val) => val,
+                AddDataResult::NeedsMoreData(_) => panic!("Expected to be ready."),
+            }
+        }
+
+        fn unwrap_needs_more(self) -> PatchGroup<'a> {
+            match self {
+                AddDataResult::NeedsMoreData(val) => val,
+                AddDataResult::Ready(_) => panic!("Expected to be needs more data."),
+            }
+        }
+    }
 
     fn cid_1() -> CompatibilityId {
         CompatibilityId::from_u32s([0, 0, 0, 1])
@@ -544,19 +581,16 @@ mod tests {
 
     #[test]
     fn full_invalidation() {
-        let group = PatchApplicationGroup::select_next_patches_from_candidates(
-            vec![p1_full()],
-            cid_1(),
-            cid_2(),
-        )
-        .unwrap();
+        let group =
+            PatchGroup::select_next_patches_from_candidates(vec![p1_full()], cid_1(), cid_2())
+                .unwrap();
 
         assert_eq!(
             group,
             CompatibleGroup::Full(FullInvalidationPatch(patch_info_ift("//foo.bar/04")))
         );
 
-        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+        let group = PatchGroup::select_next_patches_from_candidates(
             vec![
                 p1_full(),
                 p2_partial_c1(),
@@ -578,7 +612,7 @@ mod tests {
     #[test]
     fn mixed() {
         // (partial, no inval)
-        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+        let group = PatchGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p4_no_c1(), p5_no_c2()],
             cid_1(),
             cid_2(),
@@ -599,7 +633,7 @@ mod tests {
         );
 
         // (no inval, partial)
-        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+        let group = PatchGroup::select_next_patches_from_candidates(
             vec![p3_partial_c2(), p4_no_c1(), p5_no_c2()],
             cid_1(),
             cid_2(),
@@ -620,7 +654,7 @@ mod tests {
         );
 
         // (partial, empty)
-        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+        let group = PatchGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p4_no_c1()],
             cid_1(),
             cid_2(),
@@ -638,7 +672,7 @@ mod tests {
         );
 
         // (empty, partial)
-        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+        let group = PatchGroup::select_next_patches_from_candidates(
             vec![p3_partial_c2(), p5_no_c2()],
             cid_1(),
             cid_2(),
@@ -658,7 +692,7 @@ mod tests {
 
     #[test]
     fn tables_have_same_compat_id() {
-        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+        let group = PatchGroup::select_next_patches_from_candidates(
             vec![
                 p2_partial_c1(),
                 p2_partial_c2_ift(),
@@ -682,7 +716,7 @@ mod tests {
         );
 
         // Check that input order determines the winner.
-        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+        let group = PatchGroup::select_next_patches_from_candidates(
             vec![
                 p2_partial_c1(),
                 p3_partial_c2(),
@@ -709,7 +743,7 @@ mod tests {
     #[test]
     fn dedups_uris() {
         // Duplicates inside a scope
-        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+        let group = PatchGroup::select_next_patches_from_candidates(
             vec![p4_no_c1(), p4_no_c1()],
             cid_1(),
             cid_2(),
@@ -728,7 +762,7 @@ mod tests {
         );
 
         // Duplicates across scopes (no invalidation + no invalidation)
-        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+        let group = PatchGroup::select_next_patches_from_candidates(
             vec![p4_no_c1(), p4_no_c2(), p5_no_c2()],
             cid_1(),
             cid_2(),
@@ -750,7 +784,7 @@ mod tests {
         );
 
         // Duplicates across scopes (partial + partial)
-        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+        let group = PatchGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p2_partial_c2(), p3_partial_c2()],
             cid_1(),
             cid_2(),
@@ -770,7 +804,7 @@ mod tests {
         );
 
         // Duplicates across scopes (partial + no invalidation)
-        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+        let group = PatchGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p2_no_c2(), p5_no_c2()],
             cid_1(),
             cid_2(),
@@ -790,7 +824,7 @@ mod tests {
             }
         );
 
-        let group = PatchApplicationGroup::select_next_patches_from_candidates(
+        let group = PatchGroup::select_next_patches_from_candidates(
             vec![p3_partial_c2(), p3_no_c1(), p4_no_c1()],
             cid_1(),
             cid_2(),
@@ -811,13 +845,12 @@ mod tests {
         );
     }
 
-    fn create_group_for(uris: Vec<PatchUri>) -> PatchApplicationGroup<'static> {
+    fn create_group_for(uris: Vec<PatchUri>) -> PatchGroup<'static> {
         let data = FontRef::new(font_test_data::CMAP12_FONT1).unwrap();
         let group =
-            PatchApplicationGroup::select_next_patches_from_candidates(uris, cid_1(), cid_2())
-                .unwrap();
+            PatchGroup::select_next_patches_from_candidates(uris, cid_1(), cid_2()).unwrap();
 
-        PatchApplicationGroup {
+        PatchGroup {
             font: data,
             patches: Some(group),
         }
@@ -871,59 +904,67 @@ mod tests {
     #[test]
     fn add_patch_data() {
         // Full
-        let mut g = create_group_for(vec![p1_full()]);
+        let g = create_group_for(vec![p1_full()]);
         assert!(g.has_pending_uris());
-        g.add_patch_data("//foo.bar/04", vec![1]);
-        assert_eq!(g.pending_uris(), [].into_iter().collect());
-        assert!(!g.has_pending_uris());
+        let _ = g.add_patch_data("//foo.bar/04", vec![1]).unwrap_ready();
 
         // Mixed
-        let mut g = create_group_for(vec![p2_partial_c1(), p3_partial_c2()]);
+        let g = create_group_for(vec![p2_partial_c1(), p3_partial_c2()]);
         assert!(g.has_pending_uris());
-        g.add_patch_data("//foo.bar/0C", vec![1]);
+        let g = g
+            .add_patch_data("//foo.bar/0C", vec![1])
+            .unwrap_needs_more();
         assert_eq!(g.pending_uris(), ["//foo.bar/08"].into_iter().collect());
         assert!(g.has_pending_uris());
 
-        let mut g = create_group_for(vec![p4_no_c2(), p5_no_c2(), p2_partial_c1()]);
+        let g = create_group_for(vec![p4_no_c2(), p5_no_c2(), p2_partial_c1()]);
         assert!(g.has_pending_uris());
-        g.add_patch_data("//foo.bar/0K", vec![1]);
+        let g = g
+            .add_patch_data("//foo.bar/0K", vec![1])
+            .unwrap_needs_more();
         assert_eq!(
             g.pending_uris(),
             ["//foo.bar/08", "//foo.bar/0G"].into_iter().collect()
         );
         assert!(g.has_pending_uris());
 
-        g.add_patch_data("//foo.bar/08", vec![1]);
-        g.add_patch_data("//foo.bar/0G", vec![1]);
-
-        assert_eq!(g.pending_uris(), [].into_iter().collect());
-        assert!(!g.has_pending_uris());
+        let g = g
+            .add_patch_data("//foo.bar/08", vec![1])
+            .unwrap_needs_more();
+        let _ = g.add_patch_data("//foo.bar/0G", vec![1]).unwrap_ready();
     }
 
     #[test]
     fn add_patch_data_ignores_unknown() {
-        let mut g = create_group_for(vec![p1_full()]);
+        let g = create_group_for(vec![p1_full()]);
         assert!(g.has_pending_uris());
-        g.add_patch_data("//foo.bar/foo", vec![1]);
+        let g = g
+            .add_patch_data("//foo.bar/foo", vec![1])
+            .unwrap_needs_more();
         assert_eq!(g.pending_uris(), ["//foo.bar/04"].into_iter().collect());
         assert!(g.has_pending_uris());
 
-        let mut g = create_group_for(vec![p2_partial_c1()]);
+        let g = create_group_for(vec![p2_partial_c1()]);
         assert!(g.has_pending_uris());
-        g.add_patch_data("//foo.bar/foo", vec![1]);
+        let g = g
+            .add_patch_data("//foo.bar/foo", vec![1])
+            .unwrap_needs_more();
         assert_eq!(g.pending_uris(), ["//foo.bar/08"].into_iter().collect());
         assert!(g.has_pending_uris());
 
-        let mut g = create_group_for(vec![p4_no_c2()]);
+        let g = create_group_for(vec![p4_no_c2()]);
         assert!(g.has_pending_uris());
-        g.add_patch_data("//foo.bar/foo", vec![1]);
+        let g = g
+            .add_patch_data("//foo.bar/foo", vec![1])
+            .unwrap_needs_more();
         assert_eq!(g.pending_uris(), ["//foo.bar/0G"].into_iter().collect());
         assert!(g.has_pending_uris());
     }
 
     // TODO(garretrieger): add_patch_data to an empty group.
+    // TODO(garretrieger): apply_patches tests
     // TODO(garretrieger): apply_patches on group with no patches returns error.
     // TODO(garretrieger): apply_patches on group with missing patches returns error.
     // TODO(garretrieger): tests of select_next_patches()
-    // TODO(garretrieger): add tests which results in no intersecting patches.
+    // TODO(garretrieger): tests of select_next_patches() with no intersecting patches.
 }
