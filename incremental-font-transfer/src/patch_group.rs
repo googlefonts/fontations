@@ -42,8 +42,8 @@ impl<'a> PatchGroup<'a> {
 
         let compat_group = Self::select_next_patches_from_candidates(
             candidates,
-            ift_font.ift()?.compatibility_id(),
-            ift_font.iftx()?.compatibility_id(),
+            ift_font.ift().ok().map(|t| t.compatibility_id()),
+            ift_font.iftx().ok().map(|t| t.compatibility_id()),
         )?;
 
         Ok(PatchGroup {
@@ -118,8 +118,8 @@ impl<'a> PatchGroup<'a> {
 
     fn select_next_patches_from_candidates(
         candidates: Vec<PatchUri>,
-        ift_compat_id: CompatibilityId,
-        iftx_compat_id: CompatibilityId,
+        ift_compat_id: Option<CompatibilityId>,
+        iftx_compat_id: Option<CompatibilityId>,
     ) -> Result<CompatibleGroup, ReadError> {
         // Some notes about this implementation:
         // - From candidates we need to form the largest possible group of patches which follow the selection criteria
@@ -156,17 +156,17 @@ impl<'a> PatchGroup<'a> {
                 PatchEncoding::TableKeyed {
                     fully_invalidating: false,
                 } => {
-                    if *uri.expected_compatibility_id() == ift_compat_id {
+                    if Some(uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
                         partial_invalidation_ift.push(PartialInvalidationPatch(uri.into()))
-                    } else if *uri.expected_compatibility_id() == iftx_compat_id {
+                    } else if Some(uri.expected_compatibility_id()) == iftx_compat_id.as_ref() {
                         partial_invalidation_iftx.push(PartialInvalidationPatch(uri.into()))
                     }
                 }
                 PatchEncoding::GlyphKeyed => {
-                    if *uri.expected_compatibility_id() == ift_compat_id {
+                    if Some(uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
                         no_invalidation_ift
                             .insert(uri.uri_string(), NoInvalidationPatch(uri.into()));
-                    } else if *uri.expected_compatibility_id() == iftx_compat_id {
+                    } else if Some(uri.expected_compatibility_id()) == iftx_compat_id.as_ref() {
                         no_invalidation_iftx
                             .insert(uri.uri_string(), NoInvalidationPatch(uri.into()));
                     }
@@ -249,7 +249,7 @@ impl AppliablePatchGroup<'_> {
             CompatibleGroup::Mixed { ift, iftx } => {
                 // Apply partial invalidation patches first
                 let base = self.apply_partial_invalidation_patch(ift, None)?;
-                let base = self.apply_partial_invalidation_patch(iftx, base.as_deref())?;
+                let base = self.apply_partial_invalidation_patch(iftx, base)?;
 
                 // Then apply no invalidation patches
                 let mut combined = ift
@@ -272,16 +272,16 @@ impl AppliablePatchGroup<'_> {
     fn apply_partial_invalidation_patch(
         &self,
         scoped_group: &ScopedGroup,
-        new_base: Option<&[u8]>,
+        new_base: Option<Vec<u8>>,
     ) -> Result<Option<Vec<u8>>, PatchingError> {
         match (scoped_group, new_base) {
             (ScopedGroup::PartialInvalidation(patch), Some(new_base)) => {
-                Ok(Some(new_base.apply_table_keyed_patch(&patch.0)?))
+                Ok(Some(new_base.as_slice().apply_table_keyed_patch(&patch.0)?))
             }
             (ScopedGroup::PartialInvalidation(patch), None) => {
                 Ok(Some(self.font.apply_table_keyed_patch(&patch.0)?))
             }
-            _ => Ok(None),
+            (_, new_base) => Ok(new_base),
         }
     }
 }
@@ -425,11 +425,42 @@ where
     }
 }
 
-// TODO Tests
-// - tests where duplicate uri's are present.
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
+    use crate::glyph_keyed::tests::assemble_glyph_keyed_patch;
+    use font_test_data::ift::{
+        glyf_u16_glyph_patches, glyph_keyed_patch_header, table_keyed_format2, table_keyed_patch,
+        test_font_for_patching_with_loca_mod,
+    };
+
+    use font_types::{Int24, Tag};
+
+    use read_fonts::{test_helpers::BeBuffer, FontRef};
+
+    use write_fonts::FontBuilder;
+
+    const TABLE_1_FINAL_STATE: &[u8] = "hijkabcdeflmnohijkabcdeflmno\n".as_bytes();
+    const TABLE_2_FINAL_STATE: &[u8] = "foobarbaz foobarbaz foobarbaz\n".as_bytes();
+
+    fn base_font(ift: Option<BeBuffer>, iftx: Option<BeBuffer>) -> Vec<u8> {
+        let mut font_builder = FontBuilder::new();
+
+        if let Some(buffer) = &ift {
+            font_builder.add_raw(Tag::new(b"IFT "), buffer.as_slice());
+        }
+        if let Some(buffer) = &iftx {
+            font_builder.add_raw(Tag::new(b"IFTX"), buffer.as_slice());
+        }
+
+        font_builder.add_raw(Tag::new(b"tab1"), "abcdef\n".as_bytes());
+        font_builder.add_raw(Tag::new(b"tab2"), "foobar\n".as_bytes());
+        font_builder.add_raw(Tag::new(b"tab4"), "abcdef\n".as_bytes());
+        font_builder.add_raw(Tag::new(b"tab5"), "foobar\n".as_bytes());
+        font_builder.build()
+    }
 
     impl<'a> AddDataResult<'a> {
         fn unwrap_ready(self) -> AppliablePatchGroup<'a> {
@@ -581,9 +612,12 @@ mod tests {
 
     #[test]
     fn full_invalidation() {
-        let group =
-            PatchGroup::select_next_patches_from_candidates(vec![p1_full()], cid_1(), cid_2())
-                .unwrap();
+        let group = PatchGroup::select_next_patches_from_candidates(
+            vec![p1_full()],
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
 
         assert_eq!(
             group,
@@ -598,8 +632,8 @@ mod tests {
                 p4_no_c1(),
                 p5_no_c2(),
             ],
-            cid_1(),
-            cid_2(),
+            Some(cid_1()),
+            Some(cid_2()),
         )
         .unwrap();
 
@@ -614,8 +648,8 @@ mod tests {
         // (partial, no inval)
         let group = PatchGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p4_no_c1(), p5_no_c2()],
-            cid_1(),
-            cid_2(),
+            Some(cid_1()),
+            Some(cid_2()),
         )
         .unwrap();
 
@@ -635,8 +669,8 @@ mod tests {
         // (no inval, partial)
         let group = PatchGroup::select_next_patches_from_candidates(
             vec![p3_partial_c2(), p4_no_c1(), p5_no_c2()],
-            cid_1(),
-            cid_2(),
+            Some(cid_1()),
+            Some(cid_2()),
         )
         .unwrap();
 
@@ -656,8 +690,8 @@ mod tests {
         // (partial, empty)
         let group = PatchGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p4_no_c1()],
-            cid_1(),
-            cid_2(),
+            Some(cid_1()),
+            Some(cid_2()),
         )
         .unwrap();
 
@@ -674,8 +708,8 @@ mod tests {
         // (empty, partial)
         let group = PatchGroup::select_next_patches_from_candidates(
             vec![p3_partial_c2(), p5_no_c2()],
-            cid_1(),
-            cid_2(),
+            Some(cid_1()),
+            Some(cid_2()),
         )
         .unwrap();
 
@@ -691,6 +725,61 @@ mod tests {
     }
 
     #[test]
+    fn missing_compat_ids() {
+        // (None, None)
+        let group = PatchGroup::select_next_patches_from_candidates(
+            vec![p2_partial_c1(), p4_no_c1(), p5_no_c2()],
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::NoInvalidation(Default::default()),
+                iftx: ScopedGroup::NoInvalidation(Default::default()),
+            }
+        );
+
+        // (Some, None)
+        let group = PatchGroup::select_next_patches_from_candidates(
+            vec![p2_partial_c1(), p4_no_c1(), p5_no_c2()],
+            Some(cid_1()),
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_ift(
+                    "//foo.bar/08"
+                ),)),
+                iftx: ScopedGroup::NoInvalidation(Default::default()),
+            }
+        );
+
+        // (None, Some)
+        let group = PatchGroup::select_next_patches_from_candidates(
+            vec![p2_partial_c1(), p4_no_c1(), p5_no_c2()],
+            None,
+            Some(cid_1()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::NoInvalidation(Default::default()),
+                iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_ift(
+                    "//foo.bar/08"
+                ),)),
+            }
+        );
+    }
+
+    #[test]
     fn tables_have_same_compat_id() {
         let group = PatchGroup::select_next_patches_from_candidates(
             vec![
@@ -700,8 +789,8 @@ mod tests {
                 p4_no_c1(),
                 p5_no_c2(),
             ],
-            cid_2(),
-            cid_2(),
+            Some(cid_2()),
+            Some(cid_2()),
         )
         .unwrap();
 
@@ -724,8 +813,8 @@ mod tests {
                 p4_no_c1(),
                 p5_no_c2(),
             ],
-            cid_2(),
-            cid_2(),
+            Some(cid_2()),
+            Some(cid_2()),
         )
         .unwrap();
 
@@ -745,8 +834,8 @@ mod tests {
         // Duplicates inside a scope
         let group = PatchGroup::select_next_patches_from_candidates(
             vec![p4_no_c1(), p4_no_c1()],
-            cid_1(),
-            cid_2(),
+            Some(cid_1()),
+            Some(cid_2()),
         )
         .unwrap();
 
@@ -764,8 +853,8 @@ mod tests {
         // Duplicates across scopes (no invalidation + no invalidation)
         let group = PatchGroup::select_next_patches_from_candidates(
             vec![p4_no_c1(), p4_no_c2(), p5_no_c2()],
-            cid_1(),
-            cid_2(),
+            Some(cid_1()),
+            Some(cid_2()),
         )
         .unwrap();
 
@@ -786,8 +875,8 @@ mod tests {
         // Duplicates across scopes (partial + partial)
         let group = PatchGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p2_partial_c2(), p3_partial_c2()],
-            cid_1(),
-            cid_2(),
+            Some(cid_1()),
+            Some(cid_2()),
         )
         .unwrap();
 
@@ -806,8 +895,8 @@ mod tests {
         // Duplicates across scopes (partial + no invalidation)
         let group = PatchGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p2_no_c2(), p5_no_c2()],
-            cid_1(),
-            cid_2(),
+            Some(cid_1()),
+            Some(cid_2()),
         )
         .unwrap();
 
@@ -826,8 +915,8 @@ mod tests {
 
         let group = PatchGroup::select_next_patches_from_candidates(
             vec![p3_partial_c2(), p3_no_c1(), p4_no_c1()],
-            cid_1(),
-            cid_2(),
+            Some(cid_1()),
+            Some(cid_2()),
         )
         .unwrap();
 
@@ -848,11 +937,20 @@ mod tests {
     fn create_group_for(uris: Vec<PatchUri>) -> PatchGroup<'static> {
         let data = FontRef::new(font_test_data::CMAP12_FONT1).unwrap();
         let group =
-            PatchGroup::select_next_patches_from_candidates(uris, cid_1(), cid_2()).unwrap();
+            PatchGroup::select_next_patches_from_candidates(uris, Some(cid_1()), Some(cid_2()))
+                .unwrap();
 
         PatchGroup {
             font: data,
             patches: Some(group),
+        }
+    }
+
+    fn empty_group() -> PatchGroup<'static> {
+        let data = FontRef::new(font_test_data::CMAP12_FONT1).unwrap();
+        PatchGroup {
+            font: data,
+            patches: None,
         }
     }
 
@@ -935,6 +1033,18 @@ mod tests {
     }
 
     #[test]
+    fn add_patch_data_empty_group() {
+        let g = empty_group();
+        assert!(!g.has_pending_uris());
+        assert_eq!(g.pending_uris(), [].into_iter().collect());
+        let g = g
+            .add_patch_data("//foo.bar/04", vec![1])
+            .unwrap_needs_more();
+        assert!(!g.has_pending_uris());
+        assert_eq!(g.pending_uris(), [].into_iter().collect());
+    }
+
+    #[test]
     fn add_patch_data_ignores_unknown() {
         let g = create_group_for(vec![p1_full()]);
         assert!(g.has_pending_uris());
@@ -961,10 +1071,259 @@ mod tests {
         assert!(g.has_pending_uris());
     }
 
-    // TODO(garretrieger): add_patch_data to an empty group.
-    // TODO(garretrieger): apply_patches tests
-    // TODO(garretrieger): apply_patches on group with no patches returns error.
-    // TODO(garretrieger): apply_patches on group with missing patches returns error.
-    // TODO(garretrieger): tests of select_next_patches()
-    // TODO(garretrieger): tests of select_next_patches() with no intersecting patches.
+    #[test]
+    fn select_next_patches_no_intersection() {
+        let font = base_font(Some(table_keyed_format2()), None);
+        let font = FontRef::new(&font).unwrap();
+
+        let s = SubsetDefinition::codepoints([55].into_iter().collect());
+        let g = PatchGroup::select_next_patches(font, &s).unwrap();
+
+        assert!(!g.has_pending_uris());
+        assert_eq!(g.pending_uris(), [].into_iter().collect());
+
+        let g = g
+            .add_patch_data("foo/04", table_keyed_patch().as_slice().to_vec())
+            .unwrap_needs_more();
+
+        assert!(!g.has_pending_uris());
+        assert_eq!(g.pending_uris(), [].into_iter().collect());
+    }
+
+    #[test]
+    fn apply_patches_full_invalidation() {
+        let font = base_font(Some(table_keyed_format2()), None);
+        let font = FontRef::new(&font).unwrap();
+
+        let s = SubsetDefinition::codepoints([5].into_iter().collect());
+        let g = PatchGroup::select_next_patches(font, &s).unwrap();
+
+        assert!(g.has_pending_uris());
+
+        let g = g
+            .add_patch_data("foo/04", table_keyed_patch().as_slice().to_vec())
+            .unwrap_ready();
+
+        let new_font = g.apply_patches().unwrap();
+        let new_font = FontRef::new(&new_font).unwrap();
+
+        assert_eq!(
+            new_font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
+            TABLE_1_FINAL_STATE,
+        );
+        assert_eq!(
+            new_font.table_data(Tag::new(b"tab2")).unwrap().as_bytes(),
+            TABLE_2_FINAL_STATE,
+        );
+    }
+
+    #[test]
+    fn apply_patches_one_partial_invalidation() {
+        let mut buffer = table_keyed_format2();
+        buffer.write_at("encoding", 2u8);
+
+        // IFT
+        let font = base_font(Some(buffer.clone()), None);
+        let font = FontRef::new(&font).unwrap();
+
+        let s = SubsetDefinition::codepoints([5].into_iter().collect());
+        let g = PatchGroup::select_next_patches(font, &s).unwrap();
+
+        let g = g
+            .add_patch_data("foo/04", table_keyed_patch().as_slice().to_vec())
+            .unwrap_ready();
+
+        let new_font = g.apply_patches().unwrap();
+        let new_font = FontRef::new(&new_font).unwrap();
+
+        assert_eq!(
+            new_font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
+            TABLE_1_FINAL_STATE,
+        );
+        assert_eq!(
+            new_font.table_data(Tag::new(b"tab2")).unwrap().as_bytes(),
+            TABLE_2_FINAL_STATE,
+        );
+
+        // IFTX
+        let font = base_font(None, Some(buffer.clone()));
+        let font = FontRef::new(&font).unwrap();
+
+        let s = SubsetDefinition::codepoints([5].into_iter().collect());
+        let g = PatchGroup::select_next_patches(font, &s).unwrap();
+
+        let g = g
+            .add_patch_data("foo/04", table_keyed_patch().as_slice().to_vec())
+            .unwrap_ready();
+
+        let new_font = g.apply_patches().unwrap();
+        let new_font = FontRef::new(&new_font).unwrap();
+
+        assert_eq!(
+            new_font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
+            TABLE_1_FINAL_STATE,
+        );
+        assert_eq!(
+            new_font.table_data(Tag::new(b"tab2")).unwrap().as_bytes(),
+            TABLE_2_FINAL_STATE,
+        );
+    }
+
+    #[test]
+    fn apply_patches_two_partial_invalidation() {
+        let mut ift_buffer = table_keyed_format2();
+        ift_buffer.write_at("encoding", 2u8);
+
+        let mut iftx_buffer = table_keyed_format2();
+        iftx_buffer.write_at("compat_id[0]", 2u32);
+        iftx_buffer.write_at("encoding", 2u8);
+        iftx_buffer.write_at("id_delta", Int24::new(1));
+
+        let font = base_font(Some(ift_buffer), Some(iftx_buffer));
+        let font = FontRef::new(&font).unwrap();
+
+        let s = SubsetDefinition::codepoints([5].into_iter().collect());
+        let g = PatchGroup::select_next_patches(font, &s).unwrap();
+
+        let mut patch_2 = table_keyed_patch();
+        patch_2.write_at("compat_id", 2u32);
+        patch_2.write_at("patch[0]", Tag::new(b"tab4"));
+        patch_2.write_at("patch[1]", Tag::new(b"tab5"));
+
+        let g = g
+            .add_patch_data("foo/04", table_keyed_patch().as_slice().to_vec())
+            .unwrap_needs_more()
+            .add_patch_data("foo/08", patch_2.as_slice().to_vec())
+            .unwrap_ready();
+
+        let new_font = g.apply_patches().unwrap();
+        let new_font = FontRef::new(&new_font).unwrap();
+
+        assert_eq!(
+            new_font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
+            TABLE_1_FINAL_STATE,
+        );
+        assert_eq!(
+            new_font.table_data(Tag::new(b"tab2")).unwrap().as_bytes(),
+            TABLE_2_FINAL_STATE,
+        );
+    }
+
+    #[test]
+    fn apply_patches_mixed() {
+        let mut ift_builder = table_keyed_format2();
+        ift_builder.write_at("encoding", 2u8);
+
+        let mut iftx_builder = table_keyed_format2();
+        iftx_builder.write_at("encoding", 3u8);
+        iftx_builder.write_at("compat_id[0]", 6u32);
+        iftx_builder.write_at("compat_id[1]", 7u32);
+        iftx_builder.write_at("compat_id[2]", 8u32);
+        iftx_builder.write_at("compat_id[3]", 9u32);
+        iftx_builder.write_at("id_delta", Int24::new(1));
+
+        let font = test_font_for_patching_with_loca_mod(
+            |_| {},
+            HashMap::from([
+                (Tag::new(b"IFT "), ift_builder.as_slice()),
+                (Tag::new(b"IFTX"), iftx_builder.as_slice()),
+                (Tag::new(b"tab1"), "abcdef\n".as_bytes()),
+            ]),
+        );
+        let font = FontRef::new(font.as_slice()).unwrap();
+
+        let s = SubsetDefinition::codepoints([5].into_iter().collect());
+        let g = PatchGroup::select_next_patches(font, &s).unwrap();
+
+        let patch_ift = table_keyed_patch();
+        let patch_iftx =
+            assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
+
+        let g = g
+            .add_patch_data("foo/04", patch_ift.as_slice().to_vec())
+            .unwrap_needs_more()
+            .add_patch_data("foo/08", patch_iftx.as_slice().to_vec())
+            .unwrap_ready();
+
+        let new_font = g.apply_patches().unwrap();
+        let new_font = FontRef::new(&new_font).unwrap();
+
+        let new_glyf: &[u8] = new_font.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
+        assert_eq!(
+            &[
+                1, 2, 3, 4, 5, 0, // gid 0
+                6, 7, 8, 0, // gid 1
+                b'a', b'b', b'c', 0, // gid2
+                b'd', b'e', b'f', b'g', // gid 7
+                b'h', b'i', b'j', b'k', b'l', 0, // gid 8 + 9
+                b'm', b'n', // gid 13
+            ],
+            new_glyf
+        );
+        assert_eq!(
+            new_font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
+            TABLE_1_FINAL_STATE,
+        );
+    }
+
+    #[test]
+    fn apply_patches_all_no_invalidation() {
+        let mut ift_builder = table_keyed_format2();
+        ift_builder.write_at("encoding", 3u8);
+        ift_builder.write_at("compat_id[0]", 6u32);
+        ift_builder.write_at("compat_id[1]", 7u32);
+        ift_builder.write_at("compat_id[2]", 8u32);
+        ift_builder.write_at("compat_id[3]", 9u32);
+
+        let mut iftx_builder = table_keyed_format2();
+        iftx_builder.write_at("encoding", 3u8);
+        iftx_builder.write_at("compat_id[0]", 6u32);
+        iftx_builder.write_at("compat_id[1]", 7u32);
+        iftx_builder.write_at("compat_id[2]", 8u32);
+        iftx_builder.write_at("compat_id[3]", 9u32);
+        iftx_builder.write_at("id_delta", Int24::new(1));
+
+        let font = test_font_for_patching_with_loca_mod(
+            |_| {},
+            HashMap::from([
+                (Tag::new(b"IFT "), ift_builder.as_slice()),
+                (Tag::new(b"IFTX"), iftx_builder.as_slice()),
+            ]),
+        );
+
+        let font = FontRef::new(font.as_slice()).unwrap();
+
+        let s = SubsetDefinition::codepoints([5].into_iter().collect());
+        let g = PatchGroup::select_next_patches(font, &s).unwrap();
+
+        let patch1 =
+            assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
+
+        let mut patch2 = glyf_u16_glyph_patches();
+        patch2.write_at("gid_13", 14u16);
+        let patch2 = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), patch2);
+
+        let g = g
+            .add_patch_data("foo/04", patch1.as_slice().to_vec())
+            .unwrap_needs_more()
+            .add_patch_data("foo/08", patch2.as_slice().to_vec())
+            .unwrap_ready();
+
+        let new_font = g.apply_patches().unwrap();
+        let new_font = FontRef::new(&new_font).unwrap();
+
+        let new_glyf: &[u8] = new_font.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
+        assert_eq!(
+            &[
+                1, 2, 3, 4, 5, 0, // gid 0
+                6, 7, 8, 0, // gid 1
+                b'a', b'b', b'c', 0, // gid2
+                b'd', b'e', b'f', b'g', // gid 7
+                b'h', b'i', b'j', b'k', b'l', 0, // gid 8 + 9
+                b'm', b'n', // gid 13
+                b'm', b'n', // gid 14
+            ],
+            new_glyf
+        );
+    }
 }

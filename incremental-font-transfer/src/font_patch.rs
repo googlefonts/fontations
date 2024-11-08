@@ -179,9 +179,11 @@ impl IncrementalFontPatchBase for &[u8] {
     }
 }
 
-// TODO(garretrieger): basic tests for high level apis.
 #[cfg(test)]
 mod tests {
+    // TODO(garretrieger): apply table keyed with mismatched compat ids.
+    // TODO(garretrieger): apply glyph keyed with mismatched compat ids.
+
     /*
     #[test]
       fn table_keyed_patch_compat_id_mismatch() {

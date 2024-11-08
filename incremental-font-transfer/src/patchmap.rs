@@ -665,6 +665,14 @@ pub struct SubsetDefinition {
 }
 
 impl SubsetDefinition {
+    pub fn codepoints(codepoints: IntSet<u32>) -> SubsetDefinition {
+        SubsetDefinition {
+            codepoints,
+            feature_tags: Default::default(),
+            design_space: Default::default(),
+        }
+    }
+
     pub fn new(
         codepoints: IntSet<u32>,
         feature_tags: BTreeSet<Tag>,
