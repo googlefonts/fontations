@@ -70,13 +70,9 @@ impl PatchApplicationGroup<'_> {
 
     /// Supply patch data for a uri. Once all patches have been supplied this will trigger patch application and
     /// the optional return will contain the new font.
-    pub fn add_patch_data(
-        &mut self,
-        uri: &str,
-        data: Vec<u8>,
-    ) -> Option<Result<Vec<u8>, PatchingError>> {
+    pub fn add_patch_data(&mut self, uri: &str, data: Vec<u8>) {
         let Some(patches) = &mut self.patches else {
-            return None;
+            return;
         };
 
         match patches {
@@ -91,20 +87,17 @@ impl PatchApplicationGroup<'_> {
                 }
             }
         };
-
-        if self.has_pending_uris() {
-            return None;
-        }
-
-        let r = self.apply_patches();
-        self.patches = None;
-        Some(r)
     }
 
-    pub(crate) fn apply_patches(&self) -> Result<Vec<u8>, PatchingError> {
+    pub fn apply_patches(self) -> Result<Vec<u8>, PatchingError> {
         let Some(patches) = &self.patches else {
             return Err(PatchingError::InternalError);
         };
+
+        if self.has_pending_uris() {
+            return Err(PatchingError::MissingPatches);
+        }
+
         match patches {
             CompatibleGroup::Full(FullInvalidationPatch(info)) => {
                 self.font.apply_table_keyed_patch(info)
@@ -880,36 +873,29 @@ mod tests {
         // Full
         let mut g = create_group_for(vec![p1_full()]);
         assert!(g.has_pending_uris());
-        assert_eq!(
-            g.add_patch_data("//foo.bar/04", vec![1]),
-            // TODO: patch application isn't implemented yet, update this once it is.
-            Some(Err(PatchingError::InternalError))
-        );
+        g.add_patch_data("//foo.bar/04", vec![1]);
         assert_eq!(g.pending_uris(), [].into_iter().collect());
         assert!(!g.has_pending_uris());
 
         // Mixed
         let mut g = create_group_for(vec![p2_partial_c1(), p3_partial_c2()]);
         assert!(g.has_pending_uris());
-        assert_eq!(g.add_patch_data("//foo.bar/0C", vec![1]), None);
+        g.add_patch_data("//foo.bar/0C", vec![1]);
         assert_eq!(g.pending_uris(), ["//foo.bar/08"].into_iter().collect());
         assert!(g.has_pending_uris());
 
         let mut g = create_group_for(vec![p4_no_c2(), p5_no_c2(), p2_partial_c1()]);
         assert!(g.has_pending_uris());
-        assert_eq!(g.add_patch_data("//foo.bar/0K", vec![1]), None);
+        g.add_patch_data("//foo.bar/0K", vec![1]);
         assert_eq!(
             g.pending_uris(),
             ["//foo.bar/08", "//foo.bar/0G"].into_iter().collect()
         );
         assert!(g.has_pending_uris());
 
-        assert_eq!(g.add_patch_data("//foo.bar/08", vec![1]), None);
-        assert_eq!(
-            g.add_patch_data("//foo.bar/0G", vec![1]),
-            // TODO: patch application isn't implemented yet, update this once it is.
-            Some(Err(PatchingError::InternalError))
-        );
+        g.add_patch_data("//foo.bar/08", vec![1]);
+        g.add_patch_data("//foo.bar/0G", vec![1]);
+
         assert_eq!(g.pending_uris(), [].into_iter().collect());
         assert!(!g.has_pending_uris());
     }
@@ -918,24 +904,26 @@ mod tests {
     fn add_patch_data_ignores_unknown() {
         let mut g = create_group_for(vec![p1_full()]);
         assert!(g.has_pending_uris());
-        assert_eq!(g.add_patch_data("//foo.bar/foo", vec![1]), None);
+        g.add_patch_data("//foo.bar/foo", vec![1]);
         assert_eq!(g.pending_uris(), ["//foo.bar/04"].into_iter().collect());
         assert!(g.has_pending_uris());
 
         let mut g = create_group_for(vec![p2_partial_c1()]);
         assert!(g.has_pending_uris());
-        assert_eq!(g.add_patch_data("//foo.bar/foo", vec![1]), None);
+        g.add_patch_data("//foo.bar/foo", vec![1]);
         assert_eq!(g.pending_uris(), ["//foo.bar/08"].into_iter().collect());
         assert!(g.has_pending_uris());
 
         let mut g = create_group_for(vec![p4_no_c2()]);
         assert!(g.has_pending_uris());
-        assert_eq!(g.add_patch_data("//foo.bar/foo", vec![1]), None);
+        g.add_patch_data("//foo.bar/foo", vec![1]);
         assert_eq!(g.pending_uris(), ["//foo.bar/0G"].into_iter().collect());
         assert!(g.has_pending_uris());
     }
 
+    // TODO(garretrieger): add_patch_data to an empty group.
     // TODO(garretrieger): apply_patches on group with no patches returns error.
+    // TODO(garretrieger): apply_patches on group with missing patches returns error.
     // TODO(garretrieger): tests of select_next_patches()
     // TODO(garretrieger): add tests which results in no intersecting patches.
 }
