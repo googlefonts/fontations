@@ -3,6 +3,8 @@
 //! Used for incremental font transfer. Specification:
 //! <https://w3c.github.io/IFT/Overview.html>
 
+use std::collections::HashMap;
+
 use read_fonts::types::Tag;
 use read_fonts::{be_buffer, be_buffer_add, test_helpers::BeBuffer, types::Int24, types::Uint24};
 use write_fonts::{
@@ -480,12 +482,46 @@ pub fn string_ids_format2() -> BeBuffer {
     buffer
 }
 
+// Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-2
+pub fn table_keyed_format2() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      2u8,                // format
+
+      0u32,               // reserved
+
+      {1u32: "compat_id[0]"},
+      {2u32: "compat_id[1]"},
+      {3u32: "compat_id[2]"},
+      {4u32: "compat_id[3]"},
+
+      {1u8: "encoding"},  // default patch encoding
+      (Uint24::new(1)),   // entry count
+      {0u32: "entries_offset"},
+      0u32,               // entry string data offset
+
+      8u16, // uriTemplateLength
+      [b'f', b'o', b'o', b'/', b'{', b'i', b'd', b'}'],  // uriTemplate[8]
+
+      /* ### Entries Array ### */
+      // Entry id = 1
+      {0b00010100u8: "entries"},              // format = CODEPOINT_BIT_1
+      {(Int24::new(0)): "id_delta"},
+      [0b00001101, 0b00000011, 0b00110001u8] // codepoints = [0..17]
+    };
+
+    let offset = buffer.offset_for("entries") as u32;
+    buffer.write_at("entries_offset", offset);
+
+    buffer
+}
+
 // Format specification: https://w3c.github.io/IFT/Overview.html#table-keyed
 pub fn table_keyed_patch() -> BeBuffer {
     let mut buffer = be_buffer! {
         {(Tag::new(b"iftk")): "tag"},
         0u32,                 // reserved
-        [1, 2, 3, 4u32],       // compat id
+        {1u32: "compat_id"},
+        [2, 3, 4u32],       // compat id
         3u16,                 // patch count
 
         // patch_offsets[3]
@@ -544,11 +580,18 @@ pub fn noop_table_keyed_patch() -> BeBuffer {
     }
 }
 
-pub fn test_font_for_patching_with_loca_mod<F>(loca_mod: F) -> Vec<u8>
+pub fn test_font_for_patching_with_loca_mod<F>(
+    loca_mod: F,
+    additional_tables: HashMap<Tag, &[u8]>,
+) -> Vec<u8>
 where
     F: Fn(&mut Vec<u32>),
 {
     let mut font_builder = FontBuilder::new();
+
+    for (tag, data) in additional_tables {
+        font_builder.add_raw(tag, data);
+    }
 
     let maxp = Maxp {
         num_glyphs: 15,
@@ -608,7 +651,7 @@ where
 }
 
 pub fn test_font_for_patching() -> Vec<u8> {
-    test_font_for_patching_with_loca_mod(|_| {})
+    test_font_for_patching_with_loca_mod(|_| {}, Default::default())
 }
 
 // Format specification: https://w3c.github.io/IFT/Overview.html#glyph-keyed

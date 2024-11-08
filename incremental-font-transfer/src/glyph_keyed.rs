@@ -414,7 +414,7 @@ fn patch_glyf_and_loca<'a>(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::{collections::BTreeSet, io::Write};
 
     use brotlic::CompressorWriter;
@@ -432,7 +432,7 @@ mod tests {
 
     use crate::{font_patch::PatchingError, glyph_keyed::apply_glyph_keyed_patches};
 
-    fn assemble_patch(mut header: BeBuffer, payload: BeBuffer) -> BeBuffer {
+    pub(crate) fn assemble_glyph_keyed_patch(mut header: BeBuffer, payload: BeBuffer) -> BeBuffer {
         let payload_data: &[u8] = &payload;
         let mut compressor = CompressorWriter::new(Vec::new());
         compressor.write_all(payload_data).unwrap();
@@ -466,7 +466,8 @@ mod tests {
 
     #[test]
     fn noop_glyph_keyed() {
-        let patch = assemble_patch(glyph_keyed_patch_header(), noop_glyf_glyph_patches());
+        let patch =
+            assemble_glyph_keyed_patch(glyph_keyed_patch_header(), noop_glyf_glyph_patches());
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
 
@@ -481,7 +482,8 @@ mod tests {
 
     #[test]
     fn basic_glyph_keyed() {
-        let patch = assemble_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
+        let patch =
+            assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
 
@@ -538,11 +540,13 @@ mod tests {
 
     #[test]
     fn multiple_glyph_keyed() {
-        let patch = assemble_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
+        let patch =
+            assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
         let patch: &[u8] = &patch;
         let patch1 = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
 
-        let patch = assemble_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches_2());
+        let patch =
+            assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches_2());
         let patch: &[u8] = &patch;
         let patch2 = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
 
@@ -603,7 +607,7 @@ mod tests {
     fn glyph_keyed_bad_format() {
         let mut header_builder = glyph_keyed_patch_header();
         header_builder.write_at("format", Tag::new(b"iftk"));
-        let patch = assemble_patch(header_builder, glyf_u16_glyph_patches());
+        let patch = assemble_glyph_keyed_patch(header_builder, glyf_u16_glyph_patches());
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
 
@@ -618,7 +622,7 @@ mod tests {
 
     #[test]
     fn glyph_keyed_unsupported_table() {
-        let patch = assemble_patch(
+        let patch = assemble_glyph_keyed_patch(
             glyph_keyed_patch_header(),
             glyf_and_gvar_u16_glyph_patches(),
         );
@@ -641,7 +645,7 @@ mod tests {
         let mut builder = glyf_and_gvar_u16_glyph_patches();
         builder.write_at("gvar_tag", Tag::new(b"hijk"));
 
-        let patch = assemble_patch(glyph_keyed_patch_header(), builder);
+        let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), builder);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
 
@@ -699,7 +703,7 @@ mod tests {
     fn glyph_keyed_unsorted_tables() {
         let mut builder = glyf_and_gvar_u16_glyph_patches();
         builder.write_at("gvar_tag", Tag::new(b"glye"));
-        let patch = assemble_patch(glyph_keyed_patch_header(), builder);
+        let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), builder);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
 
@@ -718,7 +722,7 @@ mod tests {
     fn glyph_keyed_duplicate_tables() {
         let mut builder = glyf_and_gvar_u16_glyph_patches();
         builder.write_at("gvar_tag", Tag::new(b"glyf"));
-        let patch = assemble_patch(glyph_keyed_patch_header(), builder);
+        let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), builder);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
 
@@ -737,7 +741,7 @@ mod tests {
     fn glyph_keyed_unsorted_gids() {
         let mut builder = glyf_u16_glyph_patches();
         builder.write_at("gid_8", 6);
-        let patch = assemble_patch(glyph_keyed_patch_header(), builder);
+        let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), builder);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
 
@@ -756,7 +760,7 @@ mod tests {
     fn glyph_keyed_duplicate_gids() {
         let mut builder = glyf_u16_glyph_patches();
         builder.write_at("gid_8", 7);
-        let patch = assemble_patch(glyph_keyed_patch_header(), builder);
+        let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), builder);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
 
@@ -774,7 +778,8 @@ mod tests {
     #[test]
     fn glyph_keyed_uncompressed_length_to_small() {
         let len = glyf_u16_glyph_patches().as_slice().len();
-        let mut patch = assemble_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
+        let mut patch =
+            assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
         patch.write_at("max_uncompressed_length", len as u32 - 1);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
@@ -792,7 +797,7 @@ mod tests {
     fn glyph_keyed_max_glyph_exceeded() {
         let mut builder = glyf_u16_glyph_patches();
         builder.write_at("gid_13", 15u16);
-        let patch = assemble_patch(glyph_keyed_patch_header(), builder);
+        let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), builder);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
 
@@ -809,17 +814,21 @@ mod tests {
 
     #[test]
     fn glyph_keyed_unordered_loca_offsets() {
-        let patch = assemble_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
+        let patch =
+            assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
 
         // unorder offsets related to a glyph not being replaced
-        let font = test_font_for_patching_with_loca_mod(|loca| {
-            let loca_gid_1 = loca[1];
-            let loca_gid_2 = loca[2];
-            loca[1] = loca_gid_2;
-            loca[2] = loca_gid_1;
-        });
+        let font = test_font_for_patching_with_loca_mod(
+            |loca| {
+                let loca_gid_1 = loca[1];
+                let loca_gid_2 = loca[2];
+                loca[1] = loca_gid_2;
+                loca[2] = loca_gid_1;
+            },
+            Default::default(),
+        );
 
         let font = FontRef::new(&font).unwrap();
 
