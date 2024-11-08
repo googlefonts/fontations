@@ -56,6 +56,7 @@ pub enum PatchingError {
     InvalidPatch(&'static str),
     EmptyPatchList,
     InternalError,
+    MissingPatches,
 }
 
 impl From<DecodeError> for PatchingError {
@@ -99,6 +100,7 @@ impl std::fmt::Display for PatchingError {
                 f,
                 "Internal constraint violated, typically should not happen."
             ),
+            PatchingError::MissingPatches => write!(f, "Not all patch data has been supplied."),
         }
     }
 }
