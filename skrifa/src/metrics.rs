@@ -59,7 +59,7 @@ pub struct Decoration {
 ///   `x_height`, `strikeout`, as well as the line metrics: `ascent`, `descent`, `leading` if the `USE_TYPOGRAPHIC_METRICS`
 ///   flag is set or the `hhea` line metrics are zero (the Windows metrics are used as a last resort).
 /// * [hhea](https://learn.microsoft.com/en-us/typography/opentype/spec/hhea): `max_width`, as well as the line metrics:
-///   `ascent`, `descent`, `leading` if they are non-zero and the `USE_TYPOGRAHIC_METRICS` flag is not set in the OS/2 table
+///   `ascent`, `descent`, `leading` if they are non-zero and the `USE_TYPOGRAPHIC_METRICS` flag is not set in the OS/2 table
 ///
 /// For variable fonts, deltas are computed using the  [MVAR](https://learn.microsoft.com/en-us/typography/opentype/spec/MVAR)
 /// table.

@@ -874,7 +874,7 @@ to report errors.
 
 ### <a id="compilation"></a> compilation and [`FontWrite`][]
 
-Finally, for each type we generate an implementtion of the [`FontWrite`][] trait,
+Finally, for each type we generate an implementation of the [`FontWrite`][] trait,
 which looks like:
 
 ```rust
