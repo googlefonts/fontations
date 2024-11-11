@@ -34,3 +34,6 @@ wdth = "wdth"
 ot = "ot"
 vai = "vai"
 beng = "beng"
+
+# Possible typos that are more specific to this codebase.
+sftn = "sfnt"
