@@ -212,6 +212,10 @@ pub trait TableProvider<'a> {
         self.expect_data_for_tag(tables::ift::IFTX_TAG)
             .and_then(FontRead::read)
     }
+
+    fn meta(&self) -> Result<tables::meta::Meta<'a>, ReadError> {
+        self.expect_table()
+    }
 }
 
 #[cfg(test)]

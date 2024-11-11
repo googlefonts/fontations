@@ -20,6 +20,7 @@ pub mod ift;
 pub mod layout;
 pub mod loca;
 pub mod maxp;
+pub mod meta;
 pub mod mvar;
 pub mod name;
 pub mod os2;
@@ -51,6 +52,7 @@ fn do_we_even_serde() {
         hvar: hvar::Hvar,
         loca: loca::Loca,
         maxp: maxp::Maxp,
+        meta: meta::Meta,
         name: name::Name,
         os2: os2::Os2,
         post: post::Post,
