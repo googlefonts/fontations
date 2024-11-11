@@ -16,19 +16,6 @@ const WINDOWS_FULL_REPERTOIRE_ENCODING: u16 = 10;
 const UNICODE_BMP_ENCODING: u16 = 3;
 const UNICODE_FULL_REPERTOIRE_ENCODING: u16 = 4;
 
-fn size_of_cmap4(seg_count: u16, gid_count: u16) -> u16 {
-    // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values
-    8 * 2  // 8 uint16's
-    + 2 * seg_count * 4  // 4 parallel arrays of len seg_count, 2 bytes per entry
-    + 2 * gid_count // 2 bytes per gid in glyphIdArray
-}
-
-fn size_of_cmap12(num_groups: u32) -> u32 {
-    // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage
-    2 * 2 + 3 * 4  // 2 uint16's and 3 uint32's
-    + num_groups * 3 * 4 // 3 unit32's per segment map group
-}
-
 impl CmapSubtable {
     /// Create a new format 4 `CmapSubtable` from a list of `(char, GlyphId)` pairs.
     ///
@@ -97,17 +84,9 @@ impl CmapSubtable {
             "uneven parallel arrays, very bad. Very very bad."
         );
 
-        let seg_count: u16 = start_code.len().try_into().unwrap();
-
-        let computed = SearchRange::compute(seg_count as _, u16::RAW_BYTE_LEN);
         let id_range_offsets = vec![0; id_deltas.len()];
         Some(CmapSubtable::format_4(
-            size_of_cmap4(seg_count, 0),
             0, // 'lang' set to zero for all 'cmap' subtables whose platform IDs are other than Macintosh
-            seg_count * 2,
-            computed.search_range,
-            computed.entry_selector,
-            computed.range_shift,
             end_code,
             start_code,
             id_deltas,
@@ -148,15 +127,12 @@ impl CmapSubtable {
         }
         groups.push((start_char_code, last_char_code, start_glyph_id));
 
-        let num_groups: u32 = groups.len().try_into().unwrap();
         let seq_map_groups = groups
             .into_iter()
             .map(|(start_char, end_char, gid)| SequentialMapGroup::new(start_char, end_char, gid))
             .collect::<Vec<_>>();
         CmapSubtable::format_12(
-            size_of_cmap12(num_groups),
             0, // 'lang' set to zero for all 'cmap' subtables whose platform IDs are other than Macintosh
-            num_groups,
             seq_map_groups,
         )
     }
@@ -259,6 +235,46 @@ impl Cmap {
         Ok(Cmap::new(
             uni_records.into_iter().chain(win_records).collect(),
         ))
+    }
+}
+
+impl Cmap4 {
+    fn compute_length(&self) -> u16 {
+        // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values
+        // there are always 8 u16 fields
+        const FIXED_SIZE: usize = 8 * u16::RAW_BYTE_LEN;
+        const PER_SEGMENT_LEN: usize = 4 * u16::RAW_BYTE_LEN;
+
+        let segment_len = self.end_code.len() * PER_SEGMENT_LEN;
+        let gid_len = self.glyph_id_array.len() * u16::RAW_BYTE_LEN;
+
+        (FIXED_SIZE + segment_len + gid_len)
+            .try_into()
+            .expect("cmap4 overflow")
+    }
+
+    fn compute_search_range(&self) -> u16 {
+        SearchRange::compute(self.end_code.len(), u16::RAW_BYTE_LEN).search_range
+    }
+
+    fn compute_entry_selector(&self) -> u16 {
+        SearchRange::compute(self.end_code.len(), u16::RAW_BYTE_LEN).entry_selector
+    }
+
+    fn compute_range_shift(&self) -> u16 {
+        SearchRange::compute(self.end_code.len(), u16::RAW_BYTE_LEN).range_shift
+    }
+}
+
+impl Cmap12 {
+    fn compute_length(&self) -> u32 {
+        // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage
+        const FIXED_SIZE: usize = 2 * u16::RAW_BYTE_LEN + 3 * u32::RAW_BYTE_LEN;
+        const PER_SEGMENT_LEN: usize = 3 * u32::RAW_BYTE_LEN;
+
+        (FIXED_SIZE + PER_SEGMENT_LEN * self.groups.len())
+            .try_into()
+            .unwrap()
     }
 }
 
