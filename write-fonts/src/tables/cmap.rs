@@ -39,7 +39,7 @@ impl CmapSubtable {
             // no chars in BMP
             return None;
         }
-        let n_segments = segments.len();
+        let n_segments = segments.len() + 1;
         for (i, segment) in segments.into_iter().enumerate() {
             let start = mappings[segment.start_ix].0;
             let end = mappings[segment.end_ix].0;
@@ -294,12 +294,15 @@ impl<'a> Format4Ranges<'a> {
 
     /// a convenience method called from our iter in the various cases where
     /// we emit a segment.
+    ///
+    /// a 'seg_len' of 0 means start == end, e.g. a segment of one glyph.
     fn make_segment(&mut self, seg_len: usize) -> Format4Segment {
+        // if start == end, we should always use a delta.
+        let use_delta = self.currently_contiguous || seg_len == 0;
         let result = Format4Segment {
             start_ix: self.seg_start,
             end_ix: self.seg_start + seg_len,
-            id_delta: self
-                .currently_contiguous
+            id_delta: use_delta
                 .then_some(
                     self.mappings
                         .get(self.seg_start)
@@ -359,7 +362,7 @@ impl<'a> Iterator for Format4Ranges<'a> {
 
         // if we're done looping then create the last segment:
         let last_idx = self.mappings.len() - 1;
-        return Some(self.make_segment(last_idx - self.seg_start));
+        Some(self.make_segment(last_idx - self.seg_start))
     }
 }
 
@@ -719,34 +722,18 @@ mod tests {
         assert_eq!(result, Err(CmapConflict { ch, gid1, gid2 }))
     }
 
-    // input is a sequence of ranges representing contiguous gids,
-    // output is how they're grouped into segments
-    fn compute_ranges(
-        iter: impl IntoIterator<Item = RangeInclusive<char>>,
-    ) -> Vec<RangeInclusive<char>> {
-        let mut next_gid = 0u16;
-        let mappings = iter
-            .into_iter()
-            .flat_map(|range| {
-                // start of new range means we aren't contiguous:
-                let start_gid = next_gid;
-                next_gid += 1 + range.clone().count() as u16;
-                range
-                    .enumerate()
-                    .map(move |(i, c)| (c, GlyphId::new((start_gid + i as u16) as _)))
-            })
-            .collect::<Vec<_>>();
-
-        super::compute_format_4_segments(&mappings)
-            .into_iter()
-            .map(|seg| mappings[seg.start_ix].0..=mappings[seg.end_ix].0)
-            .collect()
-    }
-
-    #[derive(Default)]
     struct MappingBuilder {
         mappings: Vec<(char, GlyphId)>,
         next_gid: u16,
+    }
+
+    impl Default for MappingBuilder {
+        fn default() -> Self {
+            Self {
+                mappings: Default::default(),
+                next_gid: 1,
+            }
+        }
     }
 
     impl MappingBuilder {
@@ -803,6 +790,38 @@ mod tests {
         assert_eq!(mapping.compute(), ['a'..='m', 'n'..='o']);
     }
 
+    fn expect_f4(mapping: &[(char, GlyphId)]) -> super::Cmap4 {
+        let format4 = super::CmapSubtable::create_format_4(mapping).unwrap();
+        let super::CmapSubtable::Format4(format4) = format4 else {
+            panic!("O_o")
+        };
+        format4
+    }
+
+    // roundtrip the mapping from read-fonts
+    fn get_read_mapping(table: &super::Cmap4) -> Vec<(char, GlyphId)> {
+        let bytes = dump_table(table).unwrap();
+        let readcmap = read_fonts::tables::cmap::Cmap4::read(bytes.as_slice().into()).unwrap();
+
+        readcmap
+            .iter()
+            .map(|(c, gid)| (char::from_u32(c).unwrap(), gid))
+            .collect::<Vec<_>>()
+    }
+
+    #[test]
+    fn f4_segment_len_one_uses_delta() {
+        // if a segment is length one, we should always use the delta, since it's free.
+        let mapping = MappingBuilder::default()
+            .extend(['a', 'z', '1', '9'])
+            .build();
+
+        let format4 = expect_f4(&mapping);
+        assert_eq!(format4.end_code.len(), 5); // 4 + 0xffff
+        assert!(format4.glyph_id_array.is_empty());
+        assert!(format4.id_delta.iter().all(|d| *d != 0));
+    }
+
     #[test]
     fn f4_efficiency() {
         // one of these ranges should use id_delta, the other should use glyph id array
@@ -811,10 +830,7 @@ mod tests {
             .extend(('a'..='z').rev())
             .build();
 
-        let format4 = super::CmapSubtable::create_format_4(&mapping).unwrap();
-        let super::CmapSubtable::Format4(format4) = format4 else {
-            panic!("O_o")
-        };
+        let format4 = expect_f4(&mapping);
 
         assert_eq!(
             format4.start_code,
@@ -826,7 +842,31 @@ mod tests {
             ['Z' as u32 as u16, 'z' as u32 as u16, 0xffff]
         );
 
-        assert_eq!(format4.id_delta, [-65, 0, 1]);
-        assert_eq!(format4.id_range_offsets, [0, 2, 0]);
+        assert_eq!(format4.id_delta, [-64, 0, 1]);
+        assert_eq!(format4.id_range_offsets, [0, 4, 0]);
+
+        let read_mapping = get_read_mapping(&format4);
+        assert_eq!(mapping.len(), read_mapping.len());
+        assert!(mapping == read_mapping);
+    }
+
+    #[test]
+    fn f4_kinda_real_world() {
+        // based on the first few hundred glyphs of oswald
+        let mapping = MappingBuilder::default()
+            .extend(['\r']) // CR
+            .extend('\x20'..='\x7e') // ascii space to tilde
+            .extend('\u{a0}'..='\u{ac}') // nbspace to logical not
+            .extend('\u{ae}'..='\u{17f}') // registered to long s
+            .extend(['\u{18f}', '\u{192}'])
+            .build();
+
+        let format4 = expect_f4(&mapping);
+        // we added 3 ranges + 3 individual glyphs above, + the final 0xffff
+        assert_eq!(format4.end_code.len(), 7);
+        let read_mapping = get_read_mapping(&format4);
+
+        assert_eq!(mapping.len(), read_mapping.len());
+        assert!(mapping == read_mapping);
     }
 }
