@@ -17,78 +17,75 @@ const UNICODE_BMP_ENCODING: u16 = 3;
 const UNICODE_FULL_REPERTOIRE_ENCODING: u16 = 4;
 
 impl CmapSubtable {
-    /// Create a new format 4 `CmapSubtable` from a list of `(char, GlyphId)` pairs.
+    /// Create a new format 4 subtable
     ///
-    /// The pairs are expected to be already sorted and deduplicated.
-    /// Characters beyond the BMP are ignored. If all characters are beyond the BMP
-    /// then `None` is returned.
+    /// Returns `None` if none of the input chars are in the BMP (i.e. have
+    /// codepoints <= 0xFFFF.)
+    ///
+    /// Invariants:
+    ///
+    /// - Inputs must be sorted and deduplicated.
+    /// - All `GlyphId`s must be 16-bit
     fn create_format_4(mappings: &[(char, GlyphId)]) -> Option<Self> {
-        let mut end_code = Vec::new();
-        let mut start_code = Vec::new();
-        let mut id_deltas = Vec::new();
+        let mut end_code = Vec::with_capacity(mappings.len() + 1);
+        let mut start_code = Vec::with_capacity(mappings.len() + 1);
+        let mut id_deltas = Vec::with_capacity(mappings.len() + 1);
+        let mut id_range_offsets = Vec::with_capacity(mappings.len() + 1);
+        let mut glyph_ids = Vec::new();
 
-        let mut prev = (u16::MAX - 1, u16::MAX - 1);
-        for (cp, gid) in mappings {
-            let Ok(gid) = u16::try_from(gid.to_u32()) else {
-                // Should we just fail here?
-                continue;
-            };
-            let Ok(cp) = u16::try_from(*cp as u32) else {
-                // mappings is sorted, so the rest will be beyond the BMP too.
-                break;
-            };
-            let next_in_run = (
-                prev.0.checked_add(1).unwrap(),
-                prev.1.checked_add(1).unwrap(),
-            );
-            let current = (cp, gid);
-            // Codepoint and gid need to be continuous
-            if current != next_in_run {
-                // Start a new run
-                start_code.push(cp);
-                end_code.push(cp);
-
-                // TIL Python % 0x10000 and Rust % 0x10000 do not mean the same thing.
-                // rem_euclid is almost what we want, except as applied to small values
-                // ex -10 rem_euclid 0x10000 = 65526
-                let delta: i32 = gid as i32 - cp as i32;
-                let delta = if let Ok(delta) = TryInto::<i16>::try_into(delta) {
-                    delta
-                } else {
-                    delta.rem_euclid(0x10000).try_into().unwrap()
-                };
-                id_deltas.push(delta);
-            } else {
-                // Continue the prior run
-                let last = end_code.last_mut().unwrap();
-                *last = cp;
-            }
-            prev = current;
-        }
-
-        if start_code.is_empty() {
-            // No characters in the BMP
+        let segments = compute_format_4_segments(mappings);
+        assert!(mappings.iter().all(|(_, g)| g.to_u32() <= 0xFFFF));
+        if segments.is_empty() {
+            // no chars in BMP
             return None;
         }
+        let n_segments = segments.len();
+        for (i, segment) in segments.into_iter().enumerate() {
+            let start = mappings[segment.start_ix].0;
+            let end = mappings[segment.end_ix].0;
+            start_code.push(start as u32 as u16);
+            end_code.push(end as u32 as u16);
+            if let Some(delta) = segment.id_delta {
+                // "The idDelta arithmetic is modulo 65536":
+                let delta = i16::try_from(delta)
+                    .unwrap_or_else(|_| delta.rem_euclid(0x10000).try_into().unwrap());
+                id_deltas.push(delta);
+                id_range_offsets.push(0u16);
+            } else {
+                // if the deltas for a range are not identical, we rely on the
+                // explicit glyph_ids array.
+                //
+                // The logic here is based on the memory layout of the table:
+                // because the glyph_id array follows the id_range_offsets array,
+                // the id_range_offsets array essentially stores a memory offset.
+                let current_n_ids = glyph_ids.len();
+                let n_following_segments = n_segments - i;
+                // number of bytes from the id_range_offset value to the glyph id
+                // for this segment, in the glyph_ids array
+                let id_range_offset = (n_following_segments + current_n_ids) * u16::RAW_BYTE_LEN;
+                id_deltas.push(0);
+                id_range_offsets.push(id_range_offset.try_into().unwrap());
+                glyph_ids.extend(
+                    mappings[segment.start_ix..=segment.end_ix]
+                        .iter()
+                        .map(|(_, gid)| u16::try_from(gid.to_u32()).expect("checked before now")),
+                )
+            }
+        }
 
-        // close out
-        start_code.push(0xFFFF);
+        // add the final segment:
         end_code.push(0xFFFF);
+        start_code.push(0xFFFF);
         id_deltas.push(1);
+        id_range_offsets.push(0);
 
-        assert!(
-            end_code.len() == start_code.len() && end_code.len() == id_deltas.len(),
-            "uneven parallel arrays, very bad. Very very bad."
-        );
-
-        let id_range_offsets = vec![0; id_deltas.len()];
-        Some(CmapSubtable::format_4(
-            0, // 'lang' set to zero for all 'cmap' subtables whose platform IDs are other than Macintosh
+        Some(Self::format_4(
+            0,
             end_code,
             start_code,
             id_deltas,
             id_range_offsets,
-            vec![], // because our idRangeOffset's are 0 glyphIdArray is unused
+            glyph_ids,
         ))
     }
 
@@ -770,6 +767,11 @@ mod tests {
                 .map(|seg| self.mappings[seg.start_ix].0..=self.mappings[seg.end_ix].0)
                 .collect()
         }
+
+        fn build(mut self) -> Vec<(char, GlyphId)> {
+            self.mappings.sort();
+            self.mappings
+        }
     }
 
     #[test]
@@ -799,5 +801,32 @@ mod tests {
             .extend(['o', 'n']);
 
         assert_eq!(mapping.compute(), ['a'..='m', 'n'..='o']);
+    }
+
+    #[test]
+    fn f4_efficiency() {
+        // one of these ranges should use id_delta, the other should use glyph id array
+        let mapping = MappingBuilder::default()
+            .extend('A'..='Z')
+            .extend(('a'..='z').rev())
+            .build();
+
+        let format4 = super::CmapSubtable::create_format_4(&mapping).unwrap();
+        let super::CmapSubtable::Format4(format4) = format4 else {
+            panic!("O_o")
+        };
+
+        assert_eq!(
+            format4.start_code,
+            ['A' as u32 as u16, 'a' as u32 as u16, 0xffff]
+        );
+
+        assert_eq!(
+            format4.end_code,
+            ['Z' as u32 as u16, 'z' as u32 as u16, 0xffff]
+        );
+
+        assert_eq!(format4.id_delta, [-65, 0, 1]);
+        assert_eq!(format4.id_range_offsets, [0, 2, 0]);
     }
 }
