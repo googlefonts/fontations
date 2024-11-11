@@ -107,21 +107,26 @@ table Cmap4 {
     #[format = 4]
     format: u16,
     /// This is the length in bytes of the subtable.
+    #[compile(self.compute_length())]
     length: u16,
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
     language: u16,
     /// 2 × segCount.
+    #[compile(2 * array_len($end_code))]
     seg_count_x2: u16,
     /// Maximum power of 2 less than or equal to segCount, times 2
     /// ((2**floor(log2(segCount))) * 2, where “**” is an
     /// exponentiation operator)
+    #[compile(self.compute_search_range())]
     search_range: u16,
     /// Log2 of the maximum power of 2 less than or equal to numTables
     /// (log2(searchRange/2), which is equal to floor(log2(segCount)))
+    #[compile(self.compute_entry_selector())]
     entry_selector: u16,
     /// segCount times 2, minus searchRange ((segCount * 2) -
     /// searchRange)
+    #[compile(self.compute_range_shift())]
     range_shift: u16,
     /// End characterCode for each segment, last=0xFFFF.
     #[count(half($seg_count_x2))]
@@ -236,11 +241,13 @@ table Cmap12 {
     #[compile(0)]
     reserved: u16,
     /// Byte length of this subtable (including the header)
+    #[compile(self.compute_length())]
     length: u32,
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
     language: u32,
     /// Number of groupings which follow
+    #[compile(array_len($groups))]
     num_groups: u32,
     /// Array of SequentialMapGroup records.
     #[count($num_groups)]
