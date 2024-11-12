@@ -434,16 +434,20 @@ impl<'a> Format4SegmentComputer<'a> {
             }
 
             let combined = prev.combine(current);
-            let should_merge = match next.as_ref() {
-                // if we can merge on both sides, consider total cost
-                Some(next) if current.can_merge(next) => {
+            // if we should merge, based just on the previous segment cost
+            let should_merge = combined.cost() < prev.cost() + current.cost();
+            // but if we can also merge with the next segment we want to check
+            // that too
+            let should_merge_considering_next = next
+                .as_ref()
+                // don't bother computing if we have already decided to merge
+                .filter(|next| !should_merge && current.can_merge(next))
+                .map(|next| {
                     combined.combine(*next).cost() < prev.cost() + current.cost() + next.cost()
-                }
-                // else just consider the left
-                _ => combined.cost() < prev.cost() + current.cost(),
-            };
+                })
+                .unwrap_or(false);
 
-            if should_merge {
+            if should_merge || should_merge_considering_next {
                 *prev = combined;
                 continue;
             }
@@ -907,18 +911,20 @@ mod tests {
     }
 
     #[test]
+    // a small ordered segment between two larger unordered segments;
+    // merging this correctly requires us to consider the next segment as well
     fn f4_sandwich_segment() {
-        // if we have a small segment that is mergeable on both sides,
-        // merging it all produces more savings than if it's only mergeable
-        // to the left.
-
         let mapping = MappingBuilder::default()
-            .extend(['a', 'e'])
-            .extend('b'..='d')
+            .extend(['\r'])
+            .extend(('\x20'..='\x27').rev()) // cost = 8*2 + 8 = 24
+            .extend('\x28'..='\x2c') // cost = 8
+            .extend(('\x2d'..='\x34').rev()) // cost = 6*2 + 8 = 20
+            // combined =
+            // (8 + 5 + 6) * 2 + 8 = 46
+            .extend('\x35'..='\x3e')
             .build();
 
         let format4 = expect_f4(&mapping);
-        // should end up with one generated segment (+ 0xfff)
-        assert_eq!(format4.end_code.len(), 2);
+        assert_eq!(format4.end_code.len(), 4);
     }
 }
