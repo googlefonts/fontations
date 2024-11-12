@@ -138,33 +138,13 @@ impl<'a> Outlines<'a> {
         coords: &[F2Dot14],
     ) -> Result<Subfont, Error> {
         let private_dict_range = self.private_dict_range(index)?;
-        let private_dict_data = self.offset_data.read_array(private_dict_range.clone())?;
-        let mut hint_params = HintParams::default();
-        let mut subrs_offset = None;
-        let mut store_index = 0;
         let blend_state = self
             .top_dict
             .var_store
             .clone()
-            .map(|store| BlendState::new(store, coords, store_index))
+            .map(|store| BlendState::new(store, coords, 0))
             .transpose()?;
-        for entry in dict::entries(private_dict_data, blend_state) {
-            use dict::Entry::*;
-            match entry? {
-                BlueValues(values) => hint_params.blues = values,
-                FamilyBlues(values) => hint_params.family_blues = values,
-                OtherBlues(values) => hint_params.other_blues = values,
-                FamilyOtherBlues(values) => hint_params.family_blues = values,
-                BlueScale(value) => hint_params.blue_scale = value,
-                BlueShift(value) => hint_params.blue_shift = value,
-                BlueFuzz(value) => hint_params.blue_fuzz = value,
-                LanguageGroup(group) => hint_params.language_group = group,
-                // Subrs offset is relative to the private DICT
-                SubrsOffset(offset) => subrs_offset = Some(private_dict_range.start + offset),
-                VariationStoreIndex(index) => store_index = index,
-                _ => {}
-            }
-        }
+        let private_dict = PrivateDict::new(self.offset_data, private_dict_range, blend_state)?;
         let scale = match size {
             Some(ppem) if self.units_per_em > 0 => {
                 // Note: we do an intermediate scale to 26.6 to ensure we
@@ -179,13 +159,13 @@ impl<'a> Outlines<'a> {
         // When hinting, use a modified scale factor
         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L279>
         let hint_scale = Fixed::from_bits((scale.unwrap_or(Fixed::ONE).to_bits() + 32) / 64);
-        let hint_state = HintState::new(&hint_params, hint_scale);
+        let hint_state = HintState::new(&private_dict.hint_params, hint_scale);
         Ok(Subfont {
             is_cff2: self.is_cff2(),
             scale,
-            subrs_offset,
+            subrs_offset: private_dict.subrs_offset,
             hint_state,
-            store_index,
+            store_index: private_dict.store_index,
         })
     }
 
@@ -305,6 +285,44 @@ impl Subfont {
         } else {
             Ok(None)
         }
+    }
+}
+
+/// Entires that we parse from the Private DICT to support charstring
+/// evaluation.
+#[derive(Default)]
+struct PrivateDict {
+    hint_params: HintParams,
+    subrs_offset: Option<usize>,
+    store_index: u16,
+}
+
+impl PrivateDict {
+    fn new(
+        data: FontData,
+        range: Range<usize>,
+        blend_state: Option<BlendState<'_>>,
+    ) -> Result<Self, Error> {
+        let private_dict_data = data.read_array(range.clone())?;
+        let mut dict = Self::default();
+        for entry in dict::entries(private_dict_data, blend_state) {
+            use dict::Entry::*;
+            match entry? {
+                BlueValues(values) => dict.hint_params.blues = values,
+                FamilyBlues(values) => dict.hint_params.family_blues = values,
+                OtherBlues(values) => dict.hint_params.other_blues = values,
+                FamilyOtherBlues(values) => dict.hint_params.family_blues = values,
+                BlueScale(value) => dict.hint_params.blue_scale = value,
+                BlueShift(value) => dict.hint_params.blue_shift = value,
+                BlueFuzz(value) => dict.hint_params.blue_fuzz = value,
+                LanguageGroup(group) => dict.hint_params.language_group = group,
+                // Subrs offset is relative to the private DICT
+                SubrsOffset(offset) => dict.subrs_offset = Some(range.start + offset),
+                VariationStoreIndex(index) => dict.store_index = index,
+                _ => {}
+            }
+        }
+        Ok(dict)
     }
 }
 
@@ -588,7 +606,7 @@ mod tests {
         MetadataProvider,
     };
     use raw::tables::cff2::Cff2;
-    use read_fonts::FontRef;
+    use read_fonts::{test_helpers::BeBuffer, FontRef};
 
     #[test]
     fn unscaled_scaling_sink_produces_integers() {
@@ -717,6 +735,23 @@ mod tests {
         let outlines = super::Outlines::new(&common).unwrap();
         assert!(outlines.top_dict.private_dict_range.is_empty());
         assert!(outlines.private_dict_range(0).unwrap().is_empty());
+    }
+
+    /// Ensure we don't reject an empty Private DICT
+    /// See <https://issues.oss-fuzz.com/issues/377965575>
+    #[test]
+    fn subrs_offset_overflow() {
+        // A private DICT with an overflowing subrs offset
+        let private_dict = BeBuffer::new()
+            .push(0u32) // pad so that range doesn't start with 0 and we overflow
+            .push(29u8) // integer operator
+            .push(-1i32) // integer value
+            .push(19u8) // subrs offset operator
+            .to_vec();
+        // Just don't panic with overflow
+        assert!(
+            PrivateDict::new(FontData::new(&private_dict), 4..private_dict.len(), None).is_err()
+        );
     }
 
     /// Actually apply a scale when the computed scale factor is
