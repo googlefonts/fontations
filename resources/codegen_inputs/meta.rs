@@ -14,6 +14,7 @@ table Meta {
     #[compile(0)]
     reserved: u32,
     /// The number of data maps in the table.
+    #[compile(array_len($data_maps))]
     data_maps_count: u32,
     /// Array of data map records.
     #[count($data_maps_count)]
