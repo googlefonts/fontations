@@ -13,7 +13,7 @@ use read_fonts::{
         variations::ItemVariationStore,
     },
     types::{F2Dot14, Fixed, GlyphId},
-    FontData, FontRead, TableProvider,
+    FontData, FontRead, ReadError, TableProvider,
 };
 use std::ops::Range;
 
@@ -288,7 +288,7 @@ impl Subfont {
     }
 }
 
-/// Entires that we parse from the Private DICT to support charstring
+/// Entries that we parse from the Private DICT to support charstring
 /// evaluation.
 #[derive(Default)]
 struct PrivateDict {
@@ -317,7 +317,14 @@ impl PrivateDict {
                 BlueFuzz(value) => dict.hint_params.blue_fuzz = value,
                 LanguageGroup(group) => dict.hint_params.language_group = group,
                 // Subrs offset is relative to the private DICT
-                SubrsOffset(offset) => dict.subrs_offset = Some(range.start + offset),
+                SubrsOffset(offset) => {
+                    dict.subrs_offset = Some(
+                        range
+                            .start
+                            .checked_add(offset)
+                            .ok_or(ReadError::OutOfBounds)?,
+                    )
+                }
                 VariationStoreIndex(index) => dict.store_index = index,
                 _ => {}
             }
