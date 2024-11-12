@@ -9,17 +9,14 @@ use crate::codegen_prelude::*;
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Meta {
-    /// The number of data maps in the table.
-    pub data_maps_count: u32,
     /// Array of data map records.
     pub data_maps: Vec<DataMapRecord>,
 }
 
 impl Meta {
     /// Construct a new `Meta`
-    pub fn new(data_maps_count: u32, data_maps: Vec<DataMapRecord>) -> Self {
+    pub fn new(data_maps: Vec<DataMapRecord>) -> Self {
         Self {
-            data_maps_count,
             data_maps: data_maps.into_iter().map(Into::into).collect(),
         }
     }
@@ -31,7 +28,7 @@ impl FontWrite for Meta {
         (1 as u32).write_into(writer);
         (0 as u32).write_into(writer);
         (0 as u32).write_into(writer);
-        self.data_maps_count.write_into(writer);
+        (array_len(&self.data_maps).unwrap() as u32).write_into(writer);
         self.data_maps.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -60,7 +57,6 @@ impl<'a> FromObjRef<read_fonts::tables::meta::Meta<'a>> for Meta {
     fn from_obj_ref(obj: &read_fonts::tables::meta::Meta<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Meta {
-            data_maps_count: obj.data_maps_count(),
             data_maps: obj.data_maps().to_owned_obj(offset_data),
         }
     }
