@@ -13,7 +13,7 @@ use read_fonts::{
         variations::ItemVariationStore,
     },
     types::{F2Dot14, Fixed, GlyphId},
-    FontData, FontRead, TableProvider,
+    FontData, FontRead, ReadError, TableProvider,
 };
 use std::ops::Range;
 
@@ -341,9 +341,12 @@ impl<'a> TopDict<'a> {
                     items.private_dict_range = range.start as u32..range.end as u32;
                 }
                 dict::Entry::VariationStoreOffset(offset) if is_cff2 => {
+                    // IVS is preceded by a 2 byte length, but ensure that
+                    // we don't overflow
+                    // See <https://github.com/googlefonts/fontations/issues/1223>
+                    let offset = offset.checked_add(2).ok_or(ReadError::OutOfBounds)?;
                     items.var_store = Some(ItemVariationStore::read(FontData::new(
-                        // IVS is preceded by a 2 byte length
-                        table_data.get(offset + 2..).unwrap_or_default(),
+                        table_data.get(offset..).unwrap_or_default(),
                     ))?);
                 }
                 _ => {}
@@ -588,7 +591,7 @@ mod tests {
         MetadataProvider,
     };
     use raw::tables::cff2::Cff2;
-    use read_fonts::FontRef;
+    use read_fonts::{test_helpers::BeBuffer, FontRef};
 
     #[test]
     fn unscaled_scaling_sink_produces_integers() {
@@ -717,6 +720,22 @@ mod tests {
         let outlines = super::Outlines::new(&common).unwrap();
         assert!(outlines.top_dict.private_dict_range.is_empty());
         assert!(outlines.private_dict_range(0).unwrap().is_empty());
+    }
+
+    // Fuzzer caught add with overflow when computing offset to
+    // var store.
+    // See <https://issues.oss-fuzz.com/issues/377574377>
+    #[test]
+    fn top_dict_ivs_offset_overflow() {
+        // A top DICT with a var store offset of -1 which will cause an
+        // overflow
+        let top_dict = BeBuffer::new()
+            .push(29u8) // integer operator
+            .push(-1i32) // integer value
+            .push(24u8) // var store offset operator
+            .to_vec();
+        // Just don't panic with overflow
+        assert!(TopDict::new(&[], &top_dict, true).is_err());
     }
 
     /// Actually apply a scale when the computed scale factor is
