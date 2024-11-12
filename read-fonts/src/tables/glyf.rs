@@ -263,7 +263,11 @@ impl<'a> SimpleGlyph<'a> {
             }
             y = y.wrapping_add(delta);
             point.y = C::from_i32(y);
-            *point_flags = PointFlags::from_bits(point_flags.0);
+            // Ignore the cubic off curve bit until the cubic glyf portion of
+            // the spec is finalized
+            // See <https://github.com/googlefonts/fontations/issues/1221>
+            //*point_flags = PointFlags::from_bits(point_flags.0);
+            *point_flags = PointFlags(point_flags.0 & PointFlags::ON_CURVE);
         }
         Ok(())
     }

@@ -260,6 +260,9 @@ mod tests {
     }
 
     #[test]
+    // Ignore test until cubic glyf spec finalizes
+    // See <https://github.com/googlefonts/fontations/issues/1221>
+    #[ignore]
     fn read_cubic_glyf_outline() {
         let font = FontRef::new(font_test_data::CUBIC_GLYF).unwrap();
         let glyph = font.outline_glyphs().get(GlyphId::new(2)).unwrap();

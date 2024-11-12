@@ -1352,6 +1352,9 @@ mod tests {
     const CUBIC_GLYPH: GlyphId = GlyphId::new(2);
 
     #[test]
+    // Ignore test until cubic glyf spec finalizes
+    // See <https://github.com/googlefonts/fontations/issues/1221>
+    #[ignore]
     fn draw_cubic() {
         let font = FontRef::new(font_test_data::CUBIC_GLYF).unwrap();
         assert_glyph_path_start_with(
