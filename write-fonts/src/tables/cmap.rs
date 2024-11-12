@@ -33,7 +33,7 @@ impl CmapSubtable {
         let mut id_range_offsets = Vec::with_capacity(mappings.len() + 1);
         let mut glyph_ids = Vec::new();
 
-        let segments = compute_format_4_segments(mappings);
+        let segments = Format4SegmentComputer::new(mappings).compute();
         assert!(mappings.iter().all(|(_, g)| g.to_u32() <= 0xFFFF));
         if segments.is_empty() {
             // no chars in BMP
@@ -236,11 +236,14 @@ impl Cmap {
         ))
     }
 }
-// a helper for iterating over ranges for cmap 4
-struct Format4Ranges<'a> {
+
+// a helper for computing efficient segments for cmap format 4
+struct Format4SegmentComputer<'a> {
     mappings: &'a [(char, GlyphId)],
+    /// The start index of the current segment, during iteration
     seg_start: usize,
-    currently_contiguous: bool,
+    /// tracks whether the current segment has ordered gids
+    gids_in_order: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -248,6 +251,8 @@ struct Format4Segment {
     // indices are into the source mappings
     start_ix: usize,
     end_ix: usize,
+    start_char: char,
+    end_char: char,
     id_delta: Option<i32>,
 }
 
@@ -256,28 +261,42 @@ impl Format4Segment {
         self.end_ix - self.start_ix + 1
     }
 
-    // cost in bytes of this segment
+    // cost in bytes of this segment.
     fn cost(&self) -> usize {
-        const BASE_COST: usize = 8; // 4 u16s for a new segment
-        let glyph_id_cost = self
-            .id_delta
-            .is_none()
-            .then(|| self.len() * u16::RAW_BYTE_LEN)
-            .unwrap_or(0);
-        BASE_COST + glyph_id_cost
+        // a segment always costs 4 u16s (end, start, delta_id, id_range_offset)
+        const BASE_COST: usize = 4 * u16::RAW_BYTE_LEN;
+
+        if self.id_delta.is_some() {
+            BASE_COST
+        } else {
+            // and if there is not a common id_delta, we also need to add an item
+            // to the glyph_id_array for each char in the segment
+            BASE_COST + self.len() * u16::RAW_BYTE_LEN
+        }
     }
 
+    /// `true` if we can merge other into self (other must follow self)
+    fn can_merge(&self, next: &Self) -> bool {
+        assert!(self.start_ix < next.start_ix);
+        self.end_char as u32 + 1 == next.start_char as u32
+    }
+
+    /// Combine this segment with one that immediately follows it.
+    ///
+    /// The caller must ensure that the two segments are contiguous.
     fn combine(&self, other: Format4Segment) -> Format4Segment {
-        assert_eq!(other.start_ix, self.end_ix + 1);
+        assert_eq!(other.start_ix, self.end_ix + 1,);
         Format4Segment {
             start_ix: self.start_ix,
+            start_char: self.start_char,
+            end_char: other.end_char,
             end_ix: other.end_ix,
             id_delta: None,
         }
     }
 }
 
-impl<'a> Format4Ranges<'a> {
+impl<'a> Format4SegmentComputer<'a> {
     fn new(mappings: &'a [(char, GlyphId)]) -> Self {
         // ignore chars above BMP:
         let mappings = mappings
@@ -288,7 +307,7 @@ impl<'a> Format4Ranges<'a> {
         Self {
             mappings,
             seg_start: 0,
-            currently_contiguous: false,
+            gids_in_order: false,
         }
     }
 
@@ -298,30 +317,33 @@ impl<'a> Format4Ranges<'a> {
     /// a 'seg_len' of 0 means start == end, e.g. a segment of one glyph.
     fn make_segment(&mut self, seg_len: usize) -> Format4Segment {
         // if start == end, we should always use a delta.
-        let use_delta = self.currently_contiguous || seg_len == 0;
+        let use_delta = self.gids_in_order || seg_len == 0;
+        let start_ix = self.seg_start;
+        let end_ix = self.seg_start + seg_len;
+        let start_char = self.mappings[start_ix].0;
+        let end_char = self.mappings[end_ix].0;
         let result = Format4Segment {
-            start_ix: self.seg_start,
-            end_ix: self.seg_start + seg_len,
-            id_delta: use_delta
-                .then_some(
-                    self.mappings
-                        .get(self.seg_start)
-                        .map(|(cp, gid)| gid.to_u32() as i32 - *cp as u32 as i32),
-                )
-                .flatten(),
+            start_ix,
+            end_ix,
+            start_char,
+            end_char,
+            id_delta: self
+                .mappings
+                .get(self.seg_start)
+                .map(|(cp, gid)| gid.to_u32() as i32 - *cp as u32 as i32)
+                .filter(|_| use_delta),
         };
         self.seg_start += seg_len + 1;
-        self.currently_contiguous = false;
+        self.gids_in_order = false;
         result
     }
-}
 
-// this iterator creates segments greedily, that is it will create a new segment
-// at every opportunity. These are then recombined by the caller to generate
-// the most efficient overall sequence of segments.
-impl<'a> Iterator for Format4Ranges<'a> {
-    type Item = Format4Segment;
-    fn next(&mut self) -> Option<Format4Segment> {
+    /// Find the next possible segment.
+    ///
+    /// A segment _must_ be a contiguous range of chars, but we where such a range
+    /// contains subranges that are also contiguous ranges of glyph ids, we will
+    /// split those subranges into separate segments.
+    fn next_possible_segment(&mut self) -> Option<Format4Segment> {
         if self.seg_start == self.mappings.len() {
             return None;
         }
@@ -335,23 +357,23 @@ impl<'a> Iterator for Format4Ranges<'a> {
 
         for (i, (cp, gid)) in rest.iter().enumerate() {
             // first: all segments must be a contiguous range of codepoints
-            if *cp as u32 - prev_cp as u32 > 1 {
+            if *cp as u32 != prev_cp as u32 + 1 {
                 return Some(self.make_segment(i));
             }
-            let next_is_contiguous = gid.to_u32().saturating_sub(prev_gid.to_u32()) == 1;
-            if !next_is_contiguous {
+            let next_gid_is_in_order = prev_gid.to_u32() + 1 == gid.to_u32();
+            if !next_gid_is_in_order {
                 // next: if prev gids were ordered but this one isn't, end prev segment
-                if self.currently_contiguous {
+                if self.gids_in_order {
                     return Some(self.make_segment(i));
                 }
             // and the funny case:
-            // if we were not previously contiguous but are now:
+            // if gids were not previously ordered but are now:
             // - if i == 0, then this is the first item in a new segment;
-            //   set is_contiguous and continue
+            //   set gids_in_order and continue
             // - if i > 0, we need to back up one
-            } else if !self.currently_contiguous {
+            } else if !self.gids_in_order {
                 if i == 0 {
-                    self.currently_contiguous = true;
+                    self.gids_in_order = true;
                 } else {
                     return Some(self.make_segment(i - 1));
                 }
@@ -364,58 +386,71 @@ impl<'a> Iterator for Format4Ranges<'a> {
         let last_idx = self.mappings.len() - 1;
         Some(self.make_segment(last_idx - self.seg_start))
     }
-}
 
-/// Computes an efficient set of segments
-fn compute_format_4_segments(mappings: &[(char, GlyphId)]) -> Vec<Format4Segment> {
-    assert!(!mappings.is_empty());
-    let mut iter = Format4Ranges::new(mappings).peekable();
-    let Some(first) = iter.next() else {
-        return Default::default();
-    };
+    /// Compute an efficient set of segments.
+    ///
+    /// - A segment is a contiguous range of chars.
+    /// - If all the chars in a segment share a common delta to their glyph ids,
+    ///   we can encode them much more efficiently
+    /// - it's possible for a contiguous range of chars to contain a subrange
+    ///   that share a common delta, where the overall range does not, e.g.
+    ///
+    ///   ```text
+    ///   [a b c d e f g]
+    ///   [9 3 6 7 8 2 1]
+    ///   ```
+    ///   (here a-g is a range containing the subrange c-e, which have a common
+    ///   delta.)
+    ///
+    /// This leads us to a reasonably intuitive algorithm: we start by greedily
+    /// splitting ranges up so we can consider all subranges with common deltas;
+    /// then we look at these one at a time, and combine them back together if
+    /// doing so saves space.
+    ///
+    /// This differs from the python, which starts from larger segments and then
+    /// subdivides them, but the overall idea is the same.
+    ///
+    /// <https://github.com/fonttools/fonttools/blob/f1d3e116d54f/Lib/fontTools/ttLib/tables/_c_m_a_p.py#L783>
+    fn compute(mut self) -> Vec<Format4Segment> {
+        let Some(first) = self.next_possible_segment() else {
+            return Default::default();
+        };
 
-    let mut result = vec![first];
+        let mut result = vec![first];
 
-    // now we want to collect the segments, combining smaller segments where
-    // that leads to a size savings.
-    //
-    // This differs from the python, which starts from larger segments and then
-    // subdivides them, but the overall idea is the same.
-    // (https://github.com/fonttools/fonttools/blob/f1d3e116d54f/Lib/fontTools/ttLib/tables/_c_m_a_p.py#L783)
-    while let Some(segment) = iter.next() {
-        let prev = result.last_mut().unwrap();
-        let is_contiguous_with_prev =
-            mappings[prev.end_ix].0 as u32 + 1 == mappings[segment.start_ix].0 as u32;
-        let is_contiguous_with_next = iter
-            .peek()
-            .map(|next| mappings[segment.end_ix].0 as u32 + 1 == mappings[next.start_ix].0 as u32)
-            .unwrap_or(false);
-        // first: if segment is not contiguous with either prev or next, it can't be
-        // combined, so just push and continue
+        // now we want to collect the segments, combining smaller segments where
+        // that leads to a size savings.
+        let mut next = self.next_possible_segment();
 
-        if !(is_contiguous_with_prev | is_contiguous_with_next) {
-            result.push(segment);
-            continue;
-        }
+        while let Some(current) = next.take() {
+            next = self.next_possible_segment();
+            let prev = result.last_mut().unwrap();
 
-        // next: if chars are contiguous and neither has a delta, we always combine
-        // this will mostly happen if we've combined the previous, previously
-        // delta-having segment
-        if is_contiguous_with_prev && prev.id_delta.is_none() && segment.id_delta.is_none() {
-            *prev = prev.combine(segment);
-            continue;
-        }
-        // next: if contiguous, combine only if it saves bytes
-        if is_contiguous_with_prev {
-            let combined = prev.combine(segment);
-            if combined.cost() < prev.cost() + segment.cost() {
+            let can_merge_left = prev.can_merge(&current);
+
+            if !can_merge_left {
+                result.push(current);
+                continue;
+            }
+
+            let combined = prev.combine(current);
+            let should_merge = match next.as_ref() {
+                // if we can merge on both sides, consider total cost
+                Some(next) if current.can_merge(next) => {
+                    combined.combine(*next).cost() < prev.cost() + current.cost() + next.cost()
+                }
+                // else just consider the left
+                _ => combined.cost() < prev.cost() + current.cost(),
+            };
+
+            if should_merge {
                 *prev = combined;
                 continue;
             }
+            result.push(current);
         }
-        result.push(segment);
+        result
     }
-    result
 }
 
 impl Cmap4 {
@@ -749,7 +784,8 @@ mod tests {
         // compute the segments for the mapping
         fn compute(&mut self) -> Vec<RangeInclusive<char>> {
             self.mappings.sort();
-            super::compute_format_4_segments(&self.mappings)
+            super::Format4SegmentComputer::new(&self.mappings)
+                .compute()
                 .into_iter()
                 .map(|seg| self.mappings[seg.start_ix].0..=self.mappings[seg.end_ix].0)
                 .collect()
@@ -868,5 +904,21 @@ mod tests {
 
         assert_eq!(mapping.len(), read_mapping.len());
         assert!(mapping == read_mapping);
+    }
+
+    #[test]
+    fn f4_sandwich_segment() {
+        // if we have a small segment that is mergeable on both sides,
+        // merging it all produces more savings than if it's only mergeable
+        // to the left.
+
+        let mapping = MappingBuilder::default()
+            .extend(['a', 'e'])
+            .extend('b'..='d')
+            .build();
+
+        let format4 = expect_f4(&mapping);
+        // should end up with one generated segment (+ 0xfff)
+        assert_eq!(format4.end_code.len(), 2);
     }
 }
