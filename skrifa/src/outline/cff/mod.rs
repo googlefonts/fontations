@@ -13,7 +13,7 @@ use read_fonts::{
         variations::ItemVariationStore,
     },
     types::{F2Dot14, Fixed, GlyphId},
-    FontData, FontRead, TableProvider,
+    FontData, FontRead, ReadError, TableProvider,
 };
 use std::ops::Range;
 
@@ -341,9 +341,12 @@ impl<'a> TopDict<'a> {
                     items.private_dict_range = range.start as u32..range.end as u32;
                 }
                 dict::Entry::VariationStoreOffset(offset) if is_cff2 => {
+                    // IVS is preceded by a 2 byte length, but ensure that
+                    // we don't overflow
+                    // See <https://github.com/googlefonts/fontations/issues/1223>
+                    let offset = offset.checked_add(2).ok_or(ReadError::OutOfBounds)?;
                     items.var_store = Some(ItemVariationStore::read(FontData::new(
-                        // IVS is preceded by a 2 byte length
-                        table_data.get(offset + 2..).unwrap_or_default(),
+                        table_data.get(offset..).unwrap_or_default(),
                     ))?);
                 }
                 _ => {}
@@ -731,8 +734,8 @@ mod tests {
             .push(-1i32) // integer value
             .push(24u8) // var store offset operator
             .to_vec();
-        // Just don't panic
-        let _ = TopDict::new(&[], &top_dict, true).unwrap();
+        // Just don't panic with overflow
+        assert!(TopDict::new(&[], &top_dict, true).is_err());
     }
 
     /// Actually apply a scale when the computed scale factor is
