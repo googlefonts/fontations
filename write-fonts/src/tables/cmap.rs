@@ -236,11 +236,11 @@ impl Cmap {
         ))
     }
 }
+
 // a helper for iterating over ranges for cmap 4
 struct Format4Ranges<'a> {
     mappings: &'a [(char, GlyphId)],
     seg_start: usize,
-    currently_contiguous: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -267,13 +267,25 @@ impl Format4Segment {
         BASE_COST + glyph_id_cost
     }
 
-    fn combine(&self, other: Format4Segment) -> Format4Segment {
-        assert_eq!(other.start_ix, self.end_ix + 1);
-        Format4Segment {
-            start_ix: self.start_ix,
-            end_ix: other.end_ix,
-            id_delta: None,
+    /// Grow self to include other if doing so is possible and the result is lower cost
+    fn try_merge(&mut self, mappings: &[(char, GlyphId)], segment: &Format4Segment) -> bool {
+        let is_contiguous =
+            mappings[self.end_ix].0 as u32 + 1 == mappings[segment.start_ix].0 as u32;
+        if !is_contiguous {
+            return false;
         }
+        let proposed = Format4Segment {
+            start_ix: self.start_ix,
+            end_ix: segment.end_ix,
+            id_delta: None,
+        };
+        if proposed.cost() > self.cost() + segment.cost() {
+            return false;
+        }
+
+        self.end_ix = segment.end_ix;
+        self.id_delta = None;
+        true
     }
 }
 
@@ -288,7 +300,6 @@ impl<'a> Format4Ranges<'a> {
         Self {
             mappings,
             seg_start: 0,
-            currently_contiguous: false,
         }
     }
 
@@ -296,9 +307,9 @@ impl<'a> Format4Ranges<'a> {
     /// we emit a segment.
     ///
     /// a 'seg_len' of 0 means start == end, e.g. a segment of one glyph.
-    fn make_segment(&mut self, seg_len: usize) -> Format4Segment {
+    fn make_segment(&mut self, seg_len: usize, run_type: Format4RunType) -> Format4Segment {
         // if start == end, we should always use a delta.
-        let use_delta = self.currently_contiguous || seg_len == 0;
+        let use_delta = run_type == Format4RunType::CodepointAndGid || seg_len == 0;
         let result = Format4Segment {
             start_ix: self.seg_start,
             end_ix: self.seg_start + seg_len,
@@ -311,58 +322,68 @@ impl<'a> Format4Ranges<'a> {
                 .flatten(),
         };
         self.seg_start += seg_len + 1;
-        self.currently_contiguous = false;
         result
     }
 }
 
-// this iterator creates segments greedily, that is it will create a new segment
-// at every opportunity. These are then recombined by the caller to generate
-// the most efficient overall sequence of segments.
+#[derive(Debug, Copy, Clone, PartialEq)]
+enum Format4RunType {
+    CodepointAndGid,
+    Codepoint,
+}
+
+// Retuns runs, prioritizing as follows:
+//
+// 1. A run of at least 2, as long as possible, where codepoint and gid are contiguous
+// 2. A run of at least 2, as long as possible, where codepoints are contiguous (but gids aren't)
+// 3. A run of 1
+//
+// Higher priority always wins, e.g. a shorter run of both codepoint and gid is preferred to a longer
+// run of just codepoints.
 impl<'a> Iterator for Format4Ranges<'a> {
     type Item = Format4Segment;
     fn next(&mut self) -> Option<Format4Segment> {
-        if self.seg_start == self.mappings.len() {
-            return None;
+        // We have at least one mapping, we can do something!
+        if self.seg_start >= self.mappings.len() {
+            return None; // No mappings makes jack a dull boy
         }
 
-        let Some(((mut prev_cp, mut prev_gid), rest)) =
-            self.mappings[self.seg_start..].split_first()
-        else {
-            // if this is the last element, make a final segment
-            return Some(self.make_segment(0));
+        let available = &self.mappings[self.seg_start..];
+        let Some(((first_cp, first_gid), available)) = available.split_first() else {
+            return None; // No mappings makes jack a dull boy
         };
 
-        for (i, (cp, gid)) in rest.iter().enumerate() {
-            // first: all segments must be a contiguous range of codepoints
-            if *cp as u32 - prev_cp as u32 > 1 {
-                return Some(self.make_segment(i));
-            }
-            let next_is_contiguous = gid.to_u32().saturating_sub(prev_gid.to_u32()) == 1;
-            if !next_is_contiguous {
-                // next: if prev gids were ordered but this one isn't, end prev segment
-                if self.currently_contiguous {
-                    return Some(self.make_segment(i));
-                }
-            // and the funny case:
-            // if we were not previously contiguous but are now:
-            // - if i == 0, then this is the first item in a new segment;
-            //   set is_contiguous and continue
-            // - if i > 0, we need to back up one
-            } else if !self.currently_contiguous {
-                if i == 0 {
-                    self.currently_contiguous = true;
-                } else {
-                    return Some(self.make_segment(i - 1));
-                }
-            }
-            prev_cp = *cp;
-            prev_gid = *gid;
-        }
+        // Based on the nature of the next mapping we know what sort of run we're building
+        let Some((second_cp, second_gid)) = available.first() else {
+            return Some(self.make_segment(0, Format4RunType::Codepoint)); // this is our last segment, containing just the last item
+        };
 
-        // if we're done looping then create the last segment:
-        let last_idx = self.mappings.len() - 1;
-        Some(self.make_segment(last_idx - self.seg_start))
+        // Can we make a run?
+        let run_type = if *first_cp as u32 + 1 == *second_cp as u32
+            && first_gid.to_u32() + 1 == second_gid.to_u32()
+        {
+            Format4RunType::CodepointAndGid
+        } else if *first_cp as u32 + 1 == *second_cp as u32 {
+            Format4RunType::Codepoint
+        } else {
+            return Some(self.make_segment(0, Format4RunType::Codepoint)); // Best we can do is a segment of this codepoint
+        };
+
+        // Search for the index at which the run breaks, if any
+        let end_run = available.iter().enumerate().position(|(i, (cp, gid))| {
+            let is_next_cp = *first_cp as u32 + i as u32 + 1 == *cp as u32;
+            match run_type {
+                Format4RunType::Codepoint => !is_next_cp,
+                Format4RunType::CodepointAndGid => {
+                    !is_next_cp || first_gid.to_u32() + i as u32 + 1 != gid.to_u32()
+                }
+            }
+        });
+
+        // End at None means take everything: we didn't find a break in the run
+        let seq_len = end_run.unwrap_or(available.len());
+
+        Some(self.make_segment(seq_len, run_type))
     }
 }
 
@@ -376,44 +397,12 @@ fn compute_format_4_segments(mappings: &[(char, GlyphId)]) -> Vec<Format4Segment
 
     let mut result = vec![first];
 
-    // now we want to collect the segments, combining smaller segments where
+    // now we want to collect the segments, combining segments where
     // that leads to a size savings.
-    //
-    // This differs from the python, which starts from larger segments and then
-    // subdivides them, but the overall idea is the same.
-    // (https://github.com/fonttools/fonttools/blob/f1d3e116d54f/Lib/fontTools/ttLib/tables/_c_m_a_p.py#L783)
     while let Some(segment) = iter.next() {
-        let prev = result.last_mut().unwrap();
-        let is_contiguous_with_prev =
-            mappings[prev.end_ix].0 as u32 + 1 == mappings[segment.start_ix].0 as u32;
-        let is_contiguous_with_next = iter
-            .peek()
-            .map(|next| mappings[segment.end_ix].0 as u32 + 1 == mappings[next.start_ix].0 as u32)
-            .unwrap_or(false);
-        // first: if segment is not contiguous with either prev or next, it can't be
-        // combined, so just push and continue
-
-        if !(is_contiguous_with_prev | is_contiguous_with_next) {
+        if !result.last_mut().unwrap().try_merge(mappings, &segment) {
             result.push(segment);
-            continue;
         }
-
-        // next: if chars are contiguous and neither has a delta, we always combine
-        // this will mostly happen if we've combined the previous, previously
-        // delta-having segment
-        if is_contiguous_with_prev && prev.id_delta.is_none() && segment.id_delta.is_none() {
-            *prev = prev.combine(segment);
-            continue;
-        }
-        // next: if contiguous, combine only if it saves bytes
-        if is_contiguous_with_prev {
-            let combined = prev.combine(segment);
-            if combined.cost() < prev.cost() + segment.cost() {
-                *prev = combined;
-                continue;
-            }
-        }
-        result.push(segment);
     }
     result
 }
