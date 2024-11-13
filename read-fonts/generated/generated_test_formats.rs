@@ -14,15 +14,17 @@ impl Format<u16> for Table1Marker {
 pub struct Table1Marker {}
 
 impl Table1Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn heft_byte_range(&self) -> Range<usize> {
+
+    pub fn heft_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn flex_byte_range(&self) -> Range<usize> {
+
+    pub fn flex_byte_range(&self) -> Range<usize> {
         let start = self.heft_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
@@ -90,15 +92,17 @@ pub struct Table2Marker {
 }
 
 impl Table2Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn value_count_byte_range(&self) -> Range<usize> {
+
+    pub fn value_count_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn values_byte_range(&self) -> Range<usize> {
+
+    pub fn values_byte_range(&self) -> Range<usize> {
         let start = self.value_count_byte_range().end;
         start..start + self.values_byte_len
     }
@@ -167,11 +171,12 @@ impl Format<u16> for Table3Marker {
 pub struct Table3Marker {}
 
 impl Table3Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn something_byte_range(&self) -> Range<usize> {
+
+    pub fn something_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }

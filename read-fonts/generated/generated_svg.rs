@@ -11,15 +11,17 @@ use crate::codegen_prelude::*;
 pub struct SvgMarker {}
 
 impl SvgMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn svg_document_list_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn svg_document_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn _reserved_byte_range(&self) -> Range<usize> {
+
+    pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.svg_document_list_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
@@ -96,11 +98,12 @@ pub struct SVGDocumentListMarker {
 }
 
 impl SVGDocumentListMarker {
-    fn num_entries_byte_range(&self) -> Range<usize> {
+    pub fn num_entries_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn document_records_byte_range(&self) -> Range<usize> {
+
+    pub fn document_records_byte_range(&self) -> Range<usize> {
         let start = self.num_entries_byte_range().end;
         start..start + self.document_records_byte_len
     }

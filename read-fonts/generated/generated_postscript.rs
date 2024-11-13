@@ -14,19 +14,22 @@ pub struct Index1Marker {
 }
 
 impl Index1Marker {
-    fn count_byte_range(&self) -> Range<usize> {
+    pub fn count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn off_size_byte_range(&self) -> Range<usize> {
+
+    pub fn off_size_byte_range(&self) -> Range<usize> {
         let start = self.count_byte_range().end;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn offsets_byte_range(&self) -> Range<usize> {
         let start = self.off_size_byte_range().end;
         start..start + self.offsets_byte_len
     }
-    fn data_byte_range(&self) -> Range<usize> {
+
+    pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.offsets_byte_range().end;
         start..start + self.data_byte_len
     }
@@ -111,19 +114,22 @@ pub struct Index2Marker {
 }
 
 impl Index2Marker {
-    fn count_byte_range(&self) -> Range<usize> {
+    pub fn count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn off_size_byte_range(&self) -> Range<usize> {
+
+    pub fn off_size_byte_range(&self) -> Range<usize> {
         let start = self.count_byte_range().end;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn offsets_byte_range(&self) -> Range<usize> {
         let start = self.off_size_byte_range().end;
         start..start + self.offsets_byte_len
     }
-    fn data_byte_range(&self) -> Range<usize> {
+
+    pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.offsets_byte_range().end;
         start..start + self.data_byte_len
     }
@@ -279,11 +285,12 @@ pub struct FdSelectFormat0Marker {
 }
 
 impl FdSelectFormat0Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn fds_byte_range(&self) -> Range<usize> {
+
+    pub fn fds_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + self.fds_byte_len
     }
@@ -349,19 +356,22 @@ pub struct FdSelectFormat3Marker {
 }
 
 impl FdSelectFormat3Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn n_ranges_byte_range(&self) -> Range<usize> {
+
+    pub fn n_ranges_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn ranges_byte_range(&self) -> Range<usize> {
+
+    pub fn ranges_byte_range(&self) -> Range<usize> {
         let start = self.n_ranges_byte_range().end;
         start..start + self.ranges_byte_len
     }
-    fn sentinel_byte_range(&self) -> Range<usize> {
+
+    pub fn sentinel_byte_range(&self) -> Range<usize> {
         let start = self.ranges_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
@@ -494,19 +504,22 @@ pub struct FdSelectFormat4Marker {
 }
 
 impl FdSelectFormat4Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn n_ranges_byte_range(&self) -> Range<usize> {
+
+    pub fn n_ranges_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn ranges_byte_range(&self) -> Range<usize> {
+
+    pub fn ranges_byte_range(&self) -> Range<usize> {
         let start = self.n_ranges_byte_range().end;
         start..start + self.ranges_byte_len
     }
-    fn sentinel_byte_range(&self) -> Range<usize> {
+
+    pub fn sentinel_byte_range(&self) -> Range<usize> {
         let start = self.ranges_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }

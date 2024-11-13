@@ -11,23 +11,27 @@ use crate::codegen_prelude::*;
 pub struct HvarMarker {}
 
 impl HvarMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn advance_width_mapping_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn advance_width_mapping_offset_byte_range(&self) -> Range<usize> {
         let start = self.item_variation_store_offset_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn lsb_mapping_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn lsb_mapping_offset_byte_range(&self) -> Range<usize> {
         let start = self.advance_width_mapping_offset_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn rsb_mapping_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn rsb_mapping_offset_byte_range(&self) -> Range<usize> {
         let start = self.lsb_mapping_offset_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }

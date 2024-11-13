@@ -13,19 +13,22 @@ pub struct BaseMarker {
 }
 
 impl BaseMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn horiz_axis_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn horiz_axis_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn vert_axis_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn vert_axis_offset_byte_range(&self) -> Range<usize> {
         let start = self.horiz_axis_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn item_var_store_offset_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn item_var_store_offset_byte_range(&self) -> Option<Range<usize>> {
         let start = self.item_var_store_offset_byte_start?;
         Some(start..start + Offset32::RAW_BYTE_LEN)
     }
@@ -141,11 +144,12 @@ impl<'a> std::fmt::Debug for Base<'a> {
 pub struct AxisMarker {}
 
 impl AxisMarker {
-    fn base_tag_list_offset_byte_range(&self) -> Range<usize> {
+    pub fn base_tag_list_offset_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn base_script_list_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn base_script_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.base_tag_list_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
@@ -225,11 +229,12 @@ pub struct BaseTagListMarker {
 }
 
 impl BaseTagListMarker {
-    fn base_tag_count_byte_range(&self) -> Range<usize> {
+    pub fn base_tag_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn baseline_tags_byte_range(&self) -> Range<usize> {
+
+    pub fn baseline_tags_byte_range(&self) -> Range<usize> {
         let start = self.base_tag_count_byte_range().end;
         start..start + self.baseline_tags_byte_len
     }
@@ -297,11 +302,12 @@ pub struct BaseScriptListMarker {
 }
 
 impl BaseScriptListMarker {
-    fn base_script_count_byte_range(&self) -> Range<usize> {
+    pub fn base_script_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn base_script_records_byte_range(&self) -> Range<usize> {
+
+    pub fn base_script_records_byte_range(&self) -> Range<usize> {
         let start = self.base_script_count_byte_range().end;
         start..start + self.base_script_records_byte_len
     }
@@ -428,19 +434,22 @@ pub struct BaseScriptMarker {
 }
 
 impl BaseScriptMarker {
-    fn base_values_offset_byte_range(&self) -> Range<usize> {
+    pub fn base_values_offset_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn default_min_max_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn default_min_max_offset_byte_range(&self) -> Range<usize> {
         let start = self.base_values_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn base_lang_sys_count_byte_range(&self) -> Range<usize> {
+
+    pub fn base_lang_sys_count_byte_range(&self) -> Range<usize> {
         let start = self.default_min_max_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn base_lang_sys_records_byte_range(&self) -> Range<usize> {
+
+    pub fn base_lang_sys_records_byte_range(&self) -> Range<usize> {
         let start = self.base_lang_sys_count_byte_range().end;
         start..start + self.base_lang_sys_records_byte_len
     }
@@ -604,15 +613,17 @@ pub struct BaseValuesMarker {
 }
 
 impl BaseValuesMarker {
-    fn default_baseline_index_byte_range(&self) -> Range<usize> {
+    pub fn default_baseline_index_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn base_coord_count_byte_range(&self) -> Range<usize> {
+
+    pub fn base_coord_count_byte_range(&self) -> Range<usize> {
         let start = self.default_baseline_index_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn base_coord_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn base_coord_offsets_byte_range(&self) -> Range<usize> {
         let start = self.base_coord_count_byte_range().end;
         start..start + self.base_coord_offsets_byte_len
     }
@@ -714,19 +725,22 @@ pub struct MinMaxMarker {
 }
 
 impl MinMaxMarker {
-    fn min_coord_offset_byte_range(&self) -> Range<usize> {
+    pub fn min_coord_offset_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn max_coord_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn max_coord_offset_byte_range(&self) -> Range<usize> {
         let start = self.min_coord_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn feat_min_max_count_byte_range(&self) -> Range<usize> {
+
+    pub fn feat_min_max_count_byte_range(&self) -> Range<usize> {
         let start = self.max_coord_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn feat_min_max_records_byte_range(&self) -> Range<usize> {
+
+    pub fn feat_min_max_records_byte_range(&self) -> Range<usize> {
         let start = self.feat_min_max_count_byte_range().end;
         start..start + self.feat_min_max_records_byte_len
     }
@@ -994,11 +1008,12 @@ impl Format<u16> for BaseCoordFormat1Marker {
 pub struct BaseCoordFormat1Marker {}
 
 impl BaseCoordFormat1Marker {
-    fn base_coord_format_byte_range(&self) -> Range<usize> {
+    pub fn base_coord_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn coordinate_byte_range(&self) -> Range<usize> {
+
+    pub fn coordinate_byte_range(&self) -> Range<usize> {
         let start = self.base_coord_format_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
@@ -1061,19 +1076,22 @@ impl Format<u16> for BaseCoordFormat2Marker {
 pub struct BaseCoordFormat2Marker {}
 
 impl BaseCoordFormat2Marker {
-    fn base_coord_format_byte_range(&self) -> Range<usize> {
+    pub fn base_coord_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn coordinate_byte_range(&self) -> Range<usize> {
+
+    pub fn coordinate_byte_range(&self) -> Range<usize> {
         let start = self.base_coord_format_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn reference_glyph_byte_range(&self) -> Range<usize> {
+
+    pub fn reference_glyph_byte_range(&self) -> Range<usize> {
         let start = self.coordinate_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn base_coord_point_byte_range(&self) -> Range<usize> {
+
+    pub fn base_coord_point_byte_range(&self) -> Range<usize> {
         let start = self.reference_glyph_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
@@ -1152,15 +1170,17 @@ impl Format<u16> for BaseCoordFormat3Marker {
 pub struct BaseCoordFormat3Marker {}
 
 impl BaseCoordFormat3Marker {
-    fn base_coord_format_byte_range(&self) -> Range<usize> {
+    pub fn base_coord_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn coordinate_byte_range(&self) -> Range<usize> {
+
+    pub fn coordinate_byte_range(&self) -> Range<usize> {
         let start = self.base_coord_format_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn device_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn device_offset_byte_range(&self) -> Range<usize> {
         let start = self.coordinate_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }

@@ -15,27 +15,32 @@ pub struct AvarMarker {
 }
 
 impl AvarMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn _reserved_byte_range(&self) -> Range<usize> {
+
+    pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn axis_count_byte_range(&self) -> Range<usize> {
+
+    pub fn axis_count_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn axis_segment_maps_byte_range(&self) -> Range<usize> {
+
+    pub fn axis_segment_maps_byte_range(&self) -> Range<usize> {
         let start = self.axis_count_byte_range().end;
         start..start + self.axis_segment_maps_byte_len
     }
-    fn axis_index_map_offset_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn axis_index_map_offset_byte_range(&self) -> Option<Range<usize>> {
         let start = self.axis_index_map_offset_byte_start?;
         Some(start..start + Offset32::RAW_BYTE_LEN)
     }
-    fn var_store_offset_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn var_store_offset_byte_range(&self) -> Option<Range<usize>> {
         let start = self.var_store_offset_byte_start?;
         Some(start..start + Offset32::RAW_BYTE_LEN)
     }

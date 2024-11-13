@@ -14,39 +14,47 @@ pub struct KindsOfOffsetsMarker {
 }
 
 impl KindsOfOffsetsMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn nonnullable_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn nonnullable_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn nullable_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn nullable_offset_byte_range(&self) -> Range<usize> {
         let start = self.nonnullable_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn array_offset_count_byte_range(&self) -> Range<usize> {
+
+    pub fn array_offset_count_byte_range(&self) -> Range<usize> {
         let start = self.nullable_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn array_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn array_offset_byte_range(&self) -> Range<usize> {
         let start = self.array_offset_count_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn record_array_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn record_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.array_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn versioned_nullable_record_array_offset_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn versioned_nullable_record_array_offset_byte_range(&self) -> Option<Range<usize>> {
         let start = self.versioned_nullable_record_array_offset_byte_start?;
         Some(start..start + Offset16::RAW_BYTE_LEN)
     }
-    fn versioned_nonnullable_offset_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn versioned_nonnullable_offset_byte_range(&self) -> Option<Range<usize>> {
         let start = self.versioned_nonnullable_offset_byte_start?;
         Some(start..start + Offset16::RAW_BYTE_LEN)
     }
-    fn versioned_nullable_offset_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn versioned_nullable_offset_byte_range(&self) -> Option<Range<usize>> {
         let start = self.versioned_nullable_offset_byte_start?;
         Some(start..start + Offset32::RAW_BYTE_LEN)
     }
@@ -274,27 +282,32 @@ pub struct KindsOfArraysOfOffsetsMarker {
 }
 
 impl KindsOfArraysOfOffsetsMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn count_byte_range(&self) -> Range<usize> {
+
+    pub fn count_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn nonnullable_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn nonnullable_offsets_byte_range(&self) -> Range<usize> {
         let start = self.count_byte_range().end;
         start..start + self.nonnullable_offsets_byte_len
     }
-    fn nullable_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn nullable_offsets_byte_range(&self) -> Range<usize> {
         let start = self.nonnullable_offsets_byte_range().end;
         start..start + self.nullable_offsets_byte_len
     }
-    fn versioned_nonnullable_offsets_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn versioned_nonnullable_offsets_byte_range(&self) -> Option<Range<usize>> {
         let start = self.versioned_nonnullable_offsets_byte_start?;
         Some(start..start + self.versioned_nonnullable_offsets_byte_len?)
     }
-    fn versioned_nullable_offsets_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn versioned_nullable_offsets_byte_range(&self) -> Option<Range<usize>> {
         let start = self.versioned_nullable_offsets_byte_start?;
         Some(start..start + self.versioned_nullable_offsets_byte_len?)
     }
@@ -506,27 +519,32 @@ pub struct KindsOfArraysMarker {
 }
 
 impl KindsOfArraysMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn count_byte_range(&self) -> Range<usize> {
+
+    pub fn count_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn scalars_byte_range(&self) -> Range<usize> {
+
+    pub fn scalars_byte_range(&self) -> Range<usize> {
         let start = self.count_byte_range().end;
         start..start + self.scalars_byte_len
     }
-    fn records_byte_range(&self) -> Range<usize> {
+
+    pub fn records_byte_range(&self) -> Range<usize> {
         let start = self.scalars_byte_range().end;
         start..start + self.records_byte_len
     }
-    fn versioned_scalars_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn versioned_scalars_byte_range(&self) -> Option<Range<usize>> {
         let start = self.versioned_scalars_byte_start?;
         Some(start..start + self.versioned_scalars_byte_len?)
     }
-    fn versioned_records_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn versioned_records_byte_range(&self) -> Option<Range<usize>> {
         let start = self.versioned_records_byte_start?;
         Some(start..start + self.versioned_records_byte_len?)
     }
@@ -669,15 +687,17 @@ pub struct VarLenHaverMarker {
 }
 
 impl VarLenHaverMarker {
-    fn count_byte_range(&self) -> Range<usize> {
+    pub fn count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn var_len_byte_range(&self) -> Range<usize> {
+
+    pub fn var_len_byte_range(&self) -> Range<usize> {
         let start = self.count_byte_range().end;
         start..start + self.var_len_byte_len
     }
-    fn other_field_byte_range(&self) -> Range<usize> {
+
+    pub fn other_field_byte_range(&self) -> Range<usize> {
         let start = self.var_len_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
@@ -743,11 +763,12 @@ impl<'a> std::fmt::Debug for VarLenHaver<'a> {
 pub struct DummyMarker {}
 
 impl DummyMarker {
-    fn value_byte_range(&self) -> Range<usize> {
+    pub fn value_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn _reserved_byte_range(&self) -> Range<usize> {
+
+    pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.value_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }

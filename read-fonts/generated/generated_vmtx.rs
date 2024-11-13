@@ -14,11 +14,12 @@ pub struct VmtxMarker {
 }
 
 impl VmtxMarker {
-    fn v_metrics_byte_range(&self) -> Range<usize> {
+    pub fn v_metrics_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.v_metrics_byte_len
     }
-    fn top_side_bearings_byte_range(&self) -> Range<usize> {
+
+    pub fn top_side_bearings_byte_range(&self) -> Range<usize> {
         let start = self.v_metrics_byte_range().end;
         start..start + self.top_side_bearings_byte_len
     }

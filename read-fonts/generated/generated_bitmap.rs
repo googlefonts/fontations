@@ -742,15 +742,17 @@ impl<'a> SomeRecord<'a> for SmallGlyphMetrics {
 pub struct IndexSubtableArrayMarker {}
 
 impl IndexSubtableArrayMarker {
-    fn first_glyph_index_byte_range(&self) -> Range<usize> {
+    pub fn first_glyph_index_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + GlyphId16::RAW_BYTE_LEN
     }
-    fn last_glyph_index_byte_range(&self) -> Range<usize> {
+
+    pub fn last_glyph_index_byte_range(&self) -> Range<usize> {
         let start = self.first_glyph_index_byte_range().end;
         start..start + GlyphId16::RAW_BYTE_LEN
     }
-    fn additional_offset_to_index_subtable_byte_range(&self) -> Range<usize> {
+
+    pub fn additional_offset_to_index_subtable_byte_range(&self) -> Range<usize> {
         let start = self.last_glyph_index_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
@@ -926,19 +928,22 @@ pub struct IndexSubtable1Marker {
 }
 
 impl IndexSubtable1Marker {
-    fn index_format_byte_range(&self) -> Range<usize> {
+    pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn image_format_byte_range(&self) -> Range<usize> {
+
+    pub fn image_format_byte_range(&self) -> Range<usize> {
         let start = self.index_format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn image_data_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.image_format_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn sbit_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn sbit_offsets_byte_range(&self) -> Range<usize> {
         let start = self.image_data_offset_byte_range().end;
         start..start + self.sbit_offsets_byte_len
     }
@@ -1022,23 +1027,27 @@ pub struct IndexSubtable2Marker {
 }
 
 impl IndexSubtable2Marker {
-    fn index_format_byte_range(&self) -> Range<usize> {
+    pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn image_format_byte_range(&self) -> Range<usize> {
+
+    pub fn image_format_byte_range(&self) -> Range<usize> {
         let start = self.index_format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn image_data_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.image_format_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn image_size_byte_range(&self) -> Range<usize> {
+
+    pub fn image_size_byte_range(&self) -> Range<usize> {
         let start = self.image_data_offset_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn big_metrics_byte_range(&self) -> Range<usize> {
+
+    pub fn big_metrics_byte_range(&self) -> Range<usize> {
         let start = self.image_size_byte_range().end;
         start..start + self.big_metrics_byte_len
     }
@@ -1137,19 +1146,22 @@ pub struct IndexSubtable3Marker {
 }
 
 impl IndexSubtable3Marker {
-    fn index_format_byte_range(&self) -> Range<usize> {
+    pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn image_format_byte_range(&self) -> Range<usize> {
+
+    pub fn image_format_byte_range(&self) -> Range<usize> {
         let start = self.index_format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn image_data_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.image_format_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn sbit_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn sbit_offsets_byte_range(&self) -> Range<usize> {
         let start = self.image_data_offset_byte_range().end;
         start..start + self.sbit_offsets_byte_len
     }
@@ -1233,23 +1245,27 @@ pub struct IndexSubtable4Marker {
 }
 
 impl IndexSubtable4Marker {
-    fn index_format_byte_range(&self) -> Range<usize> {
+    pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn image_format_byte_range(&self) -> Range<usize> {
+
+    pub fn image_format_byte_range(&self) -> Range<usize> {
         let start = self.index_format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn image_data_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.image_format_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn num_glyphs_byte_range(&self) -> Range<usize> {
+
+    pub fn num_glyphs_byte_range(&self) -> Range<usize> {
         let start = self.image_data_offset_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn glyph_array_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_array_byte_range(&self) -> Range<usize> {
         let start = self.num_glyphs_byte_range().end;
         start..start + self.glyph_array_byte_len
     }
@@ -1393,31 +1409,37 @@ pub struct IndexSubtable5Marker {
 }
 
 impl IndexSubtable5Marker {
-    fn index_format_byte_range(&self) -> Range<usize> {
+    pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn image_format_byte_range(&self) -> Range<usize> {
+
+    pub fn image_format_byte_range(&self) -> Range<usize> {
         let start = self.index_format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn image_data_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.image_format_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn image_size_byte_range(&self) -> Range<usize> {
+
+    pub fn image_size_byte_range(&self) -> Range<usize> {
         let start = self.image_data_offset_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn big_metrics_byte_range(&self) -> Range<usize> {
+
+    pub fn big_metrics_byte_range(&self) -> Range<usize> {
         let start = self.image_size_byte_range().end;
         start..start + self.big_metrics_byte_len
     }
-    fn num_glyphs_byte_range(&self) -> Range<usize> {
+
+    pub fn num_glyphs_byte_range(&self) -> Range<usize> {
         let start = self.big_metrics_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn glyph_array_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_array_byte_range(&self) -> Range<usize> {
         let start = self.num_glyphs_byte_range().end;
         start..start + self.glyph_array_byte_len
     }

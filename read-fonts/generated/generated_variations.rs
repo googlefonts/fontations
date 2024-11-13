@@ -15,23 +15,27 @@ pub struct TupleVariationHeaderMarker {
 }
 
 impl TupleVariationHeaderMarker {
-    fn variation_data_size_byte_range(&self) -> Range<usize> {
+    pub fn variation_data_size_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn tuple_index_byte_range(&self) -> Range<usize> {
+
+    pub fn tuple_index_byte_range(&self) -> Range<usize> {
         let start = self.variation_data_size_byte_range().end;
         start..start + TupleIndex::RAW_BYTE_LEN
     }
-    fn peak_tuple_byte_range(&self) -> Range<usize> {
+
+    pub fn peak_tuple_byte_range(&self) -> Range<usize> {
         let start = self.tuple_index_byte_range().end;
         start..start + self.peak_tuple_byte_len
     }
-    fn intermediate_start_tuple_byte_range(&self) -> Range<usize> {
+
+    pub fn intermediate_start_tuple_byte_range(&self) -> Range<usize> {
         let start = self.peak_tuple_byte_range().end;
         start..start + self.intermediate_start_tuple_byte_len
     }
-    fn intermediate_end_tuple_byte_range(&self) -> Range<usize> {
+
+    pub fn intermediate_end_tuple_byte_range(&self) -> Range<usize> {
         let start = self.intermediate_start_tuple_byte_range().end;
         start..start + self.intermediate_end_tuple_byte_len
     }
@@ -208,19 +212,22 @@ pub struct DeltaSetIndexMapFormat0Marker {
 }
 
 impl DeltaSetIndexMapFormat0Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn entry_format_byte_range(&self) -> Range<usize> {
+
+    pub fn entry_format_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + EntryFormat::RAW_BYTE_LEN
     }
-    fn map_count_byte_range(&self) -> Range<usize> {
+
+    pub fn map_count_byte_range(&self) -> Range<usize> {
         let start = self.entry_format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn map_data_byte_range(&self) -> Range<usize> {
+
+    pub fn map_data_byte_range(&self) -> Range<usize> {
         let start = self.map_count_byte_range().end;
         start..start + self.map_data_byte_len
     }
@@ -305,19 +312,22 @@ pub struct DeltaSetIndexMapFormat1Marker {
 }
 
 impl DeltaSetIndexMapFormat1Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn entry_format_byte_range(&self) -> Range<usize> {
+
+    pub fn entry_format_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + EntryFormat::RAW_BYTE_LEN
     }
-    fn map_count_byte_range(&self) -> Range<usize> {
+
+    pub fn map_count_byte_range(&self) -> Range<usize> {
         let start = self.entry_format_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn map_data_byte_range(&self) -> Range<usize> {
+
+    pub fn map_data_byte_range(&self) -> Range<usize> {
         let start = self.map_count_byte_range().end;
         start..start + self.map_data_byte_len
     }
@@ -789,15 +799,17 @@ pub struct VariationRegionListMarker {
 }
 
 impl VariationRegionListMarker {
-    fn axis_count_byte_range(&self) -> Range<usize> {
+    pub fn axis_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn region_count_byte_range(&self) -> Range<usize> {
+
+    pub fn region_count_byte_range(&self) -> Range<usize> {
         let start = self.axis_count_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn variation_regions_byte_range(&self) -> Range<usize> {
+
+    pub fn variation_regions_byte_range(&self) -> Range<usize> {
         let start = self.region_count_byte_range().end;
         start..start + self.variation_regions_byte_len
     }
@@ -1003,19 +1015,22 @@ pub struct ItemVariationStoreMarker {
 }
 
 impl ItemVariationStoreMarker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn variation_region_list_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn variation_region_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn item_variation_data_count_byte_range(&self) -> Range<usize> {
+
+    pub fn item_variation_data_count_byte_range(&self) -> Range<usize> {
         let start = self.variation_region_list_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn item_variation_data_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn item_variation_data_offsets_byte_range(&self) -> Range<usize> {
         let start = self.item_variation_data_count_byte_range().end;
         start..start + self.item_variation_data_offsets_byte_len
     }
@@ -1137,23 +1152,27 @@ pub struct ItemVariationDataMarker {
 }
 
 impl ItemVariationDataMarker {
-    fn item_count_byte_range(&self) -> Range<usize> {
+    pub fn item_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn word_delta_count_byte_range(&self) -> Range<usize> {
+
+    pub fn word_delta_count_byte_range(&self) -> Range<usize> {
         let start = self.item_count_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn region_index_count_byte_range(&self) -> Range<usize> {
+
+    pub fn region_index_count_byte_range(&self) -> Range<usize> {
         let start = self.word_delta_count_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn region_indexes_byte_range(&self) -> Range<usize> {
+
+    pub fn region_indexes_byte_range(&self) -> Range<usize> {
         let start = self.region_index_count_byte_range().end;
         start..start + self.region_indexes_byte_len
     }
-    fn delta_sets_byte_range(&self) -> Range<usize> {
+
+    pub fn delta_sets_byte_range(&self) -> Range<usize> {
         let start = self.region_indexes_byte_range().end;
         start..start + self.delta_sets_byte_len
     }

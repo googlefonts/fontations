@@ -11,19 +11,22 @@ use crate::codegen_prelude::*;
 pub struct AnkrMarker {}
 
 impl AnkrMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn flags_byte_range(&self) -> Range<usize> {
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn lookup_table_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn lookup_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn glyph_data_table_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_data_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.lookup_table_offset_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
@@ -118,11 +121,12 @@ pub struct GlyphDataEntryMarker {
 }
 
 impl GlyphDataEntryMarker {
-    fn num_points_byte_range(&self) -> Range<usize> {
+    pub fn num_points_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn anchor_points_byte_range(&self) -> Range<usize> {
+
+    pub fn anchor_points_byte_range(&self) -> Range<usize> {
         let start = self.num_points_byte_range().end;
         start..start + self.anchor_points_byte_len
     }

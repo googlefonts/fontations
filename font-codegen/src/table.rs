@@ -908,7 +908,7 @@ impl Table {
                 };
                 let start_field_name = field.shape_byte_start_field_name();
                 return Some(quote! {
-                    fn #fn_name(&self) -> Option<Range<usize>> {
+                    pub fn #fn_name(&self) -> Option<Range<usize>> {
                         let start = self.#start_field_name?;
                         Some(start..start + #len_expr)
                     }
@@ -916,7 +916,7 @@ impl Table {
             }
 
             let result = quote! {
-                fn #fn_name(&self) -> Range<usize> {
+                pub fn #fn_name(&self) -> Range<usize> {
                     let start = #prev_field_end_expr;
                     start..start + #len_expr
                 }

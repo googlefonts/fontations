@@ -13,27 +13,32 @@ pub struct TableDirectoryMarker {
 }
 
 impl TableDirectoryMarker {
-    fn sfnt_version_byte_range(&self) -> Range<usize> {
+    pub fn sfnt_version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn num_tables_byte_range(&self) -> Range<usize> {
+
+    pub fn num_tables_byte_range(&self) -> Range<usize> {
         let start = self.sfnt_version_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn search_range_byte_range(&self) -> Range<usize> {
+
+    pub fn search_range_byte_range(&self) -> Range<usize> {
         let start = self.num_tables_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn entry_selector_byte_range(&self) -> Range<usize> {
+
+    pub fn entry_selector_byte_range(&self) -> Range<usize> {
         let start = self.search_range_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn range_shift_byte_range(&self) -> Range<usize> {
+
+    pub fn range_shift_byte_range(&self) -> Range<usize> {
         let start = self.entry_selector_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn table_records_byte_range(&self) -> Range<usize> {
+
+    pub fn table_records_byte_range(&self) -> Range<usize> {
         let start = self.range_shift_byte_range().end;
         start..start + self.table_records_byte_len
     }
@@ -197,31 +202,37 @@ pub struct TTCHeaderMarker {
 }
 
 impl TTCHeaderMarker {
-    fn ttc_tag_byte_range(&self) -> Range<usize> {
+    pub fn ttc_tag_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + Tag::RAW_BYTE_LEN
     }
-    fn version_byte_range(&self) -> Range<usize> {
+
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = self.ttc_tag_byte_range().end;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn num_fonts_byte_range(&self) -> Range<usize> {
+
+    pub fn num_fonts_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn table_directory_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn table_directory_offsets_byte_range(&self) -> Range<usize> {
         let start = self.num_fonts_byte_range().end;
         start..start + self.table_directory_offsets_byte_len
     }
-    fn dsig_tag_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn dsig_tag_byte_range(&self) -> Option<Range<usize>> {
         let start = self.dsig_tag_byte_start?;
         Some(start..start + u32::RAW_BYTE_LEN)
     }
-    fn dsig_length_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn dsig_length_byte_range(&self) -> Option<Range<usize>> {
         let start = self.dsig_length_byte_start?;
         Some(start..start + u32::RAW_BYTE_LEN)
     }
-    fn dsig_offset_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn dsig_offset_byte_range(&self) -> Option<Range<usize>> {
         let start = self.dsig_offset_byte_start?;
         Some(start..start + u32::RAW_BYTE_LEN)
     }

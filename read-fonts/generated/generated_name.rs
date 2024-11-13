@@ -16,27 +16,32 @@ pub struct NameMarker {
 }
 
 impl NameMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn count_byte_range(&self) -> Range<usize> {
+
+    pub fn count_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn storage_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn storage_offset_byte_range(&self) -> Range<usize> {
         let start = self.count_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn name_record_byte_range(&self) -> Range<usize> {
+
+    pub fn name_record_byte_range(&self) -> Range<usize> {
         let start = self.storage_offset_byte_range().end;
         start..start + self.name_record_byte_len
     }
-    fn lang_tag_count_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn lang_tag_count_byte_range(&self) -> Option<Range<usize>> {
         let start = self.lang_tag_count_byte_start?;
         Some(start..start + u16::RAW_BYTE_LEN)
     }
-    fn lang_tag_record_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn lang_tag_record_byte_range(&self) -> Option<Range<usize>> {
         let start = self.lang_tag_record_byte_start?;
         Some(start..start + self.lang_tag_record_byte_len?)
     }

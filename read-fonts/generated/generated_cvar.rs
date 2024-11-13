@@ -13,19 +13,22 @@ pub struct CvarMarker {
 }
 
 impl CvarMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn tuple_variation_count_byte_range(&self) -> Range<usize> {
+
+    pub fn tuple_variation_count_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + TupleVariationCount::RAW_BYTE_LEN
     }
-    fn data_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn data_offset_byte_range(&self) -> Range<usize> {
         let start = self.tuple_variation_count_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
+
+    pub fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
         let start = self.data_offset_byte_range().end;
         start..start + self.tuple_variation_headers_byte_len
     }

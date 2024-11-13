@@ -11,31 +11,37 @@ use crate::codegen_prelude::*;
 pub struct FvarMarker {}
 
 impl FvarMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn axis_instance_arrays_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn axis_instance_arrays_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn _reserved_byte_range(&self) -> Range<usize> {
+
+    pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.axis_instance_arrays_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn axis_count_byte_range(&self) -> Range<usize> {
+
+    pub fn axis_count_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn axis_size_byte_range(&self) -> Range<usize> {
+
+    pub fn axis_size_byte_range(&self) -> Range<usize> {
         let start = self.axis_count_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn instance_count_byte_range(&self) -> Range<usize> {
+
+    pub fn instance_count_byte_range(&self) -> Range<usize> {
         let start = self.axis_size_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn instance_size_byte_range(&self) -> Range<usize> {
+
+    pub fn instance_size_byte_range(&self) -> Range<usize> {
         let start = self.instance_count_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
@@ -157,11 +163,12 @@ pub struct AxisInstanceArraysMarker {
 }
 
 impl AxisInstanceArraysMarker {
-    fn axes_byte_range(&self) -> Range<usize> {
+    pub fn axes_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.axes_byte_len
     }
-    fn instances_byte_range(&self) -> Range<usize> {
+
+    pub fn instances_byte_range(&self) -> Range<usize> {
         let start = self.axes_byte_range().end;
         start..start + self.instances_byte_len
     }

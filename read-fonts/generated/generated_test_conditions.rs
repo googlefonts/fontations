@@ -13,19 +13,22 @@ pub struct MajorMinorVersionMarker {
 }
 
 impl MajorMinorVersionMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn always_present_byte_range(&self) -> Range<usize> {
+
+    pub fn always_present_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn if_11_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn if_11_byte_range(&self) -> Option<Range<usize>> {
         let start = self.if_11_byte_start?;
         Some(start..start + u16::RAW_BYTE_LEN)
     }
-    fn if_20_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn if_20_byte_range(&self) -> Option<Range<usize>> {
         let start = self.if_20_byte_start?;
         Some(start..start + u32::RAW_BYTE_LEN)
     }
@@ -423,23 +426,27 @@ pub struct FlagDayMarker {
 }
 
 impl FlagDayMarker {
-    fn volume_byte_range(&self) -> Range<usize> {
+    pub fn volume_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn flags_byte_range(&self) -> Range<usize> {
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.volume_byte_range().end;
         start..start + GotFlags::RAW_BYTE_LEN
     }
-    fn foo_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn foo_byte_range(&self) -> Option<Range<usize>> {
         let start = self.foo_byte_start?;
         Some(start..start + u16::RAW_BYTE_LEN)
     }
-    fn bar_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn bar_byte_range(&self) -> Option<Range<usize>> {
         let start = self.bar_byte_start?;
         Some(start..start + u16::RAW_BYTE_LEN)
     }
-    fn baz_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn baz_byte_range(&self) -> Option<Range<usize>> {
         let start = self.baz_byte_start?;
         Some(start..start + u16::RAW_BYTE_LEN)
     }
@@ -544,30 +551,35 @@ pub struct FieldsAfterConditionalsMarker {
 }
 
 impl FieldsAfterConditionalsMarker {
-    fn flags_byte_range(&self) -> Range<usize> {
+    pub fn flags_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + GotFlags::RAW_BYTE_LEN
     }
-    fn foo_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn foo_byte_range(&self) -> Option<Range<usize>> {
         let start = self.foo_byte_start?;
         Some(start..start + u16::RAW_BYTE_LEN)
     }
-    fn always_here_byte_range(&self) -> Range<usize> {
+
+    pub fn always_here_byte_range(&self) -> Range<usize> {
         let start = self
             .foo_byte_range()
             .map(|range| range.end)
             .unwrap_or_else(|| self.flags_byte_range().end);
         start..start + u16::RAW_BYTE_LEN
     }
-    fn bar_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn bar_byte_range(&self) -> Option<Range<usize>> {
         let start = self.bar_byte_start?;
         Some(start..start + u16::RAW_BYTE_LEN)
     }
-    fn baz_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn baz_byte_range(&self) -> Option<Range<usize>> {
         let start = self.baz_byte_start?;
         Some(start..start + u16::RAW_BYTE_LEN)
     }
-    fn also_always_here_byte_range(&self) -> Range<usize> {
+
+    pub fn also_always_here_byte_range(&self) -> Range<usize> {
         let start = self
             .baz_byte_range()
             .map(|range| range.end)
@@ -578,7 +590,8 @@ impl FieldsAfterConditionalsMarker {
             });
         start..start + u16::RAW_BYTE_LEN
     }
-    fn and_me_too_byte_range(&self) -> Range<usize> {
+
+    pub fn and_me_too_byte_range(&self) -> Range<usize> {
         let start = self.also_always_here_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }

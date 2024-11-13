@@ -13,35 +13,42 @@ pub struct GvarMarker {
 }
 
 impl GvarMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn axis_count_byte_range(&self) -> Range<usize> {
+
+    pub fn axis_count_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn shared_tuple_count_byte_range(&self) -> Range<usize> {
+
+    pub fn shared_tuple_count_byte_range(&self) -> Range<usize> {
         let start = self.axis_count_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn shared_tuples_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn shared_tuples_offset_byte_range(&self) -> Range<usize> {
         let start = self.shared_tuple_count_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn glyph_count_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.shared_tuples_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn flags_byte_range(&self) -> Range<usize> {
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.glyph_count_byte_range().end;
         start..start + GvarFlags::RAW_BYTE_LEN
     }
-    fn glyph_variation_data_array_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_variation_data_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn glyph_variation_data_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_variation_data_offsets_byte_range(&self) -> Range<usize> {
         let start = self.glyph_variation_data_array_offset_byte_range().end;
         start..start + self.glyph_variation_data_offsets_byte_len
     }
@@ -487,7 +494,7 @@ pub struct SharedTuplesMarker {
 }
 
 impl SharedTuplesMarker {
-    fn tuples_byte_range(&self) -> Range<usize> {
+    pub fn tuples_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.tuples_byte_len
     }
@@ -572,15 +579,17 @@ pub struct GlyphVariationDataHeaderMarker {
 }
 
 impl GlyphVariationDataHeaderMarker {
-    fn tuple_variation_count_byte_range(&self) -> Range<usize> {
+    pub fn tuple_variation_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + TupleVariationCount::RAW_BYTE_LEN
     }
-    fn serialized_data_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn serialized_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.tuple_variation_count_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
+
+    pub fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
         let start = self.serialized_data_offset_byte_range().end;
         start..start + self.tuple_variation_headers_byte_len
     }

@@ -14,31 +14,37 @@ pub struct GdefMarker {
 }
 
 impl GdefMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn glyph_class_def_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_class_def_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn attach_list_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn attach_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.glyph_class_def_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn lig_caret_list_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn lig_caret_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.attach_list_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn mark_attach_class_def_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn mark_attach_class_def_offset_byte_range(&self) -> Range<usize> {
         let start = self.lig_caret_list_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn mark_glyph_sets_def_offset_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn mark_glyph_sets_def_offset_byte_range(&self) -> Option<Range<usize>> {
         let start = self.mark_glyph_sets_def_offset_byte_start?;
         Some(start..start + Offset16::RAW_BYTE_LEN)
     }
-    fn item_var_store_offset_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn item_var_store_offset_byte_range(&self) -> Option<Range<usize>> {
         let start = self.item_var_store_offset_byte_start?;
         Some(start..start + Offset32::RAW_BYTE_LEN)
     }
@@ -275,15 +281,17 @@ pub struct AttachListMarker {
 }
 
 impl AttachListMarker {
-    fn coverage_offset_byte_range(&self) -> Range<usize> {
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn glyph_count_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn attach_point_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn attach_point_offsets_byte_range(&self) -> Range<usize> {
         let start = self.glyph_count_byte_range().end;
         start..start + self.attach_point_offsets_byte_len
     }
@@ -387,11 +395,12 @@ pub struct AttachPointMarker {
 }
 
 impl AttachPointMarker {
-    fn point_count_byte_range(&self) -> Range<usize> {
+    pub fn point_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn point_indices_byte_range(&self) -> Range<usize> {
+
+    pub fn point_indices_byte_range(&self) -> Range<usize> {
         let start = self.point_count_byte_range().end;
         start..start + self.point_indices_byte_len
     }
@@ -457,15 +466,17 @@ pub struct LigCaretListMarker {
 }
 
 impl LigCaretListMarker {
-    fn coverage_offset_byte_range(&self) -> Range<usize> {
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn lig_glyph_count_byte_range(&self) -> Range<usize> {
+
+    pub fn lig_glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn lig_glyph_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn lig_glyph_offsets_byte_range(&self) -> Range<usize> {
         let start = self.lig_glyph_count_byte_range().end;
         start..start + self.lig_glyph_offsets_byte_len
     }
@@ -569,11 +580,12 @@ pub struct LigGlyphMarker {
 }
 
 impl LigGlyphMarker {
-    fn caret_count_byte_range(&self) -> Range<usize> {
+    pub fn caret_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn caret_value_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn caret_value_offsets_byte_range(&self) -> Range<usize> {
         let start = self.caret_count_byte_range().end;
         start..start + self.caret_value_offsets_byte_len
     }
@@ -730,11 +742,12 @@ impl Format<u16> for CaretValueFormat1Marker {
 pub struct CaretValueFormat1Marker {}
 
 impl CaretValueFormat1Marker {
-    fn caret_value_format_byte_range(&self) -> Range<usize> {
+    pub fn caret_value_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn coordinate_byte_range(&self) -> Range<usize> {
+
+    pub fn coordinate_byte_range(&self) -> Range<usize> {
         let start = self.caret_value_format_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
@@ -797,11 +810,12 @@ impl Format<u16> for CaretValueFormat2Marker {
 pub struct CaretValueFormat2Marker {}
 
 impl CaretValueFormat2Marker {
-    fn caret_value_format_byte_range(&self) -> Range<usize> {
+    pub fn caret_value_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn caret_value_point_index_byte_range(&self) -> Range<usize> {
+
+    pub fn caret_value_point_index_byte_range(&self) -> Range<usize> {
         let start = self.caret_value_format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
@@ -867,15 +881,17 @@ impl Format<u16> for CaretValueFormat3Marker {
 pub struct CaretValueFormat3Marker {}
 
 impl CaretValueFormat3Marker {
-    fn caret_value_format_byte_range(&self) -> Range<usize> {
+    pub fn caret_value_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn coordinate_byte_range(&self) -> Range<usize> {
+
+    pub fn coordinate_byte_range(&self) -> Range<usize> {
         let start = self.caret_value_format_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn device_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn device_offset_byte_range(&self) -> Range<usize> {
         let start = self.coordinate_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
@@ -959,15 +975,17 @@ pub struct MarkGlyphSetsMarker {
 }
 
 impl MarkGlyphSetsMarker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn mark_glyph_set_count_byte_range(&self) -> Range<usize> {
+
+    pub fn mark_glyph_set_count_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn coverage_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn coverage_offsets_byte_range(&self) -> Range<usize> {
         let start = self.mark_glyph_set_count_byte_range().end;
         start..start + self.coverage_offsets_byte_len
     }

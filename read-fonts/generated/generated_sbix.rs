@@ -322,19 +322,22 @@ pub struct SbixMarker {
 }
 
 impl SbixMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn flags_byte_range(&self) -> Range<usize> {
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + HeaderFlags::RAW_BYTE_LEN
     }
-    fn num_strikes_byte_range(&self) -> Range<usize> {
+
+    pub fn num_strikes_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn strike_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn strike_offsets_byte_range(&self) -> Range<usize> {
         let start = self.num_strikes_byte_range().end;
         start..start + self.strike_offsets_byte_len
     }
@@ -466,15 +469,17 @@ pub struct StrikeMarker {
 }
 
 impl StrikeMarker {
-    fn ppem_byte_range(&self) -> Range<usize> {
+    pub fn ppem_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn ppi_byte_range(&self) -> Range<usize> {
+
+    pub fn ppi_byte_range(&self) -> Range<usize> {
         let start = self.ppem_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn glyph_data_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_data_offsets_byte_range(&self) -> Range<usize> {
         let start = self.ppi_byte_range().end;
         start..start + self.glyph_data_offsets_byte_len
     }
@@ -564,19 +569,22 @@ pub struct GlyphDataMarker {
 }
 
 impl GlyphDataMarker {
-    fn origin_offset_x_byte_range(&self) -> Range<usize> {
+    pub fn origin_offset_x_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn origin_offset_y_byte_range(&self) -> Range<usize> {
+
+    pub fn origin_offset_y_byte_range(&self) -> Range<usize> {
         let start = self.origin_offset_x_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn graphic_type_byte_range(&self) -> Range<usize> {
+
+    pub fn graphic_type_byte_range(&self) -> Range<usize> {
         let start = self.origin_offset_y_byte_range().end;
         start..start + Tag::RAW_BYTE_LEN
     }
-    fn data_byte_range(&self) -> Range<usize> {
+
+    pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.graphic_type_byte_range().end;
         start..start + self.data_byte_len
     }

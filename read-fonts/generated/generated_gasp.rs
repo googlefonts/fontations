@@ -13,15 +13,17 @@ pub struct GaspMarker {
 }
 
 impl GaspMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn num_ranges_byte_range(&self) -> Range<usize> {
+
+    pub fn num_ranges_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn gasp_ranges_byte_range(&self) -> Range<usize> {
+
+    pub fn gasp_ranges_byte_range(&self) -> Range<usize> {
         let start = self.num_ranges_byte_range().end;
         start..start + self.gasp_ranges_byte_len
     }

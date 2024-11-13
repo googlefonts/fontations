@@ -25,6 +25,15 @@ impl<'a, T> TableRef<'a, T> {
     pub fn offset_data(&self) -> FontData<'a> {
         self.data
     }
+
+    /// Return a reference to the table's 'Shape' struct.
+    ///
+    /// This is a low level implementation detail, but it can be useful in
+    /// some cases where you want to know things about a table's layout, such
+    /// as the byte offsets of specific fields.
+    pub fn shape(&self) -> &T {
+        &self.shape
+    }
 }
 
 // a blanket impl so that the format is available through a TableRef

@@ -13,19 +13,22 @@ pub struct VorgMarker {
 }
 
 impl VorgMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn default_vert_origin_y_byte_range(&self) -> Range<usize> {
+
+    pub fn default_vert_origin_y_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn num_vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
+
+    pub fn num_vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
         let start = self.default_vert_origin_y_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
+
+    pub fn vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
         let start = self.num_vert_origin_y_metrics_byte_range().end;
         start..start + self.vert_origin_y_metrics_byte_len
     }

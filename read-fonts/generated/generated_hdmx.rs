@@ -14,19 +14,22 @@ pub struct HdmxMarker {
 }
 
 impl HdmxMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn num_records_byte_range(&self) -> Range<usize> {
+
+    pub fn num_records_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn size_device_record_byte_range(&self) -> Range<usize> {
+
+    pub fn size_device_record_byte_range(&self) -> Range<usize> {
         let start = self.num_records_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn records_byte_range(&self) -> Range<usize> {
+
+    pub fn records_byte_range(&self) -> Range<usize> {
         let start = self.size_device_record_byte_range().end;
         start..start + self.records_byte_len
     }
