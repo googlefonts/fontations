@@ -263,11 +263,13 @@ impl<'a> SimpleGlyph<'a> {
             }
             y = y.wrapping_add(delta);
             point.y = C::from_i32(y);
-            // Ignore the cubic off curve bit until the cubic glyf portion of
-            // the spec is finalized
-            // See <https://github.com/googlefonts/fontations/issues/1221>
-            //*point_flags = PointFlags::from_bits(point_flags.0);
-            *point_flags = PointFlags(point_flags.0 & PointFlags::ON_CURVE);
+            let flags_mask = if cfg!(feature = "spec_next") {
+                PointFlags::CURVE_MASK
+            } else {
+                // Drop the cubic bit if the spec_next feature is not enabled
+                PointFlags::ON_CURVE
+            };
+            point_flags.0 &= flags_mask;
         }
         Ok(())
     }
