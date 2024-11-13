@@ -185,7 +185,10 @@ pub fn codepoints_only_format2() -> BeBuffer {
 
       0u32,               // reserved
 
-      [1, 2, 3, 4u32],    // compat id
+      {1u32: "compat_id[0]"},
+      {2u32: "compat_id[1]"},
+      {3u32: "compat_id[2]"},
+      {4u32: "compat_id[3]"},
 
       3u8,                // default patch encoding
       (Uint24::new(4)),   // entry count

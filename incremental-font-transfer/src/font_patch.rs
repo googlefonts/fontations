@@ -121,6 +121,9 @@ impl IncrementalFontPatchBase for FontRef<'_> {
             .tag()
             .font_compat_id(self)
             .map_err(PatchingError::FontParsingFailed)?;
+        if font_compat_id != *patch.tag().expected_compat_id() {
+            return Err(PatchingError::IncompatiblePatch);
+        }
 
         let patch = TableKeyedPatch::read(FontData::new(patch_data))
             .map_err(PatchingError::PatchParsingFailed)?;
@@ -150,6 +153,9 @@ impl IncrementalFontPatchBase for FontRef<'_> {
                 })
                 .as_ref()
                 .map_err(Clone::clone)?;
+            if font_compat_id != tag.expected_compat_id() {
+                return Err(PatchingError::IncompatiblePatch);
+            }
 
             let patch = GlyphKeyedPatch::read(FontData::new(patch_data))
                 .map_err(PatchingError::PatchParsingFailed)?;
@@ -188,25 +194,138 @@ impl IncrementalFontPatchBase for &[u8] {
 
 #[cfg(test)]
 mod tests {
-    // TODO(garretrieger): apply table keyed with mismatched compat ids.
-    // TODO(garretrieger): apply glyph keyed with mismatched compat ids.
 
-    /*
+    use std::collections::HashMap;
+
+    use font_test_data::ift::{
+        codepoints_only_format2, glyf_u16_glyph_patches, glyph_keyed_patch_header,
+        table_keyed_patch, test_font_for_patching_with_loca_mod,
+    };
+    use read_fonts::tables::ift::CompatibilityId;
+
+    use crate::{
+        font_patch::PatchingError,
+        glyph_keyed::tests::assemble_glyph_keyed_patch,
+        patchmap::{IftTableTag, PatchEncoding::GlyphKeyed, PatchEncoding::TableKeyed, PatchUri},
+    };
+
+    use font_types::Tag;
+
+    use super::{IncrementalFontPatchBase, PatchInfo};
+
+    // Testing only exceptional situations here, actual applications are tested by "patch_group.rs".
+
     #[test]
-      fn table_keyed_patch_compat_id_mismatch() {
-          let uri = PatchUri::from_index(
-              "",
-              0,
-              &CompatibilityId::from_u32s([1, 2, 2, 4]),
-              PatchEncoding::TableKeyed {
-                  fully_invalidating: false,
-              },
-          );
-          let patch_data = table_keyed_patch();
-          assert_eq!(
-              PatchingError::IncompatiblePatch,
-              uri.into_patch(patch_data.as_slice()).err().unwrap()
-          );
-      }
-     */
+    fn table_keyed_patch_and_font_compat_id_mismatch() {
+        let info: PatchInfo = PatchUri::from_index(
+            "foo.bar/{id}",
+            0,
+            &IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
+            TableKeyed {
+                fully_invalidating: false,
+            },
+        )
+        .into();
+
+        let ift_table = codepoints_only_format2();
+        let mut iftx_table = codepoints_only_format2();
+        iftx_table.write_at("compat_id[0]", 2u32);
+
+        let font = test_font_for_patching_with_loca_mod(
+            |_| {},
+            HashMap::from([
+                (Tag::new(b"IFT "), ift_table.as_slice()),
+                (Tag::new(b"IFTX"), iftx_table.as_slice()),
+            ]),
+        );
+
+        let mut patch = table_keyed_patch();
+        patch.write_at("compat_id", 2);
+        assert_eq!(
+            font.as_slice().apply_table_keyed_patch(&info, &patch),
+            Err(PatchingError::IncompatiblePatch)
+        );
+    }
+
+    #[test]
+    fn table_keyed_patch_info_and_font_compat_id_mismatch() {
+        let info: PatchInfo = PatchUri::from_index(
+            "foo.bar/{id}",
+            0,
+            &IftTableTag::Ift(CompatibilityId::from_u32s([2, 2, 3, 4])),
+            TableKeyed {
+                fully_invalidating: false,
+            },
+        )
+        .into();
+
+        let ift_table = codepoints_only_format2();
+        let font = test_font_for_patching_with_loca_mod(
+            |_| {},
+            HashMap::from([(Tag::new(b"IFT "), ift_table.as_slice())]),
+        );
+
+        let patch = table_keyed_patch();
+        assert_eq!(
+            font.as_slice().apply_table_keyed_patch(&info, &patch),
+            Err(PatchingError::IncompatiblePatch)
+        );
+    }
+
+    #[test]
+    fn glyph_keyed_patch_and_font_compat_id_mismatch() {
+        let info: PatchInfo = PatchUri::from_index(
+            "foo.bar/{id}",
+            0,
+            &IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
+            GlyphKeyed,
+        )
+        .into();
+
+        let ift_table = codepoints_only_format2();
+        let font = test_font_for_patching_with_loca_mod(
+            |_| {},
+            HashMap::from([(Tag::new(b"IFT "), ift_table.as_slice())]),
+        );
+
+        let patch =
+            assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
+
+        let input = vec![(&info, patch.as_slice())];
+        assert_eq!(
+            font.as_slice().apply_glyph_keyed_patches(input.into_iter()),
+            Err(PatchingError::IncompatiblePatch)
+        );
+    }
+
+    #[test]
+    fn glyph_keyed_patch_info_and_font_compat_id_mismatch() {
+        let info: PatchInfo = PatchUri::from_index(
+            "foo.bar/{id}",
+            0,
+            &IftTableTag::Ift(CompatibilityId::from_u32s([6, 7, 9, 9])),
+            GlyphKeyed,
+        )
+        .into();
+
+        let mut ift_table = codepoints_only_format2();
+        ift_table.write_at("compat_id[0]", 6u32);
+        ift_table.write_at("compat_id[1]", 7u32);
+        ift_table.write_at("compat_id[2]", 8u32);
+        ift_table.write_at("compat_id[3]", 9u32);
+
+        let font = test_font_for_patching_with_loca_mod(
+            |_| {},
+            HashMap::from([(Tag::new(b"IFT "), ift_table.as_slice())]),
+        );
+
+        let patch =
+            assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
+
+        let input = vec![(&info, patch.as_slice())];
+        assert_eq!(
+            font.as_slice().apply_glyph_keyed_patches(input.into_iter()),
+            Err(PatchingError::IncompatiblePatch)
+        );
+    }
 }
