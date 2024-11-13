@@ -1,5 +1,5 @@
 use read_fonts::{tables::ift::CompatibilityId, FontRef, ReadError, TableProvider};
-use std::collections::{btree_map::Entry, BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 
 use crate::{
     font_patch::{IncrementalFontPatchBase, PatchingError},
@@ -12,17 +12,6 @@ use crate::{
 pub struct PatchGroup<'a> {
     font: FontRef<'a>,
     patches: Option<CompatibleGroup>,
-}
-
-/// A group of patches and associated patch data which is ready to apply to the base font.
-pub struct AppliablePatchGroup<'a> {
-    font: FontRef<'a>,
-    patches: CompatibleGroup,
-}
-
-pub enum AddDataResult<'a> {
-    NeedsMoreData(PatchGroup<'a>),
-    Ready(AppliablePatchGroup<'a>),
 }
 
 impl<'a> PatchGroup<'a> {
@@ -52,68 +41,70 @@ impl<'a> PatchGroup<'a> {
         })
     }
 
-    /// Returns the list of URIs in this group which do not yet have patch data supplied for them.
-    pub fn pending_uris(&self) -> HashSet<&str> {
-        let Some(patches) = &self.patches else {
-            return Default::default();
-        };
-
-        match patches {
-            CompatibleGroup::Full(FullInvalidationPatch(info)) => {
-                if info.data.is_some() {
-                    return HashSet::default();
-                };
-                HashSet::from([info.uri.as_str()])
-            }
-            CompatibleGroup::Mixed { ift, iftx } => {
-                let mut uris: HashSet<&str> = Default::default();
-                ift.collect_pending_uris(&mut uris);
-                iftx.collect_pending_uris(&mut uris);
-                uris
-            }
-        }
+    /// Returns the list of URIs in this group.
+    pub fn uris(&self) -> impl Iterator<Item = &str> {
+        self.invalidating_patch_iter()
+            .chain(self.non_invalidating_patch_iter())
+            .map(|info| info.uri.as_str())
     }
 
-    pub fn has_pending_uris(&self) -> bool {
+    pub fn has_uris(&self) -> bool {
         let Some(patches) = &self.patches else {
             return false;
         };
         match patches {
-            CompatibleGroup::Full(FullInvalidationPatch(info)) => info.data.is_none(),
-            CompatibleGroup::Mixed { ift, iftx } => {
-                ift.has_pending_uris() || iftx.has_pending_uris()
-            }
+            CompatibleGroup::Full(FullInvalidationPatch(_)) => true,
+            CompatibleGroup::Mixed { ift, iftx } => ift.has_uris() || iftx.has_uris(),
         }
     }
 
-    /// Supply patch data for a uri. Once all patches have been supplied this will trigger patch application and
-    /// the optional return will contain the new font.
-    pub fn add_patch_data(mut self, uri: &'a str, data: Vec<u8>) -> AddDataResult {
-        let Some(patches) = &mut self.patches else {
-            return AddDataResult::NeedsMoreData(self);
+    fn next_invalidating_patch(&self) -> Option<&PatchInfo> {
+        self.invalidating_patch_iter().next()
+    }
+
+    fn invalidating_patch_iter(&self) -> impl Iterator<Item = &PatchInfo> {
+        let full = match &self.patches {
+            Some(CompatibleGroup::Full(info)) => Some(&info.0),
+            _ => None,
         };
 
-        match patches {
-            CompatibleGroup::Full(FullInvalidationPatch(info)) => {
-                if info.uri == uri {
-                    info.data = Some(data);
-                }
-            }
-            CompatibleGroup::Mixed { ift, iftx } => {
-                if let Some(data) = ift.add_patch_data(uri, data) {
-                    iftx.add_patch_data(uri, data);
-                }
-            }
+        let partial_1 = match &self.patches {
+            Some(CompatibleGroup::Mixed {
+                ift: ScopedGroup::PartialInvalidation(v),
+                iftx: _,
+            }) => Some(&v.0),
+            _ => None,
         };
 
-        if self.has_pending_uris() {
-            return AddDataResult::NeedsMoreData(self);
-        }
+        let partial_2 = match &self.patches {
+            Some(CompatibleGroup::Mixed {
+                ift: _,
+                iftx: ScopedGroup::PartialInvalidation(v),
+            }) => Some(&v.0),
+            _ => None,
+        };
 
-        AddDataResult::Ready(AppliablePatchGroup {
-            font: self.font,
-            patches: self.patches.unwrap(),
-        })
+        full.into_iter().chain(partial_1).chain(partial_2)
+    }
+
+    fn non_invalidating_patch_iter(&self) -> impl Iterator<Item = &PatchInfo> {
+        let ift = match &self.patches {
+            Some(CompatibleGroup::Mixed { ift, iftx: _ }) => Some(ift),
+            _ => None,
+        };
+        let iftx = match &self.patches {
+            Some(CompatibleGroup::Mixed { ift: _, iftx }) => Some(iftx),
+            _ => None,
+        };
+
+        let it1 = ift
+            .into_iter()
+            .flat_map(|scope| scope.no_invalidation_iter());
+        let it2 = iftx
+            .into_iter()
+            .flat_map(|scope| scope.no_invalidation_iter());
+
+        it1.chain(it2)
     }
 
     fn select_next_patches_from_candidates(
@@ -238,69 +229,79 @@ impl<'a> PatchGroup<'a> {
             }
         }
     }
-}
 
-impl AppliablePatchGroup<'_> {
-    pub fn apply_patches(self) -> Result<Vec<u8>, PatchingError> {
-        match &self.patches {
-            CompatibleGroup::Full(FullInvalidationPatch(info)) => {
-                self.font.apply_table_keyed_patch(info)
+    /// Attempt to apply the next patch (or patches if non-invalidating) listed in this group.
+    ///
+    /// Returns the bytes of the updated font.
+    pub fn apply_next_patches(
+        self,
+        patch_data: &mut HashMap<String, UriStatus>,
+    ) -> Result<Vec<u8>, PatchingError> {
+        if let Some(patch) = self.next_invalidating_patch() {
+            let entry = patch_data
+                .get_mut(&patch.uri)
+                .ok_or(PatchingError::MissingPatches)?;
+
+            match entry {
+                UriStatus::Pending(patch_data) => {
+                    let r = self.font.apply_table_keyed_patch(patch, patch_data)?;
+                    *entry = UriStatus::Applied;
+                    return Ok(r);
+                }
+                UriStatus::Applied => {} // previously applied uris are ignored according to the spec.
             }
-            CompatibleGroup::Mixed { ift, iftx } => {
-                // Apply partial invalidation patches first
-                let base = self.apply_partial_invalidation_patch(ift, None)?;
-                let base = self.apply_partial_invalidation_patch(iftx, base)?;
+        }
 
-                // Then apply no invalidation patches
-                let mut combined = ift
-                    .no_invalidation_iter()
-                    .chain(iftx.no_invalidation_iter())
-                    .peekable();
+        // No invalidating patches left, so apply any non invalidating ones in one pass.
+        // First check if we have all of the needed data.
+        let new_font = {
+            let mut accumulated_info: Vec<(&PatchInfo, &[u8])> = vec![];
+            for info in self.non_invalidating_patch_iter() {
+                let data = patch_data
+                    .get(&info.uri)
+                    .ok_or(PatchingError::MissingPatches)?;
 
-                if combined.peek().is_some() {
-                    match base {
-                        Some(base) => base.as_slice().apply_glyph_keyed_patches(combined),
-                        None => self.font.apply_glyph_keyed_patches(combined),
-                    }
-                } else {
-                    base.ok_or(PatchingError::EmptyPatchList)
+                match data {
+                    UriStatus::Pending(data) => accumulated_info.push((info, data)),
+                    UriStatus::Applied => {} // previously applied uris are ignored according to the spec.
                 }
             }
-        }
-    }
 
-    fn apply_partial_invalidation_patch(
-        &self,
-        scoped_group: &ScopedGroup,
-        new_base: Option<Vec<u8>>,
-    ) -> Result<Option<Vec<u8>>, PatchingError> {
-        match (scoped_group, new_base) {
-            (ScopedGroup::PartialInvalidation(patch), Some(new_base)) => {
-                Ok(Some(new_base.as_slice().apply_table_keyed_patch(&patch.0)?))
+            if accumulated_info.is_empty() {
+                return Err(PatchingError::EmptyPatchList);
             }
-            (ScopedGroup::PartialInvalidation(patch), None) => {
-                Ok(Some(self.font.apply_table_keyed_patch(&patch.0)?))
-            }
-            (_, new_base) => Ok(new_base),
+
+            self.font
+                .apply_glyph_keyed_patches(accumulated_info.into_iter())?
+        };
+
+        for info in self.non_invalidating_patch_iter() {
+            if let Some(status) = patch_data.get_mut(&info.uri) {
+                *status = UriStatus::Applied;
+            };
         }
+
+        Ok(new_font)
     }
+}
+
+/// Tracks whether a URI has already been applied to a font or not.
+#[derive(PartialEq, Eq, Debug)]
+pub enum UriStatus {
+    Applied,
+    Pending(Vec<u8>),
 }
 
 /// Tracks information related to a patch necessary to apply that patch.
 #[derive(PartialEq, Eq, Debug)]
 pub(crate) struct PatchInfo {
     uri: String,
-    data: Option<Vec<u8>>,
     source_table: IftTableTag,
     // TODO: details for how to mark the patch applied in the mapping table (ie. bit index to flip).
     // TODO: Signals for heuristic patch selection:
 }
 
 impl PatchInfo {
-    pub(crate) fn data(&self) -> Option<&[u8]> {
-        self.data.as_deref()
-    }
-
     pub(crate) fn tag(&self) -> &IftTableTag {
         &self.source_table
     }
@@ -310,7 +311,6 @@ impl From<PatchUri> for PatchInfo {
     fn from(value: PatchUri) -> Self {
         PatchInfo {
             uri: value.uri_string(),
-            data: None,
             source_table: value.source_table(),
         }
     }
@@ -345,54 +345,10 @@ enum ScopedGroup {
 }
 
 impl ScopedGroup {
-    fn collect_pending_uris<'a>(&'a self, uris: &mut HashSet<&'a str>) {
+    fn has_uris(&self) -> bool {
         match self {
-            ScopedGroup::PartialInvalidation(PartialInvalidationPatch(info)) => {
-                if info.data.is_none() {
-                    uris.insert(&info.uri);
-                }
-            }
-            ScopedGroup::NoInvalidation(uri_map) => {
-                for (key, value) in uri_map.iter() {
-                    if value.0.data.is_none() {
-                        uris.insert(key);
-                    }
-                }
-            }
-        }
-    }
-
-    fn has_pending_uris(&self) -> bool {
-        match self {
-            ScopedGroup::PartialInvalidation(PartialInvalidationPatch(info)) => info.data.is_none(),
-            ScopedGroup::NoInvalidation(uri_map) => {
-                for (_, value) in uri_map.iter() {
-                    if value.0.data.is_none() {
-                        return true;
-                    }
-                }
-                false
-            }
-        }
-    }
-
-    fn add_patch_data(&mut self, uri: &str, data: Vec<u8>) -> Option<Vec<u8>> {
-        match self {
-            ScopedGroup::PartialInvalidation(PartialInvalidationPatch(info)) => {
-                if info.uri == uri {
-                    info.data = Some(data);
-                    None
-                } else {
-                    Some(data)
-                }
-            }
-            ScopedGroup::NoInvalidation(uri_map) => match &mut uri_map.entry(uri.to_string()) {
-                Entry::Occupied(e) => {
-                    e.get_mut().0.data = Some(data);
-                    None
-                }
-                Entry::Vacant(_) => Some(data),
-            },
+            ScopedGroup::PartialInvalidation(PartialInvalidationPatch(_)) => true,
+            ScopedGroup::NoInvalidation(uri_map) => !uri_map.is_empty(),
         }
     }
 
@@ -460,22 +416,6 @@ mod tests {
         font_builder.add_raw(Tag::new(b"tab4"), "abcdef\n".as_bytes());
         font_builder.add_raw(Tag::new(b"tab5"), "foobar\n".as_bytes());
         font_builder.build()
-    }
-
-    impl<'a> AddDataResult<'a> {
-        fn unwrap_ready(self) -> AppliablePatchGroup<'a> {
-            match self {
-                AddDataResult::Ready(val) => val,
-                AddDataResult::NeedsMoreData(_) => panic!("Expected to be ready."),
-            }
-        }
-
-        fn unwrap_needs_more(self) -> PatchGroup<'a> {
-            match self {
-                AddDataResult::NeedsMoreData(val) => val,
-                AddDataResult::Ready(_) => panic!("Expected to be needs more data."),
-            }
-        }
     }
 
     fn cid_1() -> CompatibilityId {
@@ -589,7 +529,6 @@ mod tests {
     fn patch_info_ift(uri: &str) -> PatchInfo {
         PatchInfo {
             uri: uri.to_string(),
-            data: None,
             source_table: IftTableTag::Ift(cid_1()),
         }
     }
@@ -597,7 +536,6 @@ mod tests {
     fn patch_info_ift_c2(uri: &str) -> PatchInfo {
         PatchInfo {
             uri: uri.to_string(),
-            data: None,
             source_table: IftTableTag::Ift(cid_2()),
         }
     }
@@ -605,7 +543,6 @@ mod tests {
     fn patch_info_iftx(uri: &str) -> PatchInfo {
         PatchInfo {
             uri: uri.to_string(),
-            data: None,
             source_table: IftTableTag::Iftx(cid_2()),
         }
     }
@@ -955,120 +892,53 @@ mod tests {
     }
 
     #[test]
-    fn pending_uris() {
-        assert_eq!(
-            create_group_for(vec![]).pending_uris(),
-            [].into_iter().collect()
-        );
+    fn uris() {
+        let g = create_group_for(vec![]);
+        assert_eq!(g.uris().collect::<Vec<&str>>(), Vec::<&str>::default());
+        assert!(!g.has_uris());
 
-        assert_eq!(
-            create_group_for(vec![p1_full()]).pending_uris(),
-            ["//foo.bar/04"].into_iter().collect()
-        );
-
-        assert_eq!(
-            create_group_for(vec![p2_partial_c1(), p3_partial_c2()]).pending_uris(),
-            ["//foo.bar/08", "//foo.bar/0C"].into_iter().collect()
-        );
-
-        assert_eq!(
-            create_group_for(vec![p2_partial_c1()]).pending_uris(),
-            ["//foo.bar/08",].into_iter().collect()
-        );
-
-        assert_eq!(
-            create_group_for(vec![p3_partial_c2()]).pending_uris(),
-            ["//foo.bar/0C"].into_iter().collect()
-        );
-
-        assert_eq!(
-            create_group_for(vec![p2_partial_c1(), p4_no_c2(), p5_no_c2()]).pending_uris(),
-            ["//foo.bar/08", "//foo.bar/0G", "//foo.bar/0K"]
-                .into_iter()
-                .collect()
-        );
-
-        assert_eq!(
-            create_group_for(vec![p3_partial_c2(), p4_no_c1()]).pending_uris(),
-            ["//foo.bar/0C", "//foo.bar/0G"].into_iter().collect()
-        );
-
-        assert_eq!(
-            create_group_for(vec![p4_no_c1(), p5_no_c2()]).pending_uris(),
-            ["//foo.bar/0G", "//foo.bar/0K"].into_iter().collect()
-        );
-    }
-
-    #[test]
-    fn add_patch_data() {
-        // Full
-        let g = create_group_for(vec![p1_full()]);
-        assert!(g.has_pending_uris());
-        let _ = g.add_patch_data("//foo.bar/04", vec![1]).unwrap_ready();
-
-        // Mixed
-        let g = create_group_for(vec![p2_partial_c1(), p3_partial_c2()]);
-        assert!(g.has_pending_uris());
-        let g = g
-            .add_patch_data("//foo.bar/0C", vec![1])
-            .unwrap_needs_more();
-        assert_eq!(g.pending_uris(), ["//foo.bar/08"].into_iter().collect());
-        assert!(g.has_pending_uris());
-
-        let g = create_group_for(vec![p4_no_c2(), p5_no_c2(), p2_partial_c1()]);
-        assert!(g.has_pending_uris());
-        let g = g
-            .add_patch_data("//foo.bar/0K", vec![1])
-            .unwrap_needs_more();
-        assert_eq!(
-            g.pending_uris(),
-            ["//foo.bar/08", "//foo.bar/0G"].into_iter().collect()
-        );
-        assert!(g.has_pending_uris());
-
-        let g = g
-            .add_patch_data("//foo.bar/08", vec![1])
-            .unwrap_needs_more();
-        let _ = g.add_patch_data("//foo.bar/0G", vec![1]).unwrap_ready();
-    }
-
-    #[test]
-    fn add_patch_data_empty_group() {
         let g = empty_group();
-        assert!(!g.has_pending_uris());
-        assert_eq!(g.pending_uris(), [].into_iter().collect());
-        let g = g
-            .add_patch_data("//foo.bar/04", vec![1])
-            .unwrap_needs_more();
-        assert!(!g.has_pending_uris());
-        assert_eq!(g.pending_uris(), [].into_iter().collect());
-    }
+        assert_eq!(g.uris().collect::<Vec<&str>>(), Vec::<&str>::default());
+        assert!(!g.has_uris());
 
-    #[test]
-    fn add_patch_data_ignores_unknown() {
         let g = create_group_for(vec![p1_full()]);
-        assert!(g.has_pending_uris());
-        let g = g
-            .add_patch_data("//foo.bar/foo", vec![1])
-            .unwrap_needs_more();
-        assert_eq!(g.pending_uris(), ["//foo.bar/04"].into_iter().collect());
-        assert!(g.has_pending_uris());
+        assert_eq!(g.uris().collect::<Vec<&str>>(), vec!["//foo.bar/04"],);
+        assert!(g.has_uris());
+
+        let g = create_group_for(vec![p2_partial_c1(), p3_partial_c2()]);
+        assert_eq!(
+            g.uris().collect::<Vec<&str>>(),
+            vec!["//foo.bar/08", "//foo.bar/0C"]
+        );
+        assert!(g.has_uris());
 
         let g = create_group_for(vec![p2_partial_c1()]);
-        assert!(g.has_pending_uris());
-        let g = g
-            .add_patch_data("//foo.bar/foo", vec![1])
-            .unwrap_needs_more();
-        assert_eq!(g.pending_uris(), ["//foo.bar/08"].into_iter().collect());
-        assert!(g.has_pending_uris());
+        assert_eq!(g.uris().collect::<Vec<&str>>(), vec!["//foo.bar/08",],);
+        assert!(g.has_uris());
 
-        let g = create_group_for(vec![p4_no_c2()]);
-        assert!(g.has_pending_uris());
-        let g = g
-            .add_patch_data("//foo.bar/foo", vec![1])
-            .unwrap_needs_more();
-        assert_eq!(g.pending_uris(), ["//foo.bar/0G"].into_iter().collect());
-        assert!(g.has_pending_uris());
+        let g = create_group_for(vec![p3_partial_c2()]);
+        assert_eq!(g.uris().collect::<Vec<&str>>(), vec!["//foo.bar/0C"],);
+        assert!(g.has_uris());
+
+        let g = create_group_for(vec![p2_partial_c1(), p4_no_c2(), p5_no_c2()]);
+        assert_eq!(
+            g.uris().collect::<Vec<&str>>(),
+            vec!["//foo.bar/08", "//foo.bar/0G", "//foo.bar/0K"],
+        );
+        assert!(g.has_uris());
+
+        let g = create_group_for(vec![p3_partial_c2(), p4_no_c1()]);
+        assert_eq!(
+            g.uris().collect::<Vec<&str>>(),
+            vec!["//foo.bar/0C", "//foo.bar/0G"],
+        );
+
+        let g = create_group_for(vec![p4_no_c1(), p5_no_c2()]);
+        assert_eq!(
+            g.uris().collect::<Vec<&str>>(),
+            vec!["//foo.bar/0G", "//foo.bar/0K"],
+        );
+        assert!(g.has_uris());
     }
 
     #[test]
@@ -1079,15 +949,13 @@ mod tests {
         let s = SubsetDefinition::codepoints([55].into_iter().collect());
         let g = PatchGroup::select_next_patches(font, &s).unwrap();
 
-        assert!(!g.has_pending_uris());
-        assert_eq!(g.pending_uris(), [].into_iter().collect());
+        assert!(!g.has_uris());
+        assert_eq!(g.uris().collect::<Vec<&str>>(), Vec::<&str>::default());
 
-        let g = g
-            .add_patch_data("foo/04", table_keyed_patch().as_slice().to_vec())
-            .unwrap_needs_more();
-
-        assert!(!g.has_pending_uris());
-        assert_eq!(g.pending_uris(), [].into_iter().collect());
+        assert_eq!(
+            g.apply_next_patches(&mut Default::default()),
+            Err(PatchingError::EmptyPatchList)
+        );
     }
 
     #[test]
@@ -1098,13 +966,19 @@ mod tests {
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
         let g = PatchGroup::select_next_patches(font, &s).unwrap();
 
-        assert!(g.has_pending_uris());
+        assert!(g.has_uris());
+        let mut patch_data = HashMap::from([
+            (
+                "foo/04".to_string(),
+                UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+            ),
+            (
+                "foo/bar".to_string(),
+                UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+            ),
+        ]);
 
-        let g = g
-            .add_patch_data("foo/04", table_keyed_patch().as_slice().to_vec())
-            .unwrap_ready();
-
-        let new_font = g.apply_patches().unwrap();
+        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         assert_eq!(
@@ -1115,6 +989,17 @@ mod tests {
             new_font.table_data(Tag::new(b"tab2")).unwrap().as_bytes(),
             TABLE_2_FINAL_STATE,
         );
+
+        assert_eq!(
+            patch_data,
+            HashMap::from([
+                ("foo/04".to_string(), UriStatus::Applied,),
+                (
+                    "foo/bar".to_string(),
+                    UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+                ),
+            ])
+        )
     }
 
     #[test]
@@ -1129,11 +1014,12 @@ mod tests {
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
         let g = PatchGroup::select_next_patches(font, &s).unwrap();
 
-        let g = g
-            .add_patch_data("foo/04", table_keyed_patch().as_slice().to_vec())
-            .unwrap_ready();
+        let mut patch_data = HashMap::from([(
+            "foo/04".to_string(),
+            UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+        )]);
 
-        let new_font = g.apply_patches().unwrap();
+        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         assert_eq!(
@@ -1143,6 +1029,11 @@ mod tests {
         assert_eq!(
             new_font.table_data(Tag::new(b"tab2")).unwrap().as_bytes(),
             TABLE_2_FINAL_STATE,
+        );
+
+        assert_eq!(
+            patch_data,
+            HashMap::from([("foo/04".to_string(), UriStatus::Applied,),])
         );
 
         // IFTX
@@ -1152,11 +1043,12 @@ mod tests {
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
         let g = PatchGroup::select_next_patches(font, &s).unwrap();
 
-        let g = g
-            .add_patch_data("foo/04", table_keyed_patch().as_slice().to_vec())
-            .unwrap_ready();
+        let mut patch_data = HashMap::from([(
+            "foo/04".to_string(),
+            UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+        )]);
 
-        let new_font = g.apply_patches().unwrap();
+        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         assert_eq!(
@@ -1166,6 +1058,11 @@ mod tests {
         assert_eq!(
             new_font.table_data(Tag::new(b"tab2")).unwrap().as_bytes(),
             TABLE_2_FINAL_STATE,
+        );
+
+        assert_eq!(
+            patch_data,
+            HashMap::from([("foo/04".to_string(), UriStatus::Applied,),])
         );
     }
 
@@ -1183,20 +1080,25 @@ mod tests {
         let font = FontRef::new(&font).unwrap();
 
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
-        let g = PatchGroup::select_next_patches(font, &s).unwrap();
+        let g = PatchGroup::select_next_patches(font.clone(), &s).unwrap();
 
         let mut patch_2 = table_keyed_patch();
         patch_2.write_at("compat_id", 2u32);
         patch_2.write_at("patch[0]", Tag::new(b"tab4"));
         patch_2.write_at("patch[1]", Tag::new(b"tab5"));
 
-        let g = g
-            .add_patch_data("foo/04", table_keyed_patch().as_slice().to_vec())
-            .unwrap_needs_more()
-            .add_patch_data("foo/08", patch_2.as_slice().to_vec())
-            .unwrap_ready();
+        let mut patch_data = HashMap::from([
+            (
+                "foo/04".to_string(),
+                UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+            ),
+            (
+                "foo/08".to_string(),
+                UriStatus::Pending(patch_2.as_slice().to_vec()),
+            ),
+        ]);
 
-        let new_font = g.apply_patches().unwrap();
+        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         assert_eq!(
@@ -1206,6 +1108,16 @@ mod tests {
         assert_eq!(
             new_font.table_data(Tag::new(b"tab2")).unwrap().as_bytes(),
             TABLE_2_FINAL_STATE,
+        );
+
+        // only the first patch gets applied so tab4/tab5 are unchanged.
+        assert_eq!(
+            new_font.table_data(Tag::new(b"tab4")).unwrap().as_bytes(),
+            font.table_data(Tag::new(b"tab4")).unwrap().as_bytes(),
+        );
+        assert_eq!(
+            new_font.table_data(Tag::new(b"tab5")).unwrap().as_bytes(),
+            font.table_data(Tag::new(b"tab5")).unwrap().as_bytes(),
         );
     }
 
@@ -1233,36 +1145,35 @@ mod tests {
         let font = FontRef::new(font.as_slice()).unwrap();
 
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
-        let g = PatchGroup::select_next_patches(font, &s).unwrap();
+        let g = PatchGroup::select_next_patches(font.clone(), &s).unwrap();
 
         let patch_ift = table_keyed_patch();
         let patch_iftx =
             assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
 
-        let g = g
-            .add_patch_data("foo/04", patch_ift.as_slice().to_vec())
-            .unwrap_needs_more()
-            .add_patch_data("foo/08", patch_iftx.as_slice().to_vec())
-            .unwrap_ready();
+        let mut patch_data = HashMap::from([
+            (
+                "foo/04".to_string(),
+                UriStatus::Pending(patch_ift.as_slice().to_vec()),
+            ),
+            (
+                "foo/08".to_string(),
+                UriStatus::Pending(patch_iftx.as_slice().to_vec()),
+            ),
+        ]);
 
-        let new_font = g.apply_patches().unwrap();
+        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
-        let new_glyf: &[u8] = new_font.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
-        assert_eq!(
-            &[
-                1, 2, 3, 4, 5, 0, // gid 0
-                6, 7, 8, 0, // gid 1
-                b'a', b'b', b'c', 0, // gid2
-                b'd', b'e', b'f', b'g', // gid 7
-                b'h', b'i', b'j', b'k', b'l', 0, // gid 8 + 9
-                b'm', b'n', // gid 13
-            ],
-            new_glyf
-        );
         assert_eq!(
             new_font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
             TABLE_1_FINAL_STATE,
+        );
+
+        // only the partial invalidation patch gets applied, so glyf is unchanged.
+        assert_eq!(
+            new_font.table_data(Tag::new(b"glyf")).unwrap().as_bytes(),
+            font.table_data(Tag::new(b"glyf")).unwrap().as_bytes(),
         );
     }
 
@@ -1303,13 +1214,18 @@ mod tests {
         patch2.write_at("gid_13", 14u16);
         let patch2 = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), patch2);
 
-        let g = g
-            .add_patch_data("foo/04", patch1.as_slice().to_vec())
-            .unwrap_needs_more()
-            .add_patch_data("foo/08", patch2.as_slice().to_vec())
-            .unwrap_ready();
+        let mut patch_data = HashMap::from([
+            (
+                "foo/04".to_string(),
+                UriStatus::Pending(patch1.as_slice().to_vec()),
+            ),
+            (
+                "foo/08".to_string(),
+                UriStatus::Pending(patch2.as_slice().to_vec()),
+            ),
+        ]);
 
-        let new_font = g.apply_patches().unwrap();
+        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         let new_glyf: &[u8] = new_font.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
@@ -1324,6 +1240,14 @@ mod tests {
                 b'm', b'n', // gid 14
             ],
             new_glyf
+        );
+
+        assert_eq!(
+            patch_data,
+            HashMap::from([
+                ("foo/04".to_string(), UriStatus::Applied,),
+                ("foo/08".to_string(), UriStatus::Applied,),
+            ])
         );
     }
 }
