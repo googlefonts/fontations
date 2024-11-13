@@ -6,7 +6,7 @@ use crate::{
     patchmap::{intersecting_patches, IftTableTag, PatchEncoding, PatchUri, SubsetDefinition},
 };
 
-/// A group of patches derived from a single IFT font which can be applied simulatenously
+/// A group of patches derived from a single IFT font which can be applied simultaneously
 /// to that font. Patches are initially missing data which must be fetched and supplied to
 /// the group before it can be applied to the font.
 pub struct PatchGroup<'a> {
