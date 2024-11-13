@@ -4,8 +4,6 @@ include!("../../generated/generated_variations.rs");
 
 use super::gvar::SharedTuples;
 
-use std::iter::Skip;
-
 pub const NO_VARIATION_INDEX: u32 = 0xFFFFFFFF;
 /// Outer and inner indices for reading from an [ItemVariationStore].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -403,7 +401,7 @@ impl<'a> PackedDeltas<'a> {
     /// NOTE: this is unbounded, and assumes all of data is deltas.
     #[doc(hidden)] // used by tests in write-fonts
     pub fn consume_all(data: FontData<'a>) -> Self {
-        let count = DeltaRunIter::new(data.cursor(), None).count();
+        let count = count_all_deltas(data).unwrap_or_default();
         Self { data, count }
     }
 
@@ -413,6 +411,18 @@ impl<'a> PackedDeltas<'a> {
 
     pub fn iter(&self) -> DeltaRunIter<'a> {
         DeltaRunIter::new(self.data.cursor(), Some(self.count))
+    }
+
+    fn x_deltas(&self) -> DeltaRunIter<'a> {
+        DeltaRunIter::new(self.data.cursor(), Some(self.count / 2))
+    }
+
+    fn y_deltas(&self) -> DeltaRunIter<'a> {
+        let count = self.count / 2;
+        DeltaRunIter::new(
+            skip_n_deltas(self.data, count).unwrap_or_default().cursor(),
+            Some(count),
+        )
     }
 }
 
@@ -425,12 +435,15 @@ const DELTAS_ARE_WORDS: u8 = 0x40;
 const DELTA_RUN_COUNT_MASK: u8 = 0x3F;
 
 /// The type of values for a given delta run (influences the number of bytes per delta)
+///
+/// The variants are intentionally set to the byte size of the type to allow usage
+/// as a multiplier when computing offsets.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DeltaRunType {
-    Zero,
-    I8,
-    I16,
-    I32,
+    Zero = 0,
+    I8 = 1,
+    I16 = 2,
+    I32 = 4,
 }
 
 impl DeltaRunType {
@@ -485,16 +498,11 @@ impl Iterator for DeltaRunIter<'_> {
             }
             self.limit = Some(limit - 1);
         }
-        // if no items remain in this run, start the next one.
-        // NOTE: we use `while` so we can sanely handle the case where some
-        // run in the middle of the data has an explicit zero length
-        //TODO: create a font with data of this shape and go crash some font parsers
-        while self.remaining_in_run == 0 {
+        if self.remaining_in_run == 0 {
             let control: u8 = self.cursor.read().ok()?;
             self.value_type = DeltaRunType::new(control);
             self.remaining_in_run = (control & DELTA_RUN_COUNT_MASK) + 1;
         }
-
         self.remaining_in_run -= 1;
         match self.value_type {
             DeltaRunType::Zero => Some(0),
@@ -503,6 +511,44 @@ impl Iterator for DeltaRunIter<'_> {
             DeltaRunType::I32 => self.cursor.read().ok(),
         }
     }
+}
+
+#[derive(Copy, Clone, Default)]
+struct DeltaRunInfo {
+    /// Total number of deltas so far
+    count: usize,
+    /// Offset of next run
+    offset: usize,
+}
+
+/// Helper yields the accumulated count and offset for each run in a delta
+/// stream.
+fn delta_run_info<'a>(data: FontData<'a>) -> impl Iterator<Item = DeltaRunInfo> + 'a {
+    let mut info = DeltaRunInfo::default();
+    std::iter::from_fn(move || {
+        let control = data.read_at::<u8>(info.offset).ok()?;
+        let run_count = (control & DELTA_RUN_COUNT_MASK) as usize + 1;
+        info.count += run_count;
+        info.offset += run_count * DeltaRunType::new(control) as usize + 1;
+        Some(info)
+    })
+}
+
+/// Counts the number of deltas available in the given data, avoiding
+/// excessive reads.
+fn count_all_deltas(data: FontData) -> Option<usize> {
+    delta_run_info(data).last().map(|runs| runs.count)
+}
+
+/// Given data containing a delta stream, returns new font data beginning at
+/// the position in the stream after the given number of deltas.
+fn skip_n_deltas(data: FontData, n: usize) -> Option<FontData> {
+    for run in delta_run_info(data) {
+        if run.count == n {
+            return data.split_off(run.offset);
+        }
+    }
+    None
 }
 
 /// A helper type for iterating over [`TupleVariationHeader`]s.
@@ -806,7 +852,7 @@ pub struct TupleDeltaIter<'a, T> {
     points: Option<PackedPointNumbersIter<'a>>,
     next_point: usize,
     x_iter: DeltaRunIter<'a>,
-    y_iter: Option<Skip<DeltaRunIter<'a>>>,
+    y_iter: Option<DeltaRunIter<'a>>,
     _marker: std::marker::PhantomData<fn() -> T>,
 }
 
@@ -817,13 +863,16 @@ where
     fn new(points: &'a PackedPointNumbers, deltas: &'a PackedDeltas) -> TupleDeltaIter<'a, T> {
         let mut points = points.iter();
         let next_point = points.next();
-        let num_encoded_points = deltas.count() / 2; // x and y encoded independently
-        let y_iter = T::is_point().then(|| deltas.iter().skip(num_encoded_points));
+        let (x_iter, y_iter) = if T::is_point() {
+            (deltas.x_deltas(), Some(deltas.y_deltas()))
+        } else {
+            (deltas.iter(), None)
+        };
         TupleDeltaIter {
             cur: 0,
             points: next_point.map(|_| points),
             next_point: next_point.unwrap_or_default() as usize,
-            x_iter: deltas.iter(),
+            x_iter,
             y_iter,
             _marker: std::marker::PhantomData,
         }
