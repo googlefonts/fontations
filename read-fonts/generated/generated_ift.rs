@@ -102,51 +102,62 @@ pub struct PatchMapFormat1Marker {
 }
 
 impl PatchMapFormat1Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn _reserved_byte_range(&self) -> Range<usize> {
+
+    pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn compatibility_id_byte_range(&self) -> Range<usize> {
+
+    pub fn compatibility_id_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
         start..start + CompatibilityId::RAW_BYTE_LEN
     }
-    fn max_entry_index_byte_range(&self) -> Range<usize> {
+
+    pub fn max_entry_index_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn max_glyph_map_entry_index_byte_range(&self) -> Range<usize> {
+
+    pub fn max_glyph_map_entry_index_byte_range(&self) -> Range<usize> {
         let start = self.max_entry_index_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn glyph_count_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.max_glyph_map_entry_index_byte_range().end;
         start..start + Uint24::RAW_BYTE_LEN
     }
-    fn glyph_map_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_map_offset_byte_range(&self) -> Range<usize> {
         let start = self.glyph_count_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn feature_map_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn feature_map_offset_byte_range(&self) -> Range<usize> {
         let start = self.glyph_map_offset_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn applied_entries_bitmap_byte_range(&self) -> Range<usize> {
+
+    pub fn applied_entries_bitmap_byte_range(&self) -> Range<usize> {
         let start = self.feature_map_offset_byte_range().end;
         start..start + self.applied_entries_bitmap_byte_len
     }
-    fn uri_template_length_byte_range(&self) -> Range<usize> {
+
+    pub fn uri_template_length_byte_range(&self) -> Range<usize> {
         let start = self.applied_entries_bitmap_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn uri_template_byte_range(&self) -> Range<usize> {
+
+    pub fn uri_template_byte_range(&self) -> Range<usize> {
         let start = self.uri_template_length_byte_range().end;
         start..start + self.uri_template_byte_len
     }
-    fn patch_encoding_byte_range(&self) -> Range<usize> {
+
+    pub fn patch_encoding_byte_range(&self) -> Range<usize> {
         let start = self.uri_template_byte_range().end;
         start..start + u8::RAW_BYTE_LEN
     }
@@ -317,11 +328,12 @@ pub struct GlyphMapMarker {
 }
 
 impl GlyphMapMarker {
-    fn first_mapped_glyph_byte_range(&self) -> Range<usize> {
+    pub fn first_mapped_glyph_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn entry_index_byte_range(&self) -> Range<usize> {
+
+    pub fn entry_index_byte_range(&self) -> Range<usize> {
         let start = self.first_mapped_glyph_byte_range().end;
         start..start + self.entry_index_byte_len
     }
@@ -412,15 +424,17 @@ pub struct FeatureMapMarker {
 }
 
 impl FeatureMapMarker {
-    fn feature_count_byte_range(&self) -> Range<usize> {
+    pub fn feature_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn feature_records_byte_range(&self) -> Range<usize> {
+
+    pub fn feature_records_byte_range(&self) -> Range<usize> {
         let start = self.feature_count_byte_range().end;
         start..start + self.feature_records_byte_len
     }
-    fn entry_map_data_byte_range(&self) -> Range<usize> {
+
+    pub fn entry_map_data_byte_range(&self) -> Range<usize> {
         let start = self.feature_records_byte_range().end;
         start..start + self.entry_map_data_byte_len
     }
@@ -685,39 +699,47 @@ pub struct PatchMapFormat2Marker {
 }
 
 impl PatchMapFormat2Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn _reserved_byte_range(&self) -> Range<usize> {
+
+    pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn compatibility_id_byte_range(&self) -> Range<usize> {
+
+    pub fn compatibility_id_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
         start..start + CompatibilityId::RAW_BYTE_LEN
     }
-    fn default_patch_encoding_byte_range(&self) -> Range<usize> {
+
+    pub fn default_patch_encoding_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn entry_count_byte_range(&self) -> Range<usize> {
+
+    pub fn entry_count_byte_range(&self) -> Range<usize> {
         let start = self.default_patch_encoding_byte_range().end;
         start..start + Uint24::RAW_BYTE_LEN
     }
-    fn entries_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn entries_offset_byte_range(&self) -> Range<usize> {
         let start = self.entry_count_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn entry_id_string_data_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn entry_id_string_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.entries_offset_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn uri_template_length_byte_range(&self) -> Range<usize> {
+
+    pub fn uri_template_length_byte_range(&self) -> Range<usize> {
         let start = self.entry_id_string_data_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn uri_template_byte_range(&self) -> Range<usize> {
+
+    pub fn uri_template_byte_range(&self) -> Range<usize> {
         let start = self.uri_template_length_byte_range().end;
         start..start + self.uri_template_byte_len
     }
@@ -856,7 +878,7 @@ pub struct MappingEntriesMarker {
 }
 
 impl MappingEntriesMarker {
-    fn entry_data_byte_range(&self) -> Range<usize> {
+    pub fn entry_data_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.entry_data_byte_len
     }
@@ -922,43 +944,52 @@ pub struct EntryDataMarker {
 }
 
 impl EntryDataMarker {
-    fn format_flags_byte_range(&self) -> Range<usize> {
+    pub fn format_flags_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + EntryFormatFlags::RAW_BYTE_LEN
     }
-    fn feature_count_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn feature_count_byte_range(&self) -> Option<Range<usize>> {
         let start = self.feature_count_byte_start?;
         Some(start..start + u8::RAW_BYTE_LEN)
     }
-    fn feature_tags_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn feature_tags_byte_range(&self) -> Option<Range<usize>> {
         let start = self.feature_tags_byte_start?;
         Some(start..start + self.feature_tags_byte_len?)
     }
-    fn design_space_count_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn design_space_count_byte_range(&self) -> Option<Range<usize>> {
         let start = self.design_space_count_byte_start?;
         Some(start..start + u16::RAW_BYTE_LEN)
     }
-    fn design_space_segments_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn design_space_segments_byte_range(&self) -> Option<Range<usize>> {
         let start = self.design_space_segments_byte_start?;
         Some(start..start + self.design_space_segments_byte_len?)
     }
-    fn copy_count_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn copy_count_byte_range(&self) -> Option<Range<usize>> {
         let start = self.copy_count_byte_start?;
         Some(start..start + u8::RAW_BYTE_LEN)
     }
-    fn copy_indices_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn copy_indices_byte_range(&self) -> Option<Range<usize>> {
         let start = self.copy_indices_byte_start?;
         Some(start..start + self.copy_indices_byte_len?)
     }
-    fn entry_id_delta_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn entry_id_delta_byte_range(&self) -> Option<Range<usize>> {
         let start = self.entry_id_delta_byte_start?;
         Some(start..start + self.entry_id_delta_byte_len?)
     }
-    fn patch_encoding_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn patch_encoding_byte_range(&self) -> Option<Range<usize>> {
         let start = self.patch_encoding_byte_start?;
         Some(start..start + u8::RAW_BYTE_LEN)
     }
-    fn codepoint_data_byte_range(&self) -> Range<usize> {
+
+    pub fn codepoint_data_byte_range(&self) -> Range<usize> {
         let start = self . patch_encoding_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . entry_id_delta_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_indices_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_segments_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_tags_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . format_flags_byte_range () . end)))))))) ;
         start..start + self.codepoint_data_byte_len
     }
@@ -1592,7 +1623,7 @@ pub struct IdStringDataMarker {
 }
 
 impl IdStringDataMarker {
-    fn id_data_byte_range(&self) -> Range<usize> {
+    pub fn id_data_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.id_data_byte_len
     }
@@ -1644,23 +1675,27 @@ pub struct TableKeyedPatchMarker {
 }
 
 impl TableKeyedPatchMarker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + Tag::RAW_BYTE_LEN
     }
-    fn _reserved_byte_range(&self) -> Range<usize> {
+
+    pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn compatibility_id_byte_range(&self) -> Range<usize> {
+
+    pub fn compatibility_id_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
         start..start + CompatibilityId::RAW_BYTE_LEN
     }
-    fn patches_count_byte_range(&self) -> Range<usize> {
+
+    pub fn patches_count_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn patch_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn patch_offsets_byte_range(&self) -> Range<usize> {
         let start = self.patches_count_byte_range().end;
         start..start + self.patch_offsets_byte_len
     }
@@ -1763,19 +1798,22 @@ pub struct TablePatchMarker {
 }
 
 impl TablePatchMarker {
-    fn tag_byte_range(&self) -> Range<usize> {
+    pub fn tag_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + Tag::RAW_BYTE_LEN
     }
-    fn flags_byte_range(&self) -> Range<usize> {
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.tag_byte_range().end;
         start..start + TablePatchFlags::RAW_BYTE_LEN
     }
-    fn max_uncompressed_length_byte_range(&self) -> Range<usize> {
+
+    pub fn max_uncompressed_length_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn brotli_stream_byte_range(&self) -> Range<usize> {
+
+    pub fn brotli_stream_byte_range(&self) -> Range<usize> {
         let start = self.max_uncompressed_length_byte_range().end;
         start..start + self.brotli_stream_byte_len
     }
@@ -2159,27 +2197,32 @@ pub struct GlyphKeyedPatchMarker {
 }
 
 impl GlyphKeyedPatchMarker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + Tag::RAW_BYTE_LEN
     }
-    fn _reserved_byte_range(&self) -> Range<usize> {
+
+    pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn flags_byte_range(&self) -> Range<usize> {
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
         start..start + GlyphKeyedFlags::RAW_BYTE_LEN
     }
-    fn compatibility_id_byte_range(&self) -> Range<usize> {
+
+    pub fn compatibility_id_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
         start..start + CompatibilityId::RAW_BYTE_LEN
     }
-    fn max_uncompressed_length_byte_range(&self) -> Range<usize> {
+
+    pub fn max_uncompressed_length_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn brotli_stream_byte_range(&self) -> Range<usize> {
+
+    pub fn brotli_stream_byte_range(&self) -> Range<usize> {
         let start = self.max_uncompressed_length_byte_range().end;
         start..start + self.brotli_stream_byte_len
     }
@@ -2577,23 +2620,27 @@ pub struct GlyphPatchesMarker {
 }
 
 impl GlyphPatchesMarker {
-    fn glyph_count_byte_range(&self) -> Range<usize> {
+    pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn table_count_byte_range(&self) -> Range<usize> {
+
+    pub fn table_count_byte_range(&self) -> Range<usize> {
         let start = self.glyph_count_byte_range().end;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn glyph_ids_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_ids_byte_range(&self) -> Range<usize> {
         let start = self.table_count_byte_range().end;
         start..start + self.glyph_ids_byte_len
     }
-    fn tables_byte_range(&self) -> Range<usize> {
+
+    pub fn tables_byte_range(&self) -> Range<usize> {
         let start = self.glyph_ids_byte_range().end;
         start..start + self.tables_byte_len
     }
-    fn glyph_data_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_data_offsets_byte_range(&self) -> Range<usize> {
         let start = self.tables_byte_range().end;
         start..start + self.glyph_data_offsets_byte_len
     }
@@ -2727,7 +2774,7 @@ pub struct GlyphDataMarker {
 }
 
 impl GlyphDataMarker {
-    fn data_byte_range(&self) -> Range<usize> {
+    pub fn data_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.data_byte_len
     }

@@ -12,11 +12,12 @@ pub struct CountAll16Marker {
 }
 
 impl CountAll16Marker {
-    fn some_field_byte_range(&self) -> Range<usize> {
+    pub fn some_field_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn remainder_byte_range(&self) -> Range<usize> {
+
+    pub fn remainder_byte_range(&self) -> Range<usize> {
         let start = self.some_field_byte_range().end;
         start..start + self.remainder_byte_len
     }
@@ -74,11 +75,12 @@ pub struct CountAll32Marker {
 }
 
 impl CountAll32Marker {
-    fn some_field_byte_range(&self) -> Range<usize> {
+    pub fn some_field_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn remainder_byte_range(&self) -> Range<usize> {
+
+    pub fn remainder_byte_range(&self) -> Range<usize> {
         let start = self.some_field_byte_range().end;
         start..start + self.remainder_byte_len
     }

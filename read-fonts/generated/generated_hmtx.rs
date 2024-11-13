@@ -14,11 +14,12 @@ pub struct HmtxMarker {
 }
 
 impl HmtxMarker {
-    fn h_metrics_byte_range(&self) -> Range<usize> {
+    pub fn h_metrics_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.h_metrics_byte_len
     }
-    fn left_side_bearings_byte_range(&self) -> Range<usize> {
+
+    pub fn left_side_bearings_byte_range(&self) -> Range<usize> {
         let start = self.h_metrics_byte_range().end;
         start..start + self.left_side_bearings_byte_len
     }

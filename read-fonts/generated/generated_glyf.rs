@@ -61,39 +61,47 @@ pub struct SimpleGlyphMarker {
 }
 
 impl SimpleGlyphMarker {
-    fn number_of_contours_byte_range(&self) -> Range<usize> {
+    pub fn number_of_contours_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn x_min_byte_range(&self) -> Range<usize> {
+
+    pub fn x_min_byte_range(&self) -> Range<usize> {
         let start = self.number_of_contours_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn y_min_byte_range(&self) -> Range<usize> {
+
+    pub fn y_min_byte_range(&self) -> Range<usize> {
         let start = self.x_min_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn x_max_byte_range(&self) -> Range<usize> {
+
+    pub fn x_max_byte_range(&self) -> Range<usize> {
         let start = self.y_min_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn y_max_byte_range(&self) -> Range<usize> {
+
+    pub fn y_max_byte_range(&self) -> Range<usize> {
         let start = self.x_max_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn end_pts_of_contours_byte_range(&self) -> Range<usize> {
+
+    pub fn end_pts_of_contours_byte_range(&self) -> Range<usize> {
         let start = self.y_max_byte_range().end;
         start..start + self.end_pts_of_contours_byte_len
     }
-    fn instruction_length_byte_range(&self) -> Range<usize> {
+
+    pub fn instruction_length_byte_range(&self) -> Range<usize> {
         let start = self.end_pts_of_contours_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn instructions_byte_range(&self) -> Range<usize> {
+
+    pub fn instructions_byte_range(&self) -> Range<usize> {
         let start = self.instruction_length_byte_range().end;
         start..start + self.instructions_byte_len
     }
-    fn glyph_data_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_data_byte_range(&self) -> Range<usize> {
         let start = self.instructions_byte_range().end;
         start..start + self.glyph_data_byte_len
     }
@@ -627,27 +635,32 @@ pub struct CompositeGlyphMarker {
 }
 
 impl CompositeGlyphMarker {
-    fn number_of_contours_byte_range(&self) -> Range<usize> {
+    pub fn number_of_contours_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn x_min_byte_range(&self) -> Range<usize> {
+
+    pub fn x_min_byte_range(&self) -> Range<usize> {
         let start = self.number_of_contours_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn y_min_byte_range(&self) -> Range<usize> {
+
+    pub fn y_min_byte_range(&self) -> Range<usize> {
         let start = self.x_min_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn x_max_byte_range(&self) -> Range<usize> {
+
+    pub fn x_max_byte_range(&self) -> Range<usize> {
         let start = self.y_min_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn y_max_byte_range(&self) -> Range<usize> {
+
+    pub fn y_max_byte_range(&self) -> Range<usize> {
         let start = self.x_max_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn component_data_byte_range(&self) -> Range<usize> {
+
+    pub fn component_data_byte_range(&self) -> Range<usize> {
         let start = self.y_max_byte_range().end;
         start..start + self.component_data_byte_len
     }

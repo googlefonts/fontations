@@ -13,31 +13,37 @@ pub struct StatMarker {
 }
 
 impl StatMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn design_axis_size_byte_range(&self) -> Range<usize> {
+
+    pub fn design_axis_size_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn design_axis_count_byte_range(&self) -> Range<usize> {
+
+    pub fn design_axis_count_byte_range(&self) -> Range<usize> {
         let start = self.design_axis_size_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn design_axes_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn design_axes_offset_byte_range(&self) -> Range<usize> {
         let start = self.design_axis_count_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn axis_value_count_byte_range(&self) -> Range<usize> {
+
+    pub fn axis_value_count_byte_range(&self) -> Range<usize> {
         let start = self.design_axes_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn offset_to_axis_value_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn offset_to_axis_value_offsets_byte_range(&self) -> Range<usize> {
         let start = self.axis_value_count_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn elided_fallback_name_id_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn elided_fallback_name_id_byte_range(&self) -> Option<Range<usize>> {
         let start = self.elided_fallback_name_id_byte_start?;
         Some(start..start + NameId::RAW_BYTE_LEN)
     }
@@ -251,7 +257,7 @@ pub struct AxisValueArrayMarker {
 }
 
 impl AxisValueArrayMarker {
-    fn axis_value_offsets_byte_range(&self) -> Range<usize> {
+    pub fn axis_value_offsets_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.axis_value_offsets_byte_len
     }
@@ -442,23 +448,27 @@ impl Format<u16> for AxisValueFormat1Marker {
 pub struct AxisValueFormat1Marker {}
 
 impl AxisValueFormat1Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn axis_index_byte_range(&self) -> Range<usize> {
+
+    pub fn axis_index_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn flags_byte_range(&self) -> Range<usize> {
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.axis_index_byte_range().end;
         start..start + AxisValueTableFlags::RAW_BYTE_LEN
     }
-    fn value_name_id_byte_range(&self) -> Range<usize> {
+
+    pub fn value_name_id_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
         start..start + NameId::RAW_BYTE_LEN
     }
-    fn value_byte_range(&self) -> Range<usize> {
+
+    pub fn value_byte_range(&self) -> Range<usize> {
         let start = self.value_name_id_byte_range().end;
         start..start + Fixed::RAW_BYTE_LEN
     }
@@ -548,31 +558,37 @@ impl Format<u16> for AxisValueFormat2Marker {
 pub struct AxisValueFormat2Marker {}
 
 impl AxisValueFormat2Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn axis_index_byte_range(&self) -> Range<usize> {
+
+    pub fn axis_index_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn flags_byte_range(&self) -> Range<usize> {
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.axis_index_byte_range().end;
         start..start + AxisValueTableFlags::RAW_BYTE_LEN
     }
-    fn value_name_id_byte_range(&self) -> Range<usize> {
+
+    pub fn value_name_id_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
         start..start + NameId::RAW_BYTE_LEN
     }
-    fn nominal_value_byte_range(&self) -> Range<usize> {
+
+    pub fn nominal_value_byte_range(&self) -> Range<usize> {
         let start = self.value_name_id_byte_range().end;
         start..start + Fixed::RAW_BYTE_LEN
     }
-    fn range_min_value_byte_range(&self) -> Range<usize> {
+
+    pub fn range_min_value_byte_range(&self) -> Range<usize> {
         let start = self.nominal_value_byte_range().end;
         start..start + Fixed::RAW_BYTE_LEN
     }
-    fn range_max_value_byte_range(&self) -> Range<usize> {
+
+    pub fn range_max_value_byte_range(&self) -> Range<usize> {
         let start = self.range_min_value_byte_range().end;
         start..start + Fixed::RAW_BYTE_LEN
     }
@@ -680,27 +696,32 @@ impl Format<u16> for AxisValueFormat3Marker {
 pub struct AxisValueFormat3Marker {}
 
 impl AxisValueFormat3Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn axis_index_byte_range(&self) -> Range<usize> {
+
+    pub fn axis_index_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn flags_byte_range(&self) -> Range<usize> {
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.axis_index_byte_range().end;
         start..start + AxisValueTableFlags::RAW_BYTE_LEN
     }
-    fn value_name_id_byte_range(&self) -> Range<usize> {
+
+    pub fn value_name_id_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
         start..start + NameId::RAW_BYTE_LEN
     }
-    fn value_byte_range(&self) -> Range<usize> {
+
+    pub fn value_byte_range(&self) -> Range<usize> {
         let start = self.value_name_id_byte_range().end;
         start..start + Fixed::RAW_BYTE_LEN
     }
-    fn linked_value_byte_range(&self) -> Range<usize> {
+
+    pub fn linked_value_byte_range(&self) -> Range<usize> {
         let start = self.value_byte_range().end;
         start..start + Fixed::RAW_BYTE_LEN
     }
@@ -800,23 +821,27 @@ pub struct AxisValueFormat4Marker {
 }
 
 impl AxisValueFormat4Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn axis_count_byte_range(&self) -> Range<usize> {
+
+    pub fn axis_count_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn flags_byte_range(&self) -> Range<usize> {
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.axis_count_byte_range().end;
         start..start + AxisValueTableFlags::RAW_BYTE_LEN
     }
-    fn value_name_id_byte_range(&self) -> Range<usize> {
+
+    pub fn value_name_id_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
         start..start + NameId::RAW_BYTE_LEN
     }
-    fn axis_values_byte_range(&self) -> Range<usize> {
+
+    pub fn axis_values_byte_range(&self) -> Range<usize> {
         let start = self.value_name_id_byte_range().end;
         start..start + self.axis_values_byte_len
     }

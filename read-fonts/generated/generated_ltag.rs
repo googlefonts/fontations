@@ -13,19 +13,22 @@ pub struct LtagMarker {
 }
 
 impl LtagMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn flags_byte_range(&self) -> Range<usize> {
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn num_tags_byte_range(&self) -> Range<usize> {
+
+    pub fn num_tags_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn tag_ranges_byte_range(&self) -> Range<usize> {
+
+    pub fn tag_ranges_byte_range(&self) -> Range<usize> {
         let start = self.num_tags_byte_range().end;
         start..start + self.tag_ranges_byte_len
     }

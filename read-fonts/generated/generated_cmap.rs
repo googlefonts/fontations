@@ -13,15 +13,17 @@ pub struct CmapMarker {
 }
 
 impl CmapMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn num_tables_byte_range(&self) -> Range<usize> {
+
+    pub fn num_tables_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn encoding_records_byte_range(&self) -> Range<usize> {
+
+    pub fn encoding_records_byte_range(&self) -> Range<usize> {
         let start = self.num_tables_byte_range().end;
         start..start + self.encoding_records_byte_len
     }
@@ -324,19 +326,22 @@ pub struct Cmap0Marker {
 }
 
 impl Cmap0Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn length_byte_range(&self) -> Range<usize> {
+
+    pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn language_byte_range(&self) -> Range<usize> {
+
+    pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn glyph_id_array_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
         start..start + self.glyph_id_array_byte_len
     }
@@ -423,19 +428,22 @@ pub struct Cmap2Marker {
 }
 
 impl Cmap2Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn length_byte_range(&self) -> Range<usize> {
+
+    pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn language_byte_range(&self) -> Range<usize> {
+
+    pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn sub_header_keys_byte_range(&self) -> Range<usize> {
+
+    pub fn sub_header_keys_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
         start..start + self.sub_header_keys_byte_len
     }
@@ -586,55 +594,67 @@ pub struct Cmap4Marker {
 }
 
 impl Cmap4Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn length_byte_range(&self) -> Range<usize> {
+
+    pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn language_byte_range(&self) -> Range<usize> {
+
+    pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn seg_count_x2_byte_range(&self) -> Range<usize> {
+
+    pub fn seg_count_x2_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn search_range_byte_range(&self) -> Range<usize> {
+
+    pub fn search_range_byte_range(&self) -> Range<usize> {
         let start = self.seg_count_x2_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn entry_selector_byte_range(&self) -> Range<usize> {
+
+    pub fn entry_selector_byte_range(&self) -> Range<usize> {
         let start = self.search_range_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn range_shift_byte_range(&self) -> Range<usize> {
+
+    pub fn range_shift_byte_range(&self) -> Range<usize> {
         let start = self.entry_selector_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn end_code_byte_range(&self) -> Range<usize> {
+
+    pub fn end_code_byte_range(&self) -> Range<usize> {
         let start = self.range_shift_byte_range().end;
         start..start + self.end_code_byte_len
     }
-    fn reserved_pad_byte_range(&self) -> Range<usize> {
+
+    pub fn reserved_pad_byte_range(&self) -> Range<usize> {
         let start = self.end_code_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn start_code_byte_range(&self) -> Range<usize> {
+
+    pub fn start_code_byte_range(&self) -> Range<usize> {
         let start = self.reserved_pad_byte_range().end;
         start..start + self.start_code_byte_len
     }
-    fn id_delta_byte_range(&self) -> Range<usize> {
+
+    pub fn id_delta_byte_range(&self) -> Range<usize> {
         let start = self.start_code_byte_range().end;
         start..start + self.id_delta_byte_len
     }
-    fn id_range_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn id_range_offsets_byte_range(&self) -> Range<usize> {
         let start = self.id_delta_byte_range().end;
         start..start + self.id_range_offsets_byte_len
     }
-    fn glyph_id_array_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
         let start = self.id_range_offsets_byte_range().end;
         start..start + self.glyph_id_array_byte_len
     }
@@ -805,27 +825,32 @@ pub struct Cmap6Marker {
 }
 
 impl Cmap6Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn length_byte_range(&self) -> Range<usize> {
+
+    pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn language_byte_range(&self) -> Range<usize> {
+
+    pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn first_code_byte_range(&self) -> Range<usize> {
+
+    pub fn first_code_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn entry_count_byte_range(&self) -> Range<usize> {
+
+    pub fn entry_count_byte_range(&self) -> Range<usize> {
         let start = self.first_code_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn glyph_id_array_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
         let start = self.entry_count_byte_range().end;
         start..start + self.glyph_id_array_byte_len
     }
@@ -929,31 +954,37 @@ pub struct Cmap8Marker {
 }
 
 impl Cmap8Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn reserved_byte_range(&self) -> Range<usize> {
+
+    pub fn reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn length_byte_range(&self) -> Range<usize> {
+
+    pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.reserved_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn language_byte_range(&self) -> Range<usize> {
+
+    pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn is32_byte_range(&self) -> Range<usize> {
+
+    pub fn is32_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
         start..start + self.is32_byte_len
     }
-    fn num_groups_byte_range(&self) -> Range<usize> {
+
+    pub fn num_groups_byte_range(&self) -> Range<usize> {
         let start = self.is32_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn groups_byte_range(&self) -> Range<usize> {
+
+    pub fn groups_byte_range(&self) -> Range<usize> {
         let start = self.num_groups_byte_range().end;
         start..start + self.groups_byte_len
     }
@@ -1128,31 +1159,37 @@ pub struct Cmap10Marker {
 }
 
 impl Cmap10Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn reserved_byte_range(&self) -> Range<usize> {
+
+    pub fn reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn length_byte_range(&self) -> Range<usize> {
+
+    pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.reserved_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn language_byte_range(&self) -> Range<usize> {
+
+    pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn start_char_code_byte_range(&self) -> Range<usize> {
+
+    pub fn start_char_code_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn num_chars_byte_range(&self) -> Range<usize> {
+
+    pub fn num_chars_byte_range(&self) -> Range<usize> {
         let start = self.start_char_code_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn glyph_id_array_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
         let start = self.num_chars_byte_range().end;
         start..start + self.glyph_id_array_byte_len
     }
@@ -1255,27 +1292,32 @@ pub struct Cmap12Marker {
 }
 
 impl Cmap12Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn reserved_byte_range(&self) -> Range<usize> {
+
+    pub fn reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn length_byte_range(&self) -> Range<usize> {
+
+    pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.reserved_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn language_byte_range(&self) -> Range<usize> {
+
+    pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn num_groups_byte_range(&self) -> Range<usize> {
+
+    pub fn num_groups_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn groups_byte_range(&self) -> Range<usize> {
+
+    pub fn groups_byte_range(&self) -> Range<usize> {
         let start = self.num_groups_byte_range().end;
         start..start + self.groups_byte_len
     }
@@ -1376,27 +1418,32 @@ pub struct Cmap13Marker {
 }
 
 impl Cmap13Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn reserved_byte_range(&self) -> Range<usize> {
+
+    pub fn reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn length_byte_range(&self) -> Range<usize> {
+
+    pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.reserved_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn language_byte_range(&self) -> Range<usize> {
+
+    pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn num_groups_byte_range(&self) -> Range<usize> {
+
+    pub fn num_groups_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn groups_byte_range(&self) -> Range<usize> {
+
+    pub fn groups_byte_range(&self) -> Range<usize> {
         let start = self.num_groups_byte_range().end;
         start..start + self.groups_byte_len
     }
@@ -1549,19 +1596,22 @@ pub struct Cmap14Marker {
 }
 
 impl Cmap14Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn length_byte_range(&self) -> Range<usize> {
+
+    pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn num_var_selector_records_byte_range(&self) -> Range<usize> {
+
+    pub fn num_var_selector_records_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn var_selector_byte_range(&self) -> Range<usize> {
+
+    pub fn var_selector_byte_range(&self) -> Range<usize> {
         let start = self.num_var_selector_records_byte_range().end;
         start..start + self.var_selector_byte_len
     }
@@ -1735,11 +1785,12 @@ pub struct DefaultUvsMarker {
 }
 
 impl DefaultUvsMarker {
-    fn num_unicode_value_ranges_byte_range(&self) -> Range<usize> {
+    pub fn num_unicode_value_ranges_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn ranges_byte_range(&self) -> Range<usize> {
+
+    pub fn ranges_byte_range(&self) -> Range<usize> {
         let start = self.num_unicode_value_ranges_byte_range().end;
         start..start + self.ranges_byte_len
     }
@@ -1813,11 +1864,12 @@ pub struct NonDefaultUvsMarker {
 }
 
 impl NonDefaultUvsMarker {
-    fn num_uvs_mappings_byte_range(&self) -> Range<usize> {
+    pub fn num_uvs_mappings_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn uvs_mapping_byte_range(&self) -> Range<usize> {
+
+    pub fn uvs_mapping_byte_range(&self) -> Range<usize> {
         let start = self.num_uvs_mappings_byte_range().end;
         start..start + self.uvs_mapping_byte_len
     }

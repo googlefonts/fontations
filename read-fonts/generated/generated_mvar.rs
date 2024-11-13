@@ -13,27 +13,32 @@ pub struct MvarMarker {
 }
 
 impl MvarMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn _reserved_byte_range(&self) -> Range<usize> {
+
+    pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn value_record_size_byte_range(&self) -> Range<usize> {
+
+    pub fn value_record_size_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn value_record_count_byte_range(&self) -> Range<usize> {
+
+    pub fn value_record_count_byte_range(&self) -> Range<usize> {
         let start = self.value_record_size_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.value_record_count_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn value_records_byte_range(&self) -> Range<usize> {
+
+    pub fn value_records_byte_range(&self) -> Range<usize> {
         let start = self.item_variation_store_offset_byte_range().end;
         start..start + self.value_records_byte_len
     }

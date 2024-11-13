@@ -13,19 +13,22 @@ pub struct CblcMarker {
 }
 
 impl CblcMarker {
-    fn major_version_byte_range(&self) -> Range<usize> {
+    pub fn major_version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn minor_version_byte_range(&self) -> Range<usize> {
+
+    pub fn minor_version_byte_range(&self) -> Range<usize> {
         let start = self.major_version_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn num_sizes_byte_range(&self) -> Range<usize> {
+
+    pub fn num_sizes_byte_range(&self) -> Range<usize> {
         let start = self.minor_version_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn bitmap_sizes_byte_range(&self) -> Range<usize> {
+
+    pub fn bitmap_sizes_byte_range(&self) -> Range<usize> {
         let start = self.num_sizes_byte_range().end;
         start..start + self.bitmap_sizes_byte_len
     }

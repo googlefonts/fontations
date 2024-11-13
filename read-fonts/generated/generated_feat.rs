@@ -13,23 +13,27 @@ pub struct FeatMarker {
 }
 
 impl FeatMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn feature_name_count_byte_range(&self) -> Range<usize> {
+
+    pub fn feature_name_count_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn _reserved1_byte_range(&self) -> Range<usize> {
+
+    pub fn _reserved1_byte_range(&self) -> Range<usize> {
         let start = self.feature_name_count_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn _reserved2_byte_range(&self) -> Range<usize> {
+
+    pub fn _reserved2_byte_range(&self) -> Range<usize> {
         let start = self._reserved1_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn names_byte_range(&self) -> Range<usize> {
+
+    pub fn names_byte_range(&self) -> Range<usize> {
         let start = self._reserved2_byte_range().end;
         start..start + self.names_byte_len
     }
@@ -203,7 +207,7 @@ pub struct SettingNameArrayMarker {
 }
 
 impl SettingNameArrayMarker {
-    fn settings_byte_range(&self) -> Range<usize> {
+    pub fn settings_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.settings_byte_len
     }

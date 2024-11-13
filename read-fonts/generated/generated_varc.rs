@@ -13,27 +13,32 @@ use crate::codegen_prelude::*;
 pub struct VarcMarker {}
 
 impl VarcMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
-    fn coverage_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn multi_var_store_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn multi_var_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn condition_list_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn condition_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.multi_var_store_offset_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn axis_indices_list_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn axis_indices_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.condition_list_offset_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn var_composite_glyphs_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn var_composite_glyphs_offset_byte_range(&self) -> Range<usize> {
         let start = self.axis_indices_list_offset_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
@@ -181,19 +186,22 @@ pub struct MultiItemVariationStoreMarker {
 }
 
 impl MultiItemVariationStoreMarker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn region_list_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn region_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn variation_data_count_byte_range(&self) -> Range<usize> {
+
+    pub fn variation_data_count_byte_range(&self) -> Range<usize> {
         let start = self.region_list_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn variation_data_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn variation_data_offsets_byte_range(&self) -> Range<usize> {
         let start = self.variation_data_count_byte_range().end;
         start..start + self.variation_data_offsets_byte_len
     }
@@ -303,11 +311,12 @@ pub struct SparseVariationRegionListMarker {
 }
 
 impl SparseVariationRegionListMarker {
-    fn region_count_byte_range(&self) -> Range<usize> {
+    pub fn region_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn region_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn region_offsets_byte_range(&self) -> Range<usize> {
         let start = self.region_count_byte_range().end;
         start..start + self.region_offsets_byte_len
     }
@@ -389,11 +398,12 @@ pub struct SparseVariationRegionMarker {
 }
 
 impl SparseVariationRegionMarker {
-    fn region_axis_count_byte_range(&self) -> Range<usize> {
+    pub fn region_axis_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn region_axis_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn region_axis_offsets_byte_range(&self) -> Range<usize> {
         let start = self.region_axis_count_byte_range().end;
         start..start + self.region_axis_offsets_byte_len
     }
@@ -517,19 +527,22 @@ pub struct MultiItemVariationDataMarker {
 }
 
 impl MultiItemVariationDataMarker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn region_index_count_byte_range(&self) -> Range<usize> {
+
+    pub fn region_index_count_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn region_indices_byte_range(&self) -> Range<usize> {
+
+    pub fn region_indices_byte_range(&self) -> Range<usize> {
         let start = self.region_index_count_byte_range().end;
         start..start + self.region_indices_byte_len
     }
-    fn raw_delta_sets_byte_range(&self) -> Range<usize> {
+
+    pub fn raw_delta_sets_byte_range(&self) -> Range<usize> {
         let start = self.region_indices_byte_range().end;
         start..start + self.raw_delta_sets_byte_len
     }
@@ -608,11 +621,12 @@ pub struct ConditionListMarker {
 }
 
 impl ConditionListMarker {
-    fn condition_count_byte_range(&self) -> Range<usize> {
+    pub fn condition_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn condition_offsets_byte_range(&self) -> Range<usize> {
+
+    pub fn condition_offsets_byte_range(&self) -> Range<usize> {
         let start = self.condition_count_byte_range().end;
         start..start + self.condition_offsets_byte_len
     }

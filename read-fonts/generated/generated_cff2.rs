@@ -15,31 +15,37 @@ pub struct Cff2HeaderMarker {
 }
 
 impl Cff2HeaderMarker {
-    fn major_version_byte_range(&self) -> Range<usize> {
+    pub fn major_version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn minor_version_byte_range(&self) -> Range<usize> {
+
+    pub fn minor_version_byte_range(&self) -> Range<usize> {
         let start = self.major_version_byte_range().end;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn header_size_byte_range(&self) -> Range<usize> {
+
+    pub fn header_size_byte_range(&self) -> Range<usize> {
         let start = self.minor_version_byte_range().end;
         start..start + u8::RAW_BYTE_LEN
     }
-    fn top_dict_length_byte_range(&self) -> Range<usize> {
+
+    pub fn top_dict_length_byte_range(&self) -> Range<usize> {
         let start = self.header_size_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn _padding_byte_range(&self) -> Range<usize> {
+
+    pub fn _padding_byte_range(&self) -> Range<usize> {
         let start = self.top_dict_length_byte_range().end;
         start..start + self._padding_byte_len
     }
-    fn top_dict_data_byte_range(&self) -> Range<usize> {
+
+    pub fn top_dict_data_byte_range(&self) -> Range<usize> {
         let start = self._padding_byte_range().end;
         start..start + self.top_dict_data_byte_len
     }
-    fn trailing_data_byte_range(&self) -> Range<usize> {
+
+    pub fn trailing_data_byte_range(&self) -> Range<usize> {
         let start = self.top_dict_data_byte_range().end;
         start..start + self.trailing_data_byte_len
     }

@@ -13,23 +13,27 @@ pub struct BasicTableMarker {
 }
 
 impl BasicTableMarker {
-    fn simple_count_byte_range(&self) -> Range<usize> {
+    pub fn simple_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn simple_records_byte_range(&self) -> Range<usize> {
+
+    pub fn simple_records_byte_range(&self) -> Range<usize> {
         let start = self.simple_count_byte_range().end;
         start..start + self.simple_records_byte_len
     }
-    fn arrays_inner_count_byte_range(&self) -> Range<usize> {
+
+    pub fn arrays_inner_count_byte_range(&self) -> Range<usize> {
         let start = self.simple_records_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn array_records_count_byte_range(&self) -> Range<usize> {
+
+    pub fn array_records_count_byte_range(&self) -> Range<usize> {
         let start = self.arrays_inner_count_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn array_records_byte_range(&self) -> Range<usize> {
+
+    pub fn array_records_byte_range(&self) -> Range<usize> {
         let start = self.array_records_count_byte_range().end;
         start..start + self.array_records_byte_len
     }

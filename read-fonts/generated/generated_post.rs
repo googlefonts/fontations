@@ -17,51 +17,62 @@ pub struct PostMarker {
 }
 
 impl PostMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + Version16Dot16::RAW_BYTE_LEN
     }
-    fn italic_angle_byte_range(&self) -> Range<usize> {
+
+    pub fn italic_angle_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + Fixed::RAW_BYTE_LEN
     }
-    fn underline_position_byte_range(&self) -> Range<usize> {
+
+    pub fn underline_position_byte_range(&self) -> Range<usize> {
         let start = self.italic_angle_byte_range().end;
         start..start + FWord::RAW_BYTE_LEN
     }
-    fn underline_thickness_byte_range(&self) -> Range<usize> {
+
+    pub fn underline_thickness_byte_range(&self) -> Range<usize> {
         let start = self.underline_position_byte_range().end;
         start..start + FWord::RAW_BYTE_LEN
     }
-    fn is_fixed_pitch_byte_range(&self) -> Range<usize> {
+
+    pub fn is_fixed_pitch_byte_range(&self) -> Range<usize> {
         let start = self.underline_thickness_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn min_mem_type42_byte_range(&self) -> Range<usize> {
+
+    pub fn min_mem_type42_byte_range(&self) -> Range<usize> {
         let start = self.is_fixed_pitch_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn max_mem_type42_byte_range(&self) -> Range<usize> {
+
+    pub fn max_mem_type42_byte_range(&self) -> Range<usize> {
         let start = self.min_mem_type42_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn min_mem_type1_byte_range(&self) -> Range<usize> {
+
+    pub fn min_mem_type1_byte_range(&self) -> Range<usize> {
         let start = self.max_mem_type42_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn max_mem_type1_byte_range(&self) -> Range<usize> {
+
+    pub fn max_mem_type1_byte_range(&self) -> Range<usize> {
         let start = self.min_mem_type1_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn num_glyphs_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn num_glyphs_byte_range(&self) -> Option<Range<usize>> {
         let start = self.num_glyphs_byte_start?;
         Some(start..start + u16::RAW_BYTE_LEN)
     }
-    fn glyph_name_index_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn glyph_name_index_byte_range(&self) -> Option<Range<usize>> {
         let start = self.glyph_name_index_byte_start?;
         Some(start..start + self.glyph_name_index_byte_len?)
     }
-    fn string_data_byte_range(&self) -> Option<Range<usize>> {
+
+    pub fn string_data_byte_range(&self) -> Option<Range<usize>> {
         let start = self.string_data_byte_start?;
         Some(start..start + self.string_data_byte_len?)
     }

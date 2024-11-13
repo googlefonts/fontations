@@ -102,11 +102,12 @@ pub struct Lookup0Marker {
 }
 
 impl Lookup0Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn values_data_byte_range(&self) -> Range<usize> {
+
+    pub fn values_data_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + self.values_data_byte_len
     }
@@ -177,31 +178,37 @@ pub struct Lookup2Marker {
 }
 
 impl Lookup2Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn unit_size_byte_range(&self) -> Range<usize> {
+
+    pub fn unit_size_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn n_units_byte_range(&self) -> Range<usize> {
+
+    pub fn n_units_byte_range(&self) -> Range<usize> {
         let start = self.unit_size_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn search_range_byte_range(&self) -> Range<usize> {
+
+    pub fn search_range_byte_range(&self) -> Range<usize> {
         let start = self.n_units_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn entry_selector_byte_range(&self) -> Range<usize> {
+
+    pub fn entry_selector_byte_range(&self) -> Range<usize> {
         let start = self.search_range_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn range_shift_byte_range(&self) -> Range<usize> {
+
+    pub fn range_shift_byte_range(&self) -> Range<usize> {
         let start = self.entry_selector_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn segments_data_byte_range(&self) -> Range<usize> {
+
+    pub fn segments_data_byte_range(&self) -> Range<usize> {
         let start = self.range_shift_byte_range().end;
         start..start + self.segments_data_byte_len
     }
@@ -315,31 +322,37 @@ pub struct Lookup4Marker {
 }
 
 impl Lookup4Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn unit_size_byte_range(&self) -> Range<usize> {
+
+    pub fn unit_size_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn n_units_byte_range(&self) -> Range<usize> {
+
+    pub fn n_units_byte_range(&self) -> Range<usize> {
         let start = self.unit_size_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn search_range_byte_range(&self) -> Range<usize> {
+
+    pub fn search_range_byte_range(&self) -> Range<usize> {
         let start = self.n_units_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn entry_selector_byte_range(&self) -> Range<usize> {
+
+    pub fn entry_selector_byte_range(&self) -> Range<usize> {
         let start = self.search_range_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn range_shift_byte_range(&self) -> Range<usize> {
+
+    pub fn range_shift_byte_range(&self) -> Range<usize> {
         let start = self.entry_selector_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn segments_byte_range(&self) -> Range<usize> {
+
+    pub fn segments_byte_range(&self) -> Range<usize> {
         let start = self.range_shift_byte_range().end;
         start..start + self.segments_byte_len
     }
@@ -507,31 +520,37 @@ pub struct Lookup6Marker {
 }
 
 impl Lookup6Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn unit_size_byte_range(&self) -> Range<usize> {
+
+    pub fn unit_size_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn n_units_byte_range(&self) -> Range<usize> {
+
+    pub fn n_units_byte_range(&self) -> Range<usize> {
         let start = self.unit_size_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn search_range_byte_range(&self) -> Range<usize> {
+
+    pub fn search_range_byte_range(&self) -> Range<usize> {
         let start = self.n_units_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn entry_selector_byte_range(&self) -> Range<usize> {
+
+    pub fn entry_selector_byte_range(&self) -> Range<usize> {
         let start = self.search_range_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn range_shift_byte_range(&self) -> Range<usize> {
+
+    pub fn range_shift_byte_range(&self) -> Range<usize> {
         let start = self.entry_selector_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn entries_data_byte_range(&self) -> Range<usize> {
+
+    pub fn entries_data_byte_range(&self) -> Range<usize> {
         let start = self.range_shift_byte_range().end;
         start..start + self.entries_data_byte_len
     }
@@ -643,19 +662,22 @@ pub struct Lookup8Marker {
 }
 
 impl Lookup8Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn first_glyph_byte_range(&self) -> Range<usize> {
+
+    pub fn first_glyph_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn glyph_count_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.first_glyph_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn value_array_byte_range(&self) -> Range<usize> {
+
+    pub fn value_array_byte_range(&self) -> Range<usize> {
         let start = self.glyph_count_byte_range().end;
         start..start + self.value_array_byte_len
     }
@@ -743,23 +765,27 @@ pub struct Lookup10Marker {
 }
 
 impl Lookup10Marker {
-    fn format_byte_range(&self) -> Range<usize> {
+    pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn unit_size_byte_range(&self) -> Range<usize> {
+
+    pub fn unit_size_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn first_glyph_byte_range(&self) -> Range<usize> {
+
+    pub fn first_glyph_byte_range(&self) -> Range<usize> {
         let start = self.unit_size_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn glyph_count_byte_range(&self) -> Range<usize> {
+
+    pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.first_glyph_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn values_data_byte_range(&self) -> Range<usize> {
+
+    pub fn values_data_byte_range(&self) -> Range<usize> {
         let start = self.glyph_count_byte_range().end;
         start..start + self.values_data_byte_len
     }
@@ -849,19 +875,22 @@ impl<'a> std::fmt::Debug for Lookup10<'a> {
 pub struct StateHeaderMarker {}
 
 impl StateHeaderMarker {
-    fn state_size_byte_range(&self) -> Range<usize> {
+    pub fn state_size_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn class_table_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn class_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.state_size_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn state_array_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn state_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.class_table_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn entry_table_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn entry_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.state_array_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
@@ -966,15 +995,17 @@ pub struct ClassSubtableMarker {
 }
 
 impl ClassSubtableMarker {
-    fn first_glyph_byte_range(&self) -> Range<usize> {
+    pub fn first_glyph_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn n_glyphs_byte_range(&self) -> Range<usize> {
+
+    pub fn n_glyphs_byte_range(&self) -> Range<usize> {
         let start = self.first_glyph_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn class_array_byte_range(&self) -> Range<usize> {
+
+    pub fn class_array_byte_range(&self) -> Range<usize> {
         let start = self.n_glyphs_byte_range().end;
         start..start + self.class_array_byte_len
     }
@@ -1049,7 +1080,7 @@ pub struct RawBytesMarker {
 }
 
 impl RawBytesMarker {
-    fn data_byte_range(&self) -> Range<usize> {
+    pub fn data_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.data_byte_len
     }
@@ -1100,19 +1131,22 @@ impl<'a> std::fmt::Debug for RawBytes<'a> {
 pub struct StxHeaderMarker {}
 
 impl StxHeaderMarker {
-    fn n_classes_byte_range(&self) -> Range<usize> {
+    pub fn n_classes_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn class_table_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn class_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.n_classes_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn state_array_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn state_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.class_table_offset_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-    fn entry_table_offset_byte_range(&self) -> Range<usize> {
+
+    pub fn entry_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.state_array_offset_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
@@ -1216,7 +1250,7 @@ pub struct RawWordsMarker {
 }
 
 impl RawWordsMarker {
-    fn data_byte_range(&self) -> Range<usize> {
+    pub fn data_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.data_byte_len
     }
