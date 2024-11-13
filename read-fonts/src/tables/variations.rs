@@ -523,7 +523,7 @@ struct DeltaRunInfo {
 
 /// Helper yields the accumulated count and offset for each run in a delta
 /// stream.
-fn delta_run_info<'a>(data: FontData<'a>) -> impl Iterator<Item = DeltaRunInfo> + 'a {
+fn delta_run_info(data: FontData<'_>) -> impl Iterator<Item = DeltaRunInfo> + '_ {
     let mut info = DeltaRunInfo::default();
     std::iter::from_fn(move || {
         let control = data.read_at::<u8>(info.offset).ok()?;
