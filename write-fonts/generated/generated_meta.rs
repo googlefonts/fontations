@@ -70,19 +70,19 @@ impl<'a> FontRead<'a> for Meta {
     }
 }
 
-/// https://learn.microsoft.com/en-us/typography/opentype/spec/meta#table-formats
+///  <https://learn.microsoft.com/en-us/typography/opentype/spec/meta#table-formats>
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DataMapRecord {
     /// A tag indicating the type of metadata.
     pub tag: Tag,
     /// Offset in bytes from the beginning of the metadata table to the data for this tag.
-    pub data: OffsetMarker<Vec<u8>, WIDTH_32>,
+    pub data: OffsetMarker<Metadata, WIDTH_32>,
 }
 
 impl DataMapRecord {
     /// Construct a new `DataMapRecord`
-    pub fn new(tag: Tag, data: Vec<u8>) -> Self {
+    pub fn new(tag: Tag, data: Metadata) -> Self {
         Self {
             tag,
             data: data.into(),
@@ -94,7 +94,7 @@ impl FontWrite for DataMapRecord {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.tag.write_into(writer);
-        (self.compile_map_value()).write_into(writer);
+        self.data.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("DataMapRecord")
@@ -102,14 +102,11 @@ impl FontWrite for DataMapRecord {
 }
 
 impl Validate for DataMapRecord {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
-}
-
-impl FromObjRef<read_fonts::tables::meta::DataMapRecord> for DataMapRecord {
-    fn from_obj_ref(obj: &read_fonts::tables::meta::DataMapRecord, offset_data: FontData) -> Self {
-        DataMapRecord {
-            tag: obj.tag(),
-            data: obj.data(offset_data).to_owned_obj(offset_data),
-        }
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("DataMapRecord", |ctx| {
+            ctx.in_field("data", |ctx| {
+                self.validate_data_type(ctx);
+            });
+        })
     }
 }

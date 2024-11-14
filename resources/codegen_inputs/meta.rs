@@ -21,15 +21,18 @@ table Meta {
     data_maps: [DataMapRecord],
 }
 
-/// https://learn.microsoft.com/en-us/typography/opentype/spec/meta#table-formats
+///  <https://learn.microsoft.com/en-us/typography/opentype/spec/meta#table-formats>
+#[skip_from_obj]
 record DataMapRecord {
     /// A tag indicating the type of metadata.
     tag: Tag,
     /// Offset in bytes from the beginning of the metadata table to the data for this tag.
-    #[offset_getter(data)]
-    #[compile_with(compile_map_value)]
-    data_offset: Offset32<[u8]>,
+    #[read_offset_with($tag, $data_length)]
+    #[traverse_with(skip)]
+    #[validate(validate_data_type)]
+    data_offset: Offset32<Metadata>,
     /// Length of the data, in bytes. The data is not required to be padded to any byte boundary.
     #[compile(skip)]
     data_length: u32,
 }
+
