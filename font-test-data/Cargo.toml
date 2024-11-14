@@ -3,18 +3,11 @@ name = "font-test-data"
 version = "0.1.6"
 description = "Test data for the fontations crates"
 readme = "README.md"
-categories = ["test data"]
 
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
-# It is useful to publish this so tools that pull from crates can see it
-#publish = false
-
-# cargo-release settings
-#[package.metadata.release]
-#release = false
 
 [dependencies]
 read-fonts = { workspace = true }
