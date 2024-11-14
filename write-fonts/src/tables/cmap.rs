@@ -276,21 +276,87 @@ impl Format4Segment {
     }
 
     /// `true` if we can merge other into self (other must follow self)
-    fn can_merge(&self, next: &Self) -> bool {
-        assert!(self.start_ix < next.start_ix);
+    fn can_combine(&self, next: &Self) -> bool {
         self.end_char as u32 + 1 == next.start_char as u32
+    }
+
+    /// Return `true` if we should combine this segment with the previous one.
+    ///
+    /// The case that matters here is when there is a segment with contiguous
+    /// GIDs and with a char range that is immediately adjacent to the previous
+    /// segment.
+    fn should_combine(&self, prev: &Self, next: Option<&Self>) -> bool {
+        if !prev.can_combine(self) {
+            return false;
+        }
+
+        // first we just consider the previous item. If our combined cost
+        // is lower than our separate cost, we will merge.
+        let combined_cost = prev.combine(self).cost();
+        let separate_cost = prev.cost() + self.cost();
+
+        if combined_cost < separate_cost {
+            return true;
+        }
+
+        // finally, if we are also char-contiguous with the next segment,
+        // then by construction it means if we merge now we will also merge
+        // with the next segment (since this current gid-contiguous segment
+        // is the reason we aren't all one big segment already) and so we need
+        // to also check that.
+        //
+        // Although the implementation is different, the logic is very similar in
+        // fonttools: https://github.com/fonttools/fonttools/blob/081d6a27ab8/Lib/fontTools/ttLib/tables/_c_m_a_p.py#L828
+        //
+        // As an example, consider a segment with 5 contiguous gids.
+        //
+        // This segment costs 8 bytes to encode; because the gids are contiguous
+        // we can use the `id_delta` field to represent them all.
+        //
+        // As an example, consider the following three segments:
+        //
+        // chrs [1 2] [3 4 5 6 7] [8 9]
+        // GIDs [3 1] [4 5 6 7 8] [2 9]
+        // cost   12       8       12
+        //
+        // the first and last segments each have len == 2. The GIDs are not
+        // contiguous, so they have to be encoded individually, which costs
+        // 2 bytes each. This means the total cost of these segments is 12:
+        // 8-bytes for the segment data, and 4 bytes for the gids.
+        //
+        // The middle segment has len == 5, but the GIDs are contiguous. This
+        // means that we can represent all the gids using the delta_id part of
+        // the segment, and encode the whole segment for 8 bytes.
+        //
+        // If we combine the first two segments, the new segment costs 22:
+        // 8 bytes for the segment, and 14 bytes for the 7 glyphs. This is
+        // more than the 20 bytes they cost separately.
+        //
+        // If we combine all three, though, the total cost is 26 (we add two
+        // more entries to the glyph_id array), which is better than the 32 bytes
+        // they cost separately.
+        //
+        // (note that we don't need to explicitly combine the next segment;
+        // it will happen automatically during the next loop)
+        if let Some(next) = next.filter(|next| self.can_combine(next)) {
+            let combined_cost = prev.combine(self).combine(next).cost();
+            let separate_cost = separate_cost + next.cost();
+            return combined_cost < separate_cost;
+        }
+
+        false
     }
 
     /// Combine this segment with one that immediately follows it.
     ///
     /// The caller must ensure that the two segments are contiguous.
-    fn combine(&self, other: Format4Segment) -> Format4Segment {
-        assert_eq!(other.start_ix, self.end_ix + 1,);
+    fn combine(&self, next: &Format4Segment) -> Format4Segment {
+        assert_eq!(next.start_ix, self.end_ix + 1,);
         Format4Segment {
             start_ix: self.start_ix,
             start_char: self.start_char,
-            end_char: other.end_char,
-            end_ix: other.end_ix,
+            end_char: next.end_char,
+            end_ix: next.end_ix,
             id_delta: None,
         }
     }
@@ -425,32 +491,11 @@ impl<'a> Format4SegmentComputer<'a> {
         while let Some(current) = next.take() {
             next = self.next_possible_segment();
             let prev = result.last_mut().unwrap();
-
-            let can_merge_left = prev.can_merge(&current);
-
-            if !can_merge_left {
-                result.push(current);
+            if current.should_combine(prev, next.as_ref()) {
+                *prev = prev.combine(&current);
                 continue;
             }
 
-            let combined = prev.combine(current);
-            // if we should merge, based just on the previous segment cost
-            let should_merge = combined.cost() < prev.cost() + current.cost();
-            // but if we can also merge with the next segment we want to check
-            // that too
-            let should_merge_considering_next = next
-                .as_ref()
-                // don't bother computing if we have already decided to merge
-                .filter(|next| !should_merge && current.can_merge(next))
-                .map(|next| {
-                    combined.combine(*next).cost() < prev.cost() + current.cost() + next.cost()
-                })
-                .unwrap_or(false);
-
-            if should_merge || should_merge_considering_next {
-                *prev = combined;
-                continue;
-            }
             result.push(current);
         }
         result
