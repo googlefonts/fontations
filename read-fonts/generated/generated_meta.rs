@@ -13,23 +13,27 @@ pub struct MetaMarker {
 }
 
 impl MetaMarker {
-    fn version_byte_range(&self) -> Range<usize> {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn flags_byte_range(&self) -> Range<usize> {
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn reserved_byte_range(&self) -> Range<usize> {
+
+    pub fn reserved_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn data_maps_count_byte_range(&self) -> Range<usize> {
+
+    pub fn data_maps_count_byte_range(&self) -> Range<usize> {
         let start = self.reserved_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-    fn data_maps_byte_range(&self) -> Range<usize> {
+
+    pub fn data_maps_byte_range(&self) -> Range<usize> {
         let start = self.data_maps_count_byte_range().end;
         start..start + self.data_maps_byte_len
     }
@@ -114,7 +118,7 @@ impl<'a> std::fmt::Debug for Meta<'a> {
     }
 }
 
-/// https://learn.microsoft.com/en-us/typography/opentype/spec/meta#table-formats
+///  <https://learn.microsoft.com/en-us/typography/opentype/spec/meta#table-formats>
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -138,6 +142,15 @@ impl DataMapRecord {
         self.data_offset.get()
     }
 
+    /// Offset in bytes from the beginning of the metadata table to the data for this tag.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn data<'a>(&self, data: FontData<'a>) -> Result<Metadata<'a>, ReadError> {
+        let args = (self.tag(), self.data_length());
+        self.data_offset().resolve_with_args(data, &args)
+    }
+
     /// Length of the data, in bytes. The data is not required to be padded to any byte boundary.
     pub fn data_length(&self) -> u32 {
         self.data_length.get()
@@ -155,10 +168,7 @@ impl<'a> SomeRecord<'a> for DataMapRecord {
             name: "DataMapRecord",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("tag", self.tag())),
-                1usize => Some(Field::new(
-                    "data_offset",
-                    FieldType::offset_to_array_of_scalars(self.data_offset(), self.data(_data)),
-                )),
+                1usize => Some(Field::new("data_offset", traversal::FieldType::Unknown)),
                 2usize => Some(Field::new("data_length", self.data_length())),
                 _ => None,
             }),
