@@ -1,3 +1,11 @@
+//! Implementation of Table Keyed patch application.
+//!
+//! Table Keyed patches are a type of incremental font patch which stores opaque binary diffs
+//! keyed by table tag.
+//!
+//! Table Keyed patches are specified here:
+//! <https://w3c.github.io/IFT/Overview.html#table-keyed>
+//!
 use std::collections::BTreeSet;
 
 use crate::font_patch::PatchingError;
