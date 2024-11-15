@@ -88,7 +88,7 @@ impl<'a> Gvar<'a> {
         loca: &Loca,
         coords: &[F2Dot14],
         glyph_id: GlyphId,
-    ) -> Result<[Fixed; 4], ReadError> {
+    ) -> Result<[Point<Fixed>; 4], ReadError> {
         // For any given glyph, there's only one outline that contributes to
         // metrics deltas (via "phantom points"). For simple glyphs, that is
         // the glyph itself. For composite glyphs, it is the first component
@@ -100,7 +100,7 @@ impl<'a> Gvar<'a> {
         // count), so that we know where the deltas for phantom points start
         // in the variation data.
         let (glyph_id, point_count) = find_glyph_and_point_count(glyf, loca, glyph_id, 0)?;
-        let mut phantom_deltas = [Fixed::ZERO; 4];
+        let mut phantom_deltas = [Point::default(); 4];
         let phantom_range = point_count..point_count + 4;
         let var_data = self.glyph_variation_data(glyph_id)?;
         // Note that phantom points can never belong to a contour so we don't have
@@ -109,7 +109,7 @@ impl<'a> Gvar<'a> {
             for tuple_delta in tuple.deltas() {
                 let ix = tuple_delta.position as usize;
                 if phantom_range.contains(&ix) {
-                    phantom_deltas[ix - phantom_range.start] += tuple_delta.apply_scalar(scalar).x;
+                    phantom_deltas[ix - phantom_range.start] += tuple_delta.apply_scalar(scalar);
                 }
             }
         }
@@ -380,7 +380,9 @@ mod tests {
         let x_vals = &[
             -90, -134, 4, -6, -81, 18, -25, -33, -109, -121, -111, -111, -22, -22, 0, -113, 0, 0,
         ];
-        let y_vals = &[83, 0, 0, 0, 0, 0, 83, 0, 0, 0, -50, 54, 54, -50, 0, 0, 0, 0];
+        let y_vals = &[
+            83, 0, 0, 0, 0, 0, 83, 0, 0, 0, -50, 54, 54, -50, 0, 0, -21, 0,
+        ];
         assert_eq!(tup1.deltas().map(|d| d.x_delta).collect::<Vec<_>>(), x_vals);
         assert_eq!(tup1.deltas().map(|d| d.y_delta).collect::<Vec<_>>(), y_vals);
         let tup2 = tuples.next().unwrap();
@@ -389,7 +391,7 @@ mod tests {
             20, 147, -33, -53, 59, -90, 37, -6, 109, 90, -79, -79, -8, -8, 0, 59, 0, 0,
         ];
         let y_vals = &[
-            -177, 0, 0, 0, 0, 0, -177, 0, 0, 0, 4, -109, -109, 4, 0, 0, 0, 0,
+            -177, 0, 0, 0, 0, 0, -177, 0, 0, 0, 4, -109, -109, 4, 0, 0, 9, 0,
         ];
 
         assert_eq!(tup2.deltas().map(|d| d.x_delta).collect::<Vec<_>>(), x_vals);
@@ -445,11 +447,11 @@ mod tests {
         #[rustfmt::skip]
         let a_cases = [
             // (coords, deltas)
-            (&[0.0], [0.0; 4]),
-            (&[1.0], [0.0, 59.0, 0.0, 0.0]),
-            (&[-1.0], [0.0, -113.0, 0.0, 0.0]),
-            (&[0.5], [0.0, 29.5, 0.0, 0.0]),
-            (&[-0.5], [0.0, -56.5, 0.0, 0.0]),
+            (&[0.0], [(0.0, 0.0); 4]),
+            (&[1.0], [(0.0, 0.0), (59.0, 0.0), (0.0, 9.0), (0.0, 0.0)]),
+            (&[-1.0], [(0.0, 0.0), (-113.0, 0.0), (0.0, -21.0), (0.0, 0.0)]),
+            (&[0.5], [(0.0, 0.0), (29.5, 0.0), (0.0, 4.5), (0.0, 0.0)]),
+            (&[-0.5], [(0.0, 0.0), (-56.5, 0.0), (0.0, -10.5), (0.0, 0.0)]),
         ];
         for (coords, deltas) in a_cases {
             // This is simple glyph "A"
@@ -467,11 +469,11 @@ mod tests {
         #[rustfmt::skip]
         let grave_cases = [
             // (coords, deltas)
-            (&[0.0], [0.0; 4]),
-            (&[1.0], [0.0, 63.0, 0.0, 0.0]),
-            (&[-1.0], [0.0, -96.0, 0.0, 0.0]),
-            (&[0.5], [0.0, 31.5, 0.0, 0.0]),
-            (&[-0.5], [0.0, -48.0, 0.0, 0.0]),
+            (&[0.0], [(0.0, 0.0); 4]),
+            (&[1.0], [(0.0, 0.0), (63.0, 0.0), (0.0, 0.0), (0.0, 0.0)]),
+            (&[-1.0], [(0.0, 0.0), (-96.0, 0.0), (0.0, 0.0), (0.0, 0.0)]),
+            (&[0.5], [(0.0, 0.0), (31.5, 0.0), (0.0, 0.0), (0.0, 0.0)]),
+            (&[-0.5], [(0.0, 0.0), (-48.0, 0.0), (0.0, 0.0), (0.0, 0.0)]),
         ];
         // This is simple glyph "grave"
         for (coords, deltas) in grave_cases {
@@ -482,7 +484,11 @@ mod tests {
         }
     }
 
-    fn compute_phantom_deltas(font: &FontRef, coords: &[f32], glyph_id: GlyphId) -> [f32; 4] {
+    fn compute_phantom_deltas(
+        font: &FontRef,
+        coords: &[f32],
+        glyph_id: GlyphId,
+    ) -> [(f32, f32); 4] {
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
         let gvar = font.gvar().unwrap();
@@ -492,6 +498,7 @@ mod tests {
             .collect::<Vec<_>>();
         gvar.phantom_point_deltas(&glyf, &loca, &coords, glyph_id)
             .unwrap()
-            .map(|delta| delta.to_f32())
+            .map(|delta| delta.map(Fixed::to_f32))
+            .map(|p| (p.x, p.y))
     }
 }

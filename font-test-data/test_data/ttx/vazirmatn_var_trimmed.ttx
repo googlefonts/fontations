@@ -338,7 +338,7 @@ and is intended to contain examples of many variable font tables -->
         <delta pt="13" x="-22" y="-50"/>
         <delta pt="14" x="0" y="0"/>
         <delta pt="15" x="-113" y="0"/>
-        <delta pt="16" x="0" y="0"/>
+        <delta pt="16" x="0" y="-21"/>
         <delta pt="17" x="0" y="0"/>
       </tuple>
       <tuple>
@@ -359,7 +359,7 @@ and is intended to contain examples of many variable font tables -->
         <delta pt="13" x="-8" y="4"/>
         <delta pt="14" x="0" y="0"/>
         <delta pt="15" x="59" y="0"/>
-        <delta pt="16" x="0" y="0"/>
+        <delta pt="16" x="0" y="9"/>
         <delta pt="17" x="0" y="0"/>
       </tuple>
     </glyphVariations>
