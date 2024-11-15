@@ -22,14 +22,15 @@ pub(crate) fn apply_table_keyed_patch(
     let mut font_builder = FontBuilder::new();
     let mut processed_tables = BTreeSet::<Tag>::new();
     // TODO(garretrieger): enforce a max combined size of all decoded tables? say something in the spec about this?
-    for i in 0..patch.patches_count() {
-        let i = i as usize;
+    for (i, table_patch) in patch
+        .patches()
+        .iter()
+        .take(patch.patches_count() as usize)
+        .enumerate()
+    {
         let next = i + 1;
 
-        let table_patch = patch
-            .patches()
-            .get(i)
-            .map_err(PatchingError::PatchParsingFailed)?;
+        let table_patch = table_patch.map_err(PatchingError::PatchParsingFailed)?;
         let (Some(offset), Some(next_offset)) = (
             patch.patch_offsets().get(i),
             patch.patch_offsets().get(next),
@@ -131,7 +132,7 @@ mod tests {
     use read_fonts::ReadError;
     use write_fonts::FontBuilder;
 
-    const IFT_TABLE: &[u8] = "IFT PATCH MAP".as_bytes();
+    const IFT_TABLE: &[u8] = b"IFT PATCH MAP";
     const TABLE_1_FINAL_STATE: &[u8] = "hijkabcdeflmnohijkabcdeflmno\n".as_bytes();
     const TABLE_2_FINAL_STATE: &[u8] = "foobarbaz foobarbaz foobarbaz\n".as_bytes();
     const TABLE_3_FINAL_STATE: &[u8] = "foobaz\n".as_bytes();

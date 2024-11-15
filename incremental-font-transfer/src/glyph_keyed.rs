@@ -1,25 +1,28 @@
+//! Implementation of Glyph Keyed patch application.
+//!
+//! Glyph Keyed patches are a type of incremental font patch which stores opaque data blobs
+//! keyed by glyph id. Patch application places the data blobs into the appropriate place
+//! in the base font based on the associated glyph id.
+//!
+//! Glyph Keyed patches are specified here:
+//! <https://w3c.github.io/IFT/Overview.html#glyph-keyed>
 use crate::font_patch::PatchingError;
-/// Implementation of Glyph Keyed patch application.
-///
-/// Glyph Keyed patches are a type of incremental font patch which stores opaque data blobs
-/// keyed by glyph id. Patch application places the data blobs into the appropriate place
-/// in the base font based on the associated glyph id.
-///
-/// Glyph Keyed patches are specified here:
-/// <https://w3c.github.io/IFT/Overview.html#glyph-keyed>
 use crate::table_keyed::copy_unprocessed_tables;
 
 use font_types::Scalar;
-use read_fonts::collections::IntSet;
-use read_fonts::tables::ift::{GlyphKeyedPatch, GlyphPatches};
-use read_fonts::tables::loca::Loca;
-use read_fonts::types::Tag;
-use read_fonts::ReadError;
-use read_fonts::{FontData, FontRef, TableProvider};
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        ift::{GlyphKeyedPatch, GlyphPatches},
+        loca::Loca,
+    },
+    types::Tag,
+    FontData, FontRef, ReadError, TableProvider,
+};
+
 use shared_brotli_patch_decoder::shared_brotli_decode;
 use skrifa::GlyphId;
-use std::collections::BTreeSet;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::ops::RangeInclusive;
 
 use write_fonts::FontBuilder;

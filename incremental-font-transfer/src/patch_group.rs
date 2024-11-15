@@ -1,3 +1,8 @@
+//! API for selecting and applying a group of IFT patches.
+//!
+//! This provides methods for selecting a maximal group of patches that are compatible with each other and
+//! additionally methods for applying that group of patches.
+
 use read_fonts::{tables::ift::CompatibilityId, FontRef, ReadError, TableProvider};
 use std::collections::{BTreeMap, HashMap};
 
@@ -6,17 +11,20 @@ use crate::{
     patchmap::{intersecting_patches, IftTableTag, PatchEncoding, PatchUri, SubsetDefinition},
 };
 
-/// A group of patches derived from a single IFT font which can be applied simultaneously
-/// to that font. Patches are initially missing data which must be fetched and supplied to
-/// the group before it can be applied to the font.
+/// A group of patches derived from a single IFT font.
+///
+/// This is a group which can be applied simultaneously to that font. Patches are
+/// initially missing data which must be fetched and supplied to patch application
+/// method.
 pub struct PatchGroup<'a> {
     font: FontRef<'a>,
     patches: Option<CompatibleGroup>,
 }
 
 impl<'a> PatchGroup<'a> {
-    /// Intersect the available and unapplied patches in ift_font against subset_definition and return a group
-    /// of patches which would be applied next.
+    /// Intersect the available and unapplied patches in ift_font against subset_definition
+    ///
+    /// Returns a group of patches which would be applied next.
     pub fn select_next_patches<'b>(
         ift_font: FontRef<'b>,
         subset_definition: &SubsetDefinition,
@@ -41,13 +49,14 @@ impl<'a> PatchGroup<'a> {
         })
     }
 
-    /// Returns the list of URIs in this group.
+    /// Returns an iterator over URIs in this group.
     pub fn uris(&self) -> impl Iterator<Item = &str> {
         self.invalidating_patch_iter()
             .chain(self.non_invalidating_patch_iter())
             .map(|info| info.uri.as_str())
     }
 
+    /// Returns true if there is at least one uri associated with this group.
     pub fn has_uris(&self) -> bool {
         let Some(patches) = &self.patches else {
             return false;
@@ -1250,4 +1259,6 @@ mod tests {
             ])
         );
     }
+
+    // TODO(garretrieger): test that previously applied patches are ignored.
 }
