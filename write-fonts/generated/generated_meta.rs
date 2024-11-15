@@ -95,6 +95,7 @@ impl FontWrite for DataMapRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.tag.write_into(writer);
         self.data.write_into(writer);
+        (self.compute_data_len() as u32).write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("DataMapRecord")

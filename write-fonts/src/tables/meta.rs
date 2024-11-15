@@ -59,31 +59,36 @@ impl DataMapRecord {
             ctx.report("'slng' or 'dlng' tags use ScriptLangTag data");
         }
     }
+
+    fn compute_data_len(&self) -> usize {
+        match self.data.as_ref() {
+            Metadata::ScriptLangTags(items) => {
+                let sum_len: usize = items.iter().map(|tag| tag.as_str().len()).sum();
+                let toss_some_commas_in_there = items.len().saturating_sub(1);
+                sum_len + toss_some_commas_in_there
+            }
+            Metadata::Other(vec) => vec.len(),
+        }
+    }
 }
 
 impl FontWrite for Metadata {
     fn write_into(&self, writer: &mut TableWriter) {
-        let len = match self {
+        match self {
             Metadata::ScriptLangTags(langs) => {
-                let mut len = 0;
+                let mut first = true;
                 for lang in langs {
-                    if len > 0 {
+                    if !first {
                         b','.write_into(writer);
-                        len += 1;
                     }
+                    first = false;
                     lang.0.as_bytes().write_into(writer);
-                    len += lang.0.as_bytes().len();
                 }
-                len
             }
             Metadata::Other(vec) => {
                 vec.write_into(writer);
-                vec.len()
             }
         };
-
-        let len: u32 = len.try_into().unwrap();
-        len.write_into(writer);
     }
 }
 
@@ -133,5 +138,34 @@ impl FromObjRef<read_fonts::tables::meta::DataMapRecord> for DataMapRecord {
             tag: obj.tag(),
             data: OffsetMarker::new(data),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use font_test_data::meta as test_data;
+
+    #[test]
+    fn convert_from_read() {
+        let table = Meta::read(test_data::SIMPLE_META_TABLE.into()).unwrap();
+        let rec1 = &table.data_maps[0];
+        assert_eq!(
+            rec1.data.as_ref(),
+            &Metadata::ScriptLangTags(vec![
+                ScriptLangTag::new("en-latn".into()).unwrap(),
+                ScriptLangTag::new("latn".into()).unwrap()
+            ])
+        );
+
+        let round_trip = crate::dump_table(&table).unwrap();
+        let read_back = Meta::read(round_trip.as_slice().into()).unwrap();
+        let readr = read_fonts::tables::meta::Meta::read(round_trip.as_slice().into()).unwrap();
+        dbg!(readr);
+
+        //eprintln!("{read_back:#?}");
+
+        assert_eq!(table, read_back);
     }
 }
