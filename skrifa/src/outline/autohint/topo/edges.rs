@@ -1,4 +1,4 @@
-//! Latin edge computations.
+//! Edge detection.
 //!
 //! Edges are sets of segments that all lie within a threshold based on
 //! stem widths.
@@ -6,11 +6,13 @@
 //! Here we compute edges from the segment list, assign properties (round,
 //! serif, links) and then associate them with blue zones.
 
-use super::super::{
-    axis::{Axis, Edge, Segment},
-    metrics::{fixed_div, fixed_mul, Scale, ScaledAxisMetrics, ScaledBlue, UnscaledBlue},
-    outline::Direction,
-    style::{blue_flags, ScriptGroup},
+use super::{
+    super::{
+        metrics::{fixed_div, fixed_mul, Scale, ScaledAxisMetrics, ScaledBlue, UnscaledBlue},
+        outline::Direction,
+        style::{blue_flags, ScriptGroup},
+    },
+    Axis, Edge, Segment,
 };
 
 /// Links segments to edges, using feature analysis for selection.
@@ -375,12 +377,12 @@ pub(crate) fn compute_blue_edges(
 mod tests {
     use super::{
         super::super::{
-            latin,
             metrics::{self, ScaledWidth},
             outline::Outline,
             shape::{Shaper, ShaperMode},
             style,
         },
+        super::segments,
         *,
     };
     use crate::{attribute::Style, MetadataProvider};
@@ -774,7 +776,7 @@ mod tests {
         let shaper = Shaper::new(&font, ShaperMode::Nominal);
         let class = &style::STYLE_CLASSES[style_class];
         let unscaled_metrics =
-            latin::metrics::compute_unscaled_style_metrics(&shaper, Default::default(), class);
+            metrics::compute_unscaled_style_metrics(&shaper, Default::default(), class);
         let scale = metrics::Scale::new(
             16.0,
             font.head().unwrap().units_per_em() as i32,
@@ -782,7 +784,7 @@ mod tests {
             Default::default(),
             class.script.group,
         );
-        let scaled_metrics = latin::metrics::scale_style_metrics(&unscaled_metrics, scale);
+        let scaled_metrics = metrics::scale_style_metrics(&unscaled_metrics, scale);
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(glyph_id).unwrap();
         let mut outline = Outline::default();
@@ -792,8 +794,8 @@ mod tests {
             Axis::new(Axis::VERTICAL, outline.orientation),
         ];
         for (dim, axis) in axes.iter_mut().enumerate() {
-            latin::segments::compute_segments(&mut outline, axis, class.script.group);
-            latin::segments::link_segments(
+            segments::compute_segments(&mut outline, axis, class.script.group);
+            segments::link_segments(
                 &outline,
                 axis,
                 scaled_metrics.axes[dim].scale,

@@ -1,13 +1,13 @@
-//! Latin edge hinting.
+//! Edge hinting.
 //!
 //! Let's actually do some grid fitting. Here we align edges to the pixel
 //! grid. This is the final step before applying the edge adjustments to
 //! the original outline points.
 
 use super::super::{
-    axis::{Axis, Edge},
     metrics::{fixed_mul_div, pix_floor, pix_round, Scale, ScaledAxisMetrics, ScaledWidth},
     style::ScriptGroup,
+    topo::{Axis, Edge},
 };
 
 /// Main Latin grid-fitting routine.
@@ -805,11 +805,10 @@ fn hint_normal_stem_cjk(
 mod tests {
     use super::{
         super::super::{
-            latin,
-            metrics::{self},
+            metrics,
             outline::Outline,
             shape::{Shaper, ShaperMode},
-            style,
+            style, topo,
         },
         *,
     };
@@ -883,7 +882,7 @@ mod tests {
         let shaper = Shaper::new(&font, ShaperMode::Nominal);
         let class = &style::STYLE_CLASSES[class];
         let unscaled_metrics =
-            latin::metrics::compute_unscaled_style_metrics(&shaper, Default::default(), class);
+            metrics::compute_unscaled_style_metrics(&shaper, Default::default(), class);
         let scale = metrics::Scale::new(
             16.0,
             font.head().unwrap().units_per_em() as i32,
@@ -891,7 +890,7 @@ mod tests {
             Default::default(),
             class.script.group,
         );
-        let scaled_metrics = latin::metrics::scale_style_metrics(&unscaled_metrics, scale);
+        let scaled_metrics = metrics::scale_style_metrics(&unscaled_metrics, scale);
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(glyph_id).unwrap();
         let mut outline = Outline::default();
@@ -901,15 +900,15 @@ mod tests {
             Axis::new(Axis::VERTICAL, outline.orientation),
         ];
         for (dim, axis) in axes.iter_mut().enumerate() {
-            latin::segments::compute_segments(&mut outline, axis, class.script.group);
-            latin::segments::link_segments(
+            topo::compute_segments(&mut outline, axis, class.script.group);
+            topo::link_segments(
                 &outline,
                 axis,
                 scaled_metrics.axes[dim].scale,
                 class.script.group,
                 unscaled_metrics.axes[dim].max_width(),
             );
-            latin::edges::compute_edges(
+            topo::compute_edges(
                 axis,
                 &scaled_metrics.axes[0],
                 class.script.hint_top_to_bottom,
@@ -917,7 +916,7 @@ mod tests {
                 class.script.group,
             );
             if dim == Axis::VERTICAL {
-                latin::edges::compute_blue_edges(
+                topo::compute_blue_edges(
                     axis,
                     &scale,
                     &unscaled_metrics.axes[dim].blues,
