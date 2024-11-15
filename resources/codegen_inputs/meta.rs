@@ -32,7 +32,7 @@ record DataMapRecord {
     #[validate(validate_data_type)]
     data_offset: Offset32<Metadata>,
     /// Length of the data, in bytes. The data is not required to be padded to any byte boundary.
-    #[compile(skip)]
+    #[compile(self.compute_data_len())]
     data_length: u32,
 }
 

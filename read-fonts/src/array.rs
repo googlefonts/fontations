@@ -142,7 +142,8 @@ impl<'a, T: FontRead<'a> + VarSize> VarLenArray<'a, T> {
             }
 
             let item_len = T::read_len_at(data, 0)?;
-            let next = T::read(data);
+            let item_data = data.slice(..item_len)?;
+            let next = T::read(item_data);
             data = data.split_off(item_len)?;
             Some(next)
         })
