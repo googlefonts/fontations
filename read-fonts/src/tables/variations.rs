@@ -1385,7 +1385,7 @@ mod tests {
     /// with a packed run boundary
     #[test]
     fn packed_delta_run_crosses_coord_boundary() {
-        // 8 deltas with values 0..=8 with a run broken after the first 6; the
+        // 8 deltas with values 0..=7 with a run broken after the first 6; the
         // coordinate boundary occurs after the first 4
         static INPUT: FontData = FontData::new(&[
             // first run: 6 deltas as bytes
