@@ -1653,7 +1653,7 @@ impl Count {
                     quote!(transforms::bitmap_len(#a))
                 }
                 (CountTransform::MaxValueBitmapLen, [a]) => {
-                    quote!(transforms::bitmap_len(#a + 1))
+                    quote!(transforms::bitmap_len(usize::try_from(#a).unwrap_or_default() + 1usize))
                 }
                 _ => unreachable!("validated before now"),
             },
