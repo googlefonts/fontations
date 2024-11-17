@@ -4,8 +4,6 @@ include!("../../generated/generated_variations.rs");
 
 use super::gvar::SharedTuples;
 
-use std::iter::Skip;
-
 pub const NO_VARIATION_INDEX: u32 = 0xFFFFFFFF;
 /// Outer and inner indices for reading from an [ItemVariationStore].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -403,7 +401,7 @@ impl<'a> PackedDeltas<'a> {
     /// NOTE: this is unbounded, and assumes all of data is deltas.
     #[doc(hidden)] // used by tests in write-fonts
     pub fn consume_all(data: FontData<'a>) -> Self {
-        let count = DeltaRunIter::new(data.cursor(), None).count();
+        let count = count_all_deltas(data);
         Self { data, count }
     }
 
@@ -413,6 +411,14 @@ impl<'a> PackedDeltas<'a> {
 
     pub fn iter(&self) -> DeltaRunIter<'a> {
         DeltaRunIter::new(self.data.cursor(), Some(self.count))
+    }
+
+    fn x_deltas(&self) -> DeltaRunIter<'a> {
+        DeltaRunIter::new(self.data.cursor(), Some(self.count / 2))
+    }
+
+    fn y_deltas(&self) -> DeltaRunIter<'a> {
+        DeltaRunIter::new(self.data.cursor(), Some(self.count)).skip_fast(self.count / 2)
     }
 }
 
@@ -425,12 +431,15 @@ const DELTAS_ARE_WORDS: u8 = 0x40;
 const DELTA_RUN_COUNT_MASK: u8 = 0x3F;
 
 /// The type of values for a given delta run (influences the number of bytes per delta)
+///
+/// The variants are intentionally set to the byte size of the type to allow usage
+/// as a multiplier when computing offsets.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DeltaRunType {
-    Zero,
-    I8,
-    I16,
-    I32,
+    Zero = 0,
+    I8 = 1,
+    I16 = 2,
+    I32 = 4,
 }
 
 impl DeltaRunType {
@@ -473,6 +482,41 @@ impl<'a> DeltaRunIter<'a> {
         while self.next().is_some() {}
         self.cursor
     }
+
+    /// Skips `n` deltas without reading the actual delta values.
+    fn skip_fast(mut self, n: usize) -> Self {
+        let mut wanted = n;
+        loop {
+            let remaining = self.remaining_in_run as usize;
+            if wanted > remaining {
+                // Haven't seen enough deltas yet; consume the remaining
+                // data bytes and move to the next run
+                self.cursor.advance_by(remaining * self.value_type as usize);
+                wanted -= remaining;
+                if self.read_next_control().is_none() {
+                    self.limit = Some(0);
+                    break;
+                }
+                continue;
+            }
+            let consumed = wanted.min(remaining);
+            self.remaining_in_run -= consumed as u8;
+            self.cursor.advance_by(consumed * self.value_type as usize);
+            if let Some(limit) = self.limit.as_mut() {
+                *limit = limit.saturating_sub(n);
+            }
+            break;
+        }
+        self
+    }
+
+    fn read_next_control(&mut self) -> Option<()> {
+        self.remaining_in_run = 0;
+        let control: u8 = self.cursor.read().ok()?;
+        self.value_type = DeltaRunType::new(control);
+        self.remaining_in_run = (control & DELTA_RUN_COUNT_MASK) + 1;
+        Some(())
+    }
 }
 
 impl Iterator for DeltaRunIter<'_> {
@@ -485,16 +529,9 @@ impl Iterator for DeltaRunIter<'_> {
             }
             self.limit = Some(limit - 1);
         }
-        // if no items remain in this run, start the next one.
-        // NOTE: we use `while` so we can sanely handle the case where some
-        // run in the middle of the data has an explicit zero length
-        //TODO: create a font with data of this shape and go crash some font parsers
-        while self.remaining_in_run == 0 {
-            let control: u8 = self.cursor.read().ok()?;
-            self.value_type = DeltaRunType::new(control);
-            self.remaining_in_run = (control & DELTA_RUN_COUNT_MASK) + 1;
+        if self.remaining_in_run == 0 {
+            self.read_next_control()?;
         }
-
         self.remaining_in_run -= 1;
         match self.value_type {
             DeltaRunType::Zero => Some(0),
@@ -503,6 +540,19 @@ impl Iterator for DeltaRunIter<'_> {
             DeltaRunType::I32 => self.cursor.read().ok(),
         }
     }
+}
+
+/// Counts the number of deltas available in the given data, avoiding
+/// excessive reads.
+fn count_all_deltas(data: FontData) -> usize {
+    let mut count = 0;
+    let mut offset = 0;
+    while let Ok(control) = data.read_at::<u8>(offset) {
+        let run_count = (control & DELTA_RUN_COUNT_MASK) as usize + 1;
+        count += run_count;
+        offset += run_count * DeltaRunType::new(control) as usize + 1;
+    }
+    count
 }
 
 /// A helper type for iterating over [`TupleVariationHeader`]s.
@@ -798,6 +848,13 @@ where
     }
 }
 
+#[derive(Clone, Debug)]
+enum TupleDeltaValues<'a> {
+    // Point deltas have separate runs for x and y coordinates.
+    Points(DeltaRunIter<'a>, DeltaRunIter<'a>),
+    Scalars(DeltaRunIter<'a>),
+}
+
 /// An iterator over the deltas for a glyph.
 #[derive(Clone, Debug)]
 pub struct TupleDeltaIter<'a, T> {
@@ -805,8 +862,7 @@ pub struct TupleDeltaIter<'a, T> {
     // if None all points get deltas, if Some specifies subset of points that do
     points: Option<PackedPointNumbersIter<'a>>,
     next_point: usize,
-    x_iter: DeltaRunIter<'a>,
-    y_iter: Option<Skip<DeltaRunIter<'a>>>,
+    values: TupleDeltaValues<'a>,
     _marker: std::marker::PhantomData<fn() -> T>,
 }
 
@@ -817,14 +873,16 @@ where
     fn new(points: &'a PackedPointNumbers, deltas: &'a PackedDeltas) -> TupleDeltaIter<'a, T> {
         let mut points = points.iter();
         let next_point = points.next();
-        let num_encoded_points = deltas.count() / 2; // x and y encoded independently
-        let y_iter = T::is_point().then(|| deltas.iter().skip(num_encoded_points));
+        let values = if T::is_point() {
+            TupleDeltaValues::Points(deltas.x_deltas(), deltas.y_deltas())
+        } else {
+            TupleDeltaValues::Scalars(deltas.iter())
+        };
         TupleDeltaIter {
             cur: 0,
             points: next_point.map(|_| points),
             next_point: next_point.unwrap_or_default() as usize,
-            x_iter: deltas.iter(),
-            y_iter,
+            values,
             _marker: std::marker::PhantomData,
         }
     }
@@ -860,11 +918,9 @@ where
                 self.cur
             };
             if position == self.cur {
-                let dx = self.x_iter.next()?;
-                let dy = if let Some(y_iter) = self.y_iter.as_mut() {
-                    y_iter.next()?
-                } else {
-                    0
+                let (dx, dy) = match &mut self.values {
+                    TupleDeltaValues::Points(x, y) => (x.next()?, y.next()?),
+                    TupleDeltaValues::Scalars(scalars) => (scalars.next()?, 0),
                 };
                 break (position, dx, dy);
             }
@@ -1326,6 +1382,37 @@ mod tests {
         let (all_points, _) = PackedPointNumbers::split_off_front(ALL_POINTS);
         // in which case the iterator just keeps incrementing until u16::MAX
         assert_eq!(all_points.iter().count(), u16::MAX as _);
+    }
+
+    /// Test that we split properly when the coordinate boundary doesn't align
+    /// with a packed run boundary
+    #[test]
+    fn packed_delta_run_crosses_coord_boundary() {
+        // 8 deltas with values 0..=7 with a run broken after the first 6; the
+        // coordinate boundary occurs after the first 4
+        static INPUT: FontData = FontData::new(&[
+            // first run: 6 deltas as bytes
+            5,
+            0,
+            1,
+            2,
+            3,
+            // coordinate boundary is here
+            4,
+            5,
+            // second run: 2 deltas as words
+            1 | DELTAS_ARE_WORDS,
+            0,
+            6,
+            0,
+            7,
+        ]);
+        let deltas = PackedDeltas::consume_all(INPUT);
+        assert_eq!(deltas.count, 8);
+        let x_deltas = deltas.x_deltas().collect::<Vec<_>>();
+        let y_deltas = deltas.y_deltas().collect::<Vec<_>>();
+        assert_eq!(x_deltas, [0, 1, 2, 3]);
+        assert_eq!(y_deltas, [4, 5, 6, 7]);
     }
 
     /// We don't have a reference for our float delta computation, so this is
