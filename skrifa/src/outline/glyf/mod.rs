@@ -504,8 +504,8 @@ impl<'a> Scaler for FreeTypeScaler<'a> {
                 self.coords,
                 glyph_id,
             ) {
-                unscaled[0].x += deltas[0].to_i32();
-                unscaled[1].x += deltas[1].to_i32();
+                unscaled[0] += deltas[0].map(Fixed::to_i32);
+                unscaled[1] += deltas[1].map(Fixed::to_i32);
             }
         }
         if self.is_scaled {
@@ -1025,8 +1025,8 @@ impl<'a> Scaler for HarfBuzzScaler<'a> {
                 self.coords,
                 glyph_id,
             ) {
-                unscaled[0].x += deltas[0].to_f32();
-                unscaled[1].x += deltas[1].to_f32();
+                unscaled[0] += deltas[0].map(Fixed::to_f32);
+                unscaled[1] += deltas[1].map(Fixed::to_f32);
             }
         }
         if self.is_scaled {
