@@ -848,6 +848,13 @@ where
     }
 }
 
+#[derive(Clone, Debug)]
+enum TupleDeltaValues<'a> {
+    // Point deltas have separate runs for x and y coordinates.
+    Points(DeltaRunIter<'a>, DeltaRunIter<'a>),
+    Scalars(DeltaRunIter<'a>),
+}
+
 /// An iterator over the deltas for a glyph.
 #[derive(Clone, Debug)]
 pub struct TupleDeltaIter<'a, T> {
@@ -855,8 +862,7 @@ pub struct TupleDeltaIter<'a, T> {
     // if None all points get deltas, if Some specifies subset of points that do
     points: Option<PackedPointNumbersIter<'a>>,
     next_point: usize,
-    x_iter: DeltaRunIter<'a>,
-    y_iter: Option<DeltaRunIter<'a>>,
+    values: TupleDeltaValues<'a>,
     _marker: std::marker::PhantomData<fn() -> T>,
 }
 
@@ -867,17 +873,16 @@ where
     fn new(points: &'a PackedPointNumbers, deltas: &'a PackedDeltas) -> TupleDeltaIter<'a, T> {
         let mut points = points.iter();
         let next_point = points.next();
-        let (x_iter, y_iter) = if T::is_point() {
-            (deltas.x_deltas(), Some(deltas.y_deltas()))
+        let values = if T::is_point() {
+            TupleDeltaValues::Points(deltas.x_deltas(), deltas.y_deltas())
         } else {
-            (deltas.iter(), None)
+            TupleDeltaValues::Scalars(deltas.iter())
         };
         TupleDeltaIter {
             cur: 0,
             points: next_point.map(|_| points),
             next_point: next_point.unwrap_or_default() as usize,
-            x_iter,
-            y_iter,
+            values,
             _marker: std::marker::PhantomData,
         }
     }
@@ -913,11 +918,9 @@ where
                 self.cur
             };
             if position == self.cur {
-                let dx = self.x_iter.next()?;
-                let dy = if let Some(y_iter) = self.y_iter.as_mut() {
-                    y_iter.next()?
-                } else {
-                    0
+                let (dx, dy) = match &mut self.values {
+                    TupleDeltaValues::Points(x, y) => (x.next()?, y.next()?),
+                    TupleDeltaValues::Scalars(scalars) => (scalars.next()?, 0),
                 };
                 break (position, dx, dy);
             }
