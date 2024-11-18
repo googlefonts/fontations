@@ -174,10 +174,9 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
         cursor.advance::<Uint24>();
         cursor.advance::<Offset32>();
         cursor.advance::<Offset32>();
-        let applied_entries_bitmap_byte_len =
-            (transforms::bitmap_len(usize::try_from(max_entry_index).unwrap_or_default() + 1usize))
-                .checked_mul(u8::RAW_BYTE_LEN)
-                .ok_or(ReadError::OutOfBounds)?;
+        let applied_entries_bitmap_byte_len = (transforms::max_value_bitmap_len(max_entry_index))
+            .checked_mul(u8::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(applied_entries_bitmap_byte_len);
         let uri_template_length: u16 = cursor.read()?;
         let uri_template_byte_len = (uri_template_length as usize)
