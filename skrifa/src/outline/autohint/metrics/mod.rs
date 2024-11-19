@@ -1,16 +1,22 @@
 //! Autohinting specific metrics.
 
+mod blues;
+mod scale;
+mod widths;
+
 use super::{
     super::Target,
-    axis::Dimension,
     shape::{Shaper, ShaperMode},
     style::{GlyphStyleMap, ScriptGroup, StyleClass},
+    topo::Dimension,
 };
 use crate::{attribute::Style, collections::SmallVec, FontRef};
 use alloc::vec::Vec;
 use raw::types::{F2Dot14, Fixed, GlyphId};
 #[cfg(feature = "std")]
 use std::sync::{Arc, RwLock};
+
+pub(crate) use scale::{compute_unscaled_style_metrics, scale_style_metrics};
 
 /// Maximum number of widths, same for Latin and CJK.
 ///
@@ -107,7 +113,7 @@ impl UnscaledStyleMetricsSet {
         vec.extend(
             style_map
                 .metrics_styles()
-                .map(|style| super::latin::compute_unscaled_style_metrics(&shaper, coords, style)),
+                .map(|style| compute_unscaled_style_metrics(&shaper, coords, style)),
         );
         Self::Precomputed(vec)
     }
@@ -147,8 +153,7 @@ impl UnscaledStyleMetricsSet {
                 // metrics.
                 let shaper = Shaper::new(font, shaper_mode);
                 let style_class = style.style_class()?;
-                let metrics =
-                    super::latin::compute_unscaled_style_metrics(&shaper, coords, style_class);
+                let metrics = compute_unscaled_style_metrics(&shaper, coords, style_class);
                 let mut entry = lazy.write().unwrap();
                 *entry.get_mut(index)? = Some(metrics.clone());
                 Some(metrics)

@@ -14,15 +14,14 @@
 //!
 //! The final result is a fully hinted outline.
 
-use raw::tables::glyf::PointMarker;
-
-use super::{
-    axis::{Axis, Dimension},
+use super::super::{
     metrics::{fixed_div, fixed_mul, Scale},
     outline::{Outline, Point},
     style::ScriptGroup,
+    topo::{Axis, Dimension},
 };
 use core::cmp::Ordering;
+use raw::tables::glyf::PointMarker;
 
 /// Align all points of an edge to the same coordinate value.
 ///
@@ -359,12 +358,12 @@ fn iup_interpolate(
 #[cfg(test)]
 mod tests {
     use super::{
-        super::{
-            latin,
-            metrics::Scale,
+        super::super::{
+            metrics::{compute_unscaled_style_metrics, Scale},
             shape::{Shaper, ShaperMode},
             style,
         },
+        super::{EdgeMetrics, HintedMetrics},
         *,
     };
     use crate::{attribute::Style, MetadataProvider};
@@ -426,9 +425,9 @@ mod tests {
             .map(|point| (point.x, point.y))
             .collect::<Vec<_>>();
         assert_eq!(coords, expected_coords);
-        let expected_metrics = latin::HintedMetrics {
+        let expected_metrics = HintedMetrics {
             x_scale: 67109,
-            edge_metrics: Some(latin::EdgeMetrics {
+            edge_metrics: Some(EdgeMetrics {
                 left_opos: 15,
                 left_pos: 0,
                 right_opos: 210,
@@ -572,9 +571,9 @@ mod tests {
             .map(|point| (point.x, point.y))
             .collect::<Vec<_>>();
         assert_eq!(coords, expected_coords);
-        let expected_metrics = latin::HintedMetrics {
+        let expected_metrics = HintedMetrics {
             x_scale: 67109,
-            edge_metrics: Some(latin::EdgeMetrics {
+            edge_metrics: Some(EdgeMetrics {
                 left_opos: 141,
                 left_pos: 128,
                 right_opos: 933,
@@ -596,7 +595,7 @@ mod tests {
             GlyphId::new(1),
             &style::STYLE_CLASSES[style::StyleClass::LATN],
         );
-        let expected_metrics = latin::HintedMetrics {
+        let expected_metrics = HintedMetrics {
             x_scale: 65536,
             edge_metrics: None,
         };
@@ -642,13 +641,13 @@ mod tests {
         coords: &[F2Dot14],
         gid: GlyphId,
         style: &style::StyleClass,
-    ) -> (Outline, latin::HintedMetrics) {
+    ) -> (Outline, HintedMetrics) {
         let shaper = Shaper::new(font, ShaperMode::Nominal);
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(gid).unwrap();
         let mut outline = Outline::default();
         outline.fill(&glyph, coords).unwrap();
-        let metrics = latin::compute_unscaled_style_metrics(&shaper, coords, style);
+        let metrics = compute_unscaled_style_metrics(&shaper, coords, style);
         let scale = Scale::new(
             size,
             font.head().unwrap().units_per_em() as i32,
@@ -656,7 +655,7 @@ mod tests {
             Default::default(),
             metrics.style_class().script.group,
         );
-        let hinted_metrics = latin::hint_outline(&mut outline, &metrics, &scale, None);
+        let hinted_metrics = super::super::hint_outline(&mut outline, &metrics, &scale, None);
         (outline, hinted_metrics)
     }
 }

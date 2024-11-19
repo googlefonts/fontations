@@ -120,8 +120,7 @@ impl Instance {
         );
         let mut outline = Outline::default();
         outline.fill(glyph, coords)?;
-        let hinted_metrics =
-            super::latin::hint_outline(&mut outline, &metrics, &scale, Some(style));
+        let hinted_metrics = super::hint::hint_outline(&mut outline, &metrics, &scale, Some(style));
         let h_advance = outline.advance;
         let mut pp1x = 0;
         let mut pp2x = fixed_mul(h_advance, hinted_metrics.x_scale);

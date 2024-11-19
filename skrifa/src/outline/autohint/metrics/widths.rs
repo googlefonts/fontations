@@ -1,11 +1,12 @@
 //! Latin standard stem width computation.
 
 use super::super::{
-    axis::Axis,
+    derived_constant,
     metrics::{self, UnscaledWidths, WidthMetrics, MAX_WIDTHS},
     outline::Outline,
     shape::{ShapedCluster, Shaper},
     style::{ScriptGroup, StyleClass},
+    topo::{compute_segments, link_segments, Axis},
 };
 use crate::MetadataProvider;
 use raw::{types::F2Dot14, TableProvider};
@@ -54,8 +55,8 @@ pub(super) fn compute_widths(
                 axis.reset(dim, outline.orientation);
                 // Segment computation for widths always uses the default
                 // script group
-                super::segments::compute_segments(&mut outline, &mut axis, ScriptGroup::Default);
-                super::segments::link_segments(&outline, &mut axis, 0, ScriptGroup::Default, None);
+                compute_segments(&mut outline, &mut axis, ScriptGroup::Default);
+                link_segments(&outline, &mut axis, 0, ScriptGroup::Default, None);
                 let segments = axis.segments.as_slice();
                 for (segment_ix, segment) in segments.iter().enumerate() {
                     let segment_ix = segment_ix as u16;
@@ -89,7 +90,7 @@ pub(super) fn compute_widths(
         let stdw = widths
             .first()
             .copied()
-            .unwrap_or_else(|| super::derived_constant(units_per_em, 50));
+            .unwrap_or_else(|| derived_constant(units_per_em, 50));
         // Heuristic value of 20% of the smallest width
         metrics.edge_distance_threshold = stdw / 5;
         metrics.standard_width = stdw;

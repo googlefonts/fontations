@@ -1,4 +1,4 @@
-//! Latin metrics computation.
+//! Metrics scaling.
 //!
 //! Uses the widths and blues computations to generate unscaled metrics for a
 //! given style/script.
@@ -7,7 +7,6 @@
 //! modified scale, and tags active blue zones.
 
 use super::super::{
-    axis::{Axis, Dimension},
     metrics::{
         fixed_div, fixed_mul, fixed_mul_div, pix_round, Scale, ScaledAxisMetrics, ScaledBlue,
         ScaledStyleMetrics, ScaledWidth, UnscaledAxisMetrics, UnscaledBlue, UnscaledStyleMetrics,
@@ -15,6 +14,7 @@ use super::super::{
     },
     shape::Shaper,
     style::{blue_flags, ScriptGroup, StyleClass},
+    topo::{Axis, Dimension},
 };
 use crate::{prelude::Size, MetadataProvider};
 use raw::types::F2Dot14;

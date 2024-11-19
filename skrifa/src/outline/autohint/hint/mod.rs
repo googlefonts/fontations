@@ -1,27 +1,14 @@
-//! Latin writing system.
+//! Entry point to hinting algorithm.
 
-mod blues;
 mod edges;
-mod hint;
-mod metrics;
-mod segments;
-mod widths;
+mod outline;
 
 use super::{
-    axis::Axis,
-    metrics::{Scale, UnscaledStyleMetrics},
+    metrics::{scale_style_metrics, Scale, UnscaledStyleMetrics},
     outline::Outline,
     style::{GlyphStyle, ScriptGroup},
+    topo::{self, Axis},
 };
-
-pub(crate) use metrics::compute_unscaled_style_metrics;
-
-/// All constants are defined based on a UPEM of 2048.
-///
-/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L34>
-fn derived_constant(units_per_em: i32, value: i32) -> i32 {
-    value * units_per_em / 2048
-}
 
 /// Captures adjusted horizontal scale and outer edge positions to be used
 /// for horizontal metrics adjustments.
@@ -52,7 +39,7 @@ pub(crate) fn hint_outline(
     scale: &Scale,
     glyph_style: Option<GlyphStyle>,
 ) -> HintedMetrics {
-    let scaled_metrics = metrics::scale_style_metrics(metrics, *scale);
+    let scaled_metrics = scale_style_metrics(metrics, *scale);
     let scale = &scaled_metrics.scale;
     let mut axis = Axis::default();
     let hint_top_to_bottom = metrics.style_class().script.hint_top_to_bottom;
@@ -75,15 +62,15 @@ pub(crate) fn hint_outline(
             continue;
         }
         axis.reset(dim, outline.orientation);
-        segments::compute_segments(outline, &mut axis, group);
-        segments::link_segments(
+        topo::compute_segments(outline, &mut axis, group);
+        topo::link_segments(
             outline,
             &mut axis,
             scaled_metrics.axes[dim].scale,
             group,
             metrics.axes[dim].max_width(),
         );
-        edges::compute_edges(
+        topo::compute_edges(
             &mut axis,
             &scaled_metrics.axes[dim],
             hint_top_to_bottom,
@@ -96,7 +83,7 @@ pub(crate) fn hint_outline(
                     .map(|style| !style.is_non_base())
                     .unwrap_or(true)
             {
-                edges::compute_blue_edges(
+                topo::compute_blue_edges(
                     &mut axis,
                     scale,
                     &metrics.axes[dim].blues,
@@ -107,16 +94,16 @@ pub(crate) fn hint_outline(
         } else {
             hinted_metrics.x_scale = scaled_metrics.axes[0].scale;
         }
-        hint::hint_edges(
+        edges::hint_edges(
             &mut axis,
             &scaled_metrics.axes[dim],
             group,
             scale,
             hint_top_to_bottom,
         );
-        super::hint::align_edge_points(outline, &axis, group, scale);
-        super::hint::align_strong_points(outline, &mut axis);
-        super::hint::align_weak_points(outline, dim);
+        outline::align_edge_points(outline, &axis, group, scale);
+        outline::align_strong_points(outline, &mut axis);
+        outline::align_weak_points(outline, dim);
         if dim == 0 && axis.edges.len() > 1 {
             let left = axis.edges.first().unwrap();
             let right = axis.edges.last().unwrap();

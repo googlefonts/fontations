@@ -1,10 +1,16 @@
-//! Segments and edges for one dimension of an outline.
+//! Topology analysis of segments and edges.
+
+mod edges;
+mod segments;
 
 use super::{
     metrics::ScaledWidth,
     outline::{Direction, Orientation, Point},
 };
 use crate::collections::SmallVec;
+
+pub(crate) use edges::{compute_blue_edges, compute_edges};
+pub(crate) use segments::{compute_segments, link_segments};
 
 /// Maximum number of segments and edges stored inline.
 ///

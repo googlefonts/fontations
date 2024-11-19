@@ -1,4 +1,4 @@
-//! Latin segment computation and linking.
+//! Segment computation and linking.
 //!
 //! A segment is a series of at least two consecutive points that are
 //! appropriately aligned along a coordinate axis.
@@ -7,10 +7,11 @@
 //! identifies serifs with a post-process pass.
 
 use super::super::{
-    axis::{Axis, Dimension, Segment},
+    derived_constant,
     metrics::fixed_div,
     outline::Outline,
     style::ScriptGroup,
+    topo::{Axis, Dimension, Segment},
 };
 use raw::tables::glyf::PointFlags;
 
@@ -67,9 +68,9 @@ pub(crate) fn link_segments(
 fn link_segments_default(outline: &Outline, axis: &mut Axis, max_width: Option<i32>) {
     let max_width = max_width.unwrap_or_default();
     // Heuristic value to set up a minimum for overlapping
-    let len_threshold = super::derived_constant(outline.units_per_em, 8).max(1);
+    let len_threshold = derived_constant(outline.units_per_em, 8).max(1);
     // Heuristic value to weight lengths
-    let len_score = super::derived_constant(outline.units_per_em, 6000);
+    let len_score = derived_constant(outline.units_per_em, 6000);
     // Heuristic value to weight distances (not a latin constant since
     // it works on multiples of stem width)
     let dist_score = 3000;
@@ -158,7 +159,7 @@ fn link_segments_default(outline: &Outline, axis: &mut Axis, max_width: Option<i
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L848>
 fn link_segments_cjk(outline: &Outline, axis: &mut Axis, scale: i32) {
     // Heuristic value to set up a minimum for overlapping
-    let len_threshold = super::derived_constant(outline.units_per_em, 8);
+    let len_threshold = derived_constant(outline.units_per_em, 8);
     let dist_threshold = fixed_div(64 * 3, scale);
     // Compare each segment to the others.. O(n^2)
     let segments = axis.segments.as_mut_slice();
