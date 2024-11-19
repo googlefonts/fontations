@@ -423,9 +423,9 @@ fn convert_text_to_unicodes(text: &str) -> String {
     for c in text.chars() {
         let c = c as u32;
         if out.is_empty() {
-            write!(&mut out, "{:x}", c).unwrap();
+            write!(&mut out, "{:X}", c).unwrap();
         } else {
-            write!(&mut out, ",{:x}", c).unwrap();
+            write!(&mut out, ",{:X}", c).unwrap();
         }
     }
     out
