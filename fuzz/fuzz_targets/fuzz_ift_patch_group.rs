@@ -7,7 +7,6 @@ use std::{
 };
 
 use incremental_font_transfer::{
-    font_patch::PatchingError,
     patch_group::{PatchGroup, UriStatus},
     patchmap::SubsetDefinition,
 };
