@@ -1,5 +1,6 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
+mod cmap;
 mod cpal;
 mod fvar;
 mod glyf_loca;
@@ -22,28 +23,33 @@ pub use parsing_util::{
 
 use fnv::FnvHashMap;
 use serialize::Serializer;
+use skrifa::raw::tables::cmap::CmapSubtable;
 use skrifa::MetadataProvider;
 use thiserror::Error;
-use write_fonts::read::{
-    collections::{int_set::Domain, IntSet},
-    tables::{
-        cff::Cff,
-        cff2::Cff2,
-        glyf::{Glyf, Glyph},
-        gpos::Gpos,
-        gsub::Gsub,
-        gvar::Gvar,
-        head::Head,
-        loca::Loca,
-        name::Name,
-        os2::Os2,
-        post::Post,
-    },
-    types::NameId,
-    FontRef, TableProvider, TopLevelTable,
-};
 use write_fonts::types::GlyphId;
 use write_fonts::types::Tag;
+use write_fonts::{
+    read::{
+        collections::{int_set::Domain, IntSet},
+        tables::{
+            cff::Cff,
+            cff2::Cff2,
+            cmap::Cmap,
+            glyf::{Glyf, Glyph},
+            gpos::Gpos,
+            gsub::Gsub,
+            gvar::Gvar,
+            head::Head,
+            loca::Loca,
+            name::Name,
+            os2::Os2,
+            post::Post,
+        },
+        types::NameId,
+        FontRef, TableProvider, TopLevelTable,
+    },
+    tables::cmap::PlatformId,
+};
 use write_fonts::{tables::hhea::Hhea, tables::hmtx::Hmtx, tables::maxp::Maxp, FontBuilder};
 
 const MAX_COMPOSITE_OPERATIONS_PER_GLYPH: u8 = 64;
@@ -149,11 +155,14 @@ impl std::ops::BitOrAssign for SubsetFlags {
 #[derive(Default)]
 pub struct Plan {
     unicodes: IntSet<u32>,
+    glyphs_requested: IntSet<GlyphId>,
     glyphset_gsub: IntSet<GlyphId>,
     glyphset_colred: IntSet<GlyphId>,
     glyphset: IntSet<GlyphId>,
     //Old->New glyph id mapping,
     glyph_map: FnvHashMap<GlyphId, GlyphId>,
+    //New->Old glyph id mapping,
+    reverse_glyph_map: FnvHashMap<GlyphId, GlyphId>,
 
     new_to_old_gid_list: Vec<(GlyphId, GlyphId)>,
 
@@ -175,6 +184,14 @@ pub struct Plan {
     colrv1_layers: FnvHashMap<u32, u32>,
     //old->new CPAL palette index map
     colr_palettes: FnvHashMap<u16, u16>,
+
+    os2_info: Os2Info,
+}
+
+#[derive(Default)]
+struct Os2Info {
+    min_cmap_codepoint: u32,
+    max_cmap_codepoint: u32,
 }
 
 impl Plan {
@@ -188,6 +205,7 @@ impl Plan {
         name_languages: &IntSet<u16>,
     ) -> Self {
         let mut this = Plan {
+            glyphs_requested: input_gids.clone(),
             font_num_glyphs: get_font_num_glyphs(font),
             subset_flags: flags,
             drop_tables: drop_tables.clone(),
@@ -273,6 +291,41 @@ impl Plan {
             .extend(self.unicode_to_new_gid_list.iter().map(|t| t.1));
         self.unicodes
             .extend(self.unicode_to_new_gid_list.iter().map(|t| t.0));
+
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/e451e91ec3608a2ebfec34d0c4f0b3d880e00e33/src/hb-subset-plan.cc#L802>
+        self.os2_info.min_cmap_codepoint = self.unicodes.first().unwrap_or(0xFFFF_u32);
+        self.os2_info.max_cmap_codepoint = self.unicodes.last().unwrap_or(0xFFFF_u32);
+
+        self.collect_variation_selectors(font, input_unicodes);
+    }
+
+    fn collect_variation_selectors(&mut self, font: &FontRef, input_unicodes: &IntSet<u32>) {
+        if let Ok(cmap) = font.cmap() {
+            let encoding_records = cmap.encoding_records();
+            if let Ok(i) = encoding_records.binary_search_by(|r| {
+                if r.platform_id() != PlatformId::Unicode {
+                    r.platform_id().cmp(&PlatformId::Unicode)
+                } else if r.encoding_id() != 5 {
+                    r.encoding_id().cmp(&5)
+                } else {
+                    std::cmp::Ordering::Equal
+                }
+            }) {
+                if let Ok(CmapSubtable::Format14(cmap14)) = encoding_records
+                    .get(i)
+                    .unwrap()
+                    .subtable(cmap.offset_data())
+                {
+                    self.unicodes.extend(
+                        cmap14
+                            .var_selector()
+                            .iter()
+                            .map(|s| s.var_selector().to_u32())
+                            .filter(|v| input_unicodes.contains(*v)),
+                    );
+                }
+            }
+        }
     }
 
     fn populate_gids_to_retain(&mut self, font: &FontRef) {
@@ -295,21 +348,24 @@ impl Plan {
         }
 
         /* Populate a full set of glyphs to retain by adding all referenced composite glyphs. */
-        let loca = font.loca(None).expect("Error reading loca table");
-        let glyf = font.glyf().expect("Error reading glyf table");
-        let operation_count =
-            self.glyphset_gsub.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as u64);
-        for gid in self.glyphset_colred.iter() {
-            glyf_closure_glyphs(
-                &loca,
-                &glyf,
-                gid,
-                &mut self.glyphset,
-                operation_count as i32,
-                0,
-            );
+        if let Ok(loca) = font.loca(None) {
+            let glyf = font.glyf().expect("Error reading glyf table");
+            let operation_count =
+                self.glyphset_gsub.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as u64);
+            for gid in self.glyphset_colred.iter() {
+                glyf_closure_glyphs(
+                    &loca,
+                    &glyf,
+                    gid,
+                    &mut self.glyphset,
+                    operation_count as i32,
+                    0,
+                );
+            }
+            remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
+        } else {
+            self.glyphset = self.glyphset_colred.clone();
         }
-        remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
 
         self.nameid_closure(font);
     }
@@ -317,6 +373,7 @@ impl Plan {
     fn create_old_gid_to_new_gid_map(&mut self) {
         let pop = self.glyphset.len();
         self.glyph_map.reserve(pop as usize);
+        self.reverse_glyph_map.reserve(pop as usize);
         self.new_to_old_gid_list.reserve(pop as usize);
 
         //TODO: Add support for requested_glyph_map, command line option --gid-map
@@ -341,6 +398,8 @@ impl Plan {
         }
         self.glyph_map
             .extend(self.new_to_old_gid_list.iter().map(|x| (x.1, x.0)));
+        self.reverse_glyph_map
+            .extend(self.new_to_old_gid_list.iter().map(|x| (x.0, x.1)));
     }
 
     fn colr_closure(&mut self, font: &FontRef) {
@@ -445,9 +504,7 @@ fn remove_invalid_gids(gids: &mut IntSet<GlyphId>, num_glyphs: usize) {
 }
 
 fn get_font_num_glyphs(font: &FontRef) -> usize {
-    let loca = font.loca(None).expect("Error reading loca table");
-    let ret = loca.len();
-
+    let ret = font.loca(None).map(|loca| loca.len()).unwrap_or_default();
     let maxp = font.maxp().expect("Error reading maxp table");
     ret.max(maxp.num_glyphs() as usize)
 }
@@ -601,6 +658,11 @@ fn subset_table<'a>(
     s: &mut Serializer,
 ) -> Result<(), SubsetError> {
     match tag {
+        Cmap::TAG => font
+            .cmap()
+            .map_err(|_| SubsetError::SubsetTableError(Cmap::TAG))?
+            .subset(plan, font, s, builder),
+
         Glyf::TAG => font
             .glyf()
             .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
