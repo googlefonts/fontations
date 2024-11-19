@@ -303,7 +303,7 @@ impl FontWrite for FdSelectFormat3 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (3 as u8).write_into(writer);
-        (array_len(&self.ranges).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.ranges)).unwrap()).write_into(writer);
         self.ranges.write_into(writer);
         self.sentinel.write_into(writer);
     }
@@ -411,7 +411,7 @@ impl FontWrite for FdSelectFormat4 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (4 as u8).write_into(writer);
-        (array_len(&self.ranges).unwrap() as u32).write_into(writer);
+        (u32::try_from(array_len(&self.ranges)).unwrap()).write_into(writer);
         self.ranges.write_into(writer);
         self.sentinel.write_into(writer);
     }

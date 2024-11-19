@@ -8,10 +8,6 @@ use crate::{NullableOffsetMarker, OffsetMarker};
 /// the length in order to populate another field.
 pub trait HasLen {
     fn len(&self) -> usize;
-
-    fn checked_len<T: TryFrom<usize>>(&self) -> Result<T, <T as TryFrom<usize>>::Error> {
-        self.len().try_into()
-    }
 }
 
 impl<T> HasLen for [T] {

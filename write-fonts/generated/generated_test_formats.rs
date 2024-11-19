@@ -72,7 +72,7 @@ impl FontWrite for Table2 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
-        (array_len(&self.values).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.values)).unwrap()).write_into(writer);
         self.values.write_into(writer);
     }
     fn table_type(&self) -> TableType {

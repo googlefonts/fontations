@@ -560,6 +560,8 @@ mod tests {
         },
     };
 
+    use super::{Cmap12, SequentialMapGroup};
+
     fn assert_generates_simple_cmap(mappings: Vec<(char, GlyphId)>) {
         let cmap = write::Cmap::from_mappings(mappings).unwrap();
 
@@ -971,5 +973,18 @@ mod tests {
 
         let format4 = expect_f4(&mapping);
         assert_eq!(format4.end_code.len(), 4);
+    }
+
+    // test that we correctly encode array lengths exceeding u16::MAX
+    #[test]
+    fn cmap12_length_calculation() {
+        let more_than_16_bits = u16::MAX as u32 + 5;
+        let groups = (0..more_than_16_bits)
+            .map(|i| SequentialMapGroup::new(i, i, i))
+            .collect();
+        let cmap12 = Cmap12::new(0, groups);
+        let bytes = crate::dump_table(&cmap12).unwrap();
+        let read_it_back = Cmap12::read(bytes.as_slice().into()).unwrap();
+        assert_eq!(read_it_back.groups.len() as u32, more_than_16_bits);
     }
 }

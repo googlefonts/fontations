@@ -1304,7 +1304,7 @@ impl Field {
                     let typ = self.typ.cooked_type_tokens();
                     let expr = inline_expr.compile_expr();
                     if !inline_expr.referenced_fields.is_empty() {
-                        quote!(#expr.unwrap() as #typ)
+                        quote!( #typ :: try_from(#expr).unwrap() )
                     } else {
                         quote!(#expr as #typ)
                     }

@@ -25,10 +25,10 @@ impl BasicTable {
 impl FontWrite for BasicTable {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.simple_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.simple_records)).unwrap()).write_into(writer);
         self.simple_records.write_into(writer);
         (self.compute_arrays_inner_count() as u16).write_into(writer);
-        (array_len(&self.array_records).unwrap() as u32).write_into(writer);
+        (u32::try_from(array_len(&self.array_records)).unwrap()).write_into(writer);
         self.array_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -193,7 +193,7 @@ impl ContainsOffsets {
 impl FontWrite for ContainsOffsets {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.array).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.array)).unwrap()).write_into(writer);
         self.array.write_into(writer);
         self.other.write_into(writer);
     }

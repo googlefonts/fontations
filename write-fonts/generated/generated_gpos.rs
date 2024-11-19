@@ -581,7 +581,7 @@ impl MarkArray {
 impl FontWrite for MarkArray {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.mark_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.mark_records)).unwrap()).write_into(writer);
         self.mark_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -837,7 +837,7 @@ impl FontWrite for SinglePosFormat2 {
         (2 as u16).write_into(writer);
         self.coverage.write_into(writer);
         (self.compute_value_format() as ValueFormat).write_into(writer);
-        (array_len(&self.value_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.value_records)).unwrap()).write_into(writer);
         self.value_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -1002,7 +1002,7 @@ impl FontWrite for PairPosFormat1 {
         self.coverage.write_into(writer);
         (self.compute_value_format1() as ValueFormat).write_into(writer);
         (self.compute_value_format2() as ValueFormat).write_into(writer);
-        (array_len(&self.pair_sets).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.pair_sets)).unwrap()).write_into(writer);
         self.pair_sets.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -1063,7 +1063,7 @@ impl PairSet {
 impl FontWrite for PairSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.pair_value_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.pair_value_records)).unwrap()).write_into(writer);
         self.pair_value_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -1371,7 +1371,7 @@ impl FontWrite for CursivePosFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coverage.write_into(writer);
-        (array_len(&self.entry_exit_record).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.entry_exit_record)).unwrap()).write_into(writer);
         self.entry_exit_record.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -1578,7 +1578,7 @@ impl BaseArray {
 impl FontWrite for BaseArray {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.base_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.base_records)).unwrap()).write_into(writer);
         self.base_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -1774,7 +1774,7 @@ impl LigatureArray {
 impl FontWrite for LigatureArray {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.ligature_attaches).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.ligature_attaches)).unwrap()).write_into(writer);
         self.ligature_attaches.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -1823,7 +1823,7 @@ impl LigatureAttach {
 impl FontWrite for LigatureAttach {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.component_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.component_records)).unwrap()).write_into(writer);
         self.component_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -2018,7 +2018,7 @@ impl Mark2Array {
 impl FontWrite for Mark2Array {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.mark2_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.mark2_records)).unwrap()).write_into(writer);
         self.mark2_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {

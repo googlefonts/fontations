@@ -27,7 +27,7 @@ impl FontWrite for Cmap {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (0 as u16).write_into(writer);
-        (array_len(&self.encoding_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.encoding_records)).unwrap()).write_into(writer);
         self.encoding_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -592,7 +592,7 @@ impl FontWrite for Cmap4 {
         (4 as u16).write_into(writer);
         (self.compute_length() as u16).write_into(writer);
         self.language.write_into(writer);
-        (2 * array_len(&self.end_code).unwrap() as u16).write_into(writer);
+        (u16::try_from(2 * array_len(&self.end_code)).unwrap()).write_into(writer);
         (self.compute_search_range() as u16).write_into(writer);
         (self.compute_entry_selector() as u16).write_into(writer);
         (self.compute_range_shift() as u16).write_into(writer);
@@ -963,7 +963,7 @@ impl FontWrite for Cmap12 {
         (0 as u16).write_into(writer);
         (self.compute_length() as u32).write_into(writer);
         self.language.write_into(writer);
-        (array_len(&self.groups).unwrap() as u32).write_into(writer);
+        (u32::try_from(array_len(&self.groups)).unwrap()).write_into(writer);
         self.groups.write_into(writer);
     }
     fn table_type(&self) -> TableType {
