@@ -122,7 +122,7 @@ impl LinkWidth {
     }
 }
 
-type ObjIdx = usize;
+pub(crate) type ObjIdx = usize;
 
 #[allow(dead_code)]
 #[derive(Default, Eq, PartialEq, Hash)]
@@ -196,6 +196,19 @@ impl Serializer {
         let ret = self.allocate_size(len)?;
         self.data[ret..ret + len].copy_from_slice(bytes);
         Ok(ret)
+    }
+
+    pub(crate) fn check_assign<T: TryFrom<usize> + Scalar>(
+        &mut self,
+        pos: usize,
+        obj: usize,
+        err_type: SerializeErrorFlags,
+    ) {
+        let Ok(val) = T::try_from(obj) else {
+            self.set_err(err_type);
+            return;
+        };
+        self.copy_assign(pos, val);
     }
 
     /// copy from a single Scalar type
@@ -273,6 +286,10 @@ impl Serializer {
 
     pub(crate) fn set_err(&mut self, error_type: SerializeErrorFlags) -> SerializeErrorFlags {
         self.errors |= error_type;
+        self.errors
+    }
+
+    pub(crate) fn error(&self) -> SerializeErrorFlags {
         self.errors
     }
 

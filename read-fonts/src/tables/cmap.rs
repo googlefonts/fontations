@@ -60,6 +60,21 @@ impl Cmap<'_> {
     }
 }
 
+impl<'a> CmapSubtable<'a> {
+    pub fn language(&self) -> u32 {
+        match self {
+            Self::Format0(item) => item.language() as u32,
+            Self::Format2(item) => item.language() as u32,
+            Self::Format4(item) => item.language() as u32,
+            Self::Format6(item) => item.language() as u32,
+            Self::Format10(item) => item.language(),
+            Self::Format12(item) => item.language(),
+            Self::Format13(item) => item.language(),
+            _ => 0,
+        }
+    }
+}
+
 impl<'a> Cmap4<'a> {
     /// Maps a codepoint to a nominal glyph identifier.
     pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {

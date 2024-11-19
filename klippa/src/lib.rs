@@ -1,5 +1,6 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
+mod cmap;
 mod cpal;
 mod fvar;
 mod glyf_loca;
@@ -149,6 +150,7 @@ impl std::ops::BitOrAssign for SubsetFlags {
 #[derive(Default)]
 pub struct Plan {
     unicodes: IntSet<u32>,
+    glyphs_requested: IntSet<GlyphId>,
     glyphset_gsub: IntSet<GlyphId>,
     glyphset_colred: IntSet<GlyphId>,
     glyphset: IntSet<GlyphId>,
@@ -188,6 +190,7 @@ impl Plan {
         name_languages: &IntSet<u16>,
     ) -> Self {
         let mut this = Plan {
+            glyphs_requested: input_gids.clone(),
             font_num_glyphs: get_font_num_glyphs(font),
             subset_flags: flags,
             drop_tables: drop_tables.clone(),
@@ -503,6 +506,11 @@ pub enum SubsetError {
 pub trait NameIdClosure {
     /// collect name_ids
     fn collect_name_ids(&self, plan: &mut Plan);
+}
+
+pub trait CollectUnicodes {
+    /// collect unicodes
+    fn collect_unicodes(&self, num_glyphs: usize, out: &mut IntSet<u32>);
 }
 
 // This trait is implemented for all font tables
