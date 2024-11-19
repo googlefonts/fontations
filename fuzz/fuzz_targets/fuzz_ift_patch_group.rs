@@ -6,7 +6,11 @@ use std::{
     ops::RangeInclusive,
 };
 
-use incremental_font_transfer::{patch_group::PatchGroup, patchmap::SubsetDefinition};
+use incremental_font_transfer::{
+    font_patch::PatchingError,
+    patch_group::{PatchGroup, UriStatus},
+    patchmap::SubsetDefinition,
+};
 use libfuzzer_sys::{arbitrary, fuzz_target};
 use read_fonts::{collections::IntSet, types::Tag};
 use skrifa::FontRef;
@@ -23,6 +27,10 @@ struct FuzzInput {
     codepoints: HashSet<u32>,
     features: HashSet<u32>,
     design_space: HashMap<u32, Vec<(f64, f64)>>,
+
+    // Patches
+    patches: HashMap<String, Vec<u8>>,
+    applied_patches: HashSet<String>,
 }
 
 impl FuzzInput {
@@ -57,6 +65,11 @@ impl FuzzInput {
     }
 }
 
+/// Used to ensure read only functions don't get optimized away.
+fn black_box<T>(dummy: T) -> T {
+    unsafe { std::ptr::read_volatile(&dummy) }
+}
+
 fuzz_target!(|input: FuzzInput| {
     let font_data = input.to_font();
     let Ok(font) = FontRef::new(&font_data) else {
@@ -65,8 +78,25 @@ fuzz_target!(|input: FuzzInput| {
 
     let subset_definition = input.to_subset_definition();
 
-    let _ = PatchGroup::select_next_patches(font, &subset_definition);
+    let Ok(group) = PatchGroup::select_next_patches(font, &subset_definition) else {
+        return;
+    };
 
-    // TODO(garretrieger): also apply patches. for patches we will need to bypass brotli compression.
-    // TODO(garretrieger): on patch application we should never see an incompatible patch error.
+    // Exercise uris() api on group
+    black_box(group.has_uris());
+    for uri in group.uris() {
+        black_box(uri);
+    }
+
+    // Exercise patch application.
+    let mut uri_map: HashMap<String, UriStatus> = input
+        .patches
+        .into_iter()
+        .map(|(uri, data)| (uri, UriStatus::Pending(data)))
+        .collect();
+    for uri in input.applied_patches {
+        uri_map.insert(uri.to_string(), UriStatus::Applied);
+    }
+
+    let _ = black_box(group.apply_next_patches(&mut uri_map));
 });
