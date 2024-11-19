@@ -32,7 +32,7 @@ impl FontWrite for Vorg {
     fn write_into(&self, writer: &mut TableWriter) {
         (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
         self.default_vert_origin_y.write_into(writer);
-        (array_len(&self.vert_origin_y_metrics).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.vert_origin_y_metrics)).unwrap()).write_into(writer);
         self.vert_origin_y_metrics.write_into(writer);
     }
     fn table_type(&self) -> TableType {

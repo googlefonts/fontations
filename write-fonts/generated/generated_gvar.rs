@@ -26,7 +26,7 @@ impl FontWrite for Gvar {
     fn write_into(&self, writer: &mut TableWriter) {
         (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
         self.axis_count.write_into(writer);
-        (array_len(&self.shared_tuples).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.shared_tuples)).unwrap()).write_into(writer);
         self.shared_tuples.write_into(writer);
         (self.compute_glyph_count() as u16).write_into(writer);
         (self.compute_flags() as GvarFlags).write_into(writer);

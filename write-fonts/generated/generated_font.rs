@@ -41,7 +41,7 @@ impl FontWrite for TableDirectory {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.sfnt_version.write_into(writer);
-        (array_len(&self.table_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.table_records)).unwrap()).write_into(writer);
         self.search_range.write_into(writer);
         self.entry_selector.write_into(writer);
         self.range_shift.write_into(writer);

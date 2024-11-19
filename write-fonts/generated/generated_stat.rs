@@ -33,9 +33,9 @@ impl FontWrite for Stat {
         let version = MajorMinor::VERSION_1_2 as MajorMinor;
         version.write_into(writer);
         (8 as u16).write_into(writer);
-        (array_len(&self.design_axes).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.design_axes)).unwrap()).write_into(writer);
         self.design_axes.write_into(writer);
-        (array_len(&self.offset_to_axis_values).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.offset_to_axis_values)).unwrap()).write_into(writer);
         self.offset_to_axis_values.write_into(writer);
         version.compatible((1u16, 1u16)).then(|| {
             self.elided_fallback_name_id
@@ -613,7 +613,7 @@ impl FontWrite for AxisValueFormat4 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (4 as u16).write_into(writer);
-        (array_len(&self.axis_values).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.axis_values)).unwrap()).write_into(writer);
         self.flags.write_into(writer);
         self.value_name_id.write_into(writer);
         self.axis_values.write_into(writer);

@@ -27,7 +27,7 @@ impl ScriptList {
 impl FontWrite for ScriptList {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.script_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.script_records)).unwrap()).write_into(writer);
         self.script_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -139,7 +139,7 @@ impl FontWrite for Script {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.default_lang_sys.write_into(writer);
-        (array_len(&self.lang_sys_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.lang_sys_records)).unwrap()).write_into(writer);
         self.lang_sys_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -267,7 +267,7 @@ impl FontWrite for LangSys {
     fn write_into(&self, writer: &mut TableWriter) {
         (0 as u16).write_into(writer);
         self.required_feature_index.write_into(writer);
-        (array_len(&self.feature_indices).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.feature_indices)).unwrap()).write_into(writer);
         self.feature_indices.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -326,7 +326,7 @@ impl FeatureList {
 impl FontWrite for FeatureList {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.feature_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.feature_records)).unwrap()).write_into(writer);
         self.feature_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -442,7 +442,7 @@ impl FontWrite for Feature {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.feature_params.write_into(writer);
-        (array_len(&self.lookup_list_indices).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.lookup_list_indices)).unwrap()).write_into(writer);
         self.lookup_list_indices.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -498,7 +498,7 @@ impl<T: Default> LookupList<T> {
 impl<T: FontWrite> FontWrite for LookupList<T> {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.lookups).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.lookups)).unwrap()).write_into(writer);
         self.lookups.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -632,7 +632,7 @@ impl FontWrite for CoverageFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        (array_len(&self.glyph_array).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.glyph_array)).unwrap()).write_into(writer);
         self.glyph_array.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -691,7 +691,7 @@ impl FontWrite for CoverageFormat2 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
-        (array_len(&self.range_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.range_records)).unwrap()).write_into(writer);
         self.range_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -888,7 +888,7 @@ impl FontWrite for ClassDefFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.start_glyph_id.write_into(writer);
-        (array_len(&self.class_value_array).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.class_value_array)).unwrap()).write_into(writer);
         self.class_value_array.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -948,7 +948,7 @@ impl FontWrite for ClassDefFormat2 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
-        (array_len(&self.class_range_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.class_range_records)).unwrap()).write_into(writer);
         self.class_range_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -1191,7 +1191,7 @@ impl FontWrite for SequenceContextFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coverage.write_into(writer);
-        (array_len(&self.seq_rule_sets).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.seq_rule_sets)).unwrap()).write_into(writer);
         self.seq_rule_sets.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -1262,7 +1262,7 @@ impl SequenceRuleSet {
 impl FontWrite for SequenceRuleSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.seq_rules).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.seq_rules)).unwrap()).write_into(writer);
         self.seq_rules.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -1326,8 +1326,8 @@ impl SequenceRule {
 impl FontWrite for SequenceRule {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (plus_one(&self.input_sequence.len()).unwrap() as u16).write_into(writer);
-        (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(plus_one(&self.input_sequence.len())).unwrap()).write_into(writer);
+        (u16::try_from(array_len(&self.seq_lookup_records)).unwrap()).write_into(writer);
         self.input_sequence.write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
@@ -1404,7 +1404,7 @@ impl FontWrite for SequenceContextFormat2 {
         (2 as u16).write_into(writer);
         self.coverage.write_into(writer);
         self.class_def.write_into(writer);
-        (array_len(&self.class_seq_rule_sets).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.class_seq_rule_sets)).unwrap()).write_into(writer);
         self.class_seq_rule_sets.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -1479,7 +1479,7 @@ impl ClassSequenceRuleSet {
 impl FontWrite for ClassSequenceRuleSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.class_seq_rules).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.class_seq_rules)).unwrap()).write_into(writer);
         self.class_seq_rules.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -1547,8 +1547,8 @@ impl ClassSequenceRule {
 impl FontWrite for ClassSequenceRule {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (plus_one(&self.input_sequence.len()).unwrap() as u16).write_into(writer);
-        (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(plus_one(&self.input_sequence.len())).unwrap()).write_into(writer);
+        (u16::try_from(array_len(&self.seq_lookup_records)).unwrap()).write_into(writer);
         self.input_sequence.write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
@@ -1617,8 +1617,8 @@ impl FontWrite for SequenceContextFormat3 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (3 as u16).write_into(writer);
-        (array_len(&self.coverages).unwrap() as u16).write_into(writer);
-        (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.coverages)).unwrap()).write_into(writer);
+        (u16::try_from(array_len(&self.seq_lookup_records)).unwrap()).write_into(writer);
         self.coverages.write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
@@ -1810,7 +1810,7 @@ impl FontWrite for ChainedSequenceContextFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coverage.write_into(writer);
-        (array_len(&self.chained_seq_rule_sets).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.chained_seq_rule_sets)).unwrap()).write_into(writer);
         self.chained_seq_rule_sets.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -1881,7 +1881,7 @@ impl ChainedSequenceRuleSet {
 impl FontWrite for ChainedSequenceRuleSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.chained_seq_rules).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.chained_seq_rules)).unwrap()).write_into(writer);
         self.chained_seq_rules.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -1961,13 +1961,13 @@ impl ChainedSequenceRule {
 impl FontWrite for ChainedSequenceRule {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.backtrack_sequence).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.backtrack_sequence)).unwrap()).write_into(writer);
         self.backtrack_sequence.write_into(writer);
-        (plus_one(&self.input_sequence.len()).unwrap() as u16).write_into(writer);
+        (u16::try_from(plus_one(&self.input_sequence.len())).unwrap()).write_into(writer);
         self.input_sequence.write_into(writer);
-        (array_len(&self.lookahead_sequence).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.lookahead_sequence)).unwrap()).write_into(writer);
         self.lookahead_sequence.write_into(writer);
-        (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.seq_lookup_records)).unwrap()).write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -2073,7 +2073,7 @@ impl FontWrite for ChainedSequenceContextFormat2 {
         self.backtrack_class_def.write_into(writer);
         self.input_class_def.write_into(writer);
         self.lookahead_class_def.write_into(writer);
-        (array_len(&self.chained_class_seq_rule_sets).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.chained_class_seq_rule_sets)).unwrap()).write_into(writer);
         self.chained_class_seq_rule_sets.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -2159,7 +2159,7 @@ impl ChainedClassSequenceRuleSet {
 impl FontWrite for ChainedClassSequenceRuleSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.chained_class_seq_rules).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.chained_class_seq_rules)).unwrap()).write_into(writer);
         self.chained_class_seq_rules.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -2240,13 +2240,13 @@ impl ChainedClassSequenceRule {
 impl FontWrite for ChainedClassSequenceRule {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.backtrack_sequence).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.backtrack_sequence)).unwrap()).write_into(writer);
         self.backtrack_sequence.write_into(writer);
-        (plus_one(&self.input_sequence.len()).unwrap() as u16).write_into(writer);
+        (u16::try_from(plus_one(&self.input_sequence.len())).unwrap()).write_into(writer);
         self.input_sequence.write_into(writer);
-        (array_len(&self.lookahead_sequence).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.lookahead_sequence)).unwrap()).write_into(writer);
         self.lookahead_sequence.write_into(writer);
-        (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.seq_lookup_records)).unwrap()).write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -2341,13 +2341,13 @@ impl FontWrite for ChainedSequenceContextFormat3 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (3 as u16).write_into(writer);
-        (array_len(&self.backtrack_coverages).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.backtrack_coverages)).unwrap()).write_into(writer);
         self.backtrack_coverages.write_into(writer);
-        (array_len(&self.input_coverages).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.input_coverages)).unwrap()).write_into(writer);
         self.input_coverages.write_into(writer);
-        (array_len(&self.lookahead_coverages).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.lookahead_coverages)).unwrap()).write_into(writer);
         self.lookahead_coverages.write_into(writer);
-        (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.seq_lookup_records)).unwrap()).write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -2806,7 +2806,7 @@ impl FontWrite for FeatureVariations {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
-        (array_len(&self.feature_variation_records).unwrap() as u32).write_into(writer);
+        (u32::try_from(array_len(&self.feature_variation_records)).unwrap()).write_into(writer);
         self.feature_variation_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -2928,7 +2928,7 @@ impl ConditionSet {
 impl FontWrite for ConditionSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.conditions).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.conditions)).unwrap()).write_into(writer);
         self.conditions.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -3431,7 +3431,7 @@ impl FontWrite for FeatureTableSubstitution {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
-        (array_len(&self.substitutions).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.substitutions)).unwrap()).write_into(writer);
         self.substitutions.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -3734,7 +3734,7 @@ impl FontWrite for CharacterVariantParams {
         self.sample_text_name_id.write_into(writer);
         self.num_named_parameters.write_into(writer);
         self.first_param_ui_label_name_id.write_into(writer);
-        (array_len(&self.character).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.character)).unwrap()).write_into(writer);
         self.character.write_into(writer);
     }
     fn table_type(&self) -> TableType {

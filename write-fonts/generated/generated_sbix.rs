@@ -40,7 +40,7 @@ impl FontWrite for Sbix {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         (self.compile_header_flags()).write_into(writer);
-        (array_len(&self.strikes).unwrap() as u32).write_into(writer);
+        (u32::try_from(array_len(&self.strikes)).unwrap()).write_into(writer);
         self.strikes.write_into(writer);
     }
     fn table_type(&self) -> TableType {

@@ -152,7 +152,7 @@ impl FontWrite for AttachList {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.coverage.write_into(writer);
-        (array_len(&self.attach_points).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.attach_points)).unwrap()).write_into(writer);
         self.attach_points.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -213,7 +213,7 @@ impl AttachPoint {
 impl FontWrite for AttachPoint {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.point_indices).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.point_indices)).unwrap()).write_into(writer);
         self.point_indices.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -275,7 +275,7 @@ impl FontWrite for LigCaretList {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.coverage.write_into(writer);
-        (array_len(&self.lig_glyphs).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.lig_glyphs)).unwrap()).write_into(writer);
         self.lig_glyphs.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -337,7 +337,7 @@ impl LigGlyph {
 impl FontWrite for LigGlyph {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.caret_values).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.caret_values)).unwrap()).write_into(writer);
         self.caret_values.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -650,7 +650,7 @@ impl FontWrite for MarkGlyphSets {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        (array_len(&self.coverages).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.coverages)).unwrap()).write_into(writer);
         self.coverages.write_into(writer);
     }
     fn table_type(&self) -> TableType {

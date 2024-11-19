@@ -164,7 +164,7 @@ impl BaseTagList {
 impl FontWrite for BaseTagList {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.baseline_tags).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.baseline_tags)).unwrap()).write_into(writer);
         self.baseline_tags.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -222,7 +222,7 @@ impl BaseScriptList {
 impl FontWrite for BaseScriptList {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.base_script_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.base_script_records)).unwrap()).write_into(writer);
         self.base_script_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -346,7 +346,7 @@ impl FontWrite for BaseScript {
     fn write_into(&self, writer: &mut TableWriter) {
         self.base_values.write_into(writer);
         self.default_min_max.write_into(writer);
-        (array_len(&self.base_lang_sys_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.base_lang_sys_records)).unwrap()).write_into(writer);
         self.base_lang_sys_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -472,7 +472,7 @@ impl FontWrite for BaseValues {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.default_baseline_index.write_into(writer);
-        (array_len(&self.base_coords).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.base_coords)).unwrap()).write_into(writer);
         self.base_coords.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -545,7 +545,7 @@ impl FontWrite for MinMax {
     fn write_into(&self, writer: &mut TableWriter) {
         self.min_coord.write_into(writer);
         self.max_coord.write_into(writer);
-        (array_len(&self.feat_min_max_records).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.feat_min_max_records)).unwrap()).write_into(writer);
         self.feat_min_max_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {

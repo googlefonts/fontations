@@ -48,7 +48,7 @@ impl FontWrite for KindsOfOffsets {
         version.write_into(writer);
         self.nonnullable.write_into(writer);
         self.nullable.write_into(writer);
-        (array_len(&self.array).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.array)).unwrap()).write_into(writer);
         self.array.write_into(writer);
         self.record_array.write_into(writer);
         version
@@ -151,7 +151,7 @@ impl FontWrite for KindsOfArraysOfOffsets {
     fn write_into(&self, writer: &mut TableWriter) {
         let version = MajorMinor::VERSION_1_1 as MajorMinor;
         version.write_into(writer);
-        (array_len(&self.nonnullables).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.nonnullables)).unwrap()).write_into(writer);
         self.nonnullables.write_into(writer);
         self.nullables.write_into(writer);
         version.compatible((1u16, 1u16)).then(|| {
@@ -273,7 +273,7 @@ impl FontWrite for KindsOfArrays {
     fn write_into(&self, writer: &mut TableWriter) {
         let version = self.version;
         version.write_into(writer);
-        (array_len(&self.scalars).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.scalars)).unwrap()).write_into(writer);
         self.scalars.write_into(writer);
         self.records.write_into(writer);
         version.compatible(1u16).then(|| {

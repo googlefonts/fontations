@@ -380,7 +380,7 @@ impl FontWrite for VariationRegionList {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.axis_count.write_into(writer);
-        (array_len(&self.variation_regions).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.variation_regions)).unwrap()).write_into(writer);
         self.variation_regions.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -564,7 +564,7 @@ impl FontWrite for ItemVariationStore {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.variation_region_list.write_into(writer);
-        (array_len(&self.item_variation_data).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.item_variation_data)).unwrap()).write_into(writer);
         self.item_variation_data.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -649,7 +649,7 @@ impl FontWrite for ItemVariationData {
     fn write_into(&self, writer: &mut TableWriter) {
         self.item_count.write_into(writer);
         self.word_delta_count.write_into(writer);
-        (array_len(&self.region_indexes).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.region_indexes)).unwrap()).write_into(writer);
         self.region_indexes.write_into(writer);
         self.delta_sets.write_into(writer);
     }

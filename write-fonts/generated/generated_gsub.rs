@@ -408,7 +408,7 @@ impl FontWrite for SingleSubstFormat2 {
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
         self.coverage.write_into(writer);
-        (array_len(&self.substitute_glyph_ids).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.substitute_glyph_ids)).unwrap()).write_into(writer);
         self.substitute_glyph_ids.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -477,7 +477,7 @@ impl FontWrite for MultipleSubstFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coverage.write_into(writer);
-        (array_len(&self.sequences).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.sequences)).unwrap()).write_into(writer);
         self.sequences.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -539,7 +539,7 @@ impl Sequence {
 impl FontWrite for Sequence {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.substitute_glyph_ids).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.substitute_glyph_ids)).unwrap()).write_into(writer);
         self.substitute_glyph_ids.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -603,7 +603,7 @@ impl FontWrite for AlternateSubstFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coverage.write_into(writer);
-        (array_len(&self.alternate_sets).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.alternate_sets)).unwrap()).write_into(writer);
         self.alternate_sets.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -671,7 +671,7 @@ impl AlternateSet {
 impl FontWrite for AlternateSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.alternate_glyph_ids).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.alternate_glyph_ids)).unwrap()).write_into(writer);
         self.alternate_glyph_ids.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -735,7 +735,7 @@ impl FontWrite for LigatureSubstFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coverage.write_into(writer);
-        (array_len(&self.ligature_sets).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.ligature_sets)).unwrap()).write_into(writer);
         self.ligature_sets.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -798,7 +798,7 @@ impl LigatureSet {
 impl FontWrite for LigatureSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.ligatures).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.ligatures)).unwrap()).write_into(writer);
         self.ligatures.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -860,7 +860,7 @@ impl FontWrite for Ligature {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.ligature_glyph.write_into(writer);
-        (plus_one(&self.component_glyph_ids.len()).unwrap() as u16).write_into(writer);
+        (u16::try_from(plus_one(&self.component_glyph_ids.len())).unwrap()).write_into(writer);
         self.component_glyph_ids.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -1120,11 +1120,11 @@ impl FontWrite for ReverseChainSingleSubstFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coverage.write_into(writer);
-        (array_len(&self.backtrack_coverages).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.backtrack_coverages)).unwrap()).write_into(writer);
         self.backtrack_coverages.write_into(writer);
-        (array_len(&self.lookahead_coverages).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.lookahead_coverages)).unwrap()).write_into(writer);
         self.lookahead_coverages.write_into(writer);
-        (array_len(&self.substitute_glyph_ids).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.substitute_glyph_ids)).unwrap()).write_into(writer);
         self.substitute_glyph_ids.write_into(writer);
     }
     fn table_type(&self) -> TableType {

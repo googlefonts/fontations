@@ -183,11 +183,11 @@ pub(crate) mod codegen_prelude {
     };
 
     /// checked conversion to u16
-    pub fn array_len<T: super::collections::HasLen>(s: &T) -> Result<u16, TryFromIntError> {
-        s.checked_len()
+    pub fn array_len<T: super::collections::HasLen>(s: &T) -> usize {
+        s.len()
     }
 
-    pub fn plus_one(val: &usize) -> Result<u16, TryFromIntError> {
-        val.saturating_add(1).try_into()
+    pub fn plus_one(val: &usize) -> usize {
+        val.saturating_add(1)
     }
 }

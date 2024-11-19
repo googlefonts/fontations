@@ -33,7 +33,7 @@ impl FontWrite for Avar {
         let version = self.compute_version() as MajorMinor;
         version.write_into(writer);
         (0 as u16).write_into(writer);
-        (array_len(&self.axis_segment_maps).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.axis_segment_maps)).unwrap()).write_into(writer);
         self.axis_segment_maps.write_into(writer);
         version
             .compatible((2u16, 0u16))
@@ -113,7 +113,7 @@ impl SegmentMaps {
 impl FontWrite for SegmentMaps {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.axis_value_maps).unwrap() as u16).write_into(writer);
+        (u16::try_from(array_len(&self.axis_value_maps)).unwrap()).write_into(writer);
         self.axis_value_maps.write_into(writer);
     }
     fn table_type(&self) -> TableType {
