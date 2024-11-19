@@ -13,3 +13,6 @@ all-features = true
 
 [dependencies]
 brotlic-sys = {version = "0.2.2"}
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }

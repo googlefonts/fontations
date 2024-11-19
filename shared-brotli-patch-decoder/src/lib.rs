@@ -48,6 +48,20 @@ pub fn shared_brotli_decode(
     shared_dictionary: Option<&[u8]>,
     max_uncompressed_length: usize,
 ) -> Result<Vec<u8>, DecodeError> {
+    #[cfg(fuzzing)]
+    {
+        // When running under a fuzzer disable brotli decoding and instead just pass through the input data.
+        // This allows the fuzzer to more effectively explore code gated behind brotli decoding.
+        // TODO(garretrieger): instead consider modifying the top level IFT apis to allow a custom brotli decoder
+        //   implementation to be provided. This would allow fuzzing to sub in a custom impl that could return all
+        //   of the possible errors that the standard impl here can generate.
+        return if encoded.len() <= max_uncompressed_length {
+            Ok(encoded.to_vec())
+        } else {
+            Err(DecodeError::MaxSizeExceeded)
+        };
+    }
+
     let decoder = unsafe { BrotliDecoderCreateInstance(None, None, ptr::null_mut()) };
     if decoder.is_null() {
         return Err(DecodeError::InitFailure);
