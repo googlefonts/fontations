@@ -1,5 +1,6 @@
 //! serializer
 //! ported from Harfbuzz Serializer: <https://github.com/harfbuzz/harfbuzz/blob/5e32b5ca8fe430132b87c0eee6a1c056d37c35eb/src/hb-serialize.hh>
+use core::ops::Range;
 use std::{
     hash::{Hash, Hasher},
     mem,
@@ -7,7 +8,7 @@ use std::{
 
 use fnv::FnvHasher;
 use hashbrown::HashTable;
-use write_fonts::types::Scalar;
+use write_fonts::types::{Scalar, Uint24};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[allow(dead_code)]
@@ -21,6 +22,10 @@ impl SerializeErrorFlags {
     pub const SERIALIZE_ERROR_OUT_OF_ROOM: Self = Self(0x0004);
     pub const SERIALIZE_ERROR_INT_OVERFLOW: Self = Self(0x0008);
     pub const SERIALIZE_ERROR_ARRAY_OVERFLOW: Self = Self(0x0010);
+
+    fn contains(&self, other: Self) -> bool {
+        (self.0 & other.0) == other.0
+    }
 }
 
 impl Default for SerializeErrorFlags {
@@ -49,7 +54,7 @@ impl std::ops::Not for SerializeErrorFlags {
 #[derive(Default, Eq, PartialEq, Hash)]
 // Offset relative to the current object head (default)/tail or
 // Absolute: from the start of the serialize buffer
-enum OffsetWhence {
+pub(crate) enum OffsetWhence {
     #[default]
     Head,
     Tail,
@@ -81,16 +86,40 @@ impl Object {
         self.real_links.clear();
         self.virtual_links.clear();
     }
+
+    fn add_virtual_link(&mut self, obj_idx: ObjIdx) {
+        let link = Link {
+            width: LinkWidth::default(),
+            is_signed: false,
+            whence: OffsetWhence::default(),
+            bias: 0,
+            position: 0,
+            objidx: obj_idx,
+        };
+
+        self.virtual_links.push(link);
+    }
 }
 
 // LinkWidth:2->offset16, 3->offset24 and 4->offset32
 #[allow(dead_code)]
-#[derive(Default, Eq, PartialEq, Hash)]
+#[derive(Default, Eq, PartialEq, Hash, Clone, Copy)]
 enum LinkWidth {
     #[default]
     Two,
     Three,
     Four,
+}
+
+impl LinkWidth {
+    fn new_checked(val: usize) -> Option<LinkWidth> {
+        match val {
+            2 => Some(LinkWidth::Two),
+            3 => Some(LinkWidth::Three),
+            4 => Some(LinkWidth::Four),
+            _ => None,
+        }
+    }
 }
 
 type ObjIdx = usize;
@@ -103,7 +132,7 @@ struct Link {
     whence: OffsetWhence,
     bias: u32,
     position: u32,
-    objidx: Option<ObjIdx>,
+    objidx: ObjIdx,
 }
 
 // reference harfbuzz implementation:
@@ -123,7 +152,7 @@ pub(crate) struct Serializer {
     // index for current Object in the object_pool
     current: Option<PoolIdx>,
 
-    packed: Vec<Option<PoolIdx>>,
+    packed: Vec<PoolIdx>,
     packed_map: PoolIdxHashTable,
 }
 
@@ -131,16 +160,13 @@ pub(crate) struct Serializer {
 impl Serializer {
     pub(crate) fn new(size: u32) -> Self {
         let buf_size = size as usize;
-        let mut this = Serializer {
+        Serializer {
             data: vec![0; buf_size],
             end: buf_size,
             tail: buf_size,
             packed: Vec::new(),
             ..Default::default()
-        };
-
-        this.packed.push(None);
-        this
+        }
     }
 
     // Embed a single Scalar type
@@ -176,6 +202,11 @@ impl Serializer {
 
     pub(crate) fn in_error(&self) -> bool {
         !!self.errors
+    }
+
+    pub(crate) fn offset_overflow(&self) -> bool {
+        self.errors
+            .contains(SerializeErrorFlags::SERIALIZE_ERROR_OFFSET_OVERFLOW)
     }
 
     pub(crate) fn only_overflow(&self) -> bool {
@@ -273,7 +304,7 @@ impl Serializer {
             return Some(dup_obj_idxes.1);
         }
 
-        self.packed.push(Some(pool_idx));
+        self.packed.push(pool_idx);
         let obj_idx = self.packed.len() - 1;
 
         if share {
@@ -281,6 +312,126 @@ impl Serializer {
                 .set_with_hash(pool_idx, hash, obj_idx, &self.data, &self.object_pool);
         }
         Some(obj_idx)
+    }
+
+    pub(crate) fn pop_discard(&mut self) {
+        if self.current.is_none() {
+            return;
+        }
+        // Allow cleanup when we've error'd out on int overflows which don't compromise the serializer state.
+        if self.in_error() && !self.only_overflow() {
+            return;
+        }
+
+        let pool_idx = self.current.unwrap();
+        let Some(obj) = self.object_pool.get_obj(pool_idx) else {
+            return;
+        };
+        self.current = obj.next_obj;
+        //TODO: consider zerocopy
+        self.revert(obj.head, obj.tail);
+        self.object_pool.release(pool_idx);
+    }
+
+    fn revert(&mut self, snap_head: usize, snap_tail: usize) {
+        if self.in_error() || self.head < snap_head || self.tail > snap_tail {
+            return;
+        }
+        self.head = snap_head;
+        self.tail = snap_tail;
+        self.discard_stale_objects();
+    }
+
+    fn discard_stale_objects(&mut self) {
+        if self.in_error() {
+            return;
+        }
+
+        let len = self.packed.len();
+        for i in (0..len).rev() {
+            let pool_idx = self.packed[i];
+            let Some(obj) = self.object_pool.get_obj(pool_idx) else {
+                self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+                return;
+            };
+
+            if obj.next_obj.is_some() {
+                self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+                return;
+            }
+
+            if obj.head >= self.tail {
+                break;
+            }
+
+            let hash = hash_one_pool_idx(pool_idx, &self.data, &self.object_pool);
+            self.packed_map
+                .del(pool_idx, hash, &self.data, &self.object_pool);
+            self.object_pool.release(pool_idx);
+            self.packed.pop();
+        }
+
+        if let Some(pool_idx) = self.packed.last() {
+            let Some(obj) = self.object_pool.get_obj(*pool_idx) else {
+                self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+                return;
+            };
+
+            if obj.head != self.tail {
+                self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+            }
+        }
+    }
+
+    pub(crate) fn add_link(
+        &mut self,
+        offset_byte_range: Range<usize>,
+        obj_idx: ObjIdx,
+        whence: OffsetWhence,
+        bias: u32,
+        is_signed: bool,
+    ) -> Result<(), SerializeErrorFlags> {
+        if self.in_error() || self.current.is_none() {
+            return Err(self.errors);
+        }
+
+        let pool_idx = self.current.unwrap();
+        let Some(current) = self.object_pool.get_obj_mut(pool_idx) else {
+            return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        };
+
+        let Some(link_width) = LinkWidth::new_checked(offset_byte_range.len()) else {
+            return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        };
+
+        if current.head > offset_byte_range.start {
+            return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        }
+
+        let link = Link {
+            width: link_width,
+            is_signed,
+            whence,
+            bias,
+            position: (offset_byte_range.start - current.head) as u32,
+            objidx: obj_idx,
+        };
+        current.real_links.push(link);
+        Ok(())
+    }
+
+    pub(crate) fn add_virtual_link(&mut self, obj_idx: ObjIdx) -> bool {
+        if self.in_error() || self.current.is_none() {
+            return false;
+        }
+
+        let pool_idx = self.current.unwrap();
+        let Some(current) = self.object_pool.get_obj_mut(pool_idx) else {
+            return false;
+        };
+
+        current.add_virtual_link(obj_idx);
+        true
     }
 
     fn merge_virtual_links(&mut self, from: PoolIdx, to: (PoolIdx, ObjIdx)) {
@@ -303,6 +454,84 @@ impl Serializer {
             .set_with_hash(to.0, hash, to.1, &self.data, &self.object_pool);
     }
 
+    fn resolve_links(&mut self) {
+        if self.in_error() {
+            return;
+        }
+
+        if self.current.is_some() || self.packed.is_empty() {
+            self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+            return;
+        }
+
+        let mut offset_links = Vec::new();
+        for parent_obj_idx in self.packed.iter() {
+            let Some(parent_obj) = self.object_pool.get_obj(*parent_obj_idx) else {
+                self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+                return;
+            };
+
+            for link in parent_obj.real_links.iter() {
+                let Some(child_pool_idx) = self.packed.get(link.objidx) else {
+                    self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+                    return;
+                };
+                let Some(child_obj) = self.object_pool.get_obj(*child_pool_idx) else {
+                    self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+                    return;
+                };
+
+                let offset = match link.whence {
+                    OffsetWhence::Head => child_obj.head - parent_obj.head,
+                    OffsetWhence::Tail => child_obj.head - parent_obj.tail,
+                    OffsetWhence::Absolute => self.head - self.start + child_obj.head - self.tail,
+                };
+
+                if offset < link.bias as usize {
+                    self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+                    return;
+                }
+
+                let offset = offset - link.bias as usize;
+                let offset_start_pos = parent_obj.head + link.position as usize;
+                offset_links.push((offset_start_pos, link.width, offset));
+            }
+        }
+
+        for (offset_start_pos, offset_width, offset) in offset_links.iter() {
+            self.assign_offset(*offset_start_pos, *offset_width, *offset);
+        }
+    }
+
+    //TODO: take care of signed offset
+    fn assign_offset(&mut self, offset_start_pos: usize, link_width: LinkWidth, offset: usize) {
+        let (offset_width, max_offset) = match link_width {
+            LinkWidth::Two => (2, u16::MAX as usize),
+            LinkWidth::Three => (3, (Uint24::MAX).to_u32() as usize),
+            LinkWidth::Four => (4, u32::MAX as usize),
+        };
+
+        if offset > max_offset {
+            self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OFFSET_OVERFLOW);
+            return;
+        }
+
+        let Some(offset_data_bytes) = self
+            .data
+            .get_mut(offset_start_pos..offset_start_pos + offset_width)
+        else {
+            self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+            return;
+        };
+
+        let be_bytes = (offset as u32).to_be_bytes();
+        match link_width {
+            LinkWidth::Two => offset_data_bytes.copy_from_slice(&be_bytes[2..=3]),
+            LinkWidth::Three => offset_data_bytes.copy_from_slice(&be_bytes[1..=3]),
+            LinkWidth::Four => offset_data_bytes.copy_from_slice(&be_bytes),
+        }
+    }
+
     pub(crate) fn copy_bytes(mut self) -> Result<Vec<u8>, SerializeErrorFlags> {
         if !self.successful() {
             return Err(self.errors);
@@ -315,6 +544,35 @@ impl Serializer {
         self.data.copy_within(self.tail..self.end, self.head);
         self.data.truncate(len);
         Ok(self.data)
+    }
+
+    pub(crate) fn start_serialize(&mut self) -> Result<(), SerializeErrorFlags> {
+        if self.current.is_some() {
+            Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))?
+        }
+
+        self.push()
+    }
+
+    pub(crate) fn end_serialize(&mut self) {
+        if self.current.is_none() {
+            return;
+        }
+
+        // Offset overflows that occur before link resolution cannot be handled by repacking, so set a more general error.
+        if self.in_error() {
+            if self.offset_overflow() {
+                self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+            }
+            return;
+        }
+
+        if self.packed.is_empty() {
+            return;
+        }
+
+        self.pop_pack(false);
+        self.resolve_links();
     }
 }
 
@@ -461,7 +719,7 @@ impl PoolIdxHashTable {
 
 #[cfg(test)]
 mod test {
-    use write_fonts::types::{Offset16, UfWord, Uint24};
+    use write_fonts::types::{Offset16, Offset32, UfWord, Uint24};
 
     use super::*;
 
@@ -575,7 +833,7 @@ mod test {
                 whence: OffsetWhence::Head,
                 bias: 0,
                 position: 21,
-                objidx: Some(2),
+                objidx: 2,
             };
             obj_0.real_links.push(link);
         }
@@ -591,7 +849,7 @@ mod test {
                 whence: OffsetWhence::Head,
                 bias: 0,
                 position: 21,
-                objidx: Some(2),
+                objidx: 2,
             };
             obj_1.real_links.push(link);
         }
@@ -653,7 +911,7 @@ mod test {
                 whence: OffsetWhence::Head,
                 bias: 0,
                 position: 21,
-                objidx: Some(2),
+                objidx: 2,
             };
             obj_3.real_links.push(link);
         }
@@ -693,10 +951,9 @@ mod test {
             assert_eq!(s.embed(n), Ok(3));
             assert_eq!(s.head, 6);
             assert_eq!(s.tail, 100);
-            assert_eq!(s.pop_pack(true), Some(1));
+            assert_eq!(s.pop_pack(true), Some(0));
             assert_eq!(s.packed_map.hash_table.len(), 1);
-            // TODO: avoid a single None object at the start
-            assert_eq!(s.packed.len(), 2);
+            assert_eq!(s.packed.len(), 1);
             assert_eq!(s.head, 3);
             assert_eq!(s.tail, 97);
         }
@@ -707,10 +964,10 @@ mod test {
             assert_eq!(s.current, Some(1));
             assert_eq!(s.embed(n), Ok(3));
             assert_eq!(s.head, 6);
-            assert_eq!(s.pop_pack(true), Some(1));
+            assert_eq!(s.pop_pack(true), Some(0));
             assert_eq!(s.packed_map.hash_table.len(), 1);
             // share=true, duplicate object won't be added into packed vector
-            assert_eq!(s.packed.len(), 2);
+            assert_eq!(s.packed.len(), 1);
             //check to make sure head is rewinded
             assert_eq!(s.head, 3);
             assert_eq!(s.tail, 97);
@@ -721,9 +978,9 @@ mod test {
             let n = UfWord::new(10);
             assert_eq!(s.embed(n), Ok(3));
             assert_eq!(s.head, 5);
-            assert_eq!(s.pop_pack(true), Some(2));
+            assert_eq!(s.pop_pack(true), Some(1));
             assert_eq!(s.packed_map.hash_table.len(), 2);
-            assert_eq!(s.packed.len(), 3);
+            assert_eq!(s.packed.len(), 2);
             //check to make sure head is rewinded
             assert_eq!(s.head, 3);
             //check that tail is updated
@@ -737,11 +994,11 @@ mod test {
             let n = Uint24::new(80);
             assert_eq!(s.embed(n), Ok(3));
             assert_eq!(s.head, 6);
-            assert_eq!(s.pop_pack(false), Some(3));
+            assert_eq!(s.pop_pack(false), Some(2));
             // when share=false, we don't set this object in hash table, so the len of hash table is the same
             assert_eq!(s.packed_map.hash_table.len(), 2);
             // share=true, duplicate object will be added into the packed vector
-            assert_eq!(s.packed.len(), 4);
+            assert_eq!(s.packed.len(), 3);
             //check to make sure head is rewinded
             assert_eq!(s.head, 3);
             assert_eq!(s.tail, 92);
@@ -764,12 +1021,12 @@ mod test {
                 whence: OffsetWhence::Head,
                 bias: 0,
                 position: 0,
-                objidx: Some(0),
+                objidx: 0,
             };
             obj.virtual_links.push(link);
-            assert_eq!(s.pop_pack(true), Some(4));
+            assert_eq!(s.pop_pack(true), Some(3));
             assert_eq!(s.packed_map.hash_table.len(), 3);
-            assert_eq!(s.packed.len(), 5);
+            assert_eq!(s.packed.len(), 4);
             //check to make sure head is rewinded
             assert_eq!(s.head, 3);
             assert_eq!(s.tail, 89);
@@ -789,13 +1046,13 @@ mod test {
                 whence: OffsetWhence::Head,
                 bias: 0,
                 position: 0,
-                objidx: Some(1),
+                objidx: 1,
             };
             obj.virtual_links.push(link);
             // check that virtual links doesn't affect euqality
-            assert_eq!(s.pop_pack(true), Some(4));
+            assert_eq!(s.pop_pack(true), Some(3));
             assert_eq!(s.packed_map.hash_table.len(), 3);
-            assert_eq!(s.packed.len(), 5);
+            assert_eq!(s.packed.len(), 4);
             assert_eq!(s.head, 3);
             assert_eq!(s.tail, 89);
             // check that duplicate obj is released, virtual links are emptied
@@ -803,8 +1060,8 @@ mod test {
             // check that merge_virtual_links works
             let obj = s.object_pool.get_obj_mut(3).unwrap();
             assert_eq!(obj.virtual_links.len(), 2);
-            assert_eq!(obj.virtual_links[0].objidx, Some(0));
-            assert_eq!(obj.virtual_links[1].objidx, Some(1));
+            assert_eq!(obj.virtual_links[0].objidx, 0);
+            assert_eq!(obj.virtual_links[1].objidx, 1);
         }
 
         {
@@ -824,12 +1081,12 @@ mod test {
                 whence: OffsetWhence::Head,
                 bias: 0,
                 position: 10,
-                objidx: Some(2),
+                objidx: 2,
             };
             obj.real_links.push(link);
-            assert_eq!(s.pop_pack(true), Some(5));
+            assert_eq!(s.pop_pack(true), Some(4));
             assert_eq!(s.packed_map.hash_table.len(), 4);
-            assert_eq!(s.packed.len(), 6);
+            assert_eq!(s.packed.len(), 5);
             //check to make sure head is rewinded
             assert_eq!(s.head, 3);
             assert_eq!(s.tail, 86);
@@ -849,17 +1106,112 @@ mod test {
                 whence: OffsetWhence::Head,
                 bias: 0,
                 position: 20,
-                objidx: Some(3),
+                objidx: 3,
             };
             obj.real_links.push(link);
             // pop_pack with a different obj_idx
-            assert_eq!(s.pop_pack(true), Some(6));
+            assert_eq!(s.pop_pack(true), Some(5));
             // obj is added into both hash_table and packed vector
             assert_eq!(s.packed_map.hash_table.len(), 5);
-            assert_eq!(s.packed.len(), 7);
+            assert_eq!(s.packed.len(), 6);
             //check to make sure head is rewinded
             assert_eq!(s.head, 3);
             assert_eq!(s.tail, 83);
         }
+    }
+
+    #[test]
+    fn test_push_and_pop_discard() {
+        let mut s = Serializer::new(100);
+        let n = Uint24::new(80);
+        assert_eq!(s.embed(n), Ok(0));
+        assert_eq!(s.head, 3);
+        assert_eq!(s.current, None);
+
+        //single pop_pack()
+        assert_eq!(s.push(), Ok(()));
+        //an object is allocated during push
+        assert_eq!(s.current, Some(0));
+        assert_eq!(s.embed(n), Ok(3));
+        assert_eq!(s.head, 6);
+        assert_eq!(s.tail, 100);
+        assert_eq!(s.pop_pack(true), Some(0));
+        assert_eq!(s.packed.len(), 1);
+        assert_eq!(s.head, 3);
+        assert_eq!(s.tail, 97);
+
+        //pop_discard()
+        assert_eq!(s.push(), Ok(()));
+        assert_eq!(s.current, Some(1));
+        assert_eq!(s.embed(n), Ok(3));
+        assert_eq!(s.head, 6);
+        assert_eq!(s.tail, 97);
+        s.pop_discard();
+        //check that head is rewinded
+        assert_eq!(s.head, 3);
+        assert_eq!(s.tail, 97);
+        //discarded obj is not added into packed vector
+        assert_eq!(s.packed.len(), 1);
+        //check that discard object is reused by new push()
+        assert_eq!(s.push(), Ok(()));
+        assert_eq!(s.current, Some(1));
+    }
+
+    #[test]
+    fn test_add_link_resolve_links() {
+        let mut s = Serializer::new(100);
+        let header: u32 = 1;
+        //parent header
+        assert_eq!(s.push(), Ok(()));
+        assert_eq!(s.embed(header), Ok(0));
+        //first offset field
+        let offset_1 = Offset16::new(0);
+        assert_eq!(s.embed(offset_1), Ok(4));
+        //second offset field
+        let offset_2 = Offset32::new(0);
+        assert_eq!(s.embed(offset_2), Ok(6));
+        assert_eq!(s.head, 10);
+        assert_eq!(s.current, Some(0));
+
+        //pack first child
+        let n = Uint24::new(123);
+        assert_eq!(s.push(), Ok(()));
+        assert_eq!(s.current, Some(1));
+        assert_eq!(s.embed(n), Ok(10));
+        assert_eq!(s.head, 13);
+        assert_eq!(s.tail, 100);
+        //pop_pack this child
+        assert_eq!(s.pop_pack(true), Some(0));
+        assert_eq!(s.packed.len(), 1);
+        assert_eq!(s.head, 10);
+        assert_eq!(s.tail, 97);
+        //add_link to offset_1
+        assert_eq!(s.add_link(4..6, 0, OffsetWhence::Head, 0, false), Ok(()));
+
+        //pack another child
+        let n = Uint24::new(234);
+        assert_eq!(s.push(), Ok(()));
+        assert_eq!(s.current, Some(2));
+        assert_eq!(s.embed(n), Ok(10));
+        assert_eq!(s.head, 13);
+        assert_eq!(s.tail, 97);
+        //pop_pack this child
+        assert_eq!(s.pop_pack(true), Some(1));
+        assert_eq!(s.packed.len(), 2);
+        assert_eq!(s.head, 10);
+        assert_eq!(s.tail, 94);
+        //add_link to offset_1
+        assert_eq!(s.add_link(6..10, 1, OffsetWhence::Head, 0, false), Ok(()));
+
+        //pop_pack parent header
+        assert_eq!(s.pop_pack(false), Some(2));
+        assert_eq!(s.head, 0);
+        assert_eq!(s.tail, 84);
+        assert_eq!(s.packed.len(), 3);
+        s.resolve_links();
+        assert_eq!(
+            s.data.get(84..100).unwrap(),
+            [0, 0, 0, 1, 0, 13, 0, 0, 0, 10, 0, 0, 234, 0, 0, 123]
+        );
     }
 }
