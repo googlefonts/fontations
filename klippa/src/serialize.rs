@@ -8,7 +8,7 @@ use std::{
 
 use fnv::FnvHasher;
 use hashbrown::HashTable;
-use write_fonts::types::{Scalar, Uint24};
+use write_fonts::types::{FixedSize, Scalar, Uint24};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[allow(dead_code)]
@@ -122,7 +122,7 @@ impl LinkWidth {
     }
 }
 
-type ObjIdx = usize;
+pub(crate) type ObjIdx = usize;
 
 #[allow(dead_code)]
 #[derive(Default, Eq, PartialEq, Hash)]
@@ -185,7 +185,7 @@ impl Serializer {
         let bytes = raw.as_ref();
         let size = bytes.len();
 
-        let ret = self.allocate_size(size)?;
+        let ret = self.allocate_size(size, false)?;
         self.data[ret..ret + size].copy_from_slice(bytes);
         Ok(ret)
     }
@@ -193,9 +193,29 @@ impl Serializer {
     /// Embed bytes
     pub(crate) fn embed_bytes(&mut self, bytes: &[u8]) -> Result<usize, SerializeErrorFlags> {
         let len = bytes.len();
-        let ret = self.allocate_size(len)?;
+        let ret = self.allocate_size(len, false)?;
         self.data[ret..ret + len].copy_from_slice(bytes);
         Ok(ret)
+    }
+
+    /// get single Scalar value at certain position
+    pub(crate) fn get_value_at<T: Scalar>(&self, pos: usize) -> Option<T> {
+        let len = T::RAW_BYTE_LEN;
+        let bytes = self.data.get(pos..pos + len)?;
+        T::read(bytes)
+    }
+
+    pub(crate) fn check_assign<T: TryFrom<usize> + Scalar>(
+        &mut self,
+        pos: usize,
+        obj: usize,
+        err_type: SerializeErrorFlags,
+    ) {
+        let Ok(val) = T::try_from(obj) else {
+            self.set_err(err_type);
+            return;
+        };
+        self.copy_assign(pos, val);
     }
 
     /// copy from a single Scalar type
@@ -228,7 +248,11 @@ impl Serializer {
     }
 
     /// Allocate size
-    pub(crate) fn allocate_size(&mut self, size: usize) -> Result<usize, SerializeErrorFlags> {
+    pub(crate) fn allocate_size(
+        &mut self,
+        size: usize,
+        clear: bool,
+    ) -> Result<usize, SerializeErrorFlags> {
         if self.in_error() {
             return Err(self.errors);
         }
@@ -237,7 +261,12 @@ impl Serializer {
             return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OUT_OF_ROOM));
         }
 
-        //TODO: add support for clear?
+        if clear {
+            self.data
+                .get_mut(self.head..self.head + size)
+                .unwrap()
+                .fill(0);
+        }
         let ret = self.head;
         self.head += size;
         Ok(ret)
@@ -273,6 +302,10 @@ impl Serializer {
 
     pub(crate) fn set_err(&mut self, error_type: SerializeErrorFlags) -> SerializeErrorFlags {
         self.errors |= error_type;
+        self.errors
+    }
+
+    pub(crate) fn error(&self) -> SerializeErrorFlags {
         self.errors
     }
 
@@ -519,11 +552,13 @@ impl Serializer {
         bias: u32,
         is_signed: bool,
     ) -> Result<(), SerializeErrorFlags> {
-        if self.in_error() || self.current.is_none() {
+        if self.in_error() {
             return Err(self.errors);
         }
 
-        let pool_idx = self.current.unwrap();
+        let pool_idx = self
+            .current
+            .ok_or_else(|| self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))?;
         let Some(current) = self.object_pool.get_obj_mut(pool_idx) else {
             return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
         };
@@ -549,7 +584,7 @@ impl Serializer {
     }
 
     pub(crate) fn add_virtual_link(&mut self, obj_idx: ObjIdx) -> bool {
-        if self.in_error() || self.current.is_none() {
+        if self.current.is_none() {
             return false;
         }
 
@@ -682,6 +717,14 @@ impl Serializer {
             return 0;
         };
         self.head - cur_obj.head
+    }
+
+    pub(crate) fn head(&self) -> usize {
+        self.head
+    }
+
+    pub(crate) fn tail(&self) -> usize {
+        self.tail
     }
 
     pub(crate) fn allocated(&self) -> usize {

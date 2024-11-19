@@ -60,6 +60,21 @@ impl Cmap<'_> {
     }
 }
 
+impl CmapSubtable<'_> {
+    pub fn language(&self) -> u32 {
+        match self {
+            Self::Format0(item) => item.language() as u32,
+            Self::Format2(item) => item.language() as u32,
+            Self::Format4(item) => item.language() as u32,
+            Self::Format6(item) => item.language() as u32,
+            Self::Format10(item) => item.language(),
+            Self::Format12(item) => item.language(),
+            Self::Format13(item) => item.language(),
+            _ => 0,
+        }
+    }
+}
+
 impl<'a> Cmap4<'a> {
     /// Maps a codepoint to a nominal glyph identifier.
     pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
@@ -392,6 +407,9 @@ impl<'a> Cmap14<'a> {
     #[cfg(feature = "std")]
     pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
         for selector in self.var_selector() {
+            if !unicodes.contains(selector.var_selector().to_u32()) {
+                continue;
+            }
             if let Some(non_default_uvs) = selector
                 .non_default_uvs(self.offset_data())
                 .transpose()
@@ -571,6 +589,7 @@ mod tests {
         let cmap = font.cmap().unwrap();
         let mut unicodes = IntSet::empty();
         unicodes.insert(0x4e08_u32);
+        unicodes.insert(0xe0100_u32);
 
         let mut glyph_set = IntSet::empty();
         glyph_set.insert(GlyphId::new(18));
