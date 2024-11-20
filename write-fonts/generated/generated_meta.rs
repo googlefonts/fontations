@@ -28,7 +28,7 @@ impl FontWrite for Meta {
         (1 as u32).write_into(writer);
         (0 as u32).write_into(writer);
         (0 as u32).write_into(writer);
-        (array_len(&self.data_maps).unwrap() as u32).write_into(writer);
+        (u32::try_from(array_len(&self.data_maps)).unwrap()).write_into(writer);
         self.data_maps.write_into(writer);
     }
     fn table_type(&self) -> TableType {
