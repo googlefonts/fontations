@@ -4,6 +4,14 @@ include!("../../generated/generated_name.rs");
 use read_fonts::tables::name::{Encoding, MacRomanMapping};
 
 impl Name {
+    ///// Sort the name records in the table.
+    /////
+    ///// The `name_record` array must be sorted; if it hasn't been sorted before
+    ///// construction this can be used to sort it afterwards.
+    //pub fn sort(&mut self) {
+    //self.name_record.sort();
+    //}
+
     fn compute_storage_offset(&self) -> u16 {
         let v0 = 6 // version, count, storage_offset
             + self.name_record.len() * 12;
@@ -18,6 +26,29 @@ impl Name {
 
     fn compute_version(&self) -> u16 {
         self.lang_tag_record.is_some().into()
+    }
+
+    fn check_sorted_and_unique_name_records(&self, ctx: &mut ValidationCtx) {
+        if !self.name_record.is_sorted() {
+            ctx.report("name_record array must be sorted");
+        }
+        for (left, right) in self.name_record.iter().zip(self.name_record.iter().skip(1)) {
+            let left = (
+                left.platform_id,
+                left.encoding_id,
+                left.language_id,
+                left.name_id,
+            );
+            let right = (
+                right.platform_id,
+                right.encoding_id,
+                right.language_id,
+                right.name_id,
+            );
+            if left == right {
+                ctx.report(format!("duplicate entry in name_record: '{}'", left.3))
+            }
+        }
     }
 }
 
@@ -172,11 +203,17 @@ mod tests {
         let mut table = Name::default();
         table
             .name_record
-            .insert(make_name_record(3, 1, 0, 1030, "Ordinær"));
-        table.name_record.insert(make_name_record(0, 4, 0, 4, "oh"));
+            .push(make_name_record(3, 1, 0, 1030, "Ordinær"));
+        table.name_record.push(make_name_record(0, 4, 0, 4, "oh"));
         table
             .name_record
-            .insert(make_name_record(3, 1, 0, 1029, "Regular"));
+            .push(make_name_record(3, 1, 0, 1029, "Regular"));
+
+        // we aren't sorted so we should fail validation
+        assert!(crate::dump_table(&table).is_err());
+
+        // after sorting we should be fine
+        table.name_record.sort();
 
         let _dumped = crate::dump_table(&table).unwrap();
         let loaded = read_fonts::tables::name::Name::read(FontData::new(&_dumped)).unwrap();
@@ -185,31 +222,12 @@ mod tests {
         assert_eq!(loaded.name_record()[2].name_id, NameId::new(1030));
     }
 
-    #[test]
-    fn name_input_order_does_not_matter() {
-        let mut some_names = vec![
-            make_name_record(3, 1, 7, 4, "hi"),
-            make_name_record(3, 1, 6, 4, "what"),
-            make_name_record(1, 1, 1, 1, "ho"),
-            make_name_record(7, 1, 2, 3, "something"),
-        ];
-
-        let other_names = some_names.clone();
-        some_names.reverse();
-
-        assert_ne!(other_names, some_names);
-        let name1 = Name::new(some_names.into_iter().collect());
-        let name2 = Name::new(other_names.into_iter().collect());
-
-        assert_eq!(name1.name_record, name2.name_record);
-    }
-
     /// ensure we are counting characters and not bytes
     #[test]
     fn mac_str_length() {
         let name = NameRecord::new(1, 0, 0, NameId::new(9), String::from("cé").into());
         let mut table = Name::default();
-        table.name_record.insert(name);
+        table.name_record.push(name);
         let bytes = crate::dump_table(&table).unwrap();
         let load = read_fonts::tables::name::Name::read(FontData::new(&bytes)).unwrap();
 
