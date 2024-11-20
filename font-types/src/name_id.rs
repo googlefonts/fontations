@@ -153,28 +153,63 @@ impl NameId {
     /// If present in a variable font, it may be used as the family prefix in the PostScript Name Generation
     /// for Variation Fonts algorithm.
     pub const VARIATIONS_POSTSCRIPT_NAME_PREFIX: Self = Self(25);
+
+    /// The last value that is explicitly reserved for standard names.
+    ///
+    /// Values after this are available to be used for font-specific names.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/name#name-ids>
+    pub const LAST_RESERVED_NAME_ID: Self = Self(255);
+
+    /// The last value that is available for font-specific names.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/name#name-ids>
+    pub const LAST_ALLOWED_NAME_ID: Self = Self(32767);
 }
 
 impl NameId {
     /// Create a new identifier from a raw u16 value.
+    #[inline]
     pub const fn new(raw: u16) -> Self {
         Self(raw)
     }
 
     /// Returns an iterator over the set of predefined identifiers according to the
     /// specification.
+    #[inline]
     pub fn predefined() -> impl Iterator<Item = Self> + Clone {
         // Poor name id 15 got lost...
         (0..15).chain(16..=25).map(Self)
     }
 
     /// Return the identifier as a u16.
+    #[inline]
     pub const fn to_u16(self) -> u16 {
         self.0
     }
 
+    /// Returns `true` if self is in the range `0..=255` (reserved for standard names.)
+    #[inline]
+    pub const fn is_reserved(self) -> bool {
+        self.0 <= Self::LAST_RESERVED_NAME_ID.0
+    }
+
+    /// Returns a new `NameId` by adding `rhs` to the current value.
+    ///
+    /// Returns `None` if the result would be greater than `Self::LAST_ALLOWED_NAME_ID`.
+    #[inline]
+    pub const fn checked_add(self, rhs: u16) -> Option<Self> {
+        let result = Self(self.0.saturating_add(rhs));
+        if result.0 > Self::LAST_ALLOWED_NAME_ID.0 {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
     /// Return the memory representation of this identifier as a byte array in big-endian
     /// (network) byte order.
+    #[inline]
     pub const fn to_be_bytes(self) -> [u8; 2] {
         self.0.to_be_bytes()
     }
@@ -220,7 +255,7 @@ impl fmt::Debug for NameId {
             Self::LIGHT_BACKGROUND_PALETTE => "LIGHT_BACKGROUND_PALETTE",
             Self::DARK_BACKGROUND_PALETTE => "DARK_BACKGROUND_PALETTE",
             Self::VARIATIONS_POSTSCRIPT_NAME_PREFIX => "VARIATIONS_POSTSCRIPT_NAME_PREFIX",
-            _ => return write!(f, "{}", self.0),
+            _ => return write!(f, "NameId {}", self.0),
         };
         f.write_str(name)
     }
