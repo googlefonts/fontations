@@ -134,6 +134,32 @@ impl SimpleGlyph {
             Some((flag, x_data, y_data))
         })
     }
+
+    /// Recompute the Glyph's bounding box based on the current contours
+    pub fn recompute_bounding_box(&mut self) {
+        let mut points = self
+            .contours
+            .iter()
+            .flat_map(|c| c.iter())
+            .map(|p| (p.x, p.y));
+
+        if let Some((mut x_min, mut y_min)) = points.next() {
+            let mut x_max = x_min;
+            let mut y_max = y_min;
+            for (x, y) in points {
+                x_min = x_min.min(x);
+                y_min = y_min.min(y);
+                x_max = x_max.max(x);
+                y_max = y_max.max(y);
+            }
+            self.bbox = Bbox {
+                x_min,
+                y_min,
+                x_max,
+                y_max,
+            };
+        }
+    }
 }
 
 impl Contour {
