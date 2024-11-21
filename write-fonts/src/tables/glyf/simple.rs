@@ -178,6 +178,18 @@ impl Contour {
     }
 }
 
+impl From<Vec<CurvePoint>> for Contour {
+    fn from(points: Vec<CurvePoint>) -> Self {
+        Self(points)
+    }
+}
+
+impl From<Contour> for Vec<CurvePoint> {
+    fn from(contour: Contour) -> Self {
+        contour.0
+    }
+}
+
 impl MalformedPath {
     fn inconsistent_path_els(idx: usize, elements: &[kurbo::PathEl]) -> Self {
         fn el_types(elements: &[kurbo::PathEl]) -> Vec<&'static str> {
