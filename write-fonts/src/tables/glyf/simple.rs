@@ -15,7 +15,7 @@ use read_fonts::{
 use super::Bbox;
 
 /// A simple (without components) glyph
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SimpleGlyph {
     pub bbox: Bbox,
     pub contours: Vec<Contour>,
