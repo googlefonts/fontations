@@ -422,48 +422,16 @@ impl Outline {
         if points.is_empty() {
             return;
         }
-        // Compute cbox. Is this necessary?
-        let (x_min, x_max, y_min, y_max) = {
-            let first = &points[0];
-            let mut x_min = first.fx;
-            let mut x_max = x_min;
-            let mut y_min = first.fy;
-            let mut y_max = y_min;
-            for point in &points[1..] {
-                x_min = point.fx.min(x_min);
-                x_max = point.fx.max(x_max);
-                y_min = point.fy.min(y_min);
-                y_max = point.fy.max(y_max);
-            }
-            (x_min, x_max, y_min, y_max)
-        };
-        // Reject empty outlines
-        if x_min == x_max || y_min == y_max {
-            return;
+        fn point_to_i64(point: &Point) -> (i64, i64) {
+            (point.fx as i64, point.fy as i64)
         }
-        // Reject large outlines
-        const MAX_COORD: i32 = 0x1000000;
-        if x_min < -MAX_COORD || x_max > MAX_COORD || y_min < -MAX_COORD || y_max > MAX_COORD {
-            return;
-        }
-        fn msb(x: u32) -> i32 {
-            (31 - x.leading_zeros()) as i32
-        }
-        let x_shift = msb((x_max.abs() | x_min.abs()) as u32) - 14;
-        let x_shift = x_shift.max(0);
-        let y_shift = msb((y_max - y_min) as u32) - 14;
-        let y_shift = y_shift.max(0);
-        let shifted_point = |ix: usize| {
-            let point = &points[ix];
-            (point.fx >> x_shift, point.fy >> y_shift)
-        };
-        let mut area = 0;
+        let mut area = 0i64;
         for contour in &self.contours {
             let last_ix = contour.last();
             let first_ix = contour.first();
-            let (mut prev_x, mut prev_y) = shifted_point(last_ix);
-            for i in first_ix..=last_ix {
-                let (x, y) = shifted_point(i);
+            let (mut prev_x, mut prev_y) = point_to_i64(&points[last_ix]);
+            for point in &points[first_ix..=last_ix] {
+                let (x, y) = point_to_i64(point);
                 area += (y - prev_y) * (x + prev_x);
                 (prev_x, prev_y) = (x, y);
             }
