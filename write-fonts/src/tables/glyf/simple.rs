@@ -19,7 +19,7 @@ use super::Bbox;
 pub struct SimpleGlyph {
     pub bbox: Bbox,
     contours: Vec<Contour>,
-    _instructions: Vec<u8>,
+    pub instructions: Vec<u8>,
 }
 
 /// A single contour, comprising only line and quadratic bezier segments
@@ -217,7 +217,7 @@ impl<'a> FromObjRef<read_fonts::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {
         Self {
             bbox,
             contours,
-            _instructions: from.instructions().to_owned(),
+            instructions: from.instructions().to_owned(),
         }
     }
 }
@@ -233,7 +233,7 @@ impl<'a> FontRead<'a> for SimpleGlyph {
 impl FontWrite for SimpleGlyph {
     fn write_into(&self, writer: &mut crate::TableWriter) {
         assert!(self.contours.len() < i16::MAX as usize);
-        assert!(self._instructions.len() < u16::MAX as usize);
+        assert!(self.instructions.len() < u16::MAX as usize);
         let n_contours = self.contours.len() as i16;
         if n_contours == 0 {
             // we don't bother writing empty glyphs
@@ -247,8 +247,8 @@ impl FontWrite for SimpleGlyph {
             cur += contour.len();
             (cur as u16 - 1).write_into(writer);
         }
-        (self._instructions.len() as u16).write_into(writer);
-        self._instructions.write_into(writer);
+        (self.instructions.len() as u16).write_into(writer);
+        self.instructions.write_into(writer);
 
         let deltas = self.compute_point_deltas().collect::<Vec<_>>();
         RepeatableFlag::iter_from_flags(deltas.iter().map(|(flag, _, _)| *flag))
@@ -337,7 +337,7 @@ impl RepeatableFlag {
 
 impl crate::validate::Validate for SimpleGlyph {
     fn validate_impl(&self, ctx: &mut crate::codegen_prelude::ValidationCtx) {
-        if self._instructions.len() > u16::MAX as usize {
+        if self.instructions.len() > u16::MAX as usize {
             ctx.report("instructions len overflows");
         }
     }
@@ -578,7 +578,7 @@ fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, Malfo
         glyphs.push(SimpleGlyph {
             bbox: path.control_box().into(),
             contours,
-            _instructions: Default::default(),
+            instructions: Default::default(),
         })
     }
 
