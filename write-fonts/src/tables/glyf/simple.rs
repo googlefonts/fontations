@@ -18,7 +18,7 @@ use super::Bbox;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SimpleGlyph {
     pub bbox: Bbox,
-    contours: Vec<Contour>,
+    pub contours: Vec<Contour>,
     pub instructions: Vec<u8>,
 }
 
@@ -133,10 +133,6 @@ impl SimpleGlyph {
             flag |= x_flag | y_flag;
             Some((flag, x_data, y_data))
         })
-    }
-
-    pub fn contours(&self) -> &[Contour] {
-        &self.contours
     }
 }
 
@@ -942,8 +938,8 @@ mod tests {
 
     fn assert_contour_points(glyph: &SimpleGlyph, all_points: Vec<Vec<CurvePoint>>) {
         let expected_num_contours = all_points.len();
-        assert_eq!(glyph.contours().len(), expected_num_contours);
-        for (contour, expected_points) in glyph.contours().iter().zip(all_points.iter()) {
+        assert_eq!(glyph.contours.len(), expected_num_contours);
+        for (contour, expected_points) in glyph.contours.iter().zip(all_points.iter()) {
             let points = contour.iter().copied().collect::<Vec<_>>();
             assert_eq!(points, *expected_points);
         }
