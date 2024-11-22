@@ -135,6 +135,16 @@ struct Link {
     objidx: ObjIdx,
 }
 
+#[derive(Default)]
+pub(crate) struct Snapshot {
+    head: usize,
+    tail: usize,
+    current: Option<PoolIdx>,
+    num_real_links: usize,
+    num_virtual_links: usize,
+    errors: SerializeErrorFlags,
+}
+
 // reference harfbuzz implementation:
 //<https://github.com/harfbuzz/harfbuzz/blob/5e32b5ca8fe430132b87c0eee6a1c056d37c35eb/src/hb-serialize.hh#L57>
 #[derive(Default)]
@@ -180,6 +190,14 @@ impl Serializer {
         Ok(ret)
     }
 
+    // Embed bytes
+    pub(crate) fn embed_bytes(&mut self, bytes: &[u8]) -> Result<usize, SerializeErrorFlags> {
+        let len = bytes.len();
+        let ret = self.allocate_size(len)?;
+        self.data[ret..ret + len].copy_from_slice(bytes);
+        Ok(ret)
+    }
+
     // Allocate size
     pub(crate) fn allocate_size(&mut self, size: usize) -> Result<usize, SerializeErrorFlags> {
         if self.in_error() {
@@ -218,6 +236,27 @@ impl Serializer {
     pub(crate) fn set_err(&mut self, error_type: SerializeErrorFlags) -> SerializeErrorFlags {
         self.errors |= error_type;
         self.errors
+    }
+
+    pub(crate) fn snapshot(&self) -> Snapshot {
+        let mut s = Snapshot {
+            head: self.head,
+            tail: self.tail,
+            current: self.current,
+            errors: self.errors,
+            ..Default::default()
+        };
+
+        if self.current.is_none() {
+            return s;
+        }
+        let Some(cur_obj) = self.object_pool.get_obj(self.current.unwrap()) else {
+            return s;
+        };
+
+        s.num_real_links = cur_obj.real_links.len();
+        s.num_virtual_links = cur_obj.virtual_links.len();
+        s
     }
 
     pub(crate) fn push(&mut self) -> Result<(), SerializeErrorFlags> {
@@ -340,6 +379,26 @@ impl Serializer {
         self.head = snap_head;
         self.tail = snap_tail;
         self.discard_stale_objects();
+    }
+
+    pub(crate) fn revert_snapshot(&mut self, snapshot: Snapshot) {
+        // Overflows that happened after the snapshot will be erased by the revert.
+        if self.in_error() && !self.only_overflow() {
+            return;
+        }
+        if snapshot.current != self.current {
+            return;
+        }
+        self.errors = snapshot.errors;
+
+        if self.current.is_some() {
+            let Some(obj) = self.object_pool.get_obj_mut(self.current.unwrap()) else {
+                return;
+            };
+            obj.real_links.truncate(snapshot.num_real_links);
+            obj.virtual_links.truncate(snapshot.num_virtual_links);
+        }
+        self.revert(snapshot.head, snapshot.tail);
     }
 
     fn discard_stale_objects(&mut self) {
@@ -544,6 +603,16 @@ impl Serializer {
         self.data.copy_within(self.tail..self.end, self.head);
         self.data.truncate(len);
         Ok(self.data)
+    }
+
+    pub(crate) fn length(&self) -> usize {
+        if self.current.is_none() {
+            return 0;
+        }
+        let Some(cur_obj) = self.object_pool.get_obj(self.current.unwrap()) else {
+            return 0;
+        };
+        self.head - cur_obj.head
     }
 
     pub(crate) fn start_serialize(&mut self) -> Result<(), SerializeErrorFlags> {
@@ -753,6 +822,29 @@ mod test {
 
         let out = s.copy_bytes().unwrap();
         assert_eq!(out, [0, 0, 0, 1, 0, 20, 0, 0, 30, 0, 40]);
+    }
+
+    #[test]
+    fn test_serializer_embed_bytes() {
+        let mut s = Serializer::new(2);
+        let bytes = vec![1_u8, 2, 3, 4, 5];
+        //fail when out of room
+        assert_eq!(
+            s.embed_bytes(&bytes),
+            Err(SerializeErrorFlags::SERIALIZE_ERROR_OUT_OF_ROOM)
+        );
+
+        let mut s = Serializer::new(10);
+        assert_eq!(s.embed_bytes(&bytes), Ok(0));
+
+        //check that head is advancing accordingly
+        assert_eq!(s.head, 5);
+        assert_eq!(s.start, 0);
+        assert_eq!(s.tail, 10);
+        assert_eq!(s.end, 10);
+
+        let out = s.copy_bytes().unwrap();
+        assert_eq!(out, [1, 2, 3, 4, 5]);
     }
 
     #[test]
@@ -1213,5 +1305,84 @@ mod test {
             s.data.get(84..100).unwrap(),
             [0, 0, 0, 1, 0, 13, 0, 0, 0, 10, 0, 0, 234, 0, 0, 123]
         );
+    }
+
+    #[test]
+    fn test_length() {
+        let mut s = Serializer::new(100);
+        let n = Uint24::new(80);
+        assert_eq!(s.embed(n), Ok(0));
+        assert_eq!(s.head, 3);
+        assert_eq!(s.tail, 100);
+        assert_eq!(s.current, None);
+
+        assert_eq!(s.push(), Ok(()));
+        assert_eq!(s.current, Some(0));
+        assert_eq!(s.head, 3);
+        //embed 2 Uint24 numbers
+        assert_eq!(s.embed(n), Ok(3));
+        assert_eq!(s.embed(n), Ok(6));
+        // check length() = 6
+        assert_eq!(s.length(), 6);
+    }
+
+    #[test]
+    fn test_snapshot_and_revert() {
+        let mut s = Serializer::new(100);
+        //test when current is None
+        let snapshot = s.snapshot();
+        let n = Uint24::new(80);
+        assert_eq!(s.embed(n), Ok(0));
+        assert_eq!(s.head, 3);
+        assert_eq!(s.tail, 100);
+        assert_eq!(s.current, None);
+
+        s.revert_snapshot(snapshot);
+        assert!(!s.in_error());
+        assert_eq!(s.head, 0);
+        assert_eq!(s.tail, 100);
+        assert_eq!(s.current, None);
+
+        //snapshot and revert after single push(), current is not None
+        assert_eq!(s.push(), Ok(()));
+        let snapshot = s.snapshot();
+        assert_eq!(s.current, Some(0));
+        assert_eq!(s.embed(n), Ok(0));
+        assert_eq!(s.head, 3);
+        assert_eq!(s.tail, 100);
+
+        s.revert_snapshot(snapshot);
+        assert!(!s.in_error());
+        assert_eq!(s.head, 0);
+        assert_eq!(s.tail, 100);
+
+        //test after a couple of push/pop_pack
+        let snapshot = s.snapshot();
+        assert_eq!(s.current, Some(0));
+        assert_eq!(s.head, 0);
+        assert_eq!(s.tail, 100);
+
+        assert_eq!(s.embed(n), Ok(0));
+        //another push, now current = 1
+        assert_eq!(s.push(), Ok(()));
+        assert_eq!(s.current, Some(1));
+
+        assert_eq!(s.embed(n), Ok(3));
+        assert_eq!(s.pop_pack(true), Some(0));
+        assert_eq!(s.add_link(0..3, 0, OffsetWhence::Head, 0, false), Ok(()));
+        //check that after pop_pack, now current is back to 0, and real_links length =1;
+        assert_eq!(s.current, Some(0));
+        assert_eq!(s.object_pool.get_obj(0).unwrap().real_links.len(), 1);
+
+        s.revert_snapshot(snapshot);
+        assert!(!s.in_error());
+        assert_eq!(s.head, 0);
+        assert_eq!(s.tail, 100);
+        assert_eq!(s.current, Some(0));
+        // check that real_links is truncated
+        assert_eq!(s.object_pool.get_obj(0).unwrap().real_links.len(), 0);
+        // another push to check that obj_idx=1 is released in previous revert_snapshot
+        assert_eq!(s.push(), Ok(()));
+        assert_eq!(s.current, Some(1));
     }
 }
