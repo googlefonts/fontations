@@ -121,7 +121,7 @@ pub struct ColorStop {
 // re-applying the deltas at least once, after which we would pass the scaled
 // stops to client side and have the client sort the collected items once
 // again. If we do want to pre-ort them, and still use use an
-// `Iterator<Item=ColorStop>`` instead as the `color_stops` field, then we would
+// `Iterator<Item=ColorStop>` instead as the `color_stops` field, then we would
 // need a Fontations-side allocations to sort, and an extra allocation on the
 // client side to `.collect()` from the provided iterator before passing it to
 // drawing API.
@@ -129,7 +129,7 @@ pub struct ColorStop {
 /// A fill type of a COLRv1 glyph (solid fill or various gradient types).
 ///
 /// The client receives the information about the fill type in the
-/// [`fill``](ColorPainter::fill) callback of the [`ColorPainter`] trait.
+/// [`fill`](ColorPainter::fill) callback of the [`ColorPainter`] trait.
 #[derive(Debug, PartialEq)]
 pub enum Brush<'a> {
     /// A solid fill with the color specified by `palette_index`. The respective
