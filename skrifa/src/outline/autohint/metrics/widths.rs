@@ -73,7 +73,7 @@ pub(super) fn compute_widths(
                         }
                     }
                 }
-                // FreeTypes `af_sort_and_quantize_widths()`` has the side effect
+                // FreeTypes `af_sort_and_quantize_widths()` has the side effect
                 // of always updating the width count to 1 when we don't find
                 // any...
                 // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L121>
