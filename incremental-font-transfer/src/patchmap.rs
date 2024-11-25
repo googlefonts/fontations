@@ -112,13 +112,22 @@ fn add_intersecting_format1_patches(
     intersect_format1_feature_map(map, features, &mut entries)?;
 
     // Step 3: produce final output.
+    let applied_entries_start_bit_index = map.shape().applied_entries_bitmap_byte_range().start * 8;
     patches.extend(
         entries
             .iter()
             // Entry 0 is the entry for codepoints already in the font, so it's always considered applied and skipped.
             .filter(|index| *index > 0)
             .filter(|index| !map.is_entry_applied(*index))
-            .map(|index| PatchUri::from_index(uri_template, index as u32, source_table, encoding)),
+            .map(|index| {
+                PatchUri::from_index(
+                    uri_template,
+                    index as u32,
+                    source_table.clone(),
+                    applied_entries_start_bit_index + index as usize,
+                    encoding,
+                )
+            }),
     );
     Ok(())
 }
@@ -298,20 +307,25 @@ fn decode_format2_entries(
     let mut entries_data = FontData::new(entries_data);
     let mut entries: Vec<Entry> = vec![];
 
+    let mut entry_start_byte = map.entries_offset().to_u32() as usize;
+
     let mut id_string_data = map
         .entry_id_string_data()
         .transpose()?
         .map(|table| table.id_data())
         .map(Cursor::new);
     while entry_count > 0 {
-        entries_data = decode_format2_entry(
+        let consumed_bytes;
+        (entries_data, consumed_bytes) = decode_format2_entry(
             entries_data,
+            entry_start_byte,
             source_table,
             uri_template,
             &default_encoding,
             &mut id_string_data,
             &mut entries,
         )?;
+        entry_start_byte += consumed_bytes;
         entry_count -= 1;
     }
 
@@ -320,17 +334,27 @@ fn decode_format2_entries(
 
 fn decode_format2_entry<'a>(
     data: FontData<'a>,
+    data_start_index: usize,
     source_table: &IftTableTag,
     uri_template: &str,
     default_encoding: &PatchEncoding,
     id_string_data: &mut Option<Cursor<&[u8]>>,
     entries: &mut Vec<Entry>,
-) -> Result<FontData<'a>, ReadError> {
+) -> Result<(FontData<'a>, usize), ReadError> {
     let entry_data = EntryData::read(
         data,
         Offset32::new(if id_string_data.is_none() { 0 } else { 1 }),
     )?;
-    let mut entry = Entry::new(uri_template, source_table, default_encoding);
+
+    // Record the index of the bit which when set causes this entry to be ignored.
+    // See: https://w3c.github.io/IFT/Overview.html#mapping-entry-formatflags
+    let ignored_bit_index = (data_start_index * 8) + 6;
+    let mut entry = Entry::new(
+        uri_template,
+        source_table,
+        ignored_bit_index,
+        default_encoding,
+    );
 
     // Features
     if let Some(features) = entry_data.feature_tags() {
@@ -393,7 +417,9 @@ fn decode_format2_entry<'a>(
         .contains(EntryFormatFlags::IGNORED);
 
     entries.push(entry);
-    Ok(FontData::new(remaining_data))
+
+    let consumed_bytes = entry_data.shape().codepoint_data_byte_range().end - remaining_data.len();
+    Ok((FontData::new(remaining_data), consumed_bytes))
 }
 
 fn format2_new_entry_id(
@@ -575,8 +601,7 @@ pub struct PatchUri {
     id: PatchId,
     encoding: PatchEncoding,
     source_table: IftTableTag,
-    // TODO(garretrieger): add a resolve method which when supplied the bytes associated with the URL
-    //                     produces an object suitable for passing to the font_patch API.
+    application_flag_bit_index: usize,
 }
 
 impl PatchUri {
@@ -622,6 +647,10 @@ impl PatchUri {
         self.source_table
     }
 
+    pub(crate) fn application_flag_bit_index(&self) -> usize {
+        self.application_flag_bit_index
+    }
+
     fn count_leading_zeroes(id: &[u8]) -> usize {
         let mut leading_bytes = 0;
         for b in id {
@@ -644,13 +673,15 @@ impl PatchUri {
     pub(crate) fn from_index(
         uri_template: &str,
         entry_index: u32,
-        source_table: &IftTableTag,
+        source_table: IftTableTag,
+        application_flag_bit_index: usize,
         encoding: PatchEncoding,
     ) -> PatchUri {
         PatchUri {
             template: uri_template.to_string(),
             id: PatchId::Numeric(entry_index),
-            source_table: source_table.clone(),
+            source_table,
+            application_flag_bit_index,
             encoding,
         }
     }
@@ -713,7 +744,12 @@ struct Entry {
 }
 
 impl Entry {
-    fn new(template: &str, source_table: &IftTableTag, default_encoding: &PatchEncoding) -> Entry {
+    fn new(
+        template: &str,
+        source_table: &IftTableTag,
+        application_flag_bit_index: usize,
+        default_encoding: &PatchEncoding,
+    ) -> Entry {
         Entry {
             subset_definition: SubsetDefinition {
                 codepoints: IntSet::empty(),
@@ -722,7 +758,13 @@ impl Entry {
             },
             ignored: false,
 
-            uri: PatchUri::from_index(template, 0, source_table, *default_encoding),
+            uri: PatchUri::from_index(
+                template,
+                0,
+                source_table.clone(),
+                application_flag_bit_index,
+                *default_encoding,
+            ),
         }
     }
 
@@ -795,12 +837,14 @@ mod tests {
             uri_template: &str,
             entry_id: &str,
             source_table: &IftTableTag,
+            application_flag_bit_index: usize,
             encoding: PatchEncoding,
         ) -> PatchUri {
             PatchUri {
                 template: uri_template.to_string(),
                 id: PatchId::String(entry_id.as_bytes().to_vec()),
                 source_table: source_table.clone(),
+                application_flag_bit_index,
                 encoding,
             }
         }
@@ -835,11 +879,31 @@ mod tests {
 
     // TODO(garretrieger): fuzzer to check consistency vs intersecting "*" subset def.
 
+    #[derive(Copy, Clone)]
+    struct ExpectedEntry {
+        index: u32,
+        application_bit_index: usize,
+    }
+
+    fn f1(index: u32) -> ExpectedEntry {
+        ExpectedEntry {
+            index,
+            application_bit_index: (index as usize) + 36 * 8,
+        }
+    }
+
+    fn f2(index: u32, entry_start: usize) -> ExpectedEntry {
+        ExpectedEntry {
+            index,
+            application_bit_index: entry_start * 8 + 6,
+        }
+    }
+
     fn test_intersection<const M: usize, const N: usize, const O: usize>(
         font: &FontRef,
         codepoints: [u32; M],
         tags: [Tag; N],
-        expected_entries: [u32; O],
+        expected_entries: [ExpectedEntry; O],
     ) {
         test_design_space_intersection(font, codepoints, tags, [], expected_entries)
     }
@@ -854,7 +918,7 @@ mod tests {
         codepoints: [u32; M],
         tags: [Tag; N],
         design_space: [(Tag, Vec<RangeInclusive<f64>>); O],
-        expected_entries: [u32; P],
+        expected_entries: [ExpectedEntry; P],
     ) {
         let patches = intersecting_patches(
             font,
@@ -868,14 +932,20 @@ mod tests {
 
         let expected: Vec<PatchUri> = expected_entries
             .iter()
-            .map(|index| {
-                PatchUri::from_index(
-                    "ABCDEFɤ",
-                    *index,
-                    &IftTableTag::Ift(compat_id()),
-                    PatchEncoding::GlyphKeyed,
-                )
-            })
+            .map(
+                |ExpectedEntry {
+                     index,
+                     application_bit_index,
+                 }| {
+                    PatchUri::from_index(
+                        "ABCDEFɤ",
+                        *index,
+                        IftTableTag::Ift(compat_id()),
+                        *application_bit_index,
+                        PatchEncoding::GlyphKeyed,
+                    )
+                },
+            )
             .collect();
 
         assert_eq!(patches, expected);
@@ -884,7 +954,7 @@ mod tests {
     fn test_intersection_with_all<const M: usize, const N: usize>(
         font: &FontRef,
         tags: [Tag; M],
-        expected_entries: [u32; N],
+        expected_entries: [ExpectedEntry; N],
     ) {
         let patches = intersecting_patches(
             font,
@@ -898,14 +968,20 @@ mod tests {
 
         let expected: Vec<PatchUri> = expected_entries
             .iter()
-            .map(|index| {
-                PatchUri::from_index(
-                    "ABCDEFɤ",
-                    *index,
-                    &IftTableTag::Ift(compat_id()),
-                    PatchEncoding::GlyphKeyed,
-                )
-            })
+            .map(
+                |ExpectedEntry {
+                     index,
+                     application_bit_index,
+                 }| {
+                    PatchUri::from_index(
+                        "ABCDEFɤ",
+                        *index,
+                        IftTableTag::Ift(compat_id()),
+                        *application_bit_index,
+                        PatchEncoding::GlyphKeyed,
+                    )
+                },
+            )
             .collect();
 
         assert_eq!(expected, patches);
@@ -916,7 +992,8 @@ mod tests {
             PatchUri::from_index(
                 template,
                 value,
-                &IftTableTag::Ift(Default::default()),
+                IftTableTag::Ift(Default::default()),
+                0,
                 PatchEncoding::GlyphKeyed,
             )
             .uri_string(),
@@ -930,6 +1007,7 @@ mod tests {
                 template,
                 value,
                 &IftTableTag::Ift(Default::default()),
+                0,
                 PatchEncoding::GlyphKeyed,
             )
             .uri_string(),
@@ -988,10 +1066,10 @@ mod tests {
         test_intersection(&font, [0x123], [], []); // 0x123 is not in the mapping
         test_intersection(&font, [0x13], [], []); // 0x13 maps to entry 0
         test_intersection(&font, [0x12], [], []); // 0x12 maps to entry 1 which is applied
-        test_intersection(&font, [0x11], [], [2]); // 0x11 maps to entry 2
-        test_intersection(&font, [0x11, 0x12, 0x123], [], [2]);
+        test_intersection(&font, [0x11], [], [f1(2)]); // 0x11 maps to entry 2
+        test_intersection(&font, [0x11, 0x12, 0x123], [], [f1(2)]);
 
-        test_intersection_with_all(&font, [], [2]);
+        test_intersection_with_all(&font, [], [f1(2)]);
     }
 
     #[test]
@@ -1133,10 +1211,10 @@ mod tests {
 
         test_intersection(&font, [], [], []);
         test_intersection(&font, [0x11], [], []);
-        test_intersection(&font, [0x12], [], [0x50]);
-        test_intersection(&font, [0x13, 0x15], [], [0x51, 0x12c]);
+        test_intersection(&font, [0x12], [], [f1(0x50)]);
+        test_intersection(&font, [0x13, 0x15], [], [f1(0x51), f1(0x12c)]);
 
-        test_intersection_with_all(&font, [], [0x50, 0x51, 0x12c]);
+        test_intersection_with_all(&font, [], [f1(0x50), f1(0x51), f1(0x12c)]);
     }
 
     #[test]
@@ -1155,36 +1233,40 @@ mod tests {
             [Tag::new(b"liga"), Tag::new(b"dlig"), Tag::new(b"null")],
             [],
         );
-        test_intersection(&font, [0x12], [], [0x50]);
-        test_intersection(&font, [0x12], [Tag::new(b"liga")], [0x50, 0x180]);
+        test_intersection(&font, [0x12], [], [f1(0x50)]);
+        test_intersection(&font, [0x12], [Tag::new(b"liga")], [f1(0x50), f1(0x180)]);
         test_intersection(
             &font,
             [0x13, 0x14],
             [Tag::new(b"liga")],
-            [0x51, 0x12c, 0x180, 0x181],
+            [f1(0x51), f1(0x12c), f1(0x180), f1(0x181)],
         );
         test_intersection(
             &font,
             [0x13, 0x14],
             [Tag::new(b"dlig")],
-            [0x51, 0x12c, 0x190],
+            [f1(0x51), f1(0x12c), f1(0x190)],
         );
         test_intersection(
             &font,
             [0x13, 0x14],
             [Tag::new(b"dlig"), Tag::new(b"liga")],
-            [0x51, 0x12c, 0x180, 0x181, 0x190],
+            [f1(0x51), f1(0x12c), f1(0x180), f1(0x181), f1(0x190)],
         );
-        test_intersection(&font, [0x11], [Tag::new(b"null")], [0x12D]);
-        test_intersection(&font, [0x15], [Tag::new(b"liga")], [0x181]);
+        test_intersection(&font, [0x11], [Tag::new(b"null")], [f1(0x12D)]);
+        test_intersection(&font, [0x15], [Tag::new(b"liga")], [f1(0x181)]);
 
-        test_intersection_with_all(&font, [], [0x50, 0x51, 0x12c]);
+        test_intersection_with_all(&font, [], [f1(0x50), f1(0x51), f1(0x12c)]);
         test_intersection_with_all(
             &font,
             [Tag::new(b"liga")],
-            [0x50, 0x51, 0x12c, 0x180, 0x181],
+            [f1(0x50), f1(0x51), f1(0x12c), f1(0x180), f1(0x181)],
         );
-        test_intersection_with_all(&font, [Tag::new(b"dlig")], [0x50, 0x51, 0x12c, 0x190]);
+        test_intersection_with_all(
+            &font,
+            [Tag::new(b"dlig")],
+            [f1(0x50), f1(0x51), f1(0x12c), f1(0x190)],
+        );
     }
 
     #[test]
@@ -1204,15 +1286,15 @@ mod tests {
             &font,
             [0x13, 0x14],
             [Tag::new(b"liga")],
-            [0x51, 0x12c, 0x190],
+            [f1(0x51), f1(0x12c), f1(0x190)],
         );
         test_intersection(
             &font,
             [0x13, 0x14],
             [Tag::new(b"dlig")],
-            [0x51, 0x12c], // dlig is ignored since it's out of order.
+            [f1(0x51), f1(0x12c)], // dlig is ignored since it's out of order.
         );
-        test_intersection(&font, [0x11], [Tag::new(b"null")], [0x12D]);
+        test_intersection(&font, [0x11], [Tag::new(b"null")], [f1(0x12D)]);
     }
 
     #[test]
@@ -1232,9 +1314,9 @@ mod tests {
             &font,
             [0x13, 0x14],
             [Tag::new(b"liga")],
-            [0x51, 0x12c, 0x190],
+            [f1(0x51), f1(0x12c), f1(0x190)],
         );
-        test_intersection(&font, [0x11], [Tag::new(b"null")], [0x12D]);
+        test_intersection(&font, [0x11], [Tag::new(b"null")], [f1(0x12D)]);
     }
 
     #[test]
@@ -1322,13 +1404,16 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
+        let e1 = f2(1, codepoints_only_format2().offset_for("entries[0]"));
+        let e3 = f2(3, codepoints_only_format2().offset_for("entries[2]"));
+        let e4 = f2(4, codepoints_only_format2().offset_for("entries[3]"));
         test_intersection(&font, [], [], []);
-        test_intersection(&font, [0x02], [], [1]);
-        test_intersection(&font, [0x15], [], [3]);
-        test_intersection(&font, [0x07], [], [1, 3]);
-        test_intersection(&font, [80_007], [], [4]);
+        test_intersection(&font, [0x02], [], [e1]);
+        test_intersection(&font, [0x15], [], [e3]);
+        test_intersection(&font, [0x07], [], [e1, e3]);
+        test_intersection(&font, [80_007], [], [e4]);
 
-        test_intersection_with_all(&font, [], [1, 3, 4]);
+        test_intersection_with_all(&font, [], [e1, e3, e4]);
     }
 
     #[test]
@@ -1340,17 +1425,30 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
+        let e1 = f2(
+            1,
+            features_and_design_space_format2().offset_for("entries[0]"),
+        );
+        let e2 = f2(
+            2,
+            features_and_design_space_format2().offset_for("entries[1]"),
+        );
+        let e3 = f2(
+            3,
+            features_and_design_space_format2().offset_for("entries[2]"),
+        );
+
         test_intersection(&font, [], [], []);
         test_intersection(&font, [0x02], [], []);
         test_intersection(&font, [0x50], [Tag::new(b"rlig")], []);
-        test_intersection(&font, [0x02], [Tag::new(b"rlig")], [2]);
+        test_intersection(&font, [0x02], [Tag::new(b"rlig")], [e2]);
 
         test_design_space_intersection(
             &font,
             [0x02],
             [Tag::new(b"rlig")],
             [(Tag::new(b"wdth"), vec![0.7..=0.8])],
-            [2],
+            [e2],
         );
 
         test_design_space_intersection(
@@ -1358,14 +1456,14 @@ mod tests {
             [0x05],
             [Tag::new(b"smcp")],
             [(Tag::new(b"wdth"), vec![0.7..=0.8])],
-            [1],
+            [e1],
         );
         test_design_space_intersection(
             &font,
             [0x05],
             [Tag::new(b"smcp")],
             [(Tag::new(b"wdth"), vec![0.2..=0.3])],
-            [3],
+            [e3],
         );
         test_design_space_intersection(
             &font,
@@ -1380,21 +1478,21 @@ mod tests {
             [0x05],
             [Tag::new(b"smcp")],
             [(Tag::new(b"wdth"), vec![0.2..=0.3, 0.7..=0.8])],
-            [1, 3],
+            [e1, e3],
         );
         test_design_space_intersection(
             &font,
             [0x05],
             [Tag::new(b"smcp")],
             [(Tag::new(b"wdth"), vec![2.2..=2.3])],
-            [3],
+            [e3],
         );
         test_design_space_intersection(
             &font,
             [0x05],
             [Tag::new(b"smcp")],
             [(Tag::new(b"wdth"), vec![2.2..=2.3, 1.2..=1.3])],
-            [3],
+            [e3],
         );
     }
 
@@ -1407,16 +1505,22 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
+        let e3 = f2(3, copy_indices_format2().offset_for("entries[2]"));
+        let e5 = f2(5, copy_indices_format2().offset_for("entries[4]"));
+        let e6 = f2(6, copy_indices_format2().offset_for("entries[5]"));
+        let e7 = f2(7, copy_indices_format2().offset_for("entries[6]"));
+        let e8 = f2(8, copy_indices_format2().offset_for("entries[7]"));
+        let e9 = f2(9, copy_indices_format2().offset_for("entries[8]"));
         test_intersection(&font, [], [], []);
-        test_intersection(&font, [0x05], [], [5, 9]);
-        test_intersection(&font, [0x65], [], [9]);
+        test_intersection(&font, [0x05], [], [e5, e9]);
+        test_intersection(&font, [0x65], [], [e9]);
 
         test_design_space_intersection(
             &font,
             [],
             [Tag::new(b"rlig")],
             [(Tag::new(b"wght"), vec![500.0..=500.0])],
-            [3, 6],
+            [e3, e6],
         );
 
         test_design_space_intersection(
@@ -1424,7 +1528,7 @@ mod tests {
             [0x05],
             [Tag::new(b"rlig")],
             [(Tag::new(b"wght"), vec![500.0..=500.0])],
-            [3, 5, 6, 7, 8, 9],
+            [e3, e5, e6, e7, e8, e9],
         );
     }
 
@@ -1437,7 +1541,11 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        test_intersection_with_all(&font, [], [0, 6, 15]);
+        let e0 = f2(0, custom_ids_format2().offset_for("entries[0]"));
+        let e6 = f2(6, custom_ids_format2().offset_for("entries[1]"));
+        let e15 = f2(15, custom_ids_format2().offset_for("entries[3]"));
+
+        test_intersection_with_all(&font, [], [e0, e6, e15]);
     }
 
     #[test]

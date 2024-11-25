@@ -37,6 +37,7 @@ impl<'a> PatchGroup<'a> {
             });
         }
 
+        // TODO(garretrieger): following the spec disallow cases where both tables have the same compat id.
         let compat_group = Self::select_next_patches_from_candidates(
             candidates,
             ift_font.ift().ok().map(|t| t.compatibility_id()),
@@ -121,6 +122,9 @@ impl<'a> PatchGroup<'a> {
         ift_compat_id: Option<CompatibilityId>,
         iftx_compat_id: Option<CompatibilityId>,
     ) -> Result<CompatibleGroup, ReadError> {
+        // TODO(garretrieger): disallow the case where IFT and IFTX have the same compat id. Make it an error in the
+        //                     specification.
+
         // Some notes about this implementation:
         // - From candidates we need to form the largest possible group of patches which follow the selection criteria
         //   from: https://w3c.github.io/IFT/Overview.html#extend-font-subset and won't invalidate each other.
@@ -306,7 +310,7 @@ pub enum UriStatus {
 pub(crate) struct PatchInfo {
     uri: String,
     source_table: IftTableTag,
-    // TODO: details for how to mark the patch applied in the mapping table (ie. bit index to flip).
+    application_flag_bit_index: usize,
     // TODO: Signals for heuristic patch selection:
 }
 
@@ -314,12 +318,17 @@ impl PatchInfo {
     pub(crate) fn tag(&self) -> &IftTableTag {
         &self.source_table
     }
+
+    pub(crate) fn application_flag_bit_index(&self) -> usize {
+        self.application_flag_bit_index
+    }
 }
 
 impl From<PatchUri> for PatchInfo {
     fn from(value: PatchUri) -> Self {
         PatchInfo {
             uri: value.uri_string(),
+            application_flag_bit_index: value.application_flag_bit_index(),
             source_table: value.source_table(),
         }
     }
@@ -439,7 +448,8 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             1,
-            &IftTableTag::Ift(cid_1()),
+            IftTableTag::Ift(cid_1()),
+            42,
             PatchEncoding::TableKeyed {
                 fully_invalidating: true,
             },
@@ -450,7 +460,8 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             2,
-            &IftTableTag::Ift(cid_1()),
+            IftTableTag::Ift(cid_1()),
+            42,
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
             },
@@ -461,7 +472,8 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             2,
-            &IftTableTag::Iftx(cid_2()),
+            IftTableTag::Iftx(cid_2()),
+            42,
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
             },
@@ -472,7 +484,8 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             2,
-            &IftTableTag::Iftx(cid_2()),
+            IftTableTag::Iftx(cid_2()),
+            42,
             PatchEncoding::GlyphKeyed,
         )
     }
@@ -481,7 +494,8 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             2,
-            &IftTableTag::Ift(cid_2()),
+            IftTableTag::Ift(cid_2()),
+            42,
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
             },
@@ -492,7 +506,8 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             3,
-            &IftTableTag::Iftx(cid_2()),
+            IftTableTag::Iftx(cid_2()),
+            42,
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
             },
@@ -503,7 +518,8 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             3,
-            &IftTableTag::Ift(cid_1()),
+            IftTableTag::Ift(cid_1()),
+            42,
             PatchEncoding::GlyphKeyed,
         )
     }
@@ -512,7 +528,8 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             4,
-            &IftTableTag::Ift(cid_1()),
+            IftTableTag::Ift(cid_1()),
+            42,
             PatchEncoding::GlyphKeyed,
         )
     }
@@ -521,7 +538,8 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             4,
-            &IftTableTag::Iftx(cid_2()),
+            IftTableTag::Iftx(cid_2()),
+            42,
             PatchEncoding::GlyphKeyed,
         )
     }
@@ -530,7 +548,8 @@ mod tests {
         PatchUri::from_index(
             "//foo.bar/{id}",
             5,
-            &IftTableTag::Iftx(cid_2()),
+            IftTableTag::Iftx(cid_2()),
+            42,
             PatchEncoding::GlyphKeyed,
         )
     }
@@ -538,6 +557,7 @@ mod tests {
     fn patch_info_ift(uri: &str) -> PatchInfo {
         PatchInfo {
             uri: uri.to_string(),
+            application_flag_bit_index: 42,
             source_table: IftTableTag::Ift(cid_1()),
         }
     }
@@ -545,6 +565,7 @@ mod tests {
     fn patch_info_ift_c2(uri: &str) -> PatchInfo {
         PatchInfo {
             uri: uri.to_string(),
+            application_flag_bit_index: 42,
             source_table: IftTableTag::Ift(cid_2()),
         }
     }
@@ -552,6 +573,7 @@ mod tests {
     fn patch_info_iftx(uri: &str) -> PatchInfo {
         PatchInfo {
             uri: uri.to_string(),
+            application_flag_bit_index: 42,
             source_table: IftTableTag::Iftx(cid_2()),
         }
     }
@@ -1258,7 +1280,9 @@ mod tests {
                 ("foo/08".to_string(), UriStatus::Applied,),
             ])
         );
-    }
 
-    // TODO(garretrieger): test that previously applied patches are ignored.
+        // there should be no more applicable patches left now.
+        let g = PatchGroup::select_next_patches(new_font, &s).unwrap();
+        assert!(!g.has_uris());
+    }
 }
