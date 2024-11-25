@@ -62,8 +62,9 @@ pub fn u16_entries_format1() -> BeBuffer {
       {0u32: "feature_map_offset"},
 
       // applied entry bitmap (38 bytes)
+      {0u8: "applied_entry_bitmap"},
       [
-        0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0,
@@ -200,26 +201,26 @@ pub fn codepoints_only_format2() -> BeBuffer {
 
       /* ### Entries Array ### */
       // Entry id = 1
-      {0b00010000u8: "entries"},              // format = CODEPOINT_BIT_1
+      {0b00010000u8: "entries[0]"},           // format = CODEPOINT_BIT_1
       [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [0..17]
 
       // Entry id = 2
-      0b01100000u8,                           // format = IGNORED | CODEPOINT_BIT_2
+      {0b01100000u8: "entries[1]"},           // format = IGNORED | CODEPOINT_BIT_2
       5u16,                                   // bias
       [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [5..22]
 
       // Entry id = 3
-      0b00100000u8,                           // format = CODEPOINT_BIT_2
-      5u16,                                   // bias
+      {0b00100000u8: "entries[2]"},            // format = CODEPOINT_BIT_2
+      5u16,                                    // bias
       [0b00001101, 0b00000011, 0b00110001u8],  // codepoints = [5..22]
 
       // Entry id = 4
-      0b00110000u8,                           // format = CODEPOINT_BIT_1 | CODEPOINT_BIT_2
-      (Uint24::new(80_000)),                  // bias
-      [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [80_005..80_022]
+      {0b00110000u8: "entries[3]"},            // format = CODEPOINT_BIT_1 | CODEPOINT_BIT_2
+      (Uint24::new(80_000)),                   // bias
+      [0b00001101, 0b00000011, 0b00110001u8]   // codepoints = [80_005..80_022]
     };
 
-    let offset = buffer.offset_for("entries") as u32;
+    let offset = buffer.offset_for("entries[0]") as u32;
     buffer.write_at("entries_offset", offset);
 
     buffer
@@ -243,7 +244,7 @@ pub fn features_and_design_space_format2() -> BeBuffer {
 
       /* ### Entries Array ### */
       // Entry id = 1
-      {0b00010001u8: "entries"},          // format = CODEPOINT_BIT_1 | FEATURES_AND_DESIGN_SPACE
+      {0b00010001u8: "entries[0]"},          // format = CODEPOINT_BIT_1 | FEATURES_AND_DESIGN_SPACE
 
       2u8,                                // feature count = 2
       (Tag::new(b"liga")),                // feature[0] = liga
@@ -256,9 +257,8 @@ pub fn features_and_design_space_format2() -> BeBuffer {
 
       [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [0..17]
 
-      // Entries Array
       // Entry id = 2
-      0b00010001u8,                       // format = CODEPOINT_BIT_1 | FEATURES_AND_DESIGN_SPACE
+      {0b00010001u8: "entries[1]"},       // format = CODEPOINT_BIT_1 | FEATURES_AND_DESIGN_SPACE
 
       1u8,                                // feature count
       (Tag::new(b"rlig")),                // feature[0]
@@ -268,7 +268,7 @@ pub fn features_and_design_space_format2() -> BeBuffer {
       [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [0..17]
 
       // Entry id = 3
-      0b000100001u8,                      // format = CODEPOINT_BIT_2 | FEATURES_AND_DESIGN_SPACE
+      {0b000100001u8: "entries[2]"},      // format = CODEPOINT_BIT_2 | FEATURES_AND_DESIGN_SPACE
 
       1u8,                                // feature count = 1
       (Tag::new(b"smcp")),                // feature[0] = smcp
@@ -290,7 +290,7 @@ pub fn features_and_design_space_format2() -> BeBuffer {
       0b00001101, 0b00000011, 0b00110001  // codepoints = [5..22]
     };
 
-    let offset = buffer.offset_for("entries") as u32;
+    let offset = buffer.offset_for("entries[0]") as u32;
     buffer.write_at("entries_offset", offset);
 
     buffer
@@ -315,17 +315,17 @@ pub fn copy_indices_format2() -> BeBuffer {
       // Entries Array
 
       // Entry id = 1
-      {0b01100000u8: "entries"},              // format = CODEPOINT_BIT_2 | IGNORED
+      {0b01100000u8: "entries[0]"},           // format = CODEPOINT_BIT_2 | IGNORED
       5u16,                                   // bias = 5
       [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [5..22]
 
       // Entry id = 2
-      0b00100000u8,                           // format = CODEPOINT_BIT_2
+      {0b00100000u8: "entries[1]"},           // format = CODEPOINT_BIT_2
       50u16,                                  // bias
       [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [50..67]
 
       // Entry id = 3
-      0b00000001u8,                           // format = FEATURES_AND_DESIGN_SPACE
+      {0b00000001u8: "entries[2]"},           // format = FEATURES_AND_DESIGN_SPACE
 
       1u8,                                    // feature count = 1
       (Tag::new(b"rlig")),                    // feature[0] = rlig
@@ -336,7 +336,7 @@ pub fn copy_indices_format2() -> BeBuffer {
       0x02BC_0000u32,                         // end = 700
 
       // Entry id = 4
-      0b00000001u8,                           // format = FEATURES_AND_DESIGN_SPACE
+      {0b00000001u8: "entries[3]"},           // format = FEATURES_AND_DESIGN_SPACE
 
       1u8,                                    // feature count
       (Tag::new(b"liga")),                    // feature[0] = liga
@@ -347,17 +347,17 @@ pub fn copy_indices_format2() -> BeBuffer {
       0x0064_0000,                            // end = 100
 
       // Entry id = 5
-      0b00000010u8,                           // format = COPY_INDICES
+      {0b00000010u8: "entries[4]"},           // format = COPY_INDICES
       1u8,                                    // copy count
       (Uint24::new(0)),                       // copy
 
       // Entry id = 6
-      0b00000010u8,                           // format = COPY_INDICES
+      {0b00000010u8: "entries[5]"},           // format = COPY_INDICES
       1u8,                                    // copy count
       (Uint24::new(2)),                       // copy
 
       // Entry id = 7
-      0b00000010u8,                           // format = COPY_INDICES
+      {0b00000010u8: "entries[6]"},           // format = COPY_INDICES
       4u8,                                    // copy count
       (Uint24::new(3)),                       // copy[0]
       (Uint24::new(2)),                       // copy[1]
@@ -365,20 +365,20 @@ pub fn copy_indices_format2() -> BeBuffer {
       (Uint24::new(0)),                       // copy[3]
 
       // Entry id = 8
-      0b00000010u8,                           // format = COPY_INDICES
+      {0b00000010u8: "entries[7]"},           // format = COPY_INDICES
       2u8,                                    // copy count
       (Uint24::new(4)),                       // copy[0]
       (Uint24::new(5)),                       // copy[1]
 
       // Entry id = 9
-      0b00100010u8,                           // format = CODEPOINT_BIT_2 | COPY_INDICES
+      {0b00100010u8: "entries[8]"},           // format = CODEPOINT_BIT_2 | COPY_INDICES
       1u8,                                    // copy count
       (Uint24::new(0)),                       // copy[0]
       100u16,                                 // bias
       [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [100..117]
     };
 
-    let offset = buffer.offset_for("entries") as u32;
+    let offset = buffer.offset_for("entries[0]") as u32;
     buffer.write_at("entries_offset", offset);
 
     buffer
@@ -403,28 +403,28 @@ pub fn custom_ids_format2() -> BeBuffer {
 
       // Entries Array
       // Entry id = 0
-      {0b00010100u8: "entries"},              // format = CODEPOINT_BIT_1 | ID_DELTA
+      {0b00010100u8: "entries[0]"},           // format = CODEPOINT_BIT_1 | ID_DELTA
       (Int24::new(-1)),                       // id delta
       [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [0..17]
 
       // Entry id = 6
-      0b00100100u8,                           // format = CODEPOINT_BIT_2 | ID_DELTA
-      {(Int24::new(5)): "id delta"},            // id delta
+      {0b00100100u8: "entries[1]"},            // format = CODEPOINT_BIT_2 | ID_DELTA
+      {(Int24::new(5)): "id delta"},           // id delta
       5u16,                                   // bias
       [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [5..22]
 
       // Entry id = 14
-      0b01000100u8,                           // format = ID_DELTA | IGNORED
+      {0b01000100u8: "entries[2]"},                  // format = ID_DELTA | IGNORED
       {(Int24::new(7)): "id delta - ignored entry"}, // id delta
 
       // Entry id = 15
-      0b00101000u8,                           // format = CODEPOINT_BIT_2 | PATCH_ENCODING
+      {0b00101000u8: "entries[3]"},           // format = CODEPOINT_BIT_2 | PATCH_ENCODING
       {3u8: "entry[4] encoding"},             // patch encoding = Glyph Keyed
       10u16,                                  // bias
       [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [10..27]
     };
 
-    let offset = buffer.offset_for("entries") as u32;
+    let offset = buffer.offset_for("entries[0]") as u32;
     buffer.write_at("entries_offset", offset);
 
     buffer
@@ -654,7 +654,10 @@ where
 }
 
 pub fn test_font_for_patching() -> Vec<u8> {
-    test_font_for_patching_with_loca_mod(|_| {}, Default::default())
+    test_font_for_patching_with_loca_mod(
+        |_| {},
+        HashMap::from([(Tag::new(b"IFT "), vec![0, 0, 0, 0].as_slice())]),
+    )
 }
 
 // Format specification: https://w3c.github.io/IFT/Overview.html#glyph-keyed

@@ -142,9 +142,9 @@ impl IncrementalFontPatchBase for FontRef<'_> {
         let mut cached_compat_ids: HashMap<Tag, Result<CompatibilityId, PatchingError>> =
             Default::default();
 
-        let mut raw_patches: Vec<GlyphKeyedPatch<'_>> = vec![];
-        for (patch, patch_data) in patches {
-            let tag = patch.tag();
+        let mut raw_patches: Vec<(&PatchInfo, GlyphKeyedPatch<'_>)> = vec![];
+        for (patch_info, patch_data) in patches {
+            let tag = patch_info.tag();
             let font_compat_id = cached_compat_ids
                 .entry(tag.tag())
                 .or_insert_with(|| {
@@ -164,7 +164,7 @@ impl IncrementalFontPatchBase for FontRef<'_> {
                 return Err(PatchingError::IncompatiblePatch);
             }
 
-            raw_patches.push(patch);
+            raw_patches.push((patch_info, patch));
         }
 
         apply_glyph_keyed_patches(&raw_patches, self)
@@ -220,7 +220,8 @@ mod tests {
         let info: PatchInfo = PatchUri::from_index(
             "foo.bar/{id}",
             0,
-            &IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
+            IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
+            0,
             TableKeyed {
                 fully_invalidating: false,
             },
@@ -252,7 +253,8 @@ mod tests {
         let info: PatchInfo = PatchUri::from_index(
             "foo.bar/{id}",
             0,
-            &IftTableTag::Ift(CompatibilityId::from_u32s([2, 2, 3, 4])),
+            IftTableTag::Ift(CompatibilityId::from_u32s([2, 2, 3, 4])),
+            0,
             TableKeyed {
                 fully_invalidating: false,
             },
@@ -277,7 +279,8 @@ mod tests {
         let info: PatchInfo = PatchUri::from_index(
             "foo.bar/{id}",
             0,
-            &IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
+            IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
+            0,
             GlyphKeyed,
         )
         .into();
@@ -303,7 +306,8 @@ mod tests {
         let info: PatchInfo = PatchUri::from_index(
             "foo.bar/{id}",
             0,
-            &IftTableTag::Ift(CompatibilityId::from_u32s([6, 7, 9, 9])),
+            IftTableTag::Ift(CompatibilityId::from_u32s([6, 7, 9, 9])),
+            0,
             GlyphKeyed,
         )
         .into();

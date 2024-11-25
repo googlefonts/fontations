@@ -6,8 +6,9 @@
 //!
 //! Glyph Keyed patches are specified here:
 //! <https://w3c.github.io/IFT/Overview.html#glyph-keyed>
-use crate::font_patch::PatchingError;
+use crate::patchmap::IftTableTag;
 use crate::table_keyed::copy_unprocessed_tables;
+use crate::{font_patch::PatchingError, patch_group::PatchInfo};
 
 use font_types::Scalar;
 use read_fonts::{
@@ -28,12 +29,12 @@ use std::ops::RangeInclusive;
 use write_fonts::FontBuilder;
 
 pub(crate) fn apply_glyph_keyed_patches(
-    patches: &[GlyphKeyedPatch<'_>],
+    patches: &[(&PatchInfo, GlyphKeyedPatch<'_>)],
     font: &FontRef,
 ) -> Result<Vec<u8>, PatchingError> {
     let mut decompression_buffer: Vec<Vec<u8>> = Vec::with_capacity(patches.len());
 
-    for patch in patches {
+    for (_, patch) in patches {
         if patch.format() != Tag::new(b"ifgk") {
             return Err(PatchingError::InvalidPatch("Patch file tag is not 'ifgk'"));
         }
@@ -51,7 +52,7 @@ pub(crate) fn apply_glyph_keyed_patches(
     let mut glyph_patches: Vec<GlyphPatches<'_>> = vec![];
     for (raw_data, patch) in decompression_buffer.iter().zip(patches) {
         glyph_patches.push(
-            GlyphPatches::read(FontData::new(raw_data), patch.flags())
+            GlyphPatches::read(FontData::new(raw_data), patch.1.flags())
                 .map_err(PatchingError::PatchParsingFailed)?,
         );
     }
@@ -65,7 +66,8 @@ pub(crate) fn apply_glyph_keyed_patches(
         PatchingError::FontParsingFailed(ReadError::MalformedData("Font has no glyphs.")),
     )? as u32);
 
-    let mut processed_tables = BTreeSet::<Tag>::new();
+    // IFT and IFTX tables will be modified and then copied below.
+    let mut processed_tables = BTreeSet::from([Tag::new(b"IFT "), Tag::new(b"IFTX")]);
     let mut font_builder = FontBuilder::new();
 
     for table_tag in table_tag_list(&glyph_patches)? {
@@ -100,7 +102,32 @@ pub(crate) fn apply_glyph_keyed_patches(
         }
     }
 
-    // TODO(garretrieger): mark the patch applied in the appropriate IFT table.
+    // Mark patches applied in IFT and IFTX as needed, copy the modified tables into the font builder.
+    let mut new_itf_data = font
+        .table_data(Tag::new(b"IFT "))
+        .map(|data| data.as_bytes().to_vec());
+    let mut new_itfx_data = font
+        .table_data(Tag::new(b"IFTX"))
+        .map(|data| data.as_bytes().to_vec());
+    for (info, _) in patches {
+        let data = match info.tag() {
+            IftTableTag::Ift(_) => new_itf_data.as_mut().ok_or(PatchingError::InternalError)?,
+            IftTableTag::Iftx(_) => new_itfx_data.as_mut().ok_or(PatchingError::InternalError)?,
+        };
+        let byte_index = info.application_flag_bit_index() / 8;
+        let bit_index = (info.application_flag_bit_index() % 8) as u8;
+        let byte = data
+            .get_mut(byte_index)
+            .ok_or(PatchingError::InternalError)?;
+        *byte |= 1 << bit_index;
+    }
+
+    if let Some(data) = new_itf_data {
+        font_builder.add_raw(Tag::new(b"IFT "), data);
+    }
+    if let Some(data) = new_itfx_data {
+        font_builder.add_raw(Tag::new(b"IFTX"), data);
+    }
 
     copy_unprocessed_tables(font, processed_tables, &mut font_builder);
 
@@ -418,12 +445,16 @@ fn patch_glyf_and_loca<'a>(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::{collections::BTreeSet, io::Write};
+    use std::{
+        collections::{BTreeSet, HashMap},
+        io::Write,
+    };
 
     use brotlic::CompressorWriter;
     use read_fonts::{
-        tables::ift::GlyphKeyedPatch, test_helpers::BeBuffer, FontData, FontRead, ReadError,
-        TableProvider,
+        tables::ift::{CompatibilityId, GlyphKeyedPatch},
+        test_helpers::BeBuffer,
+        FontData, FontRead, ReadError, TableProvider,
     };
 
     use font_test_data::ift::{
@@ -433,7 +464,13 @@ pub(crate) mod tests {
     };
     use skrifa::{FontRef, Tag};
 
-    use crate::{font_patch::PatchingError, glyph_keyed::apply_glyph_keyed_patches};
+    use crate::{
+        font_patch::PatchingError,
+        glyph_keyed::apply_glyph_keyed_patches,
+        patchmap::{PatchEncoding, PatchUri},
+    };
+
+    use super::{IftTableTag, PatchInfo};
 
     pub(crate) fn assemble_glyph_keyed_patch(mut header: BeBuffer, payload: BeBuffer) -> BeBuffer {
         let payload_data: &[u8] = &payload;
@@ -467,6 +504,15 @@ pub(crate) mod tests {
         }
     }
 
+    fn patch_info(tag: Tag, bit_index: usize) -> PatchInfo {
+        let source = match &tag.to_be_bytes() {
+            b"IFT " => IftTableTag::Ift(CompatibilityId::from_u32s([0, 0, 0, 0])),
+            b"IFTX" => IftTableTag::Iftx(CompatibilityId::from_u32s([0, 0, 0, 0])),
+            _ => panic!("Unexpected tag value."),
+        };
+        PatchUri::from_index("", 0, source, bit_index, PatchEncoding::GlyphKeyed).into()
+    }
+
     #[test]
     fn noop_glyph_keyed() {
         let patch =
@@ -477,10 +523,18 @@ pub(crate) mod tests {
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
-        let patched = apply_glyph_keyed_patches(&[patch], &font).unwrap();
+        let patch_info = patch_info(Tag::new(b"IFT "), 4);
+
+        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
-        check_tables_equal(&font, &patched, BTreeSet::default());
+        // Application bit will be set in the patched font.
+        let expected_font = test_font_for_patching_with_loca_mod(
+            |_| {},
+            HashMap::from([(Tag::new(b"IFT "), vec![0b0001_0000, 0, 0, 0].as_slice())]),
+        );
+        let expected_font = FontRef::new(&expected_font).unwrap();
+        check_tables_equal(&expected_font, &patched, BTreeSet::default());
     }
 
     #[test]
@@ -493,8 +547,12 @@ pub(crate) mod tests {
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
-        let patched = apply_glyph_keyed_patches(&[patch], &font).unwrap();
+        let patch_info = patch_info(Tag::new(b"IFT "), 28);
+        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
         let patched = FontRef::new(&patched).unwrap();
+
+        let new_ift: &[u8] = patched.table_data(Tag::new(b"IFT ")).unwrap().as_bytes();
+        assert_eq!(&[0, 0, 0, 0b0001_0000], new_ift);
 
         let new_glyf: &[u8] = patched.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
         assert_eq!(
@@ -537,7 +595,7 @@ pub(crate) mod tests {
         check_tables_equal(
             &font,
             &patched,
-            [Tag::new(b"glyf"), Tag::new(b"loca")].into(),
+            [Tag::new(b"IFT "), Tag::new(b"glyf"), Tag::new(b"loca")].into(),
         );
     }
 
@@ -547,17 +605,27 @@ pub(crate) mod tests {
             assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
         let patch: &[u8] = &patch;
         let patch1 = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info_1 = patch_info(Tag::new(b"IFTX"), 13);
 
         let patch =
             assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches_2());
         let patch: &[u8] = &patch;
         let patch2 = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info_2 = patch_info(Tag::new(b"IFTX"), 28);
 
-        let font = test_font_for_patching();
+        let font = test_font_for_patching_with_loca_mod(
+            |_| {},
+            HashMap::from([(Tag::new(b"IFTX"), vec![0, 0, 0, 0].as_slice())]),
+        );
         let font = FontRef::new(&font).unwrap();
 
-        let patched = apply_glyph_keyed_patches(&[patch2, patch1], &font).unwrap();
+        let patched =
+            apply_glyph_keyed_patches(&[(&patch_info_2, patch2), (&patch_info_1, patch1)], &font)
+                .unwrap();
         let patched = FontRef::new(&patched).unwrap();
+
+        let new_ift: &[u8] = patched.table_data(Tag::new(b"IFTX")).unwrap().as_bytes();
+        assert_eq!(&[0, 0b0010_0000, 0, 0b0001_0000], new_ift);
 
         let new_glyf: &[u8] = patched.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
         assert_eq!(
@@ -602,7 +670,7 @@ pub(crate) mod tests {
         check_tables_equal(
             &font,
             &patched,
-            [Tag::new(b"glyf"), Tag::new(b"loca")].into(),
+            [Tag::new(b"glyf"), Tag::new(b"loca"), Tag::new(b"IFTX")].into(),
         );
     }
 
@@ -613,12 +681,13 @@ pub(crate) mod tests {
         let patch = assemble_glyph_keyed_patch(header_builder, glyf_u16_glyph_patches());
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(Tag::new(b"IFT "), 0);
 
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[patch], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
             Err(PatchingError::InvalidPatch("Patch file tag is not 'ifgk'"))
         );
     }
@@ -631,12 +700,13 @@ pub(crate) mod tests {
         );
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(Tag::new(b"IFT "), 0);
 
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[patch], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
             Err(PatchingError::InvalidPatch(
                 "CFF, CFF2, and gvar patches are not yet supported."
             ))
@@ -651,11 +721,12 @@ pub(crate) mod tests {
         let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), builder);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(Tag::new(b"IFT "), 0);
 
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
-        let patched = apply_glyph_keyed_patches(&[patch], &font).unwrap();
+        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let new_glyf: &[u8] = patched.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
@@ -698,7 +769,7 @@ pub(crate) mod tests {
         check_tables_equal(
             &font,
             &patched,
-            [Tag::new(b"glyf"), Tag::new(b"loca")].into(),
+            [Tag::new(b"glyf"), Tag::new(b"loca"), Tag::new(b"IFT ")].into(),
         );
     }
 
@@ -709,12 +780,13 @@ pub(crate) mod tests {
         let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), builder);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(Tag::new(b"IFT "), 0);
 
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[patch], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
             Err(PatchingError::InvalidPatch(
                 "Duplicate or unsorted table tag."
             ))
@@ -728,12 +800,13 @@ pub(crate) mod tests {
         let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), builder);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(Tag::new(b"IFT "), 0);
 
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[patch], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
             Err(PatchingError::InvalidPatch(
                 "Duplicate or unsorted table tag."
             ))
@@ -747,12 +820,13 @@ pub(crate) mod tests {
         let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), builder);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(Tag::new(b"IFT "), 0);
 
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[patch], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
             Err(PatchingError::PatchParsingFailed(ReadError::MalformedData(
                 "Glyph IDs are unsorted or duplicated."
             ))),
@@ -766,12 +840,13 @@ pub(crate) mod tests {
         let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), builder);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(Tag::new(b"IFT "), 0);
 
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[patch], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
             Err(PatchingError::PatchParsingFailed(ReadError::MalformedData(
                 "Glyph IDs are unsorted or duplicated."
             ))),
@@ -786,12 +861,13 @@ pub(crate) mod tests {
         patch.write_at("max_uncompressed_length", len as u32 - 1);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(Tag::new(b"IFT "), 0);
 
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[patch], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
             Err(PatchingError::InvalidPatch("Max size exceeded.")),
         );
     }
@@ -803,12 +879,13 @@ pub(crate) mod tests {
         let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), builder);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(Tag::new(b"IFT "), 0);
 
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[patch], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
             Err(PatchingError::InvalidPatch(
                 "Patch would add a glyph beyond this fonts maximum."
             )),
@@ -821,6 +898,7 @@ pub(crate) mod tests {
             assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(Tag::new(b"IFT "), 0);
 
         // unorder offsets related to a glyph not being replaced
         let font = test_font_for_patching_with_loca_mod(
@@ -836,7 +914,7 @@ pub(crate) mod tests {
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[patch], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
             Err(PatchingError::FontParsingFailed(ReadError::MalformedData(
                 "loca contains unordered offsets."
             ))),
