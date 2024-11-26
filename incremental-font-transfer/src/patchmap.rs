@@ -78,7 +78,7 @@ fn add_intersecting_format1_patches(
     map: &PatchMapFormat1,
     codepoints: &IntSet<u32>,
     features: &BTreeSet<Tag>,
-    patches: &mut Vec<PatchUri>, // TODO(garretrieger): btree set to allow for de-duping?
+    patches: &mut Vec<PatchUri>,
 ) -> Result<(), ReadError> {
     // Step 0: Top Level Field Validation
     let maxp = font.maxp()?;
@@ -338,7 +338,7 @@ fn add_intersecting_format2_patches(
     source_table: &IftTableTag,
     map: &PatchMapFormat2,
     subset_definition: &SubsetDefinition,
-    patches: &mut Vec<PatchUri>, // TODO(garretrieger): btree set to allow for de-duping?
+    patches: &mut Vec<PatchUri>,
 ) -> Result<(), ReadError> {
     let entries = decode_format2_entries(source_table, map)?;
     for mut e in entries.into_iter() {
@@ -691,11 +691,15 @@ pub struct PatchUri {
 ///
 /// Intersection details are used later on to choose a specific patch to apply next.
 /// See: https://w3c.github.io/IFT/Overview.html#invalidating-patch-selection
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Default, Ord, PartialOrd)]
 pub struct IntersectionInfo {
+    // Note: order of the fields here is important for the derived sorting behaviour.
+    //       these must be sorted as required for https://w3c.github.io/IFT/Overview.html#invalidating-patch-selection
     intersecting_codepoints: u64,
     intersecting_layout_tags: usize,
     // TODO(garretrieger): metric for design space intersection.
+    // TODO XXXX entry_order: usize,
+    //      for breaking ties.
 }
 
 impl PatchUri {
@@ -735,6 +739,10 @@ impl PatchUri {
         template.set("id64", id64_string);
 
         template.build()
+    }
+
+    pub fn intersection_info(&self) -> IntersectionInfo {
+        self.intersection_info.clone()
     }
 
     pub(crate) fn source_table(self) -> IftTableTag {
