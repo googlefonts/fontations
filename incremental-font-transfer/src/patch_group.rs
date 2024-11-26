@@ -8,7 +8,10 @@ use std::collections::{BTreeMap, HashMap};
 
 use crate::{
     font_patch::{IncrementalFontPatchBase, PatchingError},
-    patchmap::{intersecting_patches, IftTableTag, PatchEncoding, PatchUri, SubsetDefinition},
+    patchmap::{
+        intersecting_patches, IftTableTag, IntersectionInfo, PatchEncoding, PatchUri,
+        SubsetDefinition,
+    },
 };
 
 /// A group of patches derived from a single IFT font.
@@ -142,72 +145,52 @@ impl<'a> PatchGroup<'a> {
         //   - So therefore we de-dup by retaining the particular instance which has the highest selection
         //     priority.
 
-        let mut full_invalidation: Vec<FullInvalidationPatch> = vec![];
-        let mut partial_invalidation_ift: Vec<PartialInvalidationPatch> = vec![];
-        let mut partial_invalidation_iftx: Vec<PartialInvalidationPatch> = vec![];
+        let mut full_invalidation: Vec<CandidatePatch> = vec![];
+        let mut partial_invalidation_ift: Vec<CandidatePatch> = vec![];
+        let mut partial_invalidation_iftx: Vec<CandidatePatch> = vec![];
         // TODO(garretrieger): do we need sorted order, use HashMap instead?
         let mut no_invalidation_ift: BTreeMap<String, NoInvalidationPatch> = Default::default();
         let mut no_invalidation_iftx: BTreeMap<String, NoInvalidationPatch> = Default::default();
 
         // Step 1: sort the candidates into separate lists based on invalidation characteristics.
-        for uri in candidates.into_iter() {
-            // TODO(garretrieger): for efficiency can we delay uri template resolution until we have actually selected patches?
-            // TODO(garretrieger): for btree construction don't recompute the resolved uri, cache inside the patch uri object?
-            match uri.encoding() {
-                PatchEncoding::TableKeyed {
-                    fully_invalidating: true,
-                } => full_invalidation.push(FullInvalidationPatch(uri.into())),
-                PatchEncoding::TableKeyed {
-                    fully_invalidating: false,
-                } => {
-                    if Some(uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
-                        partial_invalidation_ift.push(PartialInvalidationPatch(uri.into()))
-                    } else if Some(uri.expected_compatibility_id()) == iftx_compat_id.as_ref() {
-                        partial_invalidation_iftx.push(PartialInvalidationPatch(uri.into()))
-                    }
-                }
-                PatchEncoding::GlyphKeyed => {
-                    if Some(uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
-                        no_invalidation_ift
-                            .insert(uri.uri_string(), NoInvalidationPatch(uri.into()));
-                    } else if Some(uri.expected_compatibility_id()) == iftx_compat_id.as_ref() {
-                        no_invalidation_iftx
-                            .insert(uri.uri_string(), NoInvalidationPatch(uri.into()));
-                    }
-                }
-            }
-        }
+        Self::group_patches(
+            candidates,
+            ift_compat_id,
+            iftx_compat_id,
+            &mut full_invalidation,
+            &mut partial_invalidation_ift,
+            &mut partial_invalidation_iftx,
+            &mut no_invalidation_ift,
+            &mut no_invalidation_iftx,
+        );
 
         // Step 2 - now make patch selections in priority order: first full invalidation, second partial, lastly none.
-        if let Some(patch) = full_invalidation.into_iter().next() {
+        if let Some(patch) = Self::select_invalidating_candidate(full_invalidation.into_iter()) {
             // TODO(garretrieger): use a heuristic to select the best patch
-            return Ok(CompatibleGroup::Full(patch));
+            return Ok(CompatibleGroup::Full(patch.into()));
         }
 
         let mut ift_selected_uri: Option<String> = None;
-        let ift_scope = partial_invalidation_ift
-            .into_iter()
-            // TODO(garretrieger): use a heuristic to select the best patch
-            .next()
+        let ift_scope = Self::select_invalidating_candidate(partial_invalidation_ift.into_iter())
             .map(|patch| {
-                ift_selected_uri = Some(patch.0.uri.clone());
-                ScopedGroup::PartialInvalidation(patch)
+                ift_selected_uri = Some(patch.patch_info.uri.clone());
+                ScopedGroup::PartialInvalidation(patch.into())
             });
 
         let mut iftx_selected_uri: Option<String> = None;
-        let iftx_scope = partial_invalidation_iftx
-            .into_iter()
-            .find(|patch| {
+        let iftx_scope = Self::select_invalidating_candidate(
+            partial_invalidation_iftx.into_iter().filter(|patch| {
                 // TODO(garretrieger): use a heuristic to select the best patch
                 let Some(selected) = &ift_selected_uri else {
                     return true;
                 };
-                selected != &patch.0.uri
-            })
-            .map(|patch| {
-                iftx_selected_uri = Some(patch.0.uri.clone());
-                ScopedGroup::PartialInvalidation(patch)
-            });
+                selected != &patch.patch_info.uri
+            }),
+        )
+        .map(|patch| {
+            iftx_selected_uri = Some(patch.patch_info.uri.clone());
+            ScopedGroup::PartialInvalidation(patch.into())
+        });
 
         // URI's which have been selected for use above should not show up in other selections.
         if let (Some(uri), None) = (&ift_selected_uri, &iftx_selected_uri) {
@@ -241,6 +224,63 @@ impl<'a> PatchGroup<'a> {
                 })
             }
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn group_patches(
+        candidates: Vec<PatchUri>,
+        ift_compat_id: Option<CompatibilityId>,
+        iftx_compat_id: Option<CompatibilityId>,
+        full_invalidation: &mut Vec<CandidatePatch>,
+        partial_invalidation_ift: &mut Vec<CandidatePatch>,
+        partial_invalidation_iftx: &mut Vec<CandidatePatch>,
+        no_invalidation_ift: &mut BTreeMap<String, NoInvalidationPatch>,
+        no_invalidation_iftx: &mut BTreeMap<String, NoInvalidationPatch>,
+    ) {
+        for uri in candidates.into_iter() {
+            // TODO(garretrieger): for efficiency can we delay uri template resolution until we have actually selected patches?
+            // TODO(garretrieger): for btree construction don't recompute the resolved uri, cache inside the patch uri object?
+            match uri.encoding() {
+                PatchEncoding::TableKeyed {
+                    fully_invalidating: true,
+                } => full_invalidation.push(uri.into()),
+                PatchEncoding::TableKeyed {
+                    fully_invalidating: false,
+                } => {
+                    if Some(uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
+                        partial_invalidation_ift.push(uri.into())
+                    } else if Some(uri.expected_compatibility_id()) == iftx_compat_id.as_ref() {
+                        partial_invalidation_iftx.push(uri.into())
+                    }
+                }
+                PatchEncoding::GlyphKeyed => {
+                    if Some(uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
+                        no_invalidation_ift
+                            .insert(uri.uri_string(), NoInvalidationPatch(uri.into()));
+                    } else if Some(uri.expected_compatibility_id()) == iftx_compat_id.as_ref() {
+                        no_invalidation_iftx
+                            .insert(uri.uri_string(), NoInvalidationPatch(uri.into()));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Select an entry from a list of candidate invalidating entries according to the specs selection criteria.
+    ///
+    /// Context: https://w3c.github.io/IFT/Overview.html#invalidating-patch-selection
+    fn select_invalidating_candidate<T>(candidates: T) -> Option<CandidatePatch>
+    where
+        T: Iterator<Item = CandidatePatch>,
+    {
+        // Note:
+        // - As mentioned in the spec we can find at least one entry matching that criteria by finding an entry with the
+        //   largest intersection (since that can't be a strict subset of others).
+        // - Intesection size is tracked in intersection info.
+        // - Ties are broken by entry order, which is also tracked in intersection info.
+        // - So it's sufficient to just find a candidate patch with the largest intersection info, relying on it's
+        //   Ord implementation.
+        candidates.max_by_key(|candidate| candidate.intersection_info.clone())
     }
 
     /// Attempt to apply the next patch (or patches if non-invalidating) listed in this group.
@@ -333,6 +373,21 @@ impl From<PatchUri> for PatchInfo {
     }
 }
 
+/// Type to track a patch being considered for selection.
+struct CandidatePatch {
+    intersection_info: IntersectionInfo,
+    patch_info: PatchInfo,
+}
+
+impl From<PatchUri> for CandidatePatch {
+    fn from(value: PatchUri) -> Self {
+        Self {
+            intersection_info: value.intersection_info(),
+            patch_info: value.into(),
+        }
+    }
+}
+
 /// Type for a single non invalidating patch.
 #[derive(PartialEq, Eq, Debug)]
 struct NoInvalidationPatch(PatchInfo);
@@ -341,9 +396,21 @@ struct NoInvalidationPatch(PatchInfo);
 #[derive(PartialEq, Eq, Debug)]
 struct PartialInvalidationPatch(PatchInfo);
 
+impl From<CandidatePatch> for PartialInvalidationPatch {
+    fn from(value: CandidatePatch) -> Self {
+        Self(value.patch_info)
+    }
+}
+
 /// Type for a single fully invalidating patch.
 #[derive(PartialEq, Eq, Debug)]
 struct FullInvalidationPatch(PatchInfo);
+
+impl From<CandidatePatch> for FullInvalidationPatch {
+    fn from(value: CandidatePatch) -> Self {
+        Self(value.patch_info)
+    }
+}
 
 /// Represents a group of patches which are valid (compatible) to be applied together to
 /// an IFT font.
