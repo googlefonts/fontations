@@ -311,7 +311,6 @@ pub(crate) struct PatchInfo {
     uri: String,
     source_table: IftTableTag,
     application_flag_bit_index: usize,
-    // TODO: Signals for heuristic patch selection:
 }
 
 impl PatchInfo {
@@ -453,6 +452,7 @@ mod tests {
             PatchEncoding::TableKeyed {
                 fully_invalidating: true,
             },
+            Default::default(),
         )
     }
 
@@ -465,6 +465,7 @@ mod tests {
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
             },
+            Default::default(),
         )
     }
 
@@ -477,6 +478,7 @@ mod tests {
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
             },
+            Default::default(),
         )
     }
 
@@ -487,6 +489,7 @@ mod tests {
             IftTableTag::Iftx(cid_2()),
             42,
             PatchEncoding::GlyphKeyed,
+            Default::default(),
         )
     }
 
@@ -499,6 +502,7 @@ mod tests {
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
             },
+            Default::default(),
         )
     }
 
@@ -511,6 +515,7 @@ mod tests {
             PatchEncoding::TableKeyed {
                 fully_invalidating: false,
             },
+            Default::default(),
         )
     }
 
@@ -521,6 +526,7 @@ mod tests {
             IftTableTag::Ift(cid_1()),
             42,
             PatchEncoding::GlyphKeyed,
+            Default::default(),
         )
     }
 
@@ -531,6 +537,7 @@ mod tests {
             IftTableTag::Ift(cid_1()),
             42,
             PatchEncoding::GlyphKeyed,
+            Default::default(),
         )
     }
 
@@ -541,6 +548,7 @@ mod tests {
             IftTableTag::Iftx(cid_2()),
             42,
             PatchEncoding::GlyphKeyed,
+            Default::default(),
         )
     }
 
@@ -551,6 +559,7 @@ mod tests {
             IftTableTag::Iftx(cid_2()),
             42,
             PatchEncoding::GlyphKeyed,
+            Default::default(),
         )
     }
 

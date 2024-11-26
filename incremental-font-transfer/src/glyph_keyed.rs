@@ -510,7 +510,15 @@ pub(crate) mod tests {
             b"IFTX" => IftTableTag::Iftx(CompatibilityId::from_u32s([0, 0, 0, 0])),
             _ => panic!("Unexpected tag value."),
         };
-        PatchUri::from_index("", 0, source, bit_index, PatchEncoding::GlyphKeyed).into()
+        PatchUri::from_index(
+            "",
+            0,
+            source,
+            bit_index,
+            PatchEncoding::GlyphKeyed,
+            Default::default(),
+        )
+        .into()
     }
 
     #[test]
@@ -925,4 +933,5 @@ pub(crate) mod tests {
     // - patch data offsets unordered.
     // - loca offset type switch required.
     // - glyph keyed test with large number of offsets to check type conversion on (glyphCount * tableCount)
+    // - test that glyph keyed patches are idempotent.
 }

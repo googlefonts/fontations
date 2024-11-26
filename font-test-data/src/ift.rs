@@ -107,13 +107,18 @@ pub fn feature_map_format1() -> BeBuffer {
       {0u32: "glyph_map_offset"},
       {0u32: "feature_map_offset"},
 
-      // applied entry bitmap (51 bytes) - 300 is applied
+      // applied entry bitmap (51 bytes) - 299 is applied
+      {0u8: "applied_entries"},
       [
-        0, 0, 0, 0, 0, 0, 0, 0,           // [0, 64)
+        0, 0, 0, 0, 0, 0, 0,           // [0, 64)
         0, 0, 0, 0, 0, 0, 0, 0,           // [64, 128)
         0, 0, 0, 0, 0, 0, 0, 0,           // [128, 192)
         0, 0, 0, 0, 0, 0, 0, 0,           // [192, 256)
-        0, 0, 0, 0, 0, 0b00001000, 0, 0,  // [256, 320)
+        0, 0, 0, 0, 0u8
+      ],
+      {0b00001000u8: "applied_entries_296"},
+      [
+        0, 0,  // [256, 320)
         0, 0, 0, 0, 0, 0, 0, 0,           // [320, 384)
         0, 0, 0u8                         // [384, 400)
       ],
@@ -121,19 +126,19 @@ pub fn feature_map_format1() -> BeBuffer {
       8u16, // uriTemplateLength
       [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
 
-      3u8,                    // patch encoding = glyph keyed
+      {3u8: "patch_encoding"},            // patch encoding = glyph keyed
 
       /* ### Glyph Map ### */
       {2u16: "glyph_map"}, // first mapped glyph
 
       // entryIndex[2..6]
       [
-        80,  // gid 2
-        81,  // gid 3
-        300, // gid 4
-        299, // gid 5
-        80u16   // gid 6
+        80,     // gid 2
+        81,     // gid 3
+        300u16  // gid 4
       ],
+      {299u16: "gid5_entry"},  // gid 5
+      {80u16:  "gid6_entry"},  // gid 6
 
       // ## Feature Map ##
       {3u16: "feature_map"}, // feature count

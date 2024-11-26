@@ -225,6 +225,7 @@ mod tests {
             TableKeyed {
                 fully_invalidating: false,
             },
+            Default::default(),
         )
         .into();
 
@@ -258,6 +259,7 @@ mod tests {
             TableKeyed {
                 fully_invalidating: false,
             },
+            Default::default(),
         )
         .into();
 
@@ -282,6 +284,7 @@ mod tests {
             IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
             0,
             GlyphKeyed,
+            Default::default(),
         )
         .into();
 
@@ -309,6 +312,7 @@ mod tests {
             IftTableTag::Ift(CompatibilityId::from_u32s([6, 7, 9, 9])),
             0,
             GlyphKeyed,
+            Default::default(),
         )
         .into();
 
