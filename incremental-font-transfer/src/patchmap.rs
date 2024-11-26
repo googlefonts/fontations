@@ -3,13 +3,13 @@
 //! The IFT and IFTX tables encode mappings from subset definitions to URL's which host patches
 //! that can be applied to the font to add support for the corresponding subset definition.
 
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::io::Read;
 use std::ops::RangeInclusive;
 
-use font_types::GlyphId;
 use font_types::Tag;
 
 use data_encoding::BASE64URL;
@@ -104,76 +104,103 @@ fn add_intersecting_format1_patches(
 
     let encoding = PatchEncoding::from_format_number(map.patch_encoding())?;
 
-    // Step 1: Collect the glyph map entries.
-    let mut entries = IntSet::<u16>::empty();
-    intersect_format1_glyph_map(font, map, codepoints, &mut entries)?;
+    // Step 1: Collect the glyph and feature map entries.
+    let charmap = Charmap::new(font);
+    let mut entries = BTreeMap::<u16, SubsetDefinition>::new();
+    let record_intersections = map.patch_encoding() != PatchEncoding::glyph_keyed_format_number();
+    if record_intersections {
+        intersect_format1_glyph_and_feature_map::<true>(
+            &charmap,
+            map,
+            codepoints,
+            features,
+            &mut entries,
+        )?;
+    } else {
+        intersect_format1_glyph_and_feature_map::<false>(
+            &charmap,
+            map,
+            codepoints,
+            features,
+            &mut entries,
+        )?;
+    }
 
-    // Step 2: Collect feature mappings.
-    intersect_format1_feature_map(map, features, &mut entries)?;
-
-    // Step 3: produce final output.
+    // Step 2: produce final output.
     let applied_entries_start_bit_index = map.shape().applied_entries_bitmap_byte_range().start * 8;
     patches.extend(
         entries
-            .iter()
+            .into_iter()
             // Entry 0 is the entry for codepoints already in the font, so it's always considered applied and skipped.
-            .filter(|index| *index > 0)
-            .filter(|index| !map.is_entry_applied(*index))
-            .map(|index| {
+            .filter(|(index, _)| *index > 0)
+            .filter(|(index, _)| !map.is_entry_applied(*index))
+            .map(|(index, subset_def)| {
                 PatchUri::from_index(
                     uri_template,
                     index as u32,
                     source_table.clone(),
                     applied_entries_start_bit_index + index as usize,
                     encoding,
+                    subset_def.into(),
                 )
             }),
     );
     Ok(())
 }
 
-fn intersect_format1_glyph_map(
-    font: &FontRef,
+fn intersect_format1_glyph_and_feature_map<const RECORD_INTERSECTION: bool>(
+    charmap: &Charmap,
     map: &PatchMapFormat1,
     codepoints: &IntSet<u32>,
-    entries: &mut IntSet<u16>,
+    features: &BTreeSet<Tag>,
+    entries: &mut BTreeMap<u16, SubsetDefinition>,
 ) -> Result<(), ReadError> {
-    let charmap = Charmap::new(font);
+    intersect_format1_glyph_map::<RECORD_INTERSECTION>(charmap, map, codepoints, entries)?;
+    intersect_format1_feature_map::<RECORD_INTERSECTION>(map, features, entries)
+}
+
+fn intersect_format1_glyph_map<const RECORD_INTERSECTION: bool>(
+    charmap: &Charmap,
+    map: &PatchMapFormat1,
+    codepoints: &IntSet<u32>,
+    entries: &mut BTreeMap<u16, SubsetDefinition>,
+) -> Result<(), ReadError> {
     if codepoints.is_inverted() {
         // TODO(garretrieger): consider invoking this path if codepoints set is above a size threshold
         //                     relative to the fonts cmap.
-        let gids = charmap
+        let cp_gids = charmap
             .mappings()
             .filter(|(cp, _)| codepoints.contains(*cp))
-            .map(|(_, gid)| gid);
-
-        return intersect_format1_glyph_map_inner(map, gids, entries);
+            .map(|(cp, gid)| (cp, gid.to_u32()));
+        return intersect_format1_glyph_map_inner::<RECORD_INTERSECTION>(map, cp_gids, entries);
     }
 
     // TODO(garretrieger): since codepoints are looked up in sorted order we may be able to speed up the charmap lookup
     // (eg. walking the charmap in parallel with the codepoints, or caching the last binary search index)
-    let gids = codepoints.iter().flat_map(|cp| charmap.map(cp));
-    intersect_format1_glyph_map_inner(map, gids, entries)
+    let cp_gids = codepoints
+        .iter()
+        .flat_map(|cp| charmap.map(cp).map(|gid| (cp, gid.to_u32())));
+    intersect_format1_glyph_map_inner::<RECORD_INTERSECTION>(map, cp_gids, entries)
 }
 
-fn intersect_format1_glyph_map_inner(
+fn intersect_format1_glyph_map_inner<const RECORD_INTERSECTION: bool>(
     map: &PatchMapFormat1,
-    gids: impl Iterator<Item = GlyphId>,
-    entries: &mut IntSet<u16>,
+    gids: impl Iterator<Item = (u32, u32)>,
+    entries: &mut BTreeMap<u16, SubsetDefinition>,
 ) -> Result<(), ReadError> {
     let glyph_map = map.glyph_map()?;
     let first_gid = glyph_map.first_mapped_glyph() as u32;
     let max_glyph_map_entry_index = map.max_glyph_map_entry_index();
 
-    for gid in gids {
-        let entry_index = if gid.to_u32() < first_gid {
+    for (cp, gid) in gids {
+        let entry_index = if gid < first_gid {
             0
         } else {
             glyph_map
                 .entry_index()
                 // TODO(garretrieger): this branches to determine item size on each individual lookup, would
                 //                     likely be faster if we bypassed that since all items have the same length.
-                .get((gid.to_u32() - first_gid) as usize)?
+                .get((gid - first_gid) as usize)?
                 .get()
         };
 
@@ -181,16 +208,20 @@ fn intersect_format1_glyph_map_inner(
             continue;
         }
 
-        entries.insert(entry_index);
+        let e = entries.entry(entry_index);
+        let subset = e.or_default();
+        if RECORD_INTERSECTION {
+            subset.codepoints.insert(cp);
+        }
     }
 
     Ok(())
 }
 
-fn intersect_format1_feature_map(
+fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
     map: &PatchMapFormat1,
     features: &BTreeSet<Tag>,
-    entries: &mut IntSet<u16>,
+    entries: &mut BTreeMap<u16, SubsetDefinition>,
 ) -> Result<(), ReadError> {
     // TODO(garretrieger): special case features = * (inverted set), will need to change to use a IntSet.
     let Some(feature_map) = map.feature_map() else {
@@ -262,14 +293,46 @@ fn intersect_format1_feature_map(
                 continue;
             }
 
-            if entries.intersects_range(first..=last) {
-                entries.insert(mapped_entry_index);
-            }
+            // If any entries exist which intersect the range of this record add all of their subset defs
+            // to the new entry.
+            merge_intersecting_entries::<RECORD_INTERSECTION>(
+                first..=last,
+                mapped_entry_index,
+                *tag,
+                entries,
+            );
         }
         next_tag = tag_it.next();
     }
 
     Ok(())
+}
+
+fn merge_intersecting_entries<const RECORD_INTERSECTION: bool>(
+    intersection: RangeInclusive<u16>,
+    mapped_entry_index: u16,
+    mapped_tag: Tag,
+    entries: &mut BTreeMap<u16, SubsetDefinition>,
+) {
+    let mut range = entries.range(intersection).peekable();
+    let merged_subset_def = if range.peek().is_some() {
+        let mut merged_subset_def = SubsetDefinition::default();
+        if RECORD_INTERSECTION {
+            range.for_each(|(_, subset_def)| {
+                merged_subset_def.union(subset_def);
+            });
+            merged_subset_def.feature_tags.insert(mapped_tag);
+        }
+        Some(merged_subset_def)
+    } else {
+        None
+    };
+    if let Some(merged_subset_def) = merged_subset_def {
+        entries
+            .entry(mapped_entry_index)
+            .or_default()
+            .union(&merged_subset_def);
+    }
 }
 
 fn add_intersecting_format2_patches(
@@ -523,6 +586,10 @@ pub enum PatchEncoding {
 }
 
 impl PatchEncoding {
+    const fn glyph_keyed_format_number() -> u8 {
+        3
+    }
+
     fn from_format_number(format: u8) -> Result<Self, ReadError> {
         // Based on https://w3c.github.io/IFT/Overview.html#font-patch-formats-summary
         match format {
@@ -602,6 +669,18 @@ pub struct PatchUri {
     encoding: PatchEncoding,
     source_table: IftTableTag,
     application_flag_bit_index: usize,
+    intersection_info: IntersectionInfo,
+}
+
+/// Stores information on the intersection which lead to the selection of this patch.
+///
+/// Intersection details are used later on to choose a specific patch to apply next.
+/// See: https://w3c.github.io/IFT/Overview.html#invalidating-patch-selection
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
+pub struct IntersectionInfo {
+    intersecting_codepoints: u64,
+    intersecting_layout_tags: usize,
+    // TODO(garretrieger): metric for design space intersection.
 }
 
 impl PatchUri {
@@ -676,6 +755,7 @@ impl PatchUri {
         source_table: IftTableTag,
         application_flag_bit_index: usize,
         encoding: PatchEncoding,
+        intersection_info: IntersectionInfo,
     ) -> PatchUri {
         PatchUri {
             template: uri_template.to_string(),
@@ -683,12 +763,22 @@ impl PatchUri {
             source_table,
             application_flag_bit_index,
             encoding,
+            intersection_info,
+        }
+    }
+}
+
+impl From<SubsetDefinition> for IntersectionInfo {
+    fn from(value: SubsetDefinition) -> Self {
+        IntersectionInfo {
+            intersecting_codepoints: value.codepoints.len(),
+            intersecting_layout_tags: value.feature_tags.len(),
         }
     }
 }
 
 /// Stores a description of a font subset over codepoints, feature tags, and design space.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct SubsetDefinition {
     codepoints: IntSet<u32>,
     feature_tags: BTreeSet<Tag>,
@@ -764,6 +854,7 @@ impl Entry {
                 source_table.clone(),
                 application_flag_bit_index,
                 *default_encoding,
+                Default::default(),
             ),
         }
     }
@@ -832,6 +923,15 @@ mod tests {
     use read_fonts::FontRef;
     use write_fonts::FontBuilder;
 
+    impl IntersectionInfo {
+        fn new(num_codepoints: u64, num_features: usize) -> Self {
+            IntersectionInfo {
+                intersecting_codepoints: num_codepoints,
+                intersecting_layout_tags: num_features,
+            }
+        }
+    }
+
     impl PatchUri {
         fn from_string(
             uri_template: &str,
@@ -846,6 +946,7 @@ mod tests {
                 source_table: source_table.clone(),
                 application_flag_bit_index,
                 encoding,
+                intersection_info: Default::default(),
             }
         }
     }
@@ -943,6 +1044,7 @@ mod tests {
                         IftTableTag::Ift(compat_id()),
                         *application_bit_index,
                         PatchEncoding::GlyphKeyed,
+                        Default::default(),
                     )
                 },
             )
@@ -979,6 +1081,7 @@ mod tests {
                         IftTableTag::Ift(compat_id()),
                         *application_bit_index,
                         PatchEncoding::GlyphKeyed,
+                        Default::default(),
                     )
                 },
             )
@@ -995,6 +1098,7 @@ mod tests {
                 IftTableTag::Ift(Default::default()),
                 0,
                 PatchEncoding::GlyphKeyed,
+                Default::default(),
             )
             .uri_string(),
             expected,
@@ -1266,6 +1370,109 @@ mod tests {
             &font,
             [Tag::new(b"dlig")],
             [f1(0x50), f1(0x51), f1(0x12c), f1(0x190)],
+        );
+    }
+
+    fn patch_with_intersection(
+        applied_entries_start: usize,
+        index: u32,
+        intersection_info: IntersectionInfo,
+    ) -> PatchUri {
+        PatchUri::from_index(
+            "ABCDEFɤ",
+            index,
+            IftTableTag::Ift(compat_id()),
+            applied_entries_start + index as usize,
+            PatchEncoding::TableKeyed {
+                fully_invalidating: true,
+            },
+            intersection_info,
+        )
+    }
+
+    #[test]
+    fn format_1_patch_map_intersection_info() {
+        let mut map = feature_map_format1();
+        map.write_at("patch_encoding", 1u8);
+        map.write_at("gid5_entry", 299u16);
+        map.write_at("gid6_entry", 300u16);
+        map.write_at("applied_entries_296", 0u8);
+        let applied_entries_start = map.offset_for("applied_entries") * 8;
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&map),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        // case 1 - only codepoints
+        let patches = intersecting_patches(
+            &font,
+            &SubsetDefinition::new(IntSet::from([0x14]), Default::default(), Default::default()),
+        )
+        .unwrap();
+        assert_eq!(
+            patches,
+            vec![patch_with_intersection(
+                applied_entries_start,
+                300,
+                IntersectionInfo::new(1, 0),
+            ),]
+        );
+
+        // case 2 - only codepoints
+        let patches = intersecting_patches(
+            &font,
+            &SubsetDefinition::new(
+                IntSet::from([0x14, 0x15, 0x16]),
+                Default::default(),
+                Default::default(),
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            patches,
+            vec![
+                patch_with_intersection(applied_entries_start, 299, IntersectionInfo::new(1, 0),),
+                patch_with_intersection(applied_entries_start, 300, IntersectionInfo::new(2, 0),),
+            ]
+        );
+
+        // case 3 - features (w/ intersection)
+        let patches = intersecting_patches(
+            &font,
+            &SubsetDefinition::new(
+                IntSet::from([0x14, 0x15, 0x16]),
+                BTreeSet::from([Tag::new(b"dlig"), Tag::new(b"liga")]),
+                Default::default(),
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            patches,
+            vec![
+                patch_with_intersection(applied_entries_start, 299, IntersectionInfo::new(1, 0),),
+                patch_with_intersection(applied_entries_start, 300, IntersectionInfo::new(2, 0),),
+                patch_with_intersection(applied_entries_start, 385, IntersectionInfo::new(3, 1),),
+            ]
+        );
+
+        // case 4 - features (w/o intersection)
+        let patches = intersecting_patches(
+            &font,
+            &SubsetDefinition::new(
+                IntSet::from([0x14, 0x15, 0x16]),
+                BTreeSet::from([Tag::new(b"dlig")]),
+                Default::default(),
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            patches,
+            vec![
+                patch_with_intersection(applied_entries_start, 299, IntersectionInfo::new(1, 0),),
+                patch_with_intersection(applied_entries_start, 300, IntersectionInfo::new(2, 0),),
+            ]
         );
     }
 
