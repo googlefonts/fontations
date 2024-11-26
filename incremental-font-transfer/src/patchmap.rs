@@ -107,8 +107,7 @@ fn add_intersecting_format1_patches(
     // Step 1: Collect the glyph and feature map entries.
     let charmap = Charmap::new(font);
     let mut entries = BTreeMap::<u16, SubsetDefinition>::new();
-    let record_intersections = map.patch_encoding() != PatchEncoding::glyph_keyed_format_number();
-    if record_intersections {
+    if PatchEncoding::is_invalidating_format(map.patch_encoding()) {
         intersect_format1_glyph_and_feature_map::<true>(
             &charmap,
             map,
@@ -342,14 +341,19 @@ fn add_intersecting_format2_patches(
     patches: &mut Vec<PatchUri>, // TODO(garretrieger): btree set to allow for de-duping?
 ) -> Result<(), ReadError> {
     let entries = decode_format2_entries(source_table, map)?;
-
-    for e in entries {
+    for mut e in entries.into_iter() {
         if e.ignored {
             continue;
         }
 
         if !e.intersects(subset_definition) {
             continue;
+        }
+
+        if e.uri.encoding().is_invalidating() {
+            // for invalidating keyed patches we need to record information about intersection size to use later
+            // for patch selection.
+            e.uri.intersection_info = e.intersection(subset_definition).into();
         }
 
         patches.push(e.uri)
@@ -586,8 +590,19 @@ pub enum PatchEncoding {
 }
 
 impl PatchEncoding {
-    const fn glyph_keyed_format_number() -> u8 {
-        3
+    fn is_invalidating(&self) -> bool {
+        match self {
+            PatchEncoding::GlyphKeyed => false,
+            PatchEncoding::TableKeyed { .. } => true,
+        }
+    }
+
+    fn is_invalidating_format(format: u8) -> bool {
+        match format {
+            1 | 2 => true,
+            3 => false,
+            _ => false,
+        }
     }
 
     fn from_format_number(format: u8) -> Result<Self, ReadError> {
@@ -866,6 +881,10 @@ impl Entry {
                 .subset_definition
                 .codepoints
                 .intersects_set(&subset_definition.codepoints);
+        if !codepoints_intersects {
+            return false;
+        }
+
         let features_intersects = self.subset_definition.feature_tags.is_empty()
             || self
                 .subset_definition
@@ -873,11 +892,34 @@ impl Entry {
                 .intersection(&subset_definition.feature_tags)
                 .next()
                 .is_some();
+        if !features_intersects {
+            return false;
+        }
 
-        let design_space_intersects = self.subset_definition.design_space.is_empty()
-            || self.design_space_intersects(&subset_definition.design_space);
+        self.subset_definition.design_space.is_empty()
+            || self.design_space_intersects(&subset_definition.design_space)
+    }
 
-        codepoints_intersects && features_intersects && design_space_intersects
+    fn intersection(&self, subset_definition: &SubsetDefinition) -> SubsetDefinition {
+        let mut result: SubsetDefinition = subset_definition.clone();
+
+        if !self.subset_definition.codepoints.is_empty() {
+            result
+                .codepoints
+                .intersect(&self.subset_definition.codepoints);
+        }
+
+        if !self.subset_definition.feature_tags.is_empty() {
+            result.feature_tags = subset_definition
+                .feature_tags
+                .intersection(&self.subset_definition.feature_tags)
+                .copied()
+                .collect();
+        }
+
+        // TODO(garretrieger): design space.
+
+        result
     }
 
     fn design_space_intersects(
@@ -1700,6 +1742,64 @@ mod tests {
             [Tag::new(b"smcp")],
             [(Tag::new(b"wdth"), vec![2.2..=2.3, 1.2..=1.3])],
             [e3],
+        );
+    }
+
+    #[test]
+    fn format_2_patch_map_intersection_info() {
+        let mut map = features_and_design_space_format2();
+        map.write_at("patch_encoding", 1u8);
+
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&map),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        // Case 1
+        let patches = intersecting_patches(
+            &font,
+            &SubsetDefinition::new(
+                IntSet::from([10, 15, 22]),
+                BTreeSet::from([Tag::new(b"rlig"), Tag::new(b"liga")]),
+                Default::default(),
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            patches,
+            vec![patch_with_intersection(
+                map.offset_for("entries[1]") * 8 + 4,
+                2,
+                IntersectionInfo::new(2, 1),
+            ),]
+        );
+
+        // Case 2
+        let patches = intersecting_patches(
+            &font,
+            &SubsetDefinition::new(
+                IntSet::from([10, 15, 22]),
+                BTreeSet::from([Tag::new(b"rlig"), Tag::new(b"liga"), Tag::new(b"smcp")]),
+                HashMap::from([(Tag::new(b"wght"), vec![300f64..=400f64])]),
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            patches,
+            vec![
+                patch_with_intersection(
+                    map.offset_for("entries[1]") * 8 + 4,
+                    2,
+                    IntersectionInfo::new(2, 1),
+                ),
+                patch_with_intersection(
+                    map.offset_for("entries[2]") * 8 + 3,
+                    3,
+                    IntersectionInfo::new(3, 1),
+                ),
+            ]
         );
     }
 

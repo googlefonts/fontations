@@ -239,7 +239,7 @@ pub fn features_and_design_space_format2() -> BeBuffer {
 
       [1, 2, 3, 4u32], // compat id
 
-      3u8, // default patch encoding
+      {3u8: "patch_encoding"}, // default patch encoding
       (Uint24::new(3)), // entry count
       {0u32: "entries_offset"},
       0u32, // entry id string data offset
