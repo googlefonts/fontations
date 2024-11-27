@@ -11,11 +11,13 @@ use std::io::Cursor;
 use std::io::Read;
 use std::ops::RangeInclusive;
 
+use font_types::Fixed;
 use font_types::Tag;
 
 use data_encoding::BASE64URL;
 use data_encoding_macro::new_encoding;
 
+use read_fonts::collections::RangeSet;
 use read_fonts::FontRead;
 use read_fonts::{
     collections::IntSet,
@@ -32,8 +34,6 @@ use skrifa::charmap::Charmap;
 use uritemplate::UriTemplate;
 
 // TODO(garretrieger): implement support for building and compiling mapping tables.
-// TODO(garretrieger): implement coalescing of patches by patch URI, ensuring that all entries with the same
-//                     uri have matching encoding and compat id.
 
 /// Find the set of patches which intersect the specified subset definition.
 pub fn intersecting_patches(
@@ -444,7 +444,7 @@ fn decode_format2_entry<'a>(
                 .design_space
                 .entry(dss.axis_tag())
                 .or_default()
-                .push(dss.start().to_f64()..=dss.end().to_f64());
+                .insert(dss.start()..=dss.end());
         }
     }
 
@@ -692,7 +692,7 @@ pub struct PatchUri {
 pub(crate) struct IntersectionInfo {
     intersecting_codepoints: u64,
     intersecting_layout_tags: usize,
-    // TODO(garretrieger): metric for design space intersection.
+    intersecting_design_space: BTreeMap<Tag, Fixed>,
     entry_order: usize,
 }
 
@@ -716,6 +716,13 @@ impl Ord for IntersectionInfo {
         match self
             .intersecting_layout_tags
             .cmp(&other.intersecting_layout_tags)
+        {
+            Ordering::Equal => {}
+            ord => return ord,
+        }
+        match self
+            .intersecting_design_space
+            .cmp(&other.intersecting_design_space)
         {
             Ordering::Equal => {}
             ord => return ord,
@@ -821,6 +828,7 @@ impl IntersectionInfo {
         IntersectionInfo {
             intersecting_codepoints: value.codepoints.len(),
             intersecting_layout_tags: value.feature_tags.len(),
+            intersecting_design_space: Default::default(), // TODO(garretrieger): compute length from the range set.
             entry_order: order,
         }
     }
@@ -831,7 +839,7 @@ impl IntersectionInfo {
 pub struct SubsetDefinition {
     codepoints: IntSet<u32>,
     feature_tags: BTreeSet<Tag>,
-    design_space: HashMap<Tag, Vec<RangeInclusive<f64>>>,
+    design_space: HashMap<Tag, RangeSet<Fixed>>,
 }
 
 impl SubsetDefinition {
@@ -846,7 +854,7 @@ impl SubsetDefinition {
     pub fn new(
         codepoints: IntSet<u32>,
         feature_tags: BTreeSet<Tag>,
-        design_space: HashMap<Tag, Vec<RangeInclusive<f64>>>,
+        design_space: HashMap<Tag, RangeSet<Fixed>>,
     ) -> SubsetDefinition {
         SubsetDefinition {
             codepoints,
@@ -864,7 +872,7 @@ impl SubsetDefinition {
             self.design_space
                 .entry(*tag)
                 .or_default()
-                .extend(segments.clone());
+                .extend(segments.iter());
         }
     }
 }
@@ -951,28 +959,19 @@ impl Entry {
                 .collect();
         }
 
-        // TODO(garretrieger): design space.
+        // TODO(garretrieger): implement intersection for design space.
 
         result
     }
 
-    fn design_space_intersects(
-        &self,
-        design_space: &HashMap<Tag, Vec<RangeInclusive<f64>>>,
-    ) -> bool {
+    fn design_space_intersects(&self, design_space: &HashMap<Tag, RangeSet<Fixed>>) -> bool {
         for (tag, input_segments) in design_space {
             let Some(entry_segments) = self.subset_definition.design_space.get(tag) else {
                 continue;
             };
 
-            // TODO(garretrieger): this is inefficient (O(n^2)). If we keep the ranges sorted by start then
-            //                     this can be implemented much more efficiently.
-            for a in input_segments {
-                for b in entry_segments {
-                    if a.start() <= b.end() && b.start() <= a.end() {
-                        return true;
-                    }
-                }
+            if input_segments.intersection(entry_segments).next().is_some() {
+                return true;
             }
         }
 
@@ -1004,7 +1003,20 @@ mod tests {
             IntersectionInfo {
                 intersecting_codepoints: codepoints,
                 intersecting_layout_tags: features,
+                intersecting_design_space: Default::default(),
                 entry_order: order,
+            }
+        }
+
+        pub(crate) fn from_design_space<const N: usize>(
+            codepoints: u64,
+            design_space: [(Tag, Fixed); N],
+        ) -> Self {
+            IntersectionInfo {
+                intersecting_codepoints: codepoints,
+                intersecting_layout_tags: 0,
+                intersecting_design_space: BTreeMap::from(design_space),
+                entry_order: 0,
             }
         }
     }
@@ -1095,7 +1107,7 @@ mod tests {
         font: &FontRef,
         codepoints: [u32; M],
         tags: [Tag; N],
-        design_space: [(Tag, Vec<RangeInclusive<f64>>); O],
+        design_space: [(Tag, RangeSet<Fixed>); O],
         expected_entries: [ExpectedEntry; P],
     ) {
         let patches = intersecting_patches(
@@ -1759,7 +1771,12 @@ mod tests {
             &font,
             [0x02],
             [Tag::new(b"rlig")],
-            [(Tag::new(b"wdth"), vec![0.7..=0.8])],
+            [(
+                Tag::new(b"wdth"),
+                [Fixed::from_f64(0.7)..=Fixed::from_f64(0.8)]
+                    .into_iter()
+                    .collect(),
+            )],
             [e2],
         );
 
@@ -1767,21 +1784,36 @@ mod tests {
             &font,
             [0x05],
             [Tag::new(b"smcp")],
-            [(Tag::new(b"wdth"), vec![0.7..=0.8])],
+            [(
+                Tag::new(b"wdth"),
+                [Fixed::from_f64(0.7)..=Fixed::from_f64(0.8)]
+                    .into_iter()
+                    .collect(),
+            )],
             [e1],
         );
         test_design_space_intersection(
             &font,
             [0x05],
             [Tag::new(b"smcp")],
-            [(Tag::new(b"wdth"), vec![0.2..=0.3])],
+            [(
+                Tag::new(b"wdth"),
+                [Fixed::from_f64(0.2)..=Fixed::from_f64(0.3)]
+                    .into_iter()
+                    .collect(),
+            )],
             [e3],
         );
         test_design_space_intersection(
             &font,
             [0x05],
             [Tag::new(b"smcp")],
-            [(Tag::new(b"wdth"), vec![1.2..=1.3])],
+            [(
+                Tag::new(b"wdth"),
+                [Fixed::from_f64(1.2)..=Fixed::from_f64(1.3)]
+                    .into_iter()
+                    .collect(),
+            )],
             [],
         );
 
@@ -1789,21 +1821,42 @@ mod tests {
             &font,
             [0x05],
             [Tag::new(b"smcp")],
-            [(Tag::new(b"wdth"), vec![0.2..=0.3, 0.7..=0.8])],
+            [(
+                Tag::new(b"wdth"),
+                [
+                    Fixed::from_f64(0.2)..=Fixed::from_f64(0.3),
+                    Fixed::from_f64(0.7)..=Fixed::from_f64(0.8),
+                ]
+                .into_iter()
+                .collect(),
+            )],
             [e1, e3],
         );
         test_design_space_intersection(
             &font,
             [0x05],
             [Tag::new(b"smcp")],
-            [(Tag::new(b"wdth"), vec![2.2..=2.3])],
+            [(
+                Tag::new(b"wdth"),
+                [Fixed::from_f64(2.2)..=Fixed::from_f64(2.3)]
+                    .into_iter()
+                    .collect(),
+            )],
             [e3],
         );
         test_design_space_intersection(
             &font,
             [0x05],
             [Tag::new(b"smcp")],
-            [(Tag::new(b"wdth"), vec![2.2..=2.3, 1.2..=1.3])],
+            [(
+                Tag::new(b"wdth"),
+                [
+                    Fixed::from_f64(2.2)..=Fixed::from_f64(2.3),
+                    Fixed::from_f64(1.2)..=Fixed::from_f64(1.3),
+                ]
+                .into_iter()
+                .collect(),
+            )],
             [e3],
         );
     }
@@ -1845,7 +1898,12 @@ mod tests {
             &SubsetDefinition::new(
                 IntSet::from([10, 15, 22]),
                 BTreeSet::from([Tag::new(b"rlig"), Tag::new(b"liga"), Tag::new(b"smcp")]),
-                HashMap::from([(Tag::new(b"wght"), vec![300f64..=400f64])]),
+                HashMap::from([(
+                    Tag::new(b"wght"),
+                    [Fixed::from_i32(300)..=Fixed::from_i32(400)]
+                        .into_iter()
+                        .collect(),
+                )]),
             ),
         )
         .unwrap();
@@ -1889,7 +1947,12 @@ mod tests {
             &font,
             [],
             [Tag::new(b"rlig")],
-            [(Tag::new(b"wght"), vec![500.0..=500.0])],
+            [(
+                Tag::new(b"wght"),
+                [Fixed::from_i32(500)..=Fixed::from_i32(500)]
+                    .into_iter()
+                    .collect(),
+            )],
             [e3, e6],
         );
 
@@ -1897,7 +1960,12 @@ mod tests {
             &font,
             [0x05],
             [Tag::new(b"rlig")],
-            [(Tag::new(b"wght"), vec![500.0..=500.0])],
+            [(
+                Tag::new(b"wght"),
+                [Fixed::from_i32(500)..=Fixed::from_i32(500)]
+                    .into_iter()
+                    .collect(),
+            )],
             [e3, e5, e6, e7, e8, e9],
         );
     }
@@ -2151,4 +2219,40 @@ mod tests {
         assert_eq!(v3.cmp(&v5), Ordering::Less);
         assert_eq!(v5.cmp(&v3), Ordering::Greater);
     }
+
+    #[test]
+    fn intersection_info_ordering_with_design_space() {
+        let aaaa = Tag::new(b"aaaa");
+        let bbbb = Tag::new(b"bbbb");
+
+        // these are in the correct order
+        let v1 = IntersectionInfo::from_design_space(1, [(aaaa, 4i32.into())]);
+        let v2 = IntersectionInfo::from_design_space(1, [(aaaa, 5i32.into()), (bbbb, 2i32.into())]);
+        let v3 = IntersectionInfo::from_design_space(1, [(aaaa, 6i32.into())]);
+        let v4 = IntersectionInfo::from_design_space(1, [(aaaa, 6i32.into()), (bbbb, 2i32.into())]);
+        let v5 = IntersectionInfo::from_design_space(1, [(bbbb, 1i32.into())]);
+        let v6 = IntersectionInfo::from_design_space(2, [(aaaa, 1i32.into())]);
+
+        assert_eq!(v1.cmp(&v1), Ordering::Equal);
+
+        assert_eq!(v1.cmp(&v2), Ordering::Less);
+        assert_eq!(v2.cmp(&v1), Ordering::Greater);
+
+        assert_eq!(v2.cmp(&v3), Ordering::Less);
+        assert_eq!(v3.cmp(&v2), Ordering::Greater);
+
+        assert_eq!(v3.cmp(&v4), Ordering::Less);
+        assert_eq!(v4.cmp(&v3), Ordering::Greater);
+
+        assert_eq!(v4.cmp(&v5), Ordering::Less);
+        assert_eq!(v5.cmp(&v4), Ordering::Greater);
+
+        assert_eq!(v5.cmp(&v6), Ordering::Less);
+        assert_eq!(v6.cmp(&v5), Ordering::Greater);
+
+        assert_eq!(v3.cmp(&v5), Ordering::Less);
+        assert_eq!(v5.cmp(&v3), Ordering::Greater);
+    }
+
+    // TODO(garretrieger): test for design space union of SubsetDefinition.
 }

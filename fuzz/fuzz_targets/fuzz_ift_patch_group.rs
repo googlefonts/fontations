@@ -1,17 +1,18 @@
 #![no_main]
 //! Fuzzes the incremental_font_transfer patch_group.rs API
 
-use std::{
-    collections::{BTreeSet, HashMap, HashSet},
-    ops::RangeInclusive,
-};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
+use font_types::Fixed;
 use incremental_font_transfer::{
     patch_group::{PatchGroup, UriStatus},
     patchmap::SubsetDefinition,
 };
 use libfuzzer_sys::{arbitrary, fuzz_target};
-use read_fonts::{collections::IntSet, types::Tag};
+use read_fonts::{
+    collections::{IntSet, RangeSet},
+    types::Tag,
+};
 use skrifa::FontRef;
 use write_fonts::FontBuilder;
 
@@ -25,7 +26,7 @@ struct FuzzInput {
     // Parts of the target subset definition.
     codepoints: HashSet<u32>,
     features: HashSet<u32>,
-    design_space: HashMap<u32, Vec<(f64, f64)>>,
+    design_space: HashMap<u32, Vec<(i32, i32)>>,
 
     // Patches
     patches: HashMap<String, Vec<u8>>,
@@ -51,12 +52,14 @@ impl FuzzInput {
         let feature_tags: BTreeSet<Tag> =
             self.features.iter().copied().map(Tag::from_u32).collect();
 
-        let design_space: HashMap<Tag, Vec<RangeInclusive<f64>>> = self
+        let design_space: HashMap<Tag, RangeSet<Fixed>> = self
             .design_space
             .iter()
             .map(|(tag, v)| {
-                let v: Vec<RangeInclusive<f64>> =
-                    v.iter().map(|(start, end)| *start..=*end).collect();
+                let v: RangeSet<Fixed> = v
+                    .iter()
+                    .map(|(start, end)| Fixed::from_i32(*start)..=Fixed::from_i32(*end))
+                    .collect();
                 (Tag::from_u32(*tag), v)
             })
             .collect();
