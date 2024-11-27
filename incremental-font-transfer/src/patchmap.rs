@@ -704,7 +704,7 @@ pub struct PatchUri {
 /// Intersection details are used later on to choose a specific patch to apply next.
 /// See: https://w3c.github.io/IFT/Overview.html#invalidating-patch-selection
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
-pub struct IntersectionInfo {
+pub(crate) struct IntersectionInfo {
     intersecting_codepoints: u64,
     intersecting_layout_tags: usize,
     // TODO(garretrieger): metric for design space intersection.
@@ -781,7 +781,7 @@ impl PatchUri {
         template.build()
     }
 
-    pub fn intersection_info(&self) -> IntersectionInfo {
+    pub(crate) fn intersection_info(&self) -> IntersectionInfo {
         self.intersection_info.clone()
     }
 
@@ -1015,10 +1015,10 @@ mod tests {
     use write_fonts::FontBuilder;
 
     impl IntersectionInfo {
-        fn new(num_codepoints: u64, num_features: usize, order: usize) -> Self {
+        pub(crate) fn new(codepoints: u64, features: usize, order: usize) -> Self {
             IntersectionInfo {
-                intersecting_codepoints: num_codepoints,
-                intersecting_layout_tags: num_features,
+                intersecting_codepoints: codepoints,
+                intersecting_layout_tags: features,
                 entry_order: order,
             }
         }
