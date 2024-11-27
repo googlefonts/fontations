@@ -59,6 +59,12 @@ test = false
 doc = false
 
 [[bin]]
+name = "fuzz_range_set"
+path = "fuzz_targets/fuzz_range_set.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "fuzz_ift_patch_group"
 path = "fuzz_targets/fuzz_ift_patch_group.rs"
 test = false
