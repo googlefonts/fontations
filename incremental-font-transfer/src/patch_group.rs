@@ -1310,4 +1310,6 @@ mod tests {
             assert_eq!(ReadError::ValidationError, err);
         }
     }
+
+    // TODO(garretrieger): tests of selection order criteria for invalidating patches.
 }
