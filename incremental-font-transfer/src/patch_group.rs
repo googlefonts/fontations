@@ -618,6 +618,37 @@ mod tests {
         )
     }
 
+    fn full(index: u32, codepoints: u64) -> PatchUri {
+        PatchUri::from_index(
+            "//foo.bar/{id}",
+            index,
+            IftTableTag::Ift(cid_1()),
+            42,
+            PatchEncoding::TableKeyed {
+                fully_invalidating: true,
+            },
+            IntersectionInfo::new(codepoints, 0, 0),
+        )
+    }
+
+    fn partial(index: u32, compat_id: CompatibilityId, codepoints: u64) -> PatchUri {
+        let tag = if compat_id == cid_1() {
+            IftTableTag::Ift(compat_id)
+        } else {
+            IftTableTag::Iftx(compat_id)
+        };
+        PatchUri::from_index(
+            "//foo.bar/{id}",
+            index,
+            tag,
+            42,
+            PatchEncoding::TableKeyed {
+                fully_invalidating: false,
+            },
+            IntersectionInfo::new(codepoints, 0, 0),
+        )
+    }
+
     fn patch_info_ift(uri: &str) -> PatchInfo {
         PatchInfo {
             uri: uri.to_string(),
@@ -664,6 +695,96 @@ mod tests {
         assert_eq!(
             group,
             CompatibleGroup::Full(FullInvalidationPatch(patch_info_ift("//foo.bar/04"),))
+        );
+    }
+
+    #[test]
+    fn full_invalidation_selection_order() {
+        let group = PatchGroup::select_next_patches_from_candidates(
+            vec![full(3, 9), full(1, 7), full(2, 24)],
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Full(FullInvalidationPatch(patch_info_ift("//foo.bar/08")))
+        );
+    }
+
+    #[test]
+    fn partial_invalidation_selection_order() {
+        // Only IFT
+        let group = PatchGroup::select_next_patches_from_candidates(
+            vec![
+                partial(3, cid_1(), 9),
+                partial(1, cid_1(), 23),
+                partial(2, cid_1(), 24),
+            ],
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_ift(
+                    "//foo.bar/08"
+                ),)),
+                iftx: ScopedGroup::NoInvalidation(BTreeMap::default()),
+            }
+        );
+
+        // Only IFTX
+        let group = PatchGroup::select_next_patches_from_candidates(
+            vec![
+                partial(4, cid_2(), 1),
+                partial(5, cid_2(), 22),
+                partial(6, cid_2(), 2),
+            ],
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::NoInvalidation(BTreeMap::default()),
+
+                iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
+                    "//foo.bar/0K"
+                ),)),
+            }
+        );
+
+        // Both
+        let group = PatchGroup::select_next_patches_from_candidates(
+            vec![
+                partial(3, cid_1(), 9),
+                partial(1, cid_1(), 23),
+                partial(2, cid_1(), 24),
+                partial(4, cid_2(), 1),
+                partial(5, cid_2(), 22),
+                partial(6, cid_2(), 2),
+            ],
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_ift(
+                    "//foo.bar/08"
+                ),)),
+                iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
+                    "//foo.bar/0K"
+                ),)),
+            }
         );
     }
 
@@ -1311,5 +1432,5 @@ mod tests {
         }
     }
 
-    // TODO(garretrieger): tests of selection order criteria for invalidating patches.
+    // TODO(garretrieger): XXXXX tests of selection order criteria for invalidating patches.
 }
