@@ -80,6 +80,12 @@ macro_rules! fixed_impl {
                 Self(self.0.saturating_add(other.0))
             }
 
+            /// Checked addition.
+            #[inline(always)]
+            pub fn checked_add(self, other: Self) -> Option<Self> {
+                self.0.checked_add(other.0).map(|inner| Self(inner))
+            }
+
             /// Wrapping substitution.
             #[inline(always)]
             pub const fn wrapping_sub(self, other: Self) -> Self {
