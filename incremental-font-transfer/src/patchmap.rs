@@ -702,7 +702,7 @@ pub struct PatchUri {
 /// Stores information on the intersection which lead to the selection of this patch.
 ///
 /// Intersection details are used later on to choose a specific patch to apply next.
-/// See: https://w3c.github.io/IFT/Overview.html#invalidating-patch-selection
+/// See: <https://w3c.github.io/IFT/Overview.html#invalidating-patch-selection>
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub(crate) struct IntersectionInfo {
     intersecting_codepoints: u64,

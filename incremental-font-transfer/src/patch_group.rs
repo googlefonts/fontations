@@ -269,7 +269,7 @@ impl<'a> PatchGroup<'a> {
 
     /// Select an entry from a list of candidate invalidating entries according to the specs selection criteria.
     ///
-    /// Context: https://w3c.github.io/IFT/Overview.html#invalidating-patch-selection
+    /// Context: <https://w3c.github.io/IFT/Overview.html#invalidating-patch-selection>
     fn select_invalidating_candidate<T>(candidates: T) -> Option<CandidatePatch>
     where
         T: Iterator<Item = CandidatePatch>,
@@ -1431,6 +1431,4 @@ mod tests {
             assert_eq!(ReadError::ValidationError, err);
         }
     }
-
-    // TODO(garretrieger): XXXXX tests of selection order criteria for invalidating patches.
 }
