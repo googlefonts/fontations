@@ -40,12 +40,16 @@ impl<'a> PatchGroup<'a> {
             });
         }
 
-        // TODO(garretrieger): following the spec disallow cases where both tables have the same compat id.
-        let compat_group = Self::select_next_patches_from_candidates(
-            candidates,
-            ift_font.ift().ok().map(|t| t.compatibility_id()),
-            ift_font.iftx().ok().map(|t| t.compatibility_id()),
-        )?;
+        let ift_compat_id = ift_font.ift().ok().map(|t| t.compatibility_id());
+        let iftx_compat_id = ift_font.iftx().ok().map(|t| t.compatibility_id());
+        if ift_compat_id == iftx_compat_id {
+            // The spec disallows two tables with same compat ids.
+            // See: https://w3c.github.io/IFT/Overview.html#extend-font-subset
+            return Err(ReadError::ValidationError);
+        }
+
+        let compat_group =
+            Self::select_next_patches_from_candidates(candidates, ift_compat_id, iftx_compat_id)?;
 
         Ok(PatchGroup {
             font: ift_font,
@@ -125,9 +129,6 @@ impl<'a> PatchGroup<'a> {
         ift_compat_id: Option<CompatibilityId>,
         iftx_compat_id: Option<CompatibilityId>,
     ) -> Result<CompatibleGroup, ReadError> {
-        // TODO(garretrieger): disallow the case where IFT and IFTX have the same compat id. Make it an error in the
-        //                     specification.
-
         // Some notes about this implementation:
         // - From candidates we need to form the largest possible group of patches which follow the selection criteria
         //   from: https://w3c.github.io/IFT/Overview.html#extend-font-subset and won't invalidate each other.
@@ -560,19 +561,6 @@ mod tests {
         )
     }
 
-    fn p2_partial_c2_ift() -> PatchUri {
-        PatchUri::from_index(
-            "//foo.bar/{id}",
-            2,
-            IftTableTag::Ift(cid_2()),
-            42,
-            PatchEncoding::TableKeyed {
-                fully_invalidating: false,
-            },
-            Default::default(),
-        )
-    }
-
     fn p3_partial_c2() -> PatchUri {
         PatchUri::from_index(
             "//foo.bar/{id}",
@@ -635,14 +623,6 @@ mod tests {
             uri: uri.to_string(),
             application_flag_bit_index: 42,
             source_table: IftTableTag::Ift(cid_1()),
-        }
-    }
-
-    fn patch_info_ift_c2(uri: &str) -> PatchInfo {
-        PatchInfo {
-            uri: uri.to_string(),
-            application_flag_bit_index: 42,
-            source_table: IftTableTag::Ift(cid_2()),
         }
     }
 
@@ -819,56 +799,6 @@ mod tests {
                 iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_ift(
                     "//foo.bar/08"
                 ),)),
-            }
-        );
-    }
-
-    #[test]
-    fn tables_have_same_compat_id() {
-        let group = PatchGroup::select_next_patches_from_candidates(
-            vec![
-                p2_partial_c1(),
-                p2_partial_c2_ift(),
-                p3_partial_c2(),
-                p4_no_c1(),
-                p5_no_c2(),
-            ],
-            Some(cid_2()),
-            Some(cid_2()),
-        )
-        .unwrap();
-
-        assert_eq!(
-            group,
-            CompatibleGroup::Mixed {
-                ift: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_ift_c2(
-                    "//foo.bar/08"
-                ),)),
-                iftx: ScopedGroup::NoInvalidation(BTreeMap::new()),
-            }
-        );
-
-        // Check that input order determines the winner.
-        let group = PatchGroup::select_next_patches_from_candidates(
-            vec![
-                p2_partial_c1(),
-                p3_partial_c2(),
-                p2_partial_c2_ift(),
-                p4_no_c1(),
-                p5_no_c2(),
-            ],
-            Some(cid_2()),
-            Some(cid_2()),
-        )
-        .unwrap();
-
-        assert_eq!(
-            group,
-            CompatibleGroup::Mixed {
-                ift: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
-                    "//foo.bar/0C"
-                ),)),
-                iftx: ScopedGroup::NoInvalidation(BTreeMap::new()),
             }
         );
     }
@@ -1295,7 +1225,7 @@ mod tests {
 
         let mut iftx_builder = table_keyed_format2();
         iftx_builder.write_at("encoding", 3u8);
-        iftx_builder.write_at("compat_id[0]", 6u32);
+        iftx_builder.write_at("compat_id[0]", 7u32);
         iftx_builder.write_at("compat_id[1]", 7u32);
         iftx_builder.write_at("compat_id[2]", 8u32);
         iftx_builder.write_at("compat_id[3]", 9u32);
@@ -1319,7 +1249,9 @@ mod tests {
 
         let mut patch2 = glyf_u16_glyph_patches();
         patch2.write_at("gid_13", 14u16);
-        let patch2 = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), patch2);
+        let mut header = glyph_keyed_patch_header();
+        header.write_at("compatibility_id", 7u32);
+        let patch2 = assemble_glyph_keyed_patch(header, patch2);
 
         let mut patch_data = HashMap::from([
             (
@@ -1360,5 +1292,22 @@ mod tests {
         // there should be no more applicable patches left now.
         let g = PatchGroup::select_next_patches(new_font, &s).unwrap();
         assert!(!g.has_uris());
+    }
+
+    #[test]
+    fn tables_have_same_compat_id() {
+        let ift_buffer = table_keyed_format2();
+        let iftx_buffer = table_keyed_format2();
+
+        let font = base_font(Some(ift_buffer), Some(iftx_buffer));
+        let font = FontRef::new(&font).unwrap();
+
+        let s = SubsetDefinition::codepoints([5].into_iter().collect());
+        let g = PatchGroup::select_next_patches(font.clone(), &s);
+
+        assert!(g.is_err());
+        if let Err(err) = g {
+            assert_eq!(ReadError::ValidationError, err);
+        }
     }
 }
