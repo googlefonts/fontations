@@ -3,6 +3,7 @@
 //! The IFT and IFTX tables encode mappings from subset definitions to URL's which host patches
 //! that can be applied to the font to add support for the corresponding subset definition.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
@@ -140,7 +141,16 @@ fn add_intersecting_format1_patches(
                     source_table.clone(),
                     applied_entries_start_bit_index + index as usize,
                     encoding,
-                    subset_def.into(),
+                    if PatchEncoding::is_invalidating_format(map.patch_encoding()) {
+                        IntersectionInfo::from(
+                            subset_def,
+                            // For format 1 the entry index is the "order",
+                            // see: https://w3c.github.io/IFT/Overview.html#font-patch-invalidations
+                            index.into(),
+                        )
+                    } else {
+                        Default::default()
+                    },
                 )
             }),
     );
@@ -341,7 +351,8 @@ fn add_intersecting_format2_patches(
     patches: &mut Vec<PatchUri>,
 ) -> Result<(), ReadError> {
     let entries = decode_format2_entries(source_table, map)?;
-    for mut e in entries.into_iter() {
+
+    for (order, mut e) in entries.into_iter().enumerate() {
         if e.ignored {
             continue;
         }
@@ -353,7 +364,8 @@ fn add_intersecting_format2_patches(
         if e.uri.encoding().is_invalidating() {
             // for invalidating keyed patches we need to record information about intersection size to use later
             // for patch selection.
-            e.uri.intersection_info = e.intersection(subset_definition).into();
+            e.uri.intersection_info =
+                IntersectionInfo::from(e.intersection(subset_definition), order);
         }
 
         patches.push(e.uri)
@@ -691,15 +703,43 @@ pub struct PatchUri {
 ///
 /// Intersection details are used later on to choose a specific patch to apply next.
 /// See: https://w3c.github.io/IFT/Overview.html#invalidating-patch-selection
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Default, Ord, PartialOrd)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub struct IntersectionInfo {
-    // Note: order of the fields here is important for the derived sorting behaviour.
-    //       these must be sorted as required for https://w3c.github.io/IFT/Overview.html#invalidating-patch-selection
     intersecting_codepoints: u64,
     intersecting_layout_tags: usize,
     // TODO(garretrieger): metric for design space intersection.
-    // TODO XXXX entry_order: usize,
-    //      for breaking ties.
+    entry_order: usize,
+}
+
+impl PartialOrd for IntersectionInfo {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for IntersectionInfo {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // See: https://w3c.github.io/IFT/Overview.html#invalidating-patch-selection
+        // for information on how these are ordered.
+        match self
+            .intersecting_codepoints
+            .cmp(&other.intersecting_codepoints)
+        {
+            Ordering::Equal => {}
+            ord => return ord,
+        }
+        match self
+            .intersecting_layout_tags
+            .cmp(&other.intersecting_layout_tags)
+        {
+            Ordering::Equal => {}
+            ord => return ord,
+        }
+
+        // We select the largest intersection info, and the spec requires in ties that the lowest entry order
+        // is selected. So reverse the ordering of comparing entry_order.
+        self.entry_order.cmp(&other.entry_order).reverse()
+    }
 }
 
 impl PatchUri {
@@ -791,11 +831,12 @@ impl PatchUri {
     }
 }
 
-impl From<SubsetDefinition> for IntersectionInfo {
-    fn from(value: SubsetDefinition) -> Self {
+impl IntersectionInfo {
+    fn from(value: SubsetDefinition, order: usize) -> Self {
         IntersectionInfo {
             intersecting_codepoints: value.codepoints.len(),
             intersecting_layout_tags: value.feature_tags.len(),
+            entry_order: order,
         }
     }
 }
@@ -974,10 +1015,11 @@ mod tests {
     use write_fonts::FontBuilder;
 
     impl IntersectionInfo {
-        fn new(num_codepoints: u64, num_features: usize) -> Self {
+        fn new(num_codepoints: u64, num_features: usize, order: usize) -> Self {
             IntersectionInfo {
                 intersecting_codepoints: num_codepoints,
                 intersecting_layout_tags: num_features,
+                entry_order: order,
             }
         }
     }
@@ -1466,7 +1508,7 @@ mod tests {
             vec![patch_with_intersection(
                 applied_entries_start,
                 300,
-                IntersectionInfo::new(1, 0),
+                IntersectionInfo::new(1, 0, 300),
             ),]
         );
 
@@ -1483,8 +1525,16 @@ mod tests {
         assert_eq!(
             patches,
             vec![
-                patch_with_intersection(applied_entries_start, 299, IntersectionInfo::new(1, 0),),
-                patch_with_intersection(applied_entries_start, 300, IntersectionInfo::new(2, 0),),
+                patch_with_intersection(
+                    applied_entries_start,
+                    299,
+                    IntersectionInfo::new(1, 0, 299),
+                ),
+                patch_with_intersection(
+                    applied_entries_start,
+                    300,
+                    IntersectionInfo::new(2, 0, 300),
+                ),
             ]
         );
 
@@ -1501,9 +1551,21 @@ mod tests {
         assert_eq!(
             patches,
             vec![
-                patch_with_intersection(applied_entries_start, 299, IntersectionInfo::new(1, 0),),
-                patch_with_intersection(applied_entries_start, 300, IntersectionInfo::new(2, 0),),
-                patch_with_intersection(applied_entries_start, 385, IntersectionInfo::new(3, 1),),
+                patch_with_intersection(
+                    applied_entries_start,
+                    299,
+                    IntersectionInfo::new(1, 0, 299),
+                ),
+                patch_with_intersection(
+                    applied_entries_start,
+                    300,
+                    IntersectionInfo::new(2, 0, 300),
+                ),
+                patch_with_intersection(
+                    applied_entries_start,
+                    385,
+                    IntersectionInfo::new(3, 1, 385),
+                ),
             ]
         );
 
@@ -1520,8 +1582,16 @@ mod tests {
         assert_eq!(
             patches,
             vec![
-                patch_with_intersection(applied_entries_start, 299, IntersectionInfo::new(1, 0),),
-                patch_with_intersection(applied_entries_start, 300, IntersectionInfo::new(2, 0),),
+                patch_with_intersection(
+                    applied_entries_start,
+                    299,
+                    IntersectionInfo::new(1, 0, 299),
+                ),
+                patch_with_intersection(
+                    applied_entries_start,
+                    300,
+                    IntersectionInfo::new(2, 0, 300),
+                ),
             ]
         );
     }
@@ -1780,7 +1850,7 @@ mod tests {
             vec![patch_with_intersection(
                 map.offset_for("entries[1]") * 8 + 4,
                 2,
-                IntersectionInfo::new(2, 1),
+                IntersectionInfo::new(2, 1, 1),
             ),]
         );
 
@@ -1800,12 +1870,12 @@ mod tests {
                 patch_with_intersection(
                     map.offset_for("entries[1]") * 8 + 4,
                     2,
-                    IntersectionInfo::new(2, 1),
+                    IntersectionInfo::new(2, 1, 1),
                 ),
                 patch_with_intersection(
                     map.offset_for("entries[2]") * 8 + 3,
                     3,
-                    IntersectionInfo::new(3, 1),
+                    IntersectionInfo::new(3, 1, 2),
                 ),
             ]
         );
@@ -2068,5 +2138,32 @@ mod tests {
             &SubsetDefinition::new(IntSet::all(), BTreeSet::new(), HashMap::new()),
         )
         .is_err());
+    }
+
+    #[test]
+    fn intersection_info_ordering() {
+        // these are in the correct order
+        let v1 = IntersectionInfo::new(5, 9, 1);
+        let v2 = IntersectionInfo::new(5, 10, 2);
+        let v3 = IntersectionInfo::new(5, 10, 1);
+        let v4 = IntersectionInfo::new(6, 1, 10);
+        let v5 = IntersectionInfo::new(6, 1, 9);
+
+        assert_eq!(v1.cmp(&v1), Ordering::Equal);
+
+        assert_eq!(v1.cmp(&v2), Ordering::Less);
+        assert_eq!(v2.cmp(&v1), Ordering::Greater);
+
+        assert_eq!(v2.cmp(&v3), Ordering::Less);
+        assert_eq!(v3.cmp(&v2), Ordering::Greater);
+
+        assert_eq!(v3.cmp(&v4), Ordering::Less);
+        assert_eq!(v4.cmp(&v3), Ordering::Greater);
+
+        assert_eq!(v4.cmp(&v5), Ordering::Less);
+        assert_eq!(v5.cmp(&v4), Ordering::Greater);
+
+        assert_eq!(v3.cmp(&v5), Ordering::Less);
+        assert_eq!(v5.cmp(&v3), Ordering::Greater);
     }
 }
