@@ -107,24 +107,11 @@ fn add_intersecting_format1_patches(
 
     // Step 1: Collect the glyph and feature map entries.
     let charmap = Charmap::new(font);
-    let mut entries = BTreeMap::<u16, SubsetDefinition>::new();
-    if PatchEncoding::is_invalidating_format(map.patch_encoding()) {
-        intersect_format1_glyph_and_feature_map::<true>(
-            &charmap,
-            map,
-            codepoints,
-            features,
-            &mut entries,
-        )?;
+    let entries = if PatchEncoding::is_invalidating_format(map.patch_encoding()) {
+        intersect_format1_glyph_and_feature_map::<true>(&charmap, map, codepoints, features)?
     } else {
-        intersect_format1_glyph_and_feature_map::<false>(
-            &charmap,
-            map,
-            codepoints,
-            features,
-            &mut entries,
-        )?;
-    }
+        intersect_format1_glyph_and_feature_map::<false>(&charmap, map, codepoints, features)?
+    };
 
     // Step 2: produce final output.
     let applied_entries_start_bit_index = map.shape().applied_entries_bitmap_byte_range().start * 8;
@@ -142,7 +129,7 @@ fn add_intersecting_format1_patches(
                     applied_entries_start_bit_index + index as usize,
                     encoding,
                     if PatchEncoding::is_invalidating_format(map.patch_encoding()) {
-                        IntersectionInfo::from(
+                        IntersectionInfo::from_subset(
                             subset_def,
                             // For format 1 the entry index is the "order",
                             // see: https://w3c.github.io/IFT/Overview.html#font-patch-invalidations
@@ -162,10 +149,11 @@ fn intersect_format1_glyph_and_feature_map<const RECORD_INTERSECTION: bool>(
     map: &PatchMapFormat1,
     codepoints: &IntSet<u32>,
     features: &BTreeSet<Tag>,
-    entries: &mut BTreeMap<u16, SubsetDefinition>,
-) -> Result<(), ReadError> {
-    intersect_format1_glyph_map::<RECORD_INTERSECTION>(charmap, map, codepoints, entries)?;
-    intersect_format1_feature_map::<RECORD_INTERSECTION>(map, features, entries)
+) -> Result<BTreeMap<u16, SubsetDefinition>, ReadError> {
+    let mut entries = Default::default();
+    intersect_format1_glyph_map::<RECORD_INTERSECTION>(charmap, map, codepoints, &mut entries)?;
+    intersect_format1_feature_map::<RECORD_INTERSECTION>(map, features, &mut entries)?;
+    Ok(entries)
 }
 
 fn intersect_format1_glyph_map<const RECORD_INTERSECTION: bool>(
@@ -365,7 +353,7 @@ fn add_intersecting_format2_patches(
             // for invalidating keyed patches we need to record information about intersection size to use later
             // for patch selection.
             e.uri.intersection_info =
-                IntersectionInfo::from(e.intersection(subset_definition), order);
+                IntersectionInfo::from_subset(e.intersection(subset_definition), order);
         }
 
         patches.push(e.uri)
@@ -603,10 +591,7 @@ pub enum PatchEncoding {
 
 impl PatchEncoding {
     fn is_invalidating(&self) -> bool {
-        match self {
-            PatchEncoding::GlyphKeyed => false,
-            PatchEncoding::TableKeyed { .. } => true,
-        }
+        matches!(self, PatchEncoding::TableKeyed { .. })
     }
 
     fn is_invalidating_format(format: u8) -> bool {
@@ -832,7 +817,7 @@ impl PatchUri {
 }
 
 impl IntersectionInfo {
-    fn from(value: SubsetDefinition, order: usize) -> Self {
+    fn from_subset(value: SubsetDefinition, order: usize) -> Self {
         IntersectionInfo {
             intersecting_codepoints: value.codepoints.len(),
             intersecting_layout_tags: value.feature_tags.len(),
