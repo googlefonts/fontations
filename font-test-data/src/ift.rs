@@ -671,7 +671,8 @@ pub fn glyph_keyed_patch_header() -> BeBuffer {
       {(Tag::new(b"ifgk")): "format"}, // format
       0u32,                // reserved
       0u8,                 // flags (0 = u16 gids)
-      [6, 7, 8, 9u32],     // compatibility id
+      {6u32: "compatibility_id"},
+      [7, 8, 9u32],     // compatibility id
       {0u32: "max_uncompressed_length"}
     }
 }
