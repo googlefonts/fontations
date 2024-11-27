@@ -277,7 +277,7 @@ impl<'a> PatchGroup<'a> {
         // Note:
         // - As mentioned in the spec we can find at least one entry matching that criteria by finding an entry with the
         //   largest intersection (since that can't be a strict subset of others).
-        // - Intesection size is tracked in intersection info.
+        // - Intersection size is tracked in intersection info.
         // - Ties are broken by entry order, which is also tracked in intersection info.
         // - So it's sufficient to just find a candidate patch with the largest intersection info, relying on it's
         //   Ord implementation.
