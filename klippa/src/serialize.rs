@@ -149,7 +149,7 @@ pub(crate) struct Snapshot {
 //<https://github.com/harfbuzz/harfbuzz/blob/5e32b5ca8fe430132b87c0eee6a1c056d37c35eb/src/hb-serialize.hh#L57>
 #[derive(Default)]
 #[allow(dead_code)]
-pub(crate) struct Serializer {
+pub struct Serializer {
     start: usize,
     end: usize,
     head: usize,
@@ -198,6 +198,35 @@ impl Serializer {
         Ok(ret)
     }
 
+    //copy from a single Scalar type
+    pub(crate) fn copy_assign(&mut self, pos: usize, obj: impl Scalar) {
+        let raw = obj.to_raw();
+        let bytes = raw.as_ref();
+        let size = bytes.len();
+
+        let Some(to) = self.data.get_mut(pos..pos + size) else {
+            self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+            return;
+        };
+
+        to.copy_from_slice(bytes);
+    }
+
+    //copy from bytes
+    pub(crate) fn copy_assign_from_bytes(&mut self, pos: usize, from_bytes: &[u8]) {
+        let size = from_bytes.len();
+        let Some(to) = self.data.get_mut(pos..pos + size) else {
+            self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+            return;
+        };
+
+        to.copy_from_slice(from_bytes);
+    }
+
+    pub(crate) fn get_mut_data(&mut self, range: Range<usize>) -> Option<&mut [u8]> {
+        self.data.get_mut(range)
+    }
+
     // Allocate size
     pub(crate) fn allocate_size(&mut self, size: usize) -> Result<usize, SerializeErrorFlags> {
         if self.in_error() {
@@ -222,9 +251,18 @@ impl Serializer {
         !!self.errors
     }
 
+    pub(crate) fn ran_out_of_room(&self) -> bool {
+        self.errors
+            .contains(SerializeErrorFlags::SERIALIZE_ERROR_OUT_OF_ROOM)
+    }
+
     pub(crate) fn offset_overflow(&self) -> bool {
         self.errors
             .contains(SerializeErrorFlags::SERIALIZE_ERROR_OFFSET_OVERFLOW)
+    }
+
+    pub(crate) fn only_offset_overflow(&self) -> bool {
+        self.errors == SerializeErrorFlags::SERIALIZE_ERROR_OFFSET_OVERFLOW
     }
 
     pub(crate) fn only_overflow(&self) -> bool {
@@ -236,6 +274,37 @@ impl Serializer {
     pub(crate) fn set_err(&mut self, error_type: SerializeErrorFlags) -> SerializeErrorFlags {
         self.errors |= error_type;
         self.errors
+    }
+
+    pub(crate) fn reset_size(&mut self, size: usize) {
+        self.start = 0;
+        self.end = size;
+        self.reset();
+        self.current = None;
+        self.data.resize(size, 0);
+    }
+
+    fn reset(&mut self) {
+        self.errors = SerializeErrorFlags::SERIALIZE_ERROR_NONE;
+        self.head = self.start;
+        self.tail = self.end;
+
+        self.fini();
+    }
+
+    fn fini(&mut self) {
+        for pool_idx in self.packed.iter() {
+            self.object_pool.release(*pool_idx);
+        }
+        self.packed.clear();
+        self.packed_map.clear();
+
+        while self.current.is_some() {
+            let o = self.current.unwrap();
+            self.current = self.object_pool.next_idx(self.current.unwrap());
+            self.object_pool.release(o);
+        }
+        self.data.clear();
     }
 
     pub(crate) fn snapshot(&self) -> Snapshot {
@@ -591,18 +660,18 @@ impl Serializer {
         }
     }
 
-    pub(crate) fn copy_bytes(mut self) -> Result<Vec<u8>, SerializeErrorFlags> {
+    pub(crate) fn copy_bytes(mut self) -> Vec<u8> {
         if !self.successful() {
-            return Err(self.errors);
+            return Vec::new();
         }
         let len = (self.head - self.start) + (self.end - self.tail);
         if len == 0 {
-            return Ok(Vec::new());
+            return Vec::new();
         }
 
         self.data.copy_within(self.tail..self.end, self.head);
         self.data.truncate(len);
-        Ok(self.data)
+        self.data
     }
 
     pub(crate) fn length(&self) -> usize {
@@ -613,6 +682,10 @@ impl Serializer {
             return 0;
         };
         self.head - cur_obj.head
+    }
+
+    pub(crate) fn allocated(&self) -> usize {
+        self.data.len()
     }
 
     pub(crate) fn start_serialize(&mut self) -> Result<(), SerializeErrorFlags> {
@@ -707,6 +780,10 @@ impl ObjectPool {
     pub fn get_obj(&self, pool_idx: PoolIdx) -> Option<&Object> {
         self.chunks.get(pool_idx).map(|o| &o.obj)
     }
+
+    fn next_idx(&self, pool_idx: PoolIdx) -> Option<PoolIdx> {
+        self.get_obj(pool_idx)?.next_obj
+    }
 }
 
 // Hash an Object: Virtual links aren't considered for equality since they don't affect the functionality of the object.
@@ -784,6 +861,10 @@ impl PoolIdxHashTable {
         };
         entry.remove();
     }
+
+    fn clear(&mut self) {
+        self.hash_table.clear();
+    }
 }
 
 #[cfg(test)]
@@ -820,7 +901,7 @@ mod test {
         assert_eq!(s.tail, 16384);
         assert_eq!(s.end, 16384);
 
-        let out = s.copy_bytes().unwrap();
+        let out = s.copy_bytes();
         assert_eq!(out, [0, 0, 0, 1, 0, 20, 0, 0, 30, 0, 40]);
     }
 
@@ -843,7 +924,7 @@ mod test {
         assert_eq!(s.tail, 10);
         assert_eq!(s.end, 10);
 
-        let out = s.copy_bytes().unwrap();
+        let out = s.copy_bytes();
         assert_eq!(out, [1, 2, 3, 4, 5]);
     }
 

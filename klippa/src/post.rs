@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::{Plan, Subset, SubsetError, SubsetFlags};
+use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetFlags};
 use write_fonts::{
     read::{
         tables::post::{Post, DEFAULT_GLYPH_NAMES},
@@ -19,42 +19,44 @@ impl Subset for Post<'_> {
         &self,
         plan: &Plan,
         _font: &FontRef,
-        builder: &mut FontBuilder,
+        s: &mut Serializer,
+        _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
-        let mut out = Vec::with_capacity(self.offset_data().len());
         // copy header
-        out.extend_from_slice(self.offset_data().as_bytes().get(0..32).unwrap());
+        s.embed_bytes(self.offset_data().as_bytes().get(0..32).unwrap())
+            .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?;
 
         let glyph_names = plan
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES);
         //version 3 does not have any glyph names
         if !glyph_names {
-            let major_version = 0x3_u16.to_be_bytes();
-            out.get_mut(0..2).unwrap().copy_from_slice(&major_version);
-            out.get_mut(2..4).unwrap().fill(0);
+            s.copy_assign(
+                self.shape().version_byte_range().start,
+                Version16Dot16::VERSION_3_0,
+            );
         }
 
         if glyph_names && self.version() == Version16Dot16::VERSION_2_0 {
-            subset_post_v2tail(self, plan, &mut out);
+            subset_post_v2tail(self, plan, s)?;
         }
-
-        builder.add_raw(Post::TAG, out);
         Ok(())
     }
 }
 
-fn subset_post_v2tail(post: &Post, plan: &Plan, out: &mut Vec<u8>) {
+fn subset_post_v2tail(post: &Post, plan: &Plan, s: &mut Serializer) -> Result<(), SubsetError> {
     let Some(glyph_name_indices) = post.glyph_name_index() else {
-        return;
+        return Err(SubsetError::SubsetTableError(Post::TAG));
     };
     //copy numGlyphs
-    out.extend_from_slice(&(plan.num_output_glyphs as u16).to_be_bytes());
+    s.embed(plan.num_output_glyphs as u16)
+        .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?;
 
     //init all glyphNameIndex as 0
-    let idx_start = out.len();
-    let new_len = out.len() + plan.num_output_glyphs * 2;
-    out.resize(new_len, 0);
+    let glyph_index_arr_len = plan.num_output_glyphs * 2;
+    let idx_start = s
+        .allocate_size(glyph_index_arr_len)
+        .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?;
 
     let max_old_gid = plan.glyphset.last().unwrap().to_u32() as usize;
     // for standard glyphs: name indices < 258
@@ -74,9 +76,7 @@ fn subset_post_v2tail(post: &Post, plan: &Plan, out: &mut Vec<u8>) {
             continue;
         }
         let i = idx_start + new_gid * 2;
-        out.get_mut(i..i + 2)
-            .unwrap()
-            .copy_from_slice(&name_idx.get().to_be_bytes());
+        s.copy_assign(i, name_idx.get());
     }
 
     let standard_glyphs = DEFAULT_GLYPH_NAMES
@@ -90,7 +90,7 @@ fn subset_post_v2tail(post: &Post, plan: &Plan, out: &mut Vec<u8>) {
 
     // for custom glyph names
     let Some(ps_names) = post.string_data() else {
-        return;
+        return Err(SubsetError::SubsetTableError(Post::TAG));
     };
     let glyph_names_iter = glyph_name_indices
         .iter()
@@ -117,16 +117,17 @@ fn subset_post_v2tail(post: &Post, plan: &Plan, out: &mut Vec<u8>) {
                         i += 1;
 
                         let len = ps_name.len() as u8;
-                        out.extend_from_slice(&len.to_be_bytes());
-                        out.extend_from_slice(ps_name.as_bytes());
+                        s.embed(len)
+                            .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?;
+                        s.embed_bytes(ps_name.as_bytes())
+                            .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?;
                         new_idx
                     }
                 };
                 custom_idx
             }
         };
-        out.get_mut(out_idx..out_idx + 2)
-            .unwrap()
-            .copy_from_slice(&name_idx.to_be_bytes());
+        s.copy_assign(out_idx, name_idx);
     }
+    Ok(())
 }

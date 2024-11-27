@@ -1,6 +1,8 @@
 //! impl subset() for glyf and loca
 use crate::{
-    estimate_subset_table_size, Plan, Subset,
+    estimate_subset_table_size,
+    serialize::Serializer,
+    Plan, Subset,
     SubsetError::{self, SubsetTableError},
     SubsetFlags,
 };
@@ -28,6 +30,7 @@ impl Subset for Glyf<'_> {
         &self,
         plan: &Plan,
         font: &FontRef,
+        s: &mut Serializer,
         builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
         let loca = font.loca(None).or(Err(SubsetTableError(Loca::TAG)))?;
@@ -67,11 +70,10 @@ impl Subset for Glyf<'_> {
 
         //TODO: support force_long_loca in the plan
         let loca_format: u8 = if max_offset < 0x1FFFF { 0 } else { 1 };
-        let (glyf_out, loca_out) = write_glyf_loca(font, plan, loca_format, &subset_glyphs);
+        let loca_out = write_glyf_loca(font, plan, s, loca_format, &subset_glyphs)?;
 
         let head_out = subset_head(&head, loca_format);
 
-        builder.add_raw(Glyf::TAG, glyf_out);
         builder.add_raw(Loca::TAG, loca_out);
         builder.add_raw(Head::TAG, head_out);
         Ok(())
@@ -85,14 +87,12 @@ fn padded_size(len: usize) -> usize {
 fn write_glyf_loca(
     font: &FontRef,
     plan: &Plan,
+    s: &mut Serializer,
     loca_format: u8,
     subset_glyphs: &[Vec<u8>],
-) -> (Vec<u8>, Vec<u8>) {
+) -> Result<Vec<u8>, SubsetError> {
     let loca_cap = estimate_subset_table_size(font, Loca::TAG, plan);
     let mut loca_out: Vec<u8> = Vec::with_capacity(loca_cap);
-
-    let glyf_cap = estimate_subset_table_size(font, Glyf::TAG, plan);
-    let mut glyf_out = Vec::with_capacity(glyf_cap);
 
     if loca_format == 0 {
         loca_out.extend_from_slice(&0_u16.to_be_bytes());
@@ -100,6 +100,7 @@ fn write_glyf_loca(
         loca_out.extend_from_slice(&0_u32.to_be_bytes());
     }
 
+    let init_len = s.length();
     let mut last: u32 = 0;
     if loca_format == 0 {
         let mut offset: u16 = 0;
@@ -116,9 +117,11 @@ fn write_glyf_loca(
             offset += padded_len as u16;
             value = (offset >> 1).to_be_bytes();
             loca_out.extend_from_slice(&value);
-            glyf_out.extend_from_slice(g);
+            s.embed_bytes(g)
+                .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?;
             if padded_len > g.len() {
-                glyf_out.extend_from_slice(&[0]);
+                s.embed_bytes(&[0])
+                    .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?;
             }
 
             last += 1;
@@ -144,7 +147,8 @@ fn write_glyf_loca(
             value = offset.to_be_bytes();
             loca_out.extend_from_slice(&value);
 
-            glyf_out.extend_from_slice(g);
+            s.embed_bytes(g)
+                .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?;
 
             last += 1;
         }
@@ -158,11 +162,12 @@ fn write_glyf_loca(
     // As a special case when all glyph in the font are empty, add a zero byte to the table,
     // so that OTS doesn’t reject it, and to make the table work on Windows as well.
     // See https://github.com/khaledhosny/ots/issues/52
-    if glyf_out.is_empty() {
-        glyf_out.extend_from_slice(&[0]);
+    if init_len == s.length() {
+        s.embed_bytes(&[0])
+            .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?;
     }
 
-    (glyf_out, loca_out)
+    Ok(loca_out)
 }
 
 fn subset_glyph(glyph: &Glyph, plan: &Plan) -> Vec<u8> {

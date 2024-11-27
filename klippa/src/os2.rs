@@ -1,4 +1,5 @@
 //! impl subset() for OS/2
+use crate::serialize::Serializer;
 use crate::SubsetFlags;
 use crate::{Plan, Subset, SubsetError};
 use std::cmp::Ordering;
@@ -18,28 +19,30 @@ impl Subset for Os2<'_> {
         &self,
         plan: &Plan,
         _font: &FontRef,
-        builder: &mut FontBuilder,
+        s: &mut Serializer,
+        _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
-        let mut out = self.offset_data().as_bytes().to_owned();
+        s.embed_bytes(self.offset_data().as_bytes())
+            .map_err(|_| SubsetError::SubsetTableError(Os2::TAG))?;
 
         let us_first_char_index: u16 = plan.unicodes.first().unwrap_or(0xFFFF).min(0xFFFF) as u16;
-        out.get_mut(64..66)
-            .unwrap()
-            .copy_from_slice(&us_first_char_index.to_be_bytes());
+        s.copy_assign(
+            self.shape().us_first_char_index_byte_range().start,
+            us_first_char_index,
+        );
 
         let us_last_char_index: u16 = plan.unicodes.last().unwrap_or(0xFFFF).min(0xFFFF) as u16;
-        out.get_mut(66..68)
-            .unwrap()
-            .copy_from_slice(&us_last_char_index.to_be_bytes());
+        s.copy_assign(
+            self.shape().us_last_char_index_byte_range().start,
+            us_last_char_index,
+        );
 
         if !plan
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES)
         {
-            update_unicode_ranges(&plan.unicodes, out.get_mut(42..58).unwrap());
+            update_unicode_ranges(&plan.unicodes, s.get_mut_data(42..58).unwrap());
         }
-
-        builder.add_raw(Os2::TAG, out);
         Ok(())
     }
 }

@@ -21,6 +21,7 @@ pub use parsing_util::{
 };
 
 use fnv::FnvHashMap;
+use serialize::Serializer;
 use skrifa::MetadataProvider;
 use thiserror::Error;
 use write_fonts::read::{
@@ -511,6 +512,7 @@ pub trait Subset {
         &self,
         plan: &Plan,
         font: &FontRef,
+        s: &mut Serializer,
         builder: &mut FontBuilder,
     ) -> Result<(), SubsetError>;
 }
@@ -523,9 +525,72 @@ pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> 
         if plan.drop_tables.contains(tag) {
             continue;
         }
-        subset_table(tag, font, plan, &mut builder)?;
+
+        let table_len = record.length();
+        match tag {
+            Head::TAG => {
+                if font.glyf().is_err() {
+                    subset(tag, font, plan, &mut builder, table_len)?;
+                }
+            }
+            //Skip, handled by glyf
+            Loca::TAG => continue,
+            //Skip, handled by Hmtx
+            Hhea::TAG => continue,
+            _ => subset(tag, font, plan, &mut builder, table_len)?,
+        }
     }
     Ok(builder.build())
+}
+
+fn subset<'a>(
+    table_tag: Tag,
+    font: &FontRef<'a>,
+    plan: &Plan,
+    builder: &mut FontBuilder<'a>,
+    table_len: u32,
+) -> Result<(), SubsetError> {
+    let buf_size = estimate_subset_table_size(font, table_tag, plan);
+    let mut s = Serializer::new(buf_size as u32);
+    let needed = try_subset(table_tag, font, plan, builder, &mut s, table_len);
+    if s.in_error() && !s.only_offset_overflow() {
+        return Err(SubsetError::SubsetTableError(table_tag));
+    }
+
+    // table subsetted to empty
+    if needed.is_err() {
+        return Ok(());
+    }
+
+    //TODO: repack when there's an offset overflow
+    builder.add_raw(table_tag, s.copy_bytes());
+    Ok(())
+}
+
+fn try_subset<'a>(
+    table_tag: Tag,
+    font: &FontRef<'a>,
+    plan: &Plan,
+    builder: &mut FontBuilder<'a>,
+    s: &mut Serializer,
+    table_len: u32,
+) -> Result<(), SubsetError> {
+    s.start_serialize()
+        .map_err(|_| SubsetError::SubsetTableError(table_tag))?;
+
+    let ret = subset_table(table_tag, font, plan, builder, s);
+    if !s.ran_out_of_room() {
+        s.end_serialize();
+        return ret;
+    }
+
+    // ran out of room, reallocate more bytes
+    let buf_size = s.allocated() * 2 + 16;
+    if buf_size > (table_len as usize) * 256 {
+        return ret;
+    }
+    s.reset_size(buf_size);
+    return try_subset(table_tag, font, plan, builder, s, table_len);
 }
 
 fn subset_table<'a>(
@@ -533,55 +598,53 @@ fn subset_table<'a>(
     font: &FontRef<'a>,
     plan: &Plan,
     builder: &mut FontBuilder<'a>,
+    s: &mut Serializer,
 ) -> Result<(), SubsetError> {
     match tag {
         Glyf::TAG => font
             .glyf()
             .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
-            .subset(plan, font, builder),
+            .subset(plan, font, s, builder),
 
         Gvar::TAG => font
             .gvar()
             .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?
-            .subset(plan, font, builder),
+            .subset(plan, font, s, builder),
         //handled by glyf table if exists
         Head::TAG => font.glyf().map(|_| ()).or_else(|_| {
             font.head()
                 .map_err(|_| SubsetError::SubsetTableError(Head::TAG))?
-                .subset(plan, font, builder)
+                .subset(plan, font, s, builder)
         }),
-        //Skip, handled by Hmtx
-        Hhea::TAG => Ok(()),
 
         Hmtx::TAG => font
             .hmtx()
             .map_err(|_| SubsetError::SubsetTableError(Hmtx::TAG))?
-            .subset(plan, font, builder),
-        //Skip, handled by glyf
-        Loca::TAG => Ok(()),
+            .subset(plan, font, s, builder),
 
         Maxp::TAG => font
             .maxp()
             .map_err(|_| SubsetError::SubsetTableError(Maxp::TAG))?
-            .subset(plan, font, builder),
+            .subset(plan, font, s, builder),
 
         Name::TAG => font
             .name()
             .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?
-            .subset(plan, font, builder),
+            .subset(plan, font, s, builder),
 
         Os2::TAG => font
             .os2()
             .map_err(|_| SubsetError::SubsetTableError(Os2::TAG))?
-            .subset(plan, font, builder),
+            .subset(plan, font, s, builder),
 
         Post::TAG => font
             .post()
             .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?
-            .subset(plan, font, builder),
+            .subset(plan, font, s, builder),
         _ => {
             if let Some(data) = font.data_for_tag(tag) {
-                builder.add_raw(tag, data);
+                s.embed_bytes(data.as_bytes())
+                    .map_err(|_| SubsetError::SubsetTableError(tag))?;
                 Ok(())
             } else {
                 Err(SubsetError::SubsetTableError(tag))

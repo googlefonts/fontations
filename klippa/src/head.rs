@@ -1,5 +1,5 @@
 //! impl subset() for head
-use crate::{Plan, Subset, SubsetError};
+use crate::{serialize::Serializer, Plan, Subset, SubsetError};
 use write_fonts::{
     read::{tables::head::Head, FontRef, TopLevelTable},
     FontBuilder,
@@ -12,10 +12,11 @@ impl Subset for Head<'_> {
         &self,
         _plan: &Plan,
         _font: &FontRef,
-        builder: &mut FontBuilder,
+        s: &mut Serializer,
+        _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
-        let out = self.offset_data().as_bytes().to_owned();
-        builder.add_raw(Head::TAG, out);
+        s.embed_bytes(self.offset_data().as_bytes())
+            .map_err(|_| SubsetError::SubsetTableError(Head::TAG))?;
         Ok(())
     }
 }
