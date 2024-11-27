@@ -26,7 +26,7 @@ where
 {
     pub fn insert(&mut self, start: T, end: T) {
         if end < start {
-            // ignore empty or malformed ranges.
+            // ignore or malformed ranges.
             return;
         }
 
@@ -79,7 +79,7 @@ where
 
     /// Finds a range in this set with a start less than the provided start value.
     fn prev_range(&self, start: T) -> Option<(T, T)> {
-        let (next_start, next_end) = self.ranges.range(..start).rev().next()?;
+        let (next_start, next_end) = self.ranges.range(..start).next_back()?;
         Some((*next_start, *next_end))
     }
 }

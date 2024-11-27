@@ -25,7 +25,7 @@ fuzz_target!(|operations: Vec<Operation>| {
         match op {
             Operation::Insert(start, end) => {
                 if end > start {
-                    let count = (end as u64 - start as u64);
+                    let count = end as u64 - start as u64;
                     op_count = op_count.saturating_add(count.saturating_mul(count.ilog2() as u64));
                     if op_count > OP_COUNT_LIMIT {
                         return;
