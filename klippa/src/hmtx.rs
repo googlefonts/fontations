@@ -1,5 +1,6 @@
 //! impl subset() for hmtx
 
+use crate::serialize::Serializer;
 use crate::{Plan, Subset, SubsetError, SubsetError::SubsetTableError};
 use write_fonts::types::{FWord, GlyphId, UfWord};
 use write_fonts::{
@@ -18,6 +19,7 @@ impl Subset for Hmtx<'_> {
         &self,
         plan: &Plan,
         font: &FontRef,
+        s: &mut Serializer,
         builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
         let h_metrics = self.h_metrics();
@@ -32,35 +34,26 @@ impl Subset for Hmtx<'_> {
             compute_new_num_h_metrics(self, &plan.glyphset, plan.num_output_glyphs);
         //subsetted hmtx table length
         let hmtx_cap = new_num_h_metrics * 4 + (plan.num_output_glyphs - new_num_h_metrics) * 2;
-        let mut hmtx_out = vec![0; hmtx_cap];
+        s.allocate_size(hmtx_cap)
+            .map_err(|_| SubsetError::SubsetTableError(Hmtx::TAG))?;
 
         for (new_gid, old_gid) in &plan.new_to_old_gid_list {
             let new_gid = new_gid.to_u32() as usize;
             if new_gid < new_num_h_metrics {
                 let idx = 4 * new_gid;
                 let advance = UfWord::from(self.advance(*old_gid).unwrap());
-                hmtx_out
-                    .get_mut(idx..idx + 2)
-                    .unwrap()
-                    .copy_from_slice(&advance.to_be_bytes());
+                s.copy_assign(idx, advance);
 
                 let lsb = FWord::from(self.side_bearing(*old_gid).unwrap());
-                hmtx_out
-                    .get_mut(idx + 2..idx + 4)
-                    .unwrap()
-                    .copy_from_slice(&lsb.to_be_bytes());
+                s.copy_assign(idx + 2, lsb);
             } else {
                 let idx = 4 * new_num_h_metrics + (new_gid - new_num_h_metrics) * 2;
                 let lsb = FWord::from(self.side_bearing(*old_gid).unwrap());
-                hmtx_out
-                    .get_mut(idx..idx + 2)
-                    .unwrap()
-                    .copy_from_slice(&lsb.to_be_bytes());
+                s.copy_assign(idx, lsb);
             }
         }
 
         let Ok(hhea) = font.hhea() else {
-            builder.add_raw(Hmtx::TAG, hmtx_out);
             return Ok(());
         };
 
@@ -71,7 +64,6 @@ impl Subset for Hmtx<'_> {
             .unwrap()
             .copy_from_slice(&new_num_h_metrics);
 
-        builder.add_raw(Hmtx::TAG, hmtx_out);
         builder.add_raw(Hhea::TAG, hhea_out);
         Ok(())
     }
