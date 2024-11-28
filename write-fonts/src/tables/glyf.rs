@@ -117,7 +117,7 @@ impl<'a> FromObjRef<read_fonts::tables::glyf::Glyph<'a>> for Glyph {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::tables::glyf::Glyph<'a>> for Glyph {}
+impl FromTableRef<read_fonts::tables::glyf::Glyph<'_>> for Glyph {}
 
 impl<'a> FontRead<'a> for Glyph {
     fn read(data: read_fonts::FontData<'a>) -> Result<Self, read_fonts::ReadError> {

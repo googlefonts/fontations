@@ -191,7 +191,7 @@ impl MappingIndex {
 #[derive(Clone)]
 pub struct Mappings<'a>(MappingsInner<'a>);
 
-impl<'a> Iterator for Mappings<'a> {
+impl Iterator for Mappings<'_> {
     type Item = (u32, GlyphId);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -217,7 +217,7 @@ enum MappingsInner<'a> {
 #[derive(Clone)]
 pub struct VariantMappings<'a>(Option<Cmap14Iter<'a>>);
 
-impl<'a> Iterator for VariantMappings<'a> {
+impl Iterator for VariantMappings<'_> {
     type Item = (u32, u32, MapVariant);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -242,7 +242,7 @@ struct CodepointSubtable<'a> {
     is_symbol: bool,
 }
 
-impl<'a> CodepointSubtable<'a> {
+impl CodepointSubtable<'_> {
     fn map(&self, codepoint: u32) -> Option<GlyphId> {
         self.map_impl(codepoint).or_else(|| {
             if self.is_symbol && codepoint <= 0x00FF {

@@ -139,6 +139,7 @@ impl<'a> FontRead<'a> for Post<'a> {
 /// [post (PostScript)](https://docs.microsoft.com/en-us/typography/opentype/spec/post#header) table
 pub type Post<'a> = TableRef<'a, PostMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Post<'a> {
     /// 0x00010000 for version 1.0 0x00020000 for version 2.0
     /// 0x00025000 for version 2.5 (deprecated) 0x00030000 for version
@@ -266,6 +267,7 @@ impl<'a> SomeTable<'a> for Post<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Post<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

@@ -9,7 +9,7 @@ use read_fonts::tables::glyf::bytecode::InlineOperands;
 
 use super::{Engine, OpResult};
 
-impl<'a> Engine<'a> {
+impl Engine<'_> {
     /// Duplicate top stack element.
     ///
     /// DUP[] (0x20)

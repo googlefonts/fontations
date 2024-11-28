@@ -3,7 +3,7 @@
 use crate::{NameIdClosure, Plan};
 use write_fonts::read::tables::fvar::Fvar;
 
-impl<'a> NameIdClosure for Fvar<'a> {
+impl NameIdClosure for Fvar<'_> {
     //TODO: support partial-instancing
     fn collect_name_ids(&self, plan: &mut Plan) {
         let Ok(axis_instance_array) = self.axis_instance_arrays() else {

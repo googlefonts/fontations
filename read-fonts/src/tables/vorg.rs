@@ -2,7 +2,7 @@
 
 include!("../../generated/generated_vorg.rs");
 
-impl<'a> Vorg<'a> {
+impl Vorg<'_> {
     /// Returns the y coordinate of the of the glyph's vertical origin.
     pub fn vertical_origin_y(&self, glyph_id: GlyphId) -> i16 {
         let gid = glyph_id.to_u32();

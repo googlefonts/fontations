@@ -366,7 +366,7 @@ impl<'a> GlyphMetrics<'a> {
     }
 }
 
-impl<'a> GlyphMetrics<'a> {
+impl GlyphMetrics<'_> {
     fn metric_deltas_from_gvar(&self, glyph_id: GlyphId) -> Option<[i32; 2]> {
         let (loca, glyf) = self.loca_glyf.as_ref()?;
         let mut deltas = self

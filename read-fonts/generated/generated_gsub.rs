@@ -67,6 +67,7 @@ impl<'a> FontRead<'a> for Gsub<'a> {
 /// [GSUB](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsub-header)
 pub type Gsub<'a> = TableRef<'a, GsubMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Gsub<'a> {
     /// The major and minor version of the GSUB table, as a tuple (u16, u16)
     pub fn version(&self) -> MajorMinor {
@@ -158,6 +159,7 @@ impl<'a> SomeTable<'a> for Gsub<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Gsub<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -239,7 +241,7 @@ impl<'a> SomeTable<'a> for SubstitutionLookup<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for SubstitutionLookup<'a> {
+impl std::fmt::Debug for SubstitutionLookup<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -301,7 +303,7 @@ impl<'a> SingleSubst<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for SingleSubst<'a> {
+impl std::fmt::Debug for SingleSubst<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -356,6 +358,7 @@ impl<'a> FontRead<'a> for SingleSubstFormat1<'a> {
 /// [Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#11-single-substitution-format-1)
 pub type SingleSubstFormat1<'a> = TableRef<'a, SingleSubstFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> SingleSubstFormat1<'a> {
     /// Format identifier: format = 1
     pub fn subst_format(&self) -> u16 {
@@ -402,6 +405,7 @@ impl<'a> SomeTable<'a> for SingleSubstFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for SingleSubstFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -460,6 +464,7 @@ impl<'a> FontRead<'a> for SingleSubstFormat2<'a> {
 /// [Single Substitution Format 2](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#12-single-substitution-format-2)
 pub type SingleSubstFormat2<'a> = TableRef<'a, SingleSubstFormat2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> SingleSubstFormat2<'a> {
     /// Format identifier: format = 2
     pub fn subst_format(&self) -> u16 {
@@ -516,6 +521,7 @@ impl<'a> SomeTable<'a> for SingleSubstFormat2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for SingleSubstFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -574,6 +580,7 @@ impl<'a> FontRead<'a> for MultipleSubstFormat1<'a> {
 /// [Multiple Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#21-multiple-substitution-format-1)
 pub type MultipleSubstFormat1<'a> = TableRef<'a, MultipleSubstFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> MultipleSubstFormat1<'a> {
     /// Format identifier: format = 1
     pub fn subst_format(&self) -> u16 {
@@ -648,6 +655,7 @@ impl<'a> SomeTable<'a> for MultipleSubstFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for MultipleSubstFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -690,6 +698,7 @@ impl<'a> FontRead<'a> for Sequence<'a> {
 /// Part of [MultipleSubstFormat1]
 pub type Sequence<'a> = TableRef<'a, SequenceMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Sequence<'a> {
     /// Number of glyph IDs in the substituteGlyphIDs array. This must
     /// always be greater than 0.
@@ -723,6 +732,7 @@ impl<'a> SomeTable<'a> for Sequence<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Sequence<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -781,6 +791,7 @@ impl<'a> FontRead<'a> for AlternateSubstFormat1<'a> {
 /// [Alternate Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#31-alternate-substitution-format-1)
 pub type AlternateSubstFormat1<'a> = TableRef<'a, AlternateSubstFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> AlternateSubstFormat1<'a> {
     /// Format identifier: format = 1
     pub fn subst_format(&self) -> u16 {
@@ -858,6 +869,7 @@ impl<'a> SomeTable<'a> for AlternateSubstFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for AlternateSubstFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -900,6 +912,7 @@ impl<'a> FontRead<'a> for AlternateSet<'a> {
 /// Part of [AlternateSubstFormat1]
 pub type AlternateSet<'a> = TableRef<'a, AlternateSetMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> AlternateSet<'a> {
     /// Number of glyph IDs in the alternateGlyphIDs array
     pub fn glyph_count(&self) -> u16 {
@@ -932,6 +945,7 @@ impl<'a> SomeTable<'a> for AlternateSet<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for AlternateSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -990,6 +1004,7 @@ impl<'a> FontRead<'a> for LigatureSubstFormat1<'a> {
 /// [Ligature Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#41-ligature-substitution-format-1)
 pub type LigatureSubstFormat1<'a> = TableRef<'a, LigatureSubstFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> LigatureSubstFormat1<'a> {
     /// Format identifier: format = 1
     pub fn subst_format(&self) -> u16 {
@@ -1064,6 +1079,7 @@ impl<'a> SomeTable<'a> for LigatureSubstFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for LigatureSubstFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1106,6 +1122,7 @@ impl<'a> FontRead<'a> for LigatureSet<'a> {
 /// Part of [LigatureSubstFormat1]
 pub type LigatureSet<'a> = TableRef<'a, LigatureSetMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> LigatureSet<'a> {
     /// Number of Ligature tables
     pub fn ligature_count(&self) -> u16 {
@@ -1156,6 +1173,7 @@ impl<'a> SomeTable<'a> for LigatureSet<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for LigatureSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1204,6 +1222,7 @@ impl<'a> FontRead<'a> for Ligature<'a> {
 /// Part of [LigatureSubstFormat1]
 pub type Ligature<'a> = TableRef<'a, LigatureMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Ligature<'a> {
     /// glyph ID of ligature to substitute
     pub fn ligature_glyph(&self) -> GlyphId16 {
@@ -1244,6 +1263,7 @@ impl<'a> SomeTable<'a> for Ligature<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Ligature<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1328,6 +1348,7 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
 /// [Extension Substitution Subtable Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#71-extension-substitution-subtable-format-1)
 pub type ExtensionSubstFormat1<'a, T> = TableRef<'a, ExtensionSubstFormat1Marker<T>>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a, T> ExtensionSubstFormat1<'a, T> {
     /// Format identifier. Set to 1.
     pub fn subst_format(&self) -> u16 {
@@ -1382,6 +1403,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionSubstF
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for ExtensionSubstFormat1<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1459,7 +1481,7 @@ impl<'a> SomeTable<'a> for ExtensionSubtable<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for ExtensionSubtable<'a> {
+impl std::fmt::Debug for ExtensionSubtable<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -1551,6 +1573,7 @@ impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1<'a> {
 /// [Reverse Chaining Contextual Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#81-reverse-chaining-contextual-single-substitution-format-1-coverage-based-glyph-contexts)
 pub type ReverseChainSingleSubstFormat1<'a> = TableRef<'a, ReverseChainSingleSubstFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ReverseChainSingleSubstFormat1<'a> {
     /// Format identifier: format = 1
     pub fn subst_format(&self) -> u16 {
@@ -1683,6 +1706,7 @@ impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ReverseChainSingleSubstFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

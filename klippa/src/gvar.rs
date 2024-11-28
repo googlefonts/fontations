@@ -11,7 +11,7 @@ use write_fonts::{
 const FIXED_HEADER_SIZE: u32 = 20;
 // reference: subset() for gvar table in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/63d09dbefcf7ad9f794ca96445d37b6d8c3c9124/src/hb-ot-var-gvar-table.hh#L411
-impl<'a> Subset for Gvar<'a> {
+impl Subset for Gvar<'_> {
     fn subset(
         &self,
         plan: &Plan,

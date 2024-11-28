@@ -174,6 +174,7 @@ impl<'a> FromObjRef<read_fonts::tables::head::Head<'a>> for Head {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::head::Head<'a>> for Head {}
 
 impl<'a> FontRead<'a> for Head {

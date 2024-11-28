@@ -768,8 +768,8 @@ where
     },
 }
 
-impl<'a, InclusiveRangeIter, AllValuesIter, T> Iterator
-    for RangeIter<'a, InclusiveRangeIter, AllValuesIter, T>
+impl<InclusiveRangeIter, AllValuesIter, T> Iterator
+    for RangeIter<'_, InclusiveRangeIter, AllValuesIter, T>
 where
     InclusiveRangeIter: Iterator<Item = RangeInclusive<u32>>,
     AllValuesIter: Iterator<Item = u32>,

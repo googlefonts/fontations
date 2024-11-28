@@ -185,6 +185,7 @@ impl<'a> FromObjRef<read_fonts::tables::post::Post<'a>> for Post {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::post::Post<'a>> for Post {}
 
 impl<'a> FontRead<'a> for Post {

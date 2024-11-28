@@ -33,13 +33,12 @@ struct SubsetTestCase {
     /// command line args for subsetter
     profiles: Vec<(String, SubsetInput)>,
 
-    ///subset codepoints to retain
+    /// subset codepoints to retain
     subsets: Vec<String>,
 
-    ///command line args for instancer
+    //command line args for instancer
     //TODO: add support for instancing
     //instances: Vec<String>,
-
     ///compare against fonttools or not
     fonttool_options: bool,
 

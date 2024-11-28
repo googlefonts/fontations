@@ -104,7 +104,7 @@ impl<'a> Script<'a> {
     }
 }
 
-impl<'a> LangSys<'a> {
+impl LangSys<'_> {
     /// If the language system references a feature with the given tag,
     /// returns the index of that feature in the specified feature list.
     ///

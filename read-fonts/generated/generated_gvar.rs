@@ -82,6 +82,7 @@ impl<'a> FontRead<'a> for Gvar<'a> {
 /// The ['gvar' header](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#gvar-header)
 pub type Gvar<'a> = TableRef<'a, GvarMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Gvar<'a> {
     /// Major/minor version number of the glyph variations table — set to (1,0).
     pub fn version(&self) -> MajorMinor {
@@ -178,6 +179,7 @@ impl<'a> SomeTable<'a> for Gvar<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Gvar<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -537,6 +539,7 @@ impl<'a> SharedTuples<'a> {
 /// Array of tuple records shared across all glyph variation data tables.
 pub type SharedTuples<'a> = TableRef<'a, SharedTuplesMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> SharedTuples<'a> {
     pub fn tuples(&self) -> ComputedArray<'a, Tuple<'a>> {
         let range = self.shape.tuples_byte_range();
@@ -565,6 +568,7 @@ impl<'a> SomeTable<'a> for SharedTuples<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for SharedTuples<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -611,6 +615,7 @@ impl<'a> FontRead<'a> for GlyphVariationDataHeader<'a> {
 /// The [GlyphVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#the-glyphvariationdata-table-array) table
 pub type GlyphVariationDataHeader<'a> = TableRef<'a, GlyphVariationDataHeaderMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphVariationDataHeader<'a> {
     /// A packed field. The high 4 bits are flags, and the low 12 bits
     /// are the number of tuple variation tables for this glyph. The
@@ -666,6 +671,7 @@ impl<'a> SomeTable<'a> for GlyphVariationDataHeader<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for GlyphVariationDataHeader<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

@@ -234,6 +234,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat1<'a>> for PatchMapFo
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::PatchMapFormat1<'a>> for PatchMapFormat1 {}
 
 impl<'a> FontRead<'a> for PatchMapFormat1 {
@@ -279,6 +280,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::GlyphMap<'a>> for GlyphMap {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::GlyphMap<'a>> for GlyphMap {}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -323,6 +325,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::FeatureMap<'a>> for FeatureMap {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::FeatureMap<'a>> for FeatureMap {}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -478,6 +481,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat2<'a>> for PatchMapFo
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::PatchMapFormat2<'a>> for PatchMapFormat2 {}
 
 impl<'a> FontRead<'a> for PatchMapFormat2 {
@@ -524,6 +528,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::MappingEntries<'a>> for MappingEntr
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::MappingEntries<'a>> for MappingEntries {}
 
 impl<'a> FontRead<'a> for MappingEntries {
@@ -756,6 +761,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::EntryData<'a>> for EntryData {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::EntryData<'a>> for EntryData {}
 
 impl FontWrite for EntryFormatFlags {
@@ -845,6 +851,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::IdStringData<'a>> for IdStringData 
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::IdStringData<'a>> for IdStringData {}
 
 impl<'a> FontRead<'a> for IdStringData {
@@ -916,6 +923,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::TableKeyedPatch<'a>> for TableKeyed
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::TableKeyedPatch<'a>> for TableKeyedPatch {}
 
 impl<'a> FontRead<'a> for TableKeyedPatch {
@@ -980,6 +988,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::TablePatch<'a>> for TablePatch {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::TablePatch<'a>> for TablePatch {}
 
 impl<'a> FontRead<'a> for TablePatch {
@@ -1056,6 +1065,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::GlyphKeyedPatch<'a>> for GlyphKeyed
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::GlyphKeyedPatch<'a>> for GlyphKeyedPatch {}
 
 impl<'a> FontRead<'a> for GlyphKeyedPatch {
@@ -1138,6 +1148,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::GlyphPatches<'a>> for GlyphPatches 
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::GlyphPatches<'a>> for GlyphPatches {}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1177,6 +1188,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::GlyphData<'a>> for GlyphData {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::GlyphData<'a>> for GlyphData {}
 
 impl<'a> FontRead<'a> for GlyphData {

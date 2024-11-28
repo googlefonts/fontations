@@ -47,7 +47,7 @@ impl<'a, T: ComputeSize> ComputedArray<'a, T> {
     }
 }
 
-impl<'a, T: ReadArgs> ReadArgs for ComputedArray<'a, T> {
+impl<T: ReadArgs> ReadArgs for ComputedArray<'_, T> {
     type Args = T::Args;
 }
 
@@ -159,7 +159,7 @@ impl<'a, T> FontRead<'a> for VarLenArray<'a, T> {
     }
 }
 
-impl<'a, T: AnyBitPattern> ReadArgs for &'a [T] {
+impl<T: AnyBitPattern> ReadArgs for &[T] {
     type Args = u16;
 }
 

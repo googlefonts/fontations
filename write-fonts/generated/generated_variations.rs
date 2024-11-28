@@ -64,6 +64,7 @@ impl<'a> FromObjRef<read_fonts::tables::variations::TupleVariationHeader<'a>>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::variations::TupleVariationHeader<'a>>
     for TupleVariationHeader
 {
@@ -179,6 +180,7 @@ impl<'a> FromObjRef<read_fonts::tables::variations::DeltaSetIndexMapFormat0<'a>>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::variations::DeltaSetIndexMapFormat0<'a>>
     for DeltaSetIndexMapFormat0
 {
@@ -248,6 +250,7 @@ impl<'a> FromObjRef<read_fonts::tables::variations::DeltaSetIndexMapFormat1<'a>>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::variations::DeltaSetIndexMapFormat1<'a>>
     for DeltaSetIndexMapFormat1
 {
@@ -420,6 +423,7 @@ impl<'a> FromObjRef<read_fonts::tables::variations::VariationRegionList<'a>>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::variations::VariationRegionList<'a>>
     for VariationRegionList
 {
@@ -600,6 +604,7 @@ impl<'a> FromObjRef<read_fonts::tables::variations::ItemVariationStore<'a>> for 
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::variations::ItemVariationStore<'a>>
     for ItemVariationStore
 {
@@ -685,6 +690,7 @@ impl<'a> FromObjRef<read_fonts::tables::variations::ItemVariationData<'a>> for I
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::variations::ItemVariationData<'a>> for ItemVariationData {}
 
 impl<'a> FontRead<'a> for ItemVariationData {

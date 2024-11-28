@@ -12,7 +12,7 @@ use write_fonts::{
 
 // reference: subset() for name table in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/OT/name/name.hh#L387
-impl<'a> Subset for Name<'a> {
+impl Subset for Name<'_> {
     fn subset(
         &self,
         plan: &Plan,

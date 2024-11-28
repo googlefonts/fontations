@@ -67,6 +67,7 @@ impl<'a> FromObjRef<read_fonts::tables::vorg::Vorg<'a>> for Vorg {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::vorg::Vorg<'a>> for Vorg {}
 
 impl<'a> FontRead<'a> for Vorg {

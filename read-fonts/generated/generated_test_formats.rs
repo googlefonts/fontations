@@ -42,6 +42,7 @@ impl<'a> FontRead<'a> for Table1<'a> {
 
 pub type Table1<'a> = TableRef<'a, Table1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Table1<'a> {
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
@@ -75,6 +76,7 @@ impl<'a> SomeTable<'a> for Table1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Table1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -123,6 +125,7 @@ impl<'a> FontRead<'a> for Table2<'a> {
 
 pub type Table2<'a> = TableRef<'a, Table2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Table2<'a> {
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
@@ -156,6 +159,7 @@ impl<'a> SomeTable<'a> for Table2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Table2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -193,6 +197,7 @@ impl<'a> FontRead<'a> for Table3<'a> {
 
 pub type Table3<'a> = TableRef<'a, Table3Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Table3<'a> {
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
@@ -220,6 +225,7 @@ impl<'a> SomeTable<'a> for Table3<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Table3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -276,7 +282,7 @@ impl<'a> MyTable<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for MyTable<'a> {
+impl std::fmt::Debug for MyTable<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }

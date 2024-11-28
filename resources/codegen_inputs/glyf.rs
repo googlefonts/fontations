@@ -177,7 +177,7 @@ flags u16 CompositeGlyphFlags {
     /// Bit 0: If this is set, the arguments are 16-bit (uint16 or
     /// int16); otherwise, they are bytes (uint8 or int8).
     ARG_1_AND_2_ARE_WORDS = 0x0001,
-    /// Bit 1: If this is set, the arguments are signed xy values;
+    /// Bit 1: If this is set, the arguments are signed xy values,
     /// otherwise, they are unsigned point numbers.
     ARGS_ARE_XY_VALUES = 0x0002,
     /// Bit 2: If set and ARGS_ARE_XY_VALUES is also set, the xy values

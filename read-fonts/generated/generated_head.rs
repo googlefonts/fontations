@@ -465,6 +465,7 @@ impl<'a> FontRead<'a> for Head<'a> {
 /// (font header) table.
 pub type Head<'a> = TableRef<'a, HeadMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Head<'a> {
     /// Version number of the font header table, set to (1, 0)
     pub fn version(&self) -> MajorMinor {
@@ -617,6 +618,7 @@ impl<'a> SomeTable<'a> for Head<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Head<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

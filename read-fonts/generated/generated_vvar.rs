@@ -63,6 +63,7 @@ impl<'a> FontRead<'a> for Vvar<'a> {
 /// The [VVAR (Vertical Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/vvar) table
 pub type Vvar<'a> = TableRef<'a, VvarMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Vvar<'a> {
     /// Major version number of the horizontal metrics variations table — set to 1.
     /// Minor version number of the horizontal metrics variations table — set to 0.
@@ -172,6 +173,7 @@ impl<'a> SomeTable<'a> for Vvar<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Vvar<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

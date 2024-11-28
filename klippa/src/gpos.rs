@@ -3,7 +3,7 @@
 use crate::{NameIdClosure, Plan};
 use write_fonts::read::tables::gpos::Gpos;
 
-impl<'a> NameIdClosure for Gpos<'a> {
+impl NameIdClosure for Gpos<'_> {
     //TODO: support instancing: collect from feature substitutes if exist
     fn collect_name_ids(&self, plan: &mut Plan) {
         let Ok(feature_list) = self.feature_list() else {

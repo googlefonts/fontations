@@ -51,6 +51,7 @@ impl<'a> FontRead<'a> for Ankr<'a> {
 /// The [anchor point](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ankr.html) table.
 pub type Ankr<'a> = TableRef<'a, AnkrMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Ankr<'a> {
     /// Version number (set to zero).
     pub fn version(&self) -> u16 {
@@ -108,6 +109,7 @@ impl<'a> SomeTable<'a> for Ankr<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Ankr<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -148,6 +150,7 @@ impl<'a> FontRead<'a> for GlyphDataEntry<'a> {
 
 pub type GlyphDataEntry<'a> = TableRef<'a, GlyphDataEntryMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphDataEntry<'a> {
     /// Number of anchor points for this glyph.
     pub fn num_points(&self) -> u32 {
@@ -184,6 +187,7 @@ impl<'a> SomeTable<'a> for GlyphDataEntry<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for GlyphDataEntry<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

@@ -201,7 +201,7 @@ impl<'a> TupleVariationHeader<'a> {
     }
 }
 
-impl<'a> Tuple<'a> {
+impl Tuple<'_> {
     pub fn len(&self) -> usize {
         self.values().len()
     }
@@ -383,7 +383,7 @@ impl Iterator for PackedPointNumbersIter<'_> {
 }
 
 // completely unnecessary?
-impl<'a> ExactSizeIterator for PackedPointNumbersIter<'a> {}
+impl ExactSizeIterator for PackedPointNumbersIter<'_> {}
 
 /// [Packed Deltas](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas)
 #[derive(Clone, Debug)]
@@ -899,7 +899,7 @@ pub trait TupleDelta: Sized + Copy {
     fn new(position: u16, x: i32, y: i32) -> Self;
 }
 
-impl<'a, T> Iterator for TupleDeltaIter<'a, T>
+impl<T> Iterator for TupleDeltaIter<'_, T>
 where
     T: TupleDelta,
 {
@@ -946,7 +946,7 @@ impl EntryFormat {
     }
 }
 
-impl<'a> DeltaSetIndexMap<'a> {
+impl DeltaSetIndexMap<'_> {
     /// Returns the delta set index for the specified value.
     pub fn get(&self, index: u32) -> Result<DeltaSetIndex, ReadError> {
         let (entry_format, map_count, data) = match self {
@@ -980,7 +980,7 @@ impl<'a> DeltaSetIndexMap<'a> {
     }
 }
 
-impl<'a> ItemVariationStore<'a> {
+impl ItemVariationStore<'_> {
     /// Computes the delta value for the specified index and set of normalized
     /// variation coordinates.
     pub fn compute_delta(
@@ -1082,7 +1082,7 @@ impl FloatItemDeltaTarget for F2Dot14 {
     }
 }
 
-impl<'a> VariationRegion<'a> {
+impl VariationRegion<'_> {
     /// Computes a scalar value for this region and the specified
     /// normalized variation coordinates.
     pub fn compute_scalar(&self, coords: &[F2Dot14]) -> Fixed {
@@ -1182,7 +1182,7 @@ struct ItemDeltas<'a> {
     pos: u16,
 }
 
-impl<'a> Iterator for ItemDeltas<'a> {
+impl Iterator for ItemDeltas<'_> {
     type Item = i32;
 
     fn next(&mut self) -> Option<Self::Item> {

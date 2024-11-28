@@ -2,7 +2,7 @@
 
 include!("../../generated/generated_hmtx.rs");
 
-impl<'a> Hmtx<'a> {
+impl Hmtx<'_> {
     /// Returns the advance width for the given glyph identifier.
     pub fn advance(&self, glyph_id: GlyphId) -> Option<u16> {
         advance(self.h_metrics(), glyph_id)

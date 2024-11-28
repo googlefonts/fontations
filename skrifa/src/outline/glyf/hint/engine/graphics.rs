@@ -9,7 +9,7 @@ use super::{
     Engine, F26Dot6, HintErrorKind, OpResult, Point,
 };
 
-impl<'a> Engine<'a> {
+impl Engine<'_> {
     /// Set vectors to coordinate axis.
     ///
     /// SVTCA\[a\] (0x00 - 0x01)

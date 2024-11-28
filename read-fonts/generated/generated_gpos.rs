@@ -69,6 +69,7 @@ impl<'a> FontRead<'a> for Gpos<'a> {
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 pub type Gpos<'a> = TableRef<'a, GposMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Gpos<'a> {
     /// The major and minor version of the GPOS table, as a tuple (u16, u16)
     pub fn version(&self) -> MajorMinor {
@@ -158,6 +159,7 @@ impl<'a> SomeTable<'a> for Gpos<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Gpos<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -243,7 +245,7 @@ impl<'a> SomeTable<'a> for PositionLookup<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for PositionLookup<'a> {
+impl std::fmt::Debug for PositionLookup<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -663,7 +665,7 @@ impl<'a> AnchorTable<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for AnchorTable<'a> {
+impl std::fmt::Debug for AnchorTable<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -718,6 +720,7 @@ impl<'a> FontRead<'a> for AnchorFormat1<'a> {
 /// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
 pub type AnchorFormat1<'a> = TableRef<'a, AnchorFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> AnchorFormat1<'a> {
     /// Format identifier, = 1
     pub fn anchor_format(&self) -> u16 {
@@ -754,6 +757,7 @@ impl<'a> SomeTable<'a> for AnchorFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for AnchorFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -805,6 +809,7 @@ impl<'a> FontRead<'a> for AnchorFormat2<'a> {
 /// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
 pub type AnchorFormat2<'a> = TableRef<'a, AnchorFormat2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> AnchorFormat2<'a> {
     /// Format identifier, = 2
     pub fn anchor_format(&self) -> u16 {
@@ -848,6 +853,7 @@ impl<'a> SomeTable<'a> for AnchorFormat2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for AnchorFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -905,6 +911,7 @@ impl<'a> FontRead<'a> for AnchorFormat3<'a> {
 /// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
 pub type AnchorFormat3<'a> = TableRef<'a, AnchorFormat3Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> AnchorFormat3<'a> {
     /// Format identifier, = 3
     pub fn anchor_format(&self) -> u16 {
@@ -977,6 +984,7 @@ impl<'a> SomeTable<'a> for AnchorFormat3<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for AnchorFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1019,6 +1027,7 @@ impl<'a> FontRead<'a> for MarkArray<'a> {
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
 pub type MarkArray<'a> = TableRef<'a, MarkArrayMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> MarkArray<'a> {
     /// Number of MarkRecords
     pub fn mark_count(&self) -> u16 {
@@ -1056,6 +1065,7 @@ impl<'a> SomeTable<'a> for MarkArray<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for MarkArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1178,7 +1188,7 @@ impl<'a> SinglePos<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for SinglePos<'a> {
+impl std::fmt::Debug for SinglePos<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -1244,6 +1254,7 @@ impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
 /// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
 pub type SinglePosFormat1<'a> = TableRef<'a, SinglePosFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> SinglePosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
@@ -1302,6 +1313,7 @@ impl<'a> SomeTable<'a> for SinglePosFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for SinglePosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1366,6 +1378,7 @@ impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
 /// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
 pub type SinglePosFormat2<'a> = TableRef<'a, SinglePosFormat2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> SinglePosFormat2<'a> {
     /// Format identifier: format = 2
     pub fn pos_format(&self) -> u16 {
@@ -1435,6 +1448,7 @@ impl<'a> SomeTable<'a> for SinglePosFormat2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for SinglePosFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1514,7 +1528,7 @@ impl<'a> PairPos<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for PairPos<'a> {
+impl std::fmt::Debug for PairPos<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -1594,6 +1608,7 @@ impl<'a> FontRead<'a> for PairPosFormat1<'a> {
 /// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
 pub type PairPosFormat1<'a> = TableRef<'a, PairPosFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PairPosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
@@ -1685,6 +1700,7 @@ impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PairPosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1757,6 +1773,7 @@ impl<'a> PairSet<'a> {
 /// Part of [PairPosFormat1]
 pub type PairSet<'a> = TableRef<'a, PairSetMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PairSet<'a> {
     /// Number of PairValueRecords
     pub fn pair_value_count(&self) -> u16 {
@@ -1804,6 +1821,7 @@ impl<'a> SomeTable<'a> for PairSet<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PairSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1877,6 +1895,7 @@ impl<'a> FontReadWithArgs<'a> for PairValueRecord {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PairValueRecord {
     /// A constructor that requires additional arguments.
     ///
@@ -2000,6 +2019,7 @@ impl<'a> FontRead<'a> for PairPosFormat2<'a> {
 /// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
 pub type PairPosFormat2<'a> = TableRef<'a, PairPosFormat2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PairPosFormat2<'a> {
     /// Format identifier: format = 2
     pub fn pos_format(&self) -> u16 {
@@ -2125,6 +2145,7 @@ impl<'a> SomeTable<'a> for PairPosFormat2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PairPosFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2176,6 +2197,7 @@ impl<'a> FontReadWithArgs<'a> for Class1Record<'a> {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Class1Record<'a> {
     /// A constructor that requires additional arguments.
     ///
@@ -2267,6 +2289,7 @@ impl<'a> FontReadWithArgs<'a> for Class2Record {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Class2Record {
     /// A constructor that requires additional arguments.
     ///
@@ -2355,6 +2378,7 @@ impl<'a> FontRead<'a> for CursivePosFormat1<'a> {
 /// [Cursive Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#cursive-attachment-positioning-format1-cursive-attachment): Cursvie attachment
 pub type CursivePosFormat1<'a> = TableRef<'a, CursivePosFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> CursivePosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
@@ -2414,6 +2438,7 @@ impl<'a> SomeTable<'a> for CursivePosFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for CursivePosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2553,6 +2578,7 @@ impl<'a> FontRead<'a> for MarkBasePosFormat1<'a> {
 /// [Mark-to-Base Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-base-attachment-positioning-format-1-mark-to-base-attachment-point): Mark-to-base Attachment Point
 pub type MarkBasePosFormat1<'a> = TableRef<'a, MarkBasePosFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> MarkBasePosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
@@ -2651,6 +2677,7 @@ impl<'a> SomeTable<'a> for MarkBasePosFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for MarkBasePosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2713,6 +2740,7 @@ impl<'a> BaseArray<'a> {
 /// Part of [MarkBasePosFormat1]
 pub type BaseArray<'a> = TableRef<'a, BaseArrayMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> BaseArray<'a> {
     /// Number of BaseRecords
     pub fn base_count(&self) -> u16 {
@@ -2755,6 +2783,7 @@ impl<'a> SomeTable<'a> for BaseArray<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for BaseArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2817,6 +2846,7 @@ impl<'a> FontReadWithArgs<'a> for BaseRecord<'a> {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> BaseRecord<'a> {
     /// A constructor that requires additional arguments.
     ///
@@ -2911,6 +2941,7 @@ impl<'a> FontRead<'a> for MarkLigPosFormat1<'a> {
 /// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
 pub type MarkLigPosFormat1<'a> = TableRef<'a, MarkLigPosFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> MarkLigPosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
@@ -3009,6 +3040,7 @@ impl<'a> SomeTable<'a> for MarkLigPosFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for MarkLigPosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3069,6 +3101,7 @@ impl<'a> LigatureArray<'a> {
 /// Part of [MarkLigPosFormat1]
 pub type LigatureArray<'a> = TableRef<'a, LigatureArrayMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> LigatureArray<'a> {
     /// Number of LigatureAttach table offsets
     pub fn ligature_count(&self) -> u16 {
@@ -3126,6 +3159,7 @@ impl<'a> SomeTable<'a> for LigatureArray<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for LigatureArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3188,6 +3222,7 @@ impl<'a> LigatureAttach<'a> {
 /// Part of [MarkLigPosFormat1]
 pub type LigatureAttach<'a> = TableRef<'a, LigatureAttachMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> LigatureAttach<'a> {
     /// Number of ComponentRecords in this ligature
     pub fn component_count(&self) -> u16 {
@@ -3230,6 +3265,7 @@ impl<'a> SomeTable<'a> for LigatureAttach<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for LigatureAttach<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3292,6 +3328,7 @@ impl<'a> FontReadWithArgs<'a> for ComponentRecord<'a> {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ComponentRecord<'a> {
     /// A constructor that requires additional arguments.
     ///
@@ -3386,6 +3423,7 @@ impl<'a> FontRead<'a> for MarkMarkPosFormat1<'a> {
 /// [Mark-to-Mark Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-mark-attachment-positioning-format-1-mark-to-mark-attachment): Mark-to-Mark Attachment
 pub type MarkMarkPosFormat1<'a> = TableRef<'a, MarkMarkPosFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> MarkMarkPosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
@@ -3484,6 +3522,7 @@ impl<'a> SomeTable<'a> for MarkMarkPosFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for MarkMarkPosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3546,6 +3585,7 @@ impl<'a> Mark2Array<'a> {
 /// Part of [MarkMarkPosFormat1]Class2Record
 pub type Mark2Array<'a> = TableRef<'a, Mark2ArrayMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Mark2Array<'a> {
     /// Number of Mark2 records
     pub fn mark2_count(&self) -> u16 {
@@ -3588,6 +3628,7 @@ impl<'a> SomeTable<'a> for Mark2Array<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Mark2Array<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3650,6 +3691,7 @@ impl<'a> FontReadWithArgs<'a> for Mark2Record<'a> {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Mark2Record<'a> {
     /// A constructor that requires additional arguments.
     ///
@@ -3765,6 +3807,7 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
 /// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
 pub type ExtensionPosFormat1<'a, T> = TableRef<'a, ExtensionPosFormat1Marker<T>>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a, T> ExtensionPosFormat1<'a, T> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
@@ -3819,6 +3862,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionPosFor
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for ExtensionPosFormat1<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3900,7 +3944,7 @@ impl<'a> SomeTable<'a> for ExtensionSubtable<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for ExtensionSubtable<'a> {
+impl std::fmt::Debug for ExtensionSubtable<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }

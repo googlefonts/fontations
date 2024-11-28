@@ -129,6 +129,7 @@ impl<'a> FontRead<'a> for Vhea<'a> {
 /// The [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
 pub type Vhea<'a> = TableRef<'a, VheaMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Vhea<'a> {
     /// The major/minor version (1, 1)
     pub fn version(&self) -> Version16Dot16 {
@@ -249,6 +250,7 @@ impl<'a> SomeTable<'a> for Vhea<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Vhea<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

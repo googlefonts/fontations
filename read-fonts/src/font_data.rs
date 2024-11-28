@@ -270,30 +270,6 @@ impl<'a> Cursor<'a> {
         temp
     }
 
-    /// read a value, validating it with the provided function if successful.
-    //pub(crate) fn read_validate<T, F>(&mut self, f: F) -> Result<T, ReadError>
-    //where
-    //T: ReadScalar,
-    //F: FnOnce(&T) -> bool,
-    //{
-    //let temp = self.read()?;
-    //if f(&temp) {
-    //Ok(temp)
-    //} else {
-    //Err(ReadError::ValidationError)
-    //}
-    //}
-
-    //pub(crate) fn check_array<T: Scalar>(&mut self, len_bytes: usize) -> Result<(), ReadError> {
-    //assert_ne!(std::mem::size_of::<BigEndian<T>>(), 0);
-    //assert_eq!(std::mem::align_of::<BigEndian<T>>(), 1);
-    //if len_bytes % T::SIZE != 0 {
-    //return Err(ReadError::InvalidArrayLen);
-    //}
-    //self.data.check_in_bounds(self.pos + len_bytes)
-    //todo!()
-    //}
-
     /// return the current position, or an error if we are out of bounds
     pub(crate) fn position(&self) -> Result<usize, ReadError> {
         self.data.check_in_bounds(self.pos).map(|_| self.pos)

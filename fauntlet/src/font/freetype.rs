@@ -132,7 +132,7 @@ struct FreeTypePen<'a> {
     is_scaled: bool,
 }
 
-impl<'a> FreeTypePen<'a> {
+impl FreeTypePen<'_> {
     fn scale_point(&self, p: *const FT_Vector) -> (f32, f32) {
         let p = unsafe { &*p };
         if self.is_scaled {

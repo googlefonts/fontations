@@ -179,7 +179,7 @@ impl<'a> Outlines<'a> {
     }
 }
 
-impl<'a> Outlines<'a> {
+impl Outlines<'_> {
     fn outline_rec(
         &self,
         glyph: &Glyph,
@@ -458,7 +458,7 @@ impl<'a> FreeTypeScaler<'a> {
     }
 }
 
-impl<'a> Scaler for FreeTypeScaler<'a> {
+impl Scaler for FreeTypeScaler<'_> {
     fn setup_phantom_points(
         &mut self,
         bounds: [i16; 4],
@@ -980,7 +980,7 @@ impl<'a> Scaler for FreeTypeScaler<'a> {
     }
 }
 
-impl<'a> Scaler for HarfBuzzScaler<'a> {
+impl Scaler for HarfBuzzScaler<'_> {
     fn setup_phantom_points(
         &mut self,
         bounds: [i16; 4],

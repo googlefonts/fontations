@@ -79,6 +79,7 @@ impl<'a> FontRead<'a> for Stat<'a> {
 /// [STAT](https://docs.microsoft.com/en-us/typography/opentype/spec/stat) (Style Attributes Table)
 pub type Stat<'a> = TableRef<'a, StatMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Stat<'a> {
     /// Major/minor version number. Set to 1.2 for new fonts.
     pub fn version(&self) -> MajorMinor {
@@ -187,6 +188,7 @@ impl<'a> SomeTable<'a> for Stat<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Stat<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -295,6 +297,7 @@ impl<'a> AxisValueArray<'a> {
 /// An array of [AxisValue] tables.
 pub type AxisValueArray<'a> = TableRef<'a, AxisValueArrayMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueArray<'a> {
     /// Array of offsets to axis value tables, in bytes from the start
     /// of the axis value offsets array.
@@ -338,6 +341,7 @@ impl<'a> SomeTable<'a> for AxisValueArray<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for AxisValueArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -422,7 +426,7 @@ impl<'a> AxisValue<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for AxisValue<'a> {
+impl std::fmt::Debug for AxisValue<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -489,6 +493,7 @@ impl<'a> FontRead<'a> for AxisValueFormat1<'a> {
 /// [Axis value table format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-1)
 pub type AxisValueFormat1<'a> = TableRef<'a, AxisValueFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat1<'a> {
     /// Format identifier — set to 1.
     pub fn format(&self) -> u16 {
@@ -542,6 +547,7 @@ impl<'a> SomeTable<'a> for AxisValueFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for AxisValueFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -611,6 +617,7 @@ impl<'a> FontRead<'a> for AxisValueFormat2<'a> {
 /// [Axis value table format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-2)
 pub type AxisValueFormat2<'a> = TableRef<'a, AxisValueFormat2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat2<'a> {
     /// Format identifier — set to 2.
     pub fn format(&self) -> u16 {
@@ -680,6 +687,7 @@ impl<'a> SomeTable<'a> for AxisValueFormat2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for AxisValueFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -743,6 +751,7 @@ impl<'a> FontRead<'a> for AxisValueFormat3<'a> {
 /// [Axis value table format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-3)
 pub type AxisValueFormat3<'a> = TableRef<'a, AxisValueFormat3Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat3<'a> {
     /// Format identifier — set to 3.
     pub fn format(&self) -> u16 {
@@ -803,6 +812,7 @@ impl<'a> SomeTable<'a> for AxisValueFormat3<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for AxisValueFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -867,6 +877,7 @@ impl<'a> FontRead<'a> for AxisValueFormat4<'a> {
 /// [Axis value table format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-4)
 pub type AxisValueFormat4<'a> = TableRef<'a, AxisValueFormat4Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat4<'a> {
     /// Format identifier — set to 4.
     pub fn format(&self) -> u16 {
@@ -927,6 +938,7 @@ impl<'a> SomeTable<'a> for AxisValueFormat4<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for AxisValueFormat4<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

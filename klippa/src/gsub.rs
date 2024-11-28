@@ -3,7 +3,7 @@
 use crate::{NameIdClosure, Plan};
 use write_fonts::read::tables::gsub::Gsub;
 
-impl<'a> NameIdClosure for Gsub<'a> {
+impl NameIdClosure for Gsub<'_> {
     //TODO: support instancing: collect from feature substitutes if exist
     fn collect_name_ids(&self, plan: &mut Plan) {
         let Ok(feature_list) = self.feature_list() else {

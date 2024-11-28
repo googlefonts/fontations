@@ -121,6 +121,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::KindsOfOffsets<'a>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::KindsOfOffsets<'a>>
     for KindsOfOffsets
 {
@@ -230,6 +231,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::KindsOfArraysOfOff
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::KindsOfArraysOfOffsets<'a>>
     for KindsOfArraysOfOffsets
 {
@@ -350,6 +352,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::KindsOfArrays<'a>>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::KindsOfArrays<'a>>
     for KindsOfArrays
 {
@@ -412,6 +415,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::VarLenHaver<'a>> f
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::VarLenHaver<'a>> for VarLenHaver {}
 
 impl<'a> FontRead<'a> for VarLenHaver {
@@ -451,6 +455,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::Dummy<'a>> for Dum
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::Dummy<'a>> for Dummy {}
 
 impl<'a> FontRead<'a> for Dummy {

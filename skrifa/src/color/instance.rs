@@ -137,7 +137,7 @@ pub struct ColorStops<'a> {
     var_stops: &'a [VarColorStop],
 }
 
-impl<'a> ColorStops<'a> {
+impl ColorStops<'_> {
     pub fn len(&self) -> usize {
         self.stops.len() + self.var_stops.len()
     }

@@ -59,6 +59,7 @@ impl<'a> FromObjRef<read_fonts::tables::postscript::Index1<'a>> for Index1 {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::postscript::Index1<'a>> for Index1 {}
 
 impl<'a> FontRead<'a> for Index1 {
@@ -121,6 +122,7 @@ impl<'a> FromObjRef<read_fonts::tables::postscript::Index2<'a>> for Index2 {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::postscript::Index2<'a>> for Index2 {}
 
 impl<'a> FontRead<'a> for Index2 {
@@ -270,6 +272,7 @@ impl<'a> FromObjRef<read_fonts::tables::postscript::FdSelectFormat0<'a>> for FdS
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::postscript::FdSelectFormat0<'a>> for FdSelectFormat0 {}
 
 impl<'a> FontRead<'a> for FdSelectFormat0 {
@@ -338,6 +341,7 @@ impl<'a> FromObjRef<read_fonts::tables::postscript::FdSelectFormat3<'a>> for FdS
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::postscript::FdSelectFormat3<'a>> for FdSelectFormat3 {}
 
 impl<'a> FontRead<'a> for FdSelectFormat3 {
@@ -446,6 +450,7 @@ impl<'a> FromObjRef<read_fonts::tables::postscript::FdSelectFormat4<'a>> for FdS
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::postscript::FdSelectFormat4<'a>> for FdSelectFormat4 {}
 
 impl<'a> FontRead<'a> for FdSelectFormat4 {

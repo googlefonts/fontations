@@ -122,6 +122,7 @@ impl<'a> FromObjRef<read_fonts::tables::vhea::Vhea<'a>> for Vhea {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::vhea::Vhea<'a>> for Vhea {}
 
 impl<'a> FontRead<'a> for Vhea {

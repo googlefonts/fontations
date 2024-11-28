@@ -85,6 +85,7 @@ impl<'a> FromObjRef<read_fonts::tables::avar::Avar<'a>> for Avar {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::avar::Avar<'a>> for Avar {}
 
 impl<'a> FontRead<'a> for Avar {

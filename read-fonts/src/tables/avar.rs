@@ -4,7 +4,7 @@ use super::variations::{DeltaSetIndexMap, ItemVariationStore};
 
 include!("../../generated/generated_avar.rs");
 
-impl<'a> SegmentMaps<'a> {
+impl SegmentMaps<'_> {
     /// Applies the piecewise linear mapping to the specified coordinate.
     pub fn apply(&self, coord: Fixed) -> Fixed {
         let mut prev = AxisValueMap {
@@ -33,7 +33,7 @@ impl<'a> SegmentMaps<'a> {
     }
 }
 
-impl<'a> VarSize for SegmentMaps<'a> {
+impl VarSize for SegmentMaps<'_> {
     type Size = u16;
 
     fn read_len_at(data: FontData, pos: usize) -> Option<usize> {

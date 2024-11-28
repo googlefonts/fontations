@@ -62,6 +62,7 @@ impl<'a> FontRead<'a> for Feat<'a> {
 /// The [feature name](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6feat.html) table.
 pub type Feat<'a> = TableRef<'a, FeatMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Feat<'a> {
     /// Version number of the feature name table (0x00010000 for the current
     /// version).
@@ -106,6 +107,7 @@ impl<'a> SomeTable<'a> for Feat<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Feat<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -242,6 +244,7 @@ impl<'a> SettingNameArray<'a> {
 
 pub type SettingNameArray<'a> = TableRef<'a, SettingNameArrayMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> SettingNameArray<'a> {
     /// List of setting names for a feature.
     pub fn settings(&self) -> &'a [SettingName] {
@@ -271,6 +274,7 @@ impl<'a> SomeTable<'a> for SettingNameArray<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for SettingNameArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

@@ -129,6 +129,7 @@ impl<'a> FontRead<'a> for Hhea<'a> {
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
 pub type Hhea<'a> = TableRef<'a, HheaMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Hhea<'a> {
     /// The major/minor version (1, 0)
     pub fn version(&self) -> MajorMinor {
@@ -250,6 +251,7 @@ impl<'a> SomeTable<'a> for Hhea<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Hhea<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

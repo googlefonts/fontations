@@ -292,7 +292,7 @@ pub(crate) struct RangeIter<'a> {
     next_value_to_check: u32,
 }
 
-impl<'a> RangeIter<'a> {
+impl RangeIter<'_> {
     fn next_range_in_element(&self) -> Option<RangeInclusive<u32>> {
         if self.next_value_to_check >= PAGE_BITS {
             return None;
@@ -316,7 +316,7 @@ impl<'a> RangeIter<'a> {
     }
 }
 
-impl<'a> Iterator for RangeIter<'a> {
+impl Iterator for RangeIter<'_> {
     type Item = RangeInclusive<u32>;
 
     fn next(&mut self) -> Option<Self::Item> {

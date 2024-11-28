@@ -6,7 +6,7 @@
 
 use super::{Engine, OpResult};
 
-impl<'a> Engine<'a> {
+impl Engine<'_> {
     /// Read store.
     ///
     /// RS[] (0x43)

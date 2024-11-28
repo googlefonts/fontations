@@ -5,7 +5,7 @@ pub use super::hmtx::LongMetric;
 
 include!("../../generated/generated_vmtx.rs");
 
-impl<'a> Vmtx<'a> {
+impl Vmtx<'_> {
     /// Returns the advance height for the given glyph identifier.
     pub fn advance(&self, glyph_id: GlyphId) -> Option<u16> {
         hmtx::advance(self.v_metrics(), glyph_id)

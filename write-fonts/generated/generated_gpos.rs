@@ -88,6 +88,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::Gpos<'a>> for Gpos {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::Gpos<'a>> for Gpos {}
 
 impl<'a> FontRead<'a> for Gpos {
@@ -410,6 +411,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::AnchorFormat1<'a>> for AnchorForma
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::AnchorFormat1<'a>> for AnchorFormat1 {}
 
 impl<'a> FontRead<'a> for AnchorFormat1 {
@@ -469,6 +471,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::AnchorFormat2<'a>> for AnchorForma
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::AnchorFormat2<'a>> for AnchorFormat2 {}
 
 impl<'a> FontRead<'a> for AnchorFormat2 {
@@ -551,6 +554,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::AnchorFormat3<'a>> for AnchorForma
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::AnchorFormat3<'a>> for AnchorFormat3 {}
 
 impl<'a> FontRead<'a> for AnchorFormat3 {
@@ -611,6 +615,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::MarkArray<'a>> for MarkArray {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::MarkArray<'a>> for MarkArray {}
 
 impl<'a> FontRead<'a> for MarkArray {
@@ -802,6 +807,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::SinglePosFormat1<'a>> for SinglePo
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::SinglePosFormat1<'a>> for SinglePosFormat1 {}
 
 impl<'a> FontRead<'a> for SinglePosFormat1 {
@@ -875,6 +881,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::SinglePosFormat2<'a>> for SinglePo
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::SinglePosFormat2<'a>> for SinglePosFormat2 {}
 
 impl<'a> FontRead<'a> for SinglePosFormat2 {
@@ -1035,6 +1042,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::PairPosFormat1<'a>> for PairPosFor
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::PairPosFormat1<'a>> for PairPosFormat1 {}
 
 impl<'a> FontRead<'a> for PairPosFormat1 {
@@ -1097,6 +1105,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::PairSet<'a>> for PairSet {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::PairSet<'a>> for PairSet {}
 
 /// Part of [PairSet]
@@ -1245,6 +1254,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::PairPosFormat2<'a>> for PairPosFor
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::PairPosFormat2<'a>> for PairPosFormat2 {}
 
 impl<'a> FontRead<'a> for PairPosFormat2 {
@@ -1405,6 +1415,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::CursivePosFormat1<'a>> for Cursive
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::CursivePosFormat1<'a>> for CursivePosFormat1 {}
 
 impl<'a> FontRead<'a> for CursivePosFormat1 {
@@ -1551,6 +1562,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::MarkBasePosFormat1<'a>> for MarkBa
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::MarkBasePosFormat1<'a>> for MarkBasePosFormat1 {}
 
 impl<'a> FontRead<'a> for MarkBasePosFormat1 {
@@ -1612,6 +1624,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::BaseArray<'a>> for BaseArray {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::BaseArray<'a>> for BaseArray {}
 
 /// Part of [BaseArray]
@@ -1743,6 +1756,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::MarkLigPosFormat1<'a>> for MarkLig
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::MarkLigPosFormat1<'a>> for MarkLigPosFormat1 {}
 
 impl<'a> FontRead<'a> for MarkLigPosFormat1 {
@@ -1803,6 +1817,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::LigatureArray<'a>> for LigatureArr
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::LigatureArray<'a>> for LigatureArray {}
 
 /// Part of [MarkLigPosFormat1]
@@ -1857,6 +1872,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::LigatureAttach<'a>> for LigatureAt
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::LigatureAttach<'a>> for LigatureAttach {}
 
 /// Part of [MarkLigPosFormat1]
@@ -1991,6 +2007,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::MarkMarkPosFormat1<'a>> for MarkMa
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::MarkMarkPosFormat1<'a>> for MarkMarkPosFormat1 {}
 
 impl<'a> FontRead<'a> for MarkMarkPosFormat1 {
@@ -2052,6 +2069,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::Mark2Array<'a>> for Mark2Array {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::Mark2Array<'a>> for Mark2Array {}
 
 /// Part of [MarkMarkPosFormat1]
@@ -2153,6 +2171,7 @@ where
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a, T, U> FromTableRef<read_fonts::tables::gpos::ExtensionPosFormat1<'a, U>>
     for ExtensionPosFormat1<T>
 where

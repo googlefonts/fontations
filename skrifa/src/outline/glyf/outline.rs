@@ -57,7 +57,7 @@ pub struct Outline<'a> {
     pub has_overlaps: bool,
 }
 
-impl<'a> Outline<'a> {
+impl Outline<'_> {
     /// Returns the minimum size in bytes required to scale an outline based
     /// on the computed sizes.
     pub fn required_buffer_size(&self, hinting: Hinting) -> usize {

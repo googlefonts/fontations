@@ -74,6 +74,7 @@ impl<'a> FromObjRef<read_fonts::tables::sbix::Sbix<'a>> for Sbix {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::sbix::Sbix<'a>> for Sbix {}
 
 /// [Strike](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#strikes) header table
@@ -125,6 +126,7 @@ impl<'a> FromObjRef<read_fonts::tables::sbix::Strike<'a>> for Strike {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::sbix::Strike<'a>> for Strike {}
 
 /// [Glyph data](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#glyph-data) table
@@ -186,6 +188,7 @@ impl<'a> FromObjRef<read_fonts::tables::sbix::GlyphData<'a>> for GlyphData {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::sbix::GlyphData<'a>> for GlyphData {}
 
 impl<'a> FontRead<'a> for GlyphData {

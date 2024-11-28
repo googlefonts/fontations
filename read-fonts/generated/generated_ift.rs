@@ -73,7 +73,7 @@ impl<'a> Ift<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for Ift<'a> {
+impl std::fmt::Debug for Ift<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -194,6 +194,7 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
 /// [Patch Map Format Format 1](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
 pub type PatchMapFormat1<'a> = TableRef<'a, PatchMapFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PatchMapFormat1<'a> {
     /// Format identifier: format = 1
     pub fn format(&self) -> u8 {
@@ -314,6 +315,7 @@ impl<'a> SomeTable<'a> for PatchMapFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PatchMapFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -376,6 +378,7 @@ impl<'a> GlyphMap<'a> {
 
 pub type GlyphMap<'a> = TableRef<'a, GlyphMapMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphMap<'a> {
     pub fn first_mapped_glyph(&self) -> u16 {
         let range = self.shape.first_mapped_glyph_byte_range();
@@ -409,6 +412,7 @@ impl<'a> SomeTable<'a> for GlyphMap<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for GlyphMap<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -479,6 +483,7 @@ impl<'a> FeatureMap<'a> {
 
 pub type FeatureMap<'a> = TableRef<'a, FeatureMapMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FeatureMap<'a> {
     pub fn feature_count(&self) -> u16 {
         let range = self.shape.feature_count_byte_range();
@@ -518,6 +523,7 @@ impl<'a> SomeTable<'a> for FeatureMap<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for FeatureMap<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -579,6 +585,7 @@ impl<'a> FontReadWithArgs<'a> for FeatureRecord {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FeatureRecord {
     /// A constructor that requires additional arguments.
     ///
@@ -655,6 +662,7 @@ impl<'a> FontReadWithArgs<'a> for EntryMapRecord {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> EntryMapRecord {
     /// A constructor that requires additional arguments.
     ///
@@ -769,6 +777,7 @@ impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
 /// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-2)
 pub type PatchMapFormat2<'a> = TableRef<'a, PatchMapFormat2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PatchMapFormat2<'a> {
     /// Format identifier: format = 2
     pub fn format(&self) -> u8 {
@@ -865,6 +874,7 @@ impl<'a> SomeTable<'a> for PatchMapFormat2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PatchMapFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -897,6 +907,7 @@ impl<'a> FontRead<'a> for MappingEntries<'a> {
 
 pub type MappingEntries<'a> = TableRef<'a, MappingEntriesMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> MappingEntries<'a> {
     pub fn entry_data(&self) -> &'a [u8] {
         let range = self.shape.entry_data_byte_range();
@@ -918,6 +929,7 @@ impl<'a> SomeTable<'a> for MappingEntries<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for MappingEntries<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1130,6 +1142,7 @@ impl<'a> EntryData<'a> {
 
 pub type EntryData<'a> = TableRef<'a, EntryDataMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> EntryData<'a> {
     pub fn format_flags(&self) -> EntryFormatFlags {
         let range = self.shape.format_flags_byte_range();
@@ -1237,6 +1250,7 @@ impl<'a> SomeTable<'a> for EntryData<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for EntryData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1640,6 +1654,7 @@ impl<'a> FontRead<'a> for IdStringData<'a> {
 
 pub type IdStringData<'a> = TableRef<'a, IdStringDataMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> IdStringData<'a> {
     pub fn id_data(&self) -> &'a [u8] {
         let range = self.shape.id_data_byte_range();
@@ -1661,6 +1676,7 @@ impl<'a> SomeTable<'a> for IdStringData<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for IdStringData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1721,6 +1737,7 @@ impl<'a> FontRead<'a> for TableKeyedPatch<'a> {
 /// [Table Keyed Patch](https://w3c.github.io/IFT/Overview.html#table-keyed)
 pub type TableKeyedPatch<'a> = TableRef<'a, TableKeyedPatchMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> TableKeyedPatch<'a> {
     pub fn format(&self) -> Tag {
         let range = self.shape.format_byte_range();
@@ -1784,6 +1801,7 @@ impl<'a> SomeTable<'a> for TableKeyedPatch<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for TableKeyedPatch<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1836,6 +1854,7 @@ impl<'a> FontRead<'a> for TablePatch<'a> {
 /// [TablePatch](https://w3c.github.io/IFT/Overview.html#tablepatch)
 pub type TablePatch<'a> = TableRef<'a, TablePatchMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> TablePatch<'a> {
     pub fn tag(&self) -> Tag {
         let range = self.shape.tag_byte_range();
@@ -1878,6 +1897,7 @@ impl<'a> SomeTable<'a> for TablePatch<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for TablePatch<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2247,6 +2267,7 @@ impl<'a> FontRead<'a> for GlyphKeyedPatch<'a> {
 /// [Glyph Keyed Patch](https://w3c.github.io/IFT/Overview.html#glyph-keyed)
 pub type GlyphKeyedPatch<'a> = TableRef<'a, GlyphKeyedPatchMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphKeyedPatch<'a> {
     pub fn format(&self) -> Tag {
         let range = self.shape.format_byte_range();
@@ -2298,6 +2319,7 @@ impl<'a> SomeTable<'a> for GlyphKeyedPatch<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for GlyphKeyedPatch<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2692,6 +2714,7 @@ impl<'a> GlyphPatches<'a> {
 /// [GlyphPatches](https://w3c.github.io/IFT/Overview.html#glyphpatches)
 pub type GlyphPatches<'a> = TableRef<'a, GlyphPatchesMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphPatches<'a> {
     pub fn glyph_count(&self) -> u32 {
         let range = self.shape.glyph_count_byte_range();
@@ -2761,6 +2784,7 @@ impl<'a> SomeTable<'a> for GlyphPatches<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for GlyphPatches<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2791,6 +2815,7 @@ impl<'a> FontRead<'a> for GlyphData<'a> {
 
 pub type GlyphData<'a> = TableRef<'a, GlyphDataMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphData<'a> {
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
@@ -2812,6 +2837,7 @@ impl<'a> SomeTable<'a> for GlyphData<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for GlyphData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

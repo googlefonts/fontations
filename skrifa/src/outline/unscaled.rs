@@ -88,7 +88,7 @@ pub(super) struct UnscaledOutlineRef<'a> {
     pub points: &'a [UnscaledPoint],
 }
 
-impl<'a> UnscaledOutlineRef<'a> {
+impl UnscaledOutlineRef<'_> {
     /// Returns the range of contour points and the index of the point within
     /// that contour for the last point where `f` returns true.
     ///
@@ -163,7 +163,7 @@ impl<'a, T> UnscaledPenAdapter<'a, T> {
     }
 }
 
-impl<'a, T> UnscaledPenAdapter<'a, T>
+impl<T> UnscaledPenAdapter<'_, T>
 where
     T: UnscaledOutlineSink,
 {
@@ -183,7 +183,7 @@ where
     }
 }
 
-impl<'a, T: UnscaledOutlineSink> super::OutlinePen for UnscaledPenAdapter<'a, T> {
+impl<T: UnscaledOutlineSink> super::OutlinePen for UnscaledPenAdapter<'_, T> {
     fn move_to(&mut self, x: f32, y: f32) {
         self.push(x, y, PointFlags::on_curve(), true);
     }

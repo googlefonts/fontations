@@ -16,7 +16,7 @@ use super::{
     PaintVarTransform, PaintVarTranslate, VarAffine2x3, VarColorLine, VarColorStop,
 };
 
-impl<'a> Colr<'a> {
+impl Colr<'_> {
     //Collect the transitive closure of V0 palette indices needed for all of the input glyphs set
     //It's similar to closure glyphs but in a separate fn, because v1 closure might adds more v0 glyphs, so this fn needs to be called after v1 closure
     pub fn v0_closure_palette_indices(
@@ -216,7 +216,7 @@ impl VarColorStop {
     }
 }
 
-impl<'a> ColorLine<'a> {
+impl ColorLine<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         for colorstop in self.color_stops() {
             colorstop.v1_closure(c);
@@ -224,7 +224,7 @@ impl<'a> ColorLine<'a> {
     }
 }
 
-impl<'a> VarColorLine<'a> {
+impl VarColorLine<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         for var_colorstop in self.color_stops() {
             var_colorstop.v1_closure(c);
@@ -232,7 +232,7 @@ impl<'a> VarColorLine<'a> {
     }
 }
 
-impl<'a> Paint<'a> {
+impl Paint<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         match self {
             Self::ColrLayers(item) => item.v1_closure(c),
@@ -271,7 +271,7 @@ impl<'a> Paint<'a> {
     }
 }
 
-impl<'a> PaintColrLayers<'a> {
+impl PaintColrLayers<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         let num_layers = self.num_layers();
         if num_layers == 0 {
@@ -296,20 +296,20 @@ impl<'a> PaintColrLayers<'a> {
     }
 }
 
-impl<'a> PaintSolid<'a> {
+impl PaintSolid<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         c.add_palette_index(self.palette_index());
     }
 }
 
-impl<'a> PaintVarSolid<'a> {
+impl PaintVarSolid<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         c.add_palette_index(self.palette_index());
         c.add_variation_indices(self.var_index_base(), 1);
     }
 }
 
-impl<'a> PaintLinearGradient<'a> {
+impl PaintLinearGradient<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(colorline) = self.color_line() {
             colorline.v1_closure(c);
@@ -317,7 +317,7 @@ impl<'a> PaintLinearGradient<'a> {
     }
 }
 
-impl<'a> PaintVarLinearGradient<'a> {
+impl PaintVarLinearGradient<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(var_colorline) = self.color_line() {
             var_colorline.v1_closure(c);
@@ -326,7 +326,7 @@ impl<'a> PaintVarLinearGradient<'a> {
     }
 }
 
-impl<'a> PaintRadialGradient<'a> {
+impl PaintRadialGradient<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(colorline) = self.color_line() {
             colorline.v1_closure(c);
@@ -334,7 +334,7 @@ impl<'a> PaintRadialGradient<'a> {
     }
 }
 
-impl<'a> PaintVarRadialGradient<'a> {
+impl PaintVarRadialGradient<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(var_colorline) = self.color_line() {
             var_colorline.v1_closure(c);
@@ -343,7 +343,7 @@ impl<'a> PaintVarRadialGradient<'a> {
     }
 }
 
-impl<'a> PaintSweepGradient<'a> {
+impl PaintSweepGradient<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(colorline) = self.color_line() {
             colorline.v1_closure(c);
@@ -351,7 +351,7 @@ impl<'a> PaintSweepGradient<'a> {
     }
 }
 
-impl<'a> PaintVarSweepGradient<'a> {
+impl PaintVarSweepGradient<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(var_colorline) = self.color_line() {
             var_colorline.v1_closure(c);
@@ -360,7 +360,7 @@ impl<'a> PaintVarSweepGradient<'a> {
     }
 }
 
-impl<'a> PaintGlyph<'a> {
+impl PaintGlyph<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         c.add_glyph_id(self.glyph_id());
         if let Ok(paint) = self.paint() {
@@ -369,7 +369,7 @@ impl<'a> PaintGlyph<'a> {
     }
 }
 
-impl<'a> PaintColrGlyph<'a> {
+impl PaintColrGlyph<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         let glyph_id = self.glyph_id();
         let Some(Ok(list)) = c.colr.base_glyph_list() else {
@@ -387,7 +387,7 @@ impl<'a> PaintColrGlyph<'a> {
     }
 }
 
-impl<'a> PaintTransform<'a> {
+impl PaintTransform<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(paint) = self.paint() {
             c.dispatch(&paint);
@@ -395,13 +395,13 @@ impl<'a> PaintTransform<'a> {
     }
 }
 
-impl<'a> VarAffine2x3<'a> {
+impl VarAffine2x3<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         c.add_variation_indices(self.var_index_base(), 6);
     }
 }
 
-impl<'a> PaintVarTransform<'a> {
+impl PaintVarTransform<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(paint) = self.paint() {
             c.dispatch(&paint);
@@ -412,7 +412,7 @@ impl<'a> PaintVarTransform<'a> {
     }
 }
 
-impl<'a> PaintTranslate<'a> {
+impl PaintTranslate<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(paint) = self.paint() {
             c.dispatch(&paint);
@@ -420,24 +420,7 @@ impl<'a> PaintTranslate<'a> {
     }
 }
 
-impl<'a> PaintVarTranslate<'a> {
-    fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
-        if let Ok(paint) = self.paint() {
-            c.dispatch(&paint);
-            c.add_variation_indices(self.var_index_base(), 2);
-        }
-    }
-}
-
-impl<'a> PaintScale<'a> {
-    fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
-        if let Ok(paint) = self.paint() {
-            c.dispatch(&paint);
-        }
-    }
-}
-
-impl<'a> PaintVarScale<'a> {
+impl PaintVarTranslate<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(paint) = self.paint() {
             c.dispatch(&paint);
@@ -446,7 +429,7 @@ impl<'a> PaintVarScale<'a> {
     }
 }
 
-impl<'a> PaintScaleAroundCenter<'a> {
+impl PaintScale<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(paint) = self.paint() {
             c.dispatch(&paint);
@@ -454,7 +437,24 @@ impl<'a> PaintScaleAroundCenter<'a> {
     }
 }
 
-impl<'a> PaintVarScaleAroundCenter<'a> {
+impl PaintVarScale<'_> {
+    fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
+        if let Ok(paint) = self.paint() {
+            c.dispatch(&paint);
+            c.add_variation_indices(self.var_index_base(), 2);
+        }
+    }
+}
+
+impl PaintScaleAroundCenter<'_> {
+    fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
+        if let Ok(paint) = self.paint() {
+            c.dispatch(&paint);
+        }
+    }
+}
+
+impl PaintVarScaleAroundCenter<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(paint) = self.paint() {
             c.dispatch(&paint);
@@ -463,7 +463,7 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
     }
 }
 
-impl<'a> PaintScaleUniform<'a> {
+impl PaintScaleUniform<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(paint) = self.paint() {
             c.dispatch(&paint);
@@ -471,41 +471,7 @@ impl<'a> PaintScaleUniform<'a> {
     }
 }
 
-impl<'a> PaintVarScaleUniform<'a> {
-    fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
-        if let Ok(paint) = self.paint() {
-            c.dispatch(&paint);
-            c.add_variation_indices(self.var_index_base(), 1);
-        }
-    }
-}
-
-impl<'a> PaintScaleUniformAroundCenter<'a> {
-    fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
-        if let Ok(paint) = self.paint() {
-            c.dispatch(&paint);
-        }
-    }
-}
-
-impl<'a> PaintVarScaleUniformAroundCenter<'a> {
-    fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
-        if let Ok(paint) = self.paint() {
-            c.dispatch(&paint);
-            c.add_variation_indices(self.var_index_base(), 3);
-        }
-    }
-}
-
-impl<'a> PaintRotate<'a> {
-    fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
-        if let Ok(paint) = self.paint() {
-            c.dispatch(&paint);
-        }
-    }
-}
-
-impl<'a> PaintVarRotate<'a> {
+impl PaintVarScaleUniform<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(paint) = self.paint() {
             c.dispatch(&paint);
@@ -514,7 +480,7 @@ impl<'a> PaintVarRotate<'a> {
     }
 }
 
-impl<'a> PaintRotateAroundCenter<'a> {
+impl PaintScaleUniformAroundCenter<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(paint) = self.paint() {
             c.dispatch(&paint);
@@ -522,7 +488,7 @@ impl<'a> PaintRotateAroundCenter<'a> {
     }
 }
 
-impl<'a> PaintVarRotateAroundCenter<'a> {
+impl PaintVarScaleUniformAroundCenter<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(paint) = self.paint() {
             c.dispatch(&paint);
@@ -531,7 +497,7 @@ impl<'a> PaintVarRotateAroundCenter<'a> {
     }
 }
 
-impl<'a> PaintSkew<'a> {
+impl PaintRotate<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(paint) = self.paint() {
             c.dispatch(&paint);
@@ -539,7 +505,41 @@ impl<'a> PaintSkew<'a> {
     }
 }
 
-impl<'a> PaintVarSkew<'a> {
+impl PaintVarRotate<'_> {
+    fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
+        if let Ok(paint) = self.paint() {
+            c.dispatch(&paint);
+            c.add_variation_indices(self.var_index_base(), 1);
+        }
+    }
+}
+
+impl PaintRotateAroundCenter<'_> {
+    fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
+        if let Ok(paint) = self.paint() {
+            c.dispatch(&paint);
+        }
+    }
+}
+
+impl PaintVarRotateAroundCenter<'_> {
+    fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
+        if let Ok(paint) = self.paint() {
+            c.dispatch(&paint);
+            c.add_variation_indices(self.var_index_base(), 3);
+        }
+    }
+}
+
+impl PaintSkew<'_> {
+    fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
+        if let Ok(paint) = self.paint() {
+            c.dispatch(&paint);
+        }
+    }
+}
+
+impl PaintVarSkew<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(paint) = self.paint() {
             c.dispatch(&paint);
@@ -548,7 +548,7 @@ impl<'a> PaintVarSkew<'a> {
     }
 }
 
-impl<'a> PaintSkewAroundCenter<'a> {
+impl PaintSkewAroundCenter<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(paint) = self.paint() {
             c.dispatch(&paint);
@@ -556,7 +556,7 @@ impl<'a> PaintSkewAroundCenter<'a> {
     }
 }
 
-impl<'a> PaintVarSkewAroundCenter<'a> {
+impl PaintVarSkewAroundCenter<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(paint) = self.paint() {
             c.dispatch(&paint);
@@ -565,7 +565,7 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
     }
 }
 
-impl<'a> PaintComposite<'a> {
+impl PaintComposite<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Ok(source_paint) = self.source_paint() {
             c.dispatch(&source_paint);
@@ -596,7 +596,7 @@ impl Clip {
     }
 }
 
-impl<'a> ClipBox<'a> {
+impl ClipBox<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         if let Self::Format2(item) = self {
             item.v1_closure(c)
@@ -604,7 +604,7 @@ impl<'a> ClipBox<'a> {
     }
 }
 
-impl<'a> ClipBoxFormat2<'a> {
+impl ClipBoxFormat2<'_> {
     fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
         c.add_variation_indices(self.var_index_base(), 4);
     }

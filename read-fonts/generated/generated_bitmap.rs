@@ -771,6 +771,7 @@ impl<'a> FontRead<'a> for IndexSubtableArray<'a> {
 /// [IndexSubtableArray](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtablearray) table.
 pub type IndexSubtableArray<'a> = TableRef<'a, IndexSubtableArrayMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtableArray<'a> {
     /// First glyph ID of this range.
     pub fn first_glyph_index(&self) -> GlyphId16 {
@@ -810,6 +811,7 @@ impl<'a> SomeTable<'a> for IndexSubtableArray<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for IndexSubtableArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -900,7 +902,7 @@ impl<'a> IndexSubtable<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for IndexSubtable<'a> {
+impl std::fmt::Debug for IndexSubtable<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -967,6 +969,7 @@ impl<'a> FontRead<'a> for IndexSubtable1<'a> {
 /// [IndexSubTable1](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable1-variable-metrics-glyphs-with-4-byte-offsets): variable-metrics glyphs with 4-byte offsets.
 pub type IndexSubtable1<'a> = TableRef<'a, IndexSubtable1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtable1<'a> {
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
@@ -1009,6 +1012,7 @@ impl<'a> SomeTable<'a> for IndexSubtable1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for IndexSubtable1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1071,6 +1075,7 @@ impl<'a> FontRead<'a> for IndexSubtable2<'a> {
 /// [IndexSubTable2](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable2-all-glyphs-have-identical-metrics): all glyphs have identical metrics.
 pub type IndexSubtable2<'a> = TableRef<'a, IndexSubtable2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtable2<'a> {
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
@@ -1128,6 +1133,7 @@ impl<'a> SomeTable<'a> for IndexSubtable2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for IndexSubtable2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1185,6 +1191,7 @@ impl<'a> FontRead<'a> for IndexSubtable3<'a> {
 /// [IndexSubTable3](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable3-variable-metrics-glyphs-with-2-byte-offsets): variable-metrics glyphs with 2-byte offsets.
 pub type IndexSubtable3<'a> = TableRef<'a, IndexSubtable3Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtable3<'a> {
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
@@ -1227,6 +1234,7 @@ impl<'a> SomeTable<'a> for IndexSubtable3<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for IndexSubtable3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1291,6 +1299,7 @@ impl<'a> FontRead<'a> for IndexSubtable4<'a> {
 /// [IndexSubTable4](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable3-variable-metrics-glyphs-with-2-byte-offsets): variable-metrics glyphs with sparse glyph codes.
 pub type IndexSubtable4<'a> = TableRef<'a, IndexSubtable4Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtable4<'a> {
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
@@ -1348,6 +1357,7 @@ impl<'a> SomeTable<'a> for IndexSubtable4<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for IndexSubtable4<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1469,6 +1479,7 @@ impl<'a> FontRead<'a> for IndexSubtable5<'a> {
 /// [IndexSubTable5](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable5-constant-metrics-glyphs-with-sparse-glyph-codes): constant-metrics glyphs with sparse glyph codes
 pub type IndexSubtable5<'a> = TableRef<'a, IndexSubtable5Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtable5<'a> {
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
@@ -1540,6 +1551,7 @@ impl<'a> SomeTable<'a> for IndexSubtable5<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for IndexSubtable5<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

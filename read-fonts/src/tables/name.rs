@@ -108,7 +108,7 @@ impl<'a> IntoIterator for NameString<'a> {
     }
 }
 
-impl<'a> std::fmt::Display for NameString<'a> {
+impl std::fmt::Display for NameString<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         for c in self.chars() {
             c.fmt(f)?;
@@ -117,7 +117,7 @@ impl<'a> std::fmt::Display for NameString<'a> {
     }
 }
 
-impl<'a> std::fmt::Debug for NameString<'a> {
+impl std::fmt::Debug for NameString<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "\"{self}\"")
     }
@@ -148,7 +148,7 @@ impl CharIter<'_> {
     }
 }
 
-impl<'a> Iterator for CharIter<'a> {
+impl Iterator for CharIter<'_> {
     type Item = char;
 
     fn next(&mut self) -> Option<Self::Item> {

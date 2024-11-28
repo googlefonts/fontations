@@ -52,6 +52,7 @@ impl<'a> FontRead<'a> for Cmap<'a> {
 /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
 pub type Cmap<'a> = TableRef<'a, CmapMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap<'a> {
     /// Table version number (0).
     pub fn version(&self) -> u16 {
@@ -94,6 +95,7 @@ impl<'a> SomeTable<'a> for Cmap<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Cmap<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -298,7 +300,7 @@ impl<'a> CmapSubtable<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for CmapSubtable<'a> {
+impl std::fmt::Debug for CmapSubtable<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -366,6 +368,7 @@ impl<'a> FontRead<'a> for Cmap0<'a> {
 /// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
 pub type Cmap0<'a> = TableRef<'a, Cmap0Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap0<'a> {
     /// Format number is set to 0.
     pub fn format(&self) -> u16 {
@@ -410,6 +413,7 @@ impl<'a> SomeTable<'a> for Cmap0<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Cmap0<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -468,6 +472,7 @@ impl<'a> FontRead<'a> for Cmap2<'a> {
 /// [cmap Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-2-high-byte-mapping-through-table): High-byte mapping through table
 pub type Cmap2<'a> = TableRef<'a, Cmap2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap2<'a> {
     /// Format number is set to 2.
     pub fn format(&self) -> u16 {
@@ -513,6 +518,7 @@ impl<'a> SomeTable<'a> for Cmap2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Cmap2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -703,6 +709,7 @@ impl<'a> FontRead<'a> for Cmap4<'a> {
 /// [cmap Format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values): Segment mapping to delta values
 pub type Cmap4<'a> = TableRef<'a, Cmap4Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap4<'a> {
     /// Format number is set to 4.
     pub fn format(&self) -> u16 {
@@ -807,6 +814,7 @@ impl<'a> SomeTable<'a> for Cmap4<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Cmap4<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -877,6 +885,7 @@ impl<'a> FontRead<'a> for Cmap6<'a> {
 /// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
 pub type Cmap6<'a> = TableRef<'a, Cmap6Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap6<'a> {
     /// Format number is set to 6.
     pub fn format(&self) -> u16 {
@@ -935,6 +944,7 @@ impl<'a> SomeTable<'a> for Cmap6<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Cmap6<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1016,6 +1026,7 @@ impl<'a> FontRead<'a> for Cmap8<'a> {
 /// [cmap Format 8](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-8-mixed-16-bit-and-32-bit-coverage): mixed 16-bit and 32-bit coverage
 pub type Cmap8<'a> = TableRef<'a, Cmap8Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap8<'a> {
     /// Subtable format; set to 8.
     pub fn format(&self) -> u16 {
@@ -1083,6 +1094,7 @@ impl<'a> SomeTable<'a> for Cmap8<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Cmap8<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1216,6 +1228,7 @@ impl<'a> FontRead<'a> for Cmap10<'a> {
 /// [cmap Format 10](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array): Tr
 pub type Cmap10<'a> = TableRef<'a, Cmap10Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap10<'a> {
     /// Subtable format; set to 10.
     pub fn format(&self) -> u16 {
@@ -1274,6 +1287,7 @@ impl<'a> SomeTable<'a> for Cmap10<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Cmap10<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1342,6 +1356,7 @@ impl<'a> FontRead<'a> for Cmap12<'a> {
 /// [cmap Format 12](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage): Segmented coverage
 pub type Cmap12<'a> = TableRef<'a, Cmap12Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap12<'a> {
     /// Subtable format; set to 12.
     pub fn format(&self) -> u16 {
@@ -1400,6 +1415,7 @@ impl<'a> SomeTable<'a> for Cmap12<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Cmap12<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1468,6 +1484,7 @@ impl<'a> FontRead<'a> for Cmap13<'a> {
 /// [cmap Format 13](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-13-many-to-one-range-mappings): Many-to-one range mappings
 pub type Cmap13<'a> = TableRef<'a, Cmap13Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap13<'a> {
     /// Subtable format; set to 13.
     pub fn format(&self) -> u16 {
@@ -1526,6 +1543,7 @@ impl<'a> SomeTable<'a> for Cmap13<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Cmap13<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1636,6 +1654,7 @@ impl<'a> FontRead<'a> for Cmap14<'a> {
 /// [cmap Format 14](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences): Unicode Variation Sequences
 pub type Cmap14<'a> = TableRef<'a, Cmap14Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap14<'a> {
     /// Subtable format. Set to 14.
     pub fn format(&self) -> u16 {
@@ -1689,6 +1708,7 @@ impl<'a> SomeTable<'a> for Cmap14<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Cmap14<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1811,6 +1831,7 @@ impl<'a> FontRead<'a> for DefaultUvs<'a> {
 /// [Default UVS table](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table)
 pub type DefaultUvs<'a> = TableRef<'a, DefaultUvsMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> DefaultUvs<'a> {
     /// Number of Unicode character ranges.
     pub fn num_unicode_value_ranges(&self) -> u32 {
@@ -1850,6 +1871,7 @@ impl<'a> SomeTable<'a> for DefaultUvs<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for DefaultUvs<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1892,6 +1914,7 @@ impl<'a> FontRead<'a> for NonDefaultUvs<'a> {
 /// [Non-Default UVS table](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#non-default-uvs-table)
 pub type NonDefaultUvs<'a> = TableRef<'a, NonDefaultUvsMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> NonDefaultUvs<'a> {
     pub fn num_uvs_mappings(&self) -> u32 {
         let range = self.shape.num_uvs_mappings_byte_range();
@@ -1926,6 +1949,7 @@ impl<'a> SomeTable<'a> for NonDefaultUvs<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for NonDefaultUvs<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

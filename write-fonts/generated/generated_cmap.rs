@@ -61,6 +61,7 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap<'a>> for Cmap {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap<'a>> for Cmap {}
 
 impl<'a> FontRead<'a> for Cmap {
@@ -424,6 +425,7 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap0<'a>> for Cmap0 {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap0<'a>> for Cmap0 {}
 
 impl<'a> FontRead<'a> for Cmap0 {
@@ -485,6 +487,7 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap2<'a>> for Cmap2 {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap2<'a>> for Cmap2 {}
 
 impl<'a> FontRead<'a> for Cmap2 {
@@ -626,6 +629,7 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap4<'a>> for Cmap4 {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap4<'a>> for Cmap4 {}
 
 impl<'a> FontRead<'a> for Cmap4 {
@@ -710,6 +714,7 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap6<'a>> for Cmap6 {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap6<'a>> for Cmap6 {}
 
 impl<'a> FontRead<'a> for Cmap6 {
@@ -798,6 +803,7 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap8<'a>> for Cmap8 {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap8<'a>> for Cmap8 {}
 
 impl<'a> FontRead<'a> for Cmap8 {
@@ -927,6 +933,7 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap10<'a>> for Cmap10 {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap10<'a>> for Cmap10 {}
 
 impl<'a> FontRead<'a> for Cmap10 {
@@ -994,6 +1001,7 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap12<'a>> for Cmap12 {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap12<'a>> for Cmap12 {}
 
 impl<'a> FontRead<'a> for Cmap12 {
@@ -1069,6 +1077,7 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap13<'a>> for Cmap13 {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap13<'a>> for Cmap13 {}
 
 impl<'a> FontRead<'a> for Cmap13 {
@@ -1190,6 +1199,7 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap14<'a>> for Cmap14 {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap14<'a>> for Cmap14 {}
 
 impl<'a> FontRead<'a> for Cmap14 {
@@ -1317,6 +1327,7 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::DefaultUvs<'a>> for DefaultUvs {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::DefaultUvs<'a>> for DefaultUvs {}
 
 impl<'a> FontRead<'a> for DefaultUvs {
@@ -1376,6 +1387,7 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::NonDefaultUvs<'a>> for NonDefaultU
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::NonDefaultUvs<'a>> for NonDefaultUvs {}
 
 impl<'a> FontRead<'a> for NonDefaultUvs {

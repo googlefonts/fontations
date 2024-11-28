@@ -95,6 +95,7 @@ impl<'a> FontRead<'a> for Name<'a> {
 /// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
 pub type Name<'a> = TableRef<'a, NameMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Name<'a> {
     /// Table version number (0 or 1)
     pub fn version(&self) -> u16 {
@@ -169,6 +170,7 @@ impl<'a> SomeTable<'a> for Name<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Name<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

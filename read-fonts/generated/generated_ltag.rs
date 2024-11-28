@@ -58,6 +58,7 @@ impl<'a> FontRead<'a> for Ltag<'a> {
 /// The [language tag](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ltag.html) table.
 pub type Ltag<'a> = TableRef<'a, LtagMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Ltag<'a> {
     /// Table version; currently 1.
     pub fn version(&self) -> u32 {
@@ -108,6 +109,7 @@ impl<'a> SomeTable<'a> for Ltag<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Ltag<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

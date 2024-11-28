@@ -78,7 +78,7 @@ pub enum DefinitionMap<'a> {
     Mut(&'a mut [Definition]),
 }
 
-impl<'a> DefinitionMap<'a> {
+impl DefinitionMap<'_> {
     /// Attempts to allocate a new definition entry with the given key.
     ///
     /// Overriding a definition is legal, so if an existing active entry

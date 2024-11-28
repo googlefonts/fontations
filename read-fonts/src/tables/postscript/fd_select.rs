@@ -4,7 +4,7 @@ use types::GlyphId;
 
 use super::FdSelect;
 
-impl<'a> FdSelect<'a> {
+impl FdSelect<'_> {
     /// Returns the associated font DICT index for the given glyph identifier.
     pub fn font_index(&self, glyph_id: GlyphId) -> Option<u16> {
         match self {

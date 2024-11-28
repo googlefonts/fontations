@@ -6,7 +6,7 @@
 
 use super::{super::math, Engine, HintErrorKind, OpResult};
 
-impl<'a> Engine<'a> {
+impl Engine<'_> {
     /// ADD[] (0x60)
     ///
     /// Pops: n1, n2 (F26Dot6)

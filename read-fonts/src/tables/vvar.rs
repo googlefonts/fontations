@@ -4,7 +4,7 @@ use super::variations::{self, DeltaSetIndexMap, ItemVariationStore};
 
 include!("../../generated/generated_vvar.rs");
 
-impl<'a> Vvar<'a> {
+impl Vvar<'_> {
     /// Returns the advance height delta for the specified glyph identifier and
     /// normalized variation coordinates.
     pub fn advance_height_delta(

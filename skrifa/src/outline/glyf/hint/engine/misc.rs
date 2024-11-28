@@ -6,7 +6,7 @@
 
 use super::{Engine, OpResult};
 
-impl<'a> Engine<'a> {
+impl Engine<'_> {
     /// Get information.
     ///
     /// GETINFO[] (0x88)
@@ -17,7 +17,7 @@ impl<'a> Engine<'a> {
     /// GETINFO is used to obtain data about the font scaler version and the
     /// characteristics of the current glyph. The instruction pops a selector
     /// used to determine the type of information desired and pushes a result
-    /// onto the stack.    
+    /// onto the stack.
     ///
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#get-information>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6689>
@@ -87,7 +87,7 @@ impl<'a> Engine<'a> {
     /// coordinates for each axis. The coordinate for the first axis, as
     /// defined in the 'fvar' table, is pushed first on the stack, followed
     /// by each consecutive axis until the coordinate for the last axis is
-    /// on the stack.   
+    /// on the stack.
     ///
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#get-variation>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6813>
@@ -122,7 +122,7 @@ impl<'a> Engine<'a> {
     /// returns 17 for variable fonts and falls back to IDEF lookup
     /// otherwise.
     ///
-    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6851>    
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6851>
     pub(super) fn op_getdata(&mut self) -> OpResult {
         if self.axis_count != 0 {
             self.value_stack.push(17)
@@ -312,7 +312,7 @@ mod tests {
         assert_eq!(engine.value_stack.pop().unwrap(), 17);
     }
 
-    impl<'a> Engine<'a> {
+    impl Engine<'_> {
         fn getinfo_test(&mut self, selector: i32, expected: i32) {
             self.value_stack.push(selector).unwrap();
             self.op_getinfo().unwrap();

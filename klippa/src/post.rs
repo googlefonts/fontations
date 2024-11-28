@@ -14,7 +14,7 @@ use write_fonts::{
 
 // reference: subset() for post in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/hb-ot-post-table.hh#L96
-impl<'a> Subset for Post<'a> {
+impl Subset for Post<'_> {
     fn subset(
         &self,
         plan: &Plan,

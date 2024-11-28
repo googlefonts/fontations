@@ -30,7 +30,7 @@ mod tests {
         }
     }
 
-    impl<'a> BitmapData<'a> {
+    impl BitmapData<'_> {
         pub(crate) fn extract_small_metrics(&self) -> &SmallGlyphMetrics {
             match &self.metrics {
                 BitmapMetrics::Small(small) => small,

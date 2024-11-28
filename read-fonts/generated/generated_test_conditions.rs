@@ -62,6 +62,7 @@ impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
 
 pub type MajorMinorVersion<'a> = TableRef<'a, MajorMinorVersionMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> MajorMinorVersion<'a> {
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
@@ -106,6 +107,7 @@ impl<'a> SomeTable<'a> for MajorMinorVersion<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for MajorMinorVersion<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -488,6 +490,7 @@ impl<'a> FontRead<'a> for FlagDay<'a> {
 
 pub type FlagDay<'a> = TableRef<'a, FlagDayMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FlagDay<'a> {
     pub fn volume(&self) -> u16 {
         let range = self.shape.volume_byte_range();
@@ -536,6 +539,7 @@ impl<'a> SomeTable<'a> for FlagDay<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for FlagDay<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -635,6 +639,7 @@ impl<'a> FontRead<'a> for FieldsAfterConditionals<'a> {
 
 pub type FieldsAfterConditionals<'a> = TableRef<'a, FieldsAfterConditionalsMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FieldsAfterConditionals<'a> {
     pub fn flags(&self) -> GotFlags {
         let range = self.shape.flags_byte_range();
@@ -693,6 +698,7 @@ impl<'a> SomeTable<'a> for FieldsAfterConditionals<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for FieldsAfterConditionals<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

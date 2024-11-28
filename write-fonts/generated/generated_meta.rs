@@ -62,6 +62,7 @@ impl<'a> FromObjRef<read_fonts::tables::meta::Meta<'a>> for Meta {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::meta::Meta<'a>> for Meta {}
 
 impl<'a> FontRead<'a> for Meta {

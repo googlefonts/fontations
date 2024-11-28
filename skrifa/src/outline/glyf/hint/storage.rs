@@ -8,7 +8,7 @@ use super::{cow_slice::CowSlice, error::HintErrorKind};
 /// accesses to appropriate errors.
 pub struct Storage<'a>(CowSlice<'a>);
 
-impl<'a> Storage<'a> {
+impl Storage<'_> {
     pub fn get(&self, index: usize) -> Result<i32, HintErrorKind> {
         self.0
             .get(index)

@@ -6,7 +6,7 @@
 
 use super::{super::math::mul, Engine, F26Dot6, OpResult};
 
-impl<'a> Engine<'a> {
+impl Engine<'_> {
     /// Write control value table in pixel units.
     ///
     /// WCVTP[] (0x44)

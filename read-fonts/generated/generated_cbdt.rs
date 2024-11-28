@@ -39,6 +39,7 @@ impl<'a> FontRead<'a> for Cbdt<'a> {
 /// The [Color Bitmap Data](https://learn.microsoft.com/en-us/typography/opentype/spec/cbdt) table
 pub type Cbdt<'a> = TableRef<'a, CbdtMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Cbdt<'a> {
     /// Major version of the CBDT table, = 3.
     pub fn major_version(&self) -> u16 {
@@ -68,6 +69,7 @@ impl<'a> SomeTable<'a> for Cbdt<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Cbdt<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

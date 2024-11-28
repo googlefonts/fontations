@@ -290,7 +290,7 @@ struct FieldIter<'a, 'b> {
     idx: usize,
 }
 
-impl<'a, 'b> Iterator for FieldIter<'a, 'b> {
+impl<'a> Iterator for FieldIter<'a, '_> {
     type Item = Field<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -356,7 +356,7 @@ struct ArrayIter<'a, 'b> {
     idx: usize,
 }
 
-impl<'a, 'b> Iterator for ArrayIter<'a, 'b> {
+impl<'a> Iterator for ArrayIter<'a, '_> {
     type Item = FieldType<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -561,7 +561,7 @@ impl<'a> Debug for FieldType<'a> {
     }
 }
 
-impl<'a, 'b> std::fmt::Debug for DebugPrintTable<'a, 'b> {
+impl std::fmt::Debug for DebugPrintTable<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut debug_struct = f.debug_struct(self.0.type_name());
         for field in self.0.iter() {
@@ -587,7 +587,7 @@ impl<'a> Debug for dyn SomeString<'a> + 'a {
     }
 }
 
-impl<'a, 'b> std::fmt::Debug for DebugPrintArray<'a, 'b> {
+impl std::fmt::Debug for DebugPrintArray<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut debug_list = f.debug_list();
         let mut idx = 0;

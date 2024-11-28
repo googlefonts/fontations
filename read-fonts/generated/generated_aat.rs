@@ -73,7 +73,7 @@ impl<'a> Lookup<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for Lookup<'a> {
+impl std::fmt::Debug for Lookup<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -129,6 +129,7 @@ impl<'a> FontRead<'a> for Lookup0<'a> {
 /// by glyph index.
 pub type Lookup0<'a> = TableRef<'a, Lookup0Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup0<'a> {
     /// Format number is set to 0.
     pub fn format(&self) -> u16 {
@@ -158,6 +159,7 @@ impl<'a> SomeTable<'a> for Lookup0<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Lookup0<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -238,6 +240,7 @@ impl<'a> FontRead<'a> for Lookup2<'a> {
 /// a contiguous range of glyph indexes.
 pub type Lookup2<'a> = TableRef<'a, Lookup2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup2<'a> {
     /// Format number is set to 2.
     pub fn format(&self) -> u16 {
@@ -302,6 +305,7 @@ impl<'a> SomeTable<'a> for Lookup2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Lookup2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -380,6 +384,7 @@ impl<'a> FontRead<'a> for Lookup4<'a> {
 /// each glyph in the segment gets its own separate lookup value.
 pub type Lookup4<'a> = TableRef<'a, Lookup4Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup4<'a> {
     /// Format number is set to 4.
     pub fn format(&self) -> u16 {
@@ -451,6 +456,7 @@ impl<'a> SomeTable<'a> for Lookup4<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Lookup4<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -579,6 +585,7 @@ impl<'a> FontRead<'a> for Lookup6<'a> {
 /// <glyph index,lookup value> pairs.
 pub type Lookup6<'a> = TableRef<'a, Lookup6Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup6<'a> {
     /// Format number is set to 6.
     pub fn format(&self) -> u16 {
@@ -643,6 +650,7 @@ impl<'a> SomeTable<'a> for Lookup6<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Lookup6<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -701,6 +709,7 @@ impl<'a> FontRead<'a> for Lookup8<'a> {
 /// indexed by glyph index.
 pub type Lookup8<'a> = TableRef<'a, Lookup8Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup8<'a> {
     /// Format number is set to 8.
     pub fn format(&self) -> u16 {
@@ -746,6 +755,7 @@ impl<'a> SomeTable<'a> for Lookup8<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Lookup8<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -810,6 +820,7 @@ impl<'a> FontRead<'a> for Lookup10<'a> {
 /// indexed by glyph index.
 pub type Lookup10<'a> = TableRef<'a, Lookup10Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup10<'a> {
     /// Format number is set to 10.
     pub fn format(&self) -> u16 {
@@ -863,6 +874,7 @@ impl<'a> SomeTable<'a> for Lookup10<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Lookup10<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -910,6 +922,7 @@ impl<'a> FontRead<'a> for StateHeader<'a> {
 /// Header for a state table.
 pub type StateHeader<'a> = TableRef<'a, StateHeaderMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> StateHeader<'a> {
     /// Size of a state, in bytes. The size is limited to 8 bits, although the
     /// field is 16 bits for alignment.
@@ -981,6 +994,7 @@ impl<'a> SomeTable<'a> for StateHeader<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for StateHeader<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1029,6 +1043,7 @@ impl<'a> FontRead<'a> for ClassSubtable<'a> {
 /// Maps the glyph indexes of your font into classes.
 pub type ClassSubtable<'a> = TableRef<'a, ClassSubtableMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ClassSubtable<'a> {
     /// Glyph index of the first glyph in the class table.
     pub fn first_glyph(&self) -> u16 {
@@ -1066,6 +1081,7 @@ impl<'a> SomeTable<'a> for ClassSubtable<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ClassSubtable<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1098,6 +1114,7 @@ impl<'a> FontRead<'a> for RawBytes<'a> {
 /// Used for the `state_array` and `entry_table` fields in [`StateHeader`].
 pub type RawBytes<'a> = TableRef<'a, RawBytesMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> RawBytes<'a> {
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
@@ -1119,6 +1136,7 @@ impl<'a> SomeTable<'a> for RawBytes<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for RawBytes<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1166,6 +1184,7 @@ impl<'a> FontRead<'a> for StxHeader<'a> {
 /// Header for an extended state table.
 pub type StxHeader<'a> = TableRef<'a, StxHeaderMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> StxHeader<'a> {
     /// Number of classes, which is the number of 16-bit entry indices in a single line in the state array.
     pub fn n_classes(&self) -> u32 {
@@ -1236,6 +1255,7 @@ impl<'a> SomeTable<'a> for StxHeader<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for StxHeader<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1268,6 +1288,7 @@ impl<'a> FontRead<'a> for RawWords<'a> {
 /// Used for the `state_array` in [`StxHeader`].
 pub type RawWords<'a> = TableRef<'a, RawWordsMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> RawWords<'a> {
     pub fn data(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.data_byte_range();
@@ -1289,6 +1310,7 @@ impl<'a> SomeTable<'a> for RawWords<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for RawWords<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

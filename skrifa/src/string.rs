@@ -39,7 +39,7 @@ pub struct Chars<'a> {
     inner: Option<CharIter<'a>>,
 }
 
-impl<'a> Iterator for Chars<'a> {
+impl Iterator for Chars<'_> {
     type Item = char;
 
     fn next(&mut self) -> Option<Self::Item> {

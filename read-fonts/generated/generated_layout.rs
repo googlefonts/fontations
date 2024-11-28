@@ -41,6 +41,7 @@ impl<'a> FontRead<'a> for ScriptList<'a> {
 /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 pub type ScriptList<'a> = TableRef<'a, ScriptListMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ScriptList<'a> {
     /// Number of ScriptRecords
     pub fn script_count(&self) -> u16 {
@@ -77,6 +78,7 @@ impl<'a> SomeTable<'a> for ScriptList<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ScriptList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -178,6 +180,7 @@ impl<'a> FontRead<'a> for Script<'a> {
 /// [Script Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-table-and-language-system-record)
 pub type Script<'a> = TableRef<'a, ScriptMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Script<'a> {
     /// Offset to default LangSys table, from beginning of Script table
     /// — may be NULL
@@ -232,6 +235,7 @@ impl<'a> SomeTable<'a> for Script<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Script<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -338,6 +342,7 @@ impl<'a> FontRead<'a> for LangSys<'a> {
 /// [Language System Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#language-system-table)
 pub type LangSys<'a> = TableRef<'a, LangSysMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> LangSys<'a> {
     /// Index of a feature required for this language system; if no
     /// required features = 0xFFFF
@@ -382,6 +387,7 @@ impl<'a> SomeTable<'a> for LangSys<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for LangSys<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -424,6 +430,7 @@ impl<'a> FontRead<'a> for FeatureList<'a> {
 /// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
 pub type FeatureList<'a> = TableRef<'a, FeatureListMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FeatureList<'a> {
     /// Number of FeatureRecords in this table
     pub fn feature_count(&self) -> u16 {
@@ -461,6 +468,7 @@ impl<'a> SomeTable<'a> for FeatureList<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for FeatureList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -581,6 +589,7 @@ impl<'a> Feature<'a> {
 /// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
 pub type Feature<'a> = TableRef<'a, FeatureMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Feature<'a> {
     /// Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
     pub fn feature_params_offset(&self) -> Nullable<Offset16> {
@@ -635,6 +644,7 @@ impl<'a> SomeTable<'a> for Feature<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Feature<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -716,6 +726,7 @@ impl<'a, T> LookupList<'a, T> {
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
 pub type LookupList<'a, T> = TableRef<'a, LookupListMarker<T>>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a, T> LookupList<'a, T> {
     /// Number of lookups in this table
     pub fn lookup_count(&self) -> u16 {
@@ -769,6 +780,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for LookupList<'a, 
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for LookupList<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -878,6 +890,7 @@ impl<'a, T> Lookup<'a, T> {
 /// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
 pub type Lookup<'a, T> = TableRef<'a, LookupMarker<T>>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a, T> Lookup<'a, T> {
     /// Different enumerations for GSUB and GPOS
     pub fn lookup_type(&self) -> u16 {
@@ -958,6 +971,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for Lookup<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1010,6 +1024,7 @@ impl<'a> FontRead<'a> for CoverageFormat1<'a> {
 /// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
 pub type CoverageFormat1<'a> = TableRef<'a, CoverageFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> CoverageFormat1<'a> {
     /// Format identifier — format = 1
     pub fn coverage_format(&self) -> u16 {
@@ -1046,6 +1061,7 @@ impl<'a> SomeTable<'a> for CoverageFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for CoverageFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1098,6 +1114,7 @@ impl<'a> FontRead<'a> for CoverageFormat2<'a> {
 /// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
 pub type CoverageFormat2<'a> = TableRef<'a, CoverageFormat2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> CoverageFormat2<'a> {
     /// Format identifier — format = 2
     pub fn coverage_format(&self) -> u16 {
@@ -1141,6 +1158,7 @@ impl<'a> SomeTable<'a> for CoverageFormat2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for CoverageFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1248,7 +1266,7 @@ impl<'a> CoverageTable<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for CoverageTable<'a> {
+impl std::fmt::Debug for CoverageTable<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -1316,6 +1334,7 @@ impl<'a> FontRead<'a> for ClassDefFormat1<'a> {
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 pub type ClassDefFormat1<'a> = TableRef<'a, ClassDefFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ClassDefFormat1<'a> {
     /// Format identifier — format = 1
     pub fn class_format(&self) -> u16 {
@@ -1359,6 +1378,7 @@ impl<'a> SomeTable<'a> for ClassDefFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ClassDefFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1411,6 +1431,7 @@ impl<'a> FontRead<'a> for ClassDefFormat2<'a> {
 /// [Class Definition Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-2)
 pub type ClassDefFormat2<'a> = TableRef<'a, ClassDefFormat2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ClassDefFormat2<'a> {
     /// Format identifier — format = 2
     pub fn class_format(&self) -> u16 {
@@ -1454,6 +1475,7 @@ impl<'a> SomeTable<'a> for ClassDefFormat2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ClassDefFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1558,7 +1580,7 @@ impl<'a> ClassDef<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for ClassDef<'a> {
+impl std::fmt::Debug for ClassDef<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -1668,6 +1690,7 @@ impl<'a> FontRead<'a> for SequenceContextFormat1<'a> {
 /// [Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-1-simple-glyph-contexts)
 pub type SequenceContextFormat1<'a> = TableRef<'a, SequenceContextFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> SequenceContextFormat1<'a> {
     /// Format identifier: format = 1
     pub fn format(&self) -> u16 {
@@ -1742,6 +1765,7 @@ impl<'a> SomeTable<'a> for SequenceContextFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for SequenceContextFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1784,6 +1808,7 @@ impl<'a> FontRead<'a> for SequenceRuleSet<'a> {
 /// Part of [SequenceContextFormat1]
 pub type SequenceRuleSet<'a> = TableRef<'a, SequenceRuleSetMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> SequenceRuleSet<'a> {
     /// Number of SequenceRule tables
     pub fn seq_rule_count(&self) -> u16 {
@@ -1834,6 +1859,7 @@ impl<'a> SomeTable<'a> for SequenceRuleSet<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for SequenceRuleSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1893,6 +1919,7 @@ impl<'a> FontRead<'a> for SequenceRule<'a> {
 /// Part of [SequenceContextFormat1]
 pub type SequenceRule<'a> = TableRef<'a, SequenceRuleMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> SequenceRule<'a> {
     /// Number of glyphs in the input glyph sequence
     pub fn glyph_count(&self) -> u16 {
@@ -1943,6 +1970,7 @@ impl<'a> SomeTable<'a> for SequenceRule<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for SequenceRule<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2007,6 +2035,7 @@ impl<'a> FontRead<'a> for SequenceContextFormat2<'a> {
 /// [Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-2-class-based-glyph-contexts)
 pub type SequenceContextFormat2<'a> = TableRef<'a, SequenceContextFormat2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> SequenceContextFormat2<'a> {
     /// Format identifier: format = 2
     pub fn format(&self) -> u16 {
@@ -2103,6 +2132,7 @@ impl<'a> SomeTable<'a> for SequenceContextFormat2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for SequenceContextFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2145,6 +2175,7 @@ impl<'a> FontRead<'a> for ClassSequenceRuleSet<'a> {
 /// Part of [SequenceContextFormat2]
 pub type ClassSequenceRuleSet<'a> = TableRef<'a, ClassSequenceRuleSetMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ClassSequenceRuleSet<'a> {
     /// Number of ClassSequenceRule tables
     pub fn class_seq_rule_count(&self) -> u16 {
@@ -2198,6 +2229,7 @@ impl<'a> SomeTable<'a> for ClassSequenceRuleSet<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ClassSequenceRuleSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2257,6 +2289,7 @@ impl<'a> FontRead<'a> for ClassSequenceRule<'a> {
 /// Part of [SequenceContextFormat2]
 pub type ClassSequenceRule<'a> = TableRef<'a, ClassSequenceRuleMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ClassSequenceRule<'a> {
     /// Number of glyphs to be matched
     pub fn glyph_count(&self) -> u16 {
@@ -2308,6 +2341,7 @@ impl<'a> SomeTable<'a> for ClassSequenceRule<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ClassSequenceRule<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2377,6 +2411,7 @@ impl<'a> FontRead<'a> for SequenceContextFormat3<'a> {
 /// [Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-3-coverage-based-glyph-contexts)
 pub type SequenceContextFormat3<'a> = TableRef<'a, SequenceContextFormat3Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> SequenceContextFormat3<'a> {
     /// Format identifier: format = 3
     pub fn format(&self) -> u16 {
@@ -2455,6 +2490,7 @@ impl<'a> SomeTable<'a> for SequenceContextFormat3<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for SequenceContextFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2512,7 +2548,7 @@ impl<'a> SequenceContext<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for SequenceContext<'a> {
+impl std::fmt::Debug for SequenceContext<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -2580,6 +2616,7 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat1<'a> {
 /// [Chained Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-1-simple-glyph-contexts)
 pub type ChainedSequenceContextFormat1<'a> = TableRef<'a, ChainedSequenceContextFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedSequenceContextFormat1<'a> {
     /// Format identifier: format = 1
     pub fn format(&self) -> u16 {
@@ -2659,6 +2696,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ChainedSequenceContextFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2701,6 +2739,7 @@ impl<'a> FontRead<'a> for ChainedSequenceRuleSet<'a> {
 /// Part of [ChainedSequenceContextFormat1]
 pub type ChainedSequenceRuleSet<'a> = TableRef<'a, ChainedSequenceRuleSetMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedSequenceRuleSet<'a> {
     /// Number of ChainedSequenceRule tables
     pub fn chained_seq_rule_count(&self) -> u16 {
@@ -2754,6 +2793,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceRuleSet<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ChainedSequenceRuleSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2847,6 +2887,7 @@ impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
 /// Part of [ChainedSequenceContextFormat1]
 pub type ChainedSequenceRule<'a> = TableRef<'a, ChainedSequenceRuleMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedSequenceRule<'a> {
     /// Number of glyphs in the backtrack sequence
     pub fn backtrack_glyph_count(&self) -> u16 {
@@ -2931,6 +2972,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceRule<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ChainedSequenceRule<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3008,6 +3050,7 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat2<'a> {
 /// [Chained Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-2-class-based-glyph-contexts)
 pub type ChainedSequenceContextFormat2<'a> = TableRef<'a, ChainedSequenceContextFormat2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Format identifier: format = 2
     pub fn format(&self) -> u16 {
@@ -3144,6 +3187,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ChainedSequenceContextFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3186,6 +3230,7 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet<'a> {
 /// Part of [ChainedSequenceContextFormat2]
 pub type ChainedClassSequenceRuleSet<'a> = TableRef<'a, ChainedClassSequenceRuleSetMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedClassSequenceRuleSet<'a> {
     /// Number of ChainedClassSequenceRule tables
     pub fn chained_class_seq_rule_count(&self) -> u16 {
@@ -3241,6 +3286,7 @@ impl<'a> SomeTable<'a> for ChainedClassSequenceRuleSet<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ChainedClassSequenceRuleSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3334,6 +3380,7 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRule<'a> {
 /// Part of [ChainedSequenceContextFormat2]
 pub type ChainedClassSequenceRule<'a> = TableRef<'a, ChainedClassSequenceRuleMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedClassSequenceRule<'a> {
     /// Number of glyphs in the backtrack sequence
     pub fn backtrack_glyph_count(&self) -> u16 {
@@ -3419,6 +3466,7 @@ impl<'a> SomeTable<'a> for ChainedClassSequenceRule<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ChainedClassSequenceRule<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3522,6 +3570,7 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat3<'a> {
 /// [Chained Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-3-coverage-based-glyph-contexts)
 pub type ChainedSequenceContextFormat3<'a> = TableRef<'a, ChainedSequenceContextFormat3Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Format identifier: format = 3
     pub fn format(&self) -> u16 {
@@ -3673,6 +3722,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ChainedSequenceContextFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3730,7 +3780,7 @@ impl<'a> ChainedSequenceContext<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for ChainedSequenceContext<'a> {
+impl std::fmt::Debug for ChainedSequenceContext<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -3848,6 +3898,7 @@ impl<'a> FontRead<'a> for Device<'a> {
 /// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
 pub type Device<'a> = TableRef<'a, DeviceMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Device<'a> {
     /// Smallest size to correct, in ppem
     pub fn start_size(&self) -> u16 {
@@ -3891,6 +3942,7 @@ impl<'a> SomeTable<'a> for Device<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Device<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3932,6 +3984,7 @@ impl<'a> FontRead<'a> for VariationIndex<'a> {
 /// Variation index table
 pub type VariationIndex<'a> = TableRef<'a, VariationIndexMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> VariationIndex<'a> {
     /// A delta-set outer index — used to select an item variation
     /// data subtable within the item variation store.
@@ -3976,6 +4029,7 @@ impl<'a> SomeTable<'a> for VariationIndex<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for VariationIndex<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4027,7 +4081,7 @@ impl<'a> DeviceOrVariationIndex<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for DeviceOrVariationIndex<'a> {
+impl std::fmt::Debug for DeviceOrVariationIndex<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -4085,6 +4139,7 @@ impl<'a> FontRead<'a> for FeatureVariations<'a> {
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
 pub type FeatureVariations<'a> = TableRef<'a, FeatureVariationsMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FeatureVariations<'a> {
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
@@ -4130,6 +4185,7 @@ impl<'a> SomeTable<'a> for FeatureVariations<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for FeatureVariations<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4251,6 +4307,7 @@ impl<'a> FontRead<'a> for ConditionSet<'a> {
 /// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
 pub type ConditionSet<'a> = TableRef<'a, ConditionSetMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionSet<'a> {
     /// Number of conditions for this condition set.
     pub fn condition_count(&self) -> u16 {
@@ -4301,6 +4358,7 @@ impl<'a> SomeTable<'a> for ConditionSet<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ConditionSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4372,7 +4430,7 @@ impl<'a> Condition<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for Condition<'a> {
+impl std::fmt::Debug for Condition<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -4433,6 +4491,7 @@ impl<'a> FontRead<'a> for ConditionFormat1<'a> {
 /// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
 pub type ConditionFormat1<'a> = TableRef<'a, ConditionFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionFormat1<'a> {
     /// Format, = 1
     pub fn format(&self) -> u16 {
@@ -4485,6 +4544,7 @@ impl<'a> SomeTable<'a> for ConditionFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ConditionFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4530,6 +4590,7 @@ impl<'a> FontRead<'a> for ConditionFormat2<'a> {
 /// [Condition Table Format 2](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3237-L3255): Variation index
 pub type ConditionFormat2<'a> = TableRef<'a, ConditionFormat2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionFormat2<'a> {
     /// Format, = 2
     pub fn format(&self) -> u16 {
@@ -4566,6 +4627,7 @@ impl<'a> SomeTable<'a> for ConditionFormat2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ConditionFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4618,6 +4680,7 @@ impl<'a> FontRead<'a> for ConditionFormat3<'a> {
 /// [Condition Table Format 3](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3257-L3275): AND
 pub type ConditionFormat3<'a> = TableRef<'a, ConditionFormat3Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionFormat3<'a> {
     /// Format, = 3
     pub fn format(&self) -> u16 {
@@ -4674,6 +4737,7 @@ impl<'a> SomeTable<'a> for ConditionFormat3<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ConditionFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4726,6 +4790,7 @@ impl<'a> FontRead<'a> for ConditionFormat4<'a> {
 /// [Condition Table Format 4](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3276-L3295): OR
 pub type ConditionFormat4<'a> = TableRef<'a, ConditionFormat4Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionFormat4<'a> {
     /// Format, = 4
     pub fn format(&self) -> u16 {
@@ -4782,6 +4847,7 @@ impl<'a> SomeTable<'a> for ConditionFormat4<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ConditionFormat4<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4821,6 +4887,7 @@ impl<'a> FontRead<'a> for ConditionFormat5<'a> {
 /// [Condition Table Format 5](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3296-L3308): NOT
 pub type ConditionFormat5<'a> = TableRef<'a, ConditionFormat5Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionFormat5<'a> {
     /// Format, = 5
     pub fn format(&self) -> u16 {
@@ -4859,6 +4926,7 @@ impl<'a> SomeTable<'a> for ConditionFormat5<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ConditionFormat5<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4907,6 +4975,7 @@ impl<'a> FontRead<'a> for FeatureTableSubstitution<'a> {
 /// [FeatureTableSubstitution Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featuretablesubstitution-table)
 pub type FeatureTableSubstitution<'a> = TableRef<'a, FeatureTableSubstitutionMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FeatureTableSubstitution<'a> {
     /// Major & minor version of the table: (1, 0)
     pub fn version(&self) -> MajorMinor {
@@ -4950,6 +5019,7 @@ impl<'a> SomeTable<'a> for FeatureTableSubstitution<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for FeatureTableSubstitution<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -5051,6 +5121,7 @@ impl<'a> FontRead<'a> for SizeParams<'a> {
 
 pub type SizeParams<'a> = TableRef<'a, SizeParamsMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> SizeParams<'a> {
     /// The first value represents the design size in 720/inch units (decipoints).
     ///
@@ -5121,6 +5192,7 @@ impl<'a> SomeTable<'a> for SizeParams<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for SizeParams<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -5154,6 +5226,7 @@ impl<'a> FontRead<'a> for StylisticSetParams<'a> {
 
 pub type StylisticSetParams<'a> = TableRef<'a, StylisticSetParamsMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> StylisticSetParams<'a> {
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
@@ -5190,6 +5263,7 @@ impl<'a> SomeTable<'a> for StylisticSetParams<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for StylisticSetParams<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -5270,6 +5344,7 @@ impl<'a> FontRead<'a> for CharacterVariantParams<'a> {
 /// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
 pub type CharacterVariantParams<'a> = TableRef<'a, CharacterVariantParamsMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> CharacterVariantParams<'a> {
     /// Format number is set to 0.
     pub fn format(&self) -> u16 {
@@ -5365,6 +5440,7 @@ impl<'a> SomeTable<'a> for CharacterVariantParams<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for CharacterVariantParams<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

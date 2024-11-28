@@ -115,7 +115,7 @@ pub struct GraphicsState<'a> {
     pub did_iup_y: bool,
 }
 
-impl<'a> GraphicsState<'a> {
+impl GraphicsState<'_> {
     /// Returns the factor for scaling unscaled points to pixels.
     ///
     /// For composite glyphs, "unscaled" points are already scaled so we

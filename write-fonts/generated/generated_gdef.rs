@@ -112,6 +112,7 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::Gdef<'a>> for Gdef {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::Gdef<'a>> for Gdef {}
 
 impl<'a> FontRead<'a> for Gdef {
@@ -185,6 +186,7 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::AttachList<'a>> for AttachList {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::AttachList<'a>> for AttachList {}
 
 impl<'a> FontRead<'a> for AttachList {
@@ -242,6 +244,7 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::AttachPoint<'a>> for AttachPoint {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::AttachPoint<'a>> for AttachPoint {}
 
 impl<'a> FontRead<'a> for AttachPoint {
@@ -308,6 +311,7 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::LigCaretList<'a>> for LigCaretList
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::LigCaretList<'a>> for LigCaretList {}
 
 impl<'a> FontRead<'a> for LigCaretList {
@@ -366,6 +370,7 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::LigGlyph<'a>> for LigGlyph {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::LigGlyph<'a>> for LigGlyph {}
 
 impl<'a> FontRead<'a> for LigGlyph {
@@ -508,6 +513,7 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::CaretValueFormat1<'a>> for CaretVa
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::CaretValueFormat1<'a>> for CaretValueFormat1 {}
 
 impl<'a> FontRead<'a> for CaretValueFormat1 {
@@ -557,6 +563,7 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::CaretValueFormat2<'a>> for CaretVa
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::CaretValueFormat2<'a>> for CaretValueFormat2 {}
 
 impl<'a> FontRead<'a> for CaretValueFormat2 {
@@ -619,6 +626,7 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::CaretValueFormat3<'a>> for CaretVa
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::CaretValueFormat3<'a>> for CaretValueFormat3 {}
 
 impl<'a> FontRead<'a> for CaretValueFormat3 {
@@ -679,6 +687,7 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::MarkGlyphSets<'a>> for MarkGlyphSe
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::MarkGlyphSets<'a>> for MarkGlyphSets {}
 
 impl<'a> FontRead<'a> for MarkGlyphSets {

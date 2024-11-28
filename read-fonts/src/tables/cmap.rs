@@ -17,7 +17,7 @@ pub enum MapVariant {
     Variant(GlyphId),
 }
 
-impl<'a> Cmap<'a> {
+impl Cmap<'_> {
     /// Map a codepoint to a nominal glyph identifier
     ///
     /// This uses the first available subtable that provides a valid mapping.
@@ -143,7 +143,7 @@ impl<'a> Cmap4Iter<'a> {
     }
 }
 
-impl<'a> Iterator for Cmap4Iter<'a> {
+impl Iterator for Cmap4Iter<'_> {
     type Item = (u32, GlyphId);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -266,7 +266,7 @@ impl<'a> Cmap12Iter<'a> {
     }
 }
 
-impl<'a> Iterator for Cmap12Iter<'a> {
+impl Iterator for Cmap12Iter<'_> {
     type Item = (u32, GlyphId);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -434,7 +434,7 @@ impl<'a> Cmap14Iter<'a> {
     }
 }
 
-impl<'a> Iterator for Cmap14Iter<'a> {
+impl Iterator for Cmap14Iter<'_> {
     type Item = (u32, u32, MapVariant);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -481,7 +481,7 @@ impl<'a> DefaultUvsIter<'a> {
     }
 }
 
-impl<'a> Iterator for DefaultUvsIter<'a> {
+impl Iterator for DefaultUvsIter<'_> {
     type Item = u32;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -510,7 +510,7 @@ impl<'a> NonDefaultUvsIter<'a> {
     }
 }
 
-impl<'a> Iterator for NonDefaultUvsIter<'a> {
+impl Iterator for NonDefaultUvsIter<'_> {
     type Item = (u32, GlyphId16);
 
     fn next(&mut self) -> Option<Self::Item> {

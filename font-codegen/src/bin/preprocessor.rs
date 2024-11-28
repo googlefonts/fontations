@@ -189,7 +189,7 @@ struct Field<'a> {
     comment: &'a str,
 }
 
-impl<'a> std::fmt::Display for Field<'a> {
+impl std::fmt::Display for Field<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         format_comment(f, "    ", self.comment)?;
         if self.name.contains("reserved") {

@@ -23,7 +23,7 @@ pub struct PrettyPrinter<'a> {
     writer: &'a mut (dyn std::io::Write + 'a),
 }
 
-impl<'a> std::io::Write for PrettyPrinter<'a> {
+impl std::io::Write for PrettyPrinter<'_> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let len = self.writer.write(buf)?;
         let wrote_buf = &buf[..len];
