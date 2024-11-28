@@ -206,7 +206,7 @@ mod tests {
     use crate::{
         font_patch::PatchingError,
         glyph_keyed::tests::assemble_glyph_keyed_patch,
-        patchmap::{IftTableTag, PatchEncoding::GlyphKeyed, PatchEncoding::TableKeyed, PatchUri},
+        patchmap::{IftTableTag, PatchFormat::GlyphKeyed, PatchFormat::TableKeyed, PatchUri},
     };
 
     use super::{IncrementalFontPatchBase, PatchInfo};

@@ -157,7 +157,7 @@ impl PatchMapFormat1Marker {
         start..start + self.uri_template_byte_len
     }
 
-    pub fn patch_encoding_byte_range(&self) -> Range<usize> {
+    pub fn patch_format_byte_range(&self) -> Range<usize> {
         let start = self.uri_template_byte_range().end;
         start..start + u8::RAW_BYTE_LEN
     }
@@ -267,8 +267,8 @@ impl<'a> PatchMapFormat1<'a> {
     }
 
     /// Patch format number for patches referenced by this mapping.
-    pub fn patch_encoding(&self) -> u8 {
-        let range = self.shape.patch_encoding_byte_range();
+    pub fn patch_format(&self) -> u8 {
+        let range = self.shape.patch_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -308,7 +308,7 @@ impl<'a> SomeTable<'a> for PatchMapFormat1<'a> {
                 self.uri_template_length(),
             )),
             9usize => Some(Field::new("uri_template", self.uri_template())),
-            10usize => Some(Field::new("patch_encoding", self.patch_encoding())),
+            10usize => Some(Field::new("patch_format", self.patch_format())),
             _ => None,
         }
     }
@@ -722,13 +722,13 @@ impl PatchMapFormat2Marker {
         start..start + CompatibilityId::RAW_BYTE_LEN
     }
 
-    pub fn default_patch_encoding_byte_range(&self) -> Range<usize> {
+    pub fn default_patch_format_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn entry_count_byte_range(&self) -> Range<usize> {
-        let start = self.default_patch_encoding_byte_range().end;
+        let start = self.default_patch_format_byte_range().end;
         start..start + Uint24::RAW_BYTE_LEN
     }
 
@@ -792,8 +792,8 @@ impl<'a> PatchMapFormat2<'a> {
     }
 
     /// Patch format number for patches referenced by this mapping.
-    pub fn default_patch_encoding(&self) -> u8 {
-        let range = self.shape.default_patch_encoding_byte_range();
+    pub fn default_patch_format(&self) -> u8 {
+        let range = self.shape.default_patch_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -848,8 +848,8 @@ impl<'a> SomeTable<'a> for PatchMapFormat2<'a> {
                 traversal::FieldType::Unknown,
             )),
             2usize => Some(Field::new(
-                "default_patch_encoding",
-                self.default_patch_encoding(),
+                "default_patch_format",
+                self.default_patch_format(),
             )),
             3usize => Some(Field::new("entry_count", self.entry_count())),
             4usize => Some(Field::new(
@@ -951,7 +951,7 @@ pub struct EntryDataMarker {
     copy_indices_byte_len: Option<usize>,
     entry_id_delta_byte_start: Option<usize>,
     entry_id_delta_byte_len: Option<usize>,
-    patch_encoding_byte_start: Option<usize>,
+    patch_format_byte_start: Option<usize>,
     codepoint_data_byte_len: usize,
 }
 
@@ -996,13 +996,13 @@ impl EntryDataMarker {
         Some(start..start + self.entry_id_delta_byte_len?)
     }
 
-    pub fn patch_encoding_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.patch_encoding_byte_start?;
+    pub fn patch_format_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.patch_format_byte_start?;
         Some(start..start + u8::RAW_BYTE_LEN)
     }
 
     pub fn codepoint_data_byte_range(&self) -> Range<usize> {
-        let start = self . patch_encoding_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . entry_id_delta_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_indices_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_segments_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_tags_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . format_flags_byte_range () . end)))))))) ;
+        let start = self . patch_format_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . entry_id_delta_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_indices_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_segments_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_tags_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . format_flags_byte_range () . end)))))))) ;
         start..start + self.codepoint_data_byte_len
     }
 }
@@ -1097,12 +1097,12 @@ impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
         if let Some(value) = entry_id_delta_byte_len {
             cursor.advance_by(value);
         }
-        let patch_encoding_byte_start = format_flags
-            .contains(EntryFormatFlags::PATCH_ENCODING)
+        let patch_format_byte_start = format_flags
+            .contains(EntryFormatFlags::PATCH_FORMAT)
             .then(|| cursor.position())
             .transpose()?;
         format_flags
-            .contains(EntryFormatFlags::PATCH_ENCODING)
+            .contains(EntryFormatFlags::PATCH_FORMAT)
             .then(|| cursor.advance::<u8>());
         let codepoint_data_byte_len =
             cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
@@ -1120,7 +1120,7 @@ impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
             copy_indices_byte_len,
             entry_id_delta_byte_start,
             entry_id_delta_byte_len,
-            patch_encoding_byte_start,
+            patch_format_byte_start,
             codepoint_data_byte_len,
         })
     }
@@ -1188,8 +1188,8 @@ impl<'a> EntryData<'a> {
         )
     }
 
-    pub fn patch_encoding(&self) -> Option<u8> {
-        let range = self.shape.patch_encoding_byte_range()?;
+    pub fn patch_format(&self) -> Option<u8> {
+        let range = self.shape.patch_format_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
@@ -1240,8 +1240,8 @@ impl<'a> SomeTable<'a> for EntryData<'a> {
             7usize if format_flags.contains(EntryFormatFlags::ENTRY_ID_DELTA) => {
                 Some(Field::new("entry_id_delta", traversal::FieldType::Unknown))
             }
-            8usize if format_flags.contains(EntryFormatFlags::PATCH_ENCODING) => {
-                Some(Field::new("patch_encoding", self.patch_encoding().unwrap()))
+            8usize if format_flags.contains(EntryFormatFlags::PATCH_FORMAT) => {
+                Some(Field::new("patch_format", self.patch_format().unwrap()))
             }
             9usize => Some(Field::new("codepoint_data", self.codepoint_data())),
             _ => None,
@@ -1271,7 +1271,7 @@ impl EntryFormatFlags {
 
     pub const ENTRY_ID_DELTA: Self = Self { bits: 0b00000100 };
 
-    pub const PATCH_ENCODING: Self = Self { bits: 0b00001000 };
+    pub const PATCH_FORMAT: Self = Self { bits: 0b00001000 };
 
     pub const CODEPOINTS_BIT_1: Self = Self { bits: 0b00010000 };
 
@@ -1296,7 +1296,7 @@ impl EntryFormatFlags {
             bits: Self::FEATURES_AND_DESIGN_SPACE.bits
                 | Self::COPY_INDICES.bits
                 | Self::ENTRY_ID_DELTA.bits
-                | Self::PATCH_ENCODING.bits
+                | Self::PATCH_FORMAT.bits
                 | Self::CODEPOINTS_BIT_1.bits
                 | Self::CODEPOINTS_BIT_2.bits
                 | Self::IGNORED.bits
@@ -1522,7 +1522,7 @@ impl std::fmt::Debug for EntryFormatFlags {
             ("FEATURES_AND_DESIGN_SPACE", Self::FEATURES_AND_DESIGN_SPACE),
             ("COPY_INDICES", Self::COPY_INDICES),
             ("ENTRY_ID_DELTA", Self::ENTRY_ID_DELTA),
-            ("PATCH_ENCODING", Self::PATCH_ENCODING),
+            ("PATCH_FORMAT", Self::PATCH_FORMAT),
             ("CODEPOINTS_BIT_1", Self::CODEPOINTS_BIT_1),
             ("CODEPOINTS_BIT_2", Self::CODEPOINTS_BIT_2),
             ("IGNORED", Self::IGNORED),

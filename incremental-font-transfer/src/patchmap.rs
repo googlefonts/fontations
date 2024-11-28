@@ -20,8 +20,8 @@ use data_encoding_macro::new_encoding;
 use read_fonts::{
     collections::{IntSet, RangeSet},
     tables::ift::{
-        CompatibilityId, EntryData, EntryFormatFlags, EntryMapRecord, Ift, IFT_TAG, IFTX_TAG, PatchMapFormat1,
-        PatchMapFormat2,
+        CompatibilityId, EntryData, EntryFormatFlags, EntryMapRecord, Ift, PatchMapFormat1,
+        PatchMapFormat2, IFTX_TAG, IFT_TAG,
     },
     types::{Offset32, Uint24},
     FontData, FontRead, FontRef, ReadError, TableProvider,
@@ -101,11 +101,11 @@ fn add_intersecting_format1_patches(
         ));
     };
 
-    let encoding = PatchEncoding::from_format_number(map.patch_encoding())?;
+    let encoding = PatchFormat::from_format_number(map.patch_format())?;
 
     // Step 1: Collect the glyph and feature map entries.
     let charmap = Charmap::new(font);
-    let entries = if PatchEncoding::is_invalidating_format(map.patch_encoding()) {
+    let entries = if PatchFormat::is_invalidating_format(map.patch_format()) {
         intersect_format1_glyph_and_feature_map::<true>(&charmap, map, codepoints, features)?
     } else {
         intersect_format1_glyph_and_feature_map::<false>(&charmap, map, codepoints, features)?
@@ -126,7 +126,7 @@ fn add_intersecting_format1_patches(
                     source_table.clone(),
                     applied_entries_start_bit_index + index as usize,
                     encoding,
-                    if PatchEncoding::is_invalidating_format(map.patch_encoding()) {
+                    if PatchFormat::is_invalidating_format(map.patch_format()) {
                         IntersectionInfo::from_subset(
                             subset_def,
                             // For format 1 the entry index is the "order",
@@ -368,7 +368,7 @@ fn decode_format2_entries(
 ) -> Result<Vec<Entry>, ReadError> {
     let uri_template = map.uri_template_as_string()?;
     let entries_data = map.entries()?.entry_data();
-    let default_encoding = PatchEncoding::from_format_number(map.default_patch_encoding())?;
+    let default_encoding = PatchFormat::from_format_number(map.default_patch_format())?;
 
     let mut entry_count = map.entry_count().to_u32();
     let mut entries_data = FontData::new(entries_data);
@@ -404,7 +404,7 @@ fn decode_format2_entry<'a>(
     data_start_index: usize,
     source_table: &IftTableTag,
     uri_template: &str,
-    default_encoding: &PatchEncoding,
+    default_encoding: &PatchFormat,
     id_string_data: &mut Option<Cursor<&[u8]>>,
     entries: &mut Vec<Entry>,
 ) -> Result<(FontData<'a>, usize), ReadError> {
@@ -465,8 +465,8 @@ fn decode_format2_entry<'a>(
     entry.uri.id = format2_new_entry_id(&entry_data, entries.last(), id_string_data)?;
 
     // Encoding
-    if let Some(patch_encoding) = entry_data.patch_encoding() {
-        entry.uri.encoding = PatchEncoding::from_format_number(patch_encoding)?;
+    if let Some(patch_format) = entry_data.patch_format() {
+        entry.uri.encoding = PatchFormat::from_format_number(patch_format)?;
     }
 
     // Codepoints
@@ -584,14 +584,14 @@ fn decode_format2_codepoints<'a>(
 /// Models the encoding type for a incremental font transfer patch.
 /// See: <https://w3c.github.io/IFT/Overview.html#font-patch-formats-summary>
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Copy)]
-pub enum PatchEncoding {
+pub enum PatchFormat {
     TableKeyed { fully_invalidating: bool },
     GlyphKeyed,
 }
 
-impl PatchEncoding {
+impl PatchFormat {
     fn is_invalidating(&self) -> bool {
-        matches!(self, PatchEncoding::TableKeyed { .. })
+        matches!(self, PatchFormat::TableKeyed { .. })
     }
 
     fn is_invalidating_format(format: u8) -> bool {
@@ -612,7 +612,7 @@ impl PatchEncoding {
                 fully_invalidating: false,
             }),
             3 => Ok(Self::GlyphKeyed),
-            _ => Err(ReadError::MalformedData("Invalid encoding format number.")),
+            _ => Err(ReadError::MalformedData("Invalid format number.")),
         }
     }
 }
@@ -678,7 +678,7 @@ impl IftTableTag {
 pub struct PatchUri {
     template: String, // TODO(garretrieger): Make this a reference?
     id: PatchId,
-    encoding: PatchEncoding,
+    encoding: PatchFormat,
     source_table: IftTableTag,
     application_flag_bit_index: usize,
     intersection_info: IntersectionInfo,
@@ -796,7 +796,7 @@ impl PatchUri {
         leading_bytes
     }
 
-    pub fn encoding(&self) -> PatchEncoding {
+    pub fn encoding(&self) -> PatchFormat {
         self.encoding
     }
 
@@ -809,7 +809,7 @@ impl PatchUri {
         entry_index: u32,
         source_table: IftTableTag,
         application_flag_bit_index: usize,
-        encoding: PatchEncoding,
+        encoding: PatchFormat,
         intersection_info: IntersectionInfo,
     ) -> PatchUri {
         PatchUri {
@@ -944,7 +944,7 @@ impl Entry {
         template: &str,
         source_table: &IftTableTag,
         application_flag_bit_index: usize,
-        default_encoding: &PatchEncoding,
+        default_encoding: &PatchFormat,
     ) -> Entry {
         Entry {
             subset_definition: SubsetDefinition {
@@ -1056,7 +1056,7 @@ mod tests {
             entry_id: &str,
             source_table: &IftTableTag,
             application_flag_bit_index: usize,
-            encoding: PatchEncoding,
+            encoding: PatchFormat,
         ) -> PatchUri {
             PatchUri {
                 template: uri_template.to_string(),
@@ -1161,7 +1161,7 @@ mod tests {
                         *index,
                         IftTableTag::Ift(compat_id()),
                         *application_bit_index,
-                        PatchEncoding::GlyphKeyed,
+                        PatchFormat::GlyphKeyed,
                         Default::default(),
                     )
                 },
@@ -1198,7 +1198,7 @@ mod tests {
                         *index,
                         IftTableTag::Ift(compat_id()),
                         *application_bit_index,
-                        PatchEncoding::GlyphKeyed,
+                        PatchFormat::GlyphKeyed,
                         Default::default(),
                     )
                 },
@@ -1215,7 +1215,7 @@ mod tests {
                 value,
                 IftTableTag::Ift(Default::default()),
                 0,
-                PatchEncoding::GlyphKeyed,
+                PatchFormat::GlyphKeyed,
                 Default::default(),
             )
             .uri_string(),
@@ -1230,7 +1230,7 @@ mod tests {
                 value,
                 &IftTableTag::Ift(Default::default()),
                 0,
-                PatchEncoding::GlyphKeyed,
+                PatchFormat::GlyphKeyed,
             )
             .uri_string(),
             expected,
@@ -1402,7 +1402,7 @@ mod tests {
     #[test]
     fn format_1_patch_map_bad_encoding_number() {
         let mut data = simple_format1();
-        data.write_at("patch_encoding", 0x12u8);
+        data.write_at("patch_format", 0x12u8);
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -1501,7 +1501,7 @@ mod tests {
             index,
             IftTableTag::Ift(compat_id()),
             applied_entries_start + index as usize,
-            PatchEncoding::TableKeyed {
+            PatchFormat::TableKeyed {
                 fully_invalidating: true,
             },
             intersection_info,
@@ -1511,7 +1511,7 @@ mod tests {
     #[test]
     fn format_1_patch_map_intersection_info() {
         let mut map = feature_map_format1();
-        map.write_at("patch_encoding", 1u8);
+        map.write_at("patch_format", 1u8);
         map.write_at("gid5_entry", 299u16);
         map.write_at("gid6_entry", 300u16);
         map.write_at("applied_entries_296", 0u8);
@@ -1905,7 +1905,7 @@ mod tests {
     #[test]
     fn format_2_patch_map_intersection_info() {
         let mut map = features_and_design_space_format2();
-        map.write_at("patch_encoding", 1u8);
+        map.write_at("patch_format", 1u8);
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -2050,13 +2050,13 @@ mod tests {
         )
         .unwrap();
 
-        let encodings: Vec<PatchEncoding> = patches.into_iter().map(|uri| uri.encoding).collect();
+        let encodings: Vec<PatchFormat> = patches.into_iter().map(|uri| uri.encoding).collect();
         assert_eq!(
             encodings,
             vec![
-                PatchEncoding::GlyphKeyed,
-                PatchEncoding::GlyphKeyed,
-                PatchEncoding::TableKeyed {
+                PatchFormat::GlyphKeyed,
+                PatchFormat::GlyphKeyed,
+                PatchFormat::TableKeyed {
                     fully_invalidating: true,
                 },
             ]
@@ -2317,7 +2317,7 @@ mod tests {
             0,
             IftTableTag::Ift(CompatibilityId::from_u32s([0, 0, 0, 0])),
             0,
-            PatchEncoding::GlyphKeyed,
+            PatchFormat::GlyphKeyed,
             IntersectionInfo::default(),
         );
 
@@ -2362,7 +2362,7 @@ mod tests {
             0,
             IftTableTag::Ift(CompatibilityId::from_u32s([0, 0, 0, 0])),
             0,
-            PatchEncoding::GlyphKeyed,
+            PatchFormat::GlyphKeyed,
             IntersectionInfo::default(),
         );
 
