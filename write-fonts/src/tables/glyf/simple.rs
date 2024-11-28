@@ -228,7 +228,7 @@ impl FontWrite for CoordDelta {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {
+impl FromObjRef<read_fonts::tables::glyf::SimpleGlyph<'_>> for SimpleGlyph {
     fn from_obj_ref(
         from: &read_fonts::tables::glyf::SimpleGlyph,
         _data: read_fonts::FontData,
@@ -256,7 +256,7 @@ impl<'a> FromObjRef<read_fonts::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {}
+impl FromTableRef<read_fonts::tables::glyf::SimpleGlyph<'_>> for SimpleGlyph {}
 
 impl<'a> FontRead<'a> for SimpleGlyph {
     fn read(data: read_fonts::FontData<'a>) -> Result<Self, read_fonts::ReadError> {

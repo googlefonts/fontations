@@ -16,7 +16,7 @@ use super::{
 /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#instruction-definition>
 const MAX_DEFINITION_SIZE: usize = u16::MAX as usize;
 
-impl<'a> Engine<'a> {
+impl Engine<'_> {
     /// Function definition.
     ///
     /// FDEF[] (0x2C)

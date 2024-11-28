@@ -391,7 +391,7 @@ impl<'a, P> PenSink<'a, P> {
     }
 }
 
-impl<'a, P> CommandSink for PenSink<'a, P>
+impl<P> CommandSink for PenSink<'_, P>
 where
     P: OutlinePen,
 {
@@ -464,7 +464,7 @@ impl<'a, S> ScalingSink26Dot6<'a, S> {
     }
 }
 
-impl<'a, S: CommandSink> CommandSink for ScalingSink26Dot6<'a, S> {
+impl<S: CommandSink> CommandSink for ScalingSink26Dot6<'_, S> {
     fn hstem(&mut self, y: Fixed, dy: Fixed) {
         self.inner.hstem(y, dy);
     }
@@ -556,7 +556,7 @@ where
     }
 }
 
-impl<'a, S> CommandSink for NopFilteringSink<'a, S>
+impl<S> CommandSink for NopFilteringSink<'_, S>
 where
     S: CommandSink,
 {

@@ -23,7 +23,7 @@ use write_fonts::{
 
 // reference: subset() for glyf/loca/head in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/OT/glyf/glyf.hh#L77
-impl<'a> Subset for Glyf<'a> {
+impl Subset for Glyf<'_> {
     fn subset(
         &self,
         plan: &Plan,

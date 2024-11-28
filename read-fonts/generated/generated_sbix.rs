@@ -384,6 +384,7 @@ impl<'a> Sbix<'a> {
 /// The [sbix (Standard Bitmap Graphics)](https://docs.microsoft.com/en-us/typography/opentype/spec/sbix) table
 pub type Sbix<'a> = TableRef<'a, SbixMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Sbix<'a> {
     /// Table version number — set to 1.
     pub fn version(&self) -> u16 {
@@ -455,6 +456,7 @@ impl<'a> SomeTable<'a> for Sbix<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Sbix<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -519,6 +521,7 @@ impl<'a> Strike<'a> {
 /// [Strike](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#strikes) header table
 pub type Strike<'a> = TableRef<'a, StrikeMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Strike<'a> {
     /// The PPEM size for which this strike was designed.
     pub fn ppem(&self) -> u16 {
@@ -555,6 +558,7 @@ impl<'a> SomeTable<'a> for Strike<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Strike<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -605,6 +609,7 @@ impl<'a> FontRead<'a> for GlyphData<'a> {
 /// [Glyph data](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#glyph-data) table
 pub type GlyphData<'a> = TableRef<'a, GlyphDataMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphData<'a> {
     /// The horizontal (x-axis) position of the left edge of the bitmap graphic in relation to the glyph design space origin.
     pub fn origin_offset_x(&self) -> i16 {
@@ -648,6 +653,7 @@ impl<'a> SomeTable<'a> for GlyphData<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for GlyphData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

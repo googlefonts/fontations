@@ -377,6 +377,7 @@ impl<'a> FromObjRef<read_fonts::tables::os2::Os2<'a>> for Os2 {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::os2::Os2<'a>> for Os2 {}
 
 impl<'a> FontRead<'a> for Os2 {

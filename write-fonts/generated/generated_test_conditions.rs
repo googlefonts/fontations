@@ -84,6 +84,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::conditions::MajorMinorVersion<'a>>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::conditions::MajorMinorVersion<'a>>
     for MajorMinorVersion
 {
@@ -197,6 +198,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::conditions::FlagDay<'a>> for FlagD
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::conditions::FlagDay<'a>> for FlagDay {}
 
 impl<'a> FontRead<'a> for FlagDay {
@@ -312,6 +314,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::conditions::FieldsAfterConditional
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::conditions::FieldsAfterConditionals<'a>>
     for FieldsAfterConditionals
 {

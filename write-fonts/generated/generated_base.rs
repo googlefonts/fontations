@@ -74,6 +74,7 @@ impl<'a> FromObjRef<read_fonts::tables::base::Base<'a>> for Base {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::Base<'a>> for Base {}
 
 impl<'a> FontRead<'a> for Base {
@@ -135,6 +136,7 @@ impl<'a> FromObjRef<read_fonts::tables::base::Axis<'a>> for Axis {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::Axis<'a>> for Axis {}
 
 impl<'a> FontRead<'a> for Axis {
@@ -193,6 +195,7 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseTagList<'a>> for BaseTagList {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::BaseTagList<'a>> for BaseTagList {}
 
 impl<'a> FontRead<'a> for BaseTagList {
@@ -252,6 +255,7 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseScriptList<'a>> for BaseScript
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::BaseScriptList<'a>> for BaseScriptList {}
 
 impl<'a> FontRead<'a> for BaseScriptList {
@@ -384,6 +388,7 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseScript<'a>> for BaseScript {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::BaseScript<'a>> for BaseScript {}
 
 impl<'a> FontRead<'a> for BaseScript {
@@ -502,6 +507,7 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseValues<'a>> for BaseValues {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::BaseValues<'a>> for BaseValues {}
 
 impl<'a> FontRead<'a> for BaseValues {
@@ -583,6 +589,7 @@ impl<'a> FromObjRef<read_fonts::tables::base::MinMax<'a>> for MinMax {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::MinMax<'a>> for MinMax {}
 
 impl<'a> FontRead<'a> for MinMax {
@@ -795,6 +802,7 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseCoordFormat1<'a>> for BaseCoor
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::BaseCoordFormat1<'a>> for BaseCoordFormat1 {}
 
 impl<'a> FontRead<'a> for BaseCoordFormat1 {
@@ -854,6 +862,7 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseCoordFormat2<'a>> for BaseCoor
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::BaseCoordFormat2<'a>> for BaseCoordFormat2 {}
 
 impl<'a> FontRead<'a> for BaseCoordFormat2 {
@@ -916,6 +925,7 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseCoordFormat3<'a>> for BaseCoor
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::BaseCoordFormat3<'a>> for BaseCoordFormat3 {}
 
 impl<'a> FontRead<'a> for BaseCoordFormat3 {

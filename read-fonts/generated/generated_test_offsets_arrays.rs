@@ -100,6 +100,7 @@ impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
 
 pub type KindsOfOffsets<'a> = TableRef<'a, KindsOfOffsetsMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> KindsOfOffsets<'a> {
     /// The major/minor version of the GDEF table
     pub fn version(&self) -> MajorMinor {
@@ -264,6 +265,7 @@ impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for KindsOfOffsets<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -363,6 +365,7 @@ impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
 
 pub type KindsOfArraysOfOffsets<'a> = TableRef<'a, KindsOfArraysOfOffsetsMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> KindsOfArraysOfOffsets<'a> {
     /// The version
     pub fn version(&self) -> MajorMinor {
@@ -501,6 +504,7 @@ impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for KindsOfArraysOfOffsets<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -600,6 +604,7 @@ impl<'a> FontRead<'a> for KindsOfArrays<'a> {
 
 pub type KindsOfArrays<'a> = TableRef<'a, KindsOfArraysMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> KindsOfArrays<'a> {
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
@@ -674,6 +679,7 @@ impl<'a> SomeTable<'a> for KindsOfArrays<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for KindsOfArrays<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -719,6 +725,7 @@ impl<'a> FontRead<'a> for VarLenHaver<'a> {
 
 pub type VarLenHaver<'a> = TableRef<'a, VarLenHaverMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> VarLenHaver<'a> {
     pub fn count(&self) -> u16 {
         let range = self.shape.count_byte_range();
@@ -752,6 +759,7 @@ impl<'a> SomeTable<'a> for VarLenHaver<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for VarLenHaver<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -785,6 +793,7 @@ impl<'a> FontRead<'a> for Dummy<'a> {
 
 pub type Dummy<'a> = TableRef<'a, DummyMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Dummy<'a> {
     pub fn value(&self) -> u16 {
         let range = self.shape.value_byte_range();
@@ -806,6 +815,7 @@ impl<'a> SomeTable<'a> for Dummy<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Dummy<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

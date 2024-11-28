@@ -83,6 +83,7 @@ impl<'a> FromObjRef<read_fonts::tables::stat::Stat<'a>> for Stat {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::stat::Stat<'a>> for Stat {}
 
 impl<'a> FontRead<'a> for Stat {
@@ -190,6 +191,7 @@ impl<'a> FromObjRef<read_fonts::tables::stat::AxisValueArray<'a>> for AxisValueA
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::stat::AxisValueArray<'a>> for AxisValueArray {}
 
 /// [Axis Value Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-tables)
@@ -407,6 +409,7 @@ impl<'a> FromObjRef<read_fonts::tables::stat::AxisValueFormat1<'a>> for AxisValu
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::stat::AxisValueFormat1<'a>> for AxisValueFormat1 {}
 
 impl<'a> FontRead<'a> for AxisValueFormat1 {
@@ -493,6 +496,7 @@ impl<'a> FromObjRef<read_fonts::tables::stat::AxisValueFormat2<'a>> for AxisValu
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::stat::AxisValueFormat2<'a>> for AxisValueFormat2 {}
 
 impl<'a> FontRead<'a> for AxisValueFormat2 {
@@ -571,6 +575,7 @@ impl<'a> FromObjRef<read_fonts::tables::stat::AxisValueFormat3<'a>> for AxisValu
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::stat::AxisValueFormat3<'a>> for AxisValueFormat3 {}
 
 impl<'a> FontRead<'a> for AxisValueFormat3 {
@@ -647,6 +652,7 @@ impl<'a> FromObjRef<read_fonts::tables::stat::AxisValueFormat4<'a>> for AxisValu
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::stat::AxisValueFormat4<'a>> for AxisValueFormat4 {}
 
 impl<'a> FontRead<'a> for AxisValueFormat4 {

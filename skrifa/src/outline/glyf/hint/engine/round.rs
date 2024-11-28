@@ -6,7 +6,7 @@
 
 use super::{Engine, OpResult};
 
-impl<'a> Engine<'a> {
+impl Engine<'_> {
     /// Round value.
     ///
     /// ROUND\[ab\] (0x68 - 0x6B)

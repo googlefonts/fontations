@@ -96,7 +96,7 @@ pub mod tags {
 
 include!("../../generated/generated_mvar.rs");
 
-impl<'a> Mvar<'a> {
+impl Mvar<'_> {
     /// Returns the metric delta for the specified tag and normalized
     /// variation coordinates. Possible tags are found in the [tags]
     /// module.

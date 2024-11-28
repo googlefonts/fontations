@@ -53,7 +53,7 @@ impl<'a, P: OutlinePen> RegularizingPen<'a, P> {
     }
 }
 
-impl<'a, P: OutlinePen> OutlinePen for RegularizingPen<'a, P> {
+impl<P: OutlinePen> OutlinePen for RegularizingPen<'_, P> {
     fn move_to(&mut self, x: f32, y: f32) {
         let [x, y] = self.process_coords([x, y]);
         self.pending_move = Some((x, y));

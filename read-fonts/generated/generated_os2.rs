@@ -675,6 +675,7 @@ impl<'a> FontRead<'a> for Os2<'a> {
 /// [`OS/2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
 pub type Os2<'a> = TableRef<'a, Os2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Os2<'a> {
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
@@ -1051,6 +1052,7 @@ impl<'a> SomeTable<'a> for Os2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Os2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

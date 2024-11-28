@@ -182,14 +182,14 @@ impl<'a> PatchMapFormat1<'a> {
     }
 }
 
-impl<'a> PatchMapFormat2<'a> {
+impl PatchMapFormat2<'_> {
     pub fn uri_template_as_string(&self) -> Result<&str, ReadError> {
         str::from_utf8(self.uri_template())
             .map_err(|_| ReadError::MalformedData("Invalid UTF8 encoding for uri template."))
     }
 }
 
-impl<'a> FeatureMap<'a> {
+impl FeatureMap<'_> {
     pub fn entry_records_size(&self, max_entry_index: u16) -> Result<usize, ReadError> {
         let field_width = if max_entry_index < 256 { 1 } else { 2 };
         let mut num_bytes = 0usize;
@@ -206,7 +206,7 @@ struct GidToEntryIter<'a> {
     gid: u32,
 }
 
-impl<'a> Iterator for GidToEntryIter<'a> {
+impl Iterator for GidToEntryIter<'_> {
     type Item = (GlyphId, u16);
 
     fn next(&mut self) -> Option<Self::Item> {

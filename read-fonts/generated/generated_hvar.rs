@@ -57,6 +57,7 @@ impl<'a> FontRead<'a> for Hvar<'a> {
 /// The [HVAR (Horizontal Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/hvar) table
 pub type Hvar<'a> = TableRef<'a, HvarMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Hvar<'a> {
     /// Major version number of the horizontal metrics variations table — set to 1.
     /// Minor version number of the horizontal metrics variations table — set to 0.
@@ -150,6 +151,7 @@ impl<'a> SomeTable<'a> for Hvar<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Hvar<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

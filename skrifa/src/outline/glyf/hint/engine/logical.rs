@@ -6,7 +6,7 @@
 
 use super::{Engine, F26Dot6, OpResult};
 
-impl<'a> Engine<'a> {
+impl Engine<'_> {
     /// Less than.
     ///
     /// LT[] (0x50)

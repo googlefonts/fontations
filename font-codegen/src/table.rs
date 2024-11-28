@@ -127,6 +127,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         #( #docs )*
         pub type #raw_name<'a, #generic> = TableRef<'a, #marker_name<#generic>>;
 
+        #[allow(clippy::needless_lifetimes)]
         impl<'a, #generic> #raw_name<'a, #generic> {
 
             #( #table_ref_getters )*
@@ -278,7 +279,7 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
         }
 
         #[cfg(feature = "experimental_traverse")]
-        impl<'a> std::fmt::Debug for #name<'a> {
+        impl std::fmt::Debug for #name<'_> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 self.dyn_inner().fmt(f)
             }
@@ -329,6 +330,7 @@ fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
         }
 
         #[cfg(feature = "experimental_traverse")]
+        #[allow(clippy::needless_lifetimes)]
         impl<'a, #generic #generic_bounds> std::fmt::Debug for #name<'a, #generic> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 (self as &dyn SomeTable<'a>).fmt(f)
@@ -416,6 +418,7 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
             }
         }
 
+        #[allow(clippy::needless_lifetimes)]
         impl<'a, #(#impl_generics2,)* > FromTableRef<#parse_module :: #name<'a, #parse_generic >> for #name<#comp_generic> #where_clause {}
 
         #maybe_font_read
@@ -863,7 +866,7 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
         }
 
         #[cfg(feature = "experimental_traverse")]
-        impl<'a> std::fmt::Debug for #name<'a> {
+        impl std::fmt::Debug for #name<'_> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 self.dyn_inner().fmt(f)
             }

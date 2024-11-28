@@ -62,6 +62,7 @@ impl<'a> FromObjRef<read_fonts::tables::fvar::Fvar<'a>> for Fvar {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::fvar::Fvar<'a>> for Fvar {}
 
 impl<'a> FontRead<'a> for Fvar {
@@ -133,6 +134,7 @@ impl<'a> FromObjRef<read_fonts::tables::fvar::AxisInstanceArrays<'a>> for AxisIn
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::fvar::AxisInstanceArrays<'a>> for AxisInstanceArrays {}
 
 /// The [VariationAxisRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar#variationaxisrecord)

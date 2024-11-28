@@ -61,6 +61,7 @@ impl<'a> FontRead<'a> for Base<'a> {
 /// The [BASE](https://learn.microsoft.com/en-us/typography/opentype/spec/base) (Baseline) table
 pub type Base<'a> = TableRef<'a, BaseMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Base<'a> {
     /// (major, minor) Version for the BASE table (1,0) or (1,1)
     pub fn version(&self) -> MajorMinor {
@@ -132,6 +133,7 @@ impl<'a> SomeTable<'a> for Base<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Base<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -167,6 +169,7 @@ impl<'a> FontRead<'a> for Axis<'a> {
 /// [Axis Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#axis-tables-horizaxis-and-vertaxis)
 pub type Axis<'a> = TableRef<'a, AxisMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Axis<'a> {
     /// Offset to BaseTagList table, from beginning of Axis table (may
     /// be NULL)
@@ -215,6 +218,7 @@ impl<'a> SomeTable<'a> for Axis<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Axis<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -257,6 +261,7 @@ impl<'a> FontRead<'a> for BaseTagList<'a> {
 /// [BaseTagList Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basetaglist-table)
 pub type BaseTagList<'a> = TableRef<'a, BaseTagListMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> BaseTagList<'a> {
     /// Number of baseline identification tags in this text direction
     /// — may be zero (0)
@@ -288,6 +293,7 @@ impl<'a> SomeTable<'a> for BaseTagList<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for BaseTagList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -330,6 +336,7 @@ impl<'a> FontRead<'a> for BaseScriptList<'a> {
 /// [BaseScriptList Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescriptlist-table)
 pub type BaseScriptList<'a> = TableRef<'a, BaseScriptListMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> BaseScriptList<'a> {
     /// Number of BaseScriptRecords defined
     pub fn base_script_count(&self) -> u16 {
@@ -367,6 +374,7 @@ impl<'a> SomeTable<'a> for BaseScriptList<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for BaseScriptList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -474,6 +482,7 @@ impl<'a> FontRead<'a> for BaseScript<'a> {
 /// [BaseScript Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescript-table)
 pub type BaseScript<'a> = TableRef<'a, BaseScriptMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> BaseScript<'a> {
     /// Offset to BaseValues table, from beginning of BaseScript table (may be NULL)
     pub fn base_values_offset(&self) -> Nullable<Offset16> {
@@ -546,6 +555,7 @@ impl<'a> SomeTable<'a> for BaseScript<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for BaseScript<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -647,6 +657,7 @@ impl<'a> FontRead<'a> for BaseValues<'a> {
 /// [BaseValues](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basevalues-table) table
 pub type BaseValues<'a> = TableRef<'a, BaseValuesMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> BaseValues<'a> {
     /// Index number of default baseline for this script — equals
     /// index position of baseline tag in baselineTags array of the
@@ -711,6 +722,7 @@ impl<'a> SomeTable<'a> for BaseValues<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for BaseValues<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -765,6 +777,7 @@ impl<'a> FontRead<'a> for MinMax<'a> {
 /// [MinMax](https://learn.microsoft.com/en-us/typography/opentype/spec/base#minmax-table) table
 pub type MinMax<'a> = TableRef<'a, MinMaxMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> MinMax<'a> {
     /// Offset to BaseCoord table that defines the minimum extent
     /// value, from the beginning of MinMax table (may be NULL)
@@ -836,6 +849,7 @@ impl<'a> SomeTable<'a> for MinMax<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for MinMax<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -982,7 +996,7 @@ impl<'a> BaseCoord<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for BaseCoord<'a> {
+impl std::fmt::Debug for BaseCoord<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -1031,6 +1045,7 @@ impl<'a> FontRead<'a> for BaseCoordFormat1<'a> {
 /// [BaseCoordFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-1)
 pub type BaseCoordFormat1<'a> = TableRef<'a, BaseCoordFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> BaseCoordFormat1<'a> {
     /// Format identifier — format = 1
     pub fn base_coord_format(&self) -> u16 {
@@ -1060,6 +1075,7 @@ impl<'a> SomeTable<'a> for BaseCoordFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for BaseCoordFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1111,6 +1127,7 @@ impl<'a> FontRead<'a> for BaseCoordFormat2<'a> {
 /// [BaseCoordFormat2](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-2)
 pub type BaseCoordFormat2<'a> = TableRef<'a, BaseCoordFormat2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> BaseCoordFormat2<'a> {
     /// Format identifier — format = 2
     pub fn base_coord_format(&self) -> u16 {
@@ -1154,6 +1171,7 @@ impl<'a> SomeTable<'a> for BaseCoordFormat2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for BaseCoordFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1199,6 +1217,7 @@ impl<'a> FontRead<'a> for BaseCoordFormat3<'a> {
 /// [BaseCoordFormat3](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-3)
 pub type BaseCoordFormat3<'a> = TableRef<'a, BaseCoordFormat3Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> BaseCoordFormat3<'a> {
     /// Format identifier — format = 3
     pub fn base_coord_format(&self) -> u16 {
@@ -1246,6 +1265,7 @@ impl<'a> SomeTable<'a> for BaseCoordFormat3<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for BaseCoordFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

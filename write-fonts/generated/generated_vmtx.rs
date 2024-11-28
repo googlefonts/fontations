@@ -63,4 +63,5 @@ impl<'a> FromObjRef<read_fonts::tables::vmtx::Vmtx<'a>> for Vmtx {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::vmtx::Vmtx<'a>> for Vmtx {}

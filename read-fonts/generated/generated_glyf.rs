@@ -27,6 +27,7 @@ impl<'a> FontRead<'a> for Glyf<'a> {
 /// The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 pub type Glyf<'a> = TableRef<'a, GlyfMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Glyf<'a> {}
 
 #[cfg(feature = "experimental_traverse")]
@@ -45,6 +46,7 @@ impl<'a> SomeTable<'a> for Glyf<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Glyf<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -137,6 +139,7 @@ impl<'a> FontRead<'a> for SimpleGlyph<'a> {
 /// The [Glyph Header](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
 pub type SimpleGlyph<'a> = TableRef<'a, SimpleGlyphMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> SimpleGlyph<'a> {
     /// If the number of contours is greater than or equal to zero,
     /// this is a simple glyph. If negative, this is a composite glyph
@@ -223,6 +226,7 @@ impl<'a> SomeTable<'a> for SimpleGlyph<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for SimpleGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -686,6 +690,7 @@ impl<'a> FontRead<'a> for CompositeGlyph<'a> {
 /// [CompositeGlyph](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
 pub type CompositeGlyph<'a> = TableRef<'a, CompositeGlyphMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> CompositeGlyph<'a> {
     /// If the number of contours is greater than or equal to zero,
     /// this is a simple glyph. If negative, this is a composite glyph
@@ -746,6 +751,7 @@ impl<'a> SomeTable<'a> for CompositeGlyph<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for CompositeGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -765,8 +771,7 @@ impl CompositeGlyphFlags {
     /// int16); otherwise, they are bytes (uint8 or int8).
     pub const ARG_1_AND_2_ARE_WORDS: Self = Self { bits: 0x0001 };
 
-    /// Bit 1: If this is set, the arguments are signed xy values;
-
+    /// Bit 1: If this is set, the arguments are signed xy values,
     /// otherwise, they are unsigned point numbers.
     pub const ARGS_ARE_XY_VALUES: Self = Self { bits: 0x0002 };
 
@@ -1214,7 +1219,7 @@ impl<'a> Glyph<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for Glyph<'a> {
+impl std::fmt::Debug for Glyph<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }

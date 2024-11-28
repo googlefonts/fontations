@@ -223,6 +223,7 @@ impl<'a> FontRead<'a> for Maxp<'a> {
 /// [`maxp`](https://docs.microsoft.com/en-us/typography/opentype/spec/maxp)
 pub type Maxp<'a> = TableRef<'a, MaxpMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Maxp<'a> {
     /// The version: 0x00005000 for version 0.5, 0x00010000 for version 1.0.
     pub fn version(&self) -> Version16Dot16 {
@@ -383,6 +384,7 @@ impl<'a> SomeTable<'a> for Maxp<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Maxp<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

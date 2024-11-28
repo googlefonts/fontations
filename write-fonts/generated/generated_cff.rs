@@ -62,6 +62,7 @@ impl<'a> FromObjRef<read_fonts::tables::cff::CffHeader<'a>> for CffHeader {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cff::CffHeader<'a>> for CffHeader {}
 
 impl<'a> FontRead<'a> for CffHeader {

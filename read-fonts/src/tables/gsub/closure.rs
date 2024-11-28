@@ -28,7 +28,7 @@ pub(crate) trait GlyphClosure {
     fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId16>) -> Result<(), ReadError>;
 }
 
-impl<'a> Gsub<'a> {
+impl Gsub<'_> {
     /// Return the set of glyphs reachable from the input set via any substitution.
     pub fn closure_glyphs(
         &self,
@@ -122,7 +122,7 @@ impl<'a> Gsub<'a> {
     }
 }
 
-impl<'a> GlyphClosure for SubstitutionSubtables<'a> {
+impl GlyphClosure for SubstitutionSubtables<'_> {
     fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId16>) -> Result<(), ReadError> {
         match self {
             SubstitutionSubtables::Single(tables) => tables.add_reachable_glyphs(glyphs),
@@ -144,7 +144,7 @@ impl<'a, T: FontRead<'a> + GlyphClosure + 'a, Ext: ExtensionLookup<'a, T> + 'a> 
     }
 }
 
-impl<'a> GlyphClosure for SingleSubst<'a> {
+impl GlyphClosure for SingleSubst<'_> {
     fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId16>) -> Result<(), ReadError> {
         for (target, replacement) in self.iter_subs()? {
             if glyphs.contains(&target) {
@@ -155,7 +155,7 @@ impl<'a> GlyphClosure for SingleSubst<'a> {
     }
 }
 
-impl<'a> SingleSubst<'a> {
+impl SingleSubst<'_> {
     fn iter_subs(&self) -> Result<impl Iterator<Item = (GlyphId16, GlyphId16)> + '_, ReadError> {
         let (left, right) = match self {
             SingleSubst::Format1(t) => (Some(t.iter_subs()?), None),
@@ -168,7 +168,7 @@ impl<'a> SingleSubst<'a> {
     }
 }
 
-impl<'a> SingleSubstFormat1<'a> {
+impl SingleSubstFormat1<'_> {
     fn iter_subs(&self) -> Result<impl Iterator<Item = (GlyphId16, GlyphId16)> + '_, ReadError> {
         let delta = self.delta_glyph_id();
         let coverage = self.coverage()?;
@@ -180,7 +180,7 @@ impl<'a> SingleSubstFormat1<'a> {
     }
 }
 
-impl<'a> SingleSubstFormat2<'a> {
+impl SingleSubstFormat2<'_> {
     fn iter_subs(&self) -> Result<impl Iterator<Item = (GlyphId16, GlyphId16)> + '_, ReadError> {
         let coverage = self.coverage()?;
         let subs = self.substitute_glyph_ids();
@@ -188,7 +188,7 @@ impl<'a> SingleSubstFormat2<'a> {
     }
 }
 
-impl<'a> GlyphClosure for MultipleSubstFormat1<'a> {
+impl GlyphClosure for MultipleSubstFormat1<'_> {
     fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId16>) -> Result<(), ReadError> {
         let coverage = self.coverage()?;
         let sequences = self.sequences();
@@ -207,7 +207,7 @@ impl<'a> GlyphClosure for MultipleSubstFormat1<'a> {
     }
 }
 
-impl<'a> GlyphClosure for AlternateSubstFormat1<'a> {
+impl GlyphClosure for AlternateSubstFormat1<'_> {
     fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId16>) -> Result<(), ReadError> {
         let coverage = self.coverage()?;
         let alts = self.alternate_sets();
@@ -221,7 +221,7 @@ impl<'a> GlyphClosure for AlternateSubstFormat1<'a> {
     }
 }
 
-impl<'a> GlyphClosure for LigatureSubstFormat1<'a> {
+impl GlyphClosure for LigatureSubstFormat1<'_> {
     fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId16>) -> Result<(), ReadError> {
         let coverage = self.coverage()?;
         let ligs = self.ligature_sets();
@@ -522,7 +522,7 @@ mod tests {
         }
     }
 
-    fn get_gsub(test_data: &'static [u8]) -> Gsub<'_> {
+    fn get_gsub(test_data: &'static [u8]) -> Gsub<'static> {
         let font = FontRef::new(test_data).unwrap();
         font.gsub().unwrap()
     }

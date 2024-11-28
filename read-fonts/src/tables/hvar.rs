@@ -4,7 +4,7 @@ use super::variations::{self, DeltaSetIndexMap, ItemVariationStore};
 
 include!("../../generated/generated_hvar.rs");
 
-impl<'a> Hvar<'a> {
+impl Hvar<'_> {
     /// Returns the advance width delta for the specified glyph identifier and
     /// normalized variation coordinates.
     pub fn advance_width_delta(

@@ -56,6 +56,7 @@ impl<'a> FontRead<'a> for Index1<'a> {
 /// An array of variable-sized objects in a `CFF` table.
 pub type Index1<'a> = TableRef<'a, Index1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Index1<'a> {
     /// Number of objects stored in INDEX.
     pub fn count(&self) -> u16 {
@@ -99,6 +100,7 @@ impl<'a> SomeTable<'a> for Index1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Index1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -156,6 +158,7 @@ impl<'a> FontRead<'a> for Index2<'a> {
 /// An array of variable-sized objects in a `CFF2` table.
 pub type Index2<'a> = TableRef<'a, Index2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Index2<'a> {
     /// Number of objects stored in INDEX.
     pub fn count(&self) -> u32 {
@@ -199,6 +202,7 @@ impl<'a> SomeTable<'a> for Index2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Index2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -257,7 +261,7 @@ impl<'a> FdSelect<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for FdSelect<'a> {
+impl std::fmt::Debug for FdSelect<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -309,6 +313,7 @@ impl<'a> FontRead<'a> for FdSelectFormat0<'a> {
 /// FdSelect format 0.
 pub type FdSelectFormat0<'a> = TableRef<'a, FdSelectFormat0Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FdSelectFormat0<'a> {
     /// Format = 0.
     pub fn format(&self) -> u8 {
@@ -338,6 +343,7 @@ impl<'a> SomeTable<'a> for FdSelectFormat0<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for FdSelectFormat0<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -394,6 +400,7 @@ impl<'a> FontRead<'a> for FdSelectFormat3<'a> {
 /// FdSelect format 3.
 pub type FdSelectFormat3<'a> = TableRef<'a, FdSelectFormat3Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FdSelectFormat3<'a> {
     /// Format = 3.
     pub fn format(&self) -> u8 {
@@ -444,6 +451,7 @@ impl<'a> SomeTable<'a> for FdSelectFormat3<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for FdSelectFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -542,6 +550,7 @@ impl<'a> FontRead<'a> for FdSelectFormat4<'a> {
 /// FdSelect format 4.
 pub type FdSelectFormat4<'a> = TableRef<'a, FdSelectFormat4Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FdSelectFormat4<'a> {
     /// Format = 4.
     pub fn format(&self) -> u8 {
@@ -592,6 +601,7 @@ impl<'a> SomeTable<'a> for FdSelectFormat4<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for FdSelectFormat4<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

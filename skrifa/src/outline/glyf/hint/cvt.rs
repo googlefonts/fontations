@@ -8,7 +8,7 @@ use super::{cow_slice::CowSlice, error::HintErrorKind, F26Dot6};
 /// accesses to appropriate errors.
 pub struct Cvt<'a>(CowSlice<'a>);
 
-impl<'a> Cvt<'a> {
+impl Cvt<'_> {
     pub fn get(&self, index: usize) -> Result<F26Dot6, HintErrorKind> {
         self.0
             .get(index)

@@ -70,6 +70,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::records::BasicTable<'a>> for Basic
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::records::BasicTable<'a>> for BasicTable {}
 
 impl<'a> FontRead<'a> for BasicTable {

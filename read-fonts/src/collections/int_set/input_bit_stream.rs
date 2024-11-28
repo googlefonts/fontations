@@ -8,7 +8,7 @@ pub(crate) struct InputBitStream<'a, const BF: u8> {
     sub_index: u32,
 }
 
-impl<'a, const BF: u8> Iterator for InputBitStream<'a, BF> {
+impl<const BF: u8> Iterator for InputBitStream<'_, BF> {
     type Item = u32;
     fn next(&mut self) -> Option<Self::Item> {
         match BF {

@@ -70,6 +70,7 @@ impl<'a> FromObjRef<read_fonts::tables::mvar::Mvar<'a>> for Mvar {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::mvar::Mvar<'a>> for Mvar {}
 
 impl<'a> FontRead<'a> for Mvar {

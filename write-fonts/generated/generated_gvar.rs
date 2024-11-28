@@ -110,6 +110,7 @@ impl<'a> FromObjRef<read_fonts::tables::gvar::SharedTuples<'a>> for SharedTuples
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gvar::SharedTuples<'a>> for SharedTuples {}
 
 /// The [GlyphVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#the-glyphvariationdata-table-array) table

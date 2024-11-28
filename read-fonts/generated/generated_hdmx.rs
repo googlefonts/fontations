@@ -76,6 +76,7 @@ impl<'a> Hdmx<'a> {
 /// The [Horizontal Device Metrics](https://learn.microsoft.com/en-us/typography/opentype/spec/hdmx) table.
 pub type Hdmx<'a> = TableRef<'a, HdmxMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Hdmx<'a> {
     /// Table version number (set to 0).
     pub fn version(&self) -> u16 {
@@ -130,6 +131,7 @@ impl<'a> SomeTable<'a> for Hdmx<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Hdmx<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -201,6 +203,7 @@ impl<'a> FontReadWithArgs<'a> for DeviceRecord<'a> {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> DeviceRecord<'a> {
     /// A constructor that requires additional arguments.
     ///

@@ -269,7 +269,7 @@ impl<'de> serde::Deserialize<'de> for Tag {
         D: serde::Deserializer<'de>,
     {
         struct TagStrVisitor;
-        impl<'de> serde::de::Visitor<'de> for TagStrVisitor {
+        impl serde::de::Visitor<'_> for TagStrVisitor {
             type Value = Tag;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {

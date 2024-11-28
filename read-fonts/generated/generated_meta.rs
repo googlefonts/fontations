@@ -62,6 +62,7 @@ impl<'a> FontRead<'a> for Meta<'a> {
 /// [`meta`](https://docs.microsoft.com/en-us/typography/opentype/spec/meta)
 pub type Meta<'a> = TableRef<'a, MetaMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Meta<'a> {
     /// Version number of the metadata table — set to 1.
     pub fn version(&self) -> u32 {
@@ -112,6 +113,7 @@ impl<'a> SomeTable<'a> for Meta<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Meta<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

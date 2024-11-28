@@ -250,7 +250,7 @@ mod mock {
         }
     }
 
-    impl<'a> Engine<'a> {
+    impl Engine<'_> {
         /// Helper to push values to the stack, invoke a callback and check
         /// the expected result.    
         pub(super) fn test_exec(

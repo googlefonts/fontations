@@ -2,7 +2,7 @@
 
 include!("../../generated/generated_feat.rs");
 
-impl<'a> Feat<'a> {
+impl Feat<'_> {
     /// Returns the name for the given feature code.
     pub fn find(&self, feature: u16) -> Option<FeatureName> {
         let names = self.names();

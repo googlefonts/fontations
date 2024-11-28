@@ -7,7 +7,7 @@
 use super::{super::graphics::CoordAxis, Engine, F26Dot6, OpResult};
 use read_fonts::tables::glyf::bytecode::Opcode;
 
-impl<'a> Engine<'a> {
+impl Engine<'_> {
     /// Delta exception P1, P2 and P3.
     ///
     /// DELTAP1[] (0x5D)

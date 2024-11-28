@@ -52,6 +52,7 @@ impl<'a> FontRead<'a> for Gasp<'a> {
 /// [gasp](https://learn.microsoft.com/en-us/typography/opentype/spec/gasp#gasp-table-formats)
 pub type Gasp<'a> = TableRef<'a, GaspMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Gasp<'a> {
     /// Version number (set to 1)
     pub fn version(&self) -> u16 {
@@ -95,6 +96,7 @@ impl<'a> SomeTable<'a> for Gasp<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Gasp<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

@@ -67,6 +67,7 @@ impl<'a> FontRead<'a> for Varc<'a> {
 /// [FontTools VARC](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3459-L3476)
 pub type Varc<'a> = TableRef<'a, VarcMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Varc<'a> {
     /// Major/minor version number. Set to 1.0.
     pub fn version(&self) -> MajorMinor {
@@ -167,6 +168,7 @@ impl<'a> SomeTable<'a> for Varc<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Varc<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -227,6 +229,7 @@ impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
 /// * <https://github.com/harfbuzz/harfbuzz/blob/7be12b33e3f07067c159d8f516eb31df58c75876/src/hb-ot-layout-common.hh#L3517-L3520C3>
 pub type MultiItemVariationStore<'a> = TableRef<'a, MultiItemVariationStoreMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> MultiItemVariationStore<'a> {
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
@@ -298,6 +301,7 @@ impl<'a> SomeTable<'a> for MultiItemVariationStore<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for MultiItemVariationStore<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -338,6 +342,7 @@ impl<'a> FontRead<'a> for SparseVariationRegionList<'a> {
 
 pub type SparseVariationRegionList<'a> = TableRef<'a, SparseVariationRegionListMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> SparseVariationRegionList<'a> {
     pub fn region_count(&self) -> u16 {
         let range = self.shape.region_count_byte_range();
@@ -385,6 +390,7 @@ impl<'a> SomeTable<'a> for SparseVariationRegionList<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for SparseVariationRegionList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -425,6 +431,7 @@ impl<'a> FontRead<'a> for SparseVariationRegion<'a> {
 
 pub type SparseVariationRegion<'a> = TableRef<'a, SparseVariationRegionMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> SparseVariationRegion<'a> {
     pub fn region_axis_count(&self) -> u16 {
         let range = self.shape.region_axis_count_byte_range();
@@ -459,6 +466,7 @@ impl<'a> SomeTable<'a> for SparseVariationRegion<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for SparseVariationRegion<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -569,6 +577,7 @@ impl<'a> FontRead<'a> for MultiItemVariationData<'a> {
 
 pub type MultiItemVariationData<'a> = TableRef<'a, MultiItemVariationDataMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> MultiItemVariationData<'a> {
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
@@ -608,6 +617,7 @@ impl<'a> SomeTable<'a> for MultiItemVariationData<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for MultiItemVariationData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -648,6 +658,7 @@ impl<'a> FontRead<'a> for ConditionList<'a> {
 
 pub type ConditionList<'a> = TableRef<'a, ConditionListMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionList<'a> {
     pub fn condition_count(&self) -> u32 {
         let range = self.shape.condition_count_byte_range();
@@ -695,6 +706,7 @@ impl<'a> SomeTable<'a> for ConditionList<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ConditionList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

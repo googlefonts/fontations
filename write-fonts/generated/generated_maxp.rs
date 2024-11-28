@@ -241,6 +241,7 @@ impl<'a> FromObjRef<read_fonts::tables::maxp::Maxp<'a>> for Maxp {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::maxp::Maxp<'a>> for Maxp {}
 
 impl<'a> FontRead<'a> for Maxp {

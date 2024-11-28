@@ -129,6 +129,7 @@ impl<'a> FontRead<'a> for Colr<'a> {
 /// [COLR (Color)](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#colr-header) table
 pub type Colr<'a> = TableRef<'a, ColrMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Colr<'a> {
     /// Table version number - set to 0 or 1.
     pub fn version(&self) -> u16 {
@@ -301,6 +302,7 @@ impl<'a> SomeTable<'a> for Colr<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Colr<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -435,6 +437,7 @@ impl<'a> FontRead<'a> for BaseGlyphList<'a> {
 /// [BaseGlyphList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
 pub type BaseGlyphList<'a> = TableRef<'a, BaseGlyphListMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> BaseGlyphList<'a> {
     pub fn num_base_glyph_paint_records(&self) -> u32 {
         let range = self.shape.num_base_glyph_paint_records_byte_range();
@@ -472,6 +475,7 @@ impl<'a> SomeTable<'a> for BaseGlyphList<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for BaseGlyphList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -567,6 +571,7 @@ impl<'a> FontRead<'a> for LayerList<'a> {
 /// [LayerList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
 pub type LayerList<'a> = TableRef<'a, LayerListMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> LayerList<'a> {
     pub fn num_layers(&self) -> u32 {
         let range = self.shape.num_layers_byte_range();
@@ -615,6 +620,7 @@ impl<'a> SomeTable<'a> for LayerList<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for LayerList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -661,6 +667,7 @@ impl<'a> FontRead<'a> for ClipList<'a> {
 /// [ClipList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
 pub type ClipList<'a> = TableRef<'a, ClipListMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ClipList<'a> {
     /// Set to 1.
     pub fn format(&self) -> u8 {
@@ -704,6 +711,7 @@ impl<'a> SomeTable<'a> for ClipList<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ClipList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -851,7 +859,7 @@ impl<'a> ClipBox<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for ClipBox<'a> {
+impl std::fmt::Debug for ClipBox<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -918,6 +926,7 @@ impl<'a> FontRead<'a> for ClipBoxFormat1<'a> {
 /// [ClipBoxFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
 pub type ClipBoxFormat1<'a> = TableRef<'a, ClipBoxFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ClipBoxFormat1<'a> {
     /// Set to 1.
     pub fn format(&self) -> u8 {
@@ -968,6 +977,7 @@ impl<'a> SomeTable<'a> for ClipBoxFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ClipBoxFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1031,6 +1041,7 @@ impl<'a> FontRead<'a> for ClipBoxFormat2<'a> {
 /// [ClipBoxFormat2](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
 pub type ClipBoxFormat2<'a> = TableRef<'a, ClipBoxFormat2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ClipBoxFormat2<'a> {
     /// Set to 2.
     pub fn format(&self) -> u8 {
@@ -1088,6 +1099,7 @@ impl<'a> SomeTable<'a> for ClipBoxFormat2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ClipBoxFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1337,6 +1349,7 @@ impl<'a> FontRead<'a> for ColorLine<'a> {
 /// [ColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
 pub type ColorLine<'a> = TableRef<'a, ColorLineMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ColorLine<'a> {
     /// An Extend enum value.
     pub fn extend(&self) -> Extend {
@@ -1379,6 +1392,7 @@ impl<'a> SomeTable<'a> for ColorLine<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for ColorLine<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1427,6 +1441,7 @@ impl<'a> FontRead<'a> for VarColorLine<'a> {
 /// [VarColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
 pub type VarColorLine<'a> = TableRef<'a, VarColorLineMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> VarColorLine<'a> {
     /// An Extend enum value.
     pub fn extend(&self) -> Extend {
@@ -1470,6 +1485,7 @@ impl<'a> SomeTable<'a> for VarColorLine<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for VarColorLine<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1742,7 +1758,7 @@ impl<'a> Paint<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for Paint<'a> {
+impl std::fmt::Debug for Paint<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -1797,6 +1813,7 @@ impl<'a> FontRead<'a> for PaintColrLayers<'a> {
 /// [PaintColrLayers](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-1-paintcolrlayers) table
 pub type PaintColrLayers<'a> = TableRef<'a, PaintColrLayersMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintColrLayers<'a> {
     /// Set to 1.
     pub fn format(&self) -> u8 {
@@ -1833,6 +1850,7 @@ impl<'a> SomeTable<'a> for PaintColrLayers<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintColrLayers<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1878,6 +1896,7 @@ impl<'a> FontRead<'a> for PaintSolid<'a> {
 /// [PaintSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
 pub type PaintSolid<'a> = TableRef<'a, PaintSolidMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSolid<'a> {
     /// Set to 2.
     pub fn format(&self) -> u8 {
@@ -1914,6 +1933,7 @@ impl<'a> SomeTable<'a> for PaintSolid<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintSolid<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1965,6 +1985,7 @@ impl<'a> FontRead<'a> for PaintVarSolid<'a> {
 /// [PaintVarSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
 pub type PaintVarSolid<'a> = TableRef<'a, PaintVarSolidMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSolid<'a> {
     /// Set to 3.
     pub fn format(&self) -> u8 {
@@ -2008,6 +2029,7 @@ impl<'a> SomeTable<'a> for PaintVarSolid<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintVarSolid<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2083,6 +2105,7 @@ impl<'a> FontRead<'a> for PaintLinearGradient<'a> {
 /// [PaintLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
 pub type PaintLinearGradient<'a> = TableRef<'a, PaintLinearGradientMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintLinearGradient<'a> {
     /// Set to 4.
     pub fn format(&self) -> u8 {
@@ -2163,6 +2186,7 @@ impl<'a> SomeTable<'a> for PaintLinearGradient<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintLinearGradient<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2244,6 +2268,7 @@ impl<'a> FontRead<'a> for PaintVarLinearGradient<'a> {
 /// [PaintVarLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
 pub type PaintVarLinearGradient<'a> = TableRef<'a, PaintVarLinearGradientMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarLinearGradient<'a> {
     /// Set to 5.
     pub fn format(&self) -> u8 {
@@ -2337,6 +2362,7 @@ impl<'a> SomeTable<'a> for PaintVarLinearGradient<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintVarLinearGradient<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2412,6 +2438,7 @@ impl<'a> FontRead<'a> for PaintRadialGradient<'a> {
 /// [PaintRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
 pub type PaintRadialGradient<'a> = TableRef<'a, PaintRadialGradientMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRadialGradient<'a> {
     /// Set to 6.
     pub fn format(&self) -> u8 {
@@ -2492,6 +2519,7 @@ impl<'a> SomeTable<'a> for PaintRadialGradient<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintRadialGradient<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2573,6 +2601,7 @@ impl<'a> FontRead<'a> for PaintVarRadialGradient<'a> {
 /// [PaintVarRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
 pub type PaintVarRadialGradient<'a> = TableRef<'a, PaintVarRadialGradientMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRadialGradient<'a> {
     /// Set to 7.
     pub fn format(&self) -> u8 {
@@ -2664,6 +2693,7 @@ impl<'a> SomeTable<'a> for PaintVarRadialGradient<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintVarRadialGradient<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2727,6 +2757,7 @@ impl<'a> FontRead<'a> for PaintSweepGradient<'a> {
 /// [PaintSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
 pub type PaintSweepGradient<'a> = TableRef<'a, PaintSweepGradientMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSweepGradient<'a> {
     /// Set to 8.
     pub fn format(&self) -> u8 {
@@ -2795,6 +2826,7 @@ impl<'a> SomeTable<'a> for PaintSweepGradient<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintSweepGradient<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2864,6 +2896,7 @@ impl<'a> FontRead<'a> for PaintVarSweepGradient<'a> {
 /// [PaintVarSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
 pub type PaintVarSweepGradient<'a> = TableRef<'a, PaintVarSweepGradientMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSweepGradient<'a> {
     /// Set to 9.
     pub fn format(&self) -> u8 {
@@ -2941,6 +2974,7 @@ impl<'a> SomeTable<'a> for PaintVarSweepGradient<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintVarSweepGradient<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -2986,6 +3020,7 @@ impl<'a> FontRead<'a> for PaintGlyph<'a> {
 /// [PaintGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-10-paintglyph) table
 pub type PaintGlyph<'a> = TableRef<'a, PaintGlyphMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintGlyph<'a> {
     /// Set to 10.
     pub fn format(&self) -> u8 {
@@ -3031,6 +3066,7 @@ impl<'a> SomeTable<'a> for PaintGlyph<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3070,6 +3106,7 @@ impl<'a> FontRead<'a> for PaintColrGlyph<'a> {
 /// [PaintColrGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-11-paintcolrglyph) table
 pub type PaintColrGlyph<'a> = TableRef<'a, PaintColrGlyphMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintColrGlyph<'a> {
     /// Set to 11.
     pub fn format(&self) -> u8 {
@@ -3099,6 +3136,7 @@ impl<'a> SomeTable<'a> for PaintColrGlyph<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintColrGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3144,6 +3182,7 @@ impl<'a> FontRead<'a> for PaintTransform<'a> {
 /// [PaintTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
 pub type PaintTransform<'a> = TableRef<'a, PaintTransformMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintTransform<'a> {
     /// Set to 12.
     pub fn format(&self) -> u8 {
@@ -3198,6 +3237,7 @@ impl<'a> SomeTable<'a> for PaintTransform<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintTransform<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3243,6 +3283,7 @@ impl<'a> FontRead<'a> for PaintVarTransform<'a> {
 /// [PaintVarTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
 pub type PaintVarTransform<'a> = TableRef<'a, PaintVarTransformMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarTransform<'a> {
     /// Set to 13.
     pub fn format(&self) -> u8 {
@@ -3297,6 +3338,7 @@ impl<'a> SomeTable<'a> for PaintVarTransform<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintVarTransform<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3356,6 +3398,7 @@ impl<'a> FontRead<'a> for Affine2x3<'a> {
 /// [Affine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
 pub type Affine2x3<'a> = TableRef<'a, Affine2x3Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Affine2x3<'a> {
     /// x-component of transformed x-basis vector.
     pub fn xx(&self) -> Fixed {
@@ -3413,6 +3456,7 @@ impl<'a> SomeTable<'a> for Affine2x3<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Affine2x3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3478,6 +3522,7 @@ impl<'a> FontRead<'a> for VarAffine2x3<'a> {
 /// [VarAffine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
 pub type VarAffine2x3<'a> = TableRef<'a, VarAffine2x3Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> VarAffine2x3<'a> {
     /// x-component of transformed x-basis vector. For variation, use
     /// varIndexBase + 0.
@@ -3546,6 +3591,7 @@ impl<'a> SomeTable<'a> for VarAffine2x3<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for VarAffine2x3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3597,6 +3643,7 @@ impl<'a> FontRead<'a> for PaintTranslate<'a> {
 /// [PaintTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
 pub type PaintTranslate<'a> = TableRef<'a, PaintTranslateMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintTranslate<'a> {
     /// Set to 14.
     pub fn format(&self) -> u8 {
@@ -3649,6 +3696,7 @@ impl<'a> SomeTable<'a> for PaintTranslate<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintTranslate<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3706,6 +3754,7 @@ impl<'a> FontRead<'a> for PaintVarTranslate<'a> {
 /// [PaintVarTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
 pub type PaintVarTranslate<'a> = TableRef<'a, PaintVarTranslateMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarTranslate<'a> {
     /// Set to 15.
     pub fn format(&self) -> u8 {
@@ -3765,6 +3814,7 @@ impl<'a> SomeTable<'a> for PaintVarTranslate<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintVarTranslate<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3816,6 +3866,7 @@ impl<'a> FontRead<'a> for PaintScale<'a> {
 /// [PaintScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintScale<'a> = TableRef<'a, PaintScaleMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScale<'a> {
     /// Set to 16.
     pub fn format(&self) -> u8 {
@@ -3868,6 +3919,7 @@ impl<'a> SomeTable<'a> for PaintScale<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintScale<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -3925,6 +3977,7 @@ impl<'a> FontRead<'a> for PaintVarScale<'a> {
 /// [PaintVarScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintVarScale<'a> = TableRef<'a, PaintVarScaleMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScale<'a> {
     /// Set to 17.
     pub fn format(&self) -> u8 {
@@ -3986,6 +4039,7 @@ impl<'a> SomeTable<'a> for PaintVarScale<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintVarScale<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4049,6 +4103,7 @@ impl<'a> FontRead<'a> for PaintScaleAroundCenter<'a> {
 /// [PaintScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintScaleAroundCenter<'a> = TableRef<'a, PaintScaleAroundCenterMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleAroundCenter<'a> {
     /// Set to 18.
     pub fn format(&self) -> u8 {
@@ -4115,6 +4170,7 @@ impl<'a> SomeTable<'a> for PaintScaleAroundCenter<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintScaleAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4184,6 +4240,7 @@ impl<'a> FontRead<'a> for PaintVarScaleAroundCenter<'a> {
 /// [PaintVarScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintVarScaleAroundCenter<'a> = TableRef<'a, PaintVarScaleAroundCenterMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleAroundCenter<'a> {
     /// Set to 19.
     pub fn format(&self) -> u8 {
@@ -4261,6 +4318,7 @@ impl<'a> SomeTable<'a> for PaintVarScaleAroundCenter<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintVarScaleAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4306,6 +4364,7 @@ impl<'a> FontRead<'a> for PaintScaleUniform<'a> {
 /// [PaintScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintScaleUniform<'a> = TableRef<'a, PaintScaleUniformMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleUniform<'a> {
     /// Set to 20.
     pub fn format(&self) -> u8 {
@@ -4351,6 +4410,7 @@ impl<'a> SomeTable<'a> for PaintScaleUniform<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintScaleUniform<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4402,6 +4462,7 @@ impl<'a> FontRead<'a> for PaintVarScaleUniform<'a> {
 /// [PaintVarScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintVarScaleUniform<'a> = TableRef<'a, PaintVarScaleUniformMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleUniform<'a> {
     /// Set to 21.
     pub fn format(&self) -> u8 {
@@ -4455,6 +4516,7 @@ impl<'a> SomeTable<'a> for PaintVarScaleUniform<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintVarScaleUniform<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4512,6 +4574,7 @@ impl<'a> FontRead<'a> for PaintScaleUniformAroundCenter<'a> {
 /// [PaintScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintScaleUniformAroundCenter<'a> = TableRef<'a, PaintScaleUniformAroundCenterMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleUniformAroundCenter<'a> {
     /// Set to 22.
     pub fn format(&self) -> u8 {
@@ -4571,6 +4634,7 @@ impl<'a> SomeTable<'a> for PaintScaleUniformAroundCenter<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintScaleUniformAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4635,6 +4699,7 @@ impl<'a> FontRead<'a> for PaintVarScaleUniformAroundCenter<'a> {
 pub type PaintVarScaleUniformAroundCenter<'a> =
     TableRef<'a, PaintVarScaleUniformAroundCenterMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleUniformAroundCenter<'a> {
     /// Set to 23.
     pub fn format(&self) -> u8 {
@@ -4704,6 +4769,7 @@ impl<'a> SomeTable<'a> for PaintVarScaleUniformAroundCenter<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintVarScaleUniformAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4749,6 +4815,7 @@ impl<'a> FontRead<'a> for PaintRotate<'a> {
 /// [PaintRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
 pub type PaintRotate<'a> = TableRef<'a, PaintRotateMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRotate<'a> {
     /// Set to 24.
     pub fn format(&self) -> u8 {
@@ -4795,6 +4862,7 @@ impl<'a> SomeTable<'a> for PaintRotate<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintRotate<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4846,6 +4914,7 @@ impl<'a> FontRead<'a> for PaintVarRotate<'a> {
 /// [PaintVarRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
 pub type PaintVarRotate<'a> = TableRef<'a, PaintVarRotateMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRotate<'a> {
     /// Set to 25.
     pub fn format(&self) -> u8 {
@@ -4899,6 +4968,7 @@ impl<'a> SomeTable<'a> for PaintVarRotate<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintVarRotate<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -4956,6 +5026,7 @@ impl<'a> FontRead<'a> for PaintRotateAroundCenter<'a> {
 /// [PaintRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
 pub type PaintRotateAroundCenter<'a> = TableRef<'a, PaintRotateAroundCenterMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRotateAroundCenter<'a> {
     /// Set to 26.
     pub fn format(&self) -> u8 {
@@ -5016,6 +5087,7 @@ impl<'a> SomeTable<'a> for PaintRotateAroundCenter<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintRotateAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -5079,6 +5151,7 @@ impl<'a> FontRead<'a> for PaintVarRotateAroundCenter<'a> {
 /// [PaintVarRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
 pub type PaintVarRotateAroundCenter<'a> = TableRef<'a, PaintVarRotateAroundCenterMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRotateAroundCenter<'a> {
     /// Set to 27.
     pub fn format(&self) -> u8 {
@@ -5148,6 +5221,7 @@ impl<'a> SomeTable<'a> for PaintVarRotateAroundCenter<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintVarRotateAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -5199,6 +5273,7 @@ impl<'a> FontRead<'a> for PaintSkew<'a> {
 /// [PaintSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
 pub type PaintSkew<'a> = TableRef<'a, PaintSkewMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSkew<'a> {
     /// Set to 28.
     pub fn format(&self) -> u8 {
@@ -5253,6 +5328,7 @@ impl<'a> SomeTable<'a> for PaintSkew<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintSkew<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -5310,6 +5386,7 @@ impl<'a> FontRead<'a> for PaintVarSkew<'a> {
 /// [PaintVarSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
 pub type PaintVarSkew<'a> = TableRef<'a, PaintVarSkewMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSkew<'a> {
     /// Set to 29.
     pub fn format(&self) -> u8 {
@@ -5373,6 +5450,7 @@ impl<'a> SomeTable<'a> for PaintVarSkew<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintVarSkew<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -5436,6 +5514,7 @@ impl<'a> FontRead<'a> for PaintSkewAroundCenter<'a> {
 /// [PaintSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
 pub type PaintSkewAroundCenter<'a> = TableRef<'a, PaintSkewAroundCenterMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSkewAroundCenter<'a> {
     /// Set to 30.
     pub fn format(&self) -> u8 {
@@ -5504,6 +5583,7 @@ impl<'a> SomeTable<'a> for PaintSkewAroundCenter<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintSkewAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -5573,6 +5653,7 @@ impl<'a> FontRead<'a> for PaintVarSkewAroundCenter<'a> {
 /// [PaintVarSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
 pub type PaintVarSkewAroundCenter<'a> = TableRef<'a, PaintVarSkewAroundCenterMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSkewAroundCenter<'a> {
     /// Set to 31.
     pub fn format(&self) -> u8 {
@@ -5652,6 +5733,7 @@ impl<'a> SomeTable<'a> for PaintVarSkewAroundCenter<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintVarSkewAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -5703,6 +5785,7 @@ impl<'a> FontRead<'a> for PaintComposite<'a> {
 /// [PaintComposite](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite) table
 pub type PaintComposite<'a> = TableRef<'a, PaintCompositeMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> PaintComposite<'a> {
     /// Set to 32.
     pub fn format(&self) -> u8 {
@@ -5764,6 +5847,7 @@ impl<'a> SomeTable<'a> for PaintComposite<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for PaintComposite<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

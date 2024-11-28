@@ -57,6 +57,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ScriptList<'a>> for ScriptList {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ScriptList<'a>> for ScriptList {}
 
 impl<'a> FontRead<'a> for ScriptList {
@@ -173,6 +174,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::Script<'a>> for Script {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::Script<'a>> for Script {}
 
 impl<'a> FontRead<'a> for Script {
@@ -297,6 +299,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::LangSys<'a>> for LangSys {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::LangSys<'a>> for LangSys {}
 
 impl<'a> FontRead<'a> for LangSys {
@@ -356,6 +359,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::FeatureList<'a>> for FeatureList
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::FeatureList<'a>> for FeatureList {}
 
 impl<'a> FontRead<'a> for FeatureList {
@@ -475,6 +479,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::Feature<'a>> for Feature {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::Feature<'a>> for Feature {}
 
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
@@ -531,6 +536,7 @@ where
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a, T, U> FromTableRef<read_fonts::tables::layout::LookupList<'a, U>> for LookupList<T>
 where
     U: FontRead<'a>,
@@ -604,6 +610,7 @@ where
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a, T, U> FromTableRef<read_fonts::tables::layout::Lookup<'a, U>> for Lookup<T>
 where
     U: FontRead<'a>,
@@ -661,6 +668,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::CoverageFormat1<'a>> for Coverag
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::CoverageFormat1<'a>> for CoverageFormat1 {}
 
 impl<'a> FontRead<'a> for CoverageFormat1 {
@@ -721,6 +729,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::CoverageFormat2<'a>> for Coverag
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::CoverageFormat2<'a>> for CoverageFormat2 {}
 
 impl<'a> FontRead<'a> for CoverageFormat2 {
@@ -918,6 +927,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ClassDefFormat1<'a>> for ClassDe
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ClassDefFormat1<'a>> for ClassDefFormat1 {}
 
 impl<'a> FontRead<'a> for ClassDefFormat1 {
@@ -978,6 +988,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ClassDefFormat2<'a>> for ClassDe
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ClassDefFormat2<'a>> for ClassDefFormat2 {}
 
 impl<'a> FontRead<'a> for ClassDefFormat2 {
@@ -1229,6 +1240,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::SequenceContextFormat1<'a>>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::SequenceContextFormat1<'a>>
     for SequenceContextFormat1
 {
@@ -1291,6 +1303,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::SequenceRuleSet<'a>> for Sequenc
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::SequenceRuleSet<'a>> for SequenceRuleSet {}
 
 impl<'a> FontRead<'a> for SequenceRuleSet {
@@ -1359,6 +1372,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::SequenceRule<'a>> for SequenceRu
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::SequenceRule<'a>> for SequenceRule {}
 
 impl<'a> FontRead<'a> for SequenceRule {
@@ -1446,6 +1460,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::SequenceContextFormat2<'a>>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::SequenceContextFormat2<'a>>
     for SequenceContextFormat2
 {
@@ -1511,6 +1526,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ClassSequenceRuleSet<'a>> for Cl
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ClassSequenceRuleSet<'a>>
     for ClassSequenceRuleSet
 {
@@ -1580,6 +1596,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ClassSequenceRule<'a>> for Class
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ClassSequenceRule<'a>> for ClassSequenceRule {}
 
 impl<'a> FontRead<'a> for ClassSequenceRule {
@@ -1661,6 +1678,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::SequenceContextFormat3<'a>>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::SequenceContextFormat3<'a>>
     for SequenceContextFormat3
 {
@@ -1848,6 +1866,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceContextFormat1<'a
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceContextFormat1<'a>>
     for ChainedSequenceContextFormat1
 {
@@ -1915,6 +1934,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceRuleSet<'a>>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceRuleSet<'a>>
     for ChainedSequenceRuleSet
 {
@@ -2013,6 +2033,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceRule<'a>> for Cha
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceRule<'a>> for ChainedSequenceRule {}
 
 impl<'a> FontRead<'a> for ChainedSequenceRule {
@@ -2123,6 +2144,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceContextFormat2<'a
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceContextFormat2<'a>>
     for ChainedSequenceContextFormat2
 {
@@ -2193,6 +2215,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ChainedClassSequenceRuleSet<'a>>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ChainedClassSequenceRuleSet<'a>>
     for ChainedClassSequenceRuleSet
 {
@@ -2294,6 +2317,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ChainedClassSequenceRule<'a>>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ChainedClassSequenceRule<'a>>
     for ChainedClassSequenceRule
 {
@@ -2403,6 +2427,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceContextFormat3<'a
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceContextFormat3<'a>>
     for ChainedSequenceContextFormat3
 {
@@ -2591,6 +2616,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::Device<'a>> for Device {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::Device<'a>> for Device {}
 
 impl<'a> FontRead<'a> for Device {
@@ -2646,6 +2672,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::VariationIndex<'a>> for Variatio
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::VariationIndex<'a>> for VariationIndex {}
 
 impl<'a> FontRead<'a> for VariationIndex {
@@ -2836,6 +2863,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::FeatureVariations<'a>> for Featu
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::FeatureVariations<'a>> for FeatureVariations {}
 
 impl<'a> FontRead<'a> for FeatureVariations {
@@ -2957,6 +2985,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ConditionSet<'a>> for ConditionS
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ConditionSet<'a>> for ConditionSet {}
 
 impl<'a> FontRead<'a> for ConditionSet {
@@ -3166,6 +3195,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ConditionFormat1<'a>> for Condit
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat1<'a>> for ConditionFormat1 {}
 
 impl<'a> FontRead<'a> for ConditionFormat1 {
@@ -3220,6 +3250,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ConditionFormat2<'a>> for Condit
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat2<'a>> for ConditionFormat2 {}
 
 impl<'a> FontRead<'a> for ConditionFormat2 {
@@ -3283,6 +3314,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ConditionFormat3<'a>> for Condit
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat3<'a>> for ConditionFormat3 {}
 
 impl<'a> FontRead<'a> for ConditionFormat3 {
@@ -3346,6 +3378,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ConditionFormat4<'a>> for Condit
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat4<'a>> for ConditionFormat4 {}
 
 impl<'a> FontRead<'a> for ConditionFormat4 {
@@ -3401,6 +3434,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ConditionFormat5<'a>> for Condit
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat5<'a>> for ConditionFormat5 {}
 
 impl<'a> FontRead<'a> for ConditionFormat5 {
@@ -3466,6 +3500,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::FeatureTableSubstitution<'a>>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::FeatureTableSubstitution<'a>>
     for FeatureTableSubstitution
 {
@@ -3616,6 +3651,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::SizeParams<'a>> for SizeParams {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::SizeParams<'a>> for SizeParams {}
 
 impl<'a> FontRead<'a> for SizeParams {
@@ -3669,6 +3705,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::StylisticSetParams<'a>> for Styl
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::StylisticSetParams<'a>> for StylisticSetParams {}
 
 impl<'a> FontRead<'a> for StylisticSetParams {
@@ -3773,6 +3810,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::CharacterVariantParams<'a>>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::CharacterVariantParams<'a>>
     for CharacterVariantParams
 {

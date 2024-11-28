@@ -9,7 +9,7 @@ use super::{
     Engine, OpResult,
 };
 
-impl<'a> Engine<'a> {
+impl Engine<'_> {
     /// Get coordinate project in to the projection vector.
     ///
     /// GC\[a\] (0x46 - 0x47)

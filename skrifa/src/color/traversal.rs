@@ -100,7 +100,7 @@ impl<'a> CollectFillGlyphPainter<'a> {
     }
 }
 
-impl<'a> ColorPainter for CollectFillGlyphPainter<'a> {
+impl ColorPainter for CollectFillGlyphPainter<'_> {
     fn push_transform(&mut self, transform: Transform) {
         if self.optimization_success {
             match self.brush_transform {

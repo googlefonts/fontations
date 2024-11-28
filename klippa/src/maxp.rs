@@ -8,7 +8,7 @@ use write_fonts::{
 
 // reference: subset() for maxp in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/hb-ot-maxp-table.hh#L97
-impl<'a> Subset for Maxp<'a> {
+impl Subset for Maxp<'_> {
     fn subset(
         &self,
         plan: &Plan,

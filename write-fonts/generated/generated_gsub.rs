@@ -87,6 +87,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::Gsub<'a>> for Gsub {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::Gsub<'a>> for Gsub {}
 
 impl<'a> FontRead<'a> for Gsub {
@@ -373,6 +374,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::SingleSubstFormat1<'a>> for Single
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::SingleSubstFormat1<'a>> for SingleSubstFormat1 {}
 
 impl<'a> FontRead<'a> for SingleSubstFormat1 {
@@ -441,6 +443,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::SingleSubstFormat2<'a>> for Single
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::SingleSubstFormat2<'a>> for SingleSubstFormat2 {}
 
 impl<'a> FontRead<'a> for SingleSubstFormat2 {
@@ -510,6 +513,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::MultipleSubstFormat1<'a>> for Mult
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::MultipleSubstFormat1<'a>> for MultipleSubstFormat1 {}
 
 impl<'a> FontRead<'a> for MultipleSubstFormat1 {
@@ -568,6 +572,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::Sequence<'a>> for Sequence {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::Sequence<'a>> for Sequence {}
 
 impl<'a> FontRead<'a> for Sequence {
@@ -639,6 +644,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::AlternateSubstFormat1<'a>> for Alt
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::AlternateSubstFormat1<'a>>
     for AlternateSubstFormat1
 {
@@ -700,6 +706,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::AlternateSet<'a>> for AlternateSet
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::AlternateSet<'a>> for AlternateSet {}
 
 impl<'a> FontRead<'a> for AlternateSet {
@@ -768,6 +775,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::LigatureSubstFormat1<'a>> for Liga
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::LigatureSubstFormat1<'a>> for LigatureSubstFormat1 {}
 
 impl<'a> FontRead<'a> for LigatureSubstFormat1 {
@@ -827,6 +835,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::LigatureSet<'a>> for LigatureSet {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::LigatureSet<'a>> for LigatureSet {}
 
 impl<'a> FontRead<'a> for LigatureSet {
@@ -882,6 +891,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::Ligature<'a>> for Ligature {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::Ligature<'a>> for Ligature {}
 
 impl<'a> FontRead<'a> for Ligature {
@@ -940,6 +950,7 @@ where
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a, T, U> FromTableRef<read_fonts::tables::gsub::ExtensionSubstFormat1<'a, U>>
     for ExtensionSubstFormat1<T>
 where
@@ -1176,6 +1187,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::ReverseChainSingleSubstFormat1<'a>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::ReverseChainSingleSubstFormat1<'a>>
     for ReverseChainSingleSubstFormat1
 {

@@ -87,6 +87,7 @@ impl<'a> FontRead<'a> for Avar<'a> {
 /// The [avar (Axis Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
 pub type Avar<'a> = TableRef<'a, AvarMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Avar<'a> {
     /// Major version number of the axis variations table — set to 1 or 2.
     /// Minor version number of the axis variations table — set to 0.
@@ -164,6 +165,7 @@ impl<'a> SomeTable<'a> for Avar<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Avar<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

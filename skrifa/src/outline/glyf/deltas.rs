@@ -225,7 +225,7 @@ where
     out_points: &'a mut [Point<D>],
 }
 
-impl<'a, C, D> Jiggler<'a, C, D>
+impl<C, D> Jiggler<'_, C, D>
 where
     C: PointCoord,
     D: PointCoord,

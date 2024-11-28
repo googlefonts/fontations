@@ -35,6 +35,7 @@ impl<'a> FontRead<'a> for CountAll16<'a> {
 
 pub type CountAll16<'a> = TableRef<'a, CountAll16Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> CountAll16<'a> {
     pub fn some_field(&self) -> u16 {
         let range = self.shape.some_field_byte_range();
@@ -62,6 +63,7 @@ impl<'a> SomeTable<'a> for CountAll16<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for CountAll16<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -98,6 +100,7 @@ impl<'a> FontRead<'a> for CountAll32<'a> {
 
 pub type CountAll32<'a> = TableRef<'a, CountAll32Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> CountAll32<'a> {
     pub fn some_field(&self) -> u16 {
         let range = self.shape.some_field_byte_range();
@@ -125,6 +128,7 @@ impl<'a> SomeTable<'a> for CountAll32<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for CountAll32<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

@@ -3,7 +3,7 @@
 use crate::{NameIdClosure, Plan};
 use write_fonts::read::{tables::cpal::Cpal, types::NameId};
 
-impl<'a> NameIdClosure for Cpal<'a> {
+impl NameIdClosure for Cpal<'_> {
     fn collect_name_ids(&self, plan: &mut Plan) {
         if self.version() == 0 {
             return;

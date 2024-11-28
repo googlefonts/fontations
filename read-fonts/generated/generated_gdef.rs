@@ -87,6 +87,7 @@ impl<'a> FontRead<'a> for Gdef<'a> {
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
 pub type Gdef<'a> = TableRef<'a, GdefMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Gdef<'a> {
     /// The major/minor version of the GDEF table
     pub fn version(&self) -> MajorMinor {
@@ -218,6 +219,7 @@ impl<'a> SomeTable<'a> for Gdef<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Gdef<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -315,6 +317,7 @@ impl<'a> FontRead<'a> for AttachList<'a> {
 /// [Attachment Point List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#attachment-point-list-table)
 pub type AttachList<'a> = TableRef<'a, AttachListMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> AttachList<'a> {
     /// Offset to Coverage table - from beginning of AttachList table
     pub fn coverage_offset(&self) -> Offset16 {
@@ -381,6 +384,7 @@ impl<'a> SomeTable<'a> for AttachList<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for AttachList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -423,6 +427,7 @@ impl<'a> FontRead<'a> for AttachPoint<'a> {
 /// Part of [AttachList]
 pub type AttachPoint<'a> = TableRef<'a, AttachPointMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> AttachPoint<'a> {
     /// Number of attachment points on this glyph
     pub fn point_count(&self) -> u16 {
@@ -452,6 +457,7 @@ impl<'a> SomeTable<'a> for AttachPoint<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for AttachPoint<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -500,6 +506,7 @@ impl<'a> FontRead<'a> for LigCaretList<'a> {
 /// [Ligature Caret List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-caret-list-table)
 pub type LigCaretList<'a> = TableRef<'a, LigCaretListMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> LigCaretList<'a> {
     /// Offset to Coverage table - from beginning of LigCaretList table
     pub fn coverage_offset(&self) -> Offset16 {
@@ -566,6 +573,7 @@ impl<'a> SomeTable<'a> for LigCaretList<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for LigCaretList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -608,6 +616,7 @@ impl<'a> FontRead<'a> for LigGlyph<'a> {
 /// [Ligature Glyph Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-glyph-table)
 pub type LigGlyph<'a> = TableRef<'a, LigGlyphMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> LigGlyph<'a> {
     /// Number of CaretValue tables for this ligature (components - 1)
     pub fn caret_count(&self) -> u16 {
@@ -658,6 +667,7 @@ impl<'a> SomeTable<'a> for LigGlyph<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for LigGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -716,7 +726,7 @@ impl<'a> CaretValue<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for CaretValue<'a> {
+impl std::fmt::Debug for CaretValue<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.dyn_inner().fmt(f)
     }
@@ -765,6 +775,7 @@ impl<'a> FontRead<'a> for CaretValueFormat1<'a> {
 /// [CaretValue Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-1)
 pub type CaretValueFormat1<'a> = TableRef<'a, CaretValueFormat1Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> CaretValueFormat1<'a> {
     /// Format identifier: format = 1
     pub fn caret_value_format(&self) -> u16 {
@@ -794,6 +805,7 @@ impl<'a> SomeTable<'a> for CaretValueFormat1<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for CaretValueFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -833,6 +845,7 @@ impl<'a> FontRead<'a> for CaretValueFormat2<'a> {
 /// [CaretValue Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-2)
 pub type CaretValueFormat2<'a> = TableRef<'a, CaretValueFormat2Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> CaretValueFormat2<'a> {
     /// Format identifier: format = 2
     pub fn caret_value_format(&self) -> u16 {
@@ -865,6 +878,7 @@ impl<'a> SomeTable<'a> for CaretValueFormat2<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for CaretValueFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -910,6 +924,7 @@ impl<'a> FontRead<'a> for CaretValueFormat3<'a> {
 /// [CaretValue Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-3)
 pub type CaretValueFormat3<'a> = TableRef<'a, CaretValueFormat3Marker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> CaretValueFormat3<'a> {
     /// Format identifier-format = 3
     pub fn caret_value_format(&self) -> u16 {
@@ -957,6 +972,7 @@ impl<'a> SomeTable<'a> for CaretValueFormat3<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for CaretValueFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -1009,6 +1025,7 @@ impl<'a> FontRead<'a> for MarkGlyphSets<'a> {
 /// [Mark Glyph Sets Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#mark-glyph-sets-table)
 pub type MarkGlyphSets<'a> = TableRef<'a, MarkGlyphSetsMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> MarkGlyphSets<'a> {
     /// Format identifier == 1
     pub fn format(&self) -> u16 {
@@ -1069,6 +1086,7 @@ impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for MarkGlyphSets<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

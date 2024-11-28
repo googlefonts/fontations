@@ -129,6 +129,7 @@ impl<'a> FromObjRef<read_fonts::tables::cpal::Cpal<'a>> for Cpal {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cpal::Cpal<'a>> for Cpal {}
 
 impl<'a> FontRead<'a> for Cpal {

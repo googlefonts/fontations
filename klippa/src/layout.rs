@@ -8,19 +8,19 @@ use write_fonts::read::{
     types::NameId,
 };
 
-impl<'a> NameIdClosure for StylisticSetParams<'a> {
+impl NameIdClosure for StylisticSetParams<'_> {
     fn collect_name_ids(&self, plan: &mut Plan) {
         plan.name_ids.insert(self.ui_name_id());
     }
 }
 
-impl<'a> NameIdClosure for SizeParams<'a> {
+impl NameIdClosure for SizeParams<'_> {
     fn collect_name_ids(&self, plan: &mut Plan) {
         plan.name_ids.insert(NameId::new(self.name_entry()));
     }
 }
 
-impl<'a> NameIdClosure for CharacterVariantParams<'a> {
+impl NameIdClosure for CharacterVariantParams<'_> {
     fn collect_name_ids(&self, plan: &mut Plan) {
         plan.name_ids.insert(self.feat_ui_label_name_id());
         plan.name_ids.insert(self.feat_ui_tooltip_text_name_id());
@@ -41,7 +41,7 @@ impl<'a> NameIdClosure for CharacterVariantParams<'a> {
     }
 }
 
-impl<'a> NameIdClosure for Feature<'a> {
+impl NameIdClosure for Feature<'_> {
     fn collect_name_ids(&self, plan: &mut Plan) {
         let Some(Ok(feature_params)) = self.feature_params() else {
             return;

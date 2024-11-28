@@ -284,7 +284,7 @@ struct CreateLayerState<'a> {
     branch_factor: BranchFactor,
 }
 
-impl<'a> CreateLayerState<'a> {
+impl CreateLayerState<'_> {
     fn commit_current_node(&mut self) {
         let Some(mut node) = self.current_node.take() else {
             // noop if there isn't a node to commit.

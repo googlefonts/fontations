@@ -52,7 +52,7 @@ impl<'a> PString<'a> {
     }
 }
 
-impl<'a> std::ops::Deref for PString<'a> {
+impl std::ops::Deref for PString<'_> {
     type Target = str;
     fn deref(&self) -> &Self::Target {
         self.0

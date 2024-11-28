@@ -53,7 +53,7 @@ pub struct ComponentFlags {
     pub overlap_compound: bool,
 }
 
-impl<'a> FromObjRef<read_fonts::tables::glyf::CompositeGlyph<'a>> for CompositeGlyph {
+impl FromObjRef<read_fonts::tables::glyf::CompositeGlyph<'_>> for CompositeGlyph {
     fn from_obj_ref(
         from: &read_fonts::tables::glyf::CompositeGlyph,
         _data: read_fonts::FontData,
@@ -84,7 +84,7 @@ impl<'a> FromObjRef<read_fonts::tables::glyf::CompositeGlyph<'a>> for CompositeG
     }
 }
 
-impl<'a> FromTableRef<read_fonts::tables::glyf::CompositeGlyph<'a>> for CompositeGlyph {}
+impl FromTableRef<read_fonts::tables::glyf::CompositeGlyph<'_>> for CompositeGlyph {}
 
 impl<'a> FontRead<'a> for CompositeGlyph {
     fn read(data: read_fonts::FontData<'a>) -> Result<Self, read_fonts::ReadError> {

@@ -896,7 +896,7 @@ impl<'a> DenseDeltaIter<'a> {
     }
 }
 
-impl<'a> Iterator for DenseDeltaIter<'a> {
+impl Iterator for DenseDeltaIter<'_> {
     type Item = i32;
 
     fn next(&mut self) -> Option<Self::Item> {

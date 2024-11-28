@@ -44,6 +44,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::formats::Table1<'a>> for Table1 {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::formats::Table1<'a>> for Table1 {}
 
 impl<'a> FontRead<'a> for Table1 {
@@ -101,6 +102,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::formats::Table2<'a>> for Table2 {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::formats::Table2<'a>> for Table2 {}
 
 impl<'a> FontRead<'a> for Table2 {
@@ -139,6 +141,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::formats::Table3<'a>> for Table3 {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::formats::Table3<'a>> for Table3 {}
 
 impl<'a> FontRead<'a> for Table3 {

@@ -724,7 +724,7 @@ impl<'a> BitSetRangeIter<'a> {
     }
 }
 
-impl<'a> Iterator for BitSetRangeIter<'a> {
+impl Iterator for BitSetRangeIter<'_> {
     type Item = RangeInclusive<u32>;
 
     fn next(&mut self) -> Option<Self::Item> {

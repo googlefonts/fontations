@@ -24,7 +24,7 @@ pub struct PatchGroup<'a> {
     patches: Option<CompatibleGroup>,
 }
 
-impl<'a> PatchGroup<'a> {
+impl PatchGroup<'_> {
     /// Intersect the available and unapplied patches in ift_font against subset_definition
     ///
     /// Returns a group of patches which would be applied next.

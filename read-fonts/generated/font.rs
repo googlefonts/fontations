@@ -65,6 +65,7 @@ impl<'a> FontRead<'a> for TableDirectory<'a> {
 /// The OpenType [Table Directory](https://docs.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
 pub type TableDirectory<'a> = TableRef<'a, TableDirectoryMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> TableDirectory<'a> {
     /// 0x00010000 or 0x4F54544F
     pub fn sfnt_version(&self) -> u32 {
@@ -126,6 +127,7 @@ impl<'a> SomeTable<'a> for TableDirectory<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for TableDirectory<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -281,6 +283,7 @@ impl<'a> FontRead<'a> for TTCHeader<'a> {
 /// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
 pub type TTCHeader<'a> = TableRef<'a, TTCHeaderMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> TTCHeader<'a> {
     /// Font Collection ID string: \"ttcf\"
     pub fn ttc_tag(&self) -> Tag {
@@ -355,6 +358,7 @@ impl<'a> SomeTable<'a> for TTCHeader<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for TTCHeader<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

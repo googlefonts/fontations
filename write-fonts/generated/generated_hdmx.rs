@@ -81,6 +81,7 @@ impl<'a> FromObjRef<read_fonts::tables::hdmx::Hdmx<'a>> for Hdmx {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::hdmx::Hdmx<'a>> for Hdmx {}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

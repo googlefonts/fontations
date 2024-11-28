@@ -13,7 +13,7 @@ pub mod class {
     pub const DELETED_GLYPH: u8 = 2;
 }
 
-impl<'a> Lookup0<'a> {
+impl Lookup0<'_> {
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         let data = self.values_data();
         let data_len = data.len();
@@ -48,7 +48,7 @@ impl<T: LookupValue> FixedSize for LookupSegment2<T> {
     const RAW_BYTE_LEN: usize = std::mem::size_of::<Self>();
 }
 
-impl<'a> Lookup2<'a> {
+impl Lookup2<'_> {
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         let segments = self.segments::<T>()?;
         let ix = match segments.binary_search_by(|segment| segment.first_glyph.get().cmp(&index)) {
@@ -70,7 +70,7 @@ impl<'a> Lookup2<'a> {
     }
 }
 
-impl<'a> Lookup4<'a> {
+impl Lookup4<'_> {
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         let segments = self.segments();
         let ix = match segments.binary_search_by(|segment| segment.first_glyph.get().cmp(&index)) {
@@ -109,7 +109,7 @@ impl<T: LookupValue> FixedSize for LookupSingle<T> {
     const RAW_BYTE_LEN: usize = std::mem::size_of::<Self>();
 }
 
-impl<'a> Lookup6<'a> {
+impl Lookup6<'_> {
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         let entries = self.entries::<T>()?;
         if let Ok(ix) = entries.binary_search_by_key(&index, |entry| entry.glyph.get()) {
@@ -127,7 +127,7 @@ impl<'a> Lookup6<'a> {
     }
 }
 
-impl<'a> Lookup8<'a> {
+impl Lookup8<'_> {
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         index
             .checked_sub(self.first_glyph())
@@ -140,7 +140,7 @@ impl<'a> Lookup8<'a> {
     }
 }
 
-impl<'a> Lookup10<'a> {
+impl Lookup10<'_> {
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         let ix = index
             .checked_sub(self.first_glyph())
@@ -163,7 +163,7 @@ impl<'a> Lookup10<'a> {
     }
 }
 
-impl<'a> Lookup<'a> {
+impl Lookup<'_> {
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         match self {
             Lookup::Format0(lookup) => lookup.value::<T>(index),
@@ -181,7 +181,7 @@ pub struct TypedLookup<'a, T> {
     _marker: std::marker::PhantomData<fn() -> T>,
 }
 
-impl<'a, T: LookupValue> TypedLookup<'a, T> {
+impl<T: LookupValue> TypedLookup<'_, T> {
     /// Returns the value associated with the given index.
     pub fn value(&self, index: u16) -> Result<T, ReadError> {
         self.lookup.value::<T>(index)
@@ -299,7 +299,7 @@ pub struct StateTable<'a> {
     header: StateHeader<'a>,
 }
 
-impl<'a> StateTable<'a> {
+impl StateTable<'_> {
     /// Returns the class table entry for the given glyph identifier.
     pub fn class(&self, glyph_id: GlyphId16) -> Result<u8, ReadError> {
         let glyph_id = glyph_id.to_u16();
@@ -378,7 +378,7 @@ pub struct ExtendedStateTable<'a, T = ()> {
     _marker: std::marker::PhantomData<fn() -> T>,
 }
 
-impl<'a, T: bytemuck::AnyBitPattern + FixedSize> ExtendedStateTable<'a, T> {
+impl<T: bytemuck::AnyBitPattern + FixedSize> ExtendedStateTable<'_, T> {
     /// Returns the class table entry for the given glyph identifier.
     pub fn class(&self, glyph_id: GlyphId16) -> Result<u16, ReadError> {
         let glyph_id = glyph_id.to_u16();

@@ -64,6 +64,7 @@ impl<'a> FontRead<'a> for BasicTable<'a> {
 
 pub type BasicTable<'a> = TableRef<'a, BasicTableMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> BasicTable<'a> {
     pub fn simple_count(&self) -> u16 {
         let range = self.shape.simple_count_byte_range();
@@ -128,6 +129,7 @@ impl<'a> SomeTable<'a> for BasicTable<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for BasicTable<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -225,6 +227,7 @@ impl<'a> FontReadWithArgs<'a> for ContainsArrays<'a> {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> ContainsArrays<'a> {
     /// A constructor that requires additional arguments.
     ///

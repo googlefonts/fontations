@@ -91,6 +91,7 @@ impl<'a> FromObjRef<read_fonts::tables::name::Name<'a>> for Name {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::name::Name<'a>> for Name {}
 
 impl<'a> FontRead<'a> for Name {

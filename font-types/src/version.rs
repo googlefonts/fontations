@@ -1,5 +1,4 @@
 /// A legacy 16/16 version encoding
-
 /// Packed 32-bit value with major and minor version numbers.
 ///
 /// This is a legacy type with an unusual representation. See [the spec][spec] for

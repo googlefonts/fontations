@@ -337,7 +337,7 @@ struct PointIter<'a> {
     cur_y: i16,
 }
 
-impl<'a> Iterator for PointIter<'a> {
+impl Iterator for PointIter<'_> {
     type Item = CurvePoint;
     fn next(&mut self) -> Option<Self::Item> {
         self.advance_flags()?;

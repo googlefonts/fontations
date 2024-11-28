@@ -69,6 +69,7 @@ impl<'a> FontRead<'a> for Fvar<'a> {
 /// The [fvar (Font Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/fvar) table
 pub type Fvar<'a> = TableRef<'a, FvarMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Fvar<'a> {
     /// Major version number of the font variations table — set to 1.
     /// Minor version number of the font variations table — set to 0.
@@ -146,6 +147,7 @@ impl<'a> SomeTable<'a> for Fvar<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Fvar<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
@@ -221,6 +223,7 @@ impl<'a> AxisInstanceArrays<'a> {
 /// Shim table to handle combined axis and instance arrays.
 pub type AxisInstanceArrays<'a> = TableRef<'a, AxisInstanceArraysMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> AxisInstanceArrays<'a> {
     /// Variation axis record array.
     pub fn axes(&self) -> &'a [VariationAxisRecord] {
@@ -274,6 +277,7 @@ impl<'a> SomeTable<'a> for AxisInstanceArrays<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for AxisInstanceArrays<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

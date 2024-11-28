@@ -120,6 +120,7 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
             }
         }
 
+        #[allow(clippy::needless_lifetimes)]
         impl<'a> #name #lifetime {
             /// A constructor that requires additional arguments.
             ///

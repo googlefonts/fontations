@@ -68,6 +68,7 @@ impl<'a> FontRead<'a> for CffHeader<'a> {
 /// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table header
 pub type CffHeader<'a> = TableRef<'a, CffHeaderMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> CffHeader<'a> {
     /// Format major version (starting at 1).
     pub fn major(&self) -> u8 {
@@ -125,6 +126,7 @@ impl<'a> SomeTable<'a> for CffHeader<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for CffHeader<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)

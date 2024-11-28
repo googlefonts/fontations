@@ -1017,7 +1017,7 @@ impl<'a, S: CommandSink> HintingSink<'a, S> {
     }
 }
 
-impl<'a, S: CommandSink> CommandSink for HintingSink<'a, S> {
+impl<S: CommandSink> CommandSink for HintingSink<'_, S> {
     fn hstem(&mut self, min: Fixed, max: Fixed) {
         self.add_stem(min, max);
     }

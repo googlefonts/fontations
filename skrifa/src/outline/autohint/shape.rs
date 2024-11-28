@@ -250,7 +250,7 @@ pub(crate) struct ClusterShaper<'a> {
     kind: ClusterShaperKind<'a>,
 }
 
-impl<'a> ClusterShaper<'a> {
+impl ClusterShaper<'_> {
     pub(crate) fn shape(&mut self, input: &str, output: &mut ShapedCluster) {
         // First fill the output cluster with the nominal character
         // to glyph id mapping

@@ -12,7 +12,7 @@ use super::{
     math, Engine, F26Dot6, HintErrorKind, OpResult,
 };
 
-impl<'a> Engine<'a> {
+impl Engine<'_> {
     /// Flip point.
     ///
     /// FLIPPT[] (0x80)

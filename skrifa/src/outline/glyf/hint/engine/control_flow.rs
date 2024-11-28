@@ -8,7 +8,7 @@ use read_fonts::tables::glyf::bytecode::Opcode;
 
 use super::{Engine, HintErrorKind, OpResult};
 
-impl<'a> Engine<'a> {
+impl Engine<'_> {
     /// If test.
     ///
     /// IF[] (0x58)

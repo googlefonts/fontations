@@ -58,6 +58,7 @@ impl<'a> FontRead<'a> for Vorg<'a> {
 /// The [VORG (Vertical Origin)](https://docs.microsoft.com/en-us/typography/opentype/spec/vorg) table.
 pub type Vorg<'a> = TableRef<'a, VorgMarker>;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Vorg<'a> {
     /// Major/minor version number. Set to 1.0.
     pub fn version(&self) -> MajorMinor {
@@ -116,6 +117,7 @@ impl<'a> SomeTable<'a> for Vorg<'a> {
 }
 
 #[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Vorg<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
