@@ -17,15 +17,14 @@ use font_types::Tag;
 use data_encoding::BASE64URL;
 use data_encoding_macro::new_encoding;
 
-use read_fonts::FontRead;
 use read_fonts::{
     collections::{IntSet, RangeSet},
     tables::ift::{
-        CompatibilityId, EntryData, EntryFormatFlags, EntryMapRecord, Ift, PatchMapFormat1,
+        CompatibilityId, EntryData, EntryFormatFlags, EntryMapRecord, Ift, IFT_TAG, IFTX_TAG, PatchMapFormat1,
         PatchMapFormat2,
     },
     types::{Offset32, Uint24},
-    FontData, FontRef, ReadError, TableProvider,
+    FontData, FontRead, FontRef, ReadError, TableProvider,
 };
 
 use skrifa::charmap::Charmap;
@@ -651,8 +650,8 @@ impl IftTableTag {
 
     pub(crate) fn tag(&self) -> Tag {
         match self {
-            Self::Ift(_) => Tag::new(b"IFT "),
-            Self::Iftx(_) => Tag::new(b"IFTX"),
+            Self::Ift(_) => IFT_TAG,
+            Self::Iftx(_) => IFTX_TAG,
         }
     }
 

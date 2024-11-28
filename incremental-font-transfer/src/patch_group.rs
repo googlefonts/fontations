@@ -483,7 +483,11 @@ mod tests {
 
     use font_types::{Int24, Tag};
 
-    use read_fonts::{test_helpers::BeBuffer, FontRef};
+    use read_fonts::{
+        tables::ift::{IFTX_TAG, IFT_TAG},
+        test_helpers::BeBuffer,
+        FontRef,
+    };
 
     use write_fonts::FontBuilder;
 
@@ -494,10 +498,10 @@ mod tests {
         let mut font_builder = FontBuilder::new();
 
         if let Some(buffer) = &ift {
-            font_builder.add_raw(Tag::new(b"IFT "), buffer.as_slice());
+            font_builder.add_raw(IFT_TAG, buffer.as_slice());
         }
         if let Some(buffer) = &iftx {
-            font_builder.add_raw(Tag::new(b"IFTX"), buffer.as_slice());
+            font_builder.add_raw(IFTX_TAG, buffer.as_slice());
         }
 
         font_builder.add_raw(Tag::new(b"tab1"), "abcdef\n".as_bytes());
@@ -1299,8 +1303,8 @@ mod tests {
         let font = test_font_for_patching_with_loca_mod(
             |_| {},
             HashMap::from([
-                (Tag::new(b"IFT "), ift_builder.as_slice()),
-                (Tag::new(b"IFTX"), iftx_builder.as_slice()),
+                (IFT_TAG, ift_builder.as_slice()),
+                (IFTX_TAG, iftx_builder.as_slice()),
                 (Tag::new(b"tab1"), "abcdef\n".as_bytes()),
             ]),
         );
@@ -1359,8 +1363,8 @@ mod tests {
         let font = test_font_for_patching_with_loca_mod(
             |_| {},
             HashMap::from([
-                (Tag::new(b"IFT "), ift_builder.as_slice()),
-                (Tag::new(b"IFTX"), iftx_builder.as_slice()),
+                (IFT_TAG, ift_builder.as_slice()),
+                (IFTX_TAG, iftx_builder.as_slice()),
             ]),
         );
 
