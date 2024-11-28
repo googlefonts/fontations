@@ -32,7 +32,7 @@ fuzz_target!(|operations: Vec<Operation>| {
                     }
                 }
 
-                state.range_set.insert(start, end);
+                state.range_set.insert(start..=end);
                 state.int_set.insert_range(start..=end);
             }
             Operation::Iter() => {
