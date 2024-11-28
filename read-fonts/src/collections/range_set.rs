@@ -21,13 +21,15 @@ pub struct RangeSet<T> {
     ranges: BTreeMap<T, T>,
 }
 
-pub trait Sequence<T> {
-    fn next(&self) -> Option<T>;
+/// Allows a two values to be tested for adjacency.
+pub trait OrdAdjacency {
+    /// Returns true if self is adjacent on either side of rhs.
+    fn are_adjacent(self, rhs: Self) -> bool;
 }
 
 impl<T> RangeSet<T>
 where
-    T: Ord + Copy + Sequence<T>,
+    T: Ord + Copy + OrdAdjacency,
 {
     /// Insert a range into this set, automatically merging with existing ranges as needed.
     pub fn insert(&mut self, range: RangeInclusive<T>) {
@@ -104,7 +106,7 @@ where
 
 impl<T> Extend<RangeInclusive<T>> for RangeSet<T>
 where
-    T: Copy + Ord + Sequence<T>,
+    T: Copy + Ord + OrdAdjacency,
 {
     fn extend<I: IntoIterator<Item = RangeInclusive<T>>>(&mut self, iter: I) {
         iter.into_iter().for_each(|r| self.insert(r));
@@ -113,7 +115,7 @@ where
 
 impl<T> FromIterator<RangeInclusive<T>> for RangeSet<T>
 where
-    T: Default + Copy + Ord + Sequence<T>,
+    T: Default + Copy + Ord + OrdAdjacency,
 {
     fn from_iter<I: IntoIterator<Item = RangeInclusive<T>>>(iter: I) -> Self {
         let mut result: Self = Default::default();
@@ -189,21 +191,29 @@ where
     }
 }
 
-impl Sequence<u32> for u32 {
-    fn next(&self) -> Option<Self> {
-        self.checked_add(1)
+impl OrdAdjacency for u32 {
+    fn are_adjacent(self, rhs: u32) -> bool {
+        matches!(self.checked_add(1).map(|r| r == rhs), Some(true))
+            || matches!(rhs.checked_add(1).map(|r| r == self), Some(true))
     }
 }
 
-impl Sequence<u16> for u16 {
-    fn next(&self) -> Option<Self> {
-        self.checked_add(1)
+impl OrdAdjacency for u16 {
+    fn are_adjacent(self, rhs: u16) -> bool {
+        matches!(self.checked_add(1).map(|r| r == rhs), Some(true))
+            || matches!(rhs.checked_add(1).map(|r| r == self), Some(true))
     }
 }
 
-impl Sequence<Fixed> for Fixed {
-    fn next(&self) -> Option<Self> {
-        self.checked_add(Fixed::EPSILON)
+impl OrdAdjacency for Fixed {
+    fn are_adjacent(self, rhs: Fixed) -> bool {
+        matches!(
+            self.checked_add(Fixed::EPSILON).map(|r| r == rhs),
+            Some(true)
+        ) || matches!(
+            rhs.checked_add(Fixed::EPSILON).map(|r| r == self),
+            Some(true)
+        )
     }
 }
 
@@ -224,11 +234,11 @@ fn range_intersection<T: Ord + Copy>(
 /// All bounds are inclusive.
 fn ranges_overlap_or_adjacent<T>(a_start: T, a_end: T, b_start: T, b_end: T) -> bool
 where
-    T: Ord + Sequence<T>,
+    T: Ord + OrdAdjacency,
 {
     (a_start <= b_end && b_start <= a_end)
-        || (a_end.next() == Some(b_start))
-        || (b_end.next() == Some(a_start))
+        || (a_end.are_adjacent(b_start))
+        || (b_end.are_adjacent(a_start))
 }
 
 /// Returns true if the range [a_start, a_end] is a subset of [b_start, b_end].
