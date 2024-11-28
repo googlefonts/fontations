@@ -31,6 +31,11 @@ impl<T> RangeSet<T>
 where
     T: Ord + Copy + OrdAdjacency,
 {
+    // Returns true if there are no members in this set currently.
+    pub fn is_empty(&self) -> bool {
+        self.ranges.is_empty()
+    }
+
     /// Insert a range into this set, automatically merging with existing ranges as needed.
     pub fn insert(&mut self, range: RangeInclusive<T>) {
         if range.end() < range.start() {

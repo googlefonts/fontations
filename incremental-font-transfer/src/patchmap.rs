@@ -352,8 +352,10 @@ fn add_intersecting_format2_patches(
         if e.uri.encoding().is_invalidating() {
             // for invalidating keyed patches we need to record information about intersection size to use later
             // for patch selection.
-            e.uri.intersection_info =
-                IntersectionInfo::from_subset(e.intersection(subset_definition), order);
+            e.uri.intersection_info = IntersectionInfo::from_subset(
+                e.subset_definition.intersection(subset_definition),
+                order,
+            );
         }
 
         patches.push(e.uri)
@@ -828,9 +830,23 @@ impl IntersectionInfo {
         IntersectionInfo {
             intersecting_codepoints: value.codepoints.len(),
             intersecting_layout_tags: value.feature_tags.len(),
-            intersecting_design_space: Default::default(), // TODO(garretrieger): compute length from the range set.
+            intersecting_design_space: Self::design_space_size(value.design_space),
             entry_order: order,
         }
+    }
+
+    fn design_space_size(value: HashMap<Tag, RangeSet<Fixed>>) -> BTreeMap<Tag, Fixed> {
+        value
+            .into_iter()
+            .map(|(tag, ranges)| {
+                let total = ranges
+                    .iter()
+                    .map(|range| *range.end() - *range.start())
+                    .fold(Fixed::ZERO, |acc, x| acc + x);
+
+                (tag, total)
+            })
+            .collect()
     }
 }
 
@@ -874,6 +890,41 @@ impl SubsetDefinition {
                 .or_default()
                 .extend(segments.iter());
         }
+    }
+
+    fn intersection(&self, other: &Self) -> Self {
+        let mut result: SubsetDefinition = self.clone();
+
+        result.codepoints.intersect(&other.codepoints);
+
+        result.feature_tags = self
+            .feature_tags
+            .intersection(&other.feature_tags)
+            .copied()
+            .collect();
+
+        result.design_space = self.design_space_intersection(&other.design_space);
+
+        result
+    }
+
+    fn design_space_intersection(
+        &self,
+        design_space: &HashMap<Tag, RangeSet<Fixed>>,
+    ) -> HashMap<Tag, RangeSet<Fixed>> {
+        let mut result: HashMap<Tag, RangeSet<Fixed>> = Default::default();
+        for (tag, input_segments) in design_space {
+            let Some(entry_segments) = self.design_space.get(tag) else {
+                continue;
+            };
+
+            let ranges: RangeSet<Fixed> = input_segments.intersection(entry_segments).collect();
+            if !ranges.is_empty() {
+                result.insert(*tag, ranges);
+            }
+        }
+
+        result
     }
 }
 
@@ -942,28 +993,6 @@ impl Entry {
             || self.design_space_intersects(&subset_definition.design_space)
     }
 
-    fn intersection(&self, subset_definition: &SubsetDefinition) -> SubsetDefinition {
-        let mut result: SubsetDefinition = subset_definition.clone();
-
-        if !self.subset_definition.codepoints.is_empty() {
-            result
-                .codepoints
-                .intersect(&self.subset_definition.codepoints);
-        }
-
-        if !self.subset_definition.feature_tags.is_empty() {
-            result.feature_tags = subset_definition
-                .feature_tags
-                .intersection(&self.subset_definition.feature_tags)
-                .copied()
-                .collect();
-        }
-
-        // TODO(garretrieger): implement intersection for design space.
-
-        result
-    }
-
     fn design_space_intersects(&self, design_space: &HashMap<Tag, RangeSet<Fixed>>) -> bool {
         for (tag, input_segments) in design_space {
             let Some(entry_segments) = self.subset_definition.design_space.get(tag) else {
@@ -1010,13 +1039,15 @@ mod tests {
 
         pub(crate) fn from_design_space<const N: usize>(
             codepoints: u64,
+            features: usize,
             design_space: [(Tag, Fixed); N],
+            order: usize,
         ) -> Self {
             IntersectionInfo {
                 intersecting_codepoints: codepoints,
-                intersecting_layout_tags: 0,
+                intersecting_layout_tags: features,
                 intersecting_design_space: BTreeMap::from(design_space),
-                entry_order: 0,
+                entry_order: order,
             }
         }
     }
@@ -1806,6 +1837,18 @@ mod tests {
         );
         test_design_space_intersection(
             &font,
+            [0x55],
+            [Tag::new(b"smcp")],
+            [(
+                Tag::new(b"wdth"),
+                [Fixed::from_f64(0.2)..=Fixed::from_f64(0.3)]
+                    .into_iter()
+                    .collect(),
+            )],
+            [],
+        );
+        test_design_space_intersection(
+            &font,
             [0x05],
             [Tag::new(b"smcp")],
             [(
@@ -1900,7 +1943,7 @@ mod tests {
                 BTreeSet::from([Tag::new(b"rlig"), Tag::new(b"liga"), Tag::new(b"smcp")]),
                 HashMap::from([(
                     Tag::new(b"wght"),
-                    [Fixed::from_i32(300)..=Fixed::from_i32(400)]
+                    [Fixed::from_i32(505)..=Fixed::from_i32(800)]
                         .into_iter()
                         .collect(),
                 )]),
@@ -1918,7 +1961,12 @@ mod tests {
                 patch_with_intersection(
                     map.offset_for("entries[2]") * 8 + 3,
                     3,
-                    IntersectionInfo::new(3, 1, 2),
+                    IntersectionInfo::from_design_space(
+                        3,
+                        1,
+                        [(Tag::new(b"wght"), Fixed::from_i32(195))],
+                        2
+                    ),
                 ),
             ]
         );
@@ -2226,12 +2274,22 @@ mod tests {
         let bbbb = Tag::new(b"bbbb");
 
         // these are in the correct order
-        let v1 = IntersectionInfo::from_design_space(1, [(aaaa, 4i32.into())]);
-        let v2 = IntersectionInfo::from_design_space(1, [(aaaa, 5i32.into()), (bbbb, 2i32.into())]);
-        let v3 = IntersectionInfo::from_design_space(1, [(aaaa, 6i32.into())]);
-        let v4 = IntersectionInfo::from_design_space(1, [(aaaa, 6i32.into()), (bbbb, 2i32.into())]);
-        let v5 = IntersectionInfo::from_design_space(1, [(bbbb, 1i32.into())]);
-        let v6 = IntersectionInfo::from_design_space(2, [(aaaa, 1i32.into())]);
+        let v1 = IntersectionInfo::from_design_space(1, 0, [(aaaa, 4i32.into())], 0);
+        let v2 = IntersectionInfo::from_design_space(
+            1,
+            0,
+            [(aaaa, 5i32.into()), (bbbb, 2i32.into())],
+            0,
+        );
+        let v3 = IntersectionInfo::from_design_space(1, 0, [(aaaa, 6i32.into())], 0);
+        let v4 = IntersectionInfo::from_design_space(
+            1,
+            0,
+            [(aaaa, 6i32.into()), (bbbb, 2i32.into())],
+            0,
+        );
+        let v5 = IntersectionInfo::from_design_space(1, 0, [(bbbb, 1i32.into())], 0);
+        let v6 = IntersectionInfo::from_design_space(2, 0, [(aaaa, 1i32.into())], 0);
 
         assert_eq!(v1.cmp(&v1), Ordering::Equal);
 
@@ -2252,6 +2310,160 @@ mod tests {
 
         assert_eq!(v3.cmp(&v5), Ordering::Less);
         assert_eq!(v5.cmp(&v3), Ordering::Greater);
+    }
+
+    #[test]
+    fn entry_design_codepoints_intersection() {
+        let uri = PatchUri::from_index(
+            "",
+            0,
+            IftTableTag::Ift(CompatibilityId::from_u32s([0, 0, 0, 0])),
+            0,
+            PatchEncoding::GlyphKeyed,
+            IntersectionInfo::default(),
+        );
+
+        let s1 = SubsetDefinition::codepoints([3, 5, 7].into_iter().collect());
+        let s2 = SubsetDefinition::codepoints([13, 15, 17].into_iter().collect());
+        let s3 = SubsetDefinition::codepoints([7, 13].into_iter().collect());
+
+        let e1 = Entry {
+            subset_definition: s1.clone(),
+            uri: uri.clone(),
+            ignored: false,
+        };
+        let e2 = Entry {
+            subset_definition: Default::default(),
+            uri: uri.clone(),
+            ignored: false,
+        };
+
+        assert!(e1.intersects(&s1));
+        assert_eq!(s1.intersection(&s1), s1);
+
+        assert!(!e1.intersects(&s2));
+        assert_eq!(s1.intersection(&s2), Default::default());
+
+        assert!(e1.intersects(&s3));
+        assert_eq!(
+            s1.intersection(&s3),
+            SubsetDefinition::codepoints([7].into_iter().collect())
+        );
+
+        assert!(e2.intersects(&s1));
+        assert_eq!(
+            SubsetDefinition::default().intersection(&s1),
+            Default::default()
+        );
+    }
+
+    #[test]
+    fn entry_design_space_intersection() {
+        let uri = PatchUri::from_index(
+            "",
+            0,
+            IftTableTag::Ift(CompatibilityId::from_u32s([0, 0, 0, 0])),
+            0,
+            PatchEncoding::GlyphKeyed,
+            IntersectionInfo::default(),
+        );
+
+        let s1 = SubsetDefinition::new(
+            Default::default(),
+            Default::default(),
+            HashMap::from([
+                (
+                    Tag::new(b"aaaa"),
+                    [Fixed::from_i32(100)..=Fixed::from_i32(200)]
+                        .into_iter()
+                        .collect(),
+                ),
+                (
+                    Tag::new(b"bbbb"),
+                    [
+                        Fixed::from_i32(300)..=Fixed::from_i32(600),
+                        Fixed::from_i32(700)..=Fixed::from_i32(900),
+                    ]
+                    .into_iter()
+                    .collect(),
+                ),
+            ]),
+        );
+        let s2 = SubsetDefinition::new(
+            Default::default(),
+            Default::default(),
+            HashMap::from([
+                (
+                    Tag::new(b"bbbb"),
+                    [Fixed::from_i32(100)..=Fixed::from_i32(200)]
+                        .into_iter()
+                        .collect(),
+                ),
+                (
+                    Tag::new(b"cccc"),
+                    [Fixed::from_i32(300)..=Fixed::from_i32(600)]
+                        .into_iter()
+                        .collect(),
+                ),
+            ]),
+        );
+        let s3 = SubsetDefinition::new(
+            Default::default(),
+            Default::default(),
+            HashMap::from([
+                (
+                    Tag::new(b"bbbb"),
+                    [Fixed::from_i32(500)..=Fixed::from_i32(800)]
+                        .into_iter()
+                        .collect(),
+                ),
+                (
+                    Tag::new(b"cccc"),
+                    [Fixed::from_i32(300)..=Fixed::from_i32(600)]
+                        .into_iter()
+                        .collect(),
+                ),
+            ]),
+        );
+        let s4 = SubsetDefinition::new(
+            Default::default(),
+            Default::default(),
+            HashMap::from([(
+                Tag::new(b"bbbb"),
+                [
+                    Fixed::from_i32(500)..=Fixed::from_i32(600),
+                    Fixed::from_i32(700)..=Fixed::from_i32(800),
+                ]
+                .into_iter()
+                .collect(),
+            )]),
+        );
+
+        let e1 = Entry {
+            subset_definition: s1.clone(),
+            uri: uri.clone(),
+            ignored: false,
+        };
+        let e2 = Entry {
+            subset_definition: Default::default(),
+            uri: uri.clone(),
+            ignored: false,
+        };
+
+        assert!(e1.intersects(&s1));
+        assert_eq!(s1.intersection(&s1), s1.clone());
+
+        assert!(!e1.intersects(&s2));
+        assert_eq!(s1.intersection(&s2), Default::default());
+
+        assert!(e1.intersects(&s3));
+        assert_eq!(s1.intersection(&s3), s4.clone());
+
+        assert!(e2.intersects(&s1));
+        assert_eq!(
+            SubsetDefinition::default().intersection(&s1),
+            SubsetDefinition::default()
+        );
     }
 
     // TODO(garretrieger): test for design space union of SubsetDefinition.

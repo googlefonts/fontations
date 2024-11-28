@@ -284,15 +284,15 @@ pub fn features_and_design_space_format2() -> BeBuffer {
       0x02BC_0000u32,                     // end = 700
 
       (Tag::new(b"wdth")),                // tag = wdth
-      0x0u32,                             // start = 0
-      0x8000,                             // end = 0
+      0x0u32,                             // start = 0.0
+      0x8000u32,                          // end = 0.5
 
       (Tag::new(b"wdth")),                // tag = wdth
-      0x0002_0000,                        // start = 2.0
-      0x0002_8000,                        // end = 2.5
+      0x0002_0000u32,                     // start = 2.0
+      0x0002_8000u32,                     // end = 2.5
 
       5u16,                               // bias = 5
-      0b00001101, 0b00000011, 0b00110001  // codepoints = [5..22]
+      [0b00001101, 0b00000011, 0b00110001u8] // codepoints = [5..22]
     };
 
     let offset = buffer.offset_for("entries[0]") as u32;
