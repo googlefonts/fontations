@@ -468,7 +468,7 @@ pub(crate) mod tests {
     use crate::{
         font_patch::PatchingError,
         glyph_keyed::apply_glyph_keyed_patches,
-        patchmap::{PatchEncoding, PatchUri},
+        patchmap::{PatchFormat, PatchUri},
     };
 
     use super::{IftTableTag, PatchInfo};
@@ -516,7 +516,7 @@ pub(crate) mod tests {
             0,
             source,
             bit_index,
-            PatchEncoding::GlyphKeyed,
+            PatchFormat::GlyphKeyed,
             Default::default(),
         )
         .into()

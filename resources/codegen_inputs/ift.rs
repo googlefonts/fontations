@@ -50,7 +50,7 @@ table PatchMapFormat1 {
   uri_template: [u8],
 
   /// Patch format number for patches referenced by this mapping.
-  patch_encoding: u8,
+  patch_format: u8,
 }
 
 #[read_args(glyph_count: Uint24, max_entry_index: u16)]
@@ -123,7 +123,7 @@ table PatchMapFormat2 {
   compatibility_id: CompatibilityId,
 
   /// Patch format number for patches referenced by this mapping.
-  default_patch_encoding: u8,
+  default_patch_format: u8,
 
   // Encoded entries
   entry_count: Uint24,
@@ -174,9 +174,9 @@ table EntryData {
   #[compile(skip)]
   entry_id_delta: IdDeltaOrLength,
 
-  // PATCH_ENCODING
-  #[if_flag($format_flags, EntryFormatFlags::PATCH_ENCODING)]
-  patch_encoding: u8,
+  // PATCH_FORMAT
+  #[if_flag($format_flags, EntryFormatFlags::PATCH_FORMAT)]
+  patch_format: u8,
 
   // CODEPOINT_BIT_1 or CODEPOINT_BIT_2
   // Non-conditional since we also use this to find the end of the entry.
@@ -196,7 +196,7 @@ flags u8 EntryFormatFlags {
   ENTRY_ID_DELTA = 0b00000100,
 
   // Fields specifying the patch encoding are present.
-  PATCH_ENCODING = 0b00001000,
+  PATCH_FORMAT = 0b00001000,
 
   // These two bits specify how the codepoint set is encoded.
   CODEPOINTS_BIT_1 = 0b00010000,

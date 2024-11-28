@@ -33,7 +33,7 @@ pub fn simple_format1() -> BeBuffer {
         {b'B': "uri_template[1]"},
         [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // uri_template[2..7]
 
-        {3u8: "patch_encoding"}, // = glyph keyed
+        {3u8: "patch_format"}, // = glyph keyed
 
         /* ### Glyph Map ### */
         {1u16: "glyph_map"},     // first mapped glyph
@@ -126,7 +126,7 @@ pub fn feature_map_format1() -> BeBuffer {
       8u16, // uriTemplateLength
       [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
 
-      {3u8: "patch_encoding"},            // patch encoding = glyph keyed
+      {3u8: "patch_format"},            // patch encoding = glyph keyed
 
       /* ### Glyph Map ### */
       {2u16: "glyph_map"}, // first mapped glyph
@@ -239,7 +239,7 @@ pub fn features_and_design_space_format2() -> BeBuffer {
 
       [1, 2, 3, 4u32], // compat id
 
-      {3u8: "patch_encoding"}, // default patch encoding
+      {3u8: "patch_format"}, // default patch encoding
       (Uint24::new(3)), // entry count
       {0u32: "entries_offset"},
       0u32, // entry id string data offset
@@ -423,7 +423,7 @@ pub fn custom_ids_format2() -> BeBuffer {
       {(Int24::new(7)): "id delta - ignored entry"}, // id delta
 
       // Entry id = 15
-      {0b00101000u8: "entries[3]"},           // format = CODEPOINT_BIT_2 | PATCH_ENCODING
+      {0b00101000u8: "entries[3]"},           // format = CODEPOINT_BIT_2 | PATCH_FORMAT
       {3u8: "entry[4] encoding"},             // patch encoding = Glyph Keyed
       10u16,                                  // bias
       [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [10..27]

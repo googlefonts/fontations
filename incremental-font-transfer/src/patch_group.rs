@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap};
 use crate::{
     font_patch::{IncrementalFontPatchBase, PatchingError},
     patchmap::{
-        intersecting_patches, IftTableTag, IntersectionInfo, PatchEncoding, PatchUri,
+        intersecting_patches, IftTableTag, IntersectionInfo, PatchFormat, PatchUri,
         SubsetDefinition,
     },
 };
@@ -313,10 +313,10 @@ impl GroupingByInvalidation {
             // TODO(garretrieger): for efficiency can we delay uri template resolution until we have actually selected patches?
             // TODO(garretrieger): for btree construction don't recompute the resolved uri, cache inside the patch uri object?
             match uri.encoding() {
-                PatchEncoding::TableKeyed {
+                PatchFormat::TableKeyed {
                     fully_invalidating: true,
                 } => result.full_invalidation.push(uri.into()),
-                PatchEncoding::TableKeyed {
+                PatchFormat::TableKeyed {
                     fully_invalidating: false,
                 } => {
                     if Some(uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
@@ -325,7 +325,7 @@ impl GroupingByInvalidation {
                         result.partial_invalidation_iftx.push(uri.into())
                     }
                 }
-                PatchEncoding::GlyphKeyed => {
+                PatchFormat::GlyphKeyed => {
                     if Some(uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
                         result
                             .no_invalidation_ift
@@ -525,7 +525,7 @@ mod tests {
             1,
             IftTableTag::Ift(cid_1()),
             42,
-            PatchEncoding::TableKeyed {
+            PatchFormat::TableKeyed {
                 fully_invalidating: true,
             },
             Default::default(),
@@ -538,7 +538,7 @@ mod tests {
             2,
             IftTableTag::Ift(cid_1()),
             42,
-            PatchEncoding::TableKeyed {
+            PatchFormat::TableKeyed {
                 fully_invalidating: false,
             },
             Default::default(),
@@ -551,7 +551,7 @@ mod tests {
             2,
             IftTableTag::Iftx(cid_2()),
             42,
-            PatchEncoding::TableKeyed {
+            PatchFormat::TableKeyed {
                 fully_invalidating: false,
             },
             Default::default(),
@@ -564,7 +564,7 @@ mod tests {
             2,
             IftTableTag::Iftx(cid_2()),
             42,
-            PatchEncoding::GlyphKeyed,
+            PatchFormat::GlyphKeyed,
             Default::default(),
         )
     }
@@ -575,7 +575,7 @@ mod tests {
             3,
             IftTableTag::Iftx(cid_2()),
             42,
-            PatchEncoding::TableKeyed {
+            PatchFormat::TableKeyed {
                 fully_invalidating: false,
             },
             Default::default(),
@@ -588,7 +588,7 @@ mod tests {
             3,
             IftTableTag::Ift(cid_1()),
             42,
-            PatchEncoding::GlyphKeyed,
+            PatchFormat::GlyphKeyed,
             Default::default(),
         )
     }
@@ -599,7 +599,7 @@ mod tests {
             4,
             IftTableTag::Ift(cid_1()),
             42,
-            PatchEncoding::GlyphKeyed,
+            PatchFormat::GlyphKeyed,
             Default::default(),
         )
     }
@@ -610,7 +610,7 @@ mod tests {
             4,
             IftTableTag::Iftx(cid_2()),
             42,
-            PatchEncoding::GlyphKeyed,
+            PatchFormat::GlyphKeyed,
             Default::default(),
         )
     }
@@ -621,7 +621,7 @@ mod tests {
             5,
             IftTableTag::Iftx(cid_2()),
             42,
-            PatchEncoding::GlyphKeyed,
+            PatchFormat::GlyphKeyed,
             Default::default(),
         )
     }
@@ -632,7 +632,7 @@ mod tests {
             index,
             IftTableTag::Ift(cid_1()),
             42,
-            PatchEncoding::TableKeyed {
+            PatchFormat::TableKeyed {
                 fully_invalidating: true,
             },
             IntersectionInfo::new(codepoints, 0, 0),
@@ -650,7 +650,7 @@ mod tests {
             index,
             tag,
             42,
-            PatchEncoding::TableKeyed {
+            PatchFormat::TableKeyed {
                 fully_invalidating: false,
             },
             IntersectionInfo::new(codepoints, 0, 0),
