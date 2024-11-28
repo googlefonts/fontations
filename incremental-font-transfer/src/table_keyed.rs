@@ -134,6 +134,7 @@ pub(crate) fn copy_unprocessed_tables<'a>(
 mod tests {
     use super::*;
     use font_test_data::ift::{noop_table_keyed_patch, table_keyed_patch};
+    use read_fonts::tables::ift::IFT_TAG;
     use read_fonts::FontData;
     use read_fonts::FontRead;
     use read_fonts::FontRef;
@@ -148,7 +149,7 @@ mod tests {
 
     fn test_font() -> Vec<u8> {
         let mut font_builder = FontBuilder::new();
-        font_builder.add_raw(Tag::new(b"IFT "), IFT_TABLE);
+        font_builder.add_raw(IFT_TAG, IFT_TABLE);
         font_builder.add_raw(Tag::new(b"tab1"), "abcdef\n".as_bytes());
         font_builder.add_raw(Tag::new(b"tab2"), "foobar\n".as_bytes());
         font_builder.add_raw(Tag::new(b"tab3"), "foobaz\n".as_bytes());
@@ -169,10 +170,7 @@ mod tests {
 
         assert_eq!(font.table_directory.num_tables(), 4);
 
-        assert_eq!(
-            font.table_data(Tag::new(b"IFT ")).unwrap().as_bytes(),
-            IFT_TABLE
-        );
+        assert_eq!(font.table_data(IFT_TAG).unwrap().as_bytes(), IFT_TABLE);
         assert_eq!(
             font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
             TABLE_1_FINAL_STATE
@@ -242,10 +240,7 @@ mod tests {
 
         assert_eq!(font.table_directory.num_tables(), 5);
 
-        assert_eq!(
-            font.table_data(Tag::new(b"IFT ")).unwrap().as_bytes(),
-            IFT_TABLE
-        );
+        assert_eq!(font.table_data(IFT_TAG).unwrap().as_bytes(), IFT_TABLE);
         assert_eq!(
             font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
             TABLE_1_FINAL_STATE
@@ -321,10 +316,7 @@ mod tests {
 
         assert_eq!(font.table_directory.num_tables(), 4);
 
-        assert_eq!(
-            font.table_data(Tag::new(b"IFT ")).unwrap().as_bytes(),
-            IFT_TABLE
-        );
+        assert_eq!(font.table_data(IFT_TAG).unwrap().as_bytes(), IFT_TABLE);
         assert_eq!(
             font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
             TABLE_1_FINAL_STATE
@@ -373,10 +365,7 @@ mod tests {
 
         assert_eq!(font.table_directory.num_tables(), 5);
 
-        assert_eq!(
-            font.table_data(Tag::new(b"IFT ")).unwrap().as_bytes(),
-            IFT_TABLE
-        );
+        assert_eq!(font.table_data(IFT_TAG).unwrap().as_bytes(), IFT_TABLE);
         assert_eq!(
             font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
             TABLE_1_FINAL_STATE
@@ -411,10 +400,7 @@ mod tests {
 
         assert_eq!(font.table_directory.num_tables(), 5);
 
-        assert_eq!(
-            font.table_data(Tag::new(b"IFT ")).unwrap().as_bytes(),
-            IFT_TABLE
-        );
+        assert_eq!(font.table_data(IFT_TAG).unwrap().as_bytes(), IFT_TABLE);
         assert_eq!(
             font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
             TABLE_1_FINAL_STATE

@@ -201,15 +201,13 @@ mod tests {
         codepoints_only_format2, glyf_u16_glyph_patches, glyph_keyed_patch_header,
         table_keyed_patch, test_font_for_patching_with_loca_mod,
     };
-    use read_fonts::tables::ift::CompatibilityId;
+    use read_fonts::tables::ift::{CompatibilityId, IFTX_TAG, IFT_TAG};
 
     use crate::{
         font_patch::PatchingError,
         glyph_keyed::tests::assemble_glyph_keyed_patch,
         patchmap::{IftTableTag, PatchEncoding::GlyphKeyed, PatchEncoding::TableKeyed, PatchUri},
     };
-
-    use font_types::Tag;
 
     use super::{IncrementalFontPatchBase, PatchInfo};
 
@@ -236,8 +234,8 @@ mod tests {
         let font = test_font_for_patching_with_loca_mod(
             |_| {},
             HashMap::from([
-                (Tag::new(b"IFT "), ift_table.as_slice()),
-                (Tag::new(b"IFTX"), iftx_table.as_slice()),
+                (IFT_TAG, ift_table.as_slice()),
+                (IFTX_TAG, iftx_table.as_slice()),
             ]),
         );
 
@@ -266,7 +264,7 @@ mod tests {
         let ift_table = codepoints_only_format2();
         let font = test_font_for_patching_with_loca_mod(
             |_| {},
-            HashMap::from([(Tag::new(b"IFT "), ift_table.as_slice())]),
+            HashMap::from([(IFT_TAG, ift_table.as_slice())]),
         );
 
         let patch = table_keyed_patch();
@@ -291,7 +289,7 @@ mod tests {
         let ift_table = codepoints_only_format2();
         let font = test_font_for_patching_with_loca_mod(
             |_| {},
-            HashMap::from([(Tag::new(b"IFT "), ift_table.as_slice())]),
+            HashMap::from([(IFT_TAG, ift_table.as_slice())]),
         );
 
         let patch =
@@ -324,7 +322,7 @@ mod tests {
 
         let font = test_font_for_patching_with_loca_mod(
             |_| {},
-            HashMap::from([(Tag::new(b"IFT "), ift_table.as_slice())]),
+            HashMap::from([(IFT_TAG, ift_table.as_slice())]),
         );
 
         let patch =
