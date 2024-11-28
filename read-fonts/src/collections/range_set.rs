@@ -247,6 +247,7 @@ mod test {
     use super::*;
 
     #[test]
+    #[allow(clippy::reversed_empty_ranges)]
     fn insert_invalid() {
         let mut map: RangeSet<u32> = Default::default();
         map.insert(12..=11);
