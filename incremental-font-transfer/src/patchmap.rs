@@ -17,10 +17,9 @@ use font_types::Tag;
 use data_encoding::BASE64URL;
 use data_encoding_macro::new_encoding;
 
-use read_fonts::collections::RangeSet;
 use read_fonts::FontRead;
 use read_fonts::{
-    collections::IntSet,
+    collections::{IntSet, RangeSet},
     tables::ift::{
         CompatibilityId, EntryData, EntryFormatFlags, EntryMapRecord, Ift, PatchMapFormat1,
         PatchMapFormat2,
