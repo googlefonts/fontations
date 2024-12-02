@@ -29,7 +29,12 @@ impl Name {
     }
 
     fn check_sorted_and_unique_name_records(&self, ctx: &mut ValidationCtx) {
-        if !self.name_record.is_sorted() {
+        //TODO: replace with `is_sorted` whenever oss_fuzz is using rustc >= 1.82
+        if self
+            .name_record
+            .windows(2)
+            .any(|window| window[0] > window[1])
+        {
             ctx.report("name_record array must be sorted");
         }
         for (left, right) in self.name_record.iter().zip(self.name_record.iter().skip(1)) {
