@@ -13,7 +13,10 @@ use read_fonts::collections::IntSet;
 use skrifa::FontRef;
 
 #[derive(Parser, Debug)]
-#[command(version, about = "Run the IFT extension algorithm (https://w3c.github.io/IFT/Overview.html#extend-font-subset) on an IFT font.", long_about = None)]
+#[command(
+    version,
+    about = "Run the IFT extension algorithm (https://w3c.github.io/IFT/Overview.html#extend-font-subset) on an IFT font."
+)]
 struct Args {
     /// The input IFT font file.
     #[arg(short, long)]
@@ -38,7 +41,7 @@ fn main() {
     let mut font_bytes = std::fs::read(&args.font).unwrap_or_else(|e| {
         panic!(
             "Unable to read input font file ({}): {:?}",
-            args.font.to_str().unwrap_or(""),
+            args.font.display(),
             e
         )
     });
