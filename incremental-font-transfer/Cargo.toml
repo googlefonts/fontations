@@ -16,6 +16,7 @@ all-features = true
 
 [features]
 default = ["read-fonts/std"]
+cli = ["clap"]
 
 [dependencies]
 read-fonts = { workspace = true }
@@ -26,8 +27,19 @@ shared-brotli-patch-decoder = { workspace = true }
 uritemplate = "0.1.2"
 data-encoding = "2.6.0"
 data-encoding-macro = "0.1.15"
+clap = { version = "4.5.4", features = ["derive"], optional = true }
 
 [dev-dependencies]
 font-test-data = { workspace = true }
 read-fonts = { workspace = true }
 brotlic = {version = "0.8.2"}
+
+
+[lib]
+name = "incremental_font_transfer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ift_extend"
+path = "src/ift_extend.rs"
+required-features = ["cli"]
