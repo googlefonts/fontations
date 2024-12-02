@@ -24,7 +24,7 @@ mod output_bit_stream;
 pub mod sparse_bit_set;
 
 use bitset::BitSet;
-use core::cmp::Ordering;
+use core::{cmp::Ordering, fmt::Display};
 use font_types::{GlyphId, GlyphId16};
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -587,6 +587,23 @@ impl<T: Domain> Eq for IntSet<T> {}
 impl<T: Domain, const N: usize> From<[T; N]> for IntSet<T> {
     fn from(value: [T; N]) -> Self {
         value.into_iter().collect()
+    }
+}
+
+impl<T> Display for IntSet<T>
+where
+    T: Domain + Display,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut ranges = self.iter_ranges().peekable();
+        write!(f, "{{ ")?;
+        while let Some(range) = ranges.next() {
+            write!(f, "{}..={}", range.start(), range.end())?;
+            if ranges.peek().is_some() {
+                write!(f, ", ")?;
+            }
+        }
+        write!(f, "}}")
     }
 }
 
