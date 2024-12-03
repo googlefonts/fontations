@@ -263,7 +263,13 @@ impl<'a> SimpleGlyph<'a> {
             }
             y = y.wrapping_add(delta);
             point.y = C::from_i32(y);
-            *point_flags = PointFlags::from_bits(point_flags.0);
+            let flags_mask = if cfg!(feature = "spec_next") {
+                PointFlags::CURVE_MASK
+            } else {
+                // Drop the cubic bit if the spec_next feature is not enabled
+                PointFlags::ON_CURVE
+            };
+            point_flags.0 &= flags_mask;
         }
         Ok(())
     }

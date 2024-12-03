@@ -1349,9 +1349,11 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "spec_next")]
     const CUBIC_GLYPH: GlyphId = GlyphId::new(2);
 
     #[test]
+    #[cfg(feature = "spec_next")]
     fn draw_cubic() {
         let font = FontRef::new(font_test_data::CUBIC_GLYF).unwrap();
         assert_glyph_path_start_with(
