@@ -1,5 +1,5 @@
 //! impl subset() for maxp
-use crate::{Plan, Subset, SubsetError, SubsetFlags};
+use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetFlags};
 use write_fonts::{
     read::{tables::maxp::Maxp, FontRef, TopLevelTable},
     types::Version16Dot16,
@@ -13,13 +13,13 @@ impl Subset for Maxp<'_> {
         &self,
         plan: &Plan,
         _font: &FontRef,
-        builder: &mut FontBuilder,
+        s: &mut Serializer,
+        _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
         let num_glyphs = plan.num_output_glyphs.min(0xFFFF) as u16;
-        let mut out = self.offset_data().as_bytes().to_owned();
-        out.get_mut(4..6)
-            .unwrap()
-            .copy_from_slice(&num_glyphs.to_be_bytes());
+        s.embed_bytes(self.offset_data().as_bytes())
+            .map_err(|_| SubsetError::SubsetTableError(Maxp::TAG))?;
+        s.copy_assign(self.shape().num_glyphs_byte_range().start, num_glyphs);
 
         //drop hints
         if self.version() == Version16Dot16::VERSION_1_0
@@ -28,11 +28,36 @@ impl Subset for Maxp<'_> {
                 .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
         {
             //maxZones
-            out.get_mut(14..16).unwrap().copy_from_slice(&[0, 1]);
+            s.copy_assign_from_bytes(self.shape().max_zones_byte_range().unwrap().start, &[0, 1]);
             //maxTwilightPoints..maxSizeOfInstructions
-            out.get_mut(16..28).unwrap().fill(0);
+            s.copy_assign(
+                self.shape().max_twilight_points_byte_range().unwrap().start,
+                0_u16,
+            );
+            s.copy_assign(self.shape().max_storage_byte_range().unwrap().start, 0_u16);
+            s.copy_assign(
+                self.shape().max_function_defs_byte_range().unwrap().start,
+                0_u16,
+            );
+            s.copy_assign(
+                self.shape()
+                    .max_instruction_defs_byte_range()
+                    .unwrap()
+                    .start,
+                0_u16,
+            );
+            s.copy_assign(
+                self.shape().max_stack_elements_byte_range().unwrap().start,
+                0_u16,
+            );
+            s.copy_assign(
+                self.shape()
+                    .max_size_of_instructions_byte_range()
+                    .unwrap()
+                    .start,
+                0_u16,
+            );
         }
-        builder.add_raw(Maxp::TAG, out);
         Ok(())
     }
 }

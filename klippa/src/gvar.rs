@@ -1,10 +1,11 @@
 //! impl subset() for gvar table
 use std::mem::size_of;
 
-use crate::{estimate_subset_table_size, Plan, Subset, SubsetError, SubsetFlags};
+use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetFlags};
 
 use write_fonts::{
     read::{tables::gvar::Gvar, types::GlyphId, FontRef, TopLevelTable},
+    types::Scalar,
     FontBuilder,
 };
 
@@ -15,18 +16,18 @@ impl Subset for Gvar<'_> {
     fn subset(
         &self,
         plan: &Plan,
-        font: &FontRef,
-        builder: &mut FontBuilder,
+        _font: &FontRef,
+        s: &mut Serializer,
+        _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
-        let cap = estimate_subset_table_size(font, Gvar::TAG, plan);
-        let mut out: Vec<u8> = Vec::with_capacity(cap);
-
         //table header: from version to sharedTuplesOffset
-        out.extend_from_slice(self.offset_data().as_bytes().get(0..12).unwrap());
+        s.embed_bytes(self.offset_data().as_bytes().get(0..12).unwrap())
+            .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
 
         // glyphCount
         let num_glyphs = plan.num_output_glyphs.min(0xFFFF) as u16;
-        out.extend_from_slice(&num_glyphs.to_be_bytes());
+        s.embed(num_glyphs)
+            .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
 
         let subset_data_size: u32 = plan
             .new_to_old_gid_list
@@ -51,15 +52,15 @@ impl Subset for Gvar<'_> {
             0_u16
         };
         // flags
-        out.extend_from_slice(&long_offset.to_be_bytes());
+        s.embed(long_offset)
+            .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
 
-        let out = if long_offset > 0 {
-            subset_with_offset_type::<u32>(self, plan, num_glyphs, out)
+        if long_offset > 0 {
+            subset_with_offset_type::<u32>(self, plan, num_glyphs, s)?;
         } else {
-            subset_with_offset_type::<u16>(self, plan, num_glyphs, out)
-        }?;
+            subset_with_offset_type::<u16>(self, plan, num_glyphs, s)?;
+        }
 
-        builder.add_raw(Gvar::TAG, out);
         Ok(())
     }
 }
@@ -68,8 +69,8 @@ fn subset_with_offset_type<OffsetType: GvarOffset>(
     gvar: &Gvar<'_>,
     plan: &Plan,
     num_glyphs: u16,
-    mut out: Vec<u8>,
-) -> Result<Vec<u8>, SubsetError> {
+    s: &mut Serializer,
+) -> Result<(), SubsetError> {
     // calculate sharedTuplesOffset
     // shared tuples array follow the GlyphVariationData offsets array at the end of the 'gvar' header.
     let off_size = size_of::<OffsetType>();
@@ -83,20 +84,23 @@ fn subset_with_offset_type<OffsetType: GvarOffset>(
         };
 
     //update sharedTuplesOffset, which is of Offset32 type and byte position in gvar is 8..12
-    out.get_mut(8..12)
-        .unwrap()
-        .copy_from_slice(&shared_tuples_offset.to_be_bytes());
+    s.copy_assign(
+        gvar.shape().shared_tuples_offset_byte_range().start,
+        shared_tuples_offset,
+    );
 
     // calculate glyphVariationDataArrayOffset: put the glyphVariationData at last in the table
     let shared_tuples_size = 2 * gvar.axis_count() * gvar.shared_tuple_count();
     let glyph_var_data_offset =
         FIXED_HEADER_SIZE + glyph_var_data_offset_array_size + shared_tuples_size as u32;
-    out.extend_from_slice(&glyph_var_data_offset.to_be_bytes());
+    s.embed(glyph_var_data_offset)
+        .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
 
     //pre-allocate glyphVariationDataOffsets array
-    let mut start_idx = out.len();
-    let new_len = start_idx + (num_glyphs as usize + 1) * off_size;
-    out.resize(new_len, 0);
+    let offsets_array_len = (num_glyphs as usize + 1) * off_size;
+    let mut start_idx = s
+        .allocate_size(offsets_array_len)
+        .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
 
     // shared tuples array
     if shared_tuples_offset > 0 {
@@ -106,10 +110,11 @@ fn subset_with_offset_type<OffsetType: GvarOffset>(
             .as_bytes()
             .get(offset..offset + shared_tuples_size as usize)
             .unwrap();
-        out.extend_from_slice(shared_tuples_data);
+        s.embed_bytes(shared_tuples_data)
+            .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
     }
 
-    // GlyphVariationData table array, also update glyphVariationDataOffsets
+    // GlyphVariationData table array, also update glyphVariationDatƒaOffsets
     start_idx += off_size;
 
     let mut glyph_offset = 0_u32;
@@ -122,51 +127,38 @@ fn subset_with_offset_type<OffsetType: GvarOffset>(
     }) {
         let last_gid = last;
         for _ in last_gid..new_gid.to_u32() {
-            copy_offset_value(
-                &mut out,
-                &mut start_idx,
-                OffsetType::stored_value(glyph_offset),
-            );
+            s.copy_assign(start_idx, OffsetType::stored_value(glyph_offset));
+            start_idx += off_size;
             last += 1;
         }
 
         if let Ok(glyph_var_data) = gvar.data_for_gid(*old_gid) {
-            out.extend_from_slice(glyph_var_data.as_bytes());
+            s.embed_bytes(glyph_var_data.as_bytes())
+                .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
             glyph_offset += glyph_var_data.len() as u32;
         };
 
-        copy_offset_value(
-            &mut out,
-            &mut start_idx,
-            OffsetType::stored_value(glyph_offset),
-        );
+        s.copy_assign(start_idx, OffsetType::stored_value(glyph_offset));
+        start_idx += off_size;
 
         last += 1;
     }
 
     for _ in last..plan.num_output_glyphs as u32 {
-        copy_offset_value(
-            &mut out,
-            &mut start_idx,
-            OffsetType::stored_value(glyph_offset),
-        );
+        s.copy_assign(start_idx, OffsetType::stored_value(glyph_offset));
+        start_idx += off_size;
     }
 
-    Ok(out)
+    Ok(())
 }
 
-trait GvarOffset {
+trait GvarOffset: Scalar {
     fn stored_value(val: u32) -> Self;
-    fn copy_be_bytes(&self, f: impl FnOnce(&[u8]));
 }
 
 impl GvarOffset for u16 {
     fn stored_value(val: u32) -> u16 {
         (val / 2) as u16
-    }
-
-    fn copy_be_bytes(&self, f: impl FnOnce(&[u8])) {
-        f(&self.to_be_bytes())
     }
 }
 
@@ -174,21 +166,4 @@ impl GvarOffset for u32 {
     fn stored_value(val: u32) -> u32 {
         val
     }
-
-    fn copy_be_bytes(&self, f: impl FnOnce(&[u8])) {
-        f(&self.to_be_bytes())
-    }
-}
-
-fn copy_offset_value<T: GvarOffset>(out: &mut [u8], idx: &mut usize, glyph_offset: T) {
-    let offset_size = size_of::<T>();
-    let f = |x: &_| {
-        out.get_mut(*idx..*idx + offset_size)
-            .unwrap()
-            .copy_from_slice(x)
-    };
-
-    glyph_offset.copy_be_bytes(f);
-
-    *idx += offset_size;
 }

@@ -1,12 +1,17 @@
 //! impl subset() for name table
 use crate::{
+    serialize::{OffsetWhence, Serializer},
     Plan, Subset,
     SubsetError::{self, SubsetTableError},
     SubsetFlags,
 };
 
 use write_fonts::{
-    read::{tables::name::Name, FontRef, TopLevelTable},
+    read::{
+        tables::name::{Name, NameRecord},
+        FontRef, TopLevelTable,
+    },
+    types::FixedSize,
     FontBuilder,
 };
 
@@ -17,7 +22,8 @@ impl Subset for Name<'_> {
         &self,
         plan: &Plan,
         _font: &FontRef,
-        builder: &mut FontBuilder,
+        s: &mut Serializer,
+        _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
         let name_records = self.name_record();
         //TODO: support name_table_override
@@ -50,62 +56,71 @@ impl Subset for Name<'_> {
             )
         });
 
-        let name_data = self.offset_data().as_bytes();
-        let mut out = Vec::with_capacity(name_data.len());
         // version
         // TODO: support version 1
-        out.extend_from_slice(&[0, 0]);
+        s.embed(0_u16)
+            .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
         //count
         let count = retained_name_record_idxes.len() as u16;
-        out.extend_from_slice(&count.to_be_bytes());
+        s.embed(count)
+            .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
         //storage_offset
-        let storage_offset = count * 12 + 6;
-        out.extend_from_slice(&storage_offset.to_be_bytes());
+        let storage_offset = count * NameRecord::RAW_BYTE_LEN as u16 + 6;
+        s.embed(storage_offset)
+            .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
 
-        //pre-allocate space for name records array
-        out.resize(storage_offset as usize, 0);
-
-        let mut string_offset = 0_u16;
-        let storage_start = self.storage_offset() as usize;
-        for (new_idx, old_idx) in retained_name_record_idxes.iter().enumerate() {
-            let old_record_start = record_start_pos(*old_idx);
-            let new_record_start = record_start_pos(new_idx);
-            //copy name_record except for string offset
-            out.get_mut(new_record_start..new_record_start + 10)
-                .unwrap()
-                .copy_from_slice(
-                    name_data
-                        .get(old_record_start..old_record_start + 10)
-                        .unwrap(),
-                );
-            //copy string offset
-            out.get_mut(new_record_start + 10..new_record_start + NAME_RECORD_SIZE)
-                .unwrap()
-                .copy_from_slice(&string_offset.to_be_bytes());
-
-            //copy string data
-            let str_start =
-                storage_start + name_records[*old_idx].string_offset().to_u32() as usize;
-            let str_len = name_records[*old_idx].length();
-            let str_data = name_data
-                .get(str_start..str_start + str_len as usize)
-                .ok_or(SubsetTableError(Name::TAG))?;
-            out.extend_from_slice(str_data);
-
-            string_offset += str_len;
-        }
-
-        builder.add_raw(Name::TAG, out);
-        Ok(())
+        serialize_name_records(self, s, &retained_name_record_idxes)
     }
 }
 
-//version + count + storageOffset field
-const HEADER_SIZE: usize = 6;
-//NameRecord size in bytes
-const NAME_RECORD_SIZE: usize = 12;
+fn serialize_name_records(
+    name: &Name,
+    s: &mut Serializer,
+    retained_name_record_idxes: &[usize],
+) -> Result<(), SubsetError> {
+    let data = name.offset_data().as_bytes();
+    let name_records = name.name_record();
+    let name_records_bytes = data.get(name.shape().name_record_byte_range()).unwrap();
+    let storage_start = name.storage_offset() as usize;
+    for idx in retained_name_record_idxes.iter() {
+        let len = s.length();
+        let record_pos = idx * NAME_RECORD_SIZE;
+        let record_bytes = name_records_bytes
+            .get(record_pos..record_pos + NAME_RECORD_SIZE)
+            .ok_or(SubsetError::SubsetTableError(Name::TAG))?;
+        s.embed_bytes(record_bytes)
+            .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
 
-//get the starting byte position of the ith NameRecord
-fn record_start_pos(record_idx: usize) -> usize {
-    HEADER_SIZE + NAME_RECORD_SIZE * record_idx
+        let record = name_records[*idx];
+        let offset = record.string_offset().to_u32() as usize;
+
+        // 10 is the position of offset field within a NameRecord
+        let offset_pos = len + 10;
+        s.push()
+            .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
+
+        //copy string data
+        let str_start = storage_start + offset;
+        let str_len = record.length();
+        let str_bytes = data
+            .get(str_start..str_start + str_len as usize)
+            .ok_or(SubsetTableError(Name::TAG))?;
+        s.embed_bytes(str_bytes)
+            .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
+        let obj_idx = s
+            .pop_pack(true)
+            .ok_or(SubsetError::SubsetTableError(Name::TAG))?;
+        s.add_link(
+            offset_pos..offset_pos + 2,
+            obj_idx,
+            OffsetWhence::Tail,
+            0,
+            false,
+        )
+        .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
+    }
+    Ok(())
 }
+
+//NameRecord size in bytes
+const NAME_RECORD_SIZE: usize = NameRecord::RAW_BYTE_LEN;
