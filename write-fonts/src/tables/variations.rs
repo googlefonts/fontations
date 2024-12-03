@@ -98,9 +98,10 @@ impl PackedDeltas {
         // 6 bits for length per https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas
         const MAX_POINTS_PER_RUN: usize = 64;
 
-        // Value type when encoded in a delta run that started with a non-zero value
-        fn non_zero_value_type(v: i32) -> DeltaRunType {
+        // preferred run type for this value
+        fn preferred_run_type(v: i32) -> DeltaRunType {
             match v {
+                0 => DeltaRunType::Zero,
                 _ if v > i16::MAX as i32 || v < i16::MIN as i32 => DeltaRunType::I32,
                 _ if v > i8::MAX as i32 || v < i8::MIN as i32 => DeltaRunType::I16,
                 _ => DeltaRunType::I8,
@@ -119,21 +120,42 @@ impl PackedDeltas {
         fn next_run_len(slice: &[i32]) -> (usize, DeltaRunType) {
             let first = *slice.first().expect("bounds checked before here");
             debug_assert!(first != 0, "Zeroes are supposed to be handled separately");
-            let value_type = non_zero_value_type(first);
+            let run_type = preferred_run_type(first);
 
             let mut idx = 1;
             while idx < MAX_POINTS_PER_RUN && idx < slice.len() {
                 let cur = slice[idx];
+                let cur_type = preferred_run_type(cur);
+                let next_type = slice.get(idx + 1).copied().map(preferred_run_type);
 
                 // Any reason to stop?
-                let two_zeros = cur == 0 && slice.get(idx + 1) == Some(&0);
-                if two_zeros || non_zero_value_type(cur) != value_type {
+                if run_type == DeltaRunType::I8 {
+                    // a single zero is best stored literally inline, but two or more
+                    // should get a new run:
+                    // https://github.com/fonttools/fonttools/blob/eeaa499981c587/Lib/fontTools/ttLib/tables/TupleVariation.py#L423
+                    match cur_type {
+                        DeltaRunType::Zero if next_type == Some(DeltaRunType::Zero) => break,
+                        DeltaRunType::I16 | DeltaRunType::I32 => break,
+                        _ => (),
+                    }
+                } else if run_type == DeltaRunType::I16 {
+                    // with word deltas, a single zero justifies a new run:
+                    //https://github.com/fonttools/fonttools/blob/eeaa499981c587/Lib/fontTools/ttLib/tables/TupleVariation.py#L457
+                    match cur_type {
+                        DeltaRunType::Zero | DeltaRunType::I32 => break,
+                        // and a single byte-size value should be inlined, if it lets
+                        // us combine two adjoining word-size runs:
+                        // https://github.com/fonttools/fonttools/blob/eeaa499981c587/Lib/fontTools/ttLib/tables/TupleVariation.py#L467
+                        DeltaRunType::I8 if next_type == Some(DeltaRunType::I8) => break,
+                        _ => (),
+                    }
+                } else if run_type == DeltaRunType::I32 && cur_type != DeltaRunType::I32 {
                     break;
                 }
 
                 idx += 1;
             }
-            (idx, value_type)
+            (idx, run_type)
         }
 
         let mut deltas = self.deltas.as_slice();
@@ -608,6 +630,36 @@ mod tests {
             ],
             deltas.iter_runs().collect::<Vec<_>>()
         )
+    }
+
+    #[test]
+    fn inline_single_zeros_with_bytes() {
+        let packed = PackedDeltas::new(vec![1, 2, 0, 3]);
+        assert_eq!(packed.iter_runs().count(), 1)
+    }
+
+    #[test]
+    fn split_two_zeros_in_bytes() {
+        let packed = PackedDeltas::new(vec![1, 2, 0, 0, 3]);
+        assert_eq!(packed.iter_runs().count(), 3)
+    }
+
+    #[test]
+    fn split_single_zero_in_words() {
+        let packed = PackedDeltas::new(vec![150, 200, 0, -300]);
+        assert_eq!(packed.iter_runs().count(), 3)
+    }
+
+    #[test]
+    fn inline_single_byte_in_words() {
+        let packed = PackedDeltas::new(vec![150, 200, 1, -300]);
+        assert_eq!(packed.iter_runs().count(), 1)
+    }
+
+    #[test]
+    fn split_double_byte_in_words() {
+        let packed = PackedDeltas::new(vec![150, 200, 1, 3, -300]);
+        assert_eq!(packed.iter_runs().count(), 3)
     }
 
     #[rstest]
