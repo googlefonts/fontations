@@ -811,7 +811,8 @@ impl PatchUri {
             }
             leading_bytes += 1;
         }
-        leading_bytes
+        // Always keep at least one digit.
+        leading_bytes.min(id.len() - 1)
     }
 
     pub fn encoding(&self) -> PatchFormat {
@@ -1293,6 +1294,7 @@ mod tests {
 
         // These test cases are from specification:
         // https://w3c.github.io/IFT/Overview.html#uri-templates
+        check_uri_template_substitution("//foo.bar/{id}", 0, "//foo.bar/00");
         check_uri_template_substitution("//foo.bar/{id}", 123, "//foo.bar/FC");
         check_uri_template_substitution("//foo.bar{/d1,d2,id}", 478, "//foo.bar/0/F/07F0");
         check_uri_template_substitution("//foo.bar{/d1,d2,d3,id}", 123, "//foo.bar/C/F/_/FC");
