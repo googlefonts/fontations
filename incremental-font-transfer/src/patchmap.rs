@@ -883,6 +883,16 @@ impl SubsetDefinition {
         }
     }
 
+    /// Returns a SubsetDefinition which includes all things.
+    pub fn all() -> SubsetDefinition {
+        SubsetDefinition {
+            codepoints: IntSet::all(),
+            // TODO(garretrieger): need a way to mark these as matching all.
+            feature_tags: Default::default(),
+            design_space: Default::default(),
+        }
+    }
+
     pub fn new(
         codepoints: IntSet<u32>,
         feature_tags: BTreeSet<Tag>,

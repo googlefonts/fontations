@@ -353,7 +353,7 @@ pub enum UriStatus {
 
 /// Tracks information related to a patch necessary to apply that patch.
 #[derive(PartialEq, Eq, Debug)]
-pub(crate) struct PatchInfo {
+pub struct PatchInfo {
     uri: String,
     source_table: IftTableTag,
     application_flag_bit_index: usize,
