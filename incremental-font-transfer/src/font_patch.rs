@@ -27,7 +27,7 @@ use shared_brotli_patch_decoder::DecodeError;
 /// A trait for types to which an incremental font transfer patch can be applied.
 ///
 /// See: <https://w3c.github.io/IFT/Overview.html#font-patch-formats> for details on the format of patches.
-pub(crate) trait IncrementalFontPatchBase {
+pub trait IncrementalFontPatchBase {
     /// Apply a table keyed incremental font patches (<https://w3c.github.io/IFT/Overview.html#font-patch-formats>)
     ///
     /// Applies the patches to this base.
