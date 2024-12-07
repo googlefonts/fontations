@@ -16,6 +16,7 @@ use raw::types::{F2Dot14, Fixed, GlyphId};
 #[cfg(feature = "std")]
 use std::sync::{Arc, RwLock};
 
+pub(crate) use blues::{BlueZones, ScaledBlue, ScaledBlues, UnscaledBlue, UnscaledBlues};
 pub(crate) use scale::{compute_unscaled_style_metrics, scale_style_metrics};
 
 /// Maximum number of widths, same for Latin and CJK.
@@ -23,11 +24,6 @@ pub(crate) use scale::{compute_unscaled_style_metrics, scale_style_metrics};
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L65>
 /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.h#L55>
 pub(crate) const MAX_WIDTHS: usize = 16;
-
-/// Maximum number of blue values.
-///
-/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afblue.h#L328>
-pub(crate) const MAX_BLUES: usize = 8;
 
 /// Unscaled metrics for a single axis.
 ///
@@ -170,31 +166,6 @@ pub(crate) struct ScaledStyleMetrics {
     /// Per-dimension scaled metrics.
     pub axes: [ScaledAxisMetrics; 2],
 }
-
-// FreeType keeps a single array of blue values per metrics set
-// and mutates when the scale factor changes. We'll separate them so
-// that we can reuse unscaled metrics as immutable state without
-// recomputing them (which is the expensive part).
-// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L77>
-#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
-pub(crate) struct UnscaledBlue {
-    pub position: i32,
-    pub overshoot: i32,
-    pub ascender: i32,
-    pub descender: i32,
-    pub flags: u32,
-}
-
-pub(crate) type UnscaledBlues = SmallVec<UnscaledBlue, MAX_BLUES>;
-
-#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
-pub struct ScaledBlue {
-    pub position: ScaledWidth,
-    pub overshoot: ScaledWidth,
-    pub flags: u32,
-}
-
-pub(crate) type ScaledBlues = SmallVec<ScaledBlue, MAX_BLUES>;
 
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub(crate) struct WidthMetrics {
