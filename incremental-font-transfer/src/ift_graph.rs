@@ -58,6 +58,7 @@ fn to_graph(
         intersecting_patches(&font, &SubsetDefinition::all()).expect("patch map parsing failed");
 
     let node_name = get_node_name(&font);
+    graph.entry(node_name.clone()).or_default();
 
     for patch in patches {
         match patch.encoding() {
@@ -97,6 +98,6 @@ fn main() {
 
     for (key, values) in graph {
         let values: Vec<_> = values.into_iter().collect();
-        println!("{key}; {}", values.join(", "));
+        println!("{key};{}", values.join(","));
     }
 }
