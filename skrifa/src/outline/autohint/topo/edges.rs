@@ -10,7 +10,7 @@ use super::{
     super::{
         metrics::{fixed_div, fixed_mul, Scale, ScaledAxisMetrics, ScaledBlue, UnscaledBlue},
         outline::Direction,
-        style::{blue_flags, ScriptGroup},
+        style::ScriptGroup,
     },
     Axis, Edge, Segment,
 };
@@ -314,11 +314,11 @@ pub(crate) fn compute_blue_edges(
         let mut best_dist = initial_best_dest;
         for (unscaled_blue, blue) in unscaled_blues.iter().zip(blues) {
             // Ignore inactive blue zones
-            if blue.flags & blue_flags::ACTIVE == 0 {
+            if !blue.is_active {
                 continue;
             }
-            let is_top = blue.flags & (blue_flags::TOP | blue_flags::LATIN_SUB_TOP) != 0;
-            let is_neutral = blue.flags & blue_flags::LATIN_NEUTRAL != 0;
+            let is_top = blue.zones.is_top_like();
+            let is_neutral = blue.zones.is_neutral();
             let is_major_dir = edge.dir == axis.major_dir;
             // Both directions are handled for neutral blues
             if is_top ^ is_major_dir || is_neutral {

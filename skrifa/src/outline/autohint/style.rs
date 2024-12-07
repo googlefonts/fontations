@@ -1,5 +1,6 @@
 //! Styles, scripts and glyph style mapping.
 
+use super::metrics::BlueZones;
 use super::shape::ShaperCoverageKind;
 use alloc::vec::Vec;
 use raw::types::{GlyphId, Tag};
@@ -303,7 +304,7 @@ pub(crate) struct ScriptClass {
     /// Characters used to define standard width and height of stems.
     pub std_chars: &'static str,
     /// "Blue" characters used to define alignment zones.
-    pub blues: &'static [(&'static str, u32)],
+    pub blues: &'static [(&'static str, BlueZones)],
 }
 
 /// Defines the basic properties for each style supported by the
@@ -346,23 +347,6 @@ impl StyleRange {
     }
 }
 
-// These properties ostensibly come from
-// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afblue.h#L317>
-// but are modified to match those at
-// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L68>
-// so that when don't need to keep two sets and adjust during blue computation.
-pub(super) mod blue_flags {
-    pub const ACTIVE: u32 = 1 << 0;
-    pub const TOP: u32 = 1 << 1;
-    pub const LATIN_SUB_TOP: u32 = 1 << 2;
-    pub const LATIN_NEUTRAL: u32 = 1 << 3;
-    pub const LATIN_BLUE_ADJUSTMENT: u32 = 1 << 4;
-    pub const LATIN_X_HEIGHT: u32 = 1 << 5;
-    pub const LATIN_LONG: u32 = 1 << 6;
-    pub const CJK_HORIZ: u32 = 1 << 2;
-    pub const CJK_RIGHT: u32 = TOP;
-}
-
 // The following are helpers for generated code.
 const fn base_range(first: u32, last: u32, style_index: u16) -> StyleRange {
     StyleRange {
@@ -381,8 +365,6 @@ const fn non_base_range(first: u32, last: u32, style_index: u16) -> StyleRange {
 }
 
 const MAX_STYLES: usize = STYLE_CLASSES.len();
-
-use blue_flags::*;
 
 use super::shape::Shaper;
 

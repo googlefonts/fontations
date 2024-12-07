@@ -8,12 +8,12 @@
 
 use super::super::{
     metrics::{
-        fixed_div, fixed_mul, fixed_mul_div, pix_round, Scale, ScaledAxisMetrics, ScaledBlue,
-        ScaledStyleMetrics, ScaledWidth, UnscaledAxisMetrics, UnscaledBlue, UnscaledStyleMetrics,
-        WidthMetrics,
+        fixed_div, fixed_mul, fixed_mul_div, pix_round, BlueZones, Scale, ScaledAxisMetrics,
+        ScaledBlue, ScaledStyleMetrics, ScaledWidth, UnscaledAxisMetrics, UnscaledBlue,
+        UnscaledStyleMetrics, WidthMetrics,
     },
     shape::Shaper,
-    style::{blue_flags, ScriptGroup, StyleClass},
+    style::{ScriptGroup, StyleClass},
     topo::{Axis, Dimension},
 };
 use crate::{prelude::Size, MetadataProvider};
@@ -136,7 +136,7 @@ fn scale_default_axis_metrics(
     // Correct Y scale to optimize alignment
     if let Some(blue_ix) = blues
         .iter()
-        .position(|blue| blue.flags & blue_flags::LATIN_BLUE_ADJUSTMENT != 0)
+        .position(|blue| blue.zones.contains(BlueZones::ADJUSTMENT))
     {
         let unscaled_blue = &blues[blue_ix];
         let scaled = fixed_mul(axis.scale, unscaled_blue.overshoot);
@@ -183,7 +183,8 @@ fn scale_default_axis_metrics(
                     scaled: scaled_overshoot,
                     fitted: scaled_overshoot,
                 },
-                flags: unscaled_blue.flags & !blue_flags::ACTIVE,
+                zones: unscaled_blue.zones,
+                is_active: false,
             };
             // Only activate blue zones less than 3/4 pixel tall
             let dist = fixed_mul(unscaled_blue.position - unscaled_blue.overshoot, axis.scale);
@@ -201,30 +202,25 @@ fn scale_default_axis_metrics(
                 }
                 blue.position.fitted = pix_round(blue.position.scaled);
                 blue.overshoot.fitted = blue.position.fitted - delta;
-                blue.flags |= blue_flags::ACTIVE;
+                blue.is_active = true;
             }
             axis.blues.push(blue);
         }
         // Use sub-top blue zone if it doesn't overlap with another
         // non-sub-top blue zone
         for blue_ix in 0..axis.blues.len() {
-            const REQUIRED_FLAGS: u32 = blue_flags::LATIN_SUB_TOP | blue_flags::ACTIVE;
             let blue = axis.blues[blue_ix];
-            if blue.flags & REQUIRED_FLAGS != REQUIRED_FLAGS {
+            if !blue.zones.is_sub_top() || !blue.is_active {
                 continue;
             }
-            for blue_ix2 in 0..axis.blues.len() {
-                let blue2 = axis.blues[blue_ix2];
-                if blue2.flags & blue_flags::LATIN_SUB_TOP != 0 {
-                    continue;
-                }
-                if blue2.flags & blue_flags::ACTIVE == 0 {
+            for blue2 in &axis.blues {
+                if blue2.zones.is_sub_top() || !blue2.is_active {
                     continue;
                 }
                 if blue2.position.fitted <= blue.overshoot.fitted
                     && blue2.overshoot.fitted >= blue.position.fitted
                 {
-                    axis.blues[blue_ix].flags &= !blue_flags::ACTIVE;
+                    axis.blues[blue_ix].is_active = false;
                     break;
                 }
             }
@@ -269,7 +265,8 @@ fn scale_cjk_axis_metrics(
                 scaled: overshoot,
                 fitted: overshoot,
             },
-            flags: unscaled_blue.flags,
+            zones: unscaled_blue.zones,
+            is_active: false,
         };
         // A blue zone is only active if it is less than 3/4 pixels tall
         let dist = fixed_mul(unscaled_blue.position - unscaled_blue.overshoot, scale);
@@ -287,7 +284,7 @@ fn scale_cjk_axis_metrics(
                 delta2 = -delta2;
             }
             blue.overshoot.fitted = blue.position.fitted - delta2;
-            blue.flags |= blue_flags::ACTIVE;
+            blue.is_active = true;
         }
         axis.blues.push(blue);
     }
@@ -336,10 +333,10 @@ mod tests {
         // Vertical blues
         #[rustfmt::skip]
         let expected_v_blues = [
-            // ((scaled_pos, fitted_pos), (scaled_shoot, fitted_shoot), flags)
-            ScaledBlue::from(((606, 576), (606, 576), blue_flags::ACTIVE | blue_flags::TOP)),
-            ScaledBlue::from(((0, 0), (-9, 0), blue_flags::ACTIVE)),
-            ScaledBlue::from(((-246, -256), (-246, -256), blue_flags::ACTIVE)),
+            // ((scaled_pos, fitted_pos), (scaled_shoot, fitted_shoot), flags, is_active)
+            ScaledBlue::from(((606, 576), (606, 576), BlueZones::TOP, true)),
+            ScaledBlue::from(((0, 0), (-9, 0), BlueZones::default(), true)),
+            ScaledBlue::from(((-246, -256), (-246, -256), BlueZones::default(), true)),
         ];
         check_axis(v_axis, &expected_v_widths, &expected_v_blues);
         // This one is extra light
@@ -371,9 +368,9 @@ mod tests {
         // Vertical blues
         #[rustfmt::skip]
         let expected_v_blues = [
-            // ((scaled_pos, fitted_pos), (scaled_shoot, fitted_shoot), flags)
-            ScaledBlue::from(((857, 832), (844, 832), blue_flags::ACTIVE | blue_flags::TOP)),
-            ScaledBlue::from(((-80, -64), (-68, -64), blue_flags::ACTIVE)),
+            // ((scaled_pos, fitted_pos), (scaled_shoot, fitted_shoot), flags, is_active)
+            ScaledBlue::from(((857, 832), (844, 832), BlueZones::TOP, true)),
+            ScaledBlue::from(((-80, -64), (-68, -64), BlueZones::default(), true)),
         ];
         // No horizontal blues
         check_axis(v_axis, &expected_v_widths, &expected_v_blues);
@@ -419,12 +416,13 @@ mod tests {
         }
     }
 
-    impl From<((i32, i32), (i32, i32), u32)> for ScaledBlue {
-        fn from(value: ((i32, i32), (i32, i32), u32)) -> Self {
+    impl From<((i32, i32), (i32, i32), BlueZones, bool)> for ScaledBlue {
+        fn from(value: ((i32, i32), (i32, i32), BlueZones, bool)) -> Self {
             Self {
                 position: value.0.into(),
                 overshoot: value.1.into(),
-                flags: value.2,
+                zones: value.2,
+                is_active: value.3,
             }
         }
     }
