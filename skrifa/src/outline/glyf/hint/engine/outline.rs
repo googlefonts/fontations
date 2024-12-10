@@ -833,10 +833,13 @@ impl Engine<'_> {
 
     /// Helper for FLIPRGON and FLIPRGOFF.
     fn set_on_curve_for_range(&mut self, on: bool) -> OpResult {
+        let high_point = self.value_stack.pop_usize()?;
+        let low_point = self.value_stack.pop_usize()?;
         // high_point is inclusive but Zone::set_on_curve takes an exclusive
         // range
-        let high_point = self.value_stack.pop_usize()? + 1;
-        let low_point = self.value_stack.pop_usize()?;
+        let high_point = high_point
+            .checked_add(1)
+            .ok_or(HintErrorKind::InvalidPointIndex(high_point))?;
         // In backward compatibility mode, don't flip points after IUP has
         // been done.
         if self.graphics.backward_compatibility
