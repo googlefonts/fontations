@@ -373,7 +373,7 @@ impl Iterator for PackedPointNumbersIter<'_> {
             return None;
         }
         self.seen += 1;
-        self.last_val += self.current_run.next()?;
+        self.last_val = self.last_val.checked_add(self.current_run.next()?)?;
         Some(self.last_val)
     }
 
