@@ -375,7 +375,7 @@ impl Iterator for PackedPointNumbersIter<'_> {
             return None;
         }
         self.seen += 1;
-        self.last_val += self.current_run.next()?;
+        self.last_val = self.last_val.checked_add(self.current_run.next()?)?;
         Some(self.last_val)
     }
 
@@ -1403,5 +1403,16 @@ mod tests {
         let row_len = (2 * u32::RAW_BYTE_LEN) + (2 * u16::RAW_BYTE_LEN); // 1 word (4-byte) delta, 2 short (2-byte)
         let expected_len = 2 * row_len;
         assert_eq!(ivs.delta_sets().len(), expected_len);
+    }
+
+    // Add with overflow when accumulating packed point numbers
+    // https://issues.oss-fuzz.com/issues/378159154
+    #[test]
+    fn packed_point_numbers_avoid_overflow() {
+        // Lots of 1 bits triggers the behavior quite nicely
+        let buf = vec![0xFF; 0xFFFF];
+        let iter = PackedPointNumbersIter::new(0xFFFF, FontData::new(&buf).cursor());
+        // Don't panic!
+        let _ = iter.count();
     }
 }
