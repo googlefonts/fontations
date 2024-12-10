@@ -368,7 +368,7 @@ impl HintingInstance {
                 OutlineCollectionKind::None => {}
             },
             Engine::Auto(styles) => {
-                let Some(font) = outlines.common().map(|scaler| &scaler.font) else {
+                let Some(font) = outlines.font() else {
                     return Ok(());
                 };
                 let instance = autohint::Instance::new(
