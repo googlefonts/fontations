@@ -1491,4 +1491,15 @@ mod tests {
         let expected_len = 2 * row_len;
         assert_eq!(ivs.delta_sets().len(), expected_len);
     }
+
+    // Add with overflow when accumulating packed point numbers
+    // https://issues.oss-fuzz.com/issues/378159154
+    #[test]
+    fn packed_point_numbers_avoid_overflow() {
+        // Lots of 1 bits triggers the behavior quite nicely
+        let buf = vec![0xFF; 0xFFFF];
+        let iter = PackedPointNumbersIter::new(0xFFFF, FontData::new(&buf).cursor());
+        // Don't panic!
+        let _ = iter.count();
+    }
 }
