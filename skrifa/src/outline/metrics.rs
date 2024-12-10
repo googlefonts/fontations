@@ -1,32 +1,24 @@
-//! Common functionality for glyf, cff and autohinting scalers.
-//!
-//! Currently this includes the font reference as well as horizontal glyph
-//! metrics and access to the control value table.
+//! Helper for loading (possibly variable) horizontal glyph metrics.
 
 use raw::{
     tables::{hmtx::Hmtx, hvar::Hvar},
-    types::{BigEndian, F2Dot14, GlyphId, Tag},
+    types::{F2Dot14, GlyphId},
     FontRef, TableProvider,
 };
 
-/// Common functionality for glyf, cff and autohinting scalers.
+/// Access to horizontal glyph metrics.
 #[derive(Clone)]
-pub(crate) struct OutlinesCommon<'a> {
-    pub font: FontRef<'a>,
+pub(crate) struct GlyphHMetrics<'a> {
     pub hmtx: Hmtx<'a>,
     pub hvar: Option<Hvar<'a>>,
 }
 
-impl<'a> OutlinesCommon<'a> {
+impl<'a> GlyphHMetrics<'a> {
     pub fn new(font: &FontRef<'a>) -> Option<Self> {
         // Note: hmtx is required and HVAR is optional
         let hmtx = font.hmtx().ok()?;
         let hvar = font.hvar().ok();
-        Some(Self {
-            font: font.clone(),
-            hmtx,
-            hvar,
-        })
+        Some(Self { hmtx, hvar })
     }
 
     /// Returns the advance width (in font units) for the given glyph and
@@ -55,14 +47,5 @@ impl<'a> OutlinesCommon<'a> {
                 .unwrap_or(0);
         }
         lsb
-    }
-
-    /// Returns the array of entries for the control value table which is used
-    /// for TrueType hinting.
-    pub fn cvt(&self) -> &[BigEndian<i16>] {
-        self.font
-            .data_for_tag(Tag::new(b"cvt "))
-            .and_then(|d| d.read_array(0..d.len()).ok())
-            .unwrap_or_default()
     }
 }

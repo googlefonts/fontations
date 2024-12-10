@@ -36,13 +36,12 @@ pub struct GlyphStyles(Arc<GlyphStyleMap>);
 impl GlyphStyles {
     /// Precomputes the full set of glyph styles for the given outlines.
     pub fn new(outlines: &OutlineGlyphCollection) -> Self {
-        if let Some(outlines) = outlines.common() {
-            let glyph_count = outlines
-                .font
+        if let Some(font) = outlines.font() {
+            let glyph_count = font
                 .maxp()
                 .map(|maxp| maxp.num_glyphs() as u32)
                 .unwrap_or_default();
-            let shaper = Shaper::new(&outlines.font, SHAPER_MODE);
+            let shaper = Shaper::new(font, SHAPER_MODE);
             Self(Arc::new(GlyphStyleMap::new(glyph_count, &shaper)))
         } else {
             Self(Default::default())
@@ -99,7 +98,7 @@ impl Instance {
         path_style: PathStyle,
         pen: &mut impl OutlinePen,
     ) -> Result<AdjustedMetrics, DrawError> {
-        let common = glyph.outlines_common();
+        let font = glyph.font();
         let glyph_id = glyph.glyph_id();
         let style = self
             .styles
@@ -108,7 +107,7 @@ impl Instance {
             .ok_or(DrawError::GlyphNotFound(glyph_id))?;
         let metrics = self
             .metrics
-            .get(&common.font, coords, SHAPER_MODE, &self.styles.0, glyph_id)
+            .get(font, coords, SHAPER_MODE, &self.styles.0, glyph_id)
             .ok_or(DrawError::GlyphNotFound(glyph_id))?;
         let units_per_em = glyph.units_per_em() as i32;
         let scale = Scale::new(

@@ -1,6 +1,6 @@
 //! a trait for things that can serve font tables
 
-use types::Tag;
+use types::{BigEndian, Tag};
 
 use crate::{tables, FontData, FontRead, ReadError};
 
@@ -118,6 +118,13 @@ pub trait TableProvider<'a> {
 
     fn gvar(&self) -> Result<tables::gvar::Gvar<'a>, ReadError> {
         self.expect_table()
+    }
+
+    /// Returns the array of entries for the control value table which is used
+    /// for TrueType hinting.
+    fn cvt(&self) -> Result<&'a [BigEndian<i16>], ReadError> {
+        let table_data = self.expect_data_for_tag(Tag::new(b"cvt "))?;
+        table_data.read_array(0..table_data.len())
     }
 
     fn cvar(&self) -> Result<tables::cvar::Cvar<'a>, ReadError> {

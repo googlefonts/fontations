@@ -80,9 +80,9 @@
 
 mod autohint;
 mod cff;
-mod common;
 mod glyf;
 mod hint;
+mod metrics;
 mod path;
 mod unscaled;
 
@@ -92,12 +92,11 @@ mod testing;
 pub mod error;
 pub mod pen;
 
-use common::OutlinesCommon;
-
 pub use autohint::GlyphStyles;
 pub use hint::{
     Engine, HintingInstance, HintingMode, HintingOptions, LcdLayout, SmoothMode, Target,
 };
+use metrics::GlyphHMetrics;
 use raw::FontRef;
 #[doc(inline)]
 pub use {error::DrawError, pen::OutlinePen};
@@ -469,17 +468,16 @@ impl<'a> OutlineGlyph<'a> {
                 let mut adapter = unscaled::UnscaledPenAdapter::new(sink);
                 cff.draw(&subfont, *glyph_id, coords, false, &mut adapter)?;
                 adapter.finish()?;
-                let advance = cff.common.advance_width(*glyph_id, coords);
+                let advance = cff.glyph_metrics.advance_width(*glyph_id, coords);
                 Ok(advance)
             }
         }
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn outlines_common(&self) -> &OutlinesCommon<'a> {
+    pub(crate) fn font(&self) -> &FontRef<'a> {
         match &self.kind {
-            OutlineKind::Glyf(glyf, ..) => &glyf.common,
-            OutlineKind::Cff(cff, ..) => &cff.common,
+            OutlineKind::Glyf(glyf, ..) => &glyf.font,
+            OutlineKind::Cff(cff, ..) => &cff.font,
         }
     }
 
@@ -520,14 +518,10 @@ pub struct OutlineGlyphCollection<'a> {
 impl<'a> OutlineGlyphCollection<'a> {
     /// Creates a new outline collection for the given font.
     pub fn new(font: &FontRef<'a>) -> Self {
-        let kind = if let Some(common) = OutlinesCommon::new(font) {
-            if let Some(glyf) = glyf::Outlines::new(&common) {
-                OutlineCollectionKind::Glyf(glyf)
-            } else if let Some(cff) = cff::Outlines::new(&common) {
-                OutlineCollectionKind::Cff(cff)
-            } else {
-                OutlineCollectionKind::None
-            }
+        let kind = if let Some(glyf) = glyf::Outlines::new(font) {
+            OutlineCollectionKind::Glyf(glyf)
+        } else if let Some(cff) = cff::Outlines::new(font) {
+            OutlineCollectionKind::Cff(cff)
         } else {
             OutlineCollectionKind::None
         };
@@ -540,16 +534,15 @@ impl<'a> OutlineGlyphCollection<'a> {
     /// Returns `None` if the font does not contain outlines in the requested
     /// format.
     pub fn with_format(font: &FontRef<'a>, format: OutlineGlyphFormat) -> Option<Self> {
-        let common = OutlinesCommon::new(font)?;
         let kind = match format {
-            OutlineGlyphFormat::Glyf => OutlineCollectionKind::Glyf(glyf::Outlines::new(&common)?),
+            OutlineGlyphFormat::Glyf => OutlineCollectionKind::Glyf(glyf::Outlines::new(font)?),
             OutlineGlyphFormat::Cff => {
                 let upem = font.head().ok()?.units_per_em();
-                OutlineCollectionKind::Cff(cff::Outlines::from_cff(&common, upem)?)
+                OutlineCollectionKind::Cff(cff::Outlines::from_cff(font, upem)?)
             }
             OutlineGlyphFormat::Cff2 => {
                 let upem = font.head().ok()?.units_per_em();
-                OutlineCollectionKind::Cff(cff::Outlines::from_cff2(&common, upem)?)
+                OutlineCollectionKind::Cff(cff::Outlines::from_cff2(font, upem)?)
             }
         };
         Some(Self { kind })
@@ -615,10 +608,10 @@ impl<'a> OutlineGlyphCollection<'a> {
         }
     }
 
-    pub(crate) fn common(&self) -> Option<&OutlinesCommon<'a>> {
+    pub(crate) fn font(&self) -> Option<&FontRef<'a>> {
         match &self.kind {
-            OutlineCollectionKind::Glyf(glyf) => Some(&glyf.common),
-            OutlineCollectionKind::Cff(cff) => Some(&cff.common),
+            OutlineCollectionKind::Glyf(glyf) => Some(&glyf.font),
+            OutlineCollectionKind::Cff(cff) => Some(&cff.font),
             _ => None,
         }
     }
