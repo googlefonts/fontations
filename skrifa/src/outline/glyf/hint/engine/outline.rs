@@ -1385,6 +1385,18 @@ mod tests {
         assert!(engine.graphics.did_iup_y);
     }
 
+    // Add with overflow caught by fuzzer:
+    // https://issues.oss-fuzz.com/issues/377736138
+    #[test]
+    fn flip_region_avoid_overflow() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        engine.value_stack.push(1).unwrap();
+        engine.value_stack.push(-1).unwrap();
+        // Just don't panic
+        let _ = engine.set_on_curve_for_range(true);
+    }
+
     fn set_test_vectors(engine: &mut Engine) {
         let v = math::normalize14(100, 50);
         engine.graphics.proj_vector = v;
