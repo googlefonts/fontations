@@ -807,7 +807,7 @@ fn midpoint_i32(a: i32, b: i32) -> i32 {
     // Original overflowing code was: (a + b) / 2
     // Choose wrapping arithmetic here because we shouldn't ever
     // hit this outside of fuzzing or broken fonts _and_ this is
-    // called from very performance sensistive code
+    // called from very performance sensitive code
     a.wrapping_add(b.wrapping_sub(a) / 2)
 }
 
