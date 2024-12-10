@@ -756,7 +756,7 @@ impl PointCoord for F26Dot6 {
     fn midpoint(self, other: Self) -> Self {
         // FreeType uses integer division on 26.6 to compute midpoints.
         // See: https://github.com/freetype/freetype/blob/de8b92dd7ec634e9e2b25ef534c54a3537555c11/src/base/ftoutln.c#L123
-        Self::from_bits((self.to_bits() + other.to_bits()) / 2)
+        Self::from_bits(midpoint_i32(self.to_bits(), other.to_bits()))
     }
 }
 
@@ -774,7 +774,7 @@ impl PointCoord for Fixed {
     }
 
     fn midpoint(self, other: Self) -> Self {
-        Self::from_bits((self.to_bits() + other.to_bits()) / 2)
+        Self::from_bits(midpoint_i32(self.to_bits(), other.to_bits()))
     }
 }
 
@@ -792,8 +792,18 @@ impl PointCoord for i32 {
     }
 
     fn midpoint(self, other: Self) -> Self {
-        (self + other) / 2
+        midpoint_i32(self, other)
     }
+}
+
+// Midpoint function that avoids overflow on large values.
+fn midpoint_i32(a: i32, b: i32) -> i32 {
+    // Original overflowing code was: (a + b) / 2
+    // Choose wrapping arithmetic here because we shouldn't ever
+    // hit this outside of fuzzing or broken fonts _and_ this is
+    // called from the outline to path conversion code which is
+    // very performance sensitive
+    a.wrapping_add(b.wrapping_sub(a) / 2)
 }
 
 impl PointCoord for f32 {
@@ -1016,5 +1026,18 @@ mod tests {
                 (998, 710, true),
             ]
         );
+    }
+
+    // Minimized test case from https://issues.oss-fuzz.com/issues/382732980
+    // Add with overflow when computing midpoint of 1084092352 and 1085243712
+    // during outline -> path conversion
+    #[test]
+    fn avoid_midpoint_overflow() {
+        let a = F26Dot6::from_bits(1084092352);
+        let b = F26Dot6::from_bits(1085243712);
+        let expected = a.to_bits() + (b.to_bits() - a.to_bits()) / 2;
+        // Don't panic!
+        let midpoint = a.midpoint(b);
+        assert_eq!(midpoint.to_bits(), expected);
     }
 }
