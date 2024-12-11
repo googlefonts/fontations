@@ -193,10 +193,11 @@ impl<'a> ValueStack<'a> {
         let top_ix = self.len.checked_sub(1).ok_or(ValueStackUnderflow)?;
         let index = *self.values.get(top_ix).ok_or(ValueStackUnderflow)? as usize;
         let element_ix = top_ix.checked_sub(index).ok_or(ValueStackUnderflow)?;
+        let new_top_ix = top_ix.checked_sub(1).ok_or(ValueStackUnderflow)?;
         let value = self.values[element_ix];
         self.values
             .copy_within(element_ix + 1..self.len, element_ix);
-        self.values[top_ix - 1] = value;
+        self.values[new_top_ix] = value;
         self.len -= 1;
         Ok(())
     }
@@ -345,5 +346,14 @@ mod tests {
         assert_eq!(stack.peek(), Some(-25));
         stack.apply_binary(|a, b| Ok(a / b)).unwrap();
         assert_eq!(stack.peek(), Some(0));
+    }
+
+    // Subtract with overflow when stack size is 1 and element index is 0
+    // https://oss-fuzz.com/testcase-detail/5765856825507840
+    #[test]
+    fn move_index_avoid_overflow() {
+        let mut stack = make_stack!(&mut [0]);
+        // Don't panic
+        let _ = stack.move_index();
     }
 }
