@@ -11,10 +11,10 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "𞤌 𞤮",
         blues: &[
-            ("𞤌 𞤅 𞤈 𞤏 𞤔 𞤚", TOP),
-            ("𞤂 𞤖", 0),
-            ("𞤬 𞤮 𞤻 𞤼 𞤾", TOP | LATIN_X_HEIGHT),
-            ("𞤤 𞤨 𞤩 𞤭 𞤴 𞤸 𞤺 𞥀", 0),
+            ("𞤌 𞤅 𞤈 𞤏 𞤔 𞤚", BlueZones::TOP),
+            ("𞤂 𞤖", BlueZones::NONE),
+            ("𞤬 𞤮 𞤻 𞤼 𞤾", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("𞤤 𞤨 𞤩 𞤭 𞤴 𞤸 𞤺 𞥀", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -24,9 +24,9 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ل ح ـ",
         blues: &[
-            ("ا إ ل ك ط ظ", TOP),
-            ("ت ث ط ظ ك", 0),
-            ("ـ", LATIN_NEUTRAL),
+            ("ا إ ل ك ط ظ", BlueZones::TOP),
+            ("ت ث ط ظ ك", BlueZones::NONE),
+            ("ـ", BlueZones::NEUTRAL),
         ],
     },
     ScriptClass {
@@ -36,12 +36,12 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ս Ս",
         blues: &[
-            ("Ա Մ Ւ Ս Բ Գ Դ Օ", TOP),
-            ("Ւ Ո Դ Ճ Շ Ս Տ Օ", 0),
-            ("ե է ի մ վ ֆ ճ", TOP),
-            ("ա յ ւ ս գ շ ր օ", TOP | LATIN_X_HEIGHT),
-            ("հ ո ճ ա ե ծ ս օ", 0),
-            ("բ ը ի լ ղ պ փ ց", 0),
+            ("Ա Մ Ւ Ս Բ Գ Դ Օ", BlueZones::TOP),
+            ("Ւ Ո Դ Ճ Շ Ս Տ Օ", BlueZones::NONE),
+            ("ե է ի մ վ ֆ ճ", BlueZones::TOP),
+            ("ա յ ւ ս գ շ ր օ", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("հ ո ճ ա ե ծ ս օ", BlueZones::NONE),
+            ("բ ը ի լ ղ պ փ ց", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -51,8 +51,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "𐬚",
         blues: &[
-            ("𐬀 𐬁 𐬐 𐬛", TOP),
-            ("𐬀 𐬁", 0),
+            ("𐬀 𐬁 𐬐 𐬛", BlueZones::TOP),
+            ("𐬀 𐬁", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -62,8 +62,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ꛁ ꛯ",
         blues: &[
-            ("ꚧ ꚨ ꛛ ꛉ ꛁ ꛈ ꛫ ꛯ", TOP),
-            ("ꚭ ꚳ ꚶ ꛬ ꚢ ꚽ ꛯ ꛲", 0),
+            ("ꚧ ꚨ ꛛ ꛉ ꛁ ꛈ ꛫ ꛯ", BlueZones::TOP),
+            ("ꚭ ꚳ ꚶ ꛬ ꚢ ꚽ ꛯ ꛲", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -73,10 +73,10 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: true,
         std_chars: "০ ৪",
         blues: &[
-            ("ই ট ঠ ি ী ৈ ৗ", TOP),
-            ("ও এ ড ত ন ব ল ক", TOP),
-            ("অ ড ত ন ব ভ ল ক", TOP | LATIN_NEUTRAL | LATIN_X_HEIGHT),
-            ("অ ড ত ন ব ভ ল ক", 0),
+            ("ই ট ঠ ি ী ৈ ৗ", BlueZones::TOP),
+            ("ও এ ড ত ন ব ল ক", BlueZones::TOP),
+            ("অ ড ত ন ব ভ ল ক", BlueZones::TOP.union(BlueZones::NEUTRAL).union(BlueZones::X_HEIGHT)),
+            ("অ ড ত ন ব ভ ল ক", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -86,10 +86,10 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ᝋ ᝏ",
         blues: &[
-            ("ᝐ ᝈ", TOP),
-            ("ᝅ ᝊ ᝎ", TOP),
-            ("ᝂ ᝃ ᝉ ᝌ", TOP | LATIN_X_HEIGHT),
-            ("ᝀ ᝃ ᝆ ᝉ ᝋ ᝏ ᝑ", 0),
+            ("ᝐ ᝈ", BlueZones::TOP),
+            ("ᝅ ᝊ ᝎ", BlueZones::TOP),
+            ("ᝂ ᝃ ᝉ ᝌ", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("ᝀ ᝃ ᝆ ᝉ ᝋ ᝏ ᝑ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -99,9 +99,9 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "𑄤 𑄉 𑄛",
         blues: &[
-            ("𑄃 𑄅 𑄉 𑄙 𑄗", TOP),
-            ("𑄅 𑄛 𑄝 𑄗 𑄓", 0),
-            ("𑄖𑄳𑄢 𑄘𑄳𑄢 𑄙𑄳𑄢 𑄤𑄳𑄢 𑄥𑄳𑄢", 0),
+            ("𑄃 𑄅 𑄉 𑄙 𑄗", BlueZones::TOP),
+            ("𑄅 𑄛 𑄝 𑄗 𑄓", BlueZones::NONE),
+            ("𑄖𑄳𑄢 𑄘𑄳𑄢 𑄙𑄳𑄢 𑄤𑄳𑄢 𑄥𑄳𑄢", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -111,12 +111,12 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ᑌ ᓚ",
         blues: &[
-            ("ᗜ ᖴ ᐁ ᒣ ᑫ ᑎ ᔑ ᗰ", TOP),
-            ("ᗶ ᖵ ᒧ ᐃ ᑌ ᒍ ᔑ ᗢ", 0),
-            ("ᓓ ᓕ ᓀ ᓂ ᓄ ᕄ ᕆ ᘣ", TOP | LATIN_X_HEIGHT),
-            ("ᕃ ᓂ ᓀ ᕂ ᓗ ᓚ ᕆ ᘣ", 0),
-            ("ᐪ ᙆ ᣘ ᐢ ᒾ ᣗ ᔆ", TOP),
-            ("ᙆ ᗮ ᒻ ᐞ ᔆ ᒡ ᒢ ᓑ", 0),
+            ("ᗜ ᖴ ᐁ ᒣ ᑫ ᑎ ᔑ ᗰ", BlueZones::TOP),
+            ("ᗶ ᖵ ᒧ ᐃ ᑌ ᒍ ᔑ ᗢ", BlueZones::NONE),
+            ("ᓓ ᓕ ᓀ ᓂ ᓄ ᕄ ᕆ ᘣ", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("ᕃ ᓂ ᓀ ᕂ ᓗ ᓚ ᕆ ᘣ", BlueZones::NONE),
+            ("ᐪ ᙆ ᣘ ᐢ ᒾ ᣗ ᔆ", BlueZones::TOP),
+            ("ᙆ ᗮ ᒻ ᐞ ᔆ ᒡ ᒢ ᓑ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -126,8 +126,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "𐊫 𐋉",
         blues: &[
-            ("𐊧 𐊫 𐊬 𐊭 𐊱 𐊺 𐊼 𐊿", TOP),
-            ("𐊣 𐊧 𐊷 𐋀 𐊫 𐊸 𐋉", 0),
+            ("𐊧 𐊫 𐊬 𐊭 𐊱 𐊺 𐊼 𐊿", BlueZones::TOP),
+            ("𐊣 𐊧 𐊷 𐋀 𐊫 𐊸 𐋉", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -137,12 +137,12 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "Ꭴ Ꮕ ꮕ",
         blues: &[
-            ("Ꮖ Ꮋ Ꭼ Ꮓ Ꭴ Ꮳ Ꭶ Ꮥ", TOP),
-            ("Ꮖ Ꮋ Ꭼ Ꮓ Ꭴ Ꮳ Ꭶ Ꮥ", 0),
-            ("ꮒ ꮤ ꮶ ꭴ ꭾ ꮗ ꮝ ꮿ", TOP),
-            ("ꮖ ꭼ ꮓ ꮠ ꮳ ꭶ ꮥ ꮻ", TOP | LATIN_X_HEIGHT),
-            ("ꮖ ꭼ ꮓ ꮠ ꮳ ꭶ ꮥ ꮻ", 0),
-            ("ᏸ ꮐ ꭹ ꭻ", 0),
+            ("Ꮖ Ꮋ Ꭼ Ꮓ Ꭴ Ꮳ Ꭶ Ꮥ", BlueZones::TOP),
+            ("Ꮖ Ꮋ Ꭼ Ꮓ Ꭴ Ꮳ Ꭶ Ꮥ", BlueZones::NONE),
+            ("ꮒ ꮤ ꮶ ꭴ ꭾ ꮗ ꮝ ꮿ", BlueZones::TOP),
+            ("ꮖ ꭼ ꮓ ꮠ ꮳ ꭶ ꮥ ꮻ", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("ꮖ ꭼ ꮓ ꮠ ꮳ ꭶ ꮥ ꮻ", BlueZones::NONE),
+            ("ᏸ ꮐ ꭹ ꭻ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -152,10 +152,10 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "Ⲟ ⲟ",
         blues: &[
-            ("Ⲍ Ⲏ Ⲡ Ⳟ Ⲟ Ⲑ Ⲥ Ⳋ", TOP),
-            ("Ⳑ Ⳙ Ⳟ Ⲏ Ⲟ Ⲑ Ⳝ Ⲱ", 0),
-            ("ⲍ ⲏ ⲡ ⳟ ⲟ ⲑ ⲥ ⳋ", TOP | LATIN_X_HEIGHT),
-            ("ⳑ ⳙ ⳟ ⲏ ⲟ ⲑ ⳝ Ⳓ", 0),
+            ("Ⲍ Ⲏ Ⲡ Ⳟ Ⲟ Ⲑ Ⲥ Ⳋ", BlueZones::TOP),
+            ("Ⳑ Ⳙ Ⳟ Ⲏ Ⲟ Ⲑ Ⳝ Ⲱ", BlueZones::NONE),
+            ("ⲍ ⲏ ⲡ ⳟ ⲟ ⲑ ⲥ ⳋ", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("ⳑ ⳙ ⳟ ⲏ ⲟ ⲑ ⳝ Ⳓ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -165,10 +165,10 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "𐠅 𐠣",
         blues: &[
-            ("𐠍 𐠙 𐠳 𐠱 𐠅 𐠓 𐠣 𐠦", TOP),
-            ("𐠃 𐠊 𐠛 𐠣 𐠳 𐠵 𐠐", 0),
-            ("𐠈 𐠏 𐠖", TOP),
-            ("𐠈 𐠏 𐠖", 0),
+            ("𐠍 𐠙 𐠳 𐠱 𐠅 𐠓 𐠣 𐠦", BlueZones::TOP),
+            ("𐠃 𐠊 𐠛 𐠣 𐠳 𐠵 𐠐", BlueZones::NONE),
+            ("𐠈 𐠏 𐠖", BlueZones::TOP),
+            ("𐠈 𐠏 𐠖", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -178,11 +178,11 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "о О",
         blues: &[
-            ("Б В Е П З О С Э", TOP),
-            ("Б В Е Ш З О С Э", 0),
-            ("х п н ш е з о с", TOP | LATIN_X_HEIGHT),
-            ("х п н ш е з о с", 0),
-            ("р у ф", 0),
+            ("Б В Е П З О С Э", BlueZones::TOP),
+            ("Б В Е Ш З О С Э", BlueZones::NONE),
+            ("х п н ш е з о с", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("х п н ш е з о с", BlueZones::NONE),
+            ("р у ф", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -192,11 +192,11 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: true,
         std_chars: "ठ व ट",
         blues: &[
-            ("ई ऐ ओ औ ि ी ो ौ", TOP),
-            ("क म अ आ थ ध भ श", TOP),
-            ("क न म उ छ ट ठ ड", TOP | LATIN_NEUTRAL | LATIN_X_HEIGHT),
-            ("क न म उ छ ट ठ ड", 0),
-            ("ु ृ", 0),
+            ("ई ऐ ओ औ ि ी ो ौ", BlueZones::TOP),
+            ("क म अ आ थ ध भ श", BlueZones::TOP),
+            ("क न म उ छ ट ठ ड", BlueZones::TOP.union(BlueZones::NEUTRAL).union(BlueZones::X_HEIGHT)),
+            ("क न म उ छ ट ठ ड", BlueZones::NONE),
+            ("ु ृ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -206,10 +206,10 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "𐐄 𐐬",
         blues: &[
-            ("𐐂 𐐄 𐐋 𐐗 𐐑", TOP),
-            ("𐐀 𐐂 𐐄 𐐗 𐐛", 0),
-            ("𐐪 𐐬 𐐳 𐐿 𐐹", TOP | LATIN_X_HEIGHT),
-            ("𐐨 𐐪 𐐬 𐐿 𐑃", 0),
+            ("𐐂 𐐄 𐐋 𐐗 𐐑", BlueZones::TOP),
+            ("𐐀 𐐂 𐐄 𐐗 𐐛", BlueZones::NONE),
+            ("𐐪 𐐬 𐐳 𐐿 𐐹", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("𐐨 𐐪 𐐬 𐐿 𐑃", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -219,8 +219,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ዐ",
         blues: &[
-            ("ሀ ሃ ዘ ፐ ማ በ ዋ ዐ", TOP),
-            ("ለ ሐ በ ዘ ሀ ሪ ዐ ጨ", 0),
+            ("ሀ ሃ ዘ ፐ ማ በ ዋ ዐ", BlueZones::TOP),
+            ("ለ ሐ በ ዘ ሀ ሪ ዐ ጨ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -230,12 +230,12 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ი ე ა Ჿ",
         blues: &[
-            ("გ დ ე ვ თ ი ო ღ", TOP | LATIN_X_HEIGHT),
-            ("ა ზ მ ს შ ძ ხ პ", 0),
-            ("ს ხ ქ ზ მ შ ჩ წ", TOP),
-            ("ე ვ ჟ ტ უ ფ ქ ყ", 0),
-            ("Ნ Ჟ Ჳ Ჸ Გ Ე Ო Ჴ", TOP),
-            ("Ი Ჲ Ო Ჩ Მ Შ Ჯ Ჽ", 0),
+            ("გ დ ე ვ თ ი ო ღ", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("ა ზ მ ს შ ძ ხ პ", BlueZones::NONE),
+            ("ს ხ ქ ზ მ შ ჩ წ", BlueZones::TOP),
+            ("ე ვ ჟ ტ უ ფ ქ ყ", BlueZones::NONE),
+            ("Ნ Ჟ Ჳ Ჸ Გ Ე Ო Ჴ", BlueZones::TOP),
+            ("Ი Ჲ Ო Ჩ Მ Შ Ჯ Ჽ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -245,12 +245,12 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "Ⴖ Ⴑ ⴙ",
         blues: &[
-            ("Ⴑ Ⴇ Ⴙ Ⴜ Ⴄ Ⴅ Ⴓ Ⴚ", TOP),
-            ("Ⴄ Ⴅ Ⴇ Ⴈ Ⴆ Ⴑ Ⴊ Ⴋ", 0),
-            ("ⴁ ⴗ ⴂ ⴄ ⴅ ⴇ ⴔ ⴖ", TOP | LATIN_X_HEIGHT),
-            ("ⴈ ⴌ ⴖ ⴎ ⴃ ⴆ ⴋ ⴢ", 0),
-            ("ⴐ ⴑ ⴓ ⴕ ⴙ ⴛ ⴡ ⴣ", TOP),
-            ("ⴄ ⴅ ⴔ ⴕ ⴁ ⴂ ⴘ ⴝ", 0),
+            ("Ⴑ Ⴇ Ⴙ Ⴜ Ⴄ Ⴅ Ⴓ Ⴚ", BlueZones::TOP),
+            ("Ⴄ Ⴅ Ⴇ Ⴈ Ⴆ Ⴑ Ⴊ Ⴋ", BlueZones::NONE),
+            ("ⴁ ⴗ ⴂ ⴄ ⴅ ⴇ ⴔ ⴖ", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("ⴈ ⴌ ⴖ ⴎ ⴃ ⴆ ⴋ ⴢ", BlueZones::NONE),
+            ("ⴐ ⴑ ⴓ ⴕ ⴙ ⴛ ⴡ ⴣ", BlueZones::TOP),
+            ("ⴄ ⴅ ⴔ ⴕ ⴁ ⴂ ⴘ ⴝ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -260,10 +260,10 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "Ⱅ ⱅ",
         blues: &[
-            ("Ⰵ Ⱄ Ⱚ Ⰴ Ⰲ Ⰺ Ⱛ Ⰻ", TOP),
-            ("Ⰵ Ⰴ Ⰲ Ⱚ Ⱎ Ⱑ Ⰺ Ⱄ", 0),
-            ("ⰵ ⱄ ⱚ ⰴ ⰲ ⰺ ⱛ ⰻ", TOP | LATIN_X_HEIGHT),
-            ("ⰵ ⰴ ⰲ ⱚ ⱎ ⱑ ⰺ ⱄ", 0),
+            ("Ⰵ Ⱄ Ⱚ Ⰴ Ⰲ Ⰺ Ⱛ Ⰻ", BlueZones::TOP),
+            ("Ⰵ Ⰴ Ⰲ Ⱚ Ⱎ Ⱑ Ⰺ Ⱄ", BlueZones::NONE),
+            ("ⰵ ⱄ ⱚ ⰴ ⰲ ⰺ ⱛ ⰻ", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("ⰵ ⰴ ⰲ ⱚ ⱎ ⱑ ⰺ ⱄ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -273,8 +273,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: true,
         std_chars: "𐌴 𐌾 𐍃",
         blues: &[
-            ("𐌲 𐌶 𐍀 𐍄 𐌴 𐍃 𐍈 𐌾", TOP),
-            ("𐌶 𐌴 𐍃 𐍈", 0),
+            ("𐌲 𐌶 𐍀 𐍄 𐌴 𐍃 𐍈 𐌾", BlueZones::TOP),
+            ("𐌶 𐌴 𐍃 𐍈", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -284,12 +284,12 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ο Ο",
         blues: &[
-            ("Γ Β Ε Ζ Θ Ο Ω", TOP),
-            ("Β Δ Ζ Ξ Θ Ο", 0),
-            ("β θ δ ζ λ ξ", TOP),
-            ("α ε ι ο π σ τ ω", TOP | LATIN_X_HEIGHT),
-            ("α ε ι ο π σ τ ω", 0),
-            ("β γ η μ ρ φ χ ψ", 0),
+            ("Γ Β Ε Ζ Θ Ο Ω", BlueZones::TOP),
+            ("Β Δ Ζ Ξ Θ Ο", BlueZones::NONE),
+            ("β θ δ ζ λ ξ", BlueZones::TOP),
+            ("α ε ι ο π σ τ ω", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("α ε ι ο π σ τ ω", BlueZones::NONE),
+            ("β γ η μ ρ φ χ ψ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -299,11 +299,11 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ટ ૦",
         blues: &[
-            ("ત ન ઋ ઌ છ ટ ર ૦", TOP | LATIN_X_HEIGHT),
-            ("ખ ગ ઘ ઞ ઇ ઈ ઠ જ", 0),
-            ("ઈ ઊ િ ી લી શ્ચિ જિ સી", TOP),
-            ("ુ ૃ ૄ ખુ છૃ છૄ", 0),
-            ("૦ ૧ ૨ ૩ ૭", TOP),
+            ("ત ન ઋ ઌ છ ટ ર ૦", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("ખ ગ ઘ ઞ ઇ ઈ ઠ જ", BlueZones::NONE),
+            ("ઈ ઊ િ ી લી શ્ચિ જિ સી", BlueZones::TOP),
+            ("ુ ૃ ૄ ખુ છૃ છૄ", BlueZones::NONE),
+            ("૦ ૧ ૨ ૩ ૭", BlueZones::TOP),
         ],
     },
     ScriptClass {
@@ -313,11 +313,11 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: true,
         std_chars: "ਠ ਰ ੦",
         blues: &[
-            ("ਇ ਈ ਉ ਏ ਓ ੳ ਿ ੀ", TOP),
-            ("ਕ ਗ ਙ ਚ ਜ ਤ ਧ ਸ", TOP),
-            ("ਕ ਗ ਙ ਚ ਜ ਤ ਧ ਸ", TOP | LATIN_NEUTRAL | LATIN_X_HEIGHT),
-            ("ਅ ਏ ਓ ਗ ਜ ਠ ਰ ਸ", 0),
-            ("੦ ੧ ੨ ੩ ੭", TOP),
+            ("ਇ ਈ ਉ ਏ ਓ ੳ ਿ ੀ", BlueZones::TOP),
+            ("ਕ ਗ ਙ ਚ ਜ ਤ ਧ ਸ", BlueZones::TOP),
+            ("ਕ ਗ ਙ ਚ ਜ ਤ ਧ ਸ", BlueZones::TOP.union(BlueZones::NEUTRAL).union(BlueZones::X_HEIGHT)),
+            ("ਅ ਏ ਓ ਗ ਜ ਠ ਰ ਸ", BlueZones::NONE),
+            ("੦ ੧ ੨ ੩ ੭", BlueZones::TOP),
         ],
     },
     ScriptClass {
@@ -327,9 +327,9 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ם",
         blues: &[
-            ("ב ד ה ח ך כ ם ס", TOP | LATIN_LONG),
-            ("ב ט כ ם ס צ", 0),
-            ("ק ך ן ף ץ", 0),
+            ("ב ד ה ח ך כ ם ס", BlueZones::TOP.union(BlueZones::LONG)),
+            ("ב ט כ ם ס צ", BlueZones::NONE),
+            ("ק ך ן ף ץ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -339,11 +339,11 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ꤍ ꤀",
         blues: &[
-            ("꤅ ꤏ ꤁ ꤋ ꤀ ꤍ", TOP | LATIN_X_HEIGHT),
-            ("꤈ ꤘ ꤀ ꤍ ꤢ", 0),
-            ("ꤖ ꤡ", TOP),
-            ("ꤑ ꤜ ꤞ", 0),
-            ("ꤑ꤬ ꤜ꤭ ꤔ꤬", 0),
+            ("꤅ ꤏ ꤁ ꤋ ꤀ ꤍ", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("꤈ ꤘ ꤀ ꤍ ꤢ", BlueZones::NONE),
+            ("ꤖ ꤡ", BlueZones::TOP),
+            ("ꤑ ꤜ ꤞ", BlueZones::NONE),
+            ("ꤑ꤬ ꤜ꤭ ꤔ꤬", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -353,11 +353,11 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "០",
         blues: &[
-            ("ខ ទ ន ឧ ឩ ា", TOP | LATIN_X_HEIGHT),
-            ("ក្ក ក្ខ ក្គ ក្ថ", LATIN_SUB_TOP),
-            ("ខ ឃ ច ឋ ប ម យ ឲ", 0),
-            ("ត្រ រៀ ឲ្យ អឿ", 0),
-            ("ន្ត្រៃ ង្ខ្យ ក្បៀ ច្រៀ ន្តឿ ល្បឿ", 0),
+            ("ខ ទ ន ឧ ឩ ា", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("ក្ក ក្ខ ក្គ ក្ថ", BlueZones::SUB_TOP),
+            ("ខ ឃ ច ឋ ប ម យ ឲ", BlueZones::NONE),
+            ("ត្រ រៀ ឲ្យ អឿ", BlueZones::NONE),
+            ("ន្ត្រៃ ង្ខ្យ ក្បៀ ច្រៀ ន្តឿ ល្បឿ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -367,8 +367,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "᧡ ᧪",
         blues: &[
-            ("᧠ ᧡", TOP | LATIN_X_HEIGHT),
-            ("᧶ ᧹", 0),
+            ("᧠ ᧡", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("᧶ ᧹", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -378,8 +378,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "೦ ಬ",
         blues: &[
-            ("ಇ ಊ ಐ ಣ ಸಾ ನಾ ದಾ ರಾ", TOP),
-            ("ಅ ಉ ಎ ಲ ೦ ೨ ೬ ೭", 0),
+            ("ಇ ಊ ಐ ಣ ಸಾ ನಾ ದಾ ರಾ", BlueZones::TOP),
+            ("ಅ ಉ ಎ ಲ ೦ ೨ ೬ ೭", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -389,11 +389,11 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "໐",
         blues: &[
-            ("າ ດ ອ ມ ລ ວ ຣ ງ", TOP | LATIN_X_HEIGHT),
-            ("າ ອ ບ ຍ ຣ ຮ ວ ຢ", 0),
-            ("ປ ຢ ຟ ຝ", TOP),
-            ("ໂ ໄ ໃ", TOP),
-            ("ງ ຊ ຖ ຽ ໆ ຯ", 0),
+            ("າ ດ ອ ມ ລ ວ ຣ ງ", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("າ ອ ບ ຍ ຣ ຮ ວ ຢ", BlueZones::NONE),
+            ("ປ ຢ ຟ ຝ", BlueZones::TOP),
+            ("ໂ ໄ ໃ", BlueZones::TOP),
+            ("ງ ຊ ຖ ຽ ໆ ຯ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -403,12 +403,12 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "o O 0",
         blues: &[
-            ("T H E Z O C Q S", TOP),
-            ("H E Z L O C U S", 0),
-            ("f i j k d b h", TOP),
-            ("u v x z o e s c", TOP | LATIN_X_HEIGHT),
-            ("n r x z o e s c", 0),
-            ("p q g j y", 0),
+            ("T H E Z O C Q S", BlueZones::TOP),
+            ("H E Z L O C U S", BlueZones::NONE),
+            ("f i j k d b h", BlueZones::TOP),
+            ("u v x z o e s c", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("n r x z o e s c", BlueZones::NONE),
+            ("p q g j y", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -418,12 +418,12 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ₒ ₀",
         blues: &[
-            ("₀ ₃ ₅ ₇ ₈", TOP),
-            ("₀ ₁ ₂ ₃ ₈", 0),
-            ("ᵢ ⱼ ₕ ₖ ₗ", TOP),
-            ("ₐ ₑ ₒ ₓ ₙ ₛ ᵥ ᵤ ᵣ", TOP | LATIN_X_HEIGHT),
-            ("ₐ ₑ ₒ ₓ ₙ ₛ ᵥ ᵤ ᵣ", 0),
-            ("ᵦ ᵧ ᵨ ᵩ ₚ", 0),
+            ("₀ ₃ ₅ ₇ ₈", BlueZones::TOP),
+            ("₀ ₁ ₂ ₃ ₈", BlueZones::NONE),
+            ("ᵢ ⱼ ₕ ₖ ₗ", BlueZones::TOP),
+            ("ₐ ₑ ₒ ₓ ₙ ₛ ᵥ ᵤ ᵣ", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("ₐ ₑ ₒ ₓ ₙ ₛ ᵥ ᵤ ᵣ", BlueZones::NONE),
+            ("ᵦ ᵧ ᵨ ᵩ ₚ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -433,12 +433,12 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ᵒ ᴼ ⁰",
         blues: &[
-            ("⁰ ³ ⁵ ⁷ ᵀ ᴴ ᴱ ᴼ", TOP),
-            ("⁰ ¹ ² ³ ᴱ ᴸ ᴼ ᵁ", 0),
-            ("ᵇ ᵈ ᵏ ʰ ʲ ᶠ ⁱ", TOP),
-            ("ᵉ ᵒ ʳ ˢ ˣ ᶜ ᶻ", TOP | LATIN_X_HEIGHT),
-            ("ᵉ ᵒ ʳ ˢ ˣ ᶜ ᶻ", 0),
-            ("ᵖ ʸ ᵍ", 0),
+            ("⁰ ³ ⁵ ⁷ ᵀ ᴴ ᴱ ᴼ", BlueZones::TOP),
+            ("⁰ ¹ ² ³ ᴱ ᴸ ᴼ ᵁ", BlueZones::NONE),
+            ("ᵇ ᵈ ᵏ ʰ ʲ ᶠ ⁱ", BlueZones::TOP),
+            ("ᵉ ᵒ ʳ ˢ ˣ ᶜ ᶻ", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("ᵉ ᵒ ʳ ˢ ˣ ᶜ ᶻ", BlueZones::NONE),
+            ("ᵖ ʸ ᵍ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -448,8 +448,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ꓳ",
         blues: &[
-            ("ꓡ ꓧ ꓱ ꓶ ꓩ ꓚ ꓵ ꓳ", TOP),
-            ("ꓕ ꓜ ꓞ ꓡ ꓛ ꓢ ꓳ ꓴ", 0),
+            ("ꓡ ꓧ ꓱ ꓶ ꓩ ꓚ ꓵ ꓳ", BlueZones::TOP),
+            ("ꓕ ꓜ ꓞ ꓡ ꓛ ꓢ ꓳ ꓴ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -459,8 +459,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ഠ റ",
         blues: &[
-            ("ഒ ട ഠ റ ച പ ച്ച പ്പ", TOP),
-            ("ട ഠ ധ ശ ഘ ച ഥ ല", 0),
+            ("ഒ ട ഠ റ ച പ ച്ച പ്പ", BlueZones::TOP),
+            ("ട ഠ ധ ശ ഘ ച ഥ ല", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -470,13 +470,13 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "𖹡 𖹛 𖹯",
         blues: &[
-            ("𖹀 𖹁 𖹂 𖹃 𖹏 𖹚 𖹟", TOP),
-            ("𖹀 𖹁 𖹂 𖹃 𖹏 𖹚 𖹒 𖹓", 0),
-            ("𖹤 𖹬 𖹧 𖹴 𖹶 𖹾", TOP),
-            ("𖹠 𖹡 𖹢 𖹹 𖹳 𖹮", TOP | LATIN_X_HEIGHT),
-            ("𖹠 𖹡 𖹢 𖹳 𖹭 𖹽", 0),
-            ("𖹥 𖹨 𖹩", 0),
-            ("𖺀 𖺅 𖺈 𖺄 𖺍", TOP),
+            ("𖹀 𖹁 𖹂 𖹃 𖹏 𖹚 𖹟", BlueZones::TOP),
+            ("𖹀 𖹁 𖹂 𖹃 𖹏 𖹚 𖹒 𖹓", BlueZones::NONE),
+            ("𖹤 𖹬 𖹧 𖹴 𖹶 𖹾", BlueZones::TOP),
+            ("𖹠 𖹡 𖹢 𖹹 𖹳 𖹮", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("𖹠 𖹡 𖹢 𖹳 𖹭 𖹽", BlueZones::NONE),
+            ("𖹥 𖹨 𖹩", BlueZones::NONE),
+            ("𖺀 𖺅 𖺈 𖺄 𖺍", BlueZones::TOP),
         ],
     },
     ScriptClass {
@@ -486,8 +486,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: true,
         std_chars: "ᡂ ᠪ",
         blues: &[
-            ("ᠳ ᠴ ᠶ ᠽ ᡂ ᡊ ‍ᡡ‍ ‍ᡳ‍", TOP),
-            ("ᡃ", 0),
+            ("ᠳ ᠴ ᠶ ᠽ ᡂ ᡊ ‍ᡡ‍ ‍ᡳ‍", BlueZones::TOP),
+            ("ᡃ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -497,10 +497,10 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ဝ င ဂ",
         blues: &[
-            ("ခ ဂ င ဒ ဝ ၥ ၊ ။", TOP | LATIN_X_HEIGHT),
-            ("င ဎ ဒ ပ ဗ ဝ ၊ ။", 0),
-            ("ဩ ြ ၍ ၏ ၆ ါ ိ", TOP),
-            ("ဉ ည ဥ ဩ ဨ ၂ ၅ ၉", 0),
+            ("ခ ဂ င ဒ ဝ ၥ ၊ ။", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("င ဎ ဒ ပ ဗ ဝ ၊ ။", BlueZones::NONE),
+            ("ဩ ြ ၍ ၏ ၆ ါ ိ", BlueZones::TOP),
+            ("ဉ ည ဥ ဩ ဨ ၂ ၅ ၉", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -510,10 +510,10 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ߋ ߀",
         blues: &[
-            ("ߐ ߉ ߒ ߟ ߖ ߜ ߠ ߥ", TOP),
-            ("߀ ߘ ߡ ߠ ߥ", 0),
-            ("ߏ ߛ ߋ", TOP | LATIN_X_HEIGHT),
-            ("ߎ ߏ ߛ ߋ", 0),
+            ("ߐ ߉ ߒ ߟ ߖ ߜ ߠ ߥ", BlueZones::TOP),
+            ("߀ ߘ ߡ ߠ ߥ", BlueZones::NONE),
+            ("ߏ ߛ ߋ", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("ߎ ߏ ߛ ߋ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -531,8 +531,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ᱛ",
         blues: &[
-            ("ᱛ ᱜ ᱝ ᱡ ᱢ ᱥ", TOP),
-            ("ᱛ ᱜ ᱝ ᱡ ᱢ ᱥ", 0),
+            ("ᱛ ᱜ ᱝ ᱡ ᱢ ᱥ", BlueZones::TOP),
+            ("ᱛ ᱜ ᱝ ᱡ ᱢ ᱥ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -542,8 +542,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "𐰗",
         blues: &[
-            ("𐰗 𐰘 𐰧", TOP),
-            ("𐰉 𐰗 𐰦 𐰧", 0),
+            ("𐰗 𐰘 𐰧", BlueZones::TOP),
+            ("𐰉 𐰗 𐰦 𐰧", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -553,13 +553,13 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "𐓂 𐓪",
         blues: &[
-            ("𐒾 𐓍 𐓒 𐓓 𐒻 𐓂 𐒵 𐓆", TOP),
-            ("𐒰 𐓍 𐓂 𐒿 𐓎 𐒹", 0),
-            ("𐒼 𐒽 𐒾", 0),
-            ("𐓵 𐓶 𐓺 𐓻 𐓝 𐓣 𐓪 𐓮", TOP | LATIN_X_HEIGHT),
-            ("𐓘 𐓚 𐓣 𐓵 𐓡 𐓧 𐓪 𐓶", 0),
-            ("𐓤 𐓦 𐓸 𐓹 𐓛", TOP),
-            ("𐓤 𐓥 𐓦", 0),
+            ("𐒾 𐓍 𐓒 𐓓 𐒻 𐓂 𐒵 𐓆", BlueZones::TOP),
+            ("𐒰 𐓍 𐓂 𐒿 𐓎 𐒹", BlueZones::NONE),
+            ("𐒼 𐒽 𐒾", BlueZones::NONE),
+            ("𐓵 𐓶 𐓺 𐓻 𐓝 𐓣 𐓪 𐓮", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("𐓘 𐓚 𐓣 𐓵 𐓡 𐓧 𐓪 𐓶", BlueZones::NONE),
+            ("𐓤 𐓦 𐓸 𐓹 𐓛", BlueZones::TOP),
+            ("𐓤 𐓥 𐓦", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -569,8 +569,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "𐒆 𐒠",
         blues: &[
-            ("𐒆 𐒉 𐒐 𐒒 𐒘 𐒛 𐒠 𐒣", TOP),
-            ("𐒀 𐒂 𐒆 𐒈 𐒊 𐒒 𐒠 𐒩", 0),
+            ("𐒆 𐒉 𐒐 𐒒 𐒘 𐒛 𐒠 𐒣", BlueZones::TOP),
+            ("𐒀 𐒂 𐒆 𐒈 𐒊 𐒒 𐒠 𐒩", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -580,9 +580,9 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "𐴰",
         blues: &[
-            ("𐴃 𐴀 𐴆 𐴖 𐴕", TOP),
-            ("𐴔 𐴖 𐴕 𐴑 𐴐", 0),
-            ("ـ", LATIN_NEUTRAL),
+            ("𐴃 𐴀 𐴆 𐴖 𐴕", BlueZones::TOP),
+            ("𐴔 𐴖 𐴕 𐴑 𐴐", BlueZones::NONE),
+            ("ـ", BlueZones::NEUTRAL),
         ],
     },
     ScriptClass {
@@ -592,8 +592,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ꢝ ꣐",
         blues: &[
-            ("ꢜ ꢞ ꢳ ꢂ ꢖ ꢒ ꢝ ꢛ", TOP),
-            ("ꢂ ꢨ ꢺ ꢤ ꢎ", 0),
+            ("ꢜ ꢞ ꢳ ꢂ ꢖ ꢒ ꢝ ꢛ", BlueZones::TOP),
+            ("ꢂ ꢨ ꢺ ꢤ ꢎ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -603,11 +603,11 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "𐑴",
         blues: &[
-            ("𐑕 𐑙", TOP),
-            ("𐑔 𐑖 𐑗 𐑹 𐑻", 0),
-            ("𐑟 𐑣", 0),
-            ("𐑱 𐑲 𐑳 𐑴 𐑸 𐑺 𐑼", TOP | LATIN_X_HEIGHT),
-            ("𐑴 𐑻 𐑹", 0),
+            ("𐑕 𐑙", BlueZones::TOP),
+            ("𐑔 𐑖 𐑗 𐑹 𐑻", BlueZones::NONE),
+            ("𐑟 𐑣", BlueZones::NONE),
+            ("𐑱 𐑲 𐑳 𐑴 𐑸 𐑺 𐑼", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("𐑴 𐑻 𐑹", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -617,9 +617,9 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ට",
         blues: &[
-            ("ඉ ක ඝ ඳ ප ය ල ෆ", TOP),
-            ("එ ඔ ඝ ජ ට ථ ධ ර", 0),
-            ("ද ඳ උ ල තූ තු බු දු", 0),
+            ("ඉ ක ඝ ඳ ප ය ල ෆ", BlueZones::TOP),
+            ("එ ඔ ඝ ජ ට ථ ධ ර", BlueZones::NONE),
+            ("ද ඳ උ ල තූ තු බු දු", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -629,9 +629,9 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "᮰",
         blues: &[
-            ("ᮋ ᮞ ᮮ ᮽ ᮰ ᮈ", TOP),
-            ("ᮄ ᮔ ᮕ ᮗ ᮰ ᮆ ᮈ ᮉ", 0),
-            ("ᮼ ᳄", 0),
+            ("ᮋ ᮞ ᮮ ᮽ ᮰ ᮈ", BlueZones::TOP),
+            ("ᮄ ᮔ ᮕ ᮗ ᮰ ᮆ ᮈ ᮉ", BlueZones::NONE),
+            ("ᮼ ᳄", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -641,8 +641,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "௦",
         blues: &[
-            ("உ ஒ ஓ ற ஈ க ங ச", TOP),
-            ("க ச ல ஶ உ ங ட ப", 0),
+            ("உ ஒ ஓ ற ஈ க ங ச", BlueZones::TOP),
+            ("க ச ல ஶ உ ங ட ப", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -652,8 +652,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ꪒ ꪫ",
         blues: &[
-            ("ꪆ ꪔ ꪒ ꪖ ꪫ", TOP),
-            ("ꪉ ꪫ ꪮ", 0),
+            ("ꪆ ꪔ ꪒ ꪖ ꪫ", BlueZones::TOP),
+            ("ꪉ ꪫ ꪮ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -663,8 +663,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "౦ ౧",
         blues: &[
-            ("ఇ ఌ ఙ ఞ ణ ఱ ౯", TOP),
-            ("అ క చ ర ఽ ౨ ౬", 0),
+            ("ఇ ఌ ఙ ఞ ణ ఱ ౯", BlueZones::TOP),
+            ("అ క చ ర ఽ ౨ ౬", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -674,8 +674,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ⵔ",
         blues: &[
-            ("ⵔ ⵙ ⵛ ⵞ ⴵ ⴼ ⴹ ⵎ", TOP),
-            ("ⵔ ⵙ ⵛ ⵞ ⴵ ⴼ ⴹ ⵎ", 0),
+            ("ⵔ ⵙ ⵛ ⵞ ⴵ ⴼ ⴹ ⵎ", BlueZones::TOP),
+            ("ⵔ ⵙ ⵛ ⵞ ⴵ ⴼ ⴹ ⵎ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -685,13 +685,13 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "า ๅ ๐",
         blues: &[
-            ("บ เ แ อ ก า", TOP | LATIN_X_HEIGHT),
-            ("บ ป ษ ฯ อ ย ฮ", 0),
-            ("ป ฝ ฟ", TOP),
-            ("โ ใ ไ", TOP),
-            ("ฎ ฏ ฤ ฦ", 0),
-            ("ญ ฐ", 0),
-            ("๐ ๑ ๓", 0),
+            ("บ เ แ อ ก า", BlueZones::TOP.union(BlueZones::X_HEIGHT)),
+            ("บ ป ษ ฯ อ ย ฮ", BlueZones::NONE),
+            ("ป ฝ ฟ", BlueZones::TOP),
+            ("โ ใ ไ", BlueZones::TOP),
+            ("ฎ ฏ ฤ ฦ", BlueZones::NONE),
+            ("ญ ฐ", BlueZones::NONE),
+            ("๐ ๑ ๓", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -701,8 +701,8 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "ꘓ ꖜ ꖴ",
         blues: &[
-            ("ꗍ ꘖ ꘙ ꘜ ꖜ ꖝ ꔅ ꕢ", TOP),
-            ("ꗍ ꘖ ꘙ ꗞ ꔅ ꕢ ꖜ ꔆ", 0),
+            ("ꗍ ꘖ ꘙ ꘜ ꖜ ꖝ ꔅ ꕢ", BlueZones::TOP),
+            ("ꗍ ꘖ ꘙ ꗞ ꔅ ꕢ ꖜ ꔆ", BlueZones::NONE),
         ],
     },
     ScriptClass {
@@ -744,10 +744,10 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: false,
         std_chars: "田 囗",
         blues: &[
-            ("他 们 你 來 們 到 和 地 对 對 就 席 我 时 時 會 来 為 能 舰 說 说 这 這 齊 | 军 同 已 愿 既 星 是 景 民 照 现 現 理 用 置 要 軍 那 配 里 開 雷 露 面 顾", TOP),
-            ("个 为 人 他 以 们 你 來 個 們 到 和 大 对 對 就 我 时 時 有 来 為 要 說 说 | 主 些 因 它 想 意 理 生 當 看 着 置 者 自 著 裡 过 还 进 進 過 道 還 里 面", 0),
-            (" 些 们 你 來 們 到 和 地 她 将 將 就 年 得 情 最 样 樣 理 能 說 说 这 這 通 | 即 吗 吧 听 呢 品 响 嗎 师 師 收 断 斷 明 眼 間 间 际 陈 限 除 陳 随 際 隨", CJK_HORIZ),
-            ("事 前 學 将 將 情 想 或 政 斯 新 样 樣 民 沒 没 然 特 现 現 球 第 經 谁 起 | 例 別 别 制 动 動 吗 嗎 增 指 明 朝 期 构 物 确 种 調 调 費 费 那 都 間 间", CJK_HORIZ | CJK_RIGHT),
+            ("他 们 你 來 們 到 和 地 对 對 就 席 我 时 時 會 来 為 能 舰 說 说 这 這 齊 | 军 同 已 愿 既 星 是 景 民 照 现 現 理 用 置 要 軍 那 配 里 開 雷 露 面 顾", BlueZones::TOP),
+            ("个 为 人 他 以 们 你 來 個 們 到 和 大 对 對 就 我 时 時 有 来 為 要 說 说 | 主 些 因 它 想 意 理 生 當 看 着 置 者 自 著 裡 过 还 进 進 過 道 還 里 面", BlueZones::NONE),
+            (" 些 们 你 來 們 到 和 地 她 将 將 就 年 得 情 最 样 樣 理 能 說 说 这 這 通 | 即 吗 吧 听 呢 品 响 嗎 师 師 收 断 斷 明 眼 間 间 际 陈 限 除 陳 随 際 隨", BlueZones::HORIZONTAL),
+            ("事 前 學 将 將 情 想 或 政 斯 新 样 樣 民 沒 没 然 特 现 現 球 第 經 谁 起 | 例 別 别 制 动 動 吗 嗎 增 指 明 朝 期 构 物 确 种 調 调 費 费 那 都 間 间", BlueZones::HORIZONTAL.union(BlueZones::RIGHT)),
         ],
     },
 ];

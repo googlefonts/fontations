@@ -155,13 +155,10 @@ impl<'a> Outlines<'a> {
             ..Default::default()
         };
         let glyph = self.loca.get_glyf(glyph_id, &self.glyf)?;
-        if glyph.is_none() {
-            return Ok(outline);
+        if let Some(glyph) = glyph.as_ref() {
+            self.outline_rec(glyph, &mut outline, 0, 0)?;
         }
-        self.outline_rec(glyph.as_ref().unwrap(), &mut outline, 0, 0)?;
-        if outline.points != 0 {
-            outline.points += PHANTOM_POINT_COUNT;
-        }
+        outline.points += PHANTOM_POINT_COUNT;
         outline.max_stack = self.max_stack_elements as usize;
         outline.cvt_count = self.cvt_len as usize;
         outline.storage_count = self.max_storage as usize;
@@ -1325,8 +1322,10 @@ mod tests {
         let gid = font.charmap().map(' ').unwrap();
         let outline = outlines.outline(gid).unwrap();
         // Make sure this is an empty outline since that's what we're testing
-        assert_eq!(outline.points, 0);
-        let scaler = FreeTypeScaler::unhinted(&outlines, &outline, &mut [], ppem, &coords).unwrap();
+        assert!(outline.glyph.is_none());
+        let mut buf = [0u8; 128];
+        let scaler =
+            FreeTypeScaler::unhinted(&outlines, &outline, &mut buf, ppem, &coords).unwrap();
         let scaled = scaler.scale(&outline.glyph, gid).unwrap();
         let advance_hvar = scaled.adjusted_advance_width();
         // Set HVAR table to None to force loading metrics from gvar
@@ -1337,5 +1336,15 @@ mod tests {
         // Make sure we have an advance and that the two are the same
         assert!(advance_hvar != F26Dot6::ZERO);
         assert_eq!(advance_hvar, advance_gvar);
+    }
+
+    #[test]
+    fn empty_glyphs_have_phantom_points_too() {
+        let font = FontRef::new(font_test_data::HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP).unwrap();
+        let outlines = Outlines::new(&font).unwrap();
+        let gid = font.charmap().map(' ').unwrap();
+        let outline = outlines.outline(gid).unwrap();
+        assert!(outline.glyph.is_none());
+        assert_eq!(outline.points, PHANTOM_POINT_COUNT);
     }
 }

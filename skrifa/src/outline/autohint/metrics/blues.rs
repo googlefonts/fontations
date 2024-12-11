@@ -1,14 +1,21 @@
 //! Latin blue values.
 
-use super::super::{
-    super::{unscaled::UnscaledOutlineBuf, OutlineGlyphCollection},
-    metrics::{UnscaledBlue, UnscaledBlues, MAX_BLUES},
-    shape::{ShapedCluster, Shaper},
-    style::{blue_flags, ScriptGroup, StyleClass},
+use super::{
+    super::{
+        super::{unscaled::UnscaledOutlineBuf, OutlineGlyphCollection},
+        shape::{ShapedCluster, Shaper},
+        style::{ScriptGroup, StyleClass},
+    },
+    ScaledWidth,
 };
-use crate::{FontRef, MetadataProvider};
+use crate::{collections::SmallVec, FontRef, MetadataProvider};
 use raw::types::F2Dot14;
 use raw::TableProvider;
+
+/// Maximum number of blue values.
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afblue.h#L328>
+const MAX_BLUES: usize = 8;
 
 // Chosen to maximize opportunity to avoid heap allocation while keeping stack
 // size < 2k.
@@ -17,11 +24,138 @@ const MAX_INLINE_POINTS: usize = 256;
 // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afblue.h#L73>
 const BLUE_STRING_MAX_LEN: usize = 51;
 
-impl UnscaledBlue {
-    fn is_latin_any_top(&self) -> bool {
-        self.flags & (blue_flags::TOP | blue_flags::LATIN_SUB_TOP) != 0
+/// Defines the zone(s) that are associated with a blue value.
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+#[repr(transparent)]
+pub(crate) struct BlueZones(u16);
+
+impl BlueZones {
+    // These properties ostensibly come from
+    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afblue.h#L317>
+    // but are modified to match those at
+    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L68>
+    // so that when don't need to keep two sets and adjust during blue
+    // computation.
+    pub const NONE: Self = Self(0);
+    pub const TOP: Self = Self(1 << 1);
+    pub const SUB_TOP: Self = Self(1 << 2);
+    pub const NEUTRAL: Self = Self(1 << 3);
+    pub const ADJUSTMENT: Self = Self(1 << 4);
+    pub const X_HEIGHT: Self = Self(1 << 5);
+    pub const LONG: Self = Self(1 << 6);
+    pub const HORIZONTAL: Self = Self(1 << 2);
+    pub const RIGHT: Self = Self::TOP;
+
+    pub const fn contains(self, other: Self) -> bool {
+        self.0 & other.0 == other.0
+    }
+
+    // Used for generated data structures because the bit-or operator
+    // cannot be const.
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+
+    pub fn is_top_like(self) -> bool {
+        self & (Self::TOP | Self::SUB_TOP) != Self::NONE
+    }
+
+    pub fn is_top(self) -> bool {
+        self.contains(Self::TOP)
+    }
+
+    pub fn is_sub_top(self) -> bool {
+        self.contains(Self::SUB_TOP)
+    }
+
+    pub fn is_neutral(self) -> bool {
+        self.contains(Self::NEUTRAL)
+    }
+
+    pub fn is_x_height(self) -> bool {
+        self.contains(Self::X_HEIGHT)
+    }
+
+    pub fn is_long(self) -> bool {
+        self.contains(Self::LONG)
+    }
+
+    pub fn is_horizontal(self) -> bool {
+        self.contains(Self::HORIZONTAL)
+    }
+
+    pub fn is_right(self) -> bool {
+        self.contains(Self::RIGHT)
+    }
+
+    #[must_use]
+    pub fn retain_top_like_or_neutral(self) -> Self {
+        self & (Self::TOP | Self::SUB_TOP | Self::NEUTRAL)
     }
 }
+
+impl core::ops::Not for BlueZones {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        Self(!self.0)
+    }
+}
+
+impl core::ops::BitOr for BlueZones {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl core::ops::BitOrAssign for BlueZones {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0;
+    }
+}
+
+impl core::ops::BitAnd for BlueZones {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self(self.0 & rhs.0)
+    }
+}
+
+impl core::ops::BitAndAssign for BlueZones {
+    fn bitand_assign(&mut self, rhs: Self) {
+        self.0 &= rhs.0;
+    }
+}
+
+// FreeType keeps a single array of blue values per metrics set
+// and mutates when the scale factor changes. We'll separate them so
+// that we can reuse unscaled metrics as immutable state without
+// recomputing them (which is the expensive part).
+// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L77>
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+pub(crate) struct UnscaledBlue {
+    pub position: i32,
+    pub overshoot: i32,
+    pub ascender: i32,
+    pub descender: i32,
+    pub zones: BlueZones,
+}
+
+pub(crate) type UnscaledBlues = SmallVec<UnscaledBlue, MAX_BLUES>;
+
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+pub(crate) struct ScaledBlue {
+    pub position: ScaledWidth,
+    pub overshoot: ScaledWidth,
+    pub zones: BlueZones,
+    pub is_active: bool,
+}
+
+pub(crate) type ScaledBlues = SmallVec<ScaledBlue, MAX_BLUES>;
 
 /// Compute unscaled blues values for each axis.
 pub(crate) fn compute_unscaled_blues(
@@ -52,18 +186,17 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
     let mut cluster_shaper = shaper.cluster_shaper(style);
     let mut shaped_cluster = ShapedCluster::default();
     // Walk over each of the blue character sets for our script.
-    for (blue_str, blue_flags) in style.script.blues {
-        let is_top_like = (blue_flags & (blue_flags::TOP | blue_flags::LATIN_SUB_TOP)) != 0;
-        let is_top = blue_flags & blue_flags::TOP != 0;
-        let is_x_height = blue_flags & blue_flags::LATIN_X_HEIGHT != 0;
-        let is_neutral = blue_flags & blue_flags::LATIN_NEUTRAL != 0;
-        let is_long = blue_flags & blue_flags::LATIN_LONG != 0;
+    for (blue_str, blue_zones) in style.script.blues {
         let mut ascender = i32::MIN;
         let mut descender = i32::MAX;
         let mut n_flats = 0;
         let mut n_rounds = 0;
         for cluster in blue_str.split(' ') {
-            let mut best_y_extremum = if is_top { i32::MIN } else { i32::MAX };
+            let mut best_y_extremum = if blue_zones.is_top() {
+                i32::MIN
+            } else {
+                i32::MAX
+            };
             let mut best_is_round = false;
             cluster_shaper.shape(cluster, &mut shaped_cluster);
             for (glyph, y_offset) in shaped_cluster
@@ -83,7 +216,7 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
                 let mut best_y: Option<i16> = None;
                 // Find the extreme point depending on whether this is a top or
                 // bottom blue
-                let best_contour_and_point = if is_top_like {
+                let best_contour_and_point = if blue_zones.is_top_like() {
                     outline.find_last_contour(|point| {
                         if best_y.is_none() || Some(point.y) > best_y {
                             best_y = Some(point.y);
@@ -159,7 +292,7 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
                         }
                     }
                 }
-                if is_long {
+                if blue_zones.is_long() {
                     // Taken verbatim from FreeType:
                     //
                     // "If this flag is set, we have an additional constraint to
@@ -321,12 +454,12 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
                             || !best_contour[segment_last].is_on_curve()
                     }
                 };
-                if is_round && is_neutral {
+                if is_round && blue_zones.is_neutral() {
                     // Ignore round segments for neutral zone
                     continue;
                 }
                 // This seems to ignore LATIN_SUB_TOP?
-                if is_top {
+                if blue_zones.is_top() {
                     if best_y > best_y_extremum {
                         best_y_extremum = best_y;
                         best_is_round = is_round;
@@ -362,7 +495,7 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
         };
         if blue_shoot != blue_ref {
             let over_ref = blue_shoot > blue_ref;
-            if is_top_like ^ over_ref {
+            if blue_zones.is_top_like() ^ over_ref {
                 let val = (blue_shoot + blue_ref) / 2;
                 blue_ref = val;
                 blue_shoot = val;
@@ -373,11 +506,10 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
             overshoot: blue_shoot,
             ascender,
             descender,
-            flags: blue_flags
-                & (blue_flags::TOP | blue_flags::LATIN_SUB_TOP | blue_flags::LATIN_NEUTRAL),
+            zones: blue_zones.retain_top_like_or_neutral(),
         };
-        if is_x_height {
-            blue.flags |= blue_flags::LATIN_BLUE_ADJUSTMENT;
+        if blue_zones.is_x_height() {
+            blue.zones |= BlueZones::ADJUSTMENT;
         }
         blues.push(blue);
     }
@@ -393,12 +525,12 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
         for j in (1..=i).rev() {
             let first = &blue_values[sorted_indices[j - 1]];
             let second = &blue_values[sorted_indices[j]];
-            let a = if first.is_latin_any_top() {
+            let a = if first.zones.is_top_like() {
                 first.position
             } else {
                 first.overshoot
             };
-            let b = if second.is_latin_any_top() {
+            let b = if second.zones.is_top_like() {
                 second.position
             } else {
                 second.overshoot
@@ -415,18 +547,18 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
         let index2 = sorted_indices[i + 1];
         let first = &blue_values[index1];
         let second = &blue_values[index2];
-        let a = if first.is_latin_any_top() {
+        let a = if first.zones.is_top_like() {
             first.overshoot
         } else {
             first.position
         };
-        let b = if second.is_latin_any_top() {
+        let b = if second.zones.is_top_like() {
             second.overshoot
         } else {
             second.position
         };
         if a > b {
-            if first.is_latin_any_top() {
+            if first.zones.is_top_like() {
                 blue_values[index1].overshoot = b;
             } else {
                 blue_values[index1].position = b;
@@ -476,8 +608,8 @@ fn compute_cjk_blues(
     let mut cluster_shaper = shaper.cluster_shaper(style);
     let mut shaped_cluster = ShapedCluster::default();
     // Walk over each of the blue character sets for our script.
-    for (blue_str, blue_flags) in style.script.blues {
-        let is_horizontal = blue_flags & blue_flags::CJK_HORIZ != 0;
+    for (blue_str, blue_zones) in style.script.blues {
+        let is_horizontal = blue_zones.is_horizontal();
         // Note: horizontal blue zones are disabled by default and have been
         // for many years in FreeType:
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L35>
@@ -485,8 +617,8 @@ fn compute_cjk_blues(
         if is_horizontal {
             continue;
         }
-        let is_right = blue_flags & blue_flags::CJK_RIGHT != 0;
-        let is_top = blue_flags & blue_flags::TOP != 0;
+        let is_right = blue_zones.is_right();
+        let is_top = blue_zones.is_top();
         let blues = &mut blues[!is_horizontal as usize];
         if blues.len() >= MAX_BLUES {
             continue;
@@ -560,7 +692,7 @@ fn compute_cjk_blues(
         // bottom left
         if blue_shoot != blue_ref {
             let under_ref = blue_shoot < blue_ref;
-            if is_top ^ under_ref {
+            if blue_zones.is_top() ^ under_ref {
                 blue_ref = (blue_shoot + blue_ref) / 2;
                 blue_shoot = blue_ref;
             }
@@ -570,7 +702,7 @@ fn compute_cjk_blues(
             overshoot: blue_shoot,
             ascender: 0,
             descender: 0,
-            flags: blue_flags & blue_flags::TOP,
+            zones: *blue_zones & BlueZones::TOP,
         });
     }
     blues
@@ -623,12 +755,14 @@ pub(super) fn cycle_backward<T>(items: &[T], start: usize) -> impl Iterator<Item
 
 #[cfg(test)]
 mod tests {
+    use crate::outline::autohint::metrics::BlueZones;
+
     use super::{
         super::super::{
             shape::{Shaper, ShaperMode},
             style,
         },
-        blue_flags, satisfies_min_long_segment_len, UnscaledBlue,
+        satisfies_min_long_segment_len, UnscaledBlue,
     };
     use raw::FontRef;
 
@@ -645,42 +779,42 @@ mod tests {
                 overshoot: 725,
                 ascender: 725,
                 descender: -230,
-                flags: blue_flags::TOP,
+                zones: BlueZones::TOP,
             },
             UnscaledBlue {
                 position: 0,
                 overshoot: -10,
                 ascender: 725,
                 descender: -10,
-                flags: 0,
+                zones: BlueZones::default(),
             },
             UnscaledBlue {
                 position: 760,
                 overshoot: 760,
                 ascender: 770,
                 descender: -240,
-                flags: blue_flags::TOP,
+                zones: BlueZones::TOP,
             },
             UnscaledBlue {
                 position: 536,
                 overshoot: 546,
                 ascender: 546,
                 descender: -10,
-                flags: blue_flags::TOP | blue_flags::LATIN_BLUE_ADJUSTMENT,
+                zones: BlueZones::TOP | BlueZones::ADJUSTMENT,
             },
             UnscaledBlue {
                 position: 0,
                 overshoot: -10,
                 ascender: 546,
                 descender: -10,
-                flags: 0,
+                zones: BlueZones::default(),
             },
             UnscaledBlue {
                 position: -240,
                 overshoot: -240,
                 ascender: 760,
                 descender: -240,
-                flags: 0,
+                zones: BlueZones::default(),
             },
         ];
         assert_eq!(values, &expected);
@@ -701,21 +835,21 @@ mod tests {
                 overshoot: 592,
                 ascender: 647,
                 descender: -240,
-                flags: blue_flags::TOP,
+                zones: BlueZones::TOP,
             },
             UnscaledBlue {
                 position: 0,
                 overshoot: -9,
                 ascender: 647,
                 descender: -9,
-                flags: 0,
+                zones: BlueZones::default(),
             },
             UnscaledBlue {
                 position: -240,
                 overshoot: -240,
                 ascender: 647,
                 descender: -240,
-                flags: 0,
+                zones: BlueZones::default(),
             },
         ];
         assert_eq!(values, &expected);
@@ -734,14 +868,14 @@ mod tests {
                 overshoot: 824,
                 ascender: 0,
                 descender: 0,
-                flags: blue_flags::TOP,
+                zones: BlueZones::TOP,
             },
             UnscaledBlue {
                 position: -78,
                 overshoot: -66,
                 ascender: 0,
                 descender: 0,
-                flags: 0,
+                zones: BlueZones::default(),
             },
         ];
         assert_eq!(values, &expected);
@@ -761,14 +895,14 @@ mod tests {
                 overshoot: 571,
                 ascender: 571,
                 descender: 0,
-                flags: blue_flags::TOP,
+                zones: BlueZones::TOP,
             },
             UnscaledBlue {
                 position: 0,
                 overshoot: 0,
                 ascender: 571,
                 descender: 0,
-                flags: 0,
+                zones: BlueZones::default(),
             },
         ];
         assert_eq!(values, &expected);
