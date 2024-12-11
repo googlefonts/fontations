@@ -1330,7 +1330,7 @@ mod tests {
         let advance_hvar = scaled.adjusted_advance_width();
         // Set HVAR table to None to force loading metrics from gvar
         outlines.glyph_metrics.hvar = None;
-        let scaler = FreeTypeScaler::unhinted(&outlines, &outline, &mut [], ppem, &coords).unwrap();
+        let scaler = FreeTypeScaler::unhinted(&outlines, &outline, &mut buf, ppem, &coords).unwrap();
         let scaled = scaler.scale(&outline.glyph, gid).unwrap();
         let advance_gvar = scaled.adjusted_advance_width();
         // Make sure we have an advance and that the two are the same
