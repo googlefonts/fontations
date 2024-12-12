@@ -11,8 +11,9 @@ use core_maths::CoreFloat;
 
 pub use hint::{HintError, HintInstance, HintOutline};
 pub use outline::{Outline, ScaledOutline};
+use raw::FontRef;
 
-use super::{common::OutlinesCommon, DrawError, Hinting};
+use super::{DrawError, GlyphHMetrics, Hinting};
 use crate::GLYF_COMPOSITE_RECURSION_LIMIT;
 use memory::{FreeTypeOutlineMemory, HarfBuzzOutlineMemory};
 
@@ -35,7 +36,8 @@ pub const PHANTOM_POINT_COUNT: usize = 4;
 /// Scaler state for TrueType outlines.
 #[derive(Clone)]
 pub struct Outlines<'a> {
-    pub(crate) common: OutlinesCommon<'a>,
+    pub(crate) font: FontRef<'a>,
+    pub(crate) glyph_metrics: GlyphHMetrics<'a>,
     loca: Loca<'a>,
     glyf: Glyf<'a>,
     gvar: Option<Gvar<'a>>,
@@ -56,9 +58,11 @@ pub struct Outlines<'a> {
 }
 
 impl<'a> Outlines<'a> {
-    pub fn new(common: &OutlinesCommon<'a>) -> Option<Self> {
-        let font = &common.font;
-        let has_var_lsb = common
+    pub fn new(font: &FontRef<'a>) -> Option<Self> {
+        let loca = font.loca(None).ok()?;
+        let glyf = font.glyf().ok()?;
+        let glyph_metrics = GlyphHMetrics::new(font)?;
+        let has_var_lsb = glyph_metrics
             .hvar
             .as_ref()
             .map(|hvar| hvar.lsb_mapping().is_some())
@@ -108,11 +112,12 @@ impl<'a> Outlines<'a> {
         // Copy FreeType's logic on whether to use the interpreter:
         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/ftobjs.c#L1001>
         let prefer_interpreter = !(max_instructions == 0 && fpgm.is_empty() && prep.is_empty());
-        let cvt_len = common.cvt().len() as u32;
+        let cvt_len = font.cvt().map(|cvt| cvt.len() as u32).unwrap_or_default();
         Some(Self {
-            common: common.clone(),
-            loca: font.loca(None).ok()?,
-            glyf: font.glyf().ok()?,
+            font: font.clone(),
+            glyph_metrics,
+            loca,
+            glyf,
             gvar: font.gvar().ok(),
             hdmx: font.hdmx().ok(),
             fpgm,
@@ -283,8 +288,8 @@ trait Scaler {
         };
         let outlines = self.outlines();
         let coords: &[F2Dot14] = self.coords();
-        let lsb = outlines.common.lsb(glyph_id, coords);
-        let advance = outlines.common.advance_width(glyph_id, coords);
+        let lsb = outlines.glyph_metrics.lsb(glyph_id, coords);
+        let advance = outlines.glyph_metrics.advance_width(glyph_id, coords);
         let [ascent, descent] = outlines.os2_vmetrics.map(|x| x as i32);
         let tsb = ascent - bounds[3] as i32;
         let vadvance = ascent - descent;
@@ -491,7 +496,7 @@ impl Scaler for FreeTypeScaler<'_> {
         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttgload.c#L1572>
         let scale = self.scale;
         let mut unscaled = self.phantom.map(|point| point.map(|x| x.to_bits()));
-        if self.outlines.common.hvar.is_none()
+        if self.outlines.glyph_metrics.hvar.is_none()
             && self.outlines.gvar.is_some()
             && !self.coords.is_empty()
         {
@@ -643,7 +648,7 @@ impl Scaler for FreeTypeScaler<'_> {
             }
         }
         // Commit our potentially modified phantom points.
-        if self.outlines.common.hvar.is_some() && self.is_hinted {
+        if self.outlines.glyph_metrics.hvar.is_some() && self.is_hinted {
             self.phantom[0] *= self.scale;
             self.phantom[1] *= self.scale;
         } else {
@@ -1012,7 +1017,7 @@ impl Scaler for HarfBuzzScaler<'_> {
         // FreeType version above but changed to use floating point
         let scale = self.scale.to_f32();
         let mut unscaled = self.phantom;
-        if self.outlines.common.hvar.is_none()
+        if self.outlines.glyph_metrics.hvar.is_none()
             && self.outlines.gvar.is_some()
             && !self.coords.is_empty()
         {
@@ -1281,7 +1286,7 @@ mod tests {
     #[test]
     fn overlap_flags() {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
-        let scaler = Outlines::new(&OutlinesCommon::new(&font).unwrap()).unwrap();
+        let scaler = Outlines::new(&font).unwrap();
         let glyph_count = font.maxp().unwrap().num_glyphs();
         // GID 2 is a composite glyph with the overlap bit on a component
         // GID 3 is a simple glyph with the overlap bit on the first flag
@@ -1298,12 +1303,12 @@ mod tests {
     fn interpreter_preference() {
         // no instructions in this font...
         let font = FontRef::new(font_test_data::COLRV0V1).unwrap();
-        let outlines = Outlines::new(&OutlinesCommon::new(&font).unwrap()).unwrap();
+        let outlines = Outlines::new(&font).unwrap();
         // thus no preference for the interpreter
         assert!(!outlines.prefer_interpreter());
         // but this one has instructions...
         let font = FontRef::new(font_test_data::TTHINT_SUBSET).unwrap();
-        let outlines = Outlines::new(&OutlinesCommon::new(&font).unwrap()).unwrap();
+        let outlines = Outlines::new(&font).unwrap();
         // so let's use it
         assert!(outlines.prefer_interpreter());
     }
@@ -1311,7 +1316,7 @@ mod tests {
     #[test]
     fn empty_glyph_advance() {
         let font = FontRef::new(font_test_data::HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP).unwrap();
-        let mut outlines = Outlines::new(&OutlinesCommon::new(&font).unwrap()).unwrap();
+        let mut outlines = Outlines::new(&font).unwrap();
         let coords = [F2Dot14::from_f32(0.5)];
         let ppem = Some(24.0);
         let gid = font.charmap().map(' ').unwrap();
@@ -1324,7 +1329,7 @@ mod tests {
         let scaled = scaler.scale(&outline.glyph, gid).unwrap();
         let advance_hvar = scaled.adjusted_advance_width();
         // Set HVAR table to None to force loading metrics from gvar
-        outlines.common.hvar = None;
+        outlines.glyph_metrics.hvar = None;
         let scaler =
             FreeTypeScaler::unhinted(&outlines, &outline, &mut buf, ppem, &coords).unwrap();
         let scaled = scaler.scale(&outline.glyph, gid).unwrap();
@@ -1337,7 +1342,7 @@ mod tests {
     #[test]
     fn empty_glyphs_have_phantom_points_too() {
         let font = FontRef::new(font_test_data::HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP).unwrap();
-        let outlines = Outlines::new(&OutlinesCommon::new(&font).unwrap()).unwrap();
+        let outlines = Outlines::new(&font).unwrap();
         let gid = font.charmap().map(' ').unwrap();
         let outline = outlines.outline(gid).unwrap();
         assert!(outline.glyph.is_none());
