@@ -361,7 +361,8 @@ where
                     self.y += self.stack.get_fixed(0)?;
                     self.stack_ix = 1;
                 }
-                while self.coords_remaining() > 0 {
+                // We need at least 4 coordinates to emit these curves
+                while self.coords_remaining() >= 4 {
                     self.emit_curves([DxY, DxDy, DxY])?;
                 }
                 self.reset_stack();
@@ -448,7 +449,10 @@ where
     }
 
     fn coords_remaining(&self) -> usize {
-        self.stack.len() - self.stack_ix
+        // This is overly defensive to avoid overflow but in the case of
+        // broken fonts, just return 0 when stack_ix > stack_len to prevent
+        // potential runaway while loops in the evaluator if this wraps
+        self.stack.len().saturating_sub(self.stack_ix)
     }
 
     fn emit_curves<const N: usize>(&mut self, modes: [PointMode; N]) -> Result<(), Error> {
