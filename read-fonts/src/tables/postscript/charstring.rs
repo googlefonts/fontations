@@ -1011,4 +1011,19 @@ mod tests {
         ];
         assert_eq!(&commands.0, expected);
     }
+
+    /// Fuzzer caught subtract with overflow
+    /// <https://g-issues.oss-fuzz.com/issues/383609770>
+    #[test]
+    fn coords_remaining_avoid_overflow() {
+        // Test case:
+        // Evaluate HHCURVETO operator with 2 elements on the stack
+        let mut commands = CaptureCommandSink::default();
+        let mut evaluator = Evaluator::new(Index::Empty, None, None, &mut commands);
+        evaluator.stack.push(0).unwrap();
+        evaluator.stack.push(0).unwrap();
+        let mut cursor = FontData::new(&[]).cursor();
+        // Just don't panic
+        let _ = evaluator.evaluate_operator(Operator::HhCurveTo, &mut cursor, 0);
+    }
 }
