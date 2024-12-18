@@ -55,7 +55,7 @@ fn subset_post_v2tail(post: &Post, plan: &Plan, s: &mut Serializer) -> Result<()
     //init all glyphNameIndex as 0
     let glyph_index_arr_len = plan.num_output_glyphs * 2;
     let idx_start = s
-        .allocate_size(glyph_index_arr_len)
+        .allocate_size(glyph_index_arr_len, false)
         .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?;
 
     let max_old_gid = plan.glyphset.last().unwrap().to_u32() as usize;
