@@ -50,9 +50,12 @@ impl<'a> FontReadWithArgs<'a> for Hdmx<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let num_records: u16 = cursor.read()?;
-        cursor.advance::<u32>();
+        let size_device_record: u32 = cursor.read()?;
         let records_byte_len = (num_records as usize)
-            .checked_mul(<DeviceRecord as ComputeSize>::compute_size(&num_glyphs)?)
+            .checked_mul(<DeviceRecord as ComputeSize>::compute_size(&(
+                num_glyphs,
+                size_device_record,
+            ))?)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(records_byte_len);
         cursor.finish(HdmxMarker {
@@ -99,7 +102,9 @@ impl<'a> Hdmx<'a> {
     /// Array of device records.
     pub fn records(&self) -> ComputedArray<'a, DeviceRecord<'a>> {
         let range = self.shape.records_byte_range();
-        self.data.read_with_args(range, &self.num_glyphs()).unwrap()
+        self.data
+            .read_with_args(range, &(self.num_glyphs(), self.size_device_record()))
+            .unwrap()
     }
 
     pub(crate) fn num_glyphs(&self) -> u16 {
@@ -135,98 +140,5 @@ impl<'a> SomeTable<'a> for Hdmx<'a> {
 impl<'a> std::fmt::Debug for Hdmx<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceRecord<'a> {
-    /// Pixel size for following widths (as ppem).
-    pub pixel_size: u8,
-    /// Maximum width.
-    pub max_width: u8,
-    /// Array of glyphs (numgGlyphs is from the 'maxp' table).
-    pub widths: &'a [u8],
-}
-
-impl<'a> DeviceRecord<'a> {
-    /// Pixel size for following widths (as ppem).
-    pub fn pixel_size(&self) -> u8 {
-        self.pixel_size
-    }
-
-    /// Maximum width.
-    pub fn max_width(&self) -> u8 {
-        self.max_width
-    }
-
-    /// Array of glyphs (numgGlyphs is from the 'maxp' table).
-    pub fn widths(&self) -> &'a [u8] {
-        self.widths
-    }
-}
-
-impl ReadArgs for DeviceRecord<'_> {
-    type Args = u16;
-}
-
-impl ComputeSize for DeviceRecord<'_> {
-    #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &u16) -> Result<usize, ReadError> {
-        let num_glyphs = *args;
-        let mut result = 0usize;
-        result = result
-            .checked_add(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        result = result
-            .checked_add(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        result = result
-            .checked_add(
-                (num_glyphs as usize)
-                    .checked_mul(u8::RAW_BYTE_LEN)
-                    .ok_or(ReadError::OutOfBounds)?,
-            )
-            .ok_or(ReadError::OutOfBounds)?;
-        Ok(result)
-    }
-}
-
-impl<'a> FontReadWithArgs<'a> for DeviceRecord<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let num_glyphs = *args;
-        Ok(Self {
-            pixel_size: cursor.read()?,
-            max_width: cursor.read()?,
-            widths: cursor.read_array(num_glyphs as usize)?,
-        })
-    }
-}
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> DeviceRecord<'a> {
-    /// A constructor that requires additional arguments.
-    ///
-    /// This type requires some external state in order to be
-    /// parsed.
-    pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
-        let args = num_glyphs;
-        Self::read_with_args(data, &args)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for DeviceRecord<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "DeviceRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("pixel_size", self.pixel_size())),
-                1usize => Some(Field::new("max_width", self.max_width())),
-                2usize => Some(Field::new("widths", self.widths())),
-                _ => None,
-            }),
-            data,
-        }
     }
 }
