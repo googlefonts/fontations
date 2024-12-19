@@ -12,17 +12,6 @@ table Hdmx {
     size_device_record: u32,
     /// Array of device records.
     #[count($num_records)]
-    #[read_with($num_glyphs)]
+    #[read_with($num_glyphs, $size_device_record)]
     records: ComputedArray<DeviceRecord<'a>>,
-}
-
-#[read_args(num_glyphs: u16)]
-record DeviceRecord<'a> {
-    /// Pixel size for following widths (as ppem).
-    pixel_size: u8,
-    /// Maximum width.
-    max_width: u8,
-    /// Array of glyphs (numgGlyphs is from the 'maxp' table).
-    #[count($num_glyphs)]
-    widths: [u8],
 }
