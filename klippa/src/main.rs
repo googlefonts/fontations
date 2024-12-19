@@ -7,9 +7,15 @@
 use clap::Parser;
 use klippa::{
     parse_drop_tables, parse_name_ids, parse_name_languages, parse_unicodes, populate_gids,
-    subset_font, Plan, SubsetFlags,
+    subset_font, Plan, SubsetFlags, DSIG, EBSC, GLAT, GLOC, JSTF, KERN, KERX, LTSH, MORT, MORX,
+    PCLT, SILF, SILL,
 };
-use write_fonts::read::{collections::IntSet, types::NameId, FontRef};
+use write_fonts::read::{
+    collections::IntSet,
+    tables::{ebdt, eblc, feat, svg},
+    types::{NameId, Tag},
+    FontRef, TopLevelTable,
+};
 
 #[derive(Parser, Debug)]
 //Allow name_IDs, so we keep the option name consistent with HB and fonttools
@@ -115,11 +121,40 @@ fn main() {
 
     let font_bytes = std::fs::read(&args.path).expect("Invalid input font file found");
     let font = FontRef::new(&font_bytes).expect("Error reading font bytes");
-    let drop_tables = match parse_drop_tables(&args.drop_tables.unwrap_or_default()) {
-        Ok(drop_tables) => drop_tables,
-        Err(e) => {
-            eprintln!("{e}");
-            std::process::exit(1);
+    let drop_tables = match &args.drop_tables {
+        Some(drop_tables_input) => match parse_drop_tables(drop_tables_input) {
+            Ok(drop_tables) => drop_tables,
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+        },
+        //default value: <https://github.com/harfbuzz/harfbuzz/blob/b5a65e0f20c30a7f13b2f6619479a6d666e603e0/src/hb-subset-input.cc#L46>
+        None => {
+            let default_drop_tables = [
+                // Layout disabled by default
+                MORX,
+                MORT,
+                KERX,
+                KERN,
+                // Copied from fontTools
+                JSTF,
+                DSIG,
+                ebdt::Ebdt::TAG,
+                eblc::Eblc::TAG,
+                EBSC,
+                svg::Svg::TAG,
+                PCLT,
+                LTSH,
+                // Graphite tables
+                feat::Feat::TAG,
+                GLAT,
+                GLOC,
+                SILF,
+                SILL,
+            ];
+            let drop_tables: IntSet<Tag> = default_drop_tables.iter().copied().collect();
+            drop_tables
         }
     };
 
@@ -131,7 +166,7 @@ fn main() {
                 std::process::exit(1);
             }
         },
-        // default value: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-subset-input.cc#L43
+        // default value: <https://github.com/harfbuzz/harfbuzz/blob/b5a65e0f20c30a7f13b2f6619479a6d666e603e0/src/hb-subset-input.cc#L43>
         None => {
             let mut default_name_ids = IntSet::<NameId>::empty();
             default_name_ids.insert_range(NameId::from(0)..=NameId::from(6));
