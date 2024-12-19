@@ -47,7 +47,7 @@ impl<'a> DeviceRecord<'a> {
         self.max_width
     }
 
-    /// Array of glyphs (numgGlyphs is from the 'maxp' table).
+    /// Array of widths, indexed by glyph id.
     pub fn widths(&self) -> &'a [u8] {
         self.widths
     }
