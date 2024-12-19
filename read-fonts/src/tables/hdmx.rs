@@ -32,7 +32,7 @@ pub struct DeviceRecord<'a> {
     pub pixel_size: u8,
     /// Maximum width.
     pub max_width: u8,
-    /// Array of glyphs (numgGlyphs is from the 'maxp' table).
+    /// Array of glyphs (numGlyphs is from the 'maxp' table).
     pub widths: &'a [u8],
 }
 
