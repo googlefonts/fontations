@@ -700,7 +700,7 @@ mod tests {
         let shaper = Shaper::new(&font, ShaperMode::BestEffort);
         let lookup_list = shaper.gsub.as_ref().unwrap().lookup_list().unwrap();
         let style = &style::STYLE_CLASSES[style::StyleClass::LATN];
-        let mut gsub_handler = GsubHandler::new(&shaper.charmap, &lookup_list, &style, &mut []);
+        let mut gsub_handler = GsubHandler::new(&shaper.charmap, &lookup_list, style, &mut []);
         for ix in 0..MAX_NESTING_DEPTH {
             // all okay up to max depth...
             assert!(gsub_handler.enter_lookup(ix as u16));
@@ -715,7 +715,7 @@ mod tests {
         let shaper = Shaper::new(&font, ShaperMode::BestEffort);
         let lookup_list = shaper.gsub.as_ref().unwrap().lookup_list().unwrap();
         let style = &style::STYLE_CLASSES[style::StyleClass::LATN];
-        let mut gsub_handler = GsubHandler::new(&shaper.charmap, &lookup_list, &style, &mut []);
+        let mut gsub_handler = GsubHandler::new(&shaper.charmap, &lookup_list, style, &mut []);
         for ix in 0..10 {
             // add 0 through 9 to the stack, all succeeding...
             assert!(gsub_handler.enter_lookup(ix as u16));
