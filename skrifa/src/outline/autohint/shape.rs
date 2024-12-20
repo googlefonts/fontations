@@ -18,7 +18,7 @@ use raw::{
 
 // To prevent infinite recursion in contextual lookups. Matches HB
 // <https://github.com/harfbuzz/harfbuzz/blob/c7ef6a2ed58ae8ec108ee0962bef46f42c73a60c/src/hb-limits.hh#L53>
-const MAX_NESTING_DEPTH: u32 = 64;
+const MAX_NESTING_DEPTH: usize = 64;
 
 /// Determines the fidelity with which we apply shaping in the
 /// autohinter.
@@ -223,7 +223,7 @@ impl<'a> Shaper<'a> {
                     };
                     // And now process associated lookups
                     for index in feature.lookup_list_indices().iter() {
-                        gsub_handler.process_lookup(index.get(), 0);
+                        gsub_handler.process_lookup(index.get());
                     }
                 }
             }
@@ -294,7 +294,7 @@ impl ClusterShaper<'_> {
         lookup_index: u16,
         cluster: &mut ShapedCluster,
         glyph_ix: usize,
-        nesting_depth: u32,
+        nesting_depth: usize,
     ) -> bool {
         if nesting_depth > MAX_NESTING_DEPTH {
             return false;
@@ -389,6 +389,9 @@ struct GsubHandler<'a> {
     // Keep track of our range of touched gids in the style list
     min_gid: usize,
     max_gid: usize,
+    // Stack for detecting cycles in lookups
+    lookup_stack: [u16; MAX_NESTING_DEPTH],
+    lookup_depth: usize,
 }
 
 impl<'a> GsubHandler<'a> {
@@ -411,13 +414,19 @@ impl<'a> GsubHandler<'a> {
             need_blue_substs,
             min_gid,
             max_gid: 0,
+            lookup_stack: [0; MAX_NESTING_DEPTH],
+            lookup_depth: 0,
         }
     }
 
-    fn process_lookup(&mut self, lookup_index: u16, nesting_depth: u32) {
-        if nesting_depth > MAX_NESTING_DEPTH {
-            return;
+    fn process_lookup(&mut self, lookup_index: u16) {
+        if self.enter_lookup(lookup_index) {
+            self.process_lookup_inner(lookup_index);
+            self.exit_lookup();
         }
+    }
+
+    fn process_lookup_inner(&mut self, lookup_index: u16) {
         let Ok(subtables) = self
             .lookup_list
             .lookups()
@@ -441,7 +450,7 @@ impl<'a> GsubHandler<'a> {
                             // Check input coverage for blue strings if
                             // required and if we're not under a contextual
                             // lookup
-                            if self.need_blue_substs && nesting_depth == 0 {
+                            if self.need_blue_substs && self.lookup_depth == 1 {
                                 self.check_blue_coverage(Ok(coverage));
                             }
                         }
@@ -450,7 +459,7 @@ impl<'a> GsubHandler<'a> {
                                 self.capture_glyph(gid.get().to_u32());
                             }
                             // See above
-                            if self.need_blue_substs && nesting_depth == 0 {
+                            if self.need_blue_substs && self.lookup_depth == 1 {
                                 self.check_blue_coverage(table.coverage());
                             }
                         }
@@ -465,7 +474,7 @@ impl<'a> GsubHandler<'a> {
                         }
                     }
                     // See above
-                    if self.need_blue_substs && nesting_depth == 0 {
+                    if self.need_blue_substs && self.lookup_depth == 1 {
                         self.check_blue_coverage(table.coverage());
                     }
                 }
@@ -499,10 +508,7 @@ impl<'a> GsubHandler<'a> {
                             {
                                 for rule in set.seq_rules().iter().filter_map(|rule| rule.ok()) {
                                     for rec in rule.seq_lookup_records() {
-                                        self.process_lookup(
-                                            rec.lookup_list_index(),
-                                            nesting_depth + 1,
-                                        );
+                                        self.process_lookup(rec.lookup_list_index());
                                     }
                                 }
                             }
@@ -517,17 +523,14 @@ impl<'a> GsubHandler<'a> {
                                     set.class_seq_rules().iter().filter_map(|rule| rule.ok())
                                 {
                                     for rec in rule.seq_lookup_records() {
-                                        self.process_lookup(
-                                            rec.lookup_list_index(),
-                                            nesting_depth + 1,
-                                        );
+                                        self.process_lookup(rec.lookup_list_index());
                                     }
                                 }
                             }
                         }
                         SequenceContext::Format3(table) => {
                             for rec in table.seq_lookup_records() {
-                                self.process_lookup(rec.lookup_list_index(), nesting_depth + 1);
+                                self.process_lookup(rec.lookup_list_index());
                             }
                         }
                     }
@@ -546,10 +549,7 @@ impl<'a> GsubHandler<'a> {
                                     set.chained_seq_rules().iter().filter_map(|rule| rule.ok())
                                 {
                                     for rec in rule.seq_lookup_records() {
-                                        self.process_lookup(
-                                            rec.lookup_list_index(),
-                                            nesting_depth + 1,
-                                        );
+                                        self.process_lookup(rec.lookup_list_index());
                                     }
                                 }
                             }
@@ -566,17 +566,14 @@ impl<'a> GsubHandler<'a> {
                                     .filter_map(|rule| rule.ok())
                                 {
                                     for rec in rule.seq_lookup_records() {
-                                        self.process_lookup(
-                                            rec.lookup_list_index(),
-                                            nesting_depth + 1,
-                                        );
+                                        self.process_lookup(rec.lookup_list_index());
                                     }
                                 }
                             }
                         }
                         ChainedSequenceContext::Format3(table) => {
                             for rec in table.seq_lookup_records() {
-                                self.process_lookup(rec.lookup_list_index(), nesting_depth + 1);
+                                self.process_lookup(rec.lookup_list_index());
                             }
                         }
                     }
@@ -590,6 +587,29 @@ impl<'a> GsubHandler<'a> {
                 }
             }
         }
+    }
+
+    /// Called when we begin processing a new lookup.
+    ///
+    /// Returns `false` if the lookup index is already being processed or if
+    /// the lookup would exceed our max depth.
+    fn enter_lookup(&mut self, lookup_index: u16) -> bool {
+        // Note: we just use a linear search here under the assumption that
+        // most fonts have shallow contextual lookup chains
+        if self.lookup_depth != 0
+            && (self.lookup_depth == MAX_NESTING_DEPTH
+                || self.lookup_stack[..self.lookup_depth].contains(&lookup_index))
+        {
+            return false;
+        }
+        self.lookup_stack[self.lookup_depth] = lookup_index;
+        self.lookup_depth += 1;
+        true
+    }
+
+    /// Called when we finish processing a single lookup.
+    fn exit_lookup(&mut self) {
+        self.lookup_depth = self.lookup_depth.saturating_sub(1);
     }
 
     /// Finishes processing for this set of GSUB lookups and
@@ -672,5 +692,41 @@ mod tests {
         assert_eq!(cluster.len(), 1);
         // from ttx, gid 1 is "H"
         assert_eq!(cluster[0].id, GlyphId::new(1));
+    }
+
+    #[test]
+    fn exceed_max_depth() {
+        let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
+        let shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        let lookup_list = shaper.gsub.as_ref().unwrap().lookup_list().unwrap();
+        let style = &style::STYLE_CLASSES[style::StyleClass::LATN];
+        let mut gsub_handler = GsubHandler::new(&shaper.charmap, &lookup_list, &style, &mut []);
+        for ix in 0..MAX_NESTING_DEPTH {
+            // all okay up to max depth...
+            assert!(gsub_handler.enter_lookup(ix as u16));
+        }
+        // .. and this one fails
+        assert!(!gsub_handler.enter_lookup(MAX_NESTING_DEPTH as u16));
+    }
+
+    #[test]
+    fn detect_cycles() {
+        let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
+        let shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        let lookup_list = shaper.gsub.as_ref().unwrap().lookup_list().unwrap();
+        let style = &style::STYLE_CLASSES[style::StyleClass::LATN];
+        let mut gsub_handler = GsubHandler::new(&shaper.charmap, &lookup_list, &style, &mut []);
+        for ix in 0..10 {
+            // add 0 through 9 to the stack, all succeeding...
+            assert!(gsub_handler.enter_lookup(ix as u16));
+        }
+        for ix in 0..10 {
+            // ... and all fail when we try again
+            assert!(!gsub_handler.enter_lookup(ix as u16));
+        }
+        // exit lookup 9
+        gsub_handler.exit_lookup();
+        // ensure we can enter 9 again after exiting
+        assert!(gsub_handler.enter_lookup(9));
     }
 }
