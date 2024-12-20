@@ -803,13 +803,14 @@ impl PointCoord for i32 {
 }
 
 // Midpoint function that avoids overflow on large values.
+#[inline(always)]
 fn midpoint_i32(a: i32, b: i32) -> i32 {
     // Original overflowing code was: (a + b) / 2
     // Choose wrapping arithmetic here because we shouldn't ever
     // hit this outside of fuzzing or broken fonts _and_ this is
     // called from the outline to path conversion code which is
     // very performance sensitive
-    a.wrapping_add(b.wrapping_sub(a) / 2)
+    a.wrapping_add(b) / 2
 }
 
 impl PointCoord for f32 {
@@ -1041,7 +1042,7 @@ mod tests {
     fn avoid_midpoint_overflow() {
         let a = F26Dot6::from_bits(1084092352);
         let b = F26Dot6::from_bits(1085243712);
-        let expected = a.to_bits() + (b.to_bits() - a.to_bits()) / 2;
+        let expected = (a + b).to_bits() / 2;
         // Don't panic!
         let midpoint = a.midpoint(b);
         assert_eq!(midpoint.to_bits(), expected);
