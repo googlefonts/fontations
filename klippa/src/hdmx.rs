@@ -9,7 +9,7 @@ use write_fonts::{
 };
 
 fn ceil_to_4(v: u32) -> u32 {
-    (v - 1) | 3 + 1
+    ((v - 1) | 3) + 1
 }
 
 // reference: subset() for hmtx/hhea in harfbuzz
@@ -59,7 +59,6 @@ fn serialize_device_record(
         };
 
         let new_idx = new_gid.to_u32() as usize;
-        println!("new_gid={new_idx}, old_gid={old_idx}, width={wdth}");
         s.copy_assign(widths_array_pos + new_idx, *wdth);
         max_width = max_width.max(*wdth);
     }

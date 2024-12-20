@@ -24,7 +24,6 @@ pub use parsing_util::{
 
 use fnv::FnvHashMap;
 use serialize::Serializer;
-use skrifa::raw::tables::cmap::CmapSubtable;
 use skrifa::MetadataProvider;
 use thiserror::Error;
 use write_fonts::types::GlyphId;
@@ -35,7 +34,8 @@ use write_fonts::{
         tables::{
             cff::Cff,
             cff2::Cff2,
-            cmap::Cmap,
+            cmap::{Cmap, CmapSubtable},
+            cvar::Cvar,
             glyf::{Glyf, Glyph},
             gpos::Gpos,
             gsub::Gsub,
@@ -600,6 +600,23 @@ pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> 
         }
     }
     Ok(builder.build())
+}
+
+fn should_drop_table(tag: Tag, plan: &Plan) -> bool {
+    if plan.drop_tables.contains(tag) {
+        return true;
+    }
+
+    let no_hinting = plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
+    let cvt_tag = Tag::new(b"cvt ");
+    match tag {
+        // hint tables
+        Cvar::TAG => no_hinting,
+        cvt_tag => no_hinting,
+        Fpgm::TAG => no_hinting,
+    }
 }
 
 fn subset<'a>(
