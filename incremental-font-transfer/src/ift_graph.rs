@@ -165,7 +165,7 @@ fn get_node_name(font: &FontRef<'_>) -> Result<String, ReadError> {
     if !features.is_empty() {
         let features: Vec<_> = features.into_iter().map(|t| t.to_string()).collect();
         let features = features.join(",");
-        name.push_str("|");
+        name.push('|');
         name.push_str(&features);
     }
 
@@ -228,7 +228,7 @@ fn main() {
     });
     let font = FontRef::new(&font_bytes).expect("Input font parsing failed");
     let mut graph = Default::default();
-    graph = to_graph(&args.font.parent().unwrap(), font, graph);
+    graph = to_graph(args.font.parent().unwrap(), font, graph);
 
     for (key, values) in graph {
         let values: Vec<_> = values.into_iter().collect();

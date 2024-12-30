@@ -76,7 +76,7 @@ fn add_intersecting_format1_patches(
     source_table: &IftTableTag,
     map: &PatchMapFormat1,
     codepoints: &IntSet<u32>,
-    features: &BTreeSet<Tag>,
+    features: &FeatureSet,
     patches: &mut Vec<PatchUri>,
 ) -> Result<(), ReadError> {
     // Step 0: Top Level Field Validation
@@ -146,7 +146,7 @@ fn intersect_format1_glyph_and_feature_map<const RECORD_INTERSECTION: bool>(
     charmap: &Charmap,
     map: &PatchMapFormat1,
     codepoints: &IntSet<u32>,
-    features: &BTreeSet<Tag>,
+    features: &FeatureSet,
 ) -> Result<BTreeMap<u16, SubsetDefinition>, ReadError> {
     let mut entries = Default::default();
     intersect_format1_glyph_map::<RECORD_INTERSECTION>(charmap, map, codepoints, &mut entries)?;
@@ -215,10 +215,9 @@ fn intersect_format1_glyph_map_inner<const RECORD_INTERSECTION: bool>(
 
 fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
     map: &PatchMapFormat1,
-    features: &BTreeSet<Tag>,
+    features: &FeatureSet,
     entries: &mut BTreeMap<u16, SubsetDefinition>,
 ) -> Result<(), ReadError> {
-    // TODO(garretrieger): special case features = * (inverted set), will need to change to use a IntSet.
     let Some(feature_map) = map.feature_map() else {
         return Ok(());
     };
@@ -235,49 +234,75 @@ fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
         return Err(ReadError::OutOfBounds);
     }
 
-    let mut tag_it = features.iter();
-    let mut record_it = feature_map.feature_records().iter();
+    let mut maybe_tag_it = match features {
+        FeatureSet::All => None,
+        FeatureSet::Set(f) => Some(f.iter().peekable()),
+    };
+    let mut record_it = feature_map.feature_records().iter().peekable();
 
-    let mut next_tag = tag_it.next();
-    let mut next_record = record_it.next();
     let mut cumulative_entry_map_count = 0;
     let mut largest_tag: Option<Tag> = None;
     loop {
-        let Some((tag, record)) = next_tag.zip(next_record.clone()) else {
-            break;
-        };
-        let record = record?;
+        let record = if let Some(tag_it) = &mut maybe_tag_it {
+            let Some((tag, record)) = tag_it.peek().cloned().zip(record_it.peek().cloned()) else {
+                break;
+            };
+            let record = record?;
 
-        if *tag > record.feature_tag() {
-            cumulative_entry_map_count += record.entry_map_count().get();
-            next_record = record_it.next();
-            continue;
-        }
-
-        if let Some(largest_tag) = largest_tag {
-            if *tag <= largest_tag {
-                // Out of order or duplicate tag, skip this record.
-                next_tag = tag_it.next();
+            if *tag > record.feature_tag() {
+                cumulative_entry_map_count += record.entry_map_count().get();
+                record_it.next();
                 continue;
             }
-        }
 
-        largest_tag = Some(*tag);
+            if let Some(largest_tag) = largest_tag {
+                if *tag <= largest_tag {
+                    // Out of order or duplicate tag, skip this record.
+                    tag_it.next();
+                    continue;
+                }
+            }
+
+            largest_tag = Some(*tag);
+
+            if *tag < record.feature_tag() {
+                tag_it.next();
+                continue;
+            }
+
+            let Some(record) = record_it.next() else {
+                break;
+            };
+            record?
+        } else {
+            // Specialization where the target set matches all feature records.
+            let Some(record) = record_it.next() else {
+                break;
+            };
+            let record = record?;
+
+            if let Some(largest_tag) = largest_tag {
+                if record.feature_tag() <= largest_tag {
+                    // Out of order or duplicate tag, skip this record.
+                    cumulative_entry_map_count += record.entry_map_count().get();
+                    continue;
+                }
+            }
+
+            largest_tag = Some(record.feature_tag());
+            record
+        };
 
         let entry_count = record.entry_map_count().get();
-        if *tag < record.feature_tag() {
-            next_tag = tag_it.next();
-            continue;
-        }
 
         for i in 0..entry_count {
             let index = i + cumulative_entry_map_count;
             let byte_index = (index * field_width * 2) as usize;
             let data = FontData::new(&feature_map.entry_map_data()[byte_index..]);
             let mapped_entry_index = record.first_new_entry_index().get() + i;
-            let record = EntryMapRecord::read(data, max_entry_index)?;
-            let first = record.first_entry_index().get();
-            let last = record.last_entry_index().get();
+            let entry_record = EntryMapRecord::read(data, max_entry_index)?;
+            let first = entry_record.first_entry_index().get();
+            let last = entry_record.last_entry_index().get();
             if first > last
                 || first > max_glyph_map_entry_index
                 || last > max_glyph_map_entry_index
@@ -293,11 +318,12 @@ fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
             merge_intersecting_entries::<RECORD_INTERSECTION>(
                 first..=last,
                 mapped_entry_index,
-                *tag,
+                record.feature_tag(),
                 entries,
             );
         }
-        next_tag = tag_it.next();
+
+        cumulative_entry_map_count += entry_count;
     }
 
     Ok(())
@@ -316,7 +342,9 @@ fn merge_intersecting_entries<const RECORD_INTERSECTION: bool>(
             range.for_each(|(_, subset_def)| {
                 merged_subset_def.union(subset_def);
             });
-            merged_subset_def.feature_tags.insert(mapped_tag);
+            merged_subset_def
+                .feature_tags
+                .extend([mapped_tag].iter().copied());
         }
         Some(merged_subset_def)
     } else {
@@ -849,36 +877,52 @@ impl IntersectionInfo {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum FeatureSet {
+    Set(BTreeSet<Tag>),
+    All,
+}
+
+impl Default for FeatureSet {
+    fn default() -> Self {
+        Self::Set(Default::default())
+    }
+}
+
+impl FeatureSet {
+    fn len(&self) -> usize {
+        match self {
+            Self::All => usize::MAX,
+            Self::Set(set) => set.len(),
+        }
+    }
+
+    fn extend<It>(&mut self, tags: It)
+    where
+        It: Iterator<Item = Tag>,
+    {
+        match self {
+            FeatureSet::All => {}
+
+            FeatureSet::Set(feature_set) => {
+                feature_set.extend(tags);
+            }
+        }
+    }
+}
+
 /// Stores a description of a font subset over codepoints, feature tags, and design space.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct SubsetDefinition {
     codepoints: IntSet<u32>,
-    feature_tags: BTreeSet<Tag>,
+    feature_tags: FeatureSet,
     design_space: HashMap<Tag, RangeSet<Fixed>>,
 }
 
 impl SubsetDefinition {
-    pub fn codepoints(codepoints: IntSet<u32>) -> SubsetDefinition {
-        SubsetDefinition {
-            codepoints,
-            feature_tags: Default::default(),
-            design_space: Default::default(),
-        }
-    }
-
-    /// Returns a SubsetDefinition which includes all things.
-    pub fn all() -> SubsetDefinition {
-        SubsetDefinition {
-            codepoints: IntSet::all(),
-            // TODO(garretrieger): need a way to mark these as matching all.
-            feature_tags: Default::default(),
-            design_space: Default::default(),
-        }
-    }
-
     pub fn new(
         codepoints: IntSet<u32>,
-        feature_tags: BTreeSet<Tag>,
+        feature_tags: FeatureSet,
         design_space: HashMap<Tag, RangeSet<Fixed>>,
     ) -> SubsetDefinition {
         SubsetDefinition {
@@ -888,11 +932,31 @@ impl SubsetDefinition {
         }
     }
 
+    pub fn codepoints(codepoints: IntSet<u32>) -> SubsetDefinition {
+        SubsetDefinition {
+            codepoints,
+            feature_tags: FeatureSet::Set(Default::default()),
+            design_space: Default::default(),
+        }
+    }
+
+    /// Returns a SubsetDefinition which includes all things.
+    pub fn all() -> SubsetDefinition {
+        SubsetDefinition {
+            codepoints: IntSet::all(),
+            feature_tags: FeatureSet::All,
+            design_space: Default::default(),
+        }
+    }
+
     fn union(&mut self, other: &SubsetDefinition) {
         self.codepoints.union(&other.codepoints);
-        other.feature_tags.iter().for_each(|t| {
-            self.feature_tags.insert(*t);
-        });
+
+        match &other.feature_tags {
+            FeatureSet::All => self.feature_tags = FeatureSet::All,
+            FeatureSet::Set(set) => self.feature_tags.extend(set.iter().copied()),
+        };
+
         for (tag, segments) in other.design_space.iter() {
             self.design_space
                 .entry(*tag)
@@ -906,11 +970,17 @@ impl SubsetDefinition {
 
         result.codepoints.intersect(&other.codepoints);
 
-        result.feature_tags = self
-            .feature_tags
-            .intersection(&other.feature_tags)
-            .copied()
-            .collect();
+        match (&self.feature_tags, &other.feature_tags) {
+            (FeatureSet::All, FeatureSet::Set(tags)) => {
+                result.feature_tags = FeatureSet::Set(tags.clone());
+            }
+            (FeatureSet::Set(a), FeatureSet::Set(b)) => {
+                result.feature_tags = FeatureSet::Set(a.intersection(b).copied().collect());
+            }
+            // In these cases result already has the correct intersection
+            (FeatureSet::All, FeatureSet::All) => {}
+            (FeatureSet::Set(_), FeatureSet::All) => {}
+        };
 
         result.design_space = self.design_space_intersection(&other.design_space);
 
@@ -960,7 +1030,7 @@ impl Entry {
         Entry {
             subset_definition: SubsetDefinition {
                 codepoints: IntSet::empty(),
-                feature_tags: BTreeSet::new(),
+                feature_tags: FeatureSet::Set(Default::default()),
                 design_space: HashMap::new(),
             },
             ignored: false,
@@ -987,13 +1057,16 @@ impl Entry {
             return false;
         }
 
-        let features_intersects = self.subset_definition.feature_tags.is_empty()
-            || self
-                .subset_definition
-                .feature_tags
-                .intersection(&subset_definition.feature_tags)
-                .next()
-                .is_some();
+        let features_intersects = match &self.subset_definition.feature_tags {
+            FeatureSet::All => subset_definition.feature_tags.len() > 0,
+            FeatureSet::Set(set) => match &subset_definition.feature_tags {
+                FeatureSet::All => true,
+                FeatureSet::Set(other) => {
+                    set.is_empty() || set.intersection(other).next().is_some()
+                }
+            },
+        };
+
         if !features_intersects {
             return false;
         }
@@ -1035,6 +1108,12 @@ mod tests {
     use read_fonts::types::Int24;
     use read_fonts::FontRef;
     use write_fonts::FontBuilder;
+
+    impl FeatureSet {
+        fn from<const N: usize>(tags: [Tag; N]) -> FeatureSet {
+            FeatureSet::Set(BTreeSet::<Tag>::from(tags))
+        }
+    }
 
     impl IntersectionInfo {
         pub(crate) fn new(codepoints: u64, features: usize, order: usize) -> Self {
@@ -1106,7 +1185,7 @@ mod tests {
     // TODO(garretrieger): test with format 1 that has max entry = 0.
     // TODO(garretrieger): font with no maxp.
     // TODO(garretrieger): font with MAXP and maxp.
-
+    // TODO(garretrieger): test for design space union of SubsetDefinition.
     // TODO(garretrieger): fuzzer to check consistency vs intersecting "*" subset def.
 
     #[derive(Copy, Clone)]
@@ -1135,18 +1214,19 @@ mod tests {
         tags: [Tag; N],
         expected_entries: [ExpectedEntry; O],
     ) {
-        test_design_space_intersection(font, codepoints, tags, [], expected_entries)
+        test_design_space_intersection(
+            font,
+            codepoints,
+            FeatureSet::Set(BTreeSet::<Tag>::from(tags)),
+            [],
+            expected_entries,
+        )
     }
 
-    fn test_design_space_intersection<
-        const M: usize,
-        const N: usize,
-        const O: usize,
-        const P: usize,
-    >(
+    fn test_design_space_intersection<const M: usize, const O: usize, const P: usize>(
         font: &FontRef,
         codepoints: [u32; M],
-        tags: [Tag; N],
+        tags: FeatureSet,
         design_space: [(Tag, RangeSet<Fixed>); O],
         expected_entries: [ExpectedEntry; P],
     ) {
@@ -1154,7 +1234,7 @@ mod tests {
             font,
             &SubsetDefinition::new(
                 IntSet::from(codepoints),
-                BTreeSet::<Tag>::from(tags),
+                tags,
                 design_space.into_iter().collect(),
             ),
         )
@@ -1189,11 +1269,7 @@ mod tests {
     ) {
         let patches = intersecting_patches(
             font,
-            &SubsetDefinition::new(
-                IntSet::<u32>::all(),
-                BTreeSet::<Tag>::from(tags),
-                HashMap::new(),
-            ),
+            &SubsetDefinition::new(IntSet::<u32>::all(), FeatureSet::from(tags), HashMap::new()),
         )
         .unwrap();
 
@@ -1335,11 +1411,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x123]),
-                BTreeSet::<Tag>::from([]),
-                HashMap::new(),
-            ),
+            &SubsetDefinition::new(IntSet::from([0x123]), FeatureSet::from([]), HashMap::new(),),
         )
         .is_err());
     }
@@ -1355,11 +1427,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x123]),
-                BTreeSet::<Tag>::from([]),
-                HashMap::new(),
-            ),
+            &SubsetDefinition::new(IntSet::from([0x123]), FeatureSet::from([]), HashMap::new(),),
         )
         .is_err());
     }
@@ -1378,11 +1446,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x123]),
-                BTreeSet::<Tag>::from([]),
-                HashMap::new(),
-            ),
+            &SubsetDefinition::new(IntSet::from([0x123]), FeatureSet::from([]), HashMap::new(),),
         )
         .is_err());
     }
@@ -1402,11 +1466,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x123]),
-                BTreeSet::<Tag>::from([]),
-                HashMap::new(),
-            )
+            &SubsetDefinition::new(IntSet::from([0x123]), FeatureSet::from([]), HashMap::new(),)
         )
         .is_err());
     }
@@ -1425,11 +1485,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x123]),
-                BTreeSet::<Tag>::from([]),
-                HashMap::new()
-            )
+            &SubsetDefinition::new(IntSet::from([0x123]), FeatureSet::from([]), HashMap::new())
         )
         .is_err());
     }
@@ -1500,6 +1556,62 @@ mod tests {
             &font,
             [Tag::new(b"dlig")],
             [f1(0x50), f1(0x51), f1(0x12c), f1(0x190)],
+        );
+    }
+
+    #[test]
+    fn format_1_patch_map_all_features() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&feature_map_format1()),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        test_design_space_intersection(
+            &font,
+            [0x13],
+            FeatureSet::from([Tag::new(b"dlig"), Tag::new(b"liga")]),
+            [],
+            [f1(0x51), f1(0x180), f1(0x190)],
+        );
+
+        test_design_space_intersection(
+            &font,
+            [0x13],
+            FeatureSet::All,
+            [],
+            [f1(0x51), f1(0x180), f1(0x190)],
+        );
+    }
+
+    #[test]
+    fn format_1_patch_map_all_features_skips_unsorted() {
+        let mut data = feature_map_format1();
+        data.write_at("FeatureRecord[0]", Tag::new(b"liga"));
+        data.write_at("FeatureRecord[1]", Tag::new(b"dlig"));
+
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&data),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        test_design_space_intersection(
+            &font,
+            [0x13, 0x14],
+            FeatureSet::from([Tag::new(b"dlig"), Tag::new(b"liga"), Tag::new(b"null")]),
+            [],
+            [f1(0x51), f1(0x12c), f1(0x190)],
+        );
+
+        test_design_space_intersection(
+            &font,
+            [0x13, 0x14],
+            FeatureSet::All,
+            [],
+            [f1(0x51), f1(0x12c), f1(0x190)],
         );
     }
 
@@ -1581,7 +1693,7 @@ mod tests {
             &font,
             &SubsetDefinition::new(
                 IntSet::from([0x14, 0x15, 0x16]),
-                BTreeSet::from([Tag::new(b"dlig"), Tag::new(b"liga")]),
+                FeatureSet::from([Tag::new(b"dlig"), Tag::new(b"liga")]),
                 Default::default(),
             ),
         )
@@ -1612,7 +1724,7 @@ mod tests {
             &font,
             &SubsetDefinition::new(
                 IntSet::from([0x14, 0x15, 0x16]),
-                BTreeSet::from([Tag::new(b"dlig")]),
+                FeatureSet::from([Tag::new(b"dlig")]),
                 Default::default(),
             ),
         )
@@ -1695,29 +1807,21 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x12]),
-                BTreeSet::<Tag>::from([]),
-                HashMap::new(),
-            ),
+            &SubsetDefinition::new(IntSet::from([0x12]), FeatureSet::from([]), HashMap::new(),),
         )
         .is_err());
         assert!(intersecting_patches(
             &font,
             &SubsetDefinition::new(
                 IntSet::from([0x12]),
-                BTreeSet::<Tag>::from([Tag::new(b"liga")]),
+                FeatureSet::from([Tag::new(b"liga")]),
                 HashMap::new(),
             )
         )
         .is_err());
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x12]),
-                BTreeSet::<Tag>::from([]),
-                HashMap::new(),
-            )
+            &SubsetDefinition::new(IntSet::from([0x12]), FeatureSet::from([]), HashMap::new(),)
         )
         .is_err());
     }
@@ -1733,29 +1837,21 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x12]),
-                BTreeSet::<Tag>::from([]),
-                HashMap::new(),
-            ),
+            &SubsetDefinition::new(IntSet::from([0x12]), FeatureSet::from([]), HashMap::new(),),
         )
         .is_err());
         assert!(intersecting_patches(
             &font,
             &SubsetDefinition::new(
                 IntSet::from([0x12]),
-                BTreeSet::<Tag>::from([Tag::new(b"liga")]),
+                FeatureSet::from([Tag::new(b"liga")]),
                 HashMap::new(),
             )
         )
         .is_err());
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x12]),
-                BTreeSet::<Tag>::from([]),
-                HashMap::new(),
-            )
+            &SubsetDefinition::new(IntSet::from([0x12]), FeatureSet::from([]), HashMap::new(),)
         )
         .is_err());
     }
@@ -1811,7 +1907,7 @@ mod tests {
         test_design_space_intersection(
             &font,
             [0x02],
-            [Tag::new(b"rlig")],
+            FeatureSet::from([Tag::new(b"rlig")]),
             [(
                 Tag::new(b"wdth"),
                 [Fixed::from_f64(0.7)..=Fixed::from_f64(0.8)]
@@ -1824,7 +1920,7 @@ mod tests {
         test_design_space_intersection(
             &font,
             [0x05],
-            [Tag::new(b"smcp")],
+            FeatureSet::from([Tag::new(b"smcp")]),
             [(
                 Tag::new(b"wdth"),
                 [Fixed::from_f64(0.7)..=Fixed::from_f64(0.8)]
@@ -1836,7 +1932,7 @@ mod tests {
         test_design_space_intersection(
             &font,
             [0x05],
-            [Tag::new(b"smcp")],
+            FeatureSet::from([Tag::new(b"smcp")]),
             [(
                 Tag::new(b"wdth"),
                 [Fixed::from_f64(0.2)..=Fixed::from_f64(0.3)]
@@ -1848,7 +1944,7 @@ mod tests {
         test_design_space_intersection(
             &font,
             [0x55],
-            [Tag::new(b"smcp")],
+            FeatureSet::from([Tag::new(b"smcp")]),
             [(
                 Tag::new(b"wdth"),
                 [Fixed::from_f64(0.2)..=Fixed::from_f64(0.3)]
@@ -1860,7 +1956,7 @@ mod tests {
         test_design_space_intersection(
             &font,
             [0x05],
-            [Tag::new(b"smcp")],
+            FeatureSet::from([Tag::new(b"smcp")]),
             [(
                 Tag::new(b"wdth"),
                 [Fixed::from_f64(1.2)..=Fixed::from_f64(1.3)]
@@ -1873,7 +1969,7 @@ mod tests {
         test_design_space_intersection(
             &font,
             [0x05],
-            [Tag::new(b"smcp")],
+            FeatureSet::from([Tag::new(b"smcp")]),
             [(
                 Tag::new(b"wdth"),
                 [
@@ -1888,7 +1984,7 @@ mod tests {
         test_design_space_intersection(
             &font,
             [0x05],
-            [Tag::new(b"smcp")],
+            FeatureSet::from([Tag::new(b"smcp")]),
             [(
                 Tag::new(b"wdth"),
                 [Fixed::from_f64(2.2)..=Fixed::from_f64(2.3)]
@@ -1900,7 +1996,7 @@ mod tests {
         test_design_space_intersection(
             &font,
             [0x05],
-            [Tag::new(b"smcp")],
+            FeatureSet::from([Tag::new(b"smcp")]),
             [(
                 Tag::new(b"wdth"),
                 [
@@ -1911,6 +2007,42 @@ mod tests {
                 .collect(),
             )],
             [e3],
+        );
+    }
+
+    #[test]
+    fn format_2_patch_map_all_features() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&features_and_design_space_format2()),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let e1 = f2(
+            1,
+            features_and_design_space_format2().offset_for("entries[0]"),
+        );
+        let e2 = f2(
+            2,
+            features_and_design_space_format2().offset_for("entries[1]"),
+        );
+        let e3 = f2(
+            3,
+            features_and_design_space_format2().offset_for("entries[2]"),
+        );
+
+        test_design_space_intersection(
+            &font,
+            [0x06],
+            FeatureSet::All,
+            [(
+                Tag::new(b"wdth"),
+                [Fixed::from_f64(0.7)..=Fixed::from_f64(2.2)]
+                    .into_iter()
+                    .collect(),
+            )],
+            [e1, e2, e3],
         );
     }
 
@@ -1931,7 +2063,7 @@ mod tests {
             &font,
             &SubsetDefinition::new(
                 IntSet::from([10, 15, 22]),
-                BTreeSet::from([Tag::new(b"rlig"), Tag::new(b"liga")]),
+                FeatureSet::from([Tag::new(b"rlig"), Tag::new(b"liga")]),
                 Default::default(),
             ),
         )
@@ -1950,7 +2082,7 @@ mod tests {
             &font,
             &SubsetDefinition::new(
                 IntSet::from([10, 15, 22]),
-                BTreeSet::from([Tag::new(b"rlig"), Tag::new(b"liga"), Tag::new(b"smcp")]),
+                FeatureSet::from([Tag::new(b"rlig"), Tag::new(b"liga"), Tag::new(b"smcp")]),
                 HashMap::from([(
                     Tag::new(b"wght"),
                     [Fixed::from_i32(505)..=Fixed::from_i32(800)]
@@ -2004,7 +2136,7 @@ mod tests {
         test_design_space_intersection(
             &font,
             [],
-            [Tag::new(b"rlig")],
+            FeatureSet::from([Tag::new(b"rlig")]),
             [(
                 Tag::new(b"wght"),
                 [Fixed::from_i32(500)..=Fixed::from_i32(500)]
@@ -2017,7 +2149,7 @@ mod tests {
         test_design_space_intersection(
             &font,
             [0x05],
-            [Tag::new(b"rlig")],
+            FeatureSet::from([Tag::new(b"rlig")]),
             [(
                 Tag::new(b"wght"),
                 [Fixed::from_i32(500)..=Fixed::from_i32(500)]
@@ -2058,7 +2190,7 @@ mod tests {
 
         let patches = intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), BTreeSet::new(), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
         )
         .unwrap();
 
@@ -2086,7 +2218,7 @@ mod tests {
 
         let patches = intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), BTreeSet::new(), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
         )
         .unwrap();
 
@@ -2115,7 +2247,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), BTreeSet::new(), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
         )
         .is_err());
     }
@@ -2134,7 +2266,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), BTreeSet::new(), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
         )
         .is_err());
     }
@@ -2151,7 +2283,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), BTreeSet::new(), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
         )
         .is_err());
     }
@@ -2170,7 +2302,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), BTreeSet::new(), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
         )
         .is_err());
     }
@@ -2189,7 +2321,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), BTreeSet::new(), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
         )
         .is_err());
     }
@@ -2230,7 +2362,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), BTreeSet::new(), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
         )
         .is_ok());
 
@@ -2246,7 +2378,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), BTreeSet::new(), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
         )
         .is_err());
     }
@@ -2475,6 +2607,4 @@ mod tests {
             SubsetDefinition::default()
         );
     }
-
-    // TODO(garretrieger): test for design space union of SubsetDefinition.
 }

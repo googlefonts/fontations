@@ -1,12 +1,12 @@
 #![no_main]
 //! Fuzzes the incremental_font_transfer patch_group.rs API
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 use font_types::Fixed;
 use incremental_font_transfer::{
     patch_group::{PatchGroup, UriStatus},
-    patchmap::SubsetDefinition,
+    patchmap::{FeatureSet, SubsetDefinition},
 };
 use libfuzzer_sys::{arbitrary, fuzz_target};
 use read_fonts::{
@@ -25,7 +25,7 @@ struct FuzzInput {
 
     // Parts of the target subset definition.
     codepoints: HashSet<u32>,
-    features: HashSet<u32>,
+    features: Option<HashSet<u32>>,
     design_space: HashMap<u32, Vec<(i32, i32)>>,
 
     // Patches
@@ -49,8 +49,12 @@ impl FuzzInput {
 
     fn to_subset_definition(&self) -> SubsetDefinition {
         let codepoints: IntSet<u32> = self.codepoints.iter().copied().collect();
-        let feature_tags: BTreeSet<Tag> =
-            self.features.iter().copied().map(Tag::from_u32).collect();
+
+        let feature_set = if let Some(tags) = &self.features {
+            FeatureSet::Set(tags.iter().copied().map(Tag::from_u32).collect())
+        } else {
+            FeatureSet::All
+        };
 
         let design_space: HashMap<Tag, RangeSet<Fixed>> = self
             .design_space
@@ -63,7 +67,7 @@ impl FuzzInput {
                 (Tag::from_u32(*tag), v)
             })
             .collect();
-        SubsetDefinition::new(codepoints, feature_tags, design_space)
+        SubsetDefinition::new(codepoints, feature_set, design_space)
     }
 }
 
