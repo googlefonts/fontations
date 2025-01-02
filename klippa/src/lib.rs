@@ -10,6 +10,7 @@ mod gvar;
 mod hdmx;
 mod head;
 mod hmtx;
+mod inc_bimap;
 mod layout;
 mod maxp;
 mod name;
@@ -18,6 +19,7 @@ mod parsing_util;
 mod post;
 mod serialize;
 mod stat;
+mod variations;
 pub use parsing_util::{
     parse_drop_tables, parse_name_ids, parse_name_languages, parse_unicodes, populate_gids,
 };
