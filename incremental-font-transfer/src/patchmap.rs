@@ -736,7 +736,7 @@ impl Ord for IntersectionInfo {
 
 /// Indicates a malformed URI template was encountered.
 ///
-/// More info: https://datatracker.ietf.org/doc/html/rfc6570#section-3
+/// More info: <https://datatracker.ietf.org/doc/html/rfc6570#section-3>
 #[derive(Debug, PartialEq, Eq)]
 pub struct UriTemplateError;
 
