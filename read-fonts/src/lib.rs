@@ -90,7 +90,7 @@ pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
 pub use offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
 pub use read::{ComputeSize, FontRead, FontReadWithArgs, ReadArgs, ReadError, VarSize};
 pub use table_provider::{TableProvider, TopLevelTable};
-pub use table_ref::TableRef;
+pub use table_ref::{MinByteRange, TableRef};
 
 /// Public re-export of the font-types crate.
 pub extern crate font_types as types;
