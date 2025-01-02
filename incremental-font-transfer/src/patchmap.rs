@@ -29,7 +29,7 @@ use read_fonts::{
 
 use skrifa::charmap::Charmap;
 
-use uritemplate::UriTemplate;
+use uri_template_system::{Template, Value, Values};
 
 // TODO(garretrieger): implement support for building and compiling mapping tables.
 
@@ -734,12 +734,26 @@ impl Ord for IntersectionInfo {
     }
 }
 
+/// Indicates a malformed URI template was encountered.
+///
+/// More info: https://datatracker.ietf.org/doc/html/rfc6570#section-3
+#[derive(Debug, PartialEq, Eq)]
+pub struct UriTemplateError;
+
+impl std::fmt::Display for UriTemplateError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Invalid URI template encountered.")
+    }
+}
+
+impl std::error::Error for UriTemplateError {}
+
 impl PatchUri {
     const BASE32HEX_NO_PADDING: data_encoding::Encoding = new_encoding! {
         symbols: "0123456789ABCDEFGHIJKLMNOPQRSTUV",
     };
 
-    pub fn uri_string(&self) -> String {
+    pub fn uri_string(&self) -> Result<String, UriTemplateError> {
         let (id_string, id64_string) = match &self.id {
             PatchId::Numeric(id) => {
                 let id = id.to_be_bytes();
@@ -749,28 +763,32 @@ impl PatchUri {
             PatchId::String(id) => (Self::BASE32HEX_NO_PADDING.encode(id), BASE64URL.encode(id)),
         };
 
-        let mut template = UriTemplate::new(&self.template);
+        let template = Template::parse(&self.template).map_err(|_| UriTemplateError)?;
+        let mut values = Values::default();
 
         let id_string_len = id_string.len();
 
         for (n, name) in [(1, "d1"), (2, "d2"), (3, "d3"), (4, "d4")] {
-            template.set(
+            values = values.add(
                 name,
-                id_string_len
-                    .checked_sub(n)
-                    .and_then(|index| {
-                        id_string
-                            .get(index..index + 1)
-                            .map(|digit| digit.to_string())
-                    })
-                    .unwrap_or_else(|| "_".to_string()),
+                Value::item(
+                    id_string_len
+                        .checked_sub(n)
+                        .and_then(|index| {
+                            id_string
+                                .get(index..index + 1)
+                                .map(|digit| digit.to_string())
+                        })
+                        .unwrap_or_else(|| "_".to_string()),
+                ),
             );
         }
 
-        template.set("id", id_string);
-        template.set("id64", id64_string);
+        values = values
+            .add("id", Value::item(id_string))
+            .add("id64", Value::item(id64_string));
 
-        template.build()
+        template.expand(&values).map_err(|_| UriTemplateError)
     }
 
     pub(crate) fn intersection_info(&self) -> IntersectionInfo {
@@ -1218,8 +1236,24 @@ mod tests {
                 PatchFormat::GlyphKeyed,
                 Default::default(),
             )
-            .uri_string(),
+            .uri_string()
+            .unwrap(),
             expected,
+        );
+    }
+
+    fn check_invalid_uri_template_substitution(template: &str, value: u32) {
+        assert_eq!(
+            PatchUri::from_index(
+                template,
+                value,
+                IftTableTag::Ift(Default::default()),
+                0,
+                PatchFormat::GlyphKeyed,
+                Default::default(),
+            )
+            .uri_string(),
+            Err(UriTemplateError)
         );
     }
 
@@ -1232,7 +1266,8 @@ mod tests {
                 0,
                 PatchFormat::GlyphKeyed,
             )
-            .uri_string(),
+            .uri_string()
+            .unwrap(),
             expected,
         );
     }
@@ -1273,6 +1308,12 @@ mod tests {
 
         check_string_uri_template_substitution("//foo.bar{/id64}", "àbc", "//foo.bar/w6BiYw%3D%3D");
         check_string_uri_template_substitution("//foo.bar/{+id64}", "àbcd", "//foo.bar/w6BiY2Q=");
+    }
+
+    #[test]
+    fn invalid_uri_templates() {
+        check_invalid_uri_template_substitution("//foo.bar/{i~}", 1); // non-alpha/digit variable name
+        check_invalid_uri_template_substitution("  {  ݤ}", 1); // non-ascii variable name
     }
 
     #[test]

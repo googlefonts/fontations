@@ -225,7 +225,8 @@ mod tests {
             },
             Default::default(),
         )
-        .into();
+        .try_into()
+        .unwrap();
 
         let ift_table = codepoints_only_format2();
         let mut iftx_table = codepoints_only_format2();
@@ -259,7 +260,8 @@ mod tests {
             },
             Default::default(),
         )
-        .into();
+        .try_into()
+        .unwrap();
 
         let ift_table = codepoints_only_format2();
         let font = test_font_for_patching_with_loca_mod(
@@ -284,7 +286,8 @@ mod tests {
             GlyphKeyed,
             Default::default(),
         )
-        .into();
+        .try_into()
+        .unwrap();
 
         let ift_table = codepoints_only_format2();
         let font = test_font_for_patching_with_loca_mod(
@@ -312,7 +315,8 @@ mod tests {
             GlyphKeyed,
             Default::default(),
         )
-        .into();
+        .try_into()
+        .unwrap();
 
         let mut ift_table = codepoints_only_format2();
         ift_table.write_at("compat_id[0]", 6u32);

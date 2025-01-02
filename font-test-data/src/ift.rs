@@ -508,7 +508,9 @@ pub fn table_keyed_format2() -> BeBuffer {
       0u32,               // entry string data offset
 
       8u16, // uriTemplateLength
-      [b'f', b'o', b'o', b'/', b'{', b'i', b'd', b'}'],  // uriTemplate[8]
+      [b'f', b'o', b'o', b'/', b'{', b'i'],
+      {b'd': "uri_template_var_end"},
+      b'}', // uriTemplate[8]
 
       /* ### Entries Array ### */
       // Entry id = 1

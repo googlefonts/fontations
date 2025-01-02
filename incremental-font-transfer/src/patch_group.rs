@@ -10,7 +10,7 @@ use crate::{
     font_patch::{IncrementalFontPatchBase, PatchingError},
     patchmap::{
         intersecting_patches, IftTableTag, IntersectionInfo, PatchFormat, PatchUri,
-        SubsetDefinition,
+        SubsetDefinition, UriTemplateError,
     },
 };
 
@@ -153,7 +153,8 @@ impl PatchGroup<'_> {
             partial_invalidation_iftx,
             mut no_invalidation_ift,
             mut no_invalidation_iftx,
-        } = GroupingByInvalidation::group_patches(candidates, ift_compat_id, iftx_compat_id);
+        } = GroupingByInvalidation::group_patches(candidates, ift_compat_id, iftx_compat_id)
+            .map_err(|_| ReadError::MalformedData("Malformed URI templates."))?;
 
         // Step 2 - now make patch selections in priority order: first full invalidation, second partial, lastly none.
         if let Some(patch) = Self::select_invalidating_candidate(full_invalidation) {
@@ -306,7 +307,7 @@ impl GroupingByInvalidation {
         candidates: Vec<PatchUri>,
         ift_compat_id: Option<CompatibilityId>,
         iftx_compat_id: Option<CompatibilityId>,
-    ) -> GroupingByInvalidation {
+    ) -> Result<GroupingByInvalidation, UriTemplateError> {
         let mut result: GroupingByInvalidation = Default::default();
 
         for uri in candidates.into_iter() {
@@ -315,31 +316,31 @@ impl GroupingByInvalidation {
             match uri.encoding() {
                 PatchFormat::TableKeyed {
                     fully_invalidating: true,
-                } => result.full_invalidation.push(uri.into()),
+                } => result.full_invalidation.push(uri.try_into()?),
                 PatchFormat::TableKeyed {
                     fully_invalidating: false,
                 } => {
                     if Some(uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
-                        result.partial_invalidation_ift.push(uri.into())
+                        result.partial_invalidation_ift.push(uri.try_into()?)
                     } else if Some(uri.expected_compatibility_id()) == iftx_compat_id.as_ref() {
-                        result.partial_invalidation_iftx.push(uri.into())
+                        result.partial_invalidation_iftx.push(uri.try_into()?)
                     }
                 }
                 PatchFormat::GlyphKeyed => {
                     if Some(uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
                         result
                             .no_invalidation_ift
-                            .insert(uri.uri_string(), NoInvalidationPatch(uri.into()));
+                            .insert(uri.uri_string()?, NoInvalidationPatch(uri.try_into()?));
                     } else if Some(uri.expected_compatibility_id()) == iftx_compat_id.as_ref() {
                         result
                             .no_invalidation_iftx
-                            .insert(uri.uri_string(), NoInvalidationPatch(uri.into()));
+                            .insert(uri.uri_string()?, NoInvalidationPatch(uri.try_into()?));
                     }
                 }
             }
         }
 
-        result
+        Ok(result)
     }
 }
 
@@ -368,13 +369,15 @@ impl PatchInfo {
     }
 }
 
-impl From<PatchUri> for PatchInfo {
-    fn from(value: PatchUri) -> Self {
-        PatchInfo {
-            uri: value.uri_string(),
+impl TryFrom<PatchUri> for PatchInfo {
+    type Error = UriTemplateError;
+
+    fn try_from(value: PatchUri) -> Result<Self, Self::Error> {
+        Ok(PatchInfo {
+            uri: value.uri_string()?,
             application_flag_bit_index: value.application_flag_bit_index(),
             source_table: value.source_table(),
-        }
+        })
     }
 }
 
@@ -384,12 +387,14 @@ struct CandidatePatch {
     patch_info: PatchInfo,
 }
 
-impl From<PatchUri> for CandidatePatch {
-    fn from(value: PatchUri) -> Self {
-        Self {
+impl TryFrom<PatchUri> for CandidatePatch {
+    type Error = UriTemplateError;
+
+    fn try_from(value: PatchUri) -> Result<Self, Self::Error> {
+        Ok(Self {
             intersection_info: value.intersection_info(),
-            patch_info: value.into(),
-        }
+            patch_info: value.try_into()?,
+        })
     }
 }
 
@@ -1438,5 +1443,21 @@ mod tests {
         if let Err(err) = g {
             assert_eq!(ReadError::ValidationError, err);
         }
+    }
+
+    #[test]
+    fn invalid_uri_templates() {
+        let mut buffer = table_keyed_format2();
+        buffer.write_at("uri_template_var_end", b'~');
+
+        let font = base_font(Some(buffer), None);
+        let font = FontRef::new(&font).unwrap();
+
+        let s = SubsetDefinition::codepoints([5].into_iter().collect());
+
+        let Err(err) = PatchGroup::select_next_patches(font, &s) else {
+            panic!("Should have failed")
+        };
+        assert_eq!(err, ReadError::MalformedData("Malformed URI templates."));
     }
 }
