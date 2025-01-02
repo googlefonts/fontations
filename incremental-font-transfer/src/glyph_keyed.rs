@@ -519,7 +519,8 @@ pub(crate) mod tests {
             PatchFormat::GlyphKeyed,
             Default::default(),
         )
-        .into()
+        .try_into()
+        .unwrap()
     }
 
     #[test]
