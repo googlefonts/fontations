@@ -461,19 +461,21 @@ fn decode_format2_entry<'a>(
 
     // Design space
     if let Some(design_space_segments) = entry_data.design_space_segments() {
+        let mut ranges = HashMap::<Tag, RangeSet<Fixed>>::new();
+
         for dss in design_space_segments {
             if dss.start() > dss.end() {
                 return Err(ReadError::MalformedData(
                     "Design space segment start > end.",
                 ));
             }
-            entry
-                .subset_definition
-                .design_space
+            ranges
                 .entry(dss.axis_tag())
                 .or_default()
                 .insert(dss.start()..=dss.end());
         }
+
+        entry.subset_definition.design_space = DesignSpace::Ranges(ranges);
     }
 
     // Copy Indices
@@ -862,21 +864,25 @@ impl IntersectionInfo {
         }
     }
 
-    fn design_space_size(value: HashMap<Tag, RangeSet<Fixed>>) -> BTreeMap<Tag, Fixed> {
-        value
-            .into_iter()
-            .map(|(tag, ranges)| {
-                let total = ranges
-                    .iter()
-                    .map(|range| *range.end() - *range.start())
-                    .fold(Fixed::ZERO, |acc, x| acc + x);
+    fn design_space_size(value: DesignSpace) -> BTreeMap<Tag, Fixed> {
+        match value {
+            DesignSpace::All => Default::default(),
+            DesignSpace::Ranges(value) => value
+                .into_iter()
+                .map(|(tag, ranges)| {
+                    let total = ranges
+                        .iter()
+                        .map(|range| *range.end() - *range.start())
+                        .fold(Fixed::ZERO, |acc, x| acc + x);
 
-                (tag, total)
-            })
-            .collect()
+                    (tag, total)
+                })
+                .collect(),
+        }
     }
 }
 
+/// Stores a set of features tags, can additionally represent all features.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FeatureSet {
     Set(BTreeSet<Tag>),
@@ -911,19 +917,41 @@ impl FeatureSet {
     }
 }
 
+/// Stores a collection of ranges across zero or more axes.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DesignSpace {
+    Ranges(HashMap<Tag, RangeSet<Fixed>>),
+    All,
+}
+
+impl Default for DesignSpace {
+    fn default() -> Self {
+        Self::Ranges(Default::default())
+    }
+}
+
+impl DesignSpace {
+    fn is_empty(&self) -> bool {
+        match self {
+            Self::All => false,
+            Self::Ranges(ranges) => ranges.is_empty(),
+        }
+    }
+}
+
 /// Stores a description of a font subset over codepoints, feature tags, and design space.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct SubsetDefinition {
     codepoints: IntSet<u32>,
     feature_tags: FeatureSet,
-    design_space: HashMap<Tag, RangeSet<Fixed>>,
+    design_space: DesignSpace,
 }
 
 impl SubsetDefinition {
     pub fn new(
         codepoints: IntSet<u32>,
         feature_tags: FeatureSet,
-        design_space: HashMap<Tag, RangeSet<Fixed>>,
+        design_space: DesignSpace,
     ) -> SubsetDefinition {
         SubsetDefinition {
             codepoints,
@@ -945,7 +973,7 @@ impl SubsetDefinition {
         SubsetDefinition {
             codepoints: IntSet::all(),
             feature_tags: FeatureSet::All,
-            design_space: Default::default(),
+            design_space: DesignSpace::All,
         }
     }
 
@@ -957,12 +985,14 @@ impl SubsetDefinition {
             FeatureSet::Set(set) => self.feature_tags.extend(set.iter().copied()),
         };
 
-        for (tag, segments) in other.design_space.iter() {
-            self.design_space
-                .entry(*tag)
-                .or_default()
-                .extend(segments.iter());
-        }
+        match (&other.design_space, &mut self.design_space) {
+            (_, DesignSpace::All) | (DesignSpace::All, _) => self.design_space = DesignSpace::All,
+            (DesignSpace::Ranges(other_ranges), DesignSpace::Ranges(self_ranges)) => {
+                for (tag, segments) in other_ranges.iter() {
+                    self_ranges.entry(*tag).or_default().extend(segments.iter());
+                }
+            }
+        };
     }
 
     fn intersection(&self, other: &Self) -> Self {
@@ -987,23 +1017,28 @@ impl SubsetDefinition {
         result
     }
 
-    fn design_space_intersection(
-        &self,
-        design_space: &HashMap<Tag, RangeSet<Fixed>>,
-    ) -> HashMap<Tag, RangeSet<Fixed>> {
-        let mut result: HashMap<Tag, RangeSet<Fixed>> = Default::default();
-        for (tag, input_segments) in design_space {
-            let Some(entry_segments) = self.design_space.get(tag) else {
-                continue;
-            };
+    fn design_space_intersection(&self, other_design_space: &DesignSpace) -> DesignSpace {
+        match (&self.design_space, other_design_space) {
+            (DesignSpace::All, DesignSpace::All) => DesignSpace::All,
+            (DesignSpace::All, DesignSpace::Ranges(ranges)) => DesignSpace::Ranges(ranges.clone()),
+            (DesignSpace::Ranges(ranges), DesignSpace::All) => DesignSpace::Ranges(ranges.clone()),
+            (DesignSpace::Ranges(self_ranges), DesignSpace::Ranges(other_ranges)) => {
+                let mut result: HashMap<Tag, RangeSet<Fixed>> = Default::default();
+                for (tag, input_segments) in other_ranges {
+                    let Some(entry_segments) = self_ranges.get(tag) else {
+                        continue;
+                    };
 
-            let ranges: RangeSet<Fixed> = input_segments.intersection(entry_segments).collect();
-            if !ranges.is_empty() {
-                result.insert(*tag, ranges);
+                    let ranges: RangeSet<Fixed> =
+                        input_segments.intersection(entry_segments).collect();
+                    if !ranges.is_empty() {
+                        result.insert(*tag, ranges);
+                    }
+                }
+
+                DesignSpace::Ranges(result)
             }
         }
-
-        result
     }
 }
 
@@ -1030,8 +1065,8 @@ impl Entry {
         Entry {
             subset_definition: SubsetDefinition {
                 codepoints: IntSet::empty(),
-                feature_tags: FeatureSet::Set(Default::default()),
-                design_space: HashMap::new(),
+                feature_tags: Default::default(),
+                design_space: Default::default(),
             },
             ignored: false,
 
@@ -1071,17 +1106,28 @@ impl Entry {
             return false;
         }
 
-        self.subset_definition.design_space.is_empty()
-            || self.design_space_intersects(&subset_definition.design_space)
+        match &self.subset_definition.design_space {
+            DesignSpace::All => !subset_definition.design_space.is_empty(),
+            DesignSpace::Ranges(entry_ranges) => match &subset_definition.design_space {
+                DesignSpace::All => true,
+                DesignSpace::Ranges(other_ranges) => {
+                    entry_ranges.is_empty()
+                        || Self::design_space_intersects(entry_ranges, other_ranges)
+                }
+            },
+        }
     }
 
-    fn design_space_intersects(&self, design_space: &HashMap<Tag, RangeSet<Fixed>>) -> bool {
-        for (tag, input_segments) in design_space {
-            let Some(entry_segments) = self.subset_definition.design_space.get(tag) else {
+    fn design_space_intersects(
+        a: &HashMap<Tag, RangeSet<Fixed>>,
+        b: &HashMap<Tag, RangeSet<Fixed>>,
+    ) -> bool {
+        for (tag, a_segments) in a {
+            let Some(b_segments) = b.get(tag) else {
                 continue;
             };
 
-            if input_segments.intersection(entry_segments).next().is_some() {
+            if a_segments.intersection(b_segments).next().is_some() {
                 return true;
             }
         }
@@ -1112,6 +1158,12 @@ mod tests {
     impl FeatureSet {
         fn from<const N: usize>(tags: [Tag; N]) -> FeatureSet {
             FeatureSet::Set(BTreeSet::<Tag>::from(tags))
+        }
+    }
+
+    impl DesignSpace {
+        fn from<const N: usize>(design_space: [(Tag, RangeSet<Fixed>); N]) -> DesignSpace {
+            DesignSpace::Ranges(design_space.into_iter().collect())
         }
     }
 
@@ -1218,25 +1270,21 @@ mod tests {
             font,
             codepoints,
             FeatureSet::Set(BTreeSet::<Tag>::from(tags)),
-            [],
+            Default::default(),
             expected_entries,
         )
     }
 
-    fn test_design_space_intersection<const M: usize, const O: usize, const P: usize>(
+    fn test_design_space_intersection<const M: usize, const P: usize>(
         font: &FontRef,
         codepoints: [u32; M],
         tags: FeatureSet,
-        design_space: [(Tag, RangeSet<Fixed>); O],
+        design_space: DesignSpace,
         expected_entries: [ExpectedEntry; P],
     ) {
         let patches = intersecting_patches(
             font,
-            &SubsetDefinition::new(
-                IntSet::from(codepoints),
-                tags,
-                design_space.into_iter().collect(),
-            ),
+            &SubsetDefinition::new(IntSet::from(codepoints), tags, design_space),
         )
         .unwrap();
 
@@ -1269,7 +1317,11 @@ mod tests {
     ) {
         let patches = intersecting_patches(
             font,
-            &SubsetDefinition::new(IntSet::<u32>::all(), FeatureSet::from(tags), HashMap::new()),
+            &SubsetDefinition::new(
+                IntSet::<u32>::all(),
+                FeatureSet::from(tags),
+                Default::default(),
+            ),
         )
         .unwrap();
 
@@ -1411,7 +1463,11 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::from([0x123]), FeatureSet::from([]), HashMap::new(),),
+            &SubsetDefinition::new(
+                IntSet::from([0x123]),
+                FeatureSet::from([]),
+                Default::default(),
+            ),
         )
         .is_err());
     }
@@ -1427,7 +1483,11 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::from([0x123]), FeatureSet::from([]), HashMap::new(),),
+            &SubsetDefinition::new(
+                IntSet::from([0x123]),
+                FeatureSet::from([]),
+                Default::default(),
+            ),
         )
         .is_err());
     }
@@ -1446,7 +1506,11 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::from([0x123]), FeatureSet::from([]), HashMap::new(),),
+            &SubsetDefinition::new(
+                IntSet::from([0x123]),
+                FeatureSet::from([]),
+                Default::default(),
+            ),
         )
         .is_err());
     }
@@ -1466,7 +1530,11 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::from([0x123]), FeatureSet::from([]), HashMap::new(),)
+            &SubsetDefinition::new(
+                IntSet::from([0x123]),
+                FeatureSet::from([]),
+                Default::default(),
+            )
         )
         .is_err());
     }
@@ -1485,7 +1553,11 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::from([0x123]), FeatureSet::from([]), HashMap::new())
+            &SubsetDefinition::new(
+                IntSet::from([0x123]),
+                FeatureSet::from([]),
+                Default::default()
+            )
         )
         .is_err());
     }
@@ -1572,7 +1644,7 @@ mod tests {
             &font,
             [0x13],
             FeatureSet::from([Tag::new(b"dlig"), Tag::new(b"liga")]),
-            [],
+            Default::default(),
             [f1(0x51), f1(0x180), f1(0x190)],
         );
 
@@ -1580,7 +1652,7 @@ mod tests {
             &font,
             [0x13],
             FeatureSet::All,
-            [],
+            Default::default(),
             [f1(0x51), f1(0x180), f1(0x190)],
         );
     }
@@ -1602,7 +1674,7 @@ mod tests {
             &font,
             [0x13, 0x14],
             FeatureSet::from([Tag::new(b"dlig"), Tag::new(b"liga"), Tag::new(b"null")]),
-            [],
+            Default::default(),
             [f1(0x51), f1(0x12c), f1(0x190)],
         );
 
@@ -1610,7 +1682,7 @@ mod tests {
             &font,
             [0x13, 0x14],
             FeatureSet::All,
-            [],
+            Default::default(),
             [f1(0x51), f1(0x12c), f1(0x190)],
         );
     }
@@ -1807,7 +1879,11 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::from([0x12]), FeatureSet::from([]), HashMap::new(),),
+            &SubsetDefinition::new(
+                IntSet::from([0x12]),
+                FeatureSet::from([]),
+                Default::default(),
+            ),
         )
         .is_err());
         assert!(intersecting_patches(
@@ -1815,13 +1891,17 @@ mod tests {
             &SubsetDefinition::new(
                 IntSet::from([0x12]),
                 FeatureSet::from([Tag::new(b"liga")]),
-                HashMap::new(),
+                Default::default(),
             )
         )
         .is_err());
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::from([0x12]), FeatureSet::from([]), HashMap::new(),)
+            &SubsetDefinition::new(
+                IntSet::from([0x12]),
+                FeatureSet::from([]),
+                Default::default(),
+            )
         )
         .is_err());
     }
@@ -1837,7 +1917,11 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::from([0x12]), FeatureSet::from([]), HashMap::new(),),
+            &SubsetDefinition::new(
+                IntSet::from([0x12]),
+                FeatureSet::from([]),
+                Default::default(),
+            ),
         )
         .is_err());
         assert!(intersecting_patches(
@@ -1845,13 +1929,17 @@ mod tests {
             &SubsetDefinition::new(
                 IntSet::from([0x12]),
                 FeatureSet::from([Tag::new(b"liga")]),
-                HashMap::new(),
+                Default::default(),
             )
         )
         .is_err());
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::from([0x12]), FeatureSet::from([]), HashMap::new(),)
+            &SubsetDefinition::new(
+                IntSet::from([0x12]),
+                FeatureSet::from([]),
+                Default::default(),
+            )
         )
         .is_err());
     }
@@ -1908,12 +1996,12 @@ mod tests {
             &font,
             [0x02],
             FeatureSet::from([Tag::new(b"rlig")]),
-            [(
+            DesignSpace::from([(
                 Tag::new(b"wdth"),
                 [Fixed::from_f64(0.7)..=Fixed::from_f64(0.8)]
                     .into_iter()
                     .collect(),
-            )],
+            )]),
             [e2],
         );
 
@@ -1921,48 +2009,48 @@ mod tests {
             &font,
             [0x05],
             FeatureSet::from([Tag::new(b"smcp")]),
-            [(
+            DesignSpace::from([(
                 Tag::new(b"wdth"),
                 [Fixed::from_f64(0.7)..=Fixed::from_f64(0.8)]
                     .into_iter()
                     .collect(),
-            )],
+            )]),
             [e1],
         );
         test_design_space_intersection(
             &font,
             [0x05],
             FeatureSet::from([Tag::new(b"smcp")]),
-            [(
+            DesignSpace::from([(
                 Tag::new(b"wdth"),
                 [Fixed::from_f64(0.2)..=Fixed::from_f64(0.3)]
                     .into_iter()
                     .collect(),
-            )],
+            )]),
             [e3],
         );
         test_design_space_intersection(
             &font,
             [0x55],
             FeatureSet::from([Tag::new(b"smcp")]),
-            [(
+            DesignSpace::from([(
                 Tag::new(b"wdth"),
                 [Fixed::from_f64(0.2)..=Fixed::from_f64(0.3)]
                     .into_iter()
                     .collect(),
-            )],
+            )]),
             [],
         );
         test_design_space_intersection(
             &font,
             [0x05],
             FeatureSet::from([Tag::new(b"smcp")]),
-            [(
+            DesignSpace::from([(
                 Tag::new(b"wdth"),
                 [Fixed::from_f64(1.2)..=Fixed::from_f64(1.3)]
                     .into_iter()
                     .collect(),
-            )],
+            )]),
             [],
         );
 
@@ -1970,7 +2058,7 @@ mod tests {
             &font,
             [0x05],
             FeatureSet::from([Tag::new(b"smcp")]),
-            [(
+            DesignSpace::from([(
                 Tag::new(b"wdth"),
                 [
                     Fixed::from_f64(0.2)..=Fixed::from_f64(0.3),
@@ -1978,26 +2066,26 @@ mod tests {
                 ]
                 .into_iter()
                 .collect(),
-            )],
+            )]),
             [e1, e3],
         );
         test_design_space_intersection(
             &font,
             [0x05],
             FeatureSet::from([Tag::new(b"smcp")]),
-            [(
+            DesignSpace::from([(
                 Tag::new(b"wdth"),
                 [Fixed::from_f64(2.2)..=Fixed::from_f64(2.3)]
                     .into_iter()
                     .collect(),
-            )],
+            )]),
             [e3],
         );
         test_design_space_intersection(
             &font,
             [0x05],
             FeatureSet::from([Tag::new(b"smcp")]),
-            [(
+            DesignSpace::from([(
                 Tag::new(b"wdth"),
                 [
                     Fixed::from_f64(2.2)..=Fixed::from_f64(2.3),
@@ -2005,7 +2093,7 @@ mod tests {
                 ]
                 .into_iter()
                 .collect(),
-            )],
+            )]),
             [e3],
         );
     }
@@ -2036,12 +2124,51 @@ mod tests {
             &font,
             [0x06],
             FeatureSet::All,
-            [(
+            DesignSpace::from([(
                 Tag::new(b"wdth"),
                 [Fixed::from_f64(0.7)..=Fixed::from_f64(2.2)]
                     .into_iter()
                     .collect(),
-            )],
+            )]),
+            [e1, e2, e3],
+        );
+    }
+
+    #[test]
+    fn format_2_patch_map_all_design_space() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&features_and_design_space_format2()),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let e1 = f2(
+            1,
+            features_and_design_space_format2().offset_for("entries[0]"),
+        );
+        let e2 = f2(
+            2,
+            features_and_design_space_format2().offset_for("entries[1]"),
+        );
+        let e3 = f2(
+            3,
+            features_and_design_space_format2().offset_for("entries[2]"),
+        );
+
+        test_design_space_intersection(
+            &font,
+            [0x05],
+            FeatureSet::from([Tag::new(b"smcp")]),
+            DesignSpace::All,
+            [e1, e3],
+        );
+
+        test_design_space_intersection(
+            &font,
+            [0x05],
+            FeatureSet::All,
+            DesignSpace::All,
             [e1, e2, e3],
         );
     }
@@ -2083,7 +2210,7 @@ mod tests {
             &SubsetDefinition::new(
                 IntSet::from([10, 15, 22]),
                 FeatureSet::from([Tag::new(b"rlig"), Tag::new(b"liga"), Tag::new(b"smcp")]),
-                HashMap::from([(
+                DesignSpace::from([(
                     Tag::new(b"wght"),
                     [Fixed::from_i32(505)..=Fixed::from_i32(800)]
                         .into_iter()
@@ -2137,12 +2264,12 @@ mod tests {
             &font,
             [],
             FeatureSet::from([Tag::new(b"rlig")]),
-            [(
+            DesignSpace::from([(
                 Tag::new(b"wght"),
                 [Fixed::from_i32(500)..=Fixed::from_i32(500)]
                     .into_iter()
                     .collect(),
-            )],
+            )]),
             [e3, e6],
         );
 
@@ -2150,12 +2277,12 @@ mod tests {
             &font,
             [0x05],
             FeatureSet::from([Tag::new(b"rlig")]),
-            [(
+            DesignSpace::from([(
                 Tag::new(b"wght"),
                 [Fixed::from_i32(500)..=Fixed::from_i32(500)]
                     .into_iter()
                     .collect(),
-            )],
+            )]),
             [e3, e5, e6, e7, e8, e9],
         );
     }
@@ -2190,7 +2317,7 @@ mod tests {
 
         let patches = intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
         )
         .unwrap();
 
@@ -2218,7 +2345,7 @@ mod tests {
 
         let patches = intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
         )
         .unwrap();
 
@@ -2247,7 +2374,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
         )
         .is_err());
     }
@@ -2266,7 +2393,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
         )
         .is_err());
     }
@@ -2283,7 +2410,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
         )
         .is_err());
     }
@@ -2302,7 +2429,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
         )
         .is_err());
     }
@@ -2321,7 +2448,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
         )
         .is_err());
     }
@@ -2362,7 +2489,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
         )
         .is_ok());
 
@@ -2378,7 +2505,7 @@ mod tests {
 
         assert!(intersecting_patches(
             &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), HashMap::new()),
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
         )
         .is_err());
     }
@@ -2513,7 +2640,7 @@ mod tests {
         let s1 = SubsetDefinition::new(
             Default::default(),
             Default::default(),
-            HashMap::from([
+            DesignSpace::from([
                 (
                     Tag::new(b"aaaa"),
                     [Fixed::from_i32(100)..=Fixed::from_i32(200)]
@@ -2534,7 +2661,7 @@ mod tests {
         let s2 = SubsetDefinition::new(
             Default::default(),
             Default::default(),
-            HashMap::from([
+            DesignSpace::from([
                 (
                     Tag::new(b"bbbb"),
                     [Fixed::from_i32(100)..=Fixed::from_i32(200)]
@@ -2552,7 +2679,7 @@ mod tests {
         let s3 = SubsetDefinition::new(
             Default::default(),
             Default::default(),
-            HashMap::from([
+            DesignSpace::from([
                 (
                     Tag::new(b"bbbb"),
                     [Fixed::from_i32(500)..=Fixed::from_i32(800)]
@@ -2570,7 +2697,7 @@ mod tests {
         let s4 = SubsetDefinition::new(
             Default::default(),
             Default::default(),
-            HashMap::from([(
+            DesignSpace::from([(
                 Tag::new(b"bbbb"),
                 [
                     Fixed::from_i32(500)..=Fixed::from_i32(600),

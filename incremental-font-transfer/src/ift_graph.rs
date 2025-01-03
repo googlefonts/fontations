@@ -152,7 +152,6 @@ fn get_feature_tags(font: &FontRef<'_>) -> Result<BTreeSet<Tag>, ReadError> {
 }
 
 fn get_node_name(font: &FontRef<'_>) -> Result<String, ReadError> {
-    // TODO(garretrieger): include design space
     let chars: BTreeSet<char> = font
         .charmap()
         .mappings()
@@ -167,6 +166,25 @@ fn get_node_name(font: &FontRef<'_>) -> Result<String, ReadError> {
         let features = features.join(",");
         name.push('|');
         name.push_str(&features);
+    }
+
+    let axes = font.axes();
+    if !axes.is_empty() {
+        let axis_strings: Vec<_> = font
+            .axes()
+            .iter()
+            .map(|axis| {
+                axis.tag().to_string()
+                    + "["
+                    + &axis.min_value().to_string()
+                    + ".."
+                    + &axis.max_value().to_string()
+                    + "]"
+            })
+            .collect();
+        let axis_strings = axis_strings.join(",");
+        name.push('|');
+        name.push_str(&axis_strings);
     }
 
     Ok(name)
