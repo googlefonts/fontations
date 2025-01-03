@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use font_types::Fixed;
 use incremental_font_transfer::{
     patch_group::{PatchGroup, UriStatus},
-    patchmap::{FeatureSet, SubsetDefinition},
+    patchmap::{DesignSpace, FeatureSet, SubsetDefinition},
 };
 use libfuzzer_sys::{arbitrary, fuzz_target};
 use read_fonts::{
@@ -67,7 +67,8 @@ impl FuzzInput {
                 (Tag::from_u32(*tag), v)
             })
             .collect();
-        SubsetDefinition::new(codepoints, feature_set, design_space)
+
+        SubsetDefinition::new(codepoints, feature_set, DesignSpace::Ranges(design_space))
     }
 }
 
