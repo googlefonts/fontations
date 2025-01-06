@@ -223,7 +223,8 @@ impl<'a> Shaper<'a> {
                     };
                     // And now process associated lookups
                     for index in feature.lookup_list_indices().iter() {
-                        gsub_handler.process_lookup(index.get());
+                        // We only care about errors here for testing
+                        let _ = gsub_handler.process_lookup(index.get());
                     }
                 }
             }
@@ -419,21 +420,38 @@ impl<'a> GsubHandler<'a> {
         }
     }
 
-    fn process_lookup(&mut self, lookup_index: u16) {
-        if self.enter_lookup(lookup_index) {
-            self.process_lookup_inner(lookup_index);
-            self.exit_lookup();
+    fn process_lookup(&mut self, lookup_index: u16) -> Result<(), ProcessLookupError> {
+        // Guard: don't cycle and don't exceed depth limit
+        // Note: we use a linear search here under the assumption that
+        // most fonts have shallow contextual lookup chains
+        if self.lookup_depth != 0 {
+            if self.lookup_depth == MAX_NESTING_DEPTH {
+                return Err(ProcessLookupError::ExceededMaxDepth);
+            }
+            if self.lookup_stack[..self.lookup_depth].contains(&lookup_index) {
+                return Err(ProcessLookupError::CycleDetected);
+            }
         }
+        self.lookup_stack[self.lookup_depth] = lookup_index;
+        self.lookup_depth += 1;
+
+        // Actually process the lookup
+        let result = self.process_lookup_inner(lookup_index);
+
+        // Out we go again
+        self.lookup_depth -= 1;
+        result
     }
 
-    fn process_lookup_inner(&mut self, lookup_index: u16) {
+    #[inline(always)]
+    fn process_lookup_inner(&mut self, lookup_index: u16) -> Result<(), ProcessLookupError> {
         let Ok(subtables) = self
             .lookup_list
             .lookups()
             .get(lookup_index as usize)
             .and_then(|lookup| lookup.subtables())
         else {
-            return;
+            return Ok(());
         };
         match subtables {
             SubstitutionSubtables::Single(tables) => {
@@ -508,7 +526,7 @@ impl<'a> GsubHandler<'a> {
                             {
                                 for rule in set.seq_rules().iter().filter_map(|rule| rule.ok()) {
                                     for rec in rule.seq_lookup_records() {
-                                        self.process_lookup(rec.lookup_list_index());
+                                        self.process_lookup(rec.lookup_list_index())?;
                                     }
                                 }
                             }
@@ -523,14 +541,14 @@ impl<'a> GsubHandler<'a> {
                                     set.class_seq_rules().iter().filter_map(|rule| rule.ok())
                                 {
                                     for rec in rule.seq_lookup_records() {
-                                        self.process_lookup(rec.lookup_list_index());
+                                        self.process_lookup(rec.lookup_list_index())?;
                                     }
                                 }
                             }
                         }
                         SequenceContext::Format3(table) => {
                             for rec in table.seq_lookup_records() {
-                                self.process_lookup(rec.lookup_list_index());
+                                self.process_lookup(rec.lookup_list_index())?;
                             }
                         }
                     }
@@ -549,7 +567,7 @@ impl<'a> GsubHandler<'a> {
                                     set.chained_seq_rules().iter().filter_map(|rule| rule.ok())
                                 {
                                     for rec in rule.seq_lookup_records() {
-                                        self.process_lookup(rec.lookup_list_index());
+                                        self.process_lookup(rec.lookup_list_index())?;
                                     }
                                 }
                             }
@@ -566,14 +584,14 @@ impl<'a> GsubHandler<'a> {
                                     .filter_map(|rule| rule.ok())
                                 {
                                     for rec in rule.seq_lookup_records() {
-                                        self.process_lookup(rec.lookup_list_index());
+                                        self.process_lookup(rec.lookup_list_index())?;
                                     }
                                 }
                             }
                         }
                         ChainedSequenceContext::Format3(table) => {
                             for rec in table.seq_lookup_records() {
-                                self.process_lookup(rec.lookup_list_index());
+                                self.process_lookup(rec.lookup_list_index())?;
                             }
                         }
                     }
@@ -587,29 +605,7 @@ impl<'a> GsubHandler<'a> {
                 }
             }
         }
-    }
-
-    /// Called when we begin processing a new lookup.
-    ///
-    /// Returns `false` if the lookup index is already being processed or if
-    /// the lookup would exceed our max depth.
-    fn enter_lookup(&mut self, lookup_index: u16) -> bool {
-        // Note: we just use a linear search here under the assumption that
-        // most fonts have shallow contextual lookup chains
-        if self.lookup_depth != 0
-            && (self.lookup_depth == MAX_NESTING_DEPTH
-                || self.lookup_stack[..self.lookup_depth].contains(&lookup_index))
-        {
-            return false;
-        }
-        self.lookup_stack[self.lookup_depth] = lookup_index;
-        self.lookup_depth += 1;
-        true
-    }
-
-    /// Called when we finish processing a single lookup.
-    fn exit_lookup(&mut self) {
-        self.lookup_depth = self.lookup_depth.saturating_sub(1);
+        Ok(())
     }
 
     /// Finishes processing for this set of GSUB lookups and
@@ -664,9 +660,16 @@ impl<'a> GsubHandler<'a> {
     }
 }
 
+#[derive(PartialEq, Debug)]
+enum ProcessLookupError {
+    ExceededMaxDepth,
+    CycleDetected,
+}
+
 #[cfg(test)]
 mod tests {
     use super::{super::style, *};
+    use raw::{test_helpers::BeBuffer, FontData, FontRead};
 
     #[test]
     fn small_caps_subst() {
@@ -698,35 +701,81 @@ mod tests {
     fn exceed_max_depth() {
         let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
         let shaper = Shaper::new(&font, ShaperMode::BestEffort);
-        let lookup_list = shaper.gsub.as_ref().unwrap().lookup_list().unwrap();
         let style = &style::STYLE_CLASSES[style::StyleClass::LATN];
-        let mut gsub_handler = GsubHandler::new(&shaper.charmap, &lookup_list, style, &mut []);
-        for ix in 0..MAX_NESTING_DEPTH {
-            // all okay up to max depth...
-            assert!(gsub_handler.enter_lookup(ix as u16));
+        // Build a lookup chain exceeding our max depth
+        let mut bad_lookup_builder = BadLookupBuilder::default();
+        for i in 0..MAX_NESTING_DEPTH {
+            // each lookup calls the next
+            bad_lookup_builder.lookups.push(i as u16 + 1);
         }
-        // .. and this one fails
-        assert!(!gsub_handler.enter_lookup(MAX_NESTING_DEPTH as u16));
+        let lookup_list_buf = bad_lookup_builder.build();
+        let lookup_list = SubstitutionLookupList::read(FontData::new(&lookup_list_buf)).unwrap();
+        let mut gsub_handler = GsubHandler::new(&shaper.charmap, &lookup_list, style, &mut []);
+        assert_eq!(
+            gsub_handler.process_lookup(0),
+            Err(ProcessLookupError::ExceededMaxDepth)
+        );
     }
 
     #[test]
     fn detect_cycles() {
         let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
         let shaper = Shaper::new(&font, ShaperMode::BestEffort);
-        let lookup_list = shaper.gsub.as_ref().unwrap().lookup_list().unwrap();
         let style = &style::STYLE_CLASSES[style::StyleClass::LATN];
+        // Build a lookup chain that cycles; 0 calls 1 which calls 0
+        let mut bad_lookup_builder = BadLookupBuilder::default();
+        bad_lookup_builder.lookups.push(1);
+        bad_lookup_builder.lookups.push(0);
+        let lookup_list_buf = bad_lookup_builder.build();
+        let lookup_list = SubstitutionLookupList::read(FontData::new(&lookup_list_buf)).unwrap();
         let mut gsub_handler = GsubHandler::new(&shaper.charmap, &lookup_list, style, &mut []);
-        for ix in 0..10 {
-            // add 0 through 9 to the stack, all succeeding...
-            assert!(gsub_handler.enter_lookup(ix as u16));
+        assert_eq!(
+            gsub_handler.process_lookup(0),
+            Err(ProcessLookupError::CycleDetected)
+        );
+    }
+
+    #[derive(Default)]
+    struct BadLookupBuilder {
+        /// Just a list of nested lookup indices for each generated lookup
+        lookups: Vec<u16>,
+    }
+
+    impl BadLookupBuilder {
+        fn build(&self) -> Vec<u8> {
+            // Full byte size of a contextual format 3 lookup with one
+            // subtable and one nested lookup
+            const CONTEXT3_FULL_SIZE: usize = 18;
+            let mut buf = BeBuffer::default();
+            // LookupList table
+            // count
+            buf = buf.push(self.lookups.len() as u16);
+            // offsets for each lookup
+            let base_offset = 2 + 2 * self.lookups.len();
+            for i in 0..self.lookups.len() {
+                buf = buf.push((base_offset + i * CONTEXT3_FULL_SIZE) as u16);
+            }
+            // now the actual lookups
+            for nested_ix in &self.lookups {
+                // lookup type: GSUB contextual substitution
+                buf = buf.push(5u16);
+                // lookup flag
+                buf = buf.push(0u16);
+                // subtable count
+                buf = buf.push(1u16);
+                // offset to single subtable (always 8 bytes from start of lookup)
+                buf = buf.push(8u16);
+                // start of subtable, format == 3
+                buf = buf.push(3u16);
+                // number of glyphs in sequence
+                buf = buf.push(0u16);
+                // sequence lookup count
+                buf = buf.push(1u16);
+                // (no coverage offsets)
+                // sequence lookup (sequence index, lookup index)
+                buf = buf.push(0u16).push(*nested_ix);
+            }
+            buf.to_vec()
         }
-        for ix in 0..10 {
-            // ... and all fail when we try again
-            assert!(!gsub_handler.enter_lookup(ix as u16));
-        }
-        // exit lookup 9
-        gsub_handler.exit_lookup();
-        // ensure we can enter 9 again after exiting
-        assert!(gsub_handler.enter_lookup(9));
     }
 }
