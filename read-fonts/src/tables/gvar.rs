@@ -66,8 +66,12 @@ impl<'a> Gvar<'a> {
         let start_idx = gid.to_u32() as usize;
         let end_idx = start_idx + 1;
         let data_start = self.glyph_variation_data_array_offset();
-        let start = data_start + self.glyph_variation_data_offsets().get(start_idx)?.get();
-        let end = data_start + self.glyph_variation_data_offsets().get(end_idx)?.get();
+        let start =
+            data_start.checked_add(self.glyph_variation_data_offsets().get(start_idx)?.get());
+        let end = data_start.checked_add(self.glyph_variation_data_offsets().get(end_idx)?.get());
+        let (Some(start), Some(end)) = (start, end) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(start as usize..end as usize)
     }
 
