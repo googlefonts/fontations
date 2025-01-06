@@ -18,7 +18,7 @@ use raw::{
 
 // To prevent infinite recursion in contextual lookups. Matches HB
 // <https://github.com/harfbuzz/harfbuzz/blob/c7ef6a2ed58ae8ec108ee0962bef46f42c73a60c/src/hb-limits.hh#L53>
-const MAX_NESTING_DEPTH: u32 = 64;
+const MAX_NESTING_DEPTH: usize = 64;
 
 /// Determines the fidelity with which we apply shaping in the
 /// autohinter.
@@ -223,7 +223,8 @@ impl<'a> Shaper<'a> {
                     };
                     // And now process associated lookups
                     for index in feature.lookup_list_indices().iter() {
-                        gsub_handler.process_lookup(index.get(), 0);
+                        // We only care about errors here for testing
+                        let _ = gsub_handler.process_lookup(index.get());
                     }
                 }
             }
@@ -294,7 +295,7 @@ impl ClusterShaper<'_> {
         lookup_index: u16,
         cluster: &mut ShapedCluster,
         glyph_ix: usize,
-        nesting_depth: u32,
+        nesting_depth: usize,
     ) -> bool {
         if nesting_depth > MAX_NESTING_DEPTH {
             return false;
@@ -389,6 +390,9 @@ struct GsubHandler<'a> {
     // Keep track of our range of touched gids in the style list
     min_gid: usize,
     max_gid: usize,
+    // Stack for detecting cycles in lookups
+    lookup_stack: [u16; MAX_NESTING_DEPTH],
+    lookup_depth: usize,
 }
 
 impl<'a> GsubHandler<'a> {
@@ -411,20 +415,43 @@ impl<'a> GsubHandler<'a> {
             need_blue_substs,
             min_gid,
             max_gid: 0,
+            lookup_stack: [0; MAX_NESTING_DEPTH],
+            lookup_depth: 0,
         }
     }
 
-    fn process_lookup(&mut self, lookup_index: u16, nesting_depth: u32) {
-        if nesting_depth > MAX_NESTING_DEPTH {
-            return;
+    fn process_lookup(&mut self, lookup_index: u16) -> Result<(), ProcessLookupError> {
+        // Guard: don't cycle and don't exceed depth limit
+        // Note: we use a linear search here under the assumption that
+        // most fonts have shallow contextual lookup chains
+        if self.lookup_depth != 0 {
+            if self.lookup_depth == MAX_NESTING_DEPTH {
+                return Err(ProcessLookupError::ExceededMaxDepth);
+            }
+            if self.lookup_stack[..self.lookup_depth].contains(&lookup_index) {
+                return Err(ProcessLookupError::CycleDetected);
+            }
         }
+        self.lookup_stack[self.lookup_depth] = lookup_index;
+        self.lookup_depth += 1;
+
+        // Actually process the lookup
+        let result = self.process_lookup_inner(lookup_index);
+
+        // Out we go again
+        self.lookup_depth -= 1;
+        result
+    }
+
+    #[inline(always)]
+    fn process_lookup_inner(&mut self, lookup_index: u16) -> Result<(), ProcessLookupError> {
         let Ok(subtables) = self
             .lookup_list
             .lookups()
             .get(lookup_index as usize)
             .and_then(|lookup| lookup.subtables())
         else {
-            return;
+            return Ok(());
         };
         match subtables {
             SubstitutionSubtables::Single(tables) => {
@@ -441,7 +468,7 @@ impl<'a> GsubHandler<'a> {
                             // Check input coverage for blue strings if
                             // required and if we're not under a contextual
                             // lookup
-                            if self.need_blue_substs && nesting_depth == 0 {
+                            if self.need_blue_substs && self.lookup_depth == 1 {
                                 self.check_blue_coverage(Ok(coverage));
                             }
                         }
@@ -450,7 +477,7 @@ impl<'a> GsubHandler<'a> {
                                 self.capture_glyph(gid.get().to_u32());
                             }
                             // See above
-                            if self.need_blue_substs && nesting_depth == 0 {
+                            if self.need_blue_substs && self.lookup_depth == 1 {
                                 self.check_blue_coverage(table.coverage());
                             }
                         }
@@ -465,7 +492,7 @@ impl<'a> GsubHandler<'a> {
                         }
                     }
                     // See above
-                    if self.need_blue_substs && nesting_depth == 0 {
+                    if self.need_blue_substs && self.lookup_depth == 1 {
                         self.check_blue_coverage(table.coverage());
                     }
                 }
@@ -499,10 +526,7 @@ impl<'a> GsubHandler<'a> {
                             {
                                 for rule in set.seq_rules().iter().filter_map(|rule| rule.ok()) {
                                     for rec in rule.seq_lookup_records() {
-                                        self.process_lookup(
-                                            rec.lookup_list_index(),
-                                            nesting_depth + 1,
-                                        );
+                                        self.process_lookup(rec.lookup_list_index())?;
                                     }
                                 }
                             }
@@ -517,17 +541,14 @@ impl<'a> GsubHandler<'a> {
                                     set.class_seq_rules().iter().filter_map(|rule| rule.ok())
                                 {
                                     for rec in rule.seq_lookup_records() {
-                                        self.process_lookup(
-                                            rec.lookup_list_index(),
-                                            nesting_depth + 1,
-                                        );
+                                        self.process_lookup(rec.lookup_list_index())?;
                                     }
                                 }
                             }
                         }
                         SequenceContext::Format3(table) => {
                             for rec in table.seq_lookup_records() {
-                                self.process_lookup(rec.lookup_list_index(), nesting_depth + 1);
+                                self.process_lookup(rec.lookup_list_index())?;
                             }
                         }
                     }
@@ -546,10 +567,7 @@ impl<'a> GsubHandler<'a> {
                                     set.chained_seq_rules().iter().filter_map(|rule| rule.ok())
                                 {
                                     for rec in rule.seq_lookup_records() {
-                                        self.process_lookup(
-                                            rec.lookup_list_index(),
-                                            nesting_depth + 1,
-                                        );
+                                        self.process_lookup(rec.lookup_list_index())?;
                                     }
                                 }
                             }
@@ -566,17 +584,14 @@ impl<'a> GsubHandler<'a> {
                                     .filter_map(|rule| rule.ok())
                                 {
                                     for rec in rule.seq_lookup_records() {
-                                        self.process_lookup(
-                                            rec.lookup_list_index(),
-                                            nesting_depth + 1,
-                                        );
+                                        self.process_lookup(rec.lookup_list_index())?;
                                     }
                                 }
                             }
                         }
                         ChainedSequenceContext::Format3(table) => {
                             for rec in table.seq_lookup_records() {
-                                self.process_lookup(rec.lookup_list_index(), nesting_depth + 1);
+                                self.process_lookup(rec.lookup_list_index())?;
                             }
                         }
                     }
@@ -590,6 +605,7 @@ impl<'a> GsubHandler<'a> {
                 }
             }
         }
+        Ok(())
     }
 
     /// Finishes processing for this set of GSUB lookups and
@@ -644,9 +660,16 @@ impl<'a> GsubHandler<'a> {
     }
 }
 
+#[derive(PartialEq, Debug)]
+enum ProcessLookupError {
+    ExceededMaxDepth,
+    CycleDetected,
+}
+
 #[cfg(test)]
 mod tests {
     use super::{super::style, *};
+    use raw::{test_helpers::BeBuffer, FontData, FontRead};
 
     #[test]
     fn small_caps_subst() {
@@ -672,5 +695,87 @@ mod tests {
         assert_eq!(cluster.len(), 1);
         // from ttx, gid 1 is "H"
         assert_eq!(cluster[0].id, GlyphId::new(1));
+    }
+
+    #[test]
+    fn exceed_max_depth() {
+        let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
+        let shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        let style = &style::STYLE_CLASSES[style::StyleClass::LATN];
+        // Build a lookup chain exceeding our max depth
+        let mut bad_lookup_builder = BadLookupBuilder::default();
+        for i in 0..MAX_NESTING_DEPTH {
+            // each lookup calls the next
+            bad_lookup_builder.lookups.push(i as u16 + 1);
+        }
+        let lookup_list_buf = bad_lookup_builder.build();
+        let lookup_list = SubstitutionLookupList::read(FontData::new(&lookup_list_buf)).unwrap();
+        let mut gsub_handler = GsubHandler::new(&shaper.charmap, &lookup_list, style, &mut []);
+        assert_eq!(
+            gsub_handler.process_lookup(0),
+            Err(ProcessLookupError::ExceededMaxDepth)
+        );
+    }
+
+    #[test]
+    fn detect_cycles() {
+        let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
+        let shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        let style = &style::STYLE_CLASSES[style::StyleClass::LATN];
+        // Build a lookup chain that cycles; 0 calls 1 which calls 0
+        let mut bad_lookup_builder = BadLookupBuilder::default();
+        bad_lookup_builder.lookups.push(1);
+        bad_lookup_builder.lookups.push(0);
+        let lookup_list_buf = bad_lookup_builder.build();
+        let lookup_list = SubstitutionLookupList::read(FontData::new(&lookup_list_buf)).unwrap();
+        let mut gsub_handler = GsubHandler::new(&shaper.charmap, &lookup_list, style, &mut []);
+        assert_eq!(
+            gsub_handler.process_lookup(0),
+            Err(ProcessLookupError::CycleDetected)
+        );
+    }
+
+    #[derive(Default)]
+    struct BadLookupBuilder {
+        /// Just a list of nested lookup indices for each generated lookup
+        lookups: Vec<u16>,
+    }
+
+    impl BadLookupBuilder {
+        fn build(&self) -> Vec<u8> {
+            // Full byte size of a contextual format 3 lookup with one
+            // subtable and one nested lookup
+            const CONTEXT3_FULL_SIZE: usize = 18;
+            let mut buf = BeBuffer::default();
+            // LookupList table
+            // count
+            buf = buf.push(self.lookups.len() as u16);
+            // offsets for each lookup
+            let base_offset = 2 + 2 * self.lookups.len();
+            for i in 0..self.lookups.len() {
+                buf = buf.push((base_offset + i * CONTEXT3_FULL_SIZE) as u16);
+            }
+            // now the actual lookups
+            for nested_ix in &self.lookups {
+                // lookup type: GSUB contextual substitution
+                buf = buf.push(5u16);
+                // lookup flag
+                buf = buf.push(0u16);
+                // subtable count
+                buf = buf.push(1u16);
+                // offset to single subtable (always 8 bytes from start of lookup)
+                buf = buf.push(8u16);
+                // start of subtable, format == 3
+                buf = buf.push(3u16);
+                // number of glyphs in sequence
+                buf = buf.push(0u16);
+                // sequence lookup count
+                buf = buf.push(1u16);
+                // (no coverage offsets)
+                // sequence lookup (sequence index, lookup index)
+                buf = buf.push(0u16).push(*nested_ix);
+            }
+            buf.to_vec()
+        }
     }
 }
