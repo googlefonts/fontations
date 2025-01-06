@@ -58,15 +58,17 @@ impl<'a> GlyphVariationDataHeader<'a> {
 
 impl<'a> Gvar<'a> {
     pub fn data_for_gid(&self, gid: GlyphId) -> Result<FontData<'a>, ReadError> {
+        let range = self.data_range_for_gid(gid)?;
+        self.data.slice(range).ok_or(ReadError::OutOfBounds)
+    }
+
+    fn data_range_for_gid(&self, gid: GlyphId) -> Result<Range<usize>, ReadError> {
         let start_idx = gid.to_u32() as usize;
         let end_idx = start_idx + 1;
         let data_start = self.glyph_variation_data_array_offset();
         let start = data_start + self.glyph_variation_data_offsets().get(start_idx)?.get();
         let end = data_start + self.glyph_variation_data_offsets().get(end_idx)?.get();
-
-        self.data
-            .slice(start as usize..end as usize)
-            .ok_or(ReadError::OutOfBounds)
+        Ok(start as usize..end as usize)
     }
 
     /// Get the variation data for a specific glyph.
@@ -244,7 +246,7 @@ fn find_glyph_and_point_count(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{FontRef, TableProvider};
+    use crate::{test_helpers::BeBuffer, FontRef, TableProvider};
 
     // Shared tuples in the 'gvar' table of the Skia font, as printed
     // in Apple's TrueType specification.
@@ -500,5 +502,31 @@ mod tests {
             .unwrap()
             .map(|delta| delta.map(Fixed::to_f32))
             .map(|p| (p.x, p.y))
+    }
+
+    // fuzzer: add with overflow when computing glyph data range
+    // ref: <https://g-issues.oss-fuzz.com/issues/385918147>
+    #[test]
+    fn avoid_data_range_overflow() {
+        // Construct a gvar table with data offsets that overflow
+        // a u32
+        let mut buf = BeBuffer::new();
+        // major/minor version
+        buf = buf.push(1u16).push(0u16);
+        // axis count
+        buf = buf.push(0u16);
+        // shared tuple count and offset
+        buf = buf.push(0u16).push(0u32);
+        // glyph count = 1
+        buf = buf.push(1u16);
+        // flags, bit 1 = 32 bit offsets
+        buf = buf.push(1u16);
+        // variation data offset
+        buf = buf.push(u32::MAX - 10);
+        // two 32-bit entries that overflow when added to the above offset
+        buf = buf.push(0u32).push(11u32);
+        let gvar = Gvar::read(buf.font_data()).unwrap();
+        // don't panic with overflow!
+        let _ = gvar.data_range_for_gid(GlyphId::new(0));
     }
 }
