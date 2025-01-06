@@ -5,7 +5,6 @@ use crate::{Plan, Subset, SubsetError, SubsetError::SubsetTableError};
 use write_fonts::types::{FWord, GlyphId, UfWord};
 use write_fonts::{
     read::{
-        collections::IntSet,
         tables::{hhea::Hhea, hmtx::Hmtx},
         FontRef, TableProvider, TopLevelTable,
     },
@@ -30,11 +29,10 @@ impl Subset for Hmtx<'_> {
             return Err(SubsetTableError(Hmtx::TAG));
         }
 
-        let new_num_h_metrics =
-            compute_new_num_h_metrics(self, &plan.glyphset, plan.num_output_glyphs);
+        let new_num_h_metrics = compute_new_num_h_metrics(self, plan);
         //subsetted hmtx table length
         let hmtx_cap = new_num_h_metrics * 4 + (plan.num_output_glyphs - new_num_h_metrics) * 2;
-        s.allocate_size(hmtx_cap)
+        s.allocate_size(hmtx_cap, false)
             .map_err(|_| SubsetError::SubsetTableError(Hmtx::TAG))?;
 
         for (new_gid, old_gid) in &plan.new_to_old_gid_list {
@@ -69,25 +67,23 @@ impl Subset for Hmtx<'_> {
     }
 }
 
-fn compute_new_num_h_metrics(
-    hmtx: &Hmtx,
-    gid_set: &IntSet<GlyphId>,
-    num_output_glyphs: usize,
-) -> usize {
-    let mut num_long_metrics = num_output_glyphs.min(0xFFFF) as u32;
-    let last_gid = num_long_metrics - 1;
-    let last_advance = hmtx.advance(GlyphId::from(last_gid)).unwrap();
+fn compute_new_num_h_metrics(hmtx: &Hmtx, plan: &Plan) -> usize {
+    let mut num_long_metrics = plan.num_output_glyphs.min(0xFFFF);
+    let last_advance = get_new_gid_advance(hmtx, GlyphId::from(num_long_metrics as u32 - 1), plan);
 
     while num_long_metrics > 1 {
-        let gid = GlyphId::from(num_long_metrics - 2);
-        let advance = gid_set
-            .contains(gid)
-            .then(|| hmtx.advance(gid).unwrap())
-            .unwrap_or(0);
+        let advance = get_new_gid_advance(hmtx, GlyphId::from(num_long_metrics as u32 - 2), plan);
         if advance != last_advance {
             break;
         }
         num_long_metrics -= 1;
     }
-    num_long_metrics as usize
+    num_long_metrics
+}
+
+fn get_new_gid_advance(hmtx: &Hmtx, new_gid: GlyphId, plan: &Plan) -> u16 {
+    let Some(old_gid) = plan.reverse_glyph_map.get(&new_gid) else {
+        return 0;
+    };
+    hmtx.advance(*old_gid).unwrap_or(0)
 }

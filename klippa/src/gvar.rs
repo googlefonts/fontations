@@ -99,7 +99,7 @@ fn subset_with_offset_type<OffsetType: GvarOffset>(
     //pre-allocate glyphVariationDataOffsets array
     let offsets_array_len = (num_glyphs as usize + 1) * off_size;
     let mut start_idx = s
-        .allocate_size(offsets_array_len)
+        .allocate_size(offsets_array_len, false)
         .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
 
     // shared tuples array
