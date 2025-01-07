@@ -267,7 +267,7 @@ impl<'a> CollectionRef<'a> {
 /// by a borrowed slice containing font data.
 #[derive(Clone)]
 pub struct FontRef<'a> {
-    data: FontData<'a>,
+    pub data: FontData<'a>,
     pub table_directory: TableDirectory<'a>,
 }
 
@@ -320,7 +320,7 @@ impl<'a> FontRef<'a> {
             .and_then(|record| {
                 let start = Offset32::new(record.offset()).non_null()?;
                 let len = record.length() as usize;
-                self.data.slice(start..start + len)
+                self.data.slice(start..start.checked_add(len)?)
             })
     }
 

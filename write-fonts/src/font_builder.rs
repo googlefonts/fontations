@@ -136,23 +136,9 @@ fn round4(sz: usize) -> usize {
 }
 
 fn checksum_and_padding(table: &[u8]) -> (u32, u32) {
+    let checksum = read_fonts::tables::compute_checksum(table);
     let padding = round4(table.len()) - table.len();
-    let mut sum = 0u32;
-    let mut iter = table.chunks_exact(4);
-    for quad in &mut iter {
-        // this can't fail, and we trust the compiler to avoid a branch
-        let array: [u8; 4] = quad.try_into().unwrap_or_default();
-        sum = sum.wrapping_add(u32::from_be_bytes(array));
-    }
-
-    let rem = match *iter.remainder() {
-        [a] => u32::from_be_bytes([a, 0, 0, 0]),
-        [a, b] => u32::from_be_bytes([a, b, 0, 0]),
-        [a, b, c] => u32::from_be_bytes([a, b, c, 0]),
-        _ => 0,
-    };
-
-    (sum.wrapping_add(rem), padding as u32)
+    (checksum, padding as u32)
 }
 
 impl TTCHeader {
