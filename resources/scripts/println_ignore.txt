@@ -4,3 +4,4 @@ otexplorer/src/query.rs
 read-fonts/build.rs
 klippa/src/main.rs
 incremental-font-transfer/src/ift_extend.rs
+incremental-font-transfer/src/ift_graph.rs
