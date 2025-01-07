@@ -37,9 +37,7 @@ fn is_tricky_name(name: &str) -> bool {
         .iter()
         // FreeType uses strstr(name, tricky_name) so we use contains() to
         // match behavior.
-        .filter(|tricky_name| name.contains(**tricky_name))
-        .next()
-        .is_some()
+        .any(|tricky_name| name.contains(*tricky_name))
 }
 
 /// Fonts embedded in PDFs add random prefixes. Strip these
