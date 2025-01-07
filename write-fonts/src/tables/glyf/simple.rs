@@ -7,10 +7,9 @@ use crate::{
 };
 
 use kurbo::BezPath;
-use read_fonts::{
-    tables::glyf::{CurvePoint, SimpleGlyphFlags},
-    FontRead,
-};
+use read_fonts::{tables::glyf::SimpleGlyphFlags, FontRead};
+
+pub use read_fonts::tables::glyf::CurvePoint;
 
 use super::Bbox;
 
