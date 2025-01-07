@@ -12,7 +12,7 @@ use font_types::Tag;
 use incremental_font_transfer::{
     font_patch::IncrementalFontPatchBase,
     patch_group::PatchInfo,
-    patchmap::{intersecting_patches, PatchFormat, PatchUri, SubsetDefinition},
+    patchmap::{intersecting_patches, PatchFormat, PatchUri, SubsetDefinition, UriTemplateError},
 };
 use read_fonts::{ReadError, TableProvider};
 use skrifa::{FontRef, MetadataProvider};
@@ -190,22 +190,27 @@ fn get_node_name(font: &FontRef<'_>) -> Result<String, ReadError> {
     Ok(name)
 }
 
-fn to_next_font(base_path: &Path, font: &FontRef<'_>, patch_uri: PatchUri) -> Vec<u8> {
-    let path = base_path.join(patch_uri.uri_string());
+fn to_next_font(
+    base_path: &Path,
+    font: &FontRef<'_>,
+    patch_uri: PatchUri,
+) -> Result<Vec<u8>, UriTemplateError> {
+    let path = base_path.join(patch_uri.uri_string()?);
     let patch_bytes = std::fs::read(path.clone())
         .unwrap_or_else(|e| panic!("Unable to read patch file ({}): {:?}", path.display(), e));
 
-    let patch_info: PatchInfo = patch_uri.into();
+    let patch_info: PatchInfo = patch_uri.try_into()?;
 
-    font.apply_table_keyed_patch(&patch_info, &patch_bytes)
-        .expect("Patch application failed.")
+    Ok(font
+        .apply_table_keyed_patch(&patch_info, &patch_bytes)
+        .expect("Patch application failed."))
 }
 
 fn to_graph(
     base_path: &Path,
     font: FontRef<'_>,
     mut graph: BTreeMap<String, BTreeSet<String>>,
-) -> BTreeMap<String, BTreeSet<String>> {
+) -> Result<BTreeMap<String, BTreeSet<String>>, UriTemplateError> {
     let patches =
         intersecting_patches(&font, &SubsetDefinition::all()).expect("patch map parsing failed");
 
@@ -219,7 +224,7 @@ fn to_graph(
             _ => continue,
         };
 
-        let next_font = to_next_font(base_path, &font, patch);
+        let next_font = to_next_font(base_path, &font, patch)?;
         let next_font = FontRef::new(&next_font).expect("Downstream font parsing failed");
 
         {
@@ -228,10 +233,10 @@ fn to_graph(
             e.insert(next_node_name);
         }
 
-        graph = to_graph(base_path, next_font, graph)
+        graph = to_graph(base_path, next_font, graph)?
     }
 
-    graph
+    Ok(graph)
 }
 
 fn main() {
@@ -246,7 +251,8 @@ fn main() {
     });
     let font = FontRef::new(&font_bytes).expect("Input font parsing failed");
     let mut graph = Default::default();
-    graph = to_graph(args.font.parent().unwrap(), font, graph);
+    graph = to_graph(args.font.parent().unwrap(), font, graph)
+        .unwrap_or_else(|_| panic!("Input font contains malformed URI templates."));
 
     for (key, values) in graph {
         let values: Vec<_> = values.into_iter().collect();
