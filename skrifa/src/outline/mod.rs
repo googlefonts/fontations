@@ -84,6 +84,7 @@ mod glyf;
 mod hint;
 mod metrics;
 mod path;
+mod tricky;
 mod unscaled;
 
 #[cfg(test)]
@@ -606,6 +607,27 @@ impl<'a> OutlineGlyphCollection<'a> {
             OutlineCollectionKind::Glyf(glyf) => glyf.prefer_interpreter(),
             _ => true,
         }
+    }
+
+    /// Returns true when the interpreter engine _must_ be used for hinting
+    /// this set of outlines to produce correct results.
+    ///
+    /// This corresponds so FreeType's `FT_FACE_FLAG_TRICKY` face flag. See
+    /// the documentation for that [flag](https://freetype.org/freetype2/docs/reference/ft2-face_creation.html#ft_face_flag_xxx)
+    /// for more detail.
+    ///
+    /// When this returns `true`, you should construct a [`HintingInstance`]
+    /// with [`HintingOptions::engine`] set to [`Engine::Interpreter`] and
+    /// [`HintingOptions::target`] set to [`Target::Mono`].
+    ///
+    /// # Performance
+    /// This digs through the name table and potentially computes checksums
+    /// so it may be slow. You should cache the result of this function if
+    /// possible.
+    pub fn require_interpreter(&self) -> bool {
+        self.font()
+            .map(|font| tricky::is_tricky(font))
+            .unwrap_or_default()
     }
 
     pub(crate) fn font(&self) -> Option<&FontRef<'a>> {

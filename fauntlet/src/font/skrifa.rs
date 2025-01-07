@@ -5,6 +5,7 @@ use ::skrifa::{
     raw::{FontRef, TableProvider},
     GlyphId, MetadataProvider, OutlineGlyphCollection,
 };
+use skrifa::outline::HintingOptions;
 
 use super::{InstanceOptions, SharedFontData};
 
@@ -25,16 +26,34 @@ impl<'a> SkrifaInstance<'a> {
             Size::unscaled()
         };
         let outlines = font.outline_glyphs();
-        let hinter = if options.ppem != 0 && options.hinting.is_some() {
-            Some(
-                HintingInstance::new(
-                    &outlines,
-                    size,
-                    options.coords,
-                    options.hinting.unwrap().skrifa_options(),
+        let hinter = if options.ppem != 0 {
+            if options.hinting.is_some() {
+                Some(
+                    HintingInstance::new(
+                        &outlines,
+                        size,
+                        options.coords,
+                        options.hinting.unwrap().skrifa_options(),
+                    )
+                    .ok()?,
                 )
-                .ok()?,
-            )
+            } else if outlines.require_interpreter() {
+                // In this case, we must use the interpreter to match FreeType
+                Some(
+                    HintingInstance::new(
+                        &outlines,
+                        size,
+                        options.coords,
+                        HintingOptions {
+                            engine: skrifa::outline::Engine::Interpreter,
+                            target: skrifa::outline::Target::Mono,
+                        },
+                    )
+                    .ok()?,
+                )
+            } else {
+                None
+            }
         } else {
             None
         };
@@ -45,6 +64,10 @@ impl<'a> SkrifaInstance<'a> {
             outlines,
             hinter,
         })
+    }
+
+    pub fn is_tricky(&self) -> bool {
+        self.font.outline_glyphs().require_interpreter()
     }
 
     pub fn glyph_count(&self) -> u16 {
