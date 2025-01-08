@@ -82,9 +82,9 @@ mod autohint;
 mod cff;
 mod glyf;
 mod hint;
+mod hint_reliant;
 mod metrics;
 mod path;
-mod hint_reliant;
 mod unscaled;
 
 #[cfg(test)]
