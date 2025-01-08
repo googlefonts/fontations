@@ -82,6 +82,7 @@ mod autohint;
 mod cff;
 mod glyf;
 mod hint;
+mod hint_reliant;
 mod metrics;
 mod path;
 mod tricky;
@@ -626,7 +627,7 @@ impl<'a> OutlineGlyphCollection<'a> {
     /// possible.
     pub fn require_interpreter(&self) -> bool {
         self.font()
-            .map(|font| tricky::is_tricky(font))
+            .map(|font| hint_reliant::require_interpreter(font))
             .unwrap_or_default()
     }
 
