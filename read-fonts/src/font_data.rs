@@ -202,12 +202,12 @@ impl<'a> Cursor<'a> {
         #[allow(clippy::arithmetic_side_effects)] // these are all checked
         let result = match b0 {
             _ if b0 < 0x80 => b0,
-            _ if b0 < 0xC0 => (b0 - 0x80) << 8 | next()?,
-            _ if b0 < 0xE0 => (b0 - 0xC0) << 16 | next()? << 8 | next()?,
-            _ if b0 < 0xF0 => (b0 - 0xE0) << 24 | next()? << 16 | next()? << 8 | next()?,
+            _ if b0 < 0xC0 => ((b0 - 0x80) << 8) | next()?,
+            _ if b0 < 0xE0 => ((b0 - 0xC0) << 16) | (next()? << 8) | next()?,
+            _ if b0 < 0xF0 => ((b0 - 0xE0) << 24) | (next()? << 16) | (next()? << 8) | next()?,
             _ => {
                 // TODO: << 32 doesn't make sense. (b0 - 0xF0) << 32
-                next()? << 24 | next()? << 16 | next()? << 8 | next()?
+                (next()? << 24) | (next()? << 16) | (next()? << 8) | next()?
             }
         };
 

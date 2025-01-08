@@ -39,7 +39,7 @@ impl Uint24 {
     }
 
     pub const fn from_be_bytes(bytes: [u8; 3]) -> Self {
-        Uint24::new((bytes[0] as u32) << 16 | (bytes[1] as u32) << 8 | bytes[2] as u32)
+        Uint24::new(((bytes[0] as u32) << 16) | ((bytes[1] as u32) << 8) | bytes[2] as u32)
     }
 }
 
