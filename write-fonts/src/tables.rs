@@ -7,6 +7,7 @@ pub mod avar;
 pub mod base;
 pub mod cmap;
 pub mod fvar;
+pub mod gasp;
 pub mod gdef;
 pub mod glyf;
 pub mod gpos;
@@ -41,6 +42,7 @@ fn do_we_even_serde() {
         base: base::Base,
         cmap: cmap::Cmap,
         fvar: fvar::Fvar,
+        gasp: gasp::Gasp,
         gdef: gdef::Gdef,
         glyf: glyf::Glyf,
         gpos: gpos::Gpos,
