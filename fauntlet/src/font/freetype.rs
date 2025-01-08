@@ -24,14 +24,18 @@ impl FreeTypeInstance {
             .new_memory_face2(data.clone(), options.index as isize)
             .ok()?;
         let mut load_flags = LoadFlag::NO_BITMAP;
-        match options.hinting {
-            None => load_flags |= LoadFlag::NO_HINTING,
-            Some(hinting) => load_flags |= hinting.freetype_load_flags(),
-        };
+        // Ignore hinting settings for tricky fonts. Let FreeType do its own
+        // thing
+        if !face.is_tricky() {
+            match options.hinting {
+                None => load_flags |= LoadFlag::NO_HINTING,
+                Some(hinting) => load_flags |= hinting.freetype_load_flags(),
+            };
+        }
         if options.ppem != 0 {
             face.set_pixel_sizes(options.ppem, options.ppem).ok()?;
         } else {
-            load_flags |= LoadFlag::NO_SCALE | LoadFlag::NO_HINTING;
+            load_flags |= LoadFlag::NO_SCALE | LoadFlag::NO_HINTING | LoadFlag::NO_AUTOHINT;
         }
         if !options.coords.is_empty() {
             let mut ft_coords = vec![];
@@ -64,6 +68,10 @@ impl FreeTypeInstance {
 
     pub fn family_name(&self) -> Option<String> {
         self.face.family_name()
+    }
+
+    pub fn is_tricky(&self) -> bool {
+        self.face.is_tricky()
     }
 
     pub fn is_scalable(&self) -> bool {
