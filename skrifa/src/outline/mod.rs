@@ -85,7 +85,6 @@ mod hint;
 mod hint_reliant;
 mod metrics;
 mod path;
-mod tricky;
 mod unscaled;
 
 #[cfg(test)]
