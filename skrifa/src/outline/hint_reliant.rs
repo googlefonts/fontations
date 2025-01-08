@@ -1,39 +1,37 @@
-//! Match FreeType's "tricky" font detection.
-//!
-//! Tricky fonts are those that have busted outlines and require the bytecode
-//! interpreter to produce something that makes sense.
+//! Name detection for fonts that require hinting to be run for correct
+//! contours (FreeType calls these "tricky" fonts).
 
 use crate::{string::StringId, FontRef, MetadataProvider};
 
-pub(super) fn is_tricky(font: &FontRef) -> bool {
-    has_tricky_name(font)
+pub(super) fn require_interpreter(font: &FontRef) -> bool {
+    is_hint_reliant_by_name(font)
 }
 
-fn has_tricky_name(font: &FontRef) -> bool {
+fn is_hint_reliant_by_name(font: &FontRef) -> bool {
     font.localized_strings(StringId::FAMILY_NAME)
         .english_or_first()
         .map(|name| {
-            let mut buf = [0u8; MAX_TRICKY_NAME_LEN];
+            let mut buf = [0u8; MAX_HINT_RELIANT_NAME_LEN];
             let mut len = 0;
             let mut chars = name.chars();
-            for ch in chars.by_ref().take(MAX_TRICKY_NAME_LEN) {
+            for ch in chars.by_ref().take(MAX_HINT_RELIANT_NAME_LEN) {
                 buf[len] = ch as u8;
                 len += 1;
             }
             if chars.next().is_some() {
                 return false;
             }
-            is_tricky_name(core::str::from_utf8(&buf[..len]).unwrap_or_default())
+            matches_hint_reliant_list(core::str::from_utf8(&buf[..len]).unwrap_or_default())
         })
         .unwrap_or_default()
 }
 
-/// Does this family name belong to a "tricky" font?
+/// Is this name on the list of fonts that require hinting?
 ///
 /// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/truetype/ttobjs.c#L174>
-fn is_tricky_name(name: &str) -> bool {
+fn matches_hint_reliant_list(name: &str) -> bool {
     let name = skip_pdf_random_tag(name);
-    TRICKY_NAMES
+    HINT_RELIANT_NAMES
         .iter()
         // FreeType uses strstr(name, tricky_name) so we use contains() to
         // match behavior.
@@ -56,7 +54,7 @@ fn skip_pdf_random_tag(name: &str) -> &str {
 
 /// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/truetype/ttobjs.c#L180>
 #[rustfmt::skip]
-const TRICKY_NAMES: &[&str] = &[
+const HINT_RELIANT_NAMES: &[&str] = &[
     "cpop",               /* dftt-p7.ttf; version 1.00, 1992 [DLJGyShoMedium] */
     "DFGirl-W6-WIN-BF",   /* dftt-h6.ttf; version 1.00, 1993 */
     "DFGothic-EB",        /* DynaLab Inc. 1992-1995 */
@@ -94,16 +92,18 @@ const TRICKY_NAMES: &[&str] = &[
     "MingLi43",           /* mingli.ttf; version 1.00, 1992 */
 ];
 
-const MAX_TRICKY_NAME_LEN: usize = 18;
+const MAX_HINT_RELIANT_NAME_LEN: usize = 18;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn ensure_max_tricky_name_len() {
-        let max_len = TRICKY_NAMES.iter().fold(0, |acc, name| acc.max(name.len()));
-        assert_eq!(max_len, MAX_TRICKY_NAME_LEN);
+    fn ensure_max_name_len() {
+        let max_len = HINT_RELIANT_NAMES
+            .iter()
+            .fold(0, |acc, name| acc.max(name.len()));
+        assert_eq!(max_len, MAX_HINT_RELIANT_NAME_LEN);
     }
 
     #[test]
@@ -125,16 +125,16 @@ mod tests {
     }
 
     #[test]
-    fn all_tricky_names() {
-        for name in TRICKY_NAMES {
-            assert!(is_tricky_name(name));
+    fn all_hint_reliant_names() {
+        for name in HINT_RELIANT_NAMES {
+            assert!(matches_hint_reliant_list(name));
         }
     }
 
     #[test]
-    fn non_tricky_names() {
+    fn non_hint_reliant_names() {
         for not_tricky in ["Roboto", "Arial", "Helvetica", "Blah", ""] {
-            assert!(!is_tricky_name(not_tricky));
+            assert!(!matches_hint_reliant_list(not_tricky));
         }
     }
 }
