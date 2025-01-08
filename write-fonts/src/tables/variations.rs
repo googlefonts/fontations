@@ -412,7 +412,7 @@ impl DeltaSetIndexMap {
             _ => 4,
         };
 
-        EntryFormat::from_bits((entry_size - 1) << 4 | (inner_bits - 1)).unwrap()
+        EntryFormat::from_bits(((entry_size - 1) << 4) | (inner_bits - 1)).unwrap()
     }
 
     /// Compress u32's into packed data using the most compact entry format.
