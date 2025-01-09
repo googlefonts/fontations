@@ -22,20 +22,33 @@ struct Args {
     #[arg(short, long)]
     font: std::path::PathBuf,
 
-    // The output IFT font file.
+    /// The output IFT font file.
     #[arg(short, long)]
     output: std::path::PathBuf,
 
     /// Text to extend the font to cover.
     #[arg(short, long)]
-    text: String,
+    text: Option<String>,
+
+    /// Comma separate list of unicode codepoint values (base 10).
+    #[arg(short, long, value_delimiter = ',', num_args = 1..)]
+    unicodes: Vec<String>,
     // TODO(garretrieger): add design space and feature tags arguments.
 }
 
 fn main() {
     let args = Args::parse();
 
-    let codepoints: IntSet<u32> = args.text.chars().map(|c| c as u32).collect();
+    let mut codepoints = IntSet::<u32>::empty();
+    if let Some(text) = args.text {
+        codepoints.extend_unsorted(text.chars().map(|c| c as u32));
+    }
+
+    for unicode_string in args.unicodes {
+        let unicode: u32 = unicode_string.parse().expect("bad unicode value");
+        codepoints.insert(unicode);
+    }
+
     let subset_definition = SubsetDefinition::codepoints(codepoints);
 
     let mut font_bytes = std::fs::read(&args.font).unwrap_or_else(|e| {
