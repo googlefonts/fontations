@@ -173,14 +173,7 @@ fn get_node_name(font: &FontRef<'_>) -> Result<String, ReadError> {
         let axis_strings: Vec<_> = font
             .axes()
             .iter()
-            .map(|axis| {
-                axis.tag().to_string()
-                    + "["
-                    + &axis.min_value().to_string()
-                    + ".."
-                    + &axis.max_value().to_string()
-                    + "]"
-            })
+            .map(|axis| format!("{}[{}..{}]", axis.tag(), axis.min_value(), axis.max_value()))
             .collect();
         let axis_strings = axis_strings.join(",");
         name.push('|');
@@ -196,7 +189,7 @@ fn to_next_font(
     patch_uri: PatchUri,
 ) -> Result<Vec<u8>, UriTemplateError> {
     let path = base_path.join(patch_uri.uri_string()?);
-    let patch_bytes = std::fs::read(path.clone())
+    let patch_bytes = std::fs::read(&path)
         .unwrap_or_else(|e| panic!("Unable to read patch file ({}): {:?}", path.display(), e));
 
     let patch_info: PatchInfo = patch_uri.try_into()?;
@@ -218,11 +211,10 @@ fn to_graph(
     graph.entry(node_name.clone()).or_default();
 
     for patch in patches {
-        match patch.encoding() {
-            PatchFormat::TableKeyed { .. } => {}
+        if !matches!(patch.encoding(), PatchFormat::TableKeyed { .. }) {
             // This graph only considers invalidating (that is table keyed patches), so skip all other types.
-            _ => continue,
-        };
+            continue;
+        }
 
         let next_font = to_next_font(base_path, &font, patch)?;
         let next_font = FontRef::new(&next_font).expect("Downstream font parsing failed");
