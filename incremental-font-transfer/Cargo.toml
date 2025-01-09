@@ -41,10 +41,8 @@ path = "src/lib.rs"
 
 [[bin]]
 name = "ift_extend"
-path = "src/ift_extend.rs"
 required-features = ["cli"]
 
 [[bin]]
 name = "ift_graph"
-path = "src/ift_graph.rs"
 required-features = ["cli"]
