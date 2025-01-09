@@ -66,12 +66,12 @@ impl<'a> Outlines<'a> {
         let var_metrics = match glyph_metrics.hvar.as_ref() {
             Some(hvar) => {
                 if hvar.lsb_mapping().is_some() {
-                    AvailableVarMetrics::Present
+                    AvailableVarMetrics::All
                 } else {
-                    AvailableVarMetrics::MissingSideBearings
+                    AvailableVarMetrics::Advances
                 }
             }
-            None => AvailableVarMetrics::Missing,
+            None => AvailableVarMetrics::None,
         };
         let (
             glyph_count,
@@ -749,12 +749,19 @@ impl Scaler for FreeTypeScaler<'_> {
                 .ok_or(InsufficientMemory)?;
             if deltas::composite_glyph(gvar, glyph_id, self.coords, &mut deltas[..]).is_ok() {
                 // Apply selective deltas to phantom points.
+                self.outlines.var_metrics.phantom_deltas(
+                    &mut self.phantom,
+                    deltas,
+                    |phantom, delta| {
+                        phantom.x += F26Dot6::from_bits(delta.x.to_i32());
+                    },
+                );
                 match self.outlines.var_metrics {
-                    AvailableVarMetrics::Missing => {
+                    AvailableVarMetrics::None => {
                         self.phantom[0].x += F26Dot6::from_bits(deltas[count - 4].x.to_i32());
                         self.phantom[1].x += F26Dot6::from_bits(deltas[count - 3].x.to_i32());
                     }
-                    AvailableVarMetrics::MissingSideBearings => {
+                    AvailableVarMetrics::Advances => {
                         self.phantom[0].x += F26Dot6::from_bits(deltas[count - 4].x.to_i32());
                     }
                     _ => {}
@@ -1172,16 +1179,13 @@ impl Scaler for HarfBuzzScaler<'_> {
                 .ok_or(InsufficientMemory)?;
             if deltas::composite_glyph(gvar, glyph_id, self.coords, &mut deltas[..]).is_ok() {
                 // Apply selective deltas to phantom points.
-                match self.outlines.var_metrics {
-                    AvailableVarMetrics::Missing => {
-                        self.phantom[0].x += deltas[count - 4].x;
-                        self.phantom[1].x += deltas[count - 3].x;
-                    }
-                    AvailableVarMetrics::MissingSideBearings => {
-                        self.phantom[0].x += deltas[count - 4].x;
-                    }
-                    _ => {}
-                }
+                self.outlines.var_metrics.phantom_deltas(
+                    &mut self.phantom,
+                    deltas,
+                    |phantom, delta| {
+                        phantom.x += delta.x;
+                    },
+                );
                 have_deltas = true;
             }
             self.component_delta_count += count;
@@ -1295,6 +1299,28 @@ fn map_point(transform: [f32; 6], p: Point<f32>) -> Point<f32> {
     }
 }
 
+impl AvailableVarMetrics {
+    /// Calls `f` for each combination of phantom point and its associated
+    /// delta based on the available metrics present in `self`.
+    fn phantom_deltas<P, D>(
+        self,
+        phantom: &mut [Point<P>; 4],
+        deltas: &[Point<D>],
+        f: impl Fn(&mut Point<P>, &Point<D>),
+    ) {
+        match self {
+            Self::None => {
+                f(&mut phantom[0], &deltas[deltas.len() - 4]);
+                f(&mut phantom[1], &deltas[deltas.len() - 3]);
+            }
+            Self::Advances => {
+                f(&mut phantom[0], &deltas[deltas.len() - 4]);
+            }
+            Self::All => {}
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1348,7 +1374,7 @@ mod tests {
         let advance_hvar = scaled.adjusted_advance_width();
         // Set HVAR to None and mark var metrics as missing so we pull deltas from gvar
         outlines.glyph_metrics.hvar = None;
-        outlines.var_metrics = AvailableVarMetrics::Missing;
+        outlines.var_metrics = AvailableVarMetrics::None;
         let scaler =
             FreeTypeScaler::unhinted(&outlines, &outline, &mut buf, ppem, &coords).unwrap();
         let scaled = scaler.scale(&outline.glyph, gid).unwrap();
@@ -1385,7 +1411,7 @@ mod tests {
         let advance_hvar = scaled.adjusted_advance_width();
         // Set HVAR to None and mark var metrics as missing so we pull deltas from gvar
         outlines.glyph_metrics.hvar = None;
-        outlines.var_metrics = AvailableVarMetrics::Missing;
+        outlines.var_metrics = AvailableVarMetrics::None;
         let scaler =
             FreeTypeScaler::unhinted(&outlines, &outline, &mut buf, ppem, &coords).unwrap();
         let scaled = scaler.scale(&outline.glyph, gid).unwrap();
