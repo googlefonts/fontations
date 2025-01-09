@@ -360,13 +360,19 @@ impl<'a> OutlineGlyph<'a> {
                         is_pedantic,
                     )
                 } else {
-                    self.draw_unhinted(
+                    let mut metrics = self.draw_unhinted(
                         hinting_instance.size(),
                         hinting_instance.location(),
                         settings.memory,
                         settings.path_style,
                         pen,
-                    )
+                    )?;
+                    // Round advance width when hinting is requested, even if
+                    // the instance is disabled.
+                    if let Some(advance) = metrics.advance_width.as_mut() {
+                        *advance = advance.round();
+                    }
+                    Ok(metrics)
                 }
             }
             (DrawInstance::Hinted { .. }, PathStyle::HarfBuzz) => {
