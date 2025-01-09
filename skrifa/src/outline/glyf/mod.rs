@@ -756,16 +756,6 @@ impl Scaler for FreeTypeScaler<'_> {
                         phantom.x += F26Dot6::from_bits(delta.x.to_i32());
                     },
                 );
-                match self.outlines.var_metrics {
-                    AvailableVarMetrics::None => {
-                        self.phantom[0].x += F26Dot6::from_bits(deltas[count - 4].x.to_i32());
-                        self.phantom[1].x += F26Dot6::from_bits(deltas[count - 3].x.to_i32());
-                    }
-                    AvailableVarMetrics::Advances => {
-                        self.phantom[0].x += F26Dot6::from_bits(deltas[count - 4].x.to_i32());
-                    }
-                    _ => {}
-                }
                 have_deltas = true;
             }
             self.component_delta_count += count;
