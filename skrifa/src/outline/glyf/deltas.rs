@@ -14,11 +14,11 @@ use super::PHANTOM_POINT_COUNT;
 #[derive(Copy, Clone, Debug)]
 pub(super) enum AvailableVarMetrics {
     /// Full variable metrics with advances and side-bearings.
-    Present,
+    All,
     /// Variable advances but not side-bearings.
-    MissingSideBearings,
+    Advances,
     /// No variable metrics table.
-    Missing,
+    None,
 }
 
 /// Compute a set of deltas for the component offsets of a composite glyph.
@@ -87,11 +87,11 @@ where
     // content of the HVAR table.
     let actual_len = match var_metrics {
         // Modify LSB and advance
-        AvailableVarMetrics::Missing => points.len() - 2,
+        AvailableVarMetrics::None => points.len() - 2,
         // Modify only LSB
-        AvailableVarMetrics::MissingSideBearings => points.len() - 3,
+        AvailableVarMetrics::Advances => points.len() - 3,
         // Modify nothing
-        AvailableVarMetrics::Present => points.len() - 4,
+        AvailableVarMetrics::All => points.len() - PHANTOM_POINT_COUNT,
     };
     let deltas = &mut deltas[..actual_len];
     compute_deltas_for_glyph(gvar, glyph_id, coords, deltas, |scalar, tuple, deltas| {
