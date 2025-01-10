@@ -7,6 +7,7 @@ mod glyf_loca;
 mod gpos;
 mod gsub;
 mod gvar;
+mod hdmx;
 mod head;
 mod hmtx;
 mod layout;
@@ -23,7 +24,6 @@ pub use parsing_util::{
 
 use fnv::FnvHashMap;
 use serialize::Serializer;
-use skrifa::raw::tables::cmap::CmapSubtable;
 use skrifa::MetadataProvider;
 use thiserror::Error;
 use write_fonts::types::GlyphId;
@@ -34,11 +34,14 @@ use write_fonts::{
         tables::{
             cff::Cff,
             cff2::Cff2,
-            cmap::Cmap,
+            cmap::{Cmap, CmapSubtable},
+            cvar::Cvar,
+            gasp,
             glyf::{Glyf, Glyph},
             gpos::Gpos,
             gsub::Gsub,
             gvar::Gvar,
+            hdmx::Hdmx,
             head::Head,
             loca::Loca,
             name::Name,
@@ -172,6 +175,7 @@ pub struct Plan {
     codepoint_to_glyph: FnvHashMap<u32, GlyphId>,
 
     subset_flags: SubsetFlags,
+    no_subset_tables: IntSet<Tag>,
     drop_tables: IntSet<Tag>,
     name_ids: IntSet<NameId>,
     name_languages: IntSet<u16>,
@@ -213,6 +217,11 @@ impl Plan {
             name_languages: name_languages.clone(),
             ..Default::default()
         };
+
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/b5a65e0f20c30a7f13b2f6619479a6d666e603e0/src/hb-subset-input.cc#L71>
+        let default_no_subset_tables = [gasp::Gasp::TAG, FPGM, PREP, VDMX, DSIG];
+        this.no_subset_tables
+            .extend(default_no_subset_tables.iter().copied());
 
         this.populate_unicodes_to_retain(input_gids, input_unicodes, font);
         this.populate_gids_to_retain(font);
@@ -562,6 +571,23 @@ pub trait NameIdClosure {
     fn collect_name_ids(&self, plan: &mut Plan);
 }
 
+pub const CVT: Tag = Tag::new(b"cvt ");
+pub const DSIG: Tag = Tag::new(b"DSIG");
+pub const EBSC: Tag = Tag::new(b"EBSC");
+pub const FPGM: Tag = Tag::new(b"fpgm");
+pub const GLAT: Tag = Tag::new(b"Glat");
+pub const GLOC: Tag = Tag::new(b"Gloc");
+pub const JSTF: Tag = Tag::new(b"JSTF");
+pub const LTSH: Tag = Tag::new(b"LTSH");
+pub const MORX: Tag = Tag::new(b"morx");
+pub const MORT: Tag = Tag::new(b"mort");
+pub const KERX: Tag = Tag::new(b"kerx");
+pub const KERN: Tag = Tag::new(b"kern");
+pub const PCLT: Tag = Tag::new(b"PCLT");
+pub const PREP: Tag = Tag::new(b"prep");
+pub const SILF: Tag = Tag::new(b"Silf");
+pub const SILL: Tag = Tag::new(b"Sill");
+pub const VDMX: Tag = Tag::new(b"VDMX");
 // This trait is implemented for all font tables
 pub trait Subset {
     /// Subset this table, if successful a subset version of this table will be added to builder
@@ -579,25 +605,29 @@ pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> 
 
     for record in font.table_directory.table_records() {
         let tag = record.tag();
-        if plan.drop_tables.contains(tag) {
+        if should_drop_table(tag, plan) {
             continue;
         }
-
-        let table_len = record.length();
-        match tag {
-            Head::TAG => {
-                if font.glyf().is_err() {
-                    subset(tag, font, plan, &mut builder, table_len)?;
-                }
-            }
-            //Skip, handled by glyf
-            Loca::TAG => continue,
-            //Skip, handled by Hmtx
-            Hhea::TAG => continue,
-            _ => subset(tag, font, plan, &mut builder, table_len)?,
-        }
+        subset(tag, font, plan, &mut builder, record.length())?;
     }
     Ok(builder.build())
+}
+
+fn should_drop_table(tag: Tag, plan: &Plan) -> bool {
+    if plan.drop_tables.contains(tag) {
+        return true;
+    }
+
+    let no_hinting = plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
+
+    match tag {
+        // hint tables
+        Cvar::TAG | CVT | FPGM | PREP | Hdmx::TAG | VDMX => no_hinting,
+        //TODO: drop var tables during instancing when all axes are pinned
+        _ => false,
+    }
 }
 
 fn subset<'a>(
@@ -620,7 +650,10 @@ fn subset<'a>(
     }
 
     //TODO: repack when there's an offset overflow
-    builder.add_raw(table_tag, s.copy_bytes());
+    let subsetted_data = s.copy_bytes();
+    if !subsetted_data.is_empty() {
+        builder.add_raw(table_tag, subsetted_data);
+    }
     Ok(())
 }
 
@@ -657,6 +690,10 @@ fn subset_table<'a>(
     builder: &mut FontBuilder<'a>,
     s: &mut Serializer,
 ) -> Result<(), SubsetError> {
+    if plan.no_subset_tables.contains(tag) {
+        return passthrough_table(tag, font, s);
+    }
+
     match tag {
         Cmap::TAG => font
             .cmap()
@@ -672,6 +709,12 @@ fn subset_table<'a>(
             .gvar()
             .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?
             .subset(plan, font, s, builder),
+
+        Hdmx::TAG => font
+            .hdmx()
+            .map_err(|_| SubsetError::SubsetTableError(Hdmx::TAG))?
+            .subset(plan, font, s, builder),
+
         //handled by glyf table if exists
         Head::TAG => font.glyf().map(|_| ()).or_else(|_| {
             font.head()
@@ -679,10 +722,16 @@ fn subset_table<'a>(
                 .subset(plan, font, s, builder)
         }),
 
+        //Skip, handled by Hmtx
+        Hhea::TAG => Ok(()),
+
         Hmtx::TAG => font
             .hmtx()
             .map_err(|_| SubsetError::SubsetTableError(Hmtx::TAG))?
             .subset(plan, font, s, builder),
+
+        //Skip, handled by glyf
+        Loca::TAG => Ok(()),
 
         Maxp::TAG => font
             .maxp()
@@ -703,16 +752,17 @@ fn subset_table<'a>(
             .post()
             .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?
             .subset(plan, font, s, builder),
-        _ => {
-            if let Some(data) = font.data_for_tag(tag) {
-                s.embed_bytes(data.as_bytes())
-                    .map_err(|_| SubsetError::SubsetTableError(tag))?;
-                Ok(())
-            } else {
-                Err(SubsetError::SubsetTableError(tag))
-            }
-        }
+
+        _ => passthrough_table(tag, font, s),
     }
+}
+
+fn passthrough_table(tag: Tag, font: &FontRef<'_>, s: &mut Serializer) -> Result<(), SubsetError> {
+    if let Some(data) = font.data_for_tag(tag) {
+        s.embed_bytes(data.as_bytes())
+            .map_err(|_| SubsetError::SubsetTableError(tag))?;
+    }
+    Ok(())
 }
 
 pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -> usize {
