@@ -82,8 +82,8 @@ fn parse_list<T: Domain>(
         .collect()
 }
 
-//parse input drop_tables string, which is a comma/whitespace-separated list of tables that will be dropped
-pub fn parse_drop_tables(input_str: &str) -> Result<IntSet<Tag>, SubsetError> {
+//parse input tag list string, which is a comma/whitespace-separated list of tags(layout script or feature or table name)
+pub fn parse_tag_list(input_str: &str) -> Result<IntSet<Tag>, SubsetError> {
     parse_list(input_str, |raw| {
         Tag::new_checked(raw.as_bytes()).map_err(|_| SubsetError::InvalidTag(raw.to_owned()))
     })
@@ -146,7 +146,7 @@ fn test_parse_unicodes() {
 #[test]
 fn test_parse_drop_tables() {
     let input = "cmap,GSUB OS/2 CFF";
-    let output = parse_drop_tables(input).unwrap();
+    let output = parse_tag_list(input).unwrap();
     assert_eq!(output.len(), 4);
     assert!(output.contains(Tag::new(b"cmap")));
     assert!(output.contains(Tag::new(b"GSUB")));
@@ -154,7 +154,7 @@ fn test_parse_drop_tables() {
     assert!(output.contains(Tag::new(b"CFF ")));
 
     let input = "";
-    let output = parse_drop_tables(input).unwrap();
+    let output = parse_tag_list(input).unwrap();
     assert!(output.is_empty());
 }
 
