@@ -1306,6 +1306,7 @@ mod tests {
         iftx_builder.write_at("id_delta", Int24::new(1));
 
         let font = test_font_for_patching_with_loca_mod(
+            true,
             |_| {},
             HashMap::from([
                 (IFT_TAG, ift_builder.as_slice()),
@@ -1366,6 +1367,7 @@ mod tests {
         iftx_builder.write_at("id_delta", Int24::new(1));
 
         let font = test_font_for_patching_with_loca_mod(
+            true,
             |_| {},
             HashMap::from([
                 (IFT_TAG, ift_builder.as_slice()),

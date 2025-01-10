@@ -367,7 +367,7 @@ fn synthesize_glyf_and_loca<OffsetType: LocaOffset + TryFrom<usize>>(
         .map_err(|_| PatchingError::InternalError)?;
     loca_off.write_to(
         new_loca
-            .get_mut(new_loca.len() - 2..)
+            .get_mut(new_loca.len() - off_size..)
             .ok_or(PatchingError::InternalError)?,
     );
 
@@ -540,6 +540,7 @@ pub(crate) mod tests {
 
         // Application bit will be set in the patched font.
         let expected_font = test_font_for_patching_with_loca_mod(
+            true,
             |_| {},
             HashMap::from([(IFT_TAG, vec![0b0001_0000, 0, 0, 0].as_slice())]),
         );
@@ -610,6 +611,72 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn basic_glyph_keyed_with_long_loca() {
+        let patch =
+            assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+
+        let font = test_font_for_patching_with_loca_mod(
+            false, // force long loca
+            |_| {},
+            HashMap::from([(Tag::new(b"IFT "), vec![0, 0, 0, 0].as_slice())]),
+        );
+        let font = FontRef::new(&font).unwrap();
+
+        let patch_info = patch_info(IFT_TAG, 28);
+        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched = FontRef::new(&patched).unwrap();
+
+        let new_ift: &[u8] = patched.table_data(IFT_TAG).unwrap().as_bytes();
+        assert_eq!(&[0, 0, 0, 0b0001_0000], new_ift);
+
+        let new_glyf: &[u8] = patched.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
+        assert_eq!(
+            &[
+                1, 2, 3, 4, 5, 0, // gid 0
+                6, 7, 8, 0, // gid 1
+                b'a', b'b', b'c', // gid2
+                b'd', b'e', b'f', b'g', // gid 7
+                b'h', b'i', b'j', b'k', b'l', // gid 8 + 9
+                b'm', b'n', // gid 13
+            ],
+            new_glyf
+        );
+
+        let new_loca = patched.loca(None).unwrap();
+        let indices: Vec<u32> = (0..=15).map(|gid| new_loca.get_raw(gid).unwrap()).collect();
+
+        assert_eq!(
+            vec![
+                0,  // gid 0
+                6,  // gid 1
+                10, // gid 2
+                13, // gid 3
+                13, // gid 4
+                13, // gid 5
+                13, // gid 6
+                13, // gid 7
+                17, // gid 8
+                17, // gid 9
+                22, // gid 10
+                22, // gid 11
+                22, // gid 12
+                22, // gid 13
+                24, // gid 14
+                24, // end
+            ],
+            indices
+        );
+
+        check_tables_equal(
+            &font,
+            &patched,
+            [IFT_TAG, Tag::new(b"glyf"), Tag::new(b"loca")].into(),
+        );
+    }
+
+    #[test]
     fn multiple_glyph_keyed() {
         let patch =
             assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
@@ -624,6 +691,7 @@ pub(crate) mod tests {
         let patch_info_2 = patch_info(IFTX_TAG, 28);
 
         let font = test_font_for_patching_with_loca_mod(
+            true,
             |_| {},
             HashMap::from([(IFTX_TAG, vec![0, 0, 0, 0].as_slice())]),
         );
@@ -912,6 +980,7 @@ pub(crate) mod tests {
 
         // unorder offsets related to a glyph not being replaced
         let font = test_font_for_patching_with_loca_mod(
+            true,
             |loca| {
                 let loca_gid_1 = loca[1];
                 let loca_gid_2 = loca[2];
