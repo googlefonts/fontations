@@ -4,6 +4,7 @@
 //! <https://w3c.github.io/IFT/Overview.html>
 
 use std::collections::HashMap;
+use std::iter;
 
 use read_fonts::types::Tag;
 use read_fonts::{be_buffer, be_buffer_add, test_helpers::BeBuffer, types::Int24, types::Uint24};
@@ -591,6 +592,7 @@ pub fn noop_table_keyed_patch() -> BeBuffer {
 }
 
 pub fn test_font_for_patching_with_loca_mod<F>(
+    short_loca: bool,
     loca_mod: F,
     additional_tables: HashMap<Tag, &[u8]>,
 ) -> Vec<u8>
@@ -610,14 +612,21 @@ where
     font_builder.add_table(&maxp).unwrap();
 
     let head = Head {
-        index_to_loc_format: 0,
+        index_to_loc_format: if short_loca { 0 } else { 1 },
         ..Default::default()
     };
     font_builder.add_table(&head).unwrap();
 
     // ## glyf ##
     // glyphs are padded to even number of bytes since loca format will be short.
-    let glyf = BeBuffer::new()
+    let glyf = if !short_loca {
+        // Since we want a long loca artificially inflate glyf table to ensure long offsets are needed.
+        BeBuffer::new().extend(iter::repeat(0).take(70000))
+    } else {
+        BeBuffer::new()
+    };
+
+    let glyf = glyf
         .push_with_tag(1u8, "gid_0")
         .extend([2, 3, 4, 5u8, 0u8])
         .push_with_tag(6u8, "gid_1")
@@ -626,12 +635,13 @@ where
         .extend([10, 11, 12u8]);
 
     // ## loca ##
+    let gid_0 = glyf.offset_for("gid_0") as u32;
     let gid_1 = glyf.offset_for("gid_1") as u32;
     let gid_8 = glyf.offset_for("gid_8") as u32;
     let end = gid_8 + 4;
 
     let mut loca = vec![
-        0,     // gid 0
+        gid_0, // gid 0
         gid_1, // gid 1
         gid_8, // gid 2
         gid_8, // gid 3
@@ -662,6 +672,7 @@ where
 
 pub fn test_font_for_patching() -> Vec<u8> {
     test_font_for_patching_with_loca_mod(
+        true,
         |_| {},
         HashMap::from([(Tag::new(b"IFT "), vec![0, 0, 0, 0].as_slice())]),
     )

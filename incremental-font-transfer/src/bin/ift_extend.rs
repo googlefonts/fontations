@@ -110,7 +110,7 @@ fn main() {
 
 fn parse_unicodes(args: Vec<String>, codepoints: &mut IntSet<u32>) -> Result<(), ParsingError> {
     for unicode_string in args {
-        if unicode_string == "" {
+        if unicode_string.is_empty() {
             continue;
         }
 
@@ -141,7 +141,7 @@ fn parse_design_space(args: Vec<String>) -> Result<DesignSpace, ParsingError> {
 
     let mut result = HashMap::<Tag, RangeSet<Fixed>>::default();
     for arg in args {
-        if arg == "" {
+        if arg.is_empty() {
             continue;
         }
 

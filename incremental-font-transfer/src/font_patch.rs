@@ -233,6 +233,7 @@ mod tests {
         iftx_table.write_at("compat_id[0]", 2u32);
 
         let font = test_font_for_patching_with_loca_mod(
+            true,
             |_| {},
             HashMap::from([
                 (IFT_TAG, ift_table.as_slice()),
@@ -265,6 +266,7 @@ mod tests {
 
         let ift_table = codepoints_only_format2();
         let font = test_font_for_patching_with_loca_mod(
+            true,
             |_| {},
             HashMap::from([(IFT_TAG, ift_table.as_slice())]),
         );
@@ -291,6 +293,7 @@ mod tests {
 
         let ift_table = codepoints_only_format2();
         let font = test_font_for_patching_with_loca_mod(
+            true,
             |_| {},
             HashMap::from([(IFT_TAG, ift_table.as_slice())]),
         );
@@ -325,6 +328,7 @@ mod tests {
         ift_table.write_at("compat_id[3]", 9u32);
 
         let font = test_font_for_patching_with_loca_mod(
+            true,
             |_| {},
             HashMap::from([(IFT_TAG, ift_table.as_slice())]),
         );
