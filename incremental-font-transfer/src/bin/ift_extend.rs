@@ -110,6 +110,10 @@ fn main() {
 
 fn parse_unicodes(args: Vec<String>, codepoints: &mut IntSet<u32>) -> Result<(), ParsingError> {
     for unicode_string in args {
+        if unicode_string == "" {
+            continue;
+        }
+
         if unicode_string == "*" {
             let all = IntSet::<u32>::all();
             codepoints.union(&all);
@@ -137,6 +141,10 @@ fn parse_design_space(args: Vec<String>) -> Result<DesignSpace, ParsingError> {
 
     let mut result = HashMap::<Tag, RangeSet<Fixed>>::default();
     for arg in args {
+        if arg == "" {
+            continue;
+        }
+
         if arg == "*" {
             return Ok(DesignSpace::All);
         }
