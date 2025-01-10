@@ -1,9 +1,13 @@
 //! impl subset() for layout common tables
 
-use crate::{NameIdClosure, Plan};
+use crate::{
+    serialize::{SerializeErrorFlags, Serializer},
+    {NameIdClosure, Plan, SubsetTable, SubsetTableWithArgs},
+};
 use write_fonts::read::{
     tables::layout::{
-        CharacterVariantParams, Feature, FeatureParams, SizeParams, StylisticSetParams,
+        CharacterVariantParams, Device, DeviceOrVariationIndex, Feature, FeatureParams, SizeParams,
+        StylisticSetParams, VariationIndex,
     },
     types::NameId,
 };
@@ -51,5 +55,35 @@ impl NameIdClosure for Feature<'_> {
             FeatureParams::Size(table) => table.collect_name_ids(plan),
             FeatureParams::CharacterVariant(table) => table.collect_name_ids(plan),
         }
+    }
+}
+
+impl SubsetTableWithArgs for DeviceOrVariationIndex<'_> {
+    fn subset_with_args<T>(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: &T,
+    ) -> Result<(), SerializeErrorFlags> {
+        match self {
+            Self::Device(item) => item.subset(plan, s),
+            Self::VariationIndex(item) => item.subset_with_args(plan, s, args),
+        }
+    }
+}
+
+impl SubsetTable for Device<'_> {
+    fn subset(&self, _plan: &Plan, s: &mut Serializer) -> Result<(), SerializeErrorFlags> {
+        s.embed_bytes(self.offset_data().as_bytes()).map(|_| ())
+    }
+}
+
+impl SubsetTableWithArgs for VariationIndex<'_> {
+    fn subset_with_args<T>(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: &T,
+    ) -> Result<(), SerializeErrorFlags> {
     }
 }

@@ -1,5 +1,6 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
+mod base;
 mod cmap;
 mod cpal;
 mod fvar;
@@ -13,6 +14,7 @@ mod inc_bimap;
 mod layout;
 mod maxp;
 mod name;
+mod offset;
 mod os2;
 mod parsing_util;
 mod post;
@@ -24,6 +26,7 @@ pub use parsing_util::{
 };
 
 use fnv::FnvHashMap;
+use serialize::SerializeErrorFlags;
 use serialize::Serializer;
 use skrifa::raw::tables::cmap::CmapSubtable;
 use skrifa::MetadataProvider;
@@ -48,7 +51,7 @@ use write_fonts::{
             post::Post,
         },
         types::NameId,
-        FontRef, TableProvider, TopLevelTable,
+        FontData, FontRef, TableProvider, TopLevelTable,
     },
     tables::cmap::PlatformId,
 };
@@ -60,6 +63,8 @@ const MAX_NESTING_LEVEL: u8 = 64;
 // this causes tests to fail with 'subtract with overflow error'.
 // See <https://github.com/googlefonts/fontations/issues/997>
 const MAX_GID: GlyphId = GlyphId::new(0xFFFFFF);
+
+pub(crate) static DEFAULT_LAYOUT_FEATURES: [Tag; ] = [];
 
 #[derive(Clone, Copy, Debug)]
 pub struct SubsetFlags(u16);
@@ -177,6 +182,8 @@ pub struct Plan {
     drop_tables: IntSet<Tag>,
     name_ids: IntSet<NameId>,
     name_languages: IntSet<u16>,
+    layout_scripts: IntSet<Tag>,
+    layout_features: IntSet<Tag>,
 
     //old->new feature index map
     gsub_features: FnvHashMap<u16, u16>,
@@ -564,7 +571,7 @@ pub trait NameIdClosure {
     fn collect_name_ids(&self, plan: &mut Plan);
 }
 
-// This trait is implemented for all font tables
+// This trait is implemented for all font top-level tables
 pub trait Subset {
     /// Subset this table, if successful a subset version of this table will be added to builder
     fn subset(
@@ -574,6 +581,32 @@ pub trait Subset {
         s: &mut Serializer,
         builder: &mut FontBuilder,
     ) -> Result<(), SubsetError>;
+}
+
+// A helper trait providing a 'subset' method for various subtables that have no associated tag
+pub trait SubsetTable {
+    /// Subset this table and write a subset version of this table into serializer
+    fn subset(&self, plan: &Plan, s: &mut Serializer) -> Result<(), SerializeErrorFlags>;
+}
+
+// A trait for subtables that require additional data in order to be subsetted
+pub trait SubsetTableWithArgs {
+    fn subset_with_args<T>(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: &T,
+    ) -> Result<(), SerializeErrorFlags>;
+}
+
+// A trait for subtables that require parent table's fontdata
+pub trait SubsetTableWithFontData {
+    fn subset_with_font_data<'a>(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        data: FontData<'a>,
+    ) -> Result<(), SerializeErrorFlags>;
 }
 
 pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {

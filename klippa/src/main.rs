@@ -36,6 +36,14 @@ struct Args {
     #[arg(long)]
     drop_tables: Option<String>,
 
+    /// List of layout features tags that will be preserved
+    #[arg(long)]
+    layout_features: Option<String>,
+
+    /// List of layout script tags that will be preserved
+    #[arg(long)]
+    layout_scripts: Option<String>,
+
     /// List of 'name' table entry nameIDs
     #[arg(long)]
     name_IDs: Option<String>,
@@ -152,6 +160,37 @@ fn main() {
             let mut default_name_languages = IntSet::<u16>::empty();
             default_name_languages.insert(0x0409);
             default_name_languages
+        }
+    };
+
+    let layout_scripts = match &args.layout_scripts {
+        Some(layout_scripts_input) => match parse_layout_scripts(layout_scripts_input) {
+            Ok(layout_scripts) => layout_scripts,
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+        },
+        // default value: <https://github.com/harfbuzz/harfbuzz/blob/021b44388667903d7bc9c92c924ad079f13b90ce/src/hb-subset-input.cc#L189>
+        None => {
+            let mut default_layout_scripts = IntSet::<Tag>::empty();
+            default_layout_scripts.invert();
+        }
+    };
+
+    let layout_features = match &args.layout_features {
+        Some(layout_features_input) => match parse_layout_features(layout_features_input) {
+            Ok(layout_features) => layout_features,
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+        },
+        // default value: <https://github.com/harfbuzz/harfbuzz/blob/021b44388667903d7bc9c92c924ad079f13b90ce/src/hb-subset-input.cc#L82>
+        None => {
+            let mut default_layout_features = IntSet::<Tag>::empty();
+            default_layout_features.insert(0x0409);
+            default_layout_features
         }
     };
 
