@@ -2,14 +2,16 @@
 //!
 //! This command line tool executes the IFT extension algorithm (<https://w3c.github.io/IFT/Overview.html#extend-font-subset>) on an IFT font.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use clap::Parser;
+use font_types::{Fixed, Tag};
 use incremental_font_transfer::{
     patch_group::{PatchGroup, UriStatus},
-    patchmap::SubsetDefinition,
+    patchmap::{DesignSpace, FeatureSet, SubsetDefinition},
 };
-use read_fonts::collections::IntSet;
+use read_fonts::collections::{IntSet, RangeSet};
+use regex::Regex;
 use skrifa::FontRef;
 
 #[derive(Parser, Debug)]
@@ -31,9 +33,19 @@ struct Args {
     text: Option<String>,
 
     /// Comma separate list of unicode codepoint values (base 10).
+    ///
+    /// * indicates to include all unicode code points.
     #[arg(short, long, value_delimiter = ',', num_args = 1..)]
     unicodes: Vec<String>,
-    // TODO(garretrieger): add design space and feature tags arguments.
+
+    /// Comma separate list of design space ranges of the form tag@point or tag@start:end
+    /// * indicates to include all design spaces.
+    ///
+    /// For example wght at point 300 and wdth from 50 to 100:
+    /// --design_space="wght@300,wdth@50:100"
+    #[arg(short, long, value_delimiter = ',', num_args = 1..)]
+    design_space: Vec<String>,
+    // TODO(garretrieger): add feature tags arguments.
 }
 
 fn main() {
@@ -44,12 +56,10 @@ fn main() {
         codepoints.extend_unsorted(text.chars().map(|c| c as u32));
     }
 
-    for unicode_string in args.unicodes {
-        let unicode: u32 = unicode_string.parse().expect("bad unicode value");
-        codepoints.insert(unicode);
-    }
+    parse_unicodes(args.unicodes, &mut codepoints).expect("unicodes parsing failed.");
+    let design_space = parse_design_space(args.design_space).expect("design space parsing failed.");
 
-    let subset_definition = SubsetDefinition::codepoints(codepoints);
+    let subset_definition = SubsetDefinition::new(codepoints, FeatureSet::default(), design_space);
 
     let mut font_bytes = std::fs::read(&args.font).unwrap_or_else(|e| {
         panic!(
@@ -97,3 +107,94 @@ fn main() {
     std::fs::write(&args.output, font_bytes).expect("Writing output font failed.");
     println!(">> Wrote patched font to {}", &args.output.display());
 }
+
+fn parse_unicodes(args: Vec<String>, codepoints: &mut IntSet<u32>) -> Result<(), ParsingError> {
+    for unicode_string in args {
+        if unicode_string == "*" {
+            let all = IntSet::<u32>::all();
+            codepoints.union(&all);
+            return Ok(());
+        }
+        let Ok(unicode) = unicode_string.parse() else {
+            return Err(ParsingError::UnicodeCodepointParsingFailed(unicode_string));
+        };
+        codepoints.insert(unicode);
+    }
+    Ok(())
+}
+
+fn parse_fixed(value: &str, flag_value: &str) -> Result<Fixed, ParsingError> {
+    f64::from_str(value)
+        .map_err(|_| ParsingError::DesignSpaceParsingFailed {
+            flag_value: flag_value.to_string(),
+            message: "Bad axis position value".to_string(),
+        })
+        .map(Fixed::from_f64)
+}
+
+fn parse_design_space(args: Vec<String>) -> Result<DesignSpace, ParsingError> {
+    let re = Regex::new(r"^([a-zA-Z][a-zA-Z0-9 ]{3})@([0-9.]+)(:[0-9.]+)?$").unwrap();
+
+    let mut result = HashMap::<Tag, RangeSet<Fixed>>::default();
+    for arg in args {
+        if arg == "*" {
+            return Ok(DesignSpace::All);
+        }
+
+        let Some(captures) = re.captures(&arg) else {
+            return Err(ParsingError::DesignSpaceParsingFailed {
+                flag_value: arg,
+                message: "Invalid syntax. Must be tag@value or tag@value:value.".to_string(),
+            });
+        };
+
+        let tag = captures.get(1).unwrap();
+        let Ok(tag) = Tag::new_checked(tag.as_str().as_bytes()) else {
+            return Err(ParsingError::DesignSpaceParsingFailed {
+                flag_value: arg.clone(),
+                message: format!("Bad tag value: {}", tag.as_str()),
+            });
+        };
+
+        let value_1 = parse_fixed(captures.get(2).unwrap().as_str(), &arg)?;
+
+        let range = if let Some(value_2) = captures.get(3) {
+            let value_2 = parse_fixed(&value_2.as_str()[1..], &arg)?;
+            value_1..=value_2
+        } else {
+            value_1..=value_1
+        };
+
+        result.entry(tag).or_default().insert(range);
+    }
+
+    Ok(DesignSpace::Ranges(result))
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParsingError {
+    DesignSpaceParsingFailed { flag_value: String, message: String },
+    UnicodeCodepointParsingFailed(String),
+}
+
+impl std::fmt::Display for ParsingError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ParsingError::DesignSpaceParsingFailed {
+                flag_value,
+                message,
+            } => {
+                write!(
+                    f,
+                    "Failed parsing design_space flag ({}): {}",
+                    flag_value, message
+                )
+            }
+            ParsingError::UnicodeCodepointParsingFailed(value) => {
+                write!(f, "Invalid unicode code point value: {}", value,)
+            }
+        }
+    }
+}
+
+impl std::error::Error for ParsingError {}
