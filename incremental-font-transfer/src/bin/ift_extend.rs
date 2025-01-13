@@ -2,7 +2,10 @@
 //!
 //! This command line tool executes the IFT extension algorithm (<https://w3c.github.io/IFT/Overview.html#extend-font-subset>) on an IFT font.
 
-use std::{collections::HashMap, str::FromStr};
+use std::{
+    collections::{BTreeSet, HashMap},
+    str::FromStr,
+};
 
 use clap::Parser;
 use font_types::{Fixed, Tag};
@@ -32,13 +35,20 @@ struct Args {
     #[arg(short, long)]
     text: Option<String>,
 
-    /// Comma separate list of unicode codepoint values (base 10).
+    /// Comma separate list of unicode codepoint values (base 10) to extend the font to cover.
     ///
     /// * indicates to include all unicode code points.
     #[arg(short, long, value_delimiter = ',', num_args = 1..)]
     unicodes: Vec<String>,
 
-    /// Comma separate list of design space ranges of the form tag@point or tag@start:end
+    /// Comma separate list of open type layout feature tags to extend the font to cover.
+    ///
+    /// * indicates to include all features.
+    #[arg(long, value_delimiter = ',', num_args = 1..)]
+    features: Vec<String>,
+
+    /// Comma separate list of design space ranges of the form tag@point or tag@start:end to extend the font to cover.
+    ///
     /// * indicates to include all design spaces.
     ///
     /// For example wght at point 300 and wdth from 50 to 100:
@@ -57,9 +67,10 @@ fn main() {
     }
 
     parse_unicodes(args.unicodes, &mut codepoints).expect("unicodes parsing failed.");
+    let features = parse_features(args.features).expect("features parsing failed.");
     let design_space = parse_design_space(args.design_space).expect("design space parsing failed.");
 
-    let subset_definition = SubsetDefinition::new(codepoints, FeatureSet::default(), design_space);
+    let subset_definition = SubsetDefinition::new(codepoints, features, design_space);
 
     let mut font_bytes = std::fs::read(&args.font).unwrap_or_else(|e| {
         panic!(
@@ -127,6 +138,30 @@ fn parse_unicodes(args: Vec<String>, codepoints: &mut IntSet<u32>) -> Result<(),
     Ok(())
 }
 
+fn parse_features(args: Vec<String>) -> Result<FeatureSet, ParsingError> {
+    let mut tags = BTreeSet::<Tag>::new();
+    for tag_string in args {
+        if tag_string.is_empty() {
+            continue;
+        }
+
+        if tag_string == "*" {
+            return Ok(FeatureSet::All);
+        }
+
+        if tag_string.len() != 4 {
+            return Err(ParsingError::FeatureTagParsingFailed(tag_string));
+        }
+
+        let Ok(tag) = Tag::new_checked(&tag_string.as_bytes()[0..4]) else {
+            return Err(ParsingError::FeatureTagParsingFailed(tag_string));
+        };
+        tags.insert(tag);
+    }
+
+    Ok(FeatureSet::Set(tags))
+}
+
 fn parse_fixed(value: &str, flag_value: &str) -> Result<Fixed, ParsingError> {
     f64::from_str(value)
         .map_err(|_| ParsingError::DesignSpaceParsingFailed {
@@ -183,6 +218,7 @@ fn parse_design_space(args: Vec<String>) -> Result<DesignSpace, ParsingError> {
 pub enum ParsingError {
     DesignSpaceParsingFailed { flag_value: String, message: String },
     UnicodeCodepointParsingFailed(String),
+    FeatureTagParsingFailed(String),
 }
 
 impl std::fmt::Display for ParsingError {
@@ -200,6 +236,9 @@ impl std::fmt::Display for ParsingError {
             }
             ParsingError::UnicodeCodepointParsingFailed(value) => {
                 write!(f, "Invalid unicode code point value: {}", value,)
+            }
+            ParsingError::FeatureTagParsingFailed(value) => {
+                write!(f, "Invalid feature tag value: {}", value,)
             }
         }
     }
