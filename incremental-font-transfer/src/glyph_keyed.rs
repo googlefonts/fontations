@@ -11,7 +11,10 @@ use crate::table_keyed::copy_unprocessed_tables;
 use crate::{font_patch::PatchingError, patch_group::PatchInfo};
 
 use font_types::Scalar;
+use read_fonts::tables::glyf::Glyf;
+use read_fonts::tables::gvar::Gvar;
 use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
+use read_fonts::TopLevelTable;
 use read_fonts::{
     collections::IntSet,
     tables::{
@@ -24,8 +27,9 @@ use read_fonts::{
 
 use shared_brotli_patch_decoder::shared_brotli_decode;
 use skrifa::GlyphId;
+use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap};
-use std::ops::RangeInclusive;
+use std::ops::{Range, RangeInclusive};
 
 use write_fonts::FontBuilder;
 
@@ -72,30 +76,37 @@ pub(crate) fn apply_glyph_keyed_patches(
     let mut font_builder = FontBuilder::new();
 
     for table_tag in table_tag_list(&glyph_patches)? {
-        if table_tag == Tag::new(b"glyf") {
-            let (Some(glyf), Ok(loca)) = (font.table_data(Tag::new(b"glyf")), font.loca(None))
-            else {
+        if table_tag == Glyf::TAG {
+            let (Some(glyf), Ok(loca)) = (font.table_data(Glyf::TAG), font.loca(None)) else {
                 return Err(PatchingError::InvalidPatch(
                     "Trying to patch glyf/loca but base font doesn't have them.",
                 ));
             };
-            patch_glyf_and_loca(
+            patch_offset_array(
+                Glyf::TAG,
                 &glyph_patches,
-                glyf.as_bytes(),
-                loca,
+                GlyfAndLoca {
+                    loca,
+                    glyf: glyf.as_bytes(),
+                },
                 max_glyph_id,
                 &mut font_builder,
             )?;
             // glyf patch application also generates a loca table.
             processed_tables.insert(table_tag);
-            processed_tables.insert(Tag::new(b"loca"));
-        } else if table_tag == Tag::new(b"CFF ")
-            || table_tag == Tag::new(b"CFF2")
-            || table_tag == Tag::new(b"gvar")
-        {
-            // TODO(garretrieger): add CFF, CFF2, and gvar support as well.
+            processed_tables.insert(Loca::TAG);
+        } else if table_tag == Tag::new(b"gvar") {
+            let Ok(gvar) = font.gvar() else {
+                return Err(PatchingError::InvalidPatch(
+                    "Trying to patch gvar but base font doesn't have them.",
+                ));
+            };
+            todo!(); // TODO XXXXXXXX implement this by reusing patch_glyf_and_loca generalized to a trait.
+            processed_tables.insert(table_tag);
+        } else if table_tag == Tag::new(b"CFF ") || table_tag == Tag::new(b"CFF2") {
+            // TODO(garretrieger): add CFF and CFF2 support as well.
             return Err(PatchingError::InvalidPatch(
-                "CFF, CFF2, and gvar patches are not yet supported.",
+                "CFF and CFF2 patches are not yet supported.",
             ));
         } else {
             // All other table tags are ignored.
@@ -213,63 +224,68 @@ fn retained_glyphs_in_font(
         })
 }
 
-fn retained_glyphs_total_size(
+fn retained_glyphs_total_size<T: GlyphDataOffsetArray>(
     gids: &IntSet<GlyphId>,
-    loca: &Loca,
+    offsets: &T, // TODO XXXXXX generalize for any of the offset arrays
     max_glyph_id: GlyphId,
 ) -> Result<u64, PatchingError> {
     let mut total_size = 0u64;
     for keep_range in retained_glyphs_in_font(gids, max_glyph_id) {
-        let start = keep_range.start();
-        let end = keep_range.end();
+        let start = *keep_range.start();
+        let end: GlyphId = keep_range
+            .end()
+            .to_u32()
+            .checked_add(1)
+            .ok_or(PatchingError::InternalError)?
+            .into();
 
-        let start_offset = loca
-            .get_raw(start.to_u32() as usize)
-            .ok_or(PatchingError::InvalidPatch("Start loca entry is missing."))?;
-        let end_offset = loca
-            .get_raw(end.to_u32() as usize + 1)
-            .ok_or(PatchingError::InvalidPatch("End loca entry is missing."))?;
+        let start_offset = offsets.offset_for(start)?;
+        let end_offset = offsets.offset_for(end)?;
 
         total_size += end_offset
             .checked_sub(start_offset) // TODO: this can be removed if we pre-verify ascending order
             .ok_or(PatchingError::FontParsingFailed(ReadError::MalformedData(
-                "loca entries are not in ascending order",
+                "offset entries are not in ascending order",
             )))? as u64;
     }
 
     Ok(total_size)
 }
 
-trait LocaOffset {
+// TODO XXXXX generalize this.
+trait WritableOffset<const DIV: usize> {
     fn write_to(self, dest: &mut [u8]);
 }
 
-impl LocaOffset for u32 {
+impl<const DIV: usize> WritableOffset<DIV> for u32 {
     fn write_to(self, dest: &mut [u8]) {
-        let data: [u8; 4] = self.to_raw();
+        let data: [u8; 4] = (self / DIV as u32).to_raw();
         dest[..4].copy_from_slice(&data);
     }
 }
 
-impl LocaOffset for u16 {
+impl<const DIV: usize> WritableOffset<DIV> for u16 {
     fn write_to(self, dest: &mut [u8]) {
-        let data: [u8; 2] = (self / 2).to_raw();
+        let data: [u8; 2] = (self / DIV as u16).to_raw();
         dest[..2].copy_from_slice(&data);
     }
 }
 
-fn synthesize_glyf_and_loca<OffsetType: LocaOffset + TryFrom<usize>>(
+fn synthesize_offset_array<
+    const DIV: usize,
+    OffsetType: WritableOffset<DIV> + TryFrom<usize>,
+    T: GlyphDataOffsetArray,
+>(
     gids: &IntSet<GlyphId>,
     max_glyph_id: GlyphId,
     replacement_data: &[&[u8]],
-    glyf: &[u8],
-    loca: &Loca<'_>,
-    new_glyf: &mut [u8],
-    new_loca: &mut [u8],
+    offset_array: &T,
+    new_data: &mut [u8],
+    new_offsets: &mut [u8],
 ) -> Result<(), PatchingError> {
-    if !loca.all_offsets_are_ascending() {
+    if !offset_array.all_offsets_are_ascending() {
         return Err(PatchingError::FontParsingFailed(ReadError::MalformedData(
-            "loca contains unordered offsets.",
+            "offset array contains unordered offsets.",
         )));
     }
 
@@ -277,10 +293,6 @@ fn synthesize_glyf_and_loca<OffsetType: LocaOffset + TryFrom<usize>>(
     let mut keep_it = retained_glyphs_in_font(gids, max_glyph_id).peekable();
     let mut replacement_data_it = replacement_data.iter();
     let mut write_index = 0;
-    let is_short_loca = match loca {
-        Loca::Short(_) => true,
-        Loca::Long(_) => false,
-    };
     let off_size = std::mem::size_of::<OffsetType>();
 
     loop {
@@ -297,10 +309,7 @@ fn synthesize_glyf_and_loca<OffsetType: LocaOffset + TryFrom<usize>>(
             (None, None) => break,
         };
 
-        let (start, end) = (
-            range.start().to_u32() as usize,
-            range.end().to_u32() as usize,
-        );
+        let (start, end) = (range.start().to_u32(), range.end().to_u32());
 
         if replace {
             for gid in start..=end {
@@ -308,51 +317,53 @@ fn synthesize_glyf_and_loca<OffsetType: LocaOffset + TryFrom<usize>>(
                     .next()
                     .ok_or(PatchingError::InternalError)?;
 
-                new_glyf
+                new_data
                     .get_mut(write_index..write_index + data.len())
                     .ok_or(PatchingError::InternalError)?
                     .copy_from_slice(data);
 
-                let loca_off: OffsetType = write_index
+                let new_off: OffsetType = write_index
                     .try_into()
                     .map_err(|_| PatchingError::InternalError)?;
 
-                loca_off.write_to(
-                    new_loca
-                        .get_mut(gid * off_size..)
+                new_off.write_to(
+                    new_offsets
+                        .get_mut(gid as usize * off_size..)
                         .ok_or(PatchingError::InternalError)?,
                 );
 
                 write_index += data.len();
-                if is_short_loca {
-                    // Add padding for short loca.
-                    write_index += data.len() % 2;
+                // Add padding if the offset gets divided
+                if DIV > 1 {
+                    write_index += data.len() % DIV;
                 }
             }
         } else {
-            let start_off = loca.get_raw(start).ok_or(PatchingError::InternalError)? as usize;
-            let end_off = loca.get_raw(end + 1).ok_or(PatchingError::InternalError)? as usize;
+            let start_off = offset_array.offset_for(start.into())? as usize;
+            let end_off = offset_array.offset_for(
+                end.checked_add(1)
+                    .ok_or(PatchingError::InternalError)?
+                    .into(),
+            )? as usize;
+
             let len = end_off
                 .checked_sub(start_off)
                 .ok_or(PatchingError::InternalError)?;
-            new_glyf
+            new_data
                 .get_mut(write_index..write_index + len)
                 .ok_or(PatchingError::InternalError)?
-                .copy_from_slice(
-                    glyf.get(start_off..end_off)
-                        .ok_or(PatchingError::InternalError)?,
-                );
+                .copy_from_slice(offset_array.get(start_off..end_off)?);
 
             for gid in start..=end {
-                let cur_off = loca.get_raw(gid).ok_or(PatchingError::InternalError)? as usize;
+                let cur_off = offset_array.offset_for(gid.into())? as usize;
                 let new_off = cur_off - start_off + write_index;
 
                 let new_off: OffsetType = new_off
                     .try_into()
                     .map_err(|_| PatchingError::InternalError)?;
                 new_off.write_to(
-                    new_loca
-                        .get_mut(gid * off_size..)
+                    new_offsets
+                        .get_mut(gid as usize * off_size..)
                         .ok_or(PatchingError::InternalError)?,
                 );
             }
@@ -361,45 +372,40 @@ fn synthesize_glyf_and_loca<OffsetType: LocaOffset + TryFrom<usize>>(
         }
     }
 
-    // Write the last loca offset
-    let loca_off: OffsetType = write_index
+    // Write the last offset
+    let new_off: OffsetType = write_index
         .try_into()
         .map_err(|_| PatchingError::InternalError)?;
-    loca_off.write_to(
-        new_loca
-            .get_mut(new_loca.len() - off_size..)
+    new_off.write_to(
+        new_offsets
+            .get_mut(new_offsets.len() - off_size..)
             .ok_or(PatchingError::InternalError)?,
     );
 
     Ok(())
 }
 
-fn patch_glyf_and_loca<'a>(
+fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
+    table_tag: Tag,
     glyph_patches: &'a [GlyphPatches<'a>],
-    glyf: &[u8],
-    loca: Loca<'a>,
+    offset_array: T,
     max_glyph_id: GlyphId,
     font_builder: &mut FontBuilder,
 ) -> Result<(), PatchingError> {
     // TODO(garretrieger) using traits, generalize this approach to any of the supported table types.
 
-    let is_short = match loca {
-        Loca::Short(_) => true,
-        Loca::Long(_) => false,
-    };
-
     // Step 0: merge the individual patches into a list of replacement data for gid.
     // TODO(garretrieger): special case where gids is empty, just returned umodified copy of glyf + loca?
-    let (gids, replacement_data) =
-        dedup_gid_replacement_data(glyph_patches.iter(), Tag::new(b"glyf"))
-            .map_err(PatchingError::PatchParsingFailed)?;
+    let offset_type = offset_array.offset_type();
+    let (gids, replacement_data) = dedup_gid_replacement_data(glyph_patches.iter(), table_tag)
+        .map_err(PatchingError::PatchParsingFailed)?;
 
-    // Step 1: determine the new total size of glyf
-    let mut total_glyf_size = retained_glyphs_total_size(&gids, &loca, max_glyph_id)?;
+    // Step 1: determine the new total size of the data portion.
+    let mut total_data_size = retained_glyphs_total_size(&gids, &offset_array, max_glyph_id)?;
     for data in replacement_data.iter() {
         let len = data.len() as u64;
-        // note: include padding as needed for short loca
-        total_glyf_size += len + if is_short { len % 2 } else { 0 };
+        // note: include padding when needed (if offsets are divided for storage)
+        total_data_size += len + (len % offset_type.offset_divisor());
     }
 
     // TODO(garretrieger): pre-check loca has all ascending offsets.
@@ -411,37 +417,115 @@ fn patch_glyf_and_loca<'a>(
         ));
     }
 
-    // Step 2: patch together the new glyf (by copying in ranges of data in the correct order).
-    let loca_size = (max_glyph_id.to_u32() as usize + 2) * if is_short { 2 } else { 4 };
-    let mut new_glyf = vec![0u8; total_glyf_size as usize];
-    let mut new_loca = vec![0u8; loca_size];
-    if is_short {
-        synthesize_glyf_and_loca::<u16>(
+    // Step 2: patch together the new data array (by copying in ranges of data in the correct order).
+    // Note: max_glyph_id + 2 here because we want num glyphs + 1
+    let offsets_size = (max_glyph_id.to_u32() as usize + 2) * offset_type.offset_width();
+    let mut new_data = vec![0u8; total_data_size as usize];
+    let mut new_offsets = vec![0u8; offsets_size];
+    match offset_type {
+        OffsetType::ShortDivByTwo => synthesize_offset_array::<2, u16, _>(
             &gids,
             max_glyph_id,
             &replacement_data,
-            glyf,
-            &loca,
-            new_glyf.as_mut_slice(),
-            new_loca.as_mut_slice(),
-        )?;
-    } else {
-        synthesize_glyf_and_loca::<u32>(
+            &offset_array,
+            new_data.as_mut_slice(),
+            new_offsets.as_mut_slice(),
+        )?,
+        OffsetType::Long => synthesize_offset_array::<1, u32, _>(
             &gids,
             max_glyph_id,
             &replacement_data,
-            glyf,
-            &loca,
-            new_glyf.as_mut_slice(),
-            new_loca.as_mut_slice(),
-        )?;
+            &offset_array,
+            new_data.as_mut_slice(),
+            new_offsets.as_mut_slice(),
+        )?,
     }
 
     // Step 3: add new tables to the output builder
-    font_builder.add_raw(Tag::new(b"glyf"), new_glyf);
-    font_builder.add_raw(Tag::new(b"loca"), new_loca);
+    T::add_to_font(font_builder, new_data, new_offsets);
 
     Ok(())
+}
+
+/// Classifies the different style of offsets that can be used in a data offset array.
+enum OffsetType {
+    Long,
+    ShortDivByTwo,
+}
+
+impl OffsetType {
+    fn offset_width(&self) -> usize {
+        match self {
+            Self::Long => 4,
+            Self::ShortDivByTwo => 2,
+        }
+    }
+
+    fn offset_divisor(&self) -> u64 {
+        match self {
+            Self::Long => 1,
+            Self::ShortDivByTwo => 2,
+        }
+    }
+}
+
+struct GlyfAndLoca<'a> {
+    loca: Loca<'a>,
+    glyf: &'a [u8],
+}
+
+/// Abstraction of a table which has blocks of data located by an array of ascending offsets (eg. glyf + loca)
+trait GlyphDataOffsetArray {
+    fn offset_type(&self) -> OffsetType;
+
+    /// Returns the offset associated with a specific gid.
+    ///
+    /// This is the offset at which data for that glyph starts.
+    fn offset_for(&self, gid: GlyphId) -> Result<u32, PatchingError>;
+
+    /// Checks that all offsets are in ascending order.
+    fn all_offsets_are_ascending(&self) -> bool;
+
+    fn get(&self, range: Range<usize>) -> Result<&[u8], PatchingError>;
+
+    fn add_to_font<'a>(
+        font_builder: &mut FontBuilder<'a>,
+        data: impl Into<Cow<'a, [u8]>>,
+        offsets: impl Into<Cow<'a, [u8]>>,
+    );
+}
+
+impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
+    fn offset_type(&self) -> OffsetType {
+        match self.loca {
+            Loca::Short(_) => OffsetType::ShortDivByTwo,
+            Loca::Long(_) => OffsetType::Long,
+        }
+    }
+
+    fn offset_for(&self, gid: GlyphId) -> Result<u32, PatchingError> {
+        self.loca
+            // Note: get_raw(...) applies the * 2 for short loca when needed.
+            .get_raw(gid.to_u32() as usize)
+            .ok_or(PatchingError::InvalidPatch("Start loca entry is missing."))
+    }
+
+    fn all_offsets_are_ascending(&self) -> bool {
+        self.loca.all_offsets_are_ascending()
+    }
+
+    fn get(&self, range: Range<usize>) -> Result<&[u8], PatchingError> {
+        self.glyf.get(range).ok_or(PatchingError::InternalError)
+    }
+
+    fn add_to_font<'a>(
+        font_builder: &mut FontBuilder<'a>,
+        data: impl Into<Cow<'a, [u8]>>,
+        offsets: impl Into<Cow<'a, [u8]>>,
+    ) {
+        font_builder.add_raw(Glyf::TAG, data);
+        font_builder.add_raw(Loca::TAG, offsets);
+    }
 }
 
 #[cfg(test)]
@@ -453,9 +537,13 @@ pub(crate) mod tests {
 
     use brotlic::CompressorWriter;
     use read_fonts::{
-        tables::ift::{CompatibilityId, GlyphKeyedPatch, IFTX_TAG, IFT_TAG},
+        tables::{
+            glyf::Glyf,
+            ift::{CompatibilityId, GlyphKeyedPatch, IFTX_TAG, IFT_TAG},
+            loca::Loca,
+        },
         test_helpers::BeBuffer,
-        FontData, FontRead, ReadError, TableProvider,
+        FontData, FontRead, ReadError, TableProvider, TopLevelTable,
     };
 
     use font_test_data::ift::{
@@ -565,7 +653,7 @@ pub(crate) mod tests {
         let new_ift: &[u8] = patched.table_data(IFT_TAG).unwrap().as_bytes();
         assert_eq!(&[0, 0, 0, 0b0001_0000], new_ift);
 
-        let new_glyf: &[u8] = patched.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
+        let new_glyf: &[u8] = patched.table_data(Glyf::TAG).unwrap().as_bytes();
         assert_eq!(
             &[
                 1, 2, 3, 4, 5, 0, // gid 0
@@ -603,11 +691,7 @@ pub(crate) mod tests {
             indices
         );
 
-        check_tables_equal(
-            &font,
-            &patched,
-            [IFT_TAG, Tag::new(b"glyf"), Tag::new(b"loca")].into(),
-        );
+        check_tables_equal(&font, &patched, [IFT_TAG, Glyf::TAG, Loca::TAG].into());
     }
 
     #[test]
@@ -620,7 +704,7 @@ pub(crate) mod tests {
         let font = test_font_for_patching_with_loca_mod(
             false, // force long loca
             |_| {},
-            HashMap::from([(Tag::new(b"IFT "), vec![0, 0, 0, 0].as_slice())]),
+            HashMap::from([(IFT_TAG, vec![0, 0, 0, 0].as_slice())]),
         );
         let font = FontRef::new(&font).unwrap();
 
@@ -631,7 +715,7 @@ pub(crate) mod tests {
         let new_ift: &[u8] = patched.table_data(IFT_TAG).unwrap().as_bytes();
         assert_eq!(&[0, 0, 0, 0b0001_0000], new_ift);
 
-        let new_glyf: &[u8] = patched.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
+        let new_glyf: &[u8] = patched.table_data(Glyf::TAG).unwrap().as_bytes();
         assert_eq!(
             &[
                 1, 2, 3, 4, 5, 0, // gid 0
@@ -669,11 +753,7 @@ pub(crate) mod tests {
             indices
         );
 
-        check_tables_equal(
-            &font,
-            &patched,
-            [IFT_TAG, Tag::new(b"glyf"), Tag::new(b"loca")].into(),
-        );
+        check_tables_equal(&font, &patched, [IFT_TAG, Glyf::TAG, Loca::TAG].into());
     }
 
     #[test]
@@ -705,7 +785,7 @@ pub(crate) mod tests {
         let new_ift: &[u8] = patched.table_data(IFTX_TAG).unwrap().as_bytes();
         assert_eq!(&[0, 0b0010_0000, 0, 0b0001_0000], new_ift);
 
-        let new_glyf: &[u8] = patched.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
+        let new_glyf: &[u8] = patched.table_data(Glyf::TAG).unwrap().as_bytes();
         assert_eq!(
             &[
                 1, 2, 3, 4, 5, 0, // gid 0
@@ -745,11 +825,7 @@ pub(crate) mod tests {
             indices
         );
 
-        check_tables_equal(
-            &font,
-            &patched,
-            [Tag::new(b"glyf"), Tag::new(b"loca"), IFTX_TAG].into(),
-        );
+        check_tables_equal(&font, &patched, [Glyf::TAG, Loca::TAG, IFTX_TAG].into());
     }
 
     #[test]
@@ -807,7 +883,7 @@ pub(crate) mod tests {
         let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
-        let new_glyf: &[u8] = patched.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
+        let new_glyf: &[u8] = patched.table_data(Glyf::TAG).unwrap().as_bytes();
         assert_eq!(
             &[
                 1, 2, 3, 4, 5, 0, // gid 0
@@ -844,11 +920,7 @@ pub(crate) mod tests {
             indices
         );
 
-        check_tables_equal(
-            &font,
-            &patched,
-            [Tag::new(b"glyf"), Tag::new(b"loca"), IFT_TAG].into(),
-        );
+        check_tables_equal(&font, &patched, [Glyf::TAG, Loca::TAG, IFT_TAG].into());
     }
 
     #[test]
@@ -874,7 +946,7 @@ pub(crate) mod tests {
     #[test]
     fn glyph_keyed_duplicate_tables() {
         let mut builder = glyf_and_gvar_u16_glyph_patches();
-        builder.write_at("gvar_tag", Tag::new(b"glyf"));
+        builder.write_at("gvar_tag", Glyf::TAG);
         let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), builder);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
@@ -995,7 +1067,7 @@ pub(crate) mod tests {
         assert_eq!(
             apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
             Err(PatchingError::FontParsingFailed(ReadError::MalformedData(
-                "loca contains unordered offsets."
+                "offset array contains unordered offsets."
             ))),
         );
     }
