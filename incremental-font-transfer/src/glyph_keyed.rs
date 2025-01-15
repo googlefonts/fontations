@@ -638,18 +638,24 @@ impl GlyphDataOffsetArray for Gvar<'_> {
             .get(shared_tuples.shape().tuples_byte_range())
             .ok_or_else(|| PatchingError::SerializationError(serializer.error()))?;
 
-        serializer
-            .push()
-            .and(serializer.embed_bytes(shared_tuples_bytes))
-            .map_err(PatchingError::from)?;
+        let shared_tuples_obj = if shared_tuples_bytes.len() > 0 {
+            serializer
+                .push()
+                .and(serializer.embed_bytes(shared_tuples_bytes))
+                .map_err(PatchingError::from)?;
 
-        // The spec says that shared tuple data should come before glyph variation data so use a virtual link to ensure correct
-        // ordering.
-        serializer.add_virtual_link(glyph_data_obj);
+            // The spec says that shared tuple data should come before glyph variation data so use a virtual link to ensure correct
+            // ordering.
+            serializer.add_virtual_link(glyph_data_obj);
 
-        let shared_tuples_obj = serializer
-            .pop_pack(false)
-            .ok_or_else(|| PatchingError::SerializationError(serializer.error()))?;
+            serializer
+                .pop_pack(false)
+                .ok_or_else(|| PatchingError::SerializationError(serializer.error()))?
+        } else {
+            // If there's no shared tuples just point the shared tuples offset to the start of glyph_data_obj
+            // (since it can't be null).
+            glyph_data_obj
+        };
 
         // Set up offsets to shared tuples and glyph data.
         serializer
@@ -699,7 +705,7 @@ pub(crate) mod tests {
     use font_test_data::ift::{
         glyf_and_gvar_u16_glyph_patches, glyf_u16_glyph_patches, glyf_u16_glyph_patches_2,
         glyph_keyed_patch_header, noop_glyf_glyph_patches, out_of_order_gvar_with_shared_tuples,
-        short_gvar_with_shared_tuples, test_font_for_patching,
+        short_gvar_with_no_shared_tuples, short_gvar_with_shared_tuples, test_font_for_patching,
         test_font_for_patching_with_loca_mod,
     };
     use skrifa::{FontRef, Tag};
@@ -1040,6 +1046,64 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn glyph_keyed_glyf_and_gvar_no_shared_tuples() {
+        let patch = assemble_glyph_keyed_patch(
+            glyph_keyed_patch_header(),
+            glyf_and_gvar_u16_glyph_patches(),
+        );
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(IFT_TAG, 0);
+
+        let gvar = short_gvar_with_no_shared_tuples();
+
+        let font = test_font_for_patching_with_loca_mod(
+            true,
+            |_| {},
+            HashMap::from([
+                (Gvar::TAG, gvar.as_slice()),
+                (Tag::new(b"IFT "), vec![0, 0, 0, 0].as_slice()),
+            ]),
+        );
+        let font = FontRef::new(&font).unwrap();
+
+        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched = FontRef::new(&patched).unwrap();
+
+        let new_gvar: &[u8] = patched.table_data(Gvar::TAG).unwrap().as_bytes();
+
+        let mut expected_gvar: Vec<u8> = vec![];
+
+        let change_start = gvar.offset_for("glyph_offset[3]");
+
+        expected_gvar.extend_from_slice(gvar.get(0..change_start).unwrap());
+        // Offsets
+        expected_gvar.extend_from_slice(&[
+            0x00, 0x03, // gid 3
+            0x00, 0x03, // gid 4
+            0x00, 0x03, // gid 5
+            0x00, 0x03, // gid 6
+            0x00, 0x03, // gid 7
+            0x00, 0x05, // gid 8
+            0x00, 0x06, // gid 9
+            0x00, 0x06, // gid 10
+            0x00, 0x06, // gid 11
+            0x00, 0x06, // gid 12
+            0x00, 0x06, // gid 13
+            0x00, 0x06, // gid 14
+            0x00, 0x06u8, // trailing
+        ]);
+        // Data
+        expected_gvar.extend_from_slice(&[
+            1, 2, 3, 4, // gid 0
+            b'm', b'n', // gid 2
+            b'o', b'p', b'q', 0, // gid 7
+            b'r', 0u8, // gid 8
+        ]);
+        assert_eq!(&expected_gvar, new_gvar);
+    }
+
+    #[test]
     fn glyph_keyed_out_of_order_gvar() {
         let patch = assemble_glyph_keyed_patch(
             glyph_keyed_patch_header(),
@@ -1350,7 +1414,6 @@ pub(crate) mod tests {
     // - loca offset type switch required.
     // - glyph keyed test with large number of offsets to check type conversion on (glyphCount * tableCount)
     // - test that glyph keyed patches are idempotent.
-    // TODO XXXX gvar without shared tuples
     // TODO XXXX gvar with overlapping glyph data and shared tuples
     // TODO XXXX long offset gvar
 }
