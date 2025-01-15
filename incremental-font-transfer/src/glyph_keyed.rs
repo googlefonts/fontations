@@ -25,7 +25,7 @@ use read_fonts::{
     FontData, FontRef, ReadError, TableProvider,
 };
 
-use klippa::serialize::Serializer;
+use klippa::serialize::{OffsetWhence, Serializer};
 use shared_brotli_patch_decoder::shared_brotli_decode;
 use skrifa::GlyphId;
 use std::borrow::Cow;
@@ -33,8 +33,6 @@ use std::collections::{BTreeSet, HashMap};
 use std::ops::{Range, RangeInclusive};
 
 use write_fonts::FontBuilder;
-
-// TODO XXXXXXX convert internal errors into out of bounds
 
 pub(crate) fn apply_glyph_keyed_patches(
     patches: &[(&PatchInfo, GlyphKeyedPatch<'_>)],
@@ -522,7 +520,9 @@ impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
     }
 
     fn get(&self, range: Range<usize>) -> Result<&[u8], PatchingError> {
-        self.glyf.get(range).ok_or(PatchingError::InternalError)
+        self.glyf
+            .get(range)
+            .ok_or(PatchingError::from(ReadError::OutOfBounds))
     }
 
     fn add_to_font<'a>(
@@ -583,62 +583,95 @@ impl GlyphDataOffsetArray for Gvar<'_> {
         data: impl Into<Cow<'a, [u8]>>,
         offsets: impl Into<Cow<'a, [u8]>>,
     ) -> Result<(), PatchingError> {
-        // gvar layout (see: https://learn.microsoft.com/en-us/typography/opentype/spec/gvar):
+        // typical gvar layout (see: https://learn.microsoft.com/en-us/typography/opentype/spec/gvar):
         //   Part 1 - Header
         //   Part 2 - glyphVariationDataOffsets[glyphCount + 1]
         //   Part 3 - Shared Tuples + Glyph Variation Data Header
         //   Part 4 - per glyph variation data
         //
         // When constructing a new gvar from the newly synthesized data we'll be replacing
-        // Part 2 and 4 with 'offsets' and 'data' respectively. The size of 'offsets' (part 2) doesn't change
-        // as a result of patch application which means no fields or offsets in part 1 or part 3 will change
-        // so these can be copied directly from the original table.
-        //
-        // TODO(garretrieger): XXXXX this currently assumes that the 4 parts above don't overlap which the
-        //  spec does imply, but is not necessarily gauranteed in actual serialized data. We can handle the
-        //  overlapping case by outputing non overlapping data however this means there may be offsets in part 1
-        //  that need to be updated as a result. In a similar fashion the shared tuple array and glyph variation
-        //  data segment may be out of order (glyph variation data first and shared tupple array second). This will
-        //  also need to be handled.
+        // Part 2 and 4 with 'offsets' and 'data' respectively. We always output the parts in the ordering above
+        // regardless of how they were ordered in the original table. As a result we may need to change offsets in
+        // part 1 if ordering gets modified.
 
-        let part4_data = data.into();
+        let orig_bytes = self.as_bytes();
+        let orig_size = orig_bytes.len();
         let part2_offsets = offsets.into();
-        let original_offsets_range = self.shape().glyph_variation_data_offsets_byte_range();
+        let part4_data = data.into();
 
+        let original_offsets_range = self.shape().glyph_variation_data_offsets_byte_range();
         if part2_offsets.len() != original_offsets_range.end - original_offsets_range.start {
             // computed offsets array length should not have changed from the original offsets array length
             return Err(PatchingError::InternalError);
         }
 
-        let bytes = self.as_bytes();
-
-        let part1_header = bytes
+        let part1_header = orig_bytes
             .get(0..original_offsets_range.start)
             .ok_or(PatchingError::InternalError)?;
 
-        let data_base = self.glyph_variation_data_array_offset() as usize;
-        let first_gid_offset = self.offset_for(GlyphId::new(0))? as usize;
-        let glyph_data_start = data_base
-            .checked_add(first_gid_offset)
-            .ok_or(PatchingError::InternalError)?;
+        let max_new_size = orig_size + part4_data.len();
+        let mut serializer = Serializer::new(max_new_size);
 
-        let part3_shared_tuples = bytes
-            .get(original_offsets_range.end..glyph_data_start)
-            .ok_or(PatchingError::InternalError)?;
+        // part 1 and 2 - write gvar header and offsets
+        serializer
+            .push()
+            .and(serializer.embed_bytes(part1_header))
+            .and(serializer.embed_bytes(&part2_offsets))
+            .map_err(PatchingError::from)?;
 
-        let new_gvar_size =
-            part1_header.len() + part2_offsets.len() + part3_shared_tuples.len() + part4_data.len();
+        // part 4 - write new glyph variation data
+        serializer
+            .push()
+            .and(serializer.embed_bytes(&part4_data))
+            .map_err(PatchingError::from)?;
 
-        let mut serializer = Serializer::new(new_gvar_size);
+        let glyph_data_obj = serializer
+            .pop_pack(false)
+            .ok_or_else(|| PatchingError::SerializationError(serializer.error()))?;
+
+        // part 3 - write shared tuples.
+        let shared_tuples = self.shared_tuples().map_err(PatchingError::from)?;
+
+        let shared_tuples_bytes = shared_tuples
+            .offset_data()
+            .as_bytes()
+            .get(shared_tuples.shape().tuples_byte_range())
+            .ok_or_else(|| PatchingError::SerializationError(serializer.error()))?;
 
         serializer
-            .embed_bytes(part1_header)
-            .and(serializer.embed_bytes(&part2_offsets))
-            .and(serializer.embed_bytes(part3_shared_tuples))
-            .and(serializer.embed_bytes(&part4_data))
-            .map_err(|_| PatchingError::InternalError)?;
-        let new_gvar = serializer.copy_bytes();
+            .push()
+            .and(serializer.embed_bytes(shared_tuples_bytes))
+            .map_err(PatchingError::from)?;
 
+        // The spec says that shared tuple data should come before glyph variation data so use a virtual link to ensure correct
+        // ordering.
+        serializer.add_virtual_link(glyph_data_obj);
+
+        let shared_tuples_obj = serializer
+            .pop_pack(false)
+            .ok_or_else(|| PatchingError::SerializationError(serializer.error()))?;
+
+        // Set up offsets to shared tuples and glyph data.
+        serializer
+            .add_link(
+                self.shape().shared_tuples_offset_byte_range(),
+                shared_tuples_obj,
+                OffsetWhence::Head,
+                0,
+                false,
+            )
+            .and(serializer.add_link(
+                self.shape().glyph_variation_data_array_offset_byte_range(),
+                glyph_data_obj,
+                OffsetWhence::Head,
+                0,
+                false,
+            ))
+            .map_err(PatchingError::from)?;
+
+        // Output
+        serializer.end_serialize();
+        let new_gvar = serializer.copy_bytes();
         font_builder.add_raw(Gvar::TAG, new_gvar);
         Ok(())
     }
@@ -665,8 +698,9 @@ pub(crate) mod tests {
 
     use font_test_data::ift::{
         glyf_and_gvar_u16_glyph_patches, glyf_u16_glyph_patches, glyf_u16_glyph_patches_2,
-        glyph_keyed_patch_header, noop_glyf_glyph_patches, short_gvar_with_shared_tuples,
-        test_font_for_patching, test_font_for_patching_with_loca_mod,
+        glyph_keyed_patch_header, noop_glyf_glyph_patches, out_of_order_gvar_with_shared_tuples,
+        short_gvar_with_shared_tuples, test_font_for_patching,
+        test_font_for_patching_with_loca_mod,
     };
     use skrifa::{FontRef, Tag};
 
@@ -1006,6 +1040,69 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn glyph_keyed_out_of_order_gvar() {
+        let patch = assemble_glyph_keyed_patch(
+            glyph_keyed_patch_header(),
+            glyf_and_gvar_u16_glyph_patches(),
+        );
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(IFT_TAG, 0);
+
+        let gvar = out_of_order_gvar_with_shared_tuples();
+
+        let font = test_font_for_patching_with_loca_mod(
+            true,
+            |_| {},
+            HashMap::from([
+                (Gvar::TAG, gvar.as_slice()),
+                (Tag::new(b"IFT "), vec![0, 0, 0, 0].as_slice()),
+            ]),
+        );
+        let font = FontRef::new(&font).unwrap();
+
+        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched = FontRef::new(&patched).unwrap();
+
+        let new_gvar: &[u8] = patched.table_data(Gvar::TAG).unwrap().as_bytes();
+
+        let mut expected_gvar: Vec<u8> = vec![];
+
+        // Patching will reorder the gvar table to the expected spec ordering, so for expected compare to the
+        // correctly ordered version.
+        let gvar = short_gvar_with_shared_tuples();
+        let change_start = gvar.offset_for("glyph_offset[3]");
+
+        expected_gvar.extend_from_slice(gvar.get(0..change_start).unwrap());
+        // Offsets
+        expected_gvar.extend_from_slice(&[
+            0x00, 0x03, // gid 3
+            0x00, 0x03, // gid 4
+            0x00, 0x03, // gid 5
+            0x00, 0x03, // gid 6
+            0x00, 0x03, // gid 7
+            0x00, 0x05, // gid 8
+            0x00, 0x06, // gid 9
+            0x00, 0x06, // gid 10
+            0x00, 0x06, // gid 11
+            0x00, 0x06, // gid 12
+            0x00, 0x06, // gid 13
+            0x00, 0x06, // gid 14
+            0x00, 0x06u8, // trailing
+        ]);
+        // Shared tuples
+        expected_gvar.extend_from_slice(&[0, 42, 0, 13, 0, 25u8]);
+        // Data
+        expected_gvar.extend_from_slice(&[
+            1, 2, 3, 4, // gid 0
+            b'm', b'n', // gid 2
+            b'o', b'p', b'q', 0, // gid 7
+            b'r', 0u8, // gid 8
+        ]);
+        assert_eq!(&expected_gvar, new_gvar);
+    }
+
+    #[test]
     fn glyph_keyed_bad_format() {
         let mut header_builder = glyph_keyed_patch_header();
         header_builder.write_at("format", Tag::new(b"iftk"));
@@ -1254,7 +1351,6 @@ pub(crate) mod tests {
     // - glyph keyed test with large number of offsets to check type conversion on (glyphCount * tableCount)
     // - test that glyph keyed patches are idempotent.
     // TODO XXXX gvar without shared tuples
-    // TODO XXXX gvar with out of order glyph data and shared tuples
     // TODO XXXX gvar with overlapping glyph data and shared tuples
     // TODO XXXX long offset gvar
 }
