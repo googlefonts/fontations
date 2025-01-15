@@ -405,7 +405,7 @@ impl Serializer {
     ///
     /// On success returns an index identifying the packed object.
     ///
-    /// If share is true and there is an existing packed object which is identical this will not pack the ojbect and
+    /// If share is true and there is an existing packed object which is identical this will not pack the object and
     /// instead return the index of the existing object.
     pub fn pop_pack(&mut self, share: bool) -> Option<ObjIdx> {
         self.current?;
