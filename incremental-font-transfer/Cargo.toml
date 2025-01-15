@@ -23,6 +23,7 @@ read-fonts = { workspace = true }
 write-fonts = { workspace = true }
 font-types = { workspace = true }
 skrifa = { workspace = true }
+klippa = { workspace = true }
 shared-brotli-patch-decoder = { workspace = true }
 uri-template-system = "0.1.5"
 data-encoding = "2.6.0"

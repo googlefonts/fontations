@@ -48,6 +48,7 @@ skrifa = { version = "0.26.4", path = "skrifa", default-features = false, featur
 write-fonts = { version = "0.33.1", path = "write-fonts" }
 shared-brotli-patch-decoder = { version = "0.1.0", path = "shared-brotli-patch-decoder" }
 incremental-font-transfer = { version = "0.1.0", path = "incremental-font-transfer" }
+klippa = { version = "0.1.0", path = "klippa" }
 
 [workspace.metadata.release]
 allow-branch = ["main"]

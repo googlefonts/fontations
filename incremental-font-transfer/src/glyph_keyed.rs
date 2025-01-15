@@ -12,7 +12,7 @@ use crate::{font_patch::PatchingError, patch_group::PatchInfo};
 
 use font_types::Scalar;
 use read_fonts::tables::glyf::Glyf;
-use read_fonts::tables::gvar::Gvar;
+use read_fonts::tables::gvar::{Gvar, GvarFlags};
 use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
 use read_fonts::TopLevelTable;
 use read_fonts::{
@@ -25,6 +25,7 @@ use read_fonts::{
     FontData, FontRef, ReadError, TableProvider,
 };
 
+use klippa::serialize::Serializer;
 use shared_brotli_patch_decoder::shared_brotli_decode;
 use skrifa::GlyphId;
 use std::borrow::Cow;
@@ -32,6 +33,8 @@ use std::collections::{BTreeSet, HashMap};
 use std::ops::{Range, RangeInclusive};
 
 use write_fonts::FontBuilder;
+
+// TODO XXXXXXX convert internal errors into out of bounds
 
 pub(crate) fn apply_glyph_keyed_patches(
     patches: &[(&PatchInfo, GlyphKeyedPatch<'_>)],
@@ -101,8 +104,14 @@ pub(crate) fn apply_glyph_keyed_patches(
                     "Trying to patch gvar but base font doesn't have them.",
                 ));
             };
-            todo!(); // TODO XXXXXXXX implement this by reusing patch_glyf_and_loca generalized to a trait.
-            processed_tables.insert(table_tag);
+            patch_offset_array(
+                Gvar::TAG,
+                &glyph_patches,
+                gvar,
+                max_glyph_id,
+                &mut font_builder,
+            )?;
+            processed_tables.insert(Gvar::TAG);
         } else if table_tag == Tag::new(b"CFF ") || table_tag == Tag::new(b"CFF2") {
             // TODO(garretrieger): add CFF and CFF2 support as well.
             return Err(PatchingError::InvalidPatch(
@@ -226,7 +235,7 @@ fn retained_glyphs_in_font(
 
 fn retained_glyphs_total_size<T: GlyphDataOffsetArray>(
     gids: &IntSet<GlyphId>,
-    offsets: &T, // TODO XXXXXX generalize for any of the offset arrays
+    offsets: &T,
     max_glyph_id: GlyphId,
 ) -> Result<u64, PatchingError> {
     let mut total_size = 0u64;
@@ -252,7 +261,6 @@ fn retained_glyphs_total_size<T: GlyphDataOffsetArray>(
     Ok(total_size)
 }
 
-// TODO XXXXX generalize this.
 trait WritableOffset<const DIV: usize> {
     fn write_to(self, dest: &mut [u8]);
 }
@@ -392,8 +400,6 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
     max_glyph_id: GlyphId,
     font_builder: &mut FontBuilder,
 ) -> Result<(), PatchingError> {
-    // TODO(garretrieger) using traits, generalize this approach to any of the supported table types.
-
     // Step 0: merge the individual patches into a list of replacement data for gid.
     // TODO(garretrieger): special case where gids is empty, just returned umodified copy of glyf + loca?
     let offset_type = offset_array.offset_type();
@@ -442,7 +448,7 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
     }
 
     // Step 3: add new tables to the output builder
-    T::add_to_font(font_builder, new_data, new_offsets);
+    offset_array.add_to_font(font_builder, new_data, new_offsets)?;
 
     Ok(())
 }
@@ -489,10 +495,11 @@ trait GlyphDataOffsetArray {
     fn get(&self, range: Range<usize>) -> Result<&[u8], PatchingError>;
 
     fn add_to_font<'a>(
+        &self,
         font_builder: &mut FontBuilder<'a>,
         data: impl Into<Cow<'a, [u8]>>,
         offsets: impl Into<Cow<'a, [u8]>>,
-    );
+    ) -> Result<(), PatchingError>;
 }
 
 impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
@@ -519,12 +526,121 @@ impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
     }
 
     fn add_to_font<'a>(
+        &self,
         font_builder: &mut FontBuilder<'a>,
         data: impl Into<Cow<'a, [u8]>>,
         offsets: impl Into<Cow<'a, [u8]>>,
-    ) {
+    ) -> Result<(), PatchingError> {
         font_builder.add_raw(Glyf::TAG, data);
         font_builder.add_raw(Loca::TAG, offsets);
+        Ok(())
+    }
+}
+
+impl GlyphDataOffsetArray for Gvar<'_> {
+    fn offset_type(&self) -> OffsetType {
+        if self.flags().contains(GvarFlags::LONG_OFFSETS) {
+            OffsetType::Long
+        } else {
+            OffsetType::ShortDivByTwo
+        }
+    }
+
+    fn offset_for(&self, gid: GlyphId) -> Result<u32, PatchingError> {
+        Ok(self
+            .glyph_variation_data_offsets()
+            .get(gid.to_u32() as usize)
+            .map_err(PatchingError::FontParsingFailed)?
+            .get())
+    }
+
+    fn all_offsets_are_ascending(&self) -> bool {
+        let mut prev: Option<u32> = None;
+        for v in self.glyph_variation_data_offsets().iter() {
+            let Ok(v) = v else {
+                return false;
+            };
+            let v = v.get();
+            if let Some(prev_value) = prev {
+                if prev_value > v {
+                    return false;
+                }
+            }
+            prev = Some(v);
+        }
+        true
+    }
+
+    fn get(&self, range: Range<usize>) -> Result<&[u8], PatchingError> {
+        self.glyph_variation_data_for_range(range)
+            .map_err(PatchingError::FontParsingFailed)
+            .map(|fd| fd.as_bytes())
+    }
+
+    fn add_to_font<'a>(
+        &self,
+        font_builder: &mut FontBuilder<'a>,
+        data: impl Into<Cow<'a, [u8]>>,
+        offsets: impl Into<Cow<'a, [u8]>>,
+    ) -> Result<(), PatchingError> {
+        // gvar layout (see: https://learn.microsoft.com/en-us/typography/opentype/spec/gvar):
+        //   Part 1 - Header
+        //   Part 2 - glyphVariationDataOffsets[glyphCount + 1]
+        //   Part 3 - Shared Tuples + Glyph Variation Data Header
+        //   Part 4 - per glyph variation data
+        //
+        // When constructing a new gvar from the newly synthesized data we'll be replacing
+        // Part 2 and 4 with 'offsets' and 'data' respectively. The size of 'offsets' (part 2) doesn't change
+        // as a result of patch application which means no fields or offsets in part 1 or part 3 will change
+        // so these can be copied directly from the original table.
+        //
+        // TODO(garretrieger): XXXXX this currently assumes that the 4 parts above don't overlap which the
+        //  spec does imply, but is not necessarily gauranteed in actual serialized data. We can handle the
+        //  overlapping case by outputing non overlapping data however this means there may be offsets in part 1
+        //  that need to be updated as a result. In a similar fashion the shared tuple array and glyph variation
+        //  data segment may be out of order (glyph variation data first and shared tupple array second). This will
+        //  also need to be handled.
+
+        let part4_data = data.into();
+        let part2_offsets = offsets.into();
+        let original_offsets_range = self.shape().glyph_variation_data_offsets_byte_range();
+
+        if part2_offsets.len() != original_offsets_range.end - original_offsets_range.start {
+            // computed offsets array length should not have changed from the original offsets array length
+            return Err(PatchingError::InternalError);
+        }
+
+        let bytes = self.as_bytes();
+
+        let part1_header = bytes
+            .get(0..original_offsets_range.start)
+            .ok_or(PatchingError::InternalError)?;
+
+        let data_base = self.glyph_variation_data_array_offset() as usize;
+        let first_gid_offset = self.offset_for(GlyphId::new(0))? as usize;
+        let glyph_data_start = data_base
+            .checked_add(first_gid_offset)
+            .ok_or(PatchingError::InternalError)?;
+
+        let part3_shared_tuples = bytes
+            .get(original_offsets_range.end..glyph_data_start)
+            .ok_or(PatchingError::InternalError)?;
+
+        let new_gvar_size =
+            part1_header.len() + part2_offsets.len() + part3_shared_tuples.len() + part4_data.len();
+
+        let mut serializer = Serializer::new(new_gvar_size);
+
+        serializer
+            .embed_bytes(part1_header)
+            .and(serializer.embed_bytes(&part2_offsets))
+            .and(serializer.embed_bytes(part3_shared_tuples))
+            .and(serializer.embed_bytes(&part4_data))
+            .map_err(|_| PatchingError::InternalError)?;
+        let new_gvar = serializer.copy_bytes();
+
+        font_builder.add_raw(Gvar::TAG, new_gvar);
+        Ok(())
     }
 }
 
@@ -539,6 +655,7 @@ pub(crate) mod tests {
     use read_fonts::{
         tables::{
             glyf::Glyf,
+            gvar::Gvar,
             ift::{CompatibilityId, GlyphKeyedPatch, IFTX_TAG, IFT_TAG},
             loca::Loca,
         },
@@ -548,8 +665,8 @@ pub(crate) mod tests {
 
     use font_test_data::ift::{
         glyf_and_gvar_u16_glyph_patches, glyf_u16_glyph_patches, glyf_u16_glyph_patches_2,
-        glyph_keyed_patch_header, noop_glyf_glyph_patches, test_font_for_patching,
-        test_font_for_patching_with_loca_mod,
+        glyph_keyed_patch_header, noop_glyf_glyph_patches, short_gvar_with_shared_tuples,
+        test_font_for_patching, test_font_for_patching_with_loca_mod,
     };
     use skrifa::{FontRef, Tag};
 
@@ -829,6 +946,66 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn glyph_keyed_glyf_and_gvar() {
+        let patch = assemble_glyph_keyed_patch(
+            glyph_keyed_patch_header(),
+            glyf_and_gvar_u16_glyph_patches(),
+        );
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(IFT_TAG, 0);
+
+        let gvar = short_gvar_with_shared_tuples();
+
+        let font = test_font_for_patching_with_loca_mod(
+            true,
+            |_| {},
+            HashMap::from([
+                (Gvar::TAG, gvar.as_slice()),
+                (Tag::new(b"IFT "), vec![0, 0, 0, 0].as_slice()),
+            ]),
+        );
+        let font = FontRef::new(&font).unwrap();
+
+        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched = FontRef::new(&patched).unwrap();
+
+        let new_gvar: &[u8] = patched.table_data(Gvar::TAG).unwrap().as_bytes();
+
+        let mut expected_gvar: Vec<u8> = vec![];
+
+        let change_start = gvar.offset_for("glyph_offset[3]");
+
+        expected_gvar.extend_from_slice(gvar.get(0..change_start).unwrap());
+        // Offsets
+        expected_gvar.extend_from_slice(&[
+            0x00, 0x03, // gid 3
+            0x00, 0x03, // gid 4
+            0x00, 0x03, // gid 5
+            0x00, 0x03, // gid 6
+            0x00, 0x03, // gid 7
+            0x00, 0x05, // gid 8
+            0x00, 0x06, // gid 9
+            0x00, 0x06, // gid 10
+            0x00, 0x06, // gid 11
+            0x00, 0x06, // gid 12
+            0x00, 0x06, // gid 13
+            0x00, 0x06, // gid 14
+            0x00, 0x06u8, // trailing
+        ]);
+        // Shared tuples
+        expected_gvar.extend_from_slice(&[0, 42, 0, 13, 0, 25u8]);
+        // Data
+        expected_gvar.extend_from_slice(&[
+            1, 2, 3, 4, // gid 0
+            b'm', b'n', // gid 2
+            b'o', b'p', b'q', 0, // gid 7
+            b'r', 0u8, // gid 8
+        ]);
+        assert_eq!(&expected_gvar, new_gvar);
+    }
+
+    #[test]
     fn glyph_keyed_bad_format() {
         let mut header_builder = glyph_keyed_patch_header();
         header_builder.write_at("format", Tag::new(b"iftk"));
@@ -848,10 +1025,9 @@ pub(crate) mod tests {
 
     #[test]
     fn glyph_keyed_unsupported_table() {
-        let patch = assemble_glyph_keyed_patch(
-            glyph_keyed_patch_header(),
-            glyf_and_gvar_u16_glyph_patches(),
-        );
+        let mut patch = glyf_and_gvar_u16_glyph_patches();
+        patch.write_at("glyf_tag", Tag::new(b"CFF "));
+        let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), patch);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
         let patch_info = patch_info(IFT_TAG, 0);
@@ -862,7 +1038,7 @@ pub(crate) mod tests {
         assert_eq!(
             apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
             Err(PatchingError::InvalidPatch(
-                "CFF, CFF2, and gvar patches are not yet supported."
+                "CFF and CFF2 patches are not yet supported."
             ))
         );
     }
@@ -1077,4 +1253,8 @@ pub(crate) mod tests {
     // - loca offset type switch required.
     // - glyph keyed test with large number of offsets to check type conversion on (glyphCount * tableCount)
     // - test that glyph keyed patches are idempotent.
+    // TODO XXXX gvar without shared tuples
+    // TODO XXXX gvar with out of order glyph data and shared tuples
+    // TODO XXXX gvar with overlapping glyph data and shared tuples
+    // TODO XXXX long offset gvar
 }
