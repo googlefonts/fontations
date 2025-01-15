@@ -614,7 +614,7 @@ impl GlyphDataOffsetArray for Gvar<'_> {
 
         // part 1 and 2 - write gvar header and offsets
         serializer
-            .push()
+            .start_serialize()
             .and(serializer.embed_bytes(part1_header))
             .and(serializer.embed_bytes(&part2_offsets))
             .map_err(PatchingError::from)?;

@@ -10,6 +10,7 @@ use fnv::FnvHasher;
 use hashbrown::HashTable;
 use write_fonts::types::{FixedSize, Scalar, Uint24};
 
+/// An error which occurred during the serialization of a table using Serializer.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[allow(dead_code)]
 pub struct SerializeErrorFlags(u16);
@@ -58,8 +59,10 @@ impl std::ops::Not for SerializeErrorFlags {
 
 #[allow(dead_code)]
 #[derive(Default, Eq, PartialEq, Hash)]
-// Offset relative to the current object head (default)/tail or
-// Absolute: from the start of the serialize buffer
+/// Marks where an offset is relative from.
+///
+/// Offset relative to the current object head (default)/tail or
+/// Absolute: from the start of the serialize buffer
 pub enum OffsetWhence {
     #[default]
     Head,
@@ -151,8 +154,20 @@ pub(crate) struct Snapshot {
     errors: SerializeErrorFlags,
 }
 
-// reference harfbuzz implementation:
-//<https://github.com/harfbuzz/harfbuzz/blob/5e32b5ca8fe430132b87c0eee6a1c056d37c35eb/src/hb-serialize.hh#L57>
+/// Constructs a sequential stream of bytes from one or more sub sequences of bytes/objects.
+///
+/// Notably this allows construction of open type tables that make use of offsets (eg. GSUB, GPOS) to form
+/// graphs of sub tables. The serializer is capable of automatically placing object data in a topological sorting
+/// and resolving offsets given an object graph.
+///
+/// Port of the harfbuzz serializer:
+/// <https://github.com/harfbuzz/harfbuzz/blob/5e32b5ca8fe430132b87c0eee6a1c056d37c35eb/src/hb-serialize.hh#L57>
+///
+/// For a higher level overview of serializer concepts see:
+/// <https://github.com/harfbuzz/harfbuzz/blob/main/docs/serializer.md>
+///
+/// Note: currently repacking to resolve offset overflows is not yet implemented
+/// (context: <https://github.com/harfbuzz/harfbuzz/blob/main/docs/repacker.md>)
 #[derive(Default)]
 #[allow(dead_code)]
 pub struct Serializer {
@@ -184,8 +199,8 @@ impl Serializer {
         }
     }
 
-    /// Embed a single Scalar type
-    pub(crate) fn embed(&mut self, obj: impl Scalar) -> Result<usize, SerializeErrorFlags> {
+    /// Appends a the byte representation of a single scalar type onto the buffer.
+    pub fn embed(&mut self, obj: impl Scalar) -> Result<usize, SerializeErrorFlags> {
         let raw = obj.to_raw();
         let bytes = raw.as_ref();
         let size = bytes.len();
@@ -195,7 +210,7 @@ impl Serializer {
         Ok(ret)
     }
 
-    /// Embed bytes
+    /// Appends a copy of a slice of bytes onto the buffer.
     pub fn embed_bytes(&mut self, bytes: &[u8]) -> Result<usize, SerializeErrorFlags> {
         let len = bytes.len();
         let ret = self.allocate_size(len, false)?;
@@ -310,6 +325,7 @@ impl Serializer {
         self.errors
     }
 
+    /// Returns any currently set error flags.
     pub fn error(&self) -> SerializeErrorFlags {
         self.errors
     }
@@ -366,6 +382,7 @@ impl Serializer {
         s
     }
 
+    /// Start a new sub table object which may be pointed to via offset from any object that has already been packed.
     pub fn push(&mut self) -> Result<(), SerializeErrorFlags> {
         if self.in_error() {
             return Err(self.errors);
@@ -384,6 +401,12 @@ impl Serializer {
         Ok(())
     }
 
+    /// Finalize the currently active object and copy it into the buffer.
+    ///
+    /// On success returns an index identifying the packed object.
+    ///
+    /// If share is true and there is an existing packed object which is identical this will not pack the ojbect and
+    /// instead return the index of the existing object.
     pub fn pop_pack(&mut self, share: bool) -> Option<ObjIdx> {
         self.current?;
 
@@ -549,6 +572,12 @@ impl Serializer {
         }
     }
 
+    /// Creates an offset in the current object which will point to the object identified by obj_idx.
+    ///
+    /// When serialization finishes the appropriate offset value will be written into offset_byte_range,
+    /// which is relative to the start of the current object.
+    ///
+    /// whence controls what the offset value is relative too.
     pub fn add_link(
         &mut self,
         offset_byte_range: Range<usize>,
@@ -588,6 +617,8 @@ impl Serializer {
         Ok(())
     }
 
+    /// Adds a link which enforces that the object identified by obj_idx must always come after this
+    /// object in the serialized output.
     pub fn add_virtual_link(&mut self, obj_idx: ObjIdx) -> bool {
         if self.current.is_none() {
             return false;
@@ -700,6 +731,9 @@ impl Serializer {
         }
     }
 
+    /// Create and return a copy of the serialization buffer.
+    ///
+    /// end_serialize() should be called prior to this to perform offset resolution.
     pub fn copy_bytes(mut self) -> Vec<u8> {
         if !self.successful() {
             return Vec::new();
@@ -736,7 +770,8 @@ impl Serializer {
         self.data.len()
     }
 
-    pub(crate) fn start_serialize(&mut self) -> Result<(), SerializeErrorFlags> {
+    /// Starts the serialization of an object graph.
+    pub fn start_serialize(&mut self) -> Result<(), SerializeErrorFlags> {
         if self.current.is_some() {
             Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))?
         }
@@ -744,6 +779,7 @@ impl Serializer {
         self.push()
     }
 
+    /// Ends the serialization of an object graph and resolves all offsets.
     pub fn end_serialize(&mut self) {
         if self.current.is_none() {
             return;
