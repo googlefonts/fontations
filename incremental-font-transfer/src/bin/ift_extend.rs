@@ -141,21 +141,13 @@ fn parse_unicodes(args: Vec<String>, codepoints: &mut IntSet<u32>) -> Result<(),
 fn parse_features(args: Vec<String>) -> Result<FeatureSet, ParsingError> {
     let mut tags = BTreeSet::<Tag>::new();
     for tag_string in args {
-        if tag_string.is_empty() {
-            continue;
-        }
-
-        if tag_string == "*" {
-            return Ok(FeatureSet::All);
-        }
-
-        if tag_string.len() != 4 {
-            return Err(ParsingError::FeatureTagParsingFailed(tag_string));
-        }
-
-        let Ok(tag) = Tag::new_checked(&tag_string.as_bytes()[0..4]) else {
-            return Err(ParsingError::FeatureTagParsingFailed(tag_string));
+        let tag = match tag_string.as_str() {
+            "" => continue,
+            "*" => return Ok(FeatureSet::All),
+            tag => Tag::new_checked(tag.as_bytes())
+                .map_err(|_| ParsingError::FeatureTagParsingFailed(tag_string))?,
         };
+
         tags.insert(tag);
     }
 
@@ -238,7 +230,7 @@ impl std::fmt::Display for ParsingError {
                 write!(f, "Invalid unicode code point value: {}", value,)
             }
             ParsingError::FeatureTagParsingFailed(value) => {
-                write!(f, "Invalid feature tag value: {}", value,)
+                write!(f, "Invalid feature tag value: {value}")
             }
         }
     }
