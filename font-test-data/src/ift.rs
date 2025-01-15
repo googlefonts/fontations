@@ -855,7 +855,7 @@ pub fn glyf_and_gvar_u16_glyph_patches() -> BeBuffer {
       3u32,       // glyph count
       2u8,        // table count
       [2, 7, 8u16],   // glyph ids * 3
-      (Tag::new(b"glyf")),               // tables[0]
+      {(Tag::new(b"glyf")): "glyf_tag"}, // tables[0]
       {(Tag::new(b"gvar")): "gvar_tag"}, // tables[1]
 
       // glyph data offsets * 7
@@ -900,6 +900,84 @@ pub fn glyf_and_gvar_u16_glyph_patches() -> BeBuffer {
     let offset = buffer.offset_for("gvar_gid_8_data") as u32;
     buffer.write_at("gvar_gid_8_offset", offset);
     buffer.write_at("end_offset", offset + 1);
+
+    buffer
+}
+
+// TODO XXXX gvar without shared tuples
+// TODO XXXX gvar with out of order glyph data and shared tuples
+// TODO XXXX gvar with overlapping glyph data and shared tuples
+// TODO XXXX long offset gvar
+
+/// https://learn.microsoft.com/en-us/typography/opentype/spec/gvar
+pub fn short_gvar_with_shared_tuples() -> BeBuffer {
+    // This gvar has the correct header and tuple structure but the per glyph variation data is not valid.
+    // Meant for testing with IFT glyph keyed patching which treats the per glyph data as opaque blobs.
+    let mut buffer = be_buffer! {
+      // HEADER
+      1u16, // major version
+      0u16, // minor version
+      1u16, // axis count
+      3u16, // sharedTupleCount
+      {0u32: "shared_tuples_offset"},
+      15u16, // glyph count
+      0u16,  // flags
+      {0u32: "glyph_variation_data_offset"},
+
+      // OFFSETS
+      {0u16: "glyph_offset[0]"},
+      {0u16: "glyph_offset[1]"},
+      {0u16: "glyph_offset[2]"},
+      {0u16: "glyph_offset[3]"},
+      {0u16: "glyph_offset[4]"},
+      {0u16: "glyph_offset[5]"},
+      {0u16: "glyph_offset[6]"},
+      {0u16: "glyph_offset[7]"},
+      {0u16: "glyph_offset[8]"},
+      {0u16: "glyph_offset[9]"},
+      {0u16: "glyph_offset[10]"},
+      {0u16: "glyph_offset[11]"},
+      {0u16: "glyph_offset[12]"},
+      {0u16: "glyph_offset[13]"},
+      {0u16: "glyph_offset[14]"},
+      {0u16: "glyph_offset[15]"},
+
+      // SHARED TUPLES
+      {42u16: "sharedTuples[0]"},
+      13u16,
+      25u16,
+
+      // GLYPH VARIATION DATA
+      {1u8: "glyph_0"}, [2, 3, 4u8],
+      {5u8: "glyph_8"}, [6, 7, 8, 9u8], {10u8: "end"}
+    };
+
+    let offset = buffer.offset_for("sharedTuples[0]") as u32;
+    buffer.write_at("shared_tuples_offset", offset);
+
+    let data_offset = buffer.offset_for("glyph_0");
+    buffer.write_at("glyph_variation_data_offset", data_offset as u32);
+
+    let glyph0_offset = ((buffer.offset_for("glyph_0") - data_offset) / 2) as u16;
+    let glyph8_offset = ((buffer.offset_for("glyph_8") - data_offset) / 2) as u16;
+    let end_offset = ((buffer.offset_for("end") + 1 - data_offset) / 2) as u16;
+
+    buffer.write_at("glyph_offset[0]", glyph0_offset);
+    buffer.write_at("glyph_offset[1]", glyph8_offset);
+    buffer.write_at("glyph_offset[2]", glyph8_offset);
+    buffer.write_at("glyph_offset[3]", glyph8_offset);
+    buffer.write_at("glyph_offset[4]", glyph8_offset);
+    buffer.write_at("glyph_offset[5]", glyph8_offset);
+    buffer.write_at("glyph_offset[6]", glyph8_offset);
+    buffer.write_at("glyph_offset[7]", glyph8_offset);
+    buffer.write_at("glyph_offset[8]", glyph8_offset);
+    buffer.write_at("glyph_offset[9]", end_offset);
+    buffer.write_at("glyph_offset[10]", end_offset);
+    buffer.write_at("glyph_offset[11]", end_offset);
+    buffer.write_at("glyph_offset[12]", end_offset);
+    buffer.write_at("glyph_offset[13]", end_offset);
+    buffer.write_at("glyph_offset[14]", end_offset);
+    buffer.write_at("glyph_offset[15]", end_offset);
 
     buffer
 }

@@ -62,6 +62,24 @@ impl<'a> Gvar<'a> {
         self.data.slice(range).ok_or(ReadError::OutOfBounds)
     }
 
+    pub fn glyph_variation_data_for_range(
+        &self,
+        offset_range: Range<usize>,
+    ) -> Result<FontData<'a>, ReadError> {
+        let base = self.glyph_variation_data_array_offset() as usize;
+        let start = base
+            .checked_add(offset_range.start)
+            .ok_or(ReadError::OutOfBounds)?;
+        let end = base
+            .checked_add(offset_range.end)
+            .ok_or(ReadError::OutOfBounds)?;
+        self.data.slice(start..end).ok_or(ReadError::OutOfBounds)
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.data.as_bytes()
+    }
+
     fn data_range_for_gid(&self, gid: GlyphId) -> Result<Range<usize>, ReadError> {
         let start_idx = gid.to_u32() as usize;
         let end_idx = start_idx + 1;

@@ -12,7 +12,7 @@ use write_fonts::types::{FixedSize, Scalar, Uint24};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[allow(dead_code)]
-pub(crate) struct SerializeErrorFlags(u16);
+pub struct SerializeErrorFlags(u16);
 
 #[allow(dead_code)]
 impl SerializeErrorFlags {
@@ -168,12 +168,11 @@ pub struct Serializer {
 
 #[allow(dead_code)]
 impl Serializer {
-    pub(crate) fn new(size: u32) -> Self {
-        let buf_size = size as usize;
+    pub fn new(size: usize) -> Self {
         Serializer {
-            data: vec![0; buf_size],
-            end: buf_size,
-            tail: buf_size,
+            data: vec![0; size],
+            end: size,
+            tail: size,
             packed: Vec::new(),
             ..Default::default()
         }
@@ -191,7 +190,7 @@ impl Serializer {
     }
 
     /// Embed bytes
-    pub(crate) fn embed_bytes(&mut self, bytes: &[u8]) -> Result<usize, SerializeErrorFlags> {
+    pub fn embed_bytes(&mut self, bytes: &[u8]) -> Result<usize, SerializeErrorFlags> {
         let len = bytes.len();
         let ret = self.allocate_size(len, false)?;
         self.data[ret..ret + len].copy_from_slice(bytes);
@@ -695,7 +694,7 @@ impl Serializer {
         }
     }
 
-    pub(crate) fn copy_bytes(mut self) -> Vec<u8> {
+    pub fn copy_bytes(mut self) -> Vec<u8> {
         if !self.successful() {
             return Vec::new();
         }
