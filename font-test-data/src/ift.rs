@@ -904,8 +904,6 @@ pub fn glyf_and_gvar_u16_glyph_patches() -> BeBuffer {
     buffer
 }
 
-// TODO XXXX gvar with overlapping glyph data and shared tuples
-
 /// https://learn.microsoft.com/en-us/typography/opentype/spec/gvar
 pub fn short_gvar_with_shared_tuples() -> BeBuffer {
     // This gvar has the correct header and tuple structure but the per glyph variation data is not valid.
@@ -1060,7 +1058,7 @@ pub fn short_gvar_with_no_shared_tuples() -> BeBuffer {
       1u16,  // major version
       0u16,  // minor version
       1u16,  // axis count
-      0u16,  // sharedTupleCount
+      {0u16: "shared_tuple_count"},
       {0u32: "shared_tuples_offset"},
       15u16, // glyph count
       0u16,  // flags

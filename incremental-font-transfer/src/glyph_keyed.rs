@@ -638,7 +638,7 @@ impl GlyphDataOffsetArray for Gvar<'_> {
             .get(shared_tuples.shape().tuples_byte_range())
             .ok_or_else(|| PatchingError::SerializationError(serializer.error()))?;
 
-        let shared_tuples_obj = if shared_tuples_bytes.len() > 0 {
+        let shared_tuples_obj = if !shared_tuples_bytes.is_empty() {
             serializer
                 .push()
                 .and(serializer.embed_bytes(shared_tuples_bytes))
@@ -1165,6 +1165,71 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn glyph_keyed_glyf_and_gvar_overlapping_shared_tuples() {
+        let patch = assemble_glyph_keyed_patch(
+            glyph_keyed_patch_header(),
+            glyf_and_gvar_u16_glyph_patches(),
+        );
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(IFT_TAG, 0);
+
+        let mut gvar = short_gvar_with_no_shared_tuples();
+        gvar.write_at("shared_tuple_count", 2u16);
+
+        let font = test_font_for_patching_with_loca_mod(
+            true,
+            |_| {},
+            HashMap::from([
+                (Gvar::TAG, gvar.as_slice()),
+                (Tag::new(b"IFT "), vec![0, 0, 0, 0].as_slice()),
+            ]),
+        );
+        let font = FontRef::new(&font).unwrap();
+
+        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched = FontRef::new(&patched).unwrap();
+
+        let new_gvar: &[u8] = patched.table_data(Gvar::TAG).unwrap().as_bytes();
+
+        let mut expected_gvar: Vec<u8> = vec![];
+
+        let change_start = gvar.offset_for("glyph_offset[3]");
+
+        gvar.write_at(
+            "glyph_variation_data_offset",
+            (gvar.offset_for("glyph_0") + 4) as u32,
+        ); // glyph variation data gets shifted by 4 bytes due to duplication of 4 bytes of shared tuple data.
+        expected_gvar.extend_from_slice(gvar.get(0..change_start).unwrap());
+        // Offsets
+        expected_gvar.extend_from_slice(&[
+            0x00, 0x03, // gid 3
+            0x00, 0x03, // gid 4
+            0x00, 0x03, // gid 5
+            0x00, 0x03, // gid 6
+            0x00, 0x03, // gid 7
+            0x00, 0x05, // gid 8
+            0x00, 0x06, // gid 9
+            0x00, 0x06, // gid 10
+            0x00, 0x06, // gid 11
+            0x00, 0x06, // gid 12
+            0x00, 0x06, // gid 13
+            0x00, 0x06, // gid 14
+            0x00, 0x06u8, // trailing
+        ]);
+        // Shared tuples
+        expected_gvar.extend_from_slice(&[1, 2, 3, 4u8]); // overlapping portion is duplicated into its own region.
+                                                          // Data
+        expected_gvar.extend_from_slice(&[
+            1, 2, 3, 4, // gid 0
+            b'm', b'n', // gid 2
+            b'o', b'p', b'q', 0, // gid 7
+            b'r', 0u8, // gid 8
+        ]);
+        assert_eq!(&expected_gvar, new_gvar);
+    }
+
+    #[test]
     fn glyph_keyed_out_of_order_gvar() {
         let patch = assemble_glyph_keyed_patch(
             glyph_keyed_patch_header(),
@@ -1475,5 +1540,4 @@ pub(crate) mod tests {
     // - loca offset type switch required.
     // - glyph keyed test with large number of offsets to check type conversion on (glyphCount * tableCount)
     // - test that glyph keyed patches are idempotent.
-    // TODO XXXX gvar with overlapping glyph data and shared tuples
 }
