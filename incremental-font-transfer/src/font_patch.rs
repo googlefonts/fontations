@@ -18,6 +18,7 @@ use crate::glyph_keyed::apply_glyph_keyed_patches;
 
 use crate::table_keyed::apply_table_keyed_patch;
 use font_types::Tag;
+use klippa::serialize::SerializeErrorFlags;
 use read_fonts::tables::ift::{CompatibilityId, GlyphKeyedPatch, TableKeyedPatch};
 
 use read_fonts::{FontData, FontRead, FontRef, ReadError};
@@ -55,12 +56,25 @@ pub trait IncrementalFontPatchBase {
 pub enum PatchingError {
     PatchParsingFailed(ReadError),
     FontParsingFailed(ReadError),
+    SerializationError(SerializeErrorFlags),
     IncompatiblePatch,
     NonIncrementalFont,
     InvalidPatch(&'static str),
     EmptyPatchList,
     InternalError,
     MissingPatches,
+}
+
+impl From<SerializeErrorFlags> for PatchingError {
+    fn from(err: SerializeErrorFlags) -> Self {
+        PatchingError::SerializationError(err)
+    }
+}
+
+impl From<ReadError> for PatchingError {
+    fn from(err: ReadError) -> Self {
+        PatchingError::FontParsingFailed(err)
+    }
 }
 
 impl From<DecodeError> for PatchingError {
@@ -87,6 +101,13 @@ impl std::fmt::Display for PatchingError {
             }
             PatchingError::FontParsingFailed(err) => {
                 write!(f, "Failed to parse font file: {}", err)
+            }
+            PatchingError::SerializationError(err) => {
+                write!(
+                    f,
+                    "serialization failure constructing patched table: {}",
+                    err
+                )
             }
             PatchingError::IncompatiblePatch => {
                 write!(f, "Compatibility ID of the patch does not match the font.")

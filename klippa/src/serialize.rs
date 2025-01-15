@@ -14,6 +14,12 @@ use write_fonts::types::{FixedSize, Scalar, Uint24};
 #[allow(dead_code)]
 pub struct SerializeErrorFlags(u16);
 
+impl std::fmt::Display for SerializeErrorFlags {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Error during serialization, error flags: {}", self.0)
+    }
+}
+
 #[allow(dead_code)]
 impl SerializeErrorFlags {
     pub const SERIALIZE_ERROR_NONE: Self = Self(0x0000);
@@ -54,7 +60,7 @@ impl std::ops::Not for SerializeErrorFlags {
 #[derive(Default, Eq, PartialEq, Hash)]
 // Offset relative to the current object head (default)/tail or
 // Absolute: from the start of the serialize buffer
-pub(crate) enum OffsetWhence {
+pub enum OffsetWhence {
     #[default]
     Head,
     Tail,
@@ -304,7 +310,7 @@ impl Serializer {
         self.errors
     }
 
-    pub(crate) fn error(&self) -> SerializeErrorFlags {
+    pub fn error(&self) -> SerializeErrorFlags {
         self.errors
     }
 
@@ -360,7 +366,7 @@ impl Serializer {
         s
     }
 
-    pub(crate) fn push(&mut self) -> Result<(), SerializeErrorFlags> {
+    pub fn push(&mut self) -> Result<(), SerializeErrorFlags> {
         if self.in_error() {
             return Err(self.errors);
         }
@@ -378,7 +384,7 @@ impl Serializer {
         Ok(())
     }
 
-    pub(crate) fn pop_pack(&mut self, share: bool) -> Option<ObjIdx> {
+    pub fn pop_pack(&mut self, share: bool) -> Option<ObjIdx> {
         self.current?;
 
         // Allow cleanup when we've error'd out on int overflows which don't compromise the serializer state
@@ -543,7 +549,7 @@ impl Serializer {
         }
     }
 
-    pub(crate) fn add_link(
+    pub fn add_link(
         &mut self,
         offset_byte_range: Range<usize>,
         obj_idx: ObjIdx,
@@ -582,7 +588,7 @@ impl Serializer {
         Ok(())
     }
 
-    pub(crate) fn add_virtual_link(&mut self, obj_idx: ObjIdx) -> bool {
+    pub fn add_virtual_link(&mut self, obj_idx: ObjIdx) -> bool {
         if self.current.is_none() {
             return false;
         }
@@ -738,7 +744,7 @@ impl Serializer {
         self.push()
     }
 
-    pub(crate) fn end_serialize(&mut self) {
+    pub fn end_serialize(&mut self) {
         if self.current.is_none() {
             return;
         }
