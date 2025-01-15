@@ -586,14 +586,16 @@ impl GlyphDataOffsetArray for Gvar<'_> {
         // typical gvar layout (see: https://learn.microsoft.com/en-us/typography/opentype/spec/gvar):
         //   Part 1 - Header
         //   Part 2 - glyphVariationDataOffsets[glyphCount + 1]
-        //   Part 3 - Shared Tuples + Glyph Variation Data Header
-        //   Part 4 - per glyph variation data
+        //   Part 3 - Shared Tuples
+        //   Part 4 - Array of per glyph variation data
         //
         // When constructing a new gvar from the newly synthesized data we'll be replacing
-        // Part 2 and 4 with 'offsets' and 'data' respectively. We always output the parts in the ordering above
-        // regardless of how they were ordered in the original table. As a result we may need to change offsets in
-        // part 1 if ordering gets modified.
-
+        // Part 2 and 4 with 'offsets' and 'data' respectively. In order to be consistent with the open type
+        // spec which prescribes the above ordering we always output the parts in the spec ordering
+        // regardless of how they were ordered in the original table. Additionally this will correctly resolve cases
+        // where the original table had overlapping shared tuple and glyph variation data.
+        // However, as a result we may need to change offsets in part 1 if ordering gets modified. The klippa serializer
+        // is used to recalculate offsets as needed.
         let orig_bytes = self.as_bytes();
         let orig_size = orig_bytes.len();
         let part2_offsets = offsets.into();
@@ -644,8 +646,8 @@ impl GlyphDataOffsetArray for Gvar<'_> {
                 .and(serializer.embed_bytes(shared_tuples_bytes))
                 .map_err(PatchingError::from)?;
 
-            // The spec says that shared tuple data should come before glyph variation data so use a virtual link to ensure correct
-            // ordering.
+            // The spec says that shared tuple data should come before glyph variation data so use a virtual link to
+            // ensure the correct ordering.
             serializer.add_virtual_link(glyph_data_obj);
 
             serializer
@@ -675,7 +677,7 @@ impl GlyphDataOffsetArray for Gvar<'_> {
             ))
             .map_err(PatchingError::from)?;
 
-        // Output
+        // Generate the final output
         serializer.end_serialize();
         let new_gvar = serializer.copy_bytes();
         font_builder.add_raw(Gvar::TAG, new_gvar);
