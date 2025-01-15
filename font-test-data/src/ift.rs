@@ -904,7 +904,7 @@ pub fn glyf_and_gvar_u16_glyph_patches() -> BeBuffer {
     buffer
 }
 
-/// https://learn.microsoft.com/en-us/typography/opentype/spec/gvar
+/// <https://learn.microsoft.com/en-us/typography/opentype/spec/gvar>
 pub fn short_gvar_with_shared_tuples() -> BeBuffer {
     // This gvar has the correct header and tuple structure but the per glyph variation data is not valid.
     // Meant for testing with IFT glyph keyed patching which treats the per glyph data as opaque blobs.
@@ -977,7 +977,7 @@ pub fn short_gvar_with_shared_tuples() -> BeBuffer {
     buffer
 }
 
-/// https://learn.microsoft.com/en-us/typography/opentype/spec/gvar
+/// <https://learn.microsoft.com/en-us/typography/opentype/spec/gvar>
 pub fn long_gvar_with_shared_tuples() -> BeBuffer {
     // This gvar has the correct header and tuple structure but the per glyph variation data is not valid.
     // Meant for testing with IFT glyph keyed patching which treats the per glyph data as opaque blobs.
@@ -1115,7 +1115,7 @@ pub fn short_gvar_with_no_shared_tuples() -> BeBuffer {
     buffer
 }
 
-/// https://learn.microsoft.com/en-us/typography/opentype/spec/gvar
+/// <https://learn.microsoft.com/en-us/typography/opentype/spec/gvar>
 pub fn out_of_order_gvar_with_shared_tuples() -> BeBuffer {
     let mut buffer = be_buffer! {
       // HEADER
