@@ -259,20 +259,23 @@ fn retained_glyphs_total_size<T: GlyphDataOffsetArray>(
     Ok(total_size)
 }
 
-trait WritableOffset<const DIV: usize> {
+/// Objects with this trait can be written to bytes.
+///
+/// The offset value will be divided by DIVISOR prior to conversion to bytes.
+trait WritableOffset<const DIVISOR: usize> {
     fn write_to(self, dest: &mut [u8]);
 }
 
-impl<const DIV: usize> WritableOffset<DIV> for u32 {
+impl<const DIVISOR: usize> WritableOffset<DIVISOR> for u32 {
     fn write_to(self, dest: &mut [u8]) {
-        let data: [u8; 4] = (self / DIV as u32).to_raw();
+        let data: [u8; 4] = (self / DIVISOR as u32).to_raw();
         dest[..4].copy_from_slice(&data);
     }
 }
 
-impl<const DIV: usize> WritableOffset<DIV> for u16 {
+impl<const DIVISOR: usize> WritableOffset<DIVISOR> for u16 {
     fn write_to(self, dest: &mut [u8]) {
-        let data: [u8; 2] = (self / DIV as u16).to_raw();
+        let data: [u8; 2] = (self / DIVISOR as u16).to_raw();
         dest[..2].copy_from_slice(&data);
     }
 }
