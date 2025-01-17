@@ -96,7 +96,7 @@ pub(crate) fn apply_glyph_keyed_patches(
             // glyf patch application also generates a loca table.
             processed_tables.insert(table_tag);
             processed_tables.insert(Loca::TAG);
-        } else if table_tag == Tag::new(b"gvar") {
+        } else if table_tag == Gvar::TAG {
             let Ok(gvar) = font.gvar() else {
                 return Err(PatchingError::InvalidPatch(
                     "Trying to patch gvar but base font doesn't have them.",

@@ -103,11 +103,7 @@ impl std::fmt::Display for PatchingError {
                 write!(f, "Failed to parse font file: {}", err)
             }
             PatchingError::SerializationError(err) => {
-                write!(
-                    f,
-                    "serialization failure constructing patched table: {}",
-                    err
-                )
+                write!(f, "serialization failure constructing patched table: {err}")
             }
             PatchingError::IncompatiblePatch => {
                 write!(f, "Compatibility ID of the patch does not match the font.")
