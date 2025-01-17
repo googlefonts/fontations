@@ -343,6 +343,12 @@ impl SbixMarker {
     }
 }
 
+impl MinByteRange for SbixMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.strike_offsets_byte_range().end
+    }
+}
+
 impl TopLevelTable for Sbix<'_> {
     /// `sbix`
     const TAG: Tag = Tag::new(b"sbix");
@@ -487,6 +493,12 @@ impl StrikeMarker {
     }
 }
 
+impl MinByteRange for StrikeMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_data_offsets_byte_range().end
+    }
+}
+
 impl ReadArgs for Strike<'_> {
     type Args = u16;
 }
@@ -591,6 +603,12 @@ impl GlyphDataMarker {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.graphic_type_byte_range().end;
         start..start + self.data_byte_len
+    }
+}
+
+impl MinByteRange for GlyphDataMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.data_byte_range().end
     }
 }
 

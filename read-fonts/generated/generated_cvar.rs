@@ -34,6 +34,12 @@ impl CvarMarker {
     }
 }
 
+impl MinByteRange for CvarMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.tuple_variation_headers_byte_range().end
+    }
+}
+
 impl TopLevelTable for Cvar<'_> {
     /// `cvar`
     const TAG: Tag = Tag::new(b"cvar");

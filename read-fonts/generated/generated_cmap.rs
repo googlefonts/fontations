@@ -29,6 +29,12 @@ impl CmapMarker {
     }
 }
 
+impl MinByteRange for CmapMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.encoding_records_byte_range().end
+    }
+}
+
 impl TopLevelTable for Cmap<'_> {
     /// `cmap`
     const TAG: Tag = Tag::new(b"cmap");
@@ -282,6 +288,22 @@ impl<'a> FontRead<'a> for CmapSubtable<'a> {
     }
 }
 
+impl MinByteRange for CmapSubtable<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format0(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+            Self::Format4(item) => item.min_byte_range(),
+            Self::Format6(item) => item.min_byte_range(),
+            Self::Format8(item) => item.min_byte_range(),
+            Self::Format10(item) => item.min_byte_range(),
+            Self::Format12(item) => item.min_byte_range(),
+            Self::Format13(item) => item.min_byte_range(),
+            Self::Format14(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> CmapSubtable<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -346,6 +368,12 @@ impl Cmap0Marker {
     pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
         start..start + self.glyph_id_array_byte_len
+    }
+}
+
+impl MinByteRange for Cmap0Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_id_array_byte_range().end
     }
 }
 
@@ -450,6 +478,12 @@ impl Cmap2Marker {
     pub fn sub_header_keys_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
         start..start + self.sub_header_keys_byte_len
+    }
+}
+
+impl MinByteRange for Cmap2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.sub_header_keys_byte_range().end
     }
 }
 
@@ -666,6 +700,12 @@ impl Cmap4Marker {
     }
 }
 
+impl MinByteRange for Cmap4Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_id_array_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for Cmap4<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -864,6 +904,12 @@ impl Cmap6Marker {
     }
 }
 
+impl MinByteRange for Cmap6Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_id_array_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for Cmap6<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -997,6 +1043,12 @@ impl Cmap8Marker {
     pub fn groups_byte_range(&self) -> Range<usize> {
         let start = self.num_groups_byte_range().end;
         start..start + self.groups_byte_len
+    }
+}
+
+impl MinByteRange for Cmap8Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.groups_byte_range().end
     }
 }
 
@@ -1207,6 +1259,12 @@ impl Cmap10Marker {
     }
 }
 
+impl MinByteRange for Cmap10Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_id_array_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for Cmap10<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1337,6 +1395,12 @@ impl Cmap12Marker {
     }
 }
 
+impl MinByteRange for Cmap12Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.groups_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for Cmap12<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1462,6 +1526,12 @@ impl Cmap13Marker {
     pub fn groups_byte_range(&self) -> Range<usize> {
         let start = self.num_groups_byte_range().end;
         start..start + self.groups_byte_len
+    }
+}
+
+impl MinByteRange for Cmap13Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.groups_byte_range().end
     }
 }
 
@@ -1632,6 +1702,12 @@ impl Cmap14Marker {
     pub fn var_selector_byte_range(&self) -> Range<usize> {
         let start = self.num_var_selector_records_byte_range().end;
         start..start + self.var_selector_byte_len
+    }
+}
+
+impl MinByteRange for Cmap14Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_selector_byte_range().end
     }
 }
 
@@ -1816,6 +1892,12 @@ impl DefaultUvsMarker {
     }
 }
 
+impl MinByteRange for DefaultUvsMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.ranges_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for DefaultUvs<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1894,6 +1976,12 @@ impl NonDefaultUvsMarker {
     pub fn uvs_mapping_byte_range(&self) -> Range<usize> {
         let start = self.num_uvs_mappings_byte_range().end;
         start..start + self.uvs_mapping_byte_len
+    }
+}
+
+impl MinByteRange for NonDefaultUvsMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.uvs_mapping_byte_range().end
     }
 }
 

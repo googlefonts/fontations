@@ -51,6 +51,12 @@ impl Cff2HeaderMarker {
     }
 }
 
+impl MinByteRange for Cff2HeaderMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.trailing_data_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for Cff2Header<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();

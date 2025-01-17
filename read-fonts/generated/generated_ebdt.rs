@@ -22,6 +22,12 @@ impl EbdtMarker {
     }
 }
 
+impl MinByteRange for EbdtMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.minor_version_byte_range().end
+    }
+}
+
 impl TopLevelTable for Ebdt<'_> {
     /// `EBDT`
     const TAG: Tag = Tag::new(b"EBDT");

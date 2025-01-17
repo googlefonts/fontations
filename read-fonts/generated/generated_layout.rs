@@ -24,6 +24,12 @@ impl ScriptListMarker {
     }
 }
 
+impl MinByteRange for ScriptListMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.script_records_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for ScriptList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -159,6 +165,12 @@ impl ScriptMarker {
     pub fn lang_sys_records_byte_range(&self) -> Range<usize> {
         let start = self.lang_sys_count_byte_range().end;
         start..start + self.lang_sys_records_byte_len
+    }
+}
+
+impl MinByteRange for ScriptMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.lang_sys_records_byte_range().end
     }
 }
 
@@ -323,6 +335,12 @@ impl LangSysMarker {
     }
 }
 
+impl MinByteRange for LangSysMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.feature_indices_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for LangSys<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -410,6 +428,12 @@ impl FeatureListMarker {
     pub fn feature_records_byte_range(&self) -> Range<usize> {
         let start = self.feature_count_byte_range().end;
         start..start + self.feature_records_byte_len
+    }
+}
+
+impl MinByteRange for FeatureListMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.feature_records_byte_range().end
     }
 }
 
@@ -554,6 +578,12 @@ impl FeatureMarker {
     }
 }
 
+impl MinByteRange for FeatureMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.lookup_list_indices_byte_range().end
+    }
+}
+
 impl ReadArgs for Feature<'_> {
     type Args = Tag;
 }
@@ -668,6 +698,12 @@ impl<T> LookupListMarker<T> {
     pub fn lookup_offsets_byte_range(&self) -> Range<usize> {
         let start = self.lookup_count_byte_range().end;
         start..start + self.lookup_offsets_byte_len
+    }
+}
+
+impl MinByteRange for LookupListMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.lookup_offsets_byte_range().end
     }
 }
 
@@ -820,6 +856,12 @@ impl<T> LookupMarker<T> {
     pub fn mark_filtering_set_byte_range(&self) -> Option<Range<usize>> {
         let start = self.mark_filtering_set_byte_start?;
         Some(start..start + u16::RAW_BYTE_LEN)
+    }
+}
+
+impl MinByteRange for LookupMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.subtable_offsets_byte_range().end
     }
 }
 
@@ -1006,6 +1048,12 @@ impl CoverageFormat1Marker {
     }
 }
 
+impl MinByteRange for CoverageFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_array_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for CoverageFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1093,6 +1141,12 @@ impl CoverageFormat2Marker {
     pub fn range_records_byte_range(&self) -> Range<usize> {
         let start = self.range_count_byte_range().end;
         start..start + self.range_records_byte_len
+    }
+}
+
+impl MinByteRange for CoverageFormat2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.range_records_byte_range().end
     }
 }
 
@@ -1255,6 +1309,15 @@ impl<'a> FontRead<'a> for CoverageTable<'a> {
     }
 }
 
+impl MinByteRange for CoverageTable<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> CoverageTable<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -1312,6 +1375,12 @@ impl ClassDefFormat1Marker {
     pub fn class_value_array_byte_range(&self) -> Range<usize> {
         let start = self.glyph_count_byte_range().end;
         start..start + self.class_value_array_byte_len
+    }
+}
+
+impl MinByteRange for ClassDefFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.class_value_array_byte_range().end
     }
 }
 
@@ -1410,6 +1479,12 @@ impl ClassDefFormat2Marker {
     pub fn class_range_records_byte_range(&self) -> Range<usize> {
         let start = self.class_range_count_byte_range().end;
         start..start + self.class_range_records_byte_len
+    }
+}
+
+impl MinByteRange for ClassDefFormat2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.class_range_records_byte_range().end
     }
 }
 
@@ -1569,6 +1644,15 @@ impl<'a> FontRead<'a> for ClassDef<'a> {
     }
 }
 
+impl MinByteRange for ClassDef<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> ClassDef<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -1668,6 +1752,12 @@ impl SequenceContextFormat1Marker {
     pub fn seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
         let start = self.seq_rule_set_count_byte_range().end;
         start..start + self.seq_rule_set_offsets_byte_len
+    }
+}
+
+impl MinByteRange for SequenceContextFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.seq_rule_set_offsets_byte_range().end
     }
 }
 
@@ -1791,6 +1881,12 @@ impl SequenceRuleSetMarker {
     }
 }
 
+impl MinByteRange for SequenceRuleSetMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.seq_rule_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for SequenceRuleSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1893,6 +1989,12 @@ impl SequenceRuleMarker {
     pub fn seq_lookup_records_byte_range(&self) -> Range<usize> {
         let start = self.input_sequence_byte_range().end;
         start..start + self.seq_lookup_records_byte_len
+    }
+}
+
+impl MinByteRange for SequenceRuleMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.seq_lookup_records_byte_range().end
     }
 }
 
@@ -2012,6 +2114,12 @@ impl SequenceContextFormat2Marker {
     pub fn class_seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
         let start = self.class_seq_rule_set_count_byte_range().end;
         start..start + self.class_seq_rule_set_offsets_byte_len
+    }
+}
+
+impl MinByteRange for SequenceContextFormat2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.class_seq_rule_set_offsets_byte_range().end
     }
 }
 
@@ -2158,6 +2266,12 @@ impl ClassSequenceRuleSetMarker {
     }
 }
 
+impl MinByteRange for ClassSequenceRuleSetMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.class_seq_rule_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for ClassSequenceRuleSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -2263,6 +2377,12 @@ impl ClassSequenceRuleMarker {
     pub fn seq_lookup_records_byte_range(&self) -> Range<usize> {
         let start = self.input_sequence_byte_range().end;
         start..start + self.seq_lookup_records_byte_len
+    }
+}
+
+impl MinByteRange for ClassSequenceRuleMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.seq_lookup_records_byte_range().end
     }
 }
 
@@ -2384,6 +2504,12 @@ impl SequenceContextFormat3Marker {
     pub fn seq_lookup_records_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offsets_byte_range().end;
         start..start + self.seq_lookup_records_byte_len
+    }
+}
+
+impl MinByteRange for SequenceContextFormat3Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.seq_lookup_records_byte_range().end
     }
 }
 
@@ -2536,6 +2662,16 @@ impl<'a> FontRead<'a> for SequenceContext<'a> {
     }
 }
 
+impl MinByteRange for SequenceContext<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+            Self::Format3(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SequenceContext<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -2594,6 +2730,12 @@ impl ChainedSequenceContextFormat1Marker {
     pub fn chained_seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
         let start = self.chained_seq_rule_set_count_byte_range().end;
         start..start + self.chained_seq_rule_set_offsets_byte_len
+    }
+}
+
+impl MinByteRange for ChainedSequenceContextFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.chained_seq_rule_set_offsets_byte_range().end
     }
 }
 
@@ -2719,6 +2861,12 @@ impl ChainedSequenceRuleSetMarker {
     pub fn chained_seq_rule_offsets_byte_range(&self) -> Range<usize> {
         let start = self.chained_seq_rule_count_byte_range().end;
         start..start + self.chained_seq_rule_offsets_byte_len
+    }
+}
+
+impl MinByteRange for ChainedSequenceRuleSetMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.chained_seq_rule_offsets_byte_range().end
     }
 }
 
@@ -2849,6 +2997,12 @@ impl ChainedSequenceRuleMarker {
     pub fn seq_lookup_records_byte_range(&self) -> Range<usize> {
         let start = self.seq_lookup_count_byte_range().end;
         start..start + self.seq_lookup_records_byte_len
+    }
+}
+
+impl MinByteRange for ChainedSequenceRuleMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.seq_lookup_records_byte_range().end
     }
 }
 
@@ -3024,6 +3178,12 @@ impl ChainedSequenceContextFormat2Marker {
     pub fn chained_class_seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
         let start = self.chained_class_seq_rule_set_count_byte_range().end;
         start..start + self.chained_class_seq_rule_set_offsets_byte_len
+    }
+}
+
+impl MinByteRange for ChainedSequenceContextFormat2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.chained_class_seq_rule_set_offsets_byte_range().end
     }
 }
 
@@ -3213,6 +3373,12 @@ impl ChainedClassSequenceRuleSetMarker {
     }
 }
 
+impl MinByteRange for ChainedClassSequenceRuleSetMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.chained_class_seq_rule_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -3342,6 +3508,12 @@ impl ChainedClassSequenceRuleMarker {
     pub fn seq_lookup_records_byte_range(&self) -> Range<usize> {
         let start = self.seq_lookup_count_byte_range().end;
         start..start + self.seq_lookup_records_byte_len
+    }
+}
+
+impl MinByteRange for ChainedClassSequenceRuleMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.seq_lookup_records_byte_range().end
     }
 }
 
@@ -3531,6 +3703,12 @@ impl ChainedSequenceContextFormat3Marker {
     pub fn seq_lookup_records_byte_range(&self) -> Range<usize> {
         let start = self.seq_lookup_count_byte_range().end;
         start..start + self.seq_lookup_records_byte_len
+    }
+}
+
+impl MinByteRange for ChainedSequenceContextFormat3Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.seq_lookup_records_byte_range().end
     }
 }
 
@@ -3768,6 +3946,16 @@ impl<'a> FontRead<'a> for ChainedSequenceContext<'a> {
     }
 }
 
+impl MinByteRange for ChainedSequenceContext<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+            Self::Format3(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> ChainedSequenceContext<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -3879,6 +4067,12 @@ impl DeviceMarker {
     }
 }
 
+impl MinByteRange for DeviceMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.delta_value_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for Device<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -3968,6 +4162,12 @@ impl VariationIndexMarker {
     pub fn delta_format_byte_range(&self) -> Range<usize> {
         let start = self.delta_set_inner_index_byte_range().end;
         start..start + DeltaFormat::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for VariationIndexMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.delta_format_byte_range().end
     }
 }
 
@@ -4070,6 +4270,15 @@ impl<'a> FontRead<'a> for DeviceOrVariationIndex<'a> {
     }
 }
 
+impl MinByteRange for DeviceOrVariationIndex<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Device(item) => item.min_byte_range(),
+            Self::VariationIndex(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> DeviceOrVariationIndex<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -4118,6 +4327,12 @@ impl FeatureVariationsMarker {
     pub fn feature_variation_records_byte_range(&self) -> Range<usize> {
         let start = self.feature_variation_record_count_byte_range().end;
         start..start + self.feature_variation_records_byte_len
+    }
+}
+
+impl MinByteRange for FeatureVariationsMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.feature_variation_records_byte_range().end
     }
 }
 
@@ -4290,6 +4505,12 @@ impl ConditionSetMarker {
     }
 }
 
+impl MinByteRange for ConditionSetMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.condition_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for ConditionSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -4416,6 +4637,18 @@ impl<'a> FontRead<'a> for Condition<'a> {
     }
 }
 
+impl MinByteRange for Condition<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1AxisRange(item) => item.min_byte_range(),
+            Self::Format2VariableValue(item) => item.min_byte_range(),
+            Self::Format3And(item) => item.min_byte_range(),
+            Self::Format4Or(item) => item.min_byte_range(),
+            Self::Format5Negate(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> Condition<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -4474,6 +4707,12 @@ impl ConditionFormat1Marker {
     pub fn filter_range_max_value_byte_range(&self) -> Range<usize> {
         let start = self.filter_range_min_value_byte_range().end;
         start..start + F2Dot14::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for ConditionFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.filter_range_max_value_byte_range().end
     }
 }
 
@@ -4577,6 +4816,12 @@ impl ConditionFormat2Marker {
     }
 }
 
+impl MinByteRange for ConditionFormat2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for ConditionFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -4659,6 +4904,12 @@ impl ConditionFormat3Marker {
     pub fn condition_offsets_byte_range(&self) -> Range<usize> {
         let start = self.condition_count_byte_range().end;
         start..start + self.condition_offsets_byte_len
+    }
+}
+
+impl MinByteRange for ConditionFormat3Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.condition_offsets_byte_range().end
     }
 }
 
@@ -4772,6 +5023,12 @@ impl ConditionFormat4Marker {
     }
 }
 
+impl MinByteRange for ConditionFormat4Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.condition_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for ConditionFormat4<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -4875,6 +5132,12 @@ impl ConditionFormat5Marker {
     }
 }
 
+impl MinByteRange for ConditionFormat5Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.condition_offset_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for ConditionFormat5<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -4954,6 +5217,12 @@ impl FeatureTableSubstitutionMarker {
     pub fn substitutions_byte_range(&self) -> Range<usize> {
         let start = self.substitution_count_byte_range().end;
         start..start + self.substitutions_byte_len
+    }
+}
+
+impl MinByteRange for FeatureTableSubstitutionMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.substitutions_byte_range().end
     }
 }
 
@@ -5107,6 +5376,12 @@ impl SizeParamsMarker {
     }
 }
 
+impl MinByteRange for SizeParamsMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.range_end_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for SizeParams<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -5215,6 +5490,12 @@ impl StylisticSetParamsMarker {
     }
 }
 
+impl MinByteRange for StylisticSetParamsMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.ui_name_id_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for StylisticSetParams<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -5320,6 +5601,12 @@ impl CharacterVariantParamsMarker {
     pub fn character_byte_range(&self) -> Range<usize> {
         let start = self.char_count_byte_range().end;
         start..start + self.character_byte_len
+    }
+}
+
+impl MinByteRange for CharacterVariantParamsMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.character_byte_range().end
     }
 }
 

@@ -97,6 +97,12 @@ impl VheaMarker {
     }
 }
 
+impl MinByteRange for VheaMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.number_of_long_ver_metrics_byte_range().end
+    }
+}
+
 impl TopLevelTable for Vhea<'_> {
     /// `vhea`
     const TAG: Tag = Tag::new(b"vhea");

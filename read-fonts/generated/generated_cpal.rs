@@ -62,6 +62,12 @@ impl CpalMarker {
     }
 }
 
+impl MinByteRange for CpalMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.color_record_indices_byte_range().end
+    }
+}
+
 impl TopLevelTable for Cpal<'_> {
     /// `CPAL`
     const TAG: Tag = Tag::new(b"CPAL");

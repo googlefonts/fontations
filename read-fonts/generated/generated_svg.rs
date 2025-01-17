@@ -27,6 +27,12 @@ impl SvgMarker {
     }
 }
 
+impl MinByteRange for SvgMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self._reserved_byte_range().end
+    }
+}
+
 impl TopLevelTable for Svg<'_> {
     /// `SVG `
     const TAG: Tag = Tag::new(b"SVG ");
@@ -108,6 +114,12 @@ impl SVGDocumentListMarker {
     pub fn document_records_byte_range(&self) -> Range<usize> {
         let start = self.num_entries_byte_range().end;
         start..start + self.document_records_byte_len
+    }
+}
+
+impl MinByteRange for SVGDocumentListMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.document_records_byte_range().end
     }
 }
 

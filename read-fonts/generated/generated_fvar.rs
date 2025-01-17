@@ -47,6 +47,12 @@ impl FvarMarker {
     }
 }
 
+impl MinByteRange for FvarMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.instance_size_byte_range().end
+    }
+}
+
 impl TopLevelTable for Fvar<'_> {
     /// `fvar`
     const TAG: Tag = Tag::new(b"fvar");
@@ -173,6 +179,12 @@ impl AxisInstanceArraysMarker {
     pub fn instances_byte_range(&self) -> Range<usize> {
         let start = self.axes_byte_range().end;
         start..start + self.instances_byte_len
+    }
+}
+
+impl MinByteRange for AxisInstanceArraysMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.instances_byte_range().end
     }
 }
 

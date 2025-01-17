@@ -45,6 +45,7 @@ mod tests {
             base_tag.baseline_tags(),
             &[Tag::new(b"hang"), Tag::new(b"ideo"), Tag::new(b"romn")]
         );
+        assert_eq!(base_tag.min_byte_range().end, 14);
         let base_script = horiz.base_script_list().unwrap();
         assert_eq!(
             base_script.base_script_records()[3].base_script_tag(),

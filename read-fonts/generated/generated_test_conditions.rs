@@ -34,6 +34,12 @@ impl MajorMinorVersionMarker {
     }
 }
 
+impl MinByteRange for MajorMinorVersionMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.always_present_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -454,6 +460,12 @@ impl FlagDayMarker {
     }
 }
 
+impl MinByteRange for FlagDayMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.flags_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for FlagDay<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -598,6 +610,12 @@ impl FieldsAfterConditionalsMarker {
     pub fn and_me_too_byte_range(&self) -> Range<usize> {
         let start = self.also_always_here_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for FieldsAfterConditionalsMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.and_me_too_byte_range().end
     }
 }
 

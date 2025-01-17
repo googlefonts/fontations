@@ -49,6 +49,12 @@ impl StatMarker {
     }
 }
 
+impl MinByteRange for StatMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.offset_to_axis_value_offsets_byte_range().end
+    }
+}
+
 impl TopLevelTable for Stat<'_> {
     /// `STAT`
     const TAG: Tag = Tag::new(b"STAT");
@@ -265,6 +271,12 @@ impl AxisValueArrayMarker {
     }
 }
 
+impl MinByteRange for AxisValueArrayMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.axis_value_offsets_byte_range().end
+    }
+}
+
 impl ReadArgs for AxisValueArray<'_> {
     type Args = u16;
 }
@@ -413,6 +425,17 @@ impl<'a> FontRead<'a> for AxisValue<'a> {
     }
 }
 
+impl MinByteRange for AxisValue<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+            Self::Format3(item) => item.min_byte_range(),
+            Self::Format4(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> AxisValue<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -475,6 +498,12 @@ impl AxisValueFormat1Marker {
     pub fn value_byte_range(&self) -> Range<usize> {
         let start = self.value_name_id_byte_range().end;
         start..start + Fixed::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for AxisValueFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.value_byte_range().end
     }
 }
 
@@ -597,6 +626,12 @@ impl AxisValueFormat2Marker {
     pub fn range_max_value_byte_range(&self) -> Range<usize> {
         let start = self.range_min_value_byte_range().end;
         start..start + Fixed::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for AxisValueFormat2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.range_max_value_byte_range().end
     }
 }
 
@@ -735,6 +770,12 @@ impl AxisValueFormat3Marker {
     }
 }
 
+impl MinByteRange for AxisValueFormat3Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.linked_value_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for AxisValueFormat3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -854,6 +895,12 @@ impl AxisValueFormat4Marker {
     pub fn axis_values_byte_range(&self) -> Range<usize> {
         let start = self.value_name_id_byte_range().end;
         start..start + self.axis_values_byte_len
+    }
+}
+
+impl MinByteRange for AxisValueFormat4Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.axis_values_byte_range().end
     }
 }
 

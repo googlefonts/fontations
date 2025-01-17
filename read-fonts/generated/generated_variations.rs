@@ -41,6 +41,12 @@ impl TupleVariationHeaderMarker {
     }
 }
 
+impl MinByteRange for TupleVariationHeaderMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.intermediate_end_tuple_byte_range().end
+    }
+}
+
 impl ReadArgs for TupleVariationHeader<'_> {
     type Args = u16;
 }
@@ -236,6 +242,12 @@ impl DeltaSetIndexMapFormat0Marker {
     }
 }
 
+impl MinByteRange for DeltaSetIndexMapFormat0Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.map_data_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -335,6 +347,12 @@ impl DeltaSetIndexMapFormat1Marker {
     pub fn map_data_byte_range(&self) -> Range<usize> {
         let start = self.map_count_byte_range().end;
         start..start + self.map_data_byte_len
+    }
+}
+
+impl MinByteRange for DeltaSetIndexMapFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.map_data_byte_range().end
     }
 }
 
@@ -456,6 +474,15 @@ impl<'a> FontRead<'a> for DeltaSetIndexMap<'a> {
             DeltaSetIndexMapFormat0Marker::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
             DeltaSetIndexMapFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl MinByteRange for DeltaSetIndexMap<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format0(item) => item.min_byte_range(),
+            Self::Format1(item) => item.min_byte_range(),
         }
     }
 }
@@ -822,6 +849,12 @@ impl VariationRegionListMarker {
     }
 }
 
+impl MinByteRange for VariationRegionListMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.variation_regions_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for VariationRegionList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1046,6 +1079,12 @@ impl ItemVariationStoreMarker {
     }
 }
 
+impl MinByteRange for ItemVariationStoreMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.item_variation_data_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for ItemVariationStore<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1187,6 +1226,12 @@ impl ItemVariationDataMarker {
     pub fn delta_sets_byte_range(&self) -> Range<usize> {
         let start = self.region_indexes_byte_range().end;
         start..start + self.delta_sets_byte_len
+    }
+}
+
+impl MinByteRange for ItemVariationDataMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.delta_sets_byte_range().end
     }
 }
 

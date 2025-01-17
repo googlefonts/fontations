@@ -29,6 +29,12 @@ impl GaspMarker {
     }
 }
 
+impl MinByteRange for GaspMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.gasp_ranges_byte_range().end
+    }
+}
+
 impl TopLevelTable for Gasp<'_> {
     /// `gasp`
     const TAG: Tag = Tag::new(b"gasp");

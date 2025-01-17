@@ -101,6 +101,12 @@ impl MaxpMarker {
     }
 }
 
+impl MinByteRange for MaxpMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.num_glyphs_byte_range().end
+    }
+}
+
 impl TopLevelTable for Maxp<'_> {
     /// `maxp`
     const TAG: Tag = Tag::new(b"maxp");

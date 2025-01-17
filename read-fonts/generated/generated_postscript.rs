@@ -35,6 +35,12 @@ impl Index1Marker {
     }
 }
 
+impl MinByteRange for Index1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.data_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for Index1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -134,6 +140,12 @@ impl Index2Marker {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.offsets_byte_range().end;
         start..start + self.data_byte_len
+    }
+}
+
+impl MinByteRange for Index2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.data_byte_range().end
     }
 }
 
@@ -249,6 +261,16 @@ impl<'a> FontRead<'a> for FdSelect<'a> {
     }
 }
 
+impl MinByteRange for FdSelect<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format0(item) => item.min_byte_range(),
+            Self::Format3(item) => item.min_byte_range(),
+            Self::Format4(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> FdSelect<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -297,6 +319,12 @@ impl FdSelectFormat0Marker {
     pub fn fds_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + self.fds_byte_len
+    }
+}
+
+impl MinByteRange for FdSelectFormat0Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.fds_byte_range().end
     }
 }
 
@@ -380,6 +408,12 @@ impl FdSelectFormat3Marker {
     pub fn sentinel_byte_range(&self) -> Range<usize> {
         let start = self.ranges_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for FdSelectFormat3Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.sentinel_byte_range().end
     }
 }
 
@@ -530,6 +564,12 @@ impl FdSelectFormat4Marker {
     pub fn sentinel_byte_range(&self) -> Range<usize> {
         let start = self.ranges_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for FdSelectFormat4Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.sentinel_byte_range().end
     }
 }
 

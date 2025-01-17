@@ -47,6 +47,12 @@ impl NameMarker {
     }
 }
 
+impl MinByteRange for NameMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.name_record_byte_range().end
+    }
+}
+
 impl TopLevelTable for Name<'_> {
     /// `name`
     const TAG: Tag = Tag::new(b"name");

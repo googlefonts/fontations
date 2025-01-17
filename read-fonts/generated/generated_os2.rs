@@ -571,6 +571,12 @@ impl Os2Marker {
     }
 }
 
+impl MinByteRange for Os2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.us_win_descent_byte_range().end
+    }
+}
+
 impl TopLevelTable for Os2<'_> {
     /// `OS/2`
     const TAG: Tag = Tag::new(b"OS/2");

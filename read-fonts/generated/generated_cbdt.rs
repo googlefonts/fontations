@@ -22,6 +22,12 @@ impl CbdtMarker {
     }
 }
 
+impl MinByteRange for CbdtMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.minor_version_byte_range().end
+    }
+}
+
 impl TopLevelTable for Cbdt<'_> {
     /// `CBDT`
     const TAG: Tag = Tag::new(b"CBDT");

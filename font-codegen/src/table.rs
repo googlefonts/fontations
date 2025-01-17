@@ -22,6 +22,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     let marker_name = item.marker_name();
     let raw_name = item.raw_name();
     let shape_byte_range_fns = item.iter_shape_byte_fns();
+    let optional_min_byte_range_trait_impl = item.impl_min_byte_range_trait();
     let shape_fields = item.iter_shape_fields();
     let derive_clone_copy = generic.is_none().then(|| quote!(Clone, Copy));
     let impl_clone_copy = generic.is_some().then(|| {
@@ -115,6 +116,8 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         impl <#generic> #marker_name <#generic> {
             #( #shape_byte_range_fns )*
         }
+
+        #optional_min_byte_range_trait_impl
 
         #top_level
 
@@ -720,7 +723,7 @@ fn generate_format_getter_for_shared_field(item: &TableFormat, field: &Field) ->
     let method_name = &field.name;
     let return_type = field.table_getter_return_type();
     let arms = item.variants.iter().map(|variant| {
-        let var_name = &variant.name;
+        let var_name: &syn::Ident = &variant.name;
         quote!(Self::#var_name(item) => item.#method_name(), )
     });
 
@@ -836,6 +839,15 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
         }
     });
 
+    let min_byte_arms = item
+        .variants
+        .iter()
+        .filter(|variant| variant.attrs.write_only.is_none())
+        .map(|variant| {
+            let var_name: &syn::Ident = &variant.name;
+            quote!(Self::#var_name(item) => item.min_byte_range(), )
+        });
+
     Ok(quote! {
         #( #docs )*
         #[derive(Clone)]
@@ -852,6 +864,14 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
                 match format {
                     #( #match_arms ),*
                     other => Err(ReadError::InvalidFormat(other.into())),
+                }
+            }
+        }
+
+        impl MinByteRange for #name<'_> {
+            fn min_byte_range(&self) -> Range<usize> {
+                match self {
+                    #( #min_byte_arms )*
                 }
             }
         }
@@ -1004,6 +1024,24 @@ impl Table {
         Some(quote! {
             impl Format<#typ> for #name {
                 const FORMAT: #typ = #value;
+            }
+        })
+    }
+
+    pub(crate) fn impl_min_byte_range_trait(&self) -> Option<TokenStream> {
+        let field = self
+            .fields
+            .iter()
+            .filter(|fld| fld.attrs.conditional.is_none())
+            .last()?;
+        let name = self.marker_name();
+
+        let fn_name = field.shape_byte_range_fn_name();
+        Some(quote! {
+            impl MinByteRange for #name {
+                fn min_byte_range(&self) -> Range<usize> {
+                    0..self.#fn_name().end
+                }
             }
         })
     }

@@ -34,6 +34,12 @@ impl EblcMarker {
     }
 }
 
+impl MinByteRange for EblcMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.bitmap_sizes_byte_range().end
+    }
+}
+
 impl TopLevelTable for Eblc<'_> {
     /// `EBLC`
     const TAG: Tag = Tag::new(b"EBLC");

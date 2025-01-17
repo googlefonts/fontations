@@ -58,6 +58,19 @@ impl<'a> FontRead<'a> for Lookup<'a> {
     }
 }
 
+impl MinByteRange for Lookup<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format0(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+            Self::Format4(item) => item.min_byte_range(),
+            Self::Format6(item) => item.min_byte_range(),
+            Self::Format8(item) => item.min_byte_range(),
+            Self::Format10(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> Lookup<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -110,6 +123,12 @@ impl Lookup0Marker {
     pub fn values_data_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + self.values_data_byte_len
+    }
+}
+
+impl MinByteRange for Lookup0Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.values_data_byte_range().end
     }
 }
 
@@ -213,6 +232,12 @@ impl Lookup2Marker {
     pub fn segments_data_byte_range(&self) -> Range<usize> {
         let start = self.range_shift_byte_range().end;
         start..start + self.segments_data_byte_len
+    }
+}
+
+impl MinByteRange for Lookup2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.segments_data_byte_range().end
     }
 }
 
@@ -359,6 +384,12 @@ impl Lookup4Marker {
     pub fn segments_byte_range(&self) -> Range<usize> {
         let start = self.range_shift_byte_range().end;
         start..start + self.segments_byte_len
+    }
+}
+
+impl MinByteRange for Lookup4Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.segments_byte_range().end
     }
 }
 
@@ -562,6 +593,12 @@ impl Lookup6Marker {
     }
 }
 
+impl MinByteRange for Lookup6Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.entries_data_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for Lookup6<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -691,6 +728,12 @@ impl Lookup8Marker {
     }
 }
 
+impl MinByteRange for Lookup8Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.value_array_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for Lookup8<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -801,6 +844,12 @@ impl Lookup10Marker {
     }
 }
 
+impl MinByteRange for Lookup10Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.values_data_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for Lookup10<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -905,6 +954,12 @@ impl StateHeaderMarker {
     pub fn entry_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.state_array_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for StateHeaderMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.entry_table_offset_byte_range().end
     }
 }
 
@@ -1025,6 +1080,12 @@ impl ClassSubtableMarker {
     }
 }
 
+impl MinByteRange for ClassSubtableMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.class_array_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for ClassSubtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1102,6 +1163,12 @@ impl RawBytesMarker {
     }
 }
 
+impl MinByteRange for RawBytesMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.data_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for RawBytes<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1167,6 +1234,12 @@ impl StxHeaderMarker {
     pub fn entry_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.state_array_offset_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for StxHeaderMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.entry_table_offset_byte_range().end
     }
 }
 
@@ -1273,6 +1346,12 @@ impl RawWordsMarker {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.data_byte_len
+    }
+}
+
+impl MinByteRange for RawWordsMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.data_byte_range().end
     }
 }
 

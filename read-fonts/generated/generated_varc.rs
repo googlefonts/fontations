@@ -44,6 +44,12 @@ impl VarcMarker {
     }
 }
 
+impl MinByteRange for VarcMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_composite_glyphs_offset_byte_range().end
+    }
+}
+
 impl TopLevelTable for Varc<'_> {
     /// `VARC`
     const TAG: Tag = Tag::new(b"VARC");
@@ -209,6 +215,12 @@ impl MultiItemVariationStoreMarker {
     }
 }
 
+impl MinByteRange for MultiItemVariationStoreMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.variation_data_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -326,6 +338,12 @@ impl SparseVariationRegionListMarker {
     }
 }
 
+impl MinByteRange for SparseVariationRegionListMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.region_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for SparseVariationRegionList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -412,6 +430,12 @@ impl SparseVariationRegionMarker {
     pub fn region_axis_offsets_byte_range(&self) -> Range<usize> {
         let start = self.region_axis_count_byte_range().end;
         start..start + self.region_axis_offsets_byte_len
+    }
+}
+
+impl MinByteRange for SparseVariationRegionMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.region_axis_offsets_byte_range().end
     }
 }
 
@@ -556,6 +580,12 @@ impl MultiItemVariationDataMarker {
     }
 }
 
+impl MinByteRange for MultiItemVariationDataMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.raw_delta_sets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for MultiItemVariationData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -639,6 +669,12 @@ impl ConditionListMarker {
     pub fn condition_offsets_byte_range(&self) -> Range<usize> {
         let start = self.condition_count_byte_range().end;
         start..start + self.condition_offsets_byte_len
+    }
+}
+
+impl MinByteRange for ConditionListMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.condition_offsets_byte_range().end
     }
 }
 
