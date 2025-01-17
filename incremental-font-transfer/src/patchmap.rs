@@ -1443,6 +1443,7 @@ mod tests {
             "//foo.bar/O/O/4/OEG64OO",
         );
 
+        check_uri_template_substitution("//foo.bar/{id64}", 0, "//foo.bar/AA%3D%3D");
         check_uri_template_substitution("//foo.bar/{id64}", 14_000_000, "//foo.bar/1Z-A");
         check_uri_template_substitution("//foo.bar/{id64}", 17_000_000, "//foo.bar/AQNmQA%3D%3D");
 

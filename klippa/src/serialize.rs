@@ -17,7 +17,11 @@ pub struct SerializeErrorFlags(u16);
 
 impl std::fmt::Display for SerializeErrorFlags {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Error during serialization, error flags: {}", self.0)
+        write!(
+            f,
+            "Error during serialization, error flags: {:016b}",
+            self.0
+        )
     }
 }
 
@@ -154,7 +158,7 @@ pub(crate) struct Snapshot {
     errors: SerializeErrorFlags,
 }
 
-/// Constructs a sequential stream of bytes from one or more sub sequences of bytes/objects.
+/// Constructs a sequential stream of bytes from one or more subsequences of bytes/objects.
 ///
 /// Notably this allows construction of open type tables that make use of offsets (eg. GSUB, GPOS) to form
 /// graphs of sub tables. The serializer is capable of automatically placing object data in a topological sorting
