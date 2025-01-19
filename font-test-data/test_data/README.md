@@ -89,6 +89,16 @@ Describes the provenance, usage and generation procedures for font data used for
   * license: [Apache 2][Apache2]
   * usage: testing avar2 userspace to normalized coordinate mapping
 
+* _tinos_subset_
+  * font: Tinos Regular
+  * source: https://fonts.google.com/specimen/Tinos
+  * license: [Apache 2][Apache2]
+  * usage: testing hdmx advance widths
+  * subset: a few characters to test hdmx advances
+    ```shell
+    pyftsubset tinos-regular.ttf --text=aAbB --gids=3,5
+    ```
+
 ## rebuilding
 To update the binaries and extracted data, run script located at `resources/test_fonts/rebuild.sh`
 This script will install the correct version of fonttools and FreeType, and then regenerate

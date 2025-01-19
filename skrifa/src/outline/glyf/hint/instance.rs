@@ -236,6 +236,14 @@ impl HintInstance {
 }
 
 #[cfg(test)]
+impl HintInstance {
+    // Let us disable hinting for testing purposes.
+    pub fn disable(&mut self) {
+        self.graphics.instruct_control |= 1;
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::{super::super::Outlines, HintInstance};
     use read_fonts::{types::F2Dot14, FontRef};

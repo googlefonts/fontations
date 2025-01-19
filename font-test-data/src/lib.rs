@@ -90,6 +90,8 @@ pub static AVAR2_CHECKER: &[u8] = include_bytes!("../test_data/ttf/avar2checker.
 pub static MATERIAL_ICONS_SUBSET: &[u8] =
     include_bytes!("../test_data/ttf/material_icons_subset.ttf");
 
+pub static TINOS_SUBSET: &[u8] = include_bytes!("../test_data/ttf/tinos_subset.ttf");
+
 pub mod varc {
     pub static CJK_6868: &[u8] = include_bytes!("../test_data/ttf/varc-6868.ttf");
     pub static CONDITIONALS: &[u8] = include_bytes!("../test_data/ttf/varc-ac01-conditional.ttf");
