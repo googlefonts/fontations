@@ -555,7 +555,7 @@ mod tests {
         let HinterKind::Glyf(tt_hinter) = &hinter.kind else {
             panic!("this is definitely a TrueType hinter");
         };
-        // Make sure backward compability mode is enabled
+        // Make sure backward compatibility mode is enabled
         assert!(tt_hinter.backward_compatibility());
         let outline = outlines.get(gid).unwrap();
         let metrics = outline.draw(&hinter, &mut NullPen).unwrap();

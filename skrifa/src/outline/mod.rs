@@ -111,6 +111,10 @@ use core::fmt::Debug;
 use pen::PathStyle;
 use read_fonts::{types::GlyphId, TableProvider};
 
+#[cfg(feature = "libm")]
+#[allow(unused_imports)]
+use core_maths::CoreFloat;
+
 /// Source format for an outline glyph.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum OutlineGlyphFormat {
