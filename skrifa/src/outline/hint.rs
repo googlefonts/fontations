@@ -585,8 +585,6 @@ mod tests {
         let HinterKind::Glyf(tt_hinter) = &mut hinter.kind else {
             panic!("this is definitely a TrueType hinter");
         };
-        // Force disable the hinter in the same way that the prep table
-        // would
         tt_hinter.simulate_prep_flag_suppress_hinting();
         let outline = outlines.get(gid).unwrap();
         // And we still have a rounded advance
