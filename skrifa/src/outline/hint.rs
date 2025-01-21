@@ -587,7 +587,7 @@ mod tests {
         };
         // Force disable the hinter in the same way that the prep table
         // would
-        tt_hinter.disable();
+        tt_hinter.simulate_prep_flag_suppress_hinting();
         let outline = outlines.get(gid).unwrap();
         // And we still have a rounded advance
         let metrics = outline.draw(&hinter, &mut NullPen).unwrap();

@@ -237,8 +237,11 @@ impl HintInstance {
 
 #[cfg(test)]
 impl HintInstance {
-    // Let us disable hinting for testing purposes.
-    pub fn disable(&mut self) {
+    /// Enable instruct control bit 1 which effectively disables hinting.
+    ///
+    /// This mimics what the `prep` table might do for various configurations
+    /// and font sizes. Used for testing.    
+    pub fn simulate_prep_flag_suppress_hinting(&mut self) {
         self.graphics.instruct_control |= 1;
     }
 }
