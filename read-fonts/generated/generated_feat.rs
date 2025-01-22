@@ -39,6 +39,12 @@ impl FeatMarker {
     }
 }
 
+impl MinByteRange for FeatMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.names_byte_range().end
+    }
+}
+
 impl TopLevelTable for Feat<'_> {
     /// `feat`
     const TAG: Tag = Tag::new(b"feat");
@@ -212,6 +218,12 @@ impl SettingNameArrayMarker {
     pub fn settings_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.settings_byte_len
+    }
+}
+
+impl MinByteRange for SettingNameArrayMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.settings_byte_range().end
     }
 }
 

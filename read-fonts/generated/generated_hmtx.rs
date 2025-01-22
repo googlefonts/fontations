@@ -25,6 +25,12 @@ impl HmtxMarker {
     }
 }
 
+impl MinByteRange for HmtxMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.left_side_bearings_byte_range().end
+    }
+}
+
 impl TopLevelTable for Hmtx<'_> {
     /// `hmtx`
     const TAG: Tag = Tag::new(b"hmtx");

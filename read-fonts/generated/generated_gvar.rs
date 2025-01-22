@@ -54,6 +54,12 @@ impl GvarMarker {
     }
 }
 
+impl MinByteRange for GvarMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_variation_data_offsets_byte_range().end
+    }
+}
+
 impl TopLevelTable for Gvar<'_> {
     /// `gvar`
     const TAG: Tag = Tag::new(b"gvar");
@@ -502,6 +508,12 @@ impl SharedTuplesMarker {
     }
 }
 
+impl MinByteRange for SharedTuplesMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.tuples_byte_range().end
+    }
+}
+
 impl ReadArgs for SharedTuples<'_> {
     type Args = (u16, u16);
 }
@@ -596,6 +608,12 @@ impl GlyphVariationDataHeaderMarker {
     pub fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
         let start = self.serialized_data_offset_byte_range().end;
         start..start + self.tuple_variation_headers_byte_len
+    }
+}
+
+impl MinByteRange for GlyphVariationDataHeaderMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.tuple_variation_headers_byte_range().end
     }
 }
 

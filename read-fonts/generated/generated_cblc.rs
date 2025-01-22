@@ -34,6 +34,12 @@ impl CblcMarker {
     }
 }
 
+impl MinByteRange for CblcMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.bitmap_sizes_byte_range().end
+    }
+}
+
 impl TopLevelTable for Cblc<'_> {
     /// `CBLC`
     const TAG: Tag = Tag::new(b"CBLC");

@@ -32,6 +32,12 @@ impl AnkrMarker {
     }
 }
 
+impl MinByteRange for AnkrMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_data_table_offset_byte_range().end
+    }
+}
+
 impl TopLevelTable for Ankr<'_> {
     /// `ankr`
     const TAG: Tag = Tag::new(b"ankr");
@@ -131,6 +137,12 @@ impl GlyphDataEntryMarker {
     pub fn anchor_points_byte_range(&self) -> Range<usize> {
         let start = self.num_points_byte_range().end;
         start..start + self.anchor_points_byte_len
+    }
+}
+
+impl MinByteRange for GlyphDataEntryMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.anchor_points_byte_range().end
     }
 }
 

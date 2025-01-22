@@ -34,6 +34,12 @@ impl LtagMarker {
     }
 }
 
+impl MinByteRange for LtagMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.tag_ranges_byte_range().end
+    }
+}
+
 impl TopLevelTable for Ltag<'_> {
     /// `ltag`
     const TAG: Tag = Tag::new(b"ltag");

@@ -39,6 +39,12 @@ impl GsubMarker {
     }
 }
 
+impl MinByteRange for GsubMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.lookup_list_offset_byte_range().end
+    }
+}
+
 impl TopLevelTable for Gsub<'_> {
     /// `GSUB`
     const TAG: Tag = Tag::new(b"GSUB");
@@ -292,6 +298,15 @@ impl<'a> FontRead<'a> for SingleSubst<'a> {
     }
 }
 
+impl MinByteRange for SingleSubst<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SingleSubst<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -342,6 +357,12 @@ impl SingleSubstFormat1Marker {
     pub fn delta_glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for SingleSubstFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.delta_glyph_id_byte_range().end
     }
 }
 
@@ -442,6 +463,12 @@ impl SingleSubstFormat2Marker {
     pub fn substitute_glyph_ids_byte_range(&self) -> Range<usize> {
         let start = self.glyph_count_byte_range().end;
         start..start + self.substitute_glyph_ids_byte_len
+    }
+}
+
+impl MinByteRange for SingleSubstFormat2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.substitute_glyph_ids_byte_range().end
     }
 }
 
@@ -558,6 +585,12 @@ impl MultipleSubstFormat1Marker {
     pub fn sequence_offsets_byte_range(&self) -> Range<usize> {
         let start = self.sequence_count_byte_range().end;
         start..start + self.sequence_offsets_byte_len
+    }
+}
+
+impl MinByteRange for MultipleSubstFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.sequence_offsets_byte_range().end
     }
 }
 
@@ -681,6 +714,12 @@ impl SequenceMarker {
     }
 }
 
+impl MinByteRange for SequenceMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.substitute_glyph_ids_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for Sequence<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -769,6 +808,12 @@ impl AlternateSubstFormat1Marker {
     pub fn alternate_set_offsets_byte_range(&self) -> Range<usize> {
         let start = self.alternate_set_count_byte_range().end;
         start..start + self.alternate_set_offsets_byte_len
+    }
+}
+
+impl MinByteRange for AlternateSubstFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.alternate_set_offsets_byte_range().end
     }
 }
 
@@ -895,6 +940,12 @@ impl AlternateSetMarker {
     }
 }
 
+impl MinByteRange for AlternateSetMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.alternate_glyph_ids_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for AlternateSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -982,6 +1033,12 @@ impl LigatureSubstFormat1Marker {
     pub fn ligature_set_offsets_byte_range(&self) -> Range<usize> {
         let start = self.ligature_set_count_byte_range().end;
         start..start + self.ligature_set_offsets_byte_len
+    }
+}
+
+impl MinByteRange for LigatureSubstFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.ligature_set_offsets_byte_range().end
     }
 }
 
@@ -1105,6 +1162,12 @@ impl LigatureSetMarker {
     }
 }
 
+impl MinByteRange for LigatureSetMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.ligature_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for LigatureSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1204,6 +1267,12 @@ impl LigatureMarker {
     }
 }
 
+impl MinByteRange for LigatureMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.component_glyph_ids_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for Ligature<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1295,6 +1364,12 @@ impl<T> ExtensionSubstFormat1Marker<T> {
     pub fn extension_offset_byte_range(&self) -> Range<usize> {
         let start = self.extension_lookup_type_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for ExtensionSubstFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.extension_offset_byte_range().end
     }
 }
 
@@ -1539,6 +1614,12 @@ impl ReverseChainSingleSubstFormat1Marker {
     pub fn substitute_glyph_ids_byte_range(&self) -> Range<usize> {
         let start = self.glyph_count_byte_range().end;
         start..start + self.substitute_glyph_ids_byte_len
+    }
+}
+
+impl MinByteRange for ReverseChainSingleSubstFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.substitute_glyph_ids_byte_range().end
     }
 }
 

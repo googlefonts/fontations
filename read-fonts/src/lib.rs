@@ -112,7 +112,7 @@ pub(crate) mod codegen_prelude {
         ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError, VarSize,
     };
     pub use crate::table_provider::TopLevelTable;
-    pub use crate::table_ref::TableRef;
+    pub use crate::table_ref::{MinByteRange, TableRef};
     pub use std::ops::Range;
 
     pub use types::*;

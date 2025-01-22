@@ -50,6 +50,12 @@ impl GdefMarker {
     }
 }
 
+impl MinByteRange for GdefMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.mark_attach_class_def_offset_byte_range().end
+    }
+}
+
 impl TopLevelTable for Gdef<'_> {
     /// `GDEF`
     const TAG: Tag = Tag::new(b"GDEF");
@@ -299,6 +305,12 @@ impl AttachListMarker {
     }
 }
 
+impl MinByteRange for AttachListMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.attach_point_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for AttachList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -410,6 +422,12 @@ impl AttachPointMarker {
     }
 }
 
+impl MinByteRange for AttachPointMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.point_indices_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for AttachPoint<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -485,6 +503,12 @@ impl LigCaretListMarker {
     pub fn lig_glyph_offsets_byte_range(&self) -> Range<usize> {
         let start = self.lig_glyph_count_byte_range().end;
         start..start + self.lig_glyph_offsets_byte_len
+    }
+}
+
+impl MinByteRange for LigCaretListMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.lig_glyph_offsets_byte_range().end
     }
 }
 
@@ -596,6 +620,12 @@ impl LigGlyphMarker {
     pub fn caret_value_offsets_byte_range(&self) -> Range<usize> {
         let start = self.caret_count_byte_range().end;
         start..start + self.caret_value_offsets_byte_len
+    }
+}
+
+impl MinByteRange for LigGlyphMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.caret_value_offsets_byte_range().end
     }
 }
 
@@ -714,6 +744,16 @@ impl<'a> FontRead<'a> for CaretValue<'a> {
     }
 }
 
+impl MinByteRange for CaretValue<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+            Self::Format3(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> CaretValue<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -760,6 +800,12 @@ impl CaretValueFormat1Marker {
     pub fn coordinate_byte_range(&self) -> Range<usize> {
         let start = self.caret_value_format_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for CaretValueFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.coordinate_byte_range().end
     }
 }
 
@@ -830,6 +876,12 @@ impl CaretValueFormat2Marker {
     pub fn caret_value_point_index_byte_range(&self) -> Range<usize> {
         let start = self.caret_value_format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for CaretValueFormat2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.caret_value_point_index_byte_range().end
     }
 }
 
@@ -908,6 +960,12 @@ impl CaretValueFormat3Marker {
     pub fn device_offset_byte_range(&self) -> Range<usize> {
         let start = self.coordinate_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for CaretValueFormat3Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.device_offset_byte_range().end
     }
 }
 
@@ -1004,6 +1062,12 @@ impl MarkGlyphSetsMarker {
     pub fn coverage_offsets_byte_range(&self) -> Range<usize> {
         let start = self.mark_glyph_set_count_byte_range().end;
         start..start + self.coverage_offsets_byte_len
+    }
+}
+
+impl MinByteRange for MarkGlyphSetsMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.coverage_offsets_byte_range().end
     }
 }
 

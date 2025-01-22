@@ -68,6 +68,12 @@ impl ColrMarker {
     }
 }
 
+impl MinByteRange for ColrMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.num_layer_records_byte_range().end
+    }
+}
+
 impl TopLevelTable for Colr<'_> {
     /// `COLR`
     const TAG: Tag = Tag::new(b"COLR");
@@ -420,6 +426,12 @@ impl BaseGlyphListMarker {
     }
 }
 
+impl MinByteRange for BaseGlyphListMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.base_glyph_paint_records_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for BaseGlyphList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -554,6 +566,12 @@ impl LayerListMarker {
     }
 }
 
+impl MinByteRange for LayerListMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.paint_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for LayerList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -648,6 +666,12 @@ impl ClipListMarker {
     pub fn clips_byte_range(&self) -> Range<usize> {
         let start = self.num_clips_byte_range().end;
         start..start + self.clips_byte_len
+    }
+}
+
+impl MinByteRange for ClipListMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.clips_byte_range().end
     }
 }
 
@@ -848,6 +872,15 @@ impl<'a> FontRead<'a> for ClipBox<'a> {
     }
 }
 
+impl MinByteRange for ClipBox<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> ClipBox<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -908,6 +941,12 @@ impl ClipBoxFormat1Marker {
     pub fn y_max_byte_range(&self) -> Range<usize> {
         let start = self.x_max_byte_range().end;
         start..start + FWord::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for ClipBoxFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.y_max_byte_range().end
     }
 }
 
@@ -1022,6 +1061,12 @@ impl ClipBoxFormat2Marker {
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.y_max_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for ClipBoxFormat2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_base_byte_range().end
     }
 }
 
@@ -1331,6 +1376,12 @@ impl ColorLineMarker {
     }
 }
 
+impl MinByteRange for ColorLineMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.color_stops_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for ColorLine<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1420,6 +1471,12 @@ impl VarColorLineMarker {
     pub fn color_stops_byte_range(&self) -> Range<usize> {
         let start = self.num_stops_byte_range().end;
         start..start + self.color_stops_byte_len
+    }
+}
+
+impl MinByteRange for VarColorLineMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.color_stops_byte_range().end
     }
 }
 
@@ -1717,6 +1774,45 @@ impl<'a> FontRead<'a> for Paint<'a> {
     }
 }
 
+impl MinByteRange for Paint<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::ColrLayers(item) => item.min_byte_range(),
+            Self::Solid(item) => item.min_byte_range(),
+            Self::VarSolid(item) => item.min_byte_range(),
+            Self::LinearGradient(item) => item.min_byte_range(),
+            Self::VarLinearGradient(item) => item.min_byte_range(),
+            Self::RadialGradient(item) => item.min_byte_range(),
+            Self::VarRadialGradient(item) => item.min_byte_range(),
+            Self::SweepGradient(item) => item.min_byte_range(),
+            Self::VarSweepGradient(item) => item.min_byte_range(),
+            Self::Glyph(item) => item.min_byte_range(),
+            Self::ColrGlyph(item) => item.min_byte_range(),
+            Self::Transform(item) => item.min_byte_range(),
+            Self::VarTransform(item) => item.min_byte_range(),
+            Self::Translate(item) => item.min_byte_range(),
+            Self::VarTranslate(item) => item.min_byte_range(),
+            Self::Scale(item) => item.min_byte_range(),
+            Self::VarScale(item) => item.min_byte_range(),
+            Self::ScaleAroundCenter(item) => item.min_byte_range(),
+            Self::VarScaleAroundCenter(item) => item.min_byte_range(),
+            Self::ScaleUniform(item) => item.min_byte_range(),
+            Self::VarScaleUniform(item) => item.min_byte_range(),
+            Self::ScaleUniformAroundCenter(item) => item.min_byte_range(),
+            Self::VarScaleUniformAroundCenter(item) => item.min_byte_range(),
+            Self::Rotate(item) => item.min_byte_range(),
+            Self::VarRotate(item) => item.min_byte_range(),
+            Self::RotateAroundCenter(item) => item.min_byte_range(),
+            Self::VarRotateAroundCenter(item) => item.min_byte_range(),
+            Self::Skew(item) => item.min_byte_range(),
+            Self::VarSkew(item) => item.min_byte_range(),
+            Self::SkewAroundCenter(item) => item.min_byte_range(),
+            Self::VarSkewAroundCenter(item) => item.min_byte_range(),
+            Self::Composite(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> Paint<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -1800,6 +1896,12 @@ impl PaintColrLayersMarker {
     }
 }
 
+impl MinByteRange for PaintColrLayersMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.first_layer_index_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintColrLayers<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1880,6 +1982,12 @@ impl PaintSolidMarker {
     pub fn alpha_byte_range(&self) -> Range<usize> {
         let start = self.palette_index_byte_range().end;
         start..start + F2Dot14::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintSolidMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.alpha_byte_range().end
     }
 }
 
@@ -1968,6 +2076,12 @@ impl PaintVarSolidMarker {
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.alpha_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintVarSolidMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_base_byte_range().end
     }
 }
 
@@ -2084,6 +2198,12 @@ impl PaintLinearGradientMarker {
     pub fn y2_byte_range(&self) -> Range<usize> {
         let start = self.x2_byte_range().end;
         start..start + FWord::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintLinearGradientMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.y2_byte_range().end
     }
 }
 
@@ -2246,6 +2366,12 @@ impl PaintVarLinearGradientMarker {
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.y2_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintVarLinearGradientMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_base_byte_range().end
     }
 }
 
@@ -2420,6 +2546,12 @@ impl PaintRadialGradientMarker {
     }
 }
 
+impl MinByteRange for PaintRadialGradientMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.radius1_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintRadialGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -2582,6 +2714,12 @@ impl PaintVarRadialGradientMarker {
     }
 }
 
+impl MinByteRange for PaintVarRadialGradientMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_base_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintVarRadialGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -2741,6 +2879,12 @@ impl PaintSweepGradientMarker {
     }
 }
 
+impl MinByteRange for PaintSweepGradientMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.end_angle_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintSweepGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -2879,6 +3023,12 @@ impl PaintVarSweepGradientMarker {
     }
 }
 
+impl MinByteRange for PaintVarSweepGradientMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_base_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintVarSweepGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -3007,6 +3157,12 @@ impl PaintGlyphMarker {
     }
 }
 
+impl MinByteRange for PaintGlyphMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_id_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -3094,6 +3250,12 @@ impl PaintColrGlyphMarker {
     }
 }
 
+impl MinByteRange for PaintColrGlyphMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_id_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintColrGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -3166,6 +3328,12 @@ impl PaintTransformMarker {
     pub fn transform_offset_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
         start..start + Offset24::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintTransformMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.transform_offset_byte_range().end
     }
 }
 
@@ -3267,6 +3435,12 @@ impl PaintVarTransformMarker {
     pub fn transform_offset_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
         start..start + Offset24::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintVarTransformMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.transform_offset_byte_range().end
     }
 }
 
@@ -3379,6 +3553,12 @@ impl Affine2x3Marker {
     pub fn dy_byte_range(&self) -> Range<usize> {
         let start = self.dx_byte_range().end;
         start..start + Fixed::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for Affine2x3Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.dy_byte_range().end
     }
 }
 
@@ -3502,6 +3682,12 @@ impl VarAffine2x3Marker {
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.dy_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for VarAffine2x3Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_base_byte_range().end
     }
 }
 
@@ -3629,6 +3815,12 @@ impl PaintTranslateMarker {
     }
 }
 
+impl MinByteRange for PaintTranslateMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.dy_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintTranslate<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -3736,6 +3928,12 @@ impl PaintVarTranslateMarker {
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.dy_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintVarTranslateMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_base_byte_range().end
     }
 }
 
@@ -3852,6 +4050,12 @@ impl PaintScaleMarker {
     }
 }
 
+impl MinByteRange for PaintScaleMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.scale_y_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintScale<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -3959,6 +4163,12 @@ impl PaintVarScaleMarker {
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.scale_y_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintVarScaleMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_base_byte_range().end
     }
 }
 
@@ -4084,6 +4294,12 @@ impl PaintScaleAroundCenterMarker {
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
         start..start + FWord::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintScaleAroundCenterMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.center_y_byte_range().end
     }
 }
 
@@ -4223,6 +4439,12 @@ impl PaintVarScaleAroundCenterMarker {
     }
 }
 
+impl MinByteRange for PaintVarScaleAroundCenterMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_base_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintVarScaleAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -4351,6 +4573,12 @@ impl PaintScaleUniformMarker {
     }
 }
 
+impl MinByteRange for PaintScaleUniformMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.scale_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintScaleUniform<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -4445,6 +4673,12 @@ impl PaintVarScaleUniformMarker {
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.scale_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintVarScaleUniformMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_base_byte_range().end
     }
 }
 
@@ -4556,6 +4790,12 @@ impl PaintScaleUniformAroundCenterMarker {
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
         start..start + FWord::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintScaleUniformAroundCenterMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.center_y_byte_range().end
     }
 }
 
@@ -4682,6 +4922,12 @@ impl PaintVarScaleUniformAroundCenterMarker {
     }
 }
 
+impl MinByteRange for PaintVarScaleUniformAroundCenterMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_base_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintVarScaleUniformAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -4802,6 +5048,12 @@ impl PaintRotateMarker {
     }
 }
 
+impl MinByteRange for PaintRotateMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.angle_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintRotate<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -4897,6 +5149,12 @@ impl PaintVarRotateMarker {
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.angle_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintVarRotateMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_base_byte_range().end
     }
 }
 
@@ -5008,6 +5266,12 @@ impl PaintRotateAroundCenterMarker {
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
         start..start + FWord::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintRotateAroundCenterMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.center_y_byte_range().end
     }
 }
 
@@ -5135,6 +5399,12 @@ impl PaintVarRotateAroundCenterMarker {
     }
 }
 
+impl MinByteRange for PaintVarRotateAroundCenterMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_base_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintVarRotateAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -5259,6 +5529,12 @@ impl PaintSkewMarker {
     }
 }
 
+impl MinByteRange for PaintSkewMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.y_skew_angle_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintSkew<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -5368,6 +5644,12 @@ impl PaintVarSkewMarker {
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.y_skew_angle_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintVarSkewMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_base_byte_range().end
     }
 }
 
@@ -5495,6 +5777,12 @@ impl PaintSkewAroundCenterMarker {
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
         start..start + FWord::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintSkewAroundCenterMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.center_y_byte_range().end
     }
 }
 
@@ -5636,6 +5924,12 @@ impl PaintVarSkewAroundCenterMarker {
     }
 }
 
+impl MinByteRange for PaintVarSkewAroundCenterMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.var_index_base_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PaintVarSkewAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -5768,6 +6062,12 @@ impl PaintCompositeMarker {
     pub fn backdrop_paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.composite_mode_byte_range().end;
         start..start + Offset24::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PaintCompositeMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.backdrop_paint_offset_byte_range().end
     }
 }
 

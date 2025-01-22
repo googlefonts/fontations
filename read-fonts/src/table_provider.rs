@@ -223,6 +223,10 @@ pub trait TableProvider<'a> {
     fn meta(&self) -> Result<tables::meta::Meta<'a>, ReadError> {
         self.expect_table()
     }
+
+    fn base(&self) -> Result<tables::base::Base<'a>, ReadError> {
+        self.expect_table()
+    }
 }
 
 #[cfg(test)]

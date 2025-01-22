@@ -46,6 +46,12 @@ impl AvarMarker {
     }
 }
 
+impl MinByteRange for AvarMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.axis_segment_maps_byte_range().end
+    }
+}
+
 impl TopLevelTable for Avar<'_> {
     /// `avar`
     const TAG: Tag = Tag::new(b"avar");

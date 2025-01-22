@@ -34,6 +34,12 @@ impl VorgMarker {
     }
 }
 
+impl MinByteRange for VorgMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.vert_origin_y_metrics_byte_range().end
+    }
+}
+
 impl TopLevelTable for Vorg<'_> {
     /// `VORG`
     const TAG: Tag = Tag::new(b"VORG");

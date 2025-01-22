@@ -42,6 +42,12 @@ impl VvarMarker {
     }
 }
 
+impl MinByteRange for VvarMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.v_org_mapping_offset_byte_range().end
+    }
+}
+
 impl TopLevelTable for Vvar<'_> {
     /// `VVAR`
     const TAG: Tag = Tag::new(b"VVAR");

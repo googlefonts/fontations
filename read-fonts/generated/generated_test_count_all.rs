@@ -23,6 +23,12 @@ impl CountAll16Marker {
     }
 }
 
+impl MinByteRange for CountAll16Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.remainder_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for CountAll16<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -85,6 +91,12 @@ impl CountAll32Marker {
     pub fn remainder_byte_range(&self) -> Range<usize> {
         let start = self.some_field_byte_range().end;
         start..start + self.remainder_byte_len
+    }
+}
+
+impl MinByteRange for CountAll32Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.remainder_byte_range().end
     }
 }
 

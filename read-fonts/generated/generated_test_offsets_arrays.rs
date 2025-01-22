@@ -60,6 +60,12 @@ impl KindsOfOffsetsMarker {
     }
 }
 
+impl MinByteRange for KindsOfOffsetsMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.record_array_offset_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -315,6 +321,12 @@ impl KindsOfArraysOfOffsetsMarker {
     }
 }
 
+impl MinByteRange for KindsOfArraysOfOffsetsMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.nullable_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -554,6 +566,12 @@ impl KindsOfArraysMarker {
     }
 }
 
+impl MinByteRange for KindsOfArraysMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.records_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for KindsOfArrays<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -709,6 +727,12 @@ impl VarLenHaverMarker {
     }
 }
 
+impl MinByteRange for VarLenHaverMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.other_field_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for VarLenHaver<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -779,6 +803,12 @@ impl DummyMarker {
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.value_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for DummyMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self._reserved_byte_range().end
     }
 }
 

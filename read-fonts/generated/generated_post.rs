@@ -78,6 +78,12 @@ impl PostMarker {
     }
 }
 
+impl MinByteRange for PostMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.max_mem_type1_byte_range().end
+    }
+}
+
 impl TopLevelTable for Post<'_> {
     /// `post`
     const TAG: Tag = Tag::new(b"post");

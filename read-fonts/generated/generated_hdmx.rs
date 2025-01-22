@@ -35,6 +35,12 @@ impl HdmxMarker {
     }
 }
 
+impl MinByteRange for HdmxMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.records_byte_range().end
+    }
+}
+
 impl TopLevelTable for Hdmx<'_> {
     /// `hdmx`
     const TAG: Tag = Tag::new(b"hdmx");

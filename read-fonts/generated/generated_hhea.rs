@@ -97,6 +97,12 @@ impl HheaMarker {
     }
 }
 
+impl MinByteRange for HheaMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.number_of_long_metrics_byte_range().end
+    }
+}
+
 impl TopLevelTable for Hhea<'_> {
     /// `hhea`
     const TAG: Tag = Tag::new(b"hhea");

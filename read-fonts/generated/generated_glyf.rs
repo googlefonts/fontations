@@ -109,6 +109,12 @@ impl SimpleGlyphMarker {
     }
 }
 
+impl MinByteRange for SimpleGlyphMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_data_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for SimpleGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -670,6 +676,12 @@ impl CompositeGlyphMarker {
     }
 }
 
+impl MinByteRange for CompositeGlyphMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.component_data_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for CompositeGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1204,6 +1216,15 @@ impl<'a> FontRead<'a> for Glyph<'a> {
             format if format >= 0 => Ok(Self::Simple(FontRead::read(data)?)),
             format if format < 0 => Ok(Self::Composite(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl MinByteRange for Glyph<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Simple(item) => item.min_byte_range(),
+            Self::Composite(item) => item.min_byte_range(),
         }
     }
 }

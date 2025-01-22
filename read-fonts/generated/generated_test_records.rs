@@ -39,6 +39,12 @@ impl BasicTableMarker {
     }
 }
 
+impl MinByteRange for BasicTableMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.array_records_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for BasicTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();

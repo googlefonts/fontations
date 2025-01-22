@@ -432,6 +432,12 @@ impl HeadMarker {
     }
 }
 
+impl MinByteRange for HeadMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_data_format_byte_range().end
+    }
+}
+
 impl TopLevelTable for Head<'_> {
     /// `head`
     const TAG: Tag = Tag::new(b"head");

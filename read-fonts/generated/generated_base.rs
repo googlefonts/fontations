@@ -34,6 +34,12 @@ impl BaseMarker {
     }
 }
 
+impl MinByteRange for BaseMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.vert_axis_offset_byte_range().end
+    }
+}
+
 impl TopLevelTable for Base<'_> {
     /// `BASE`
     const TAG: Tag = Tag::new(b"BASE");
@@ -157,6 +163,12 @@ impl AxisMarker {
     }
 }
 
+impl MinByteRange for AxisMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.base_script_list_offset_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for Axis<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -244,6 +256,12 @@ impl BaseTagListMarker {
     }
 }
 
+impl MinByteRange for BaseTagListMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.baseline_tags_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for BaseTagList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -316,6 +334,12 @@ impl BaseScriptListMarker {
     pub fn base_script_records_byte_range(&self) -> Range<usize> {
         let start = self.base_script_count_byte_range().end;
         start..start + self.base_script_records_byte_len
+    }
+}
+
+impl MinByteRange for BaseScriptListMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.base_script_records_byte_range().end
     }
 }
 
@@ -460,6 +484,12 @@ impl BaseScriptMarker {
     pub fn base_lang_sys_records_byte_range(&self) -> Range<usize> {
         let start = self.base_lang_sys_count_byte_range().end;
         start..start + self.base_lang_sys_records_byte_len
+    }
+}
+
+impl MinByteRange for BaseScriptMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.base_lang_sys_records_byte_range().end
     }
 }
 
@@ -639,6 +669,12 @@ impl BaseValuesMarker {
     }
 }
 
+impl MinByteRange for BaseValuesMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.base_coord_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for BaseValues<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -755,6 +791,12 @@ impl MinMaxMarker {
     pub fn feat_min_max_records_byte_range(&self) -> Range<usize> {
         let start = self.feat_min_max_count_byte_range().end;
         start..start + self.feat_min_max_records_byte_len
+    }
+}
+
+impl MinByteRange for MinMaxMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.feat_min_max_records_byte_range().end
     }
 }
 
@@ -984,6 +1026,16 @@ impl<'a> FontRead<'a> for BaseCoord<'a> {
     }
 }
 
+impl MinByteRange for BaseCoord<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+            Self::Format3(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> BaseCoord<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -1030,6 +1082,12 @@ impl BaseCoordFormat1Marker {
     pub fn coordinate_byte_range(&self) -> Range<usize> {
         let start = self.base_coord_format_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for BaseCoordFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.coordinate_byte_range().end
     }
 }
 
@@ -1110,6 +1168,12 @@ impl BaseCoordFormat2Marker {
     pub fn base_coord_point_byte_range(&self) -> Range<usize> {
         let start = self.reference_glyph_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for BaseCoordFormat2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.base_coord_point_byte_range().end
     }
 }
 
@@ -1201,6 +1265,12 @@ impl BaseCoordFormat3Marker {
     pub fn device_offset_byte_range(&self) -> Range<usize> {
         let start = self.coordinate_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for BaseCoordFormat3Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.device_offset_byte_range().end
     }
 }
 

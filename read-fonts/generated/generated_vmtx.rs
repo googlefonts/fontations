@@ -25,6 +25,12 @@ impl VmtxMarker {
     }
 }
 
+impl MinByteRange for VmtxMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.top_side_bearings_byte_range().end
+    }
+}
+
 impl TopLevelTable for Vmtx<'_> {
     /// `vmtx`
     const TAG: Tag = Tag::new(b"vmtx");

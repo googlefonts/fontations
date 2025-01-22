@@ -39,6 +39,12 @@ impl MetaMarker {
     }
 }
 
+impl MinByteRange for MetaMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.data_maps_byte_range().end
+    }
+}
+
 impl TopLevelTable for Meta<'_> {
     /// `meta`
     const TAG: Tag = Tag::new(b"meta");

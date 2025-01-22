@@ -37,6 +37,12 @@ impl HvarMarker {
     }
 }
 
+impl MinByteRange for HvarMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.rsb_mapping_offset_byte_range().end
+    }
+}
+
 impl TopLevelTable for Hvar<'_> {
     /// `HVAR`
     const TAG: Tag = Tag::new(b"HVAR");

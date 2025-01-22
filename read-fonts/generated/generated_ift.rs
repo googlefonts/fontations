@@ -62,6 +62,15 @@ impl<'a> FontRead<'a> for Ift<'a> {
     }
 }
 
+impl MinByteRange for Ift<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> Ift<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -160,6 +169,12 @@ impl PatchMapFormat1Marker {
     pub fn patch_format_byte_range(&self) -> Range<usize> {
         let start = self.uri_template_byte_range().end;
         start..start + u8::RAW_BYTE_LEN
+    }
+}
+
+impl MinByteRange for PatchMapFormat1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.patch_format_byte_range().end
     }
 }
 
@@ -341,6 +356,12 @@ impl GlyphMapMarker {
     }
 }
 
+impl MinByteRange for GlyphMapMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.entry_index_byte_range().end
+    }
+}
+
 impl ReadArgs for GlyphMap<'_> {
     type Args = (Uint24, u16);
 }
@@ -441,6 +462,12 @@ impl FeatureMapMarker {
     pub fn entry_map_data_byte_range(&self) -> Range<usize> {
         let start = self.feature_records_byte_range().end;
         start..start + self.entry_map_data_byte_len
+    }
+}
+
+impl MinByteRange for FeatureMapMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.entry_map_data_byte_range().end
     }
 }
 
@@ -753,6 +780,12 @@ impl PatchMapFormat2Marker {
     }
 }
 
+impl MinByteRange for PatchMapFormat2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.uri_template_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -894,6 +927,12 @@ impl MappingEntriesMarker {
     }
 }
 
+impl MinByteRange for MappingEntriesMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.entry_data_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for MappingEntries<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1004,6 +1043,12 @@ impl EntryDataMarker {
     pub fn codepoint_data_byte_range(&self) -> Range<usize> {
         let start = self . patch_format_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . entry_id_delta_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_indices_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_segments_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_tags_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . format_flags_byte_range () . end)))))))) ;
         start..start + self.codepoint_data_byte_len
+    }
+}
+
+impl MinByteRange for EntryDataMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.codepoint_data_byte_range().end
     }
 }
 
@@ -1643,6 +1688,12 @@ impl IdStringDataMarker {
     }
 }
 
+impl MinByteRange for IdStringDataMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.id_data_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for IdStringData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1714,6 +1765,12 @@ impl TableKeyedPatchMarker {
     pub fn patch_offsets_byte_range(&self) -> Range<usize> {
         let start = self.patches_count_byte_range().end;
         start..start + self.patch_offsets_byte_len
+    }
+}
+
+impl MinByteRange for TableKeyedPatchMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.patch_offsets_byte_range().end
     }
 }
 
@@ -1834,6 +1891,12 @@ impl TablePatchMarker {
     pub fn brotli_stream_byte_range(&self) -> Range<usize> {
         let start = self.max_uncompressed_length_byte_range().end;
         start..start + self.brotli_stream_byte_len
+    }
+}
+
+impl MinByteRange for TablePatchMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.brotli_stream_byte_range().end
     }
 }
 
@@ -2245,6 +2308,12 @@ impl GlyphKeyedPatchMarker {
     pub fn brotli_stream_byte_range(&self) -> Range<usize> {
         let start = self.max_uncompressed_length_byte_range().end;
         start..start + self.brotli_stream_byte_len
+    }
+}
+
+impl MinByteRange for GlyphKeyedPatchMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.brotli_stream_byte_range().end
     }
 }
 
@@ -2668,6 +2737,12 @@ impl GlyphPatchesMarker {
     }
 }
 
+impl MinByteRange for GlyphPatchesMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_data_offsets_byte_range().end
+    }
+}
+
 impl ReadArgs for GlyphPatches<'_> {
     type Args = GlyphKeyedFlags;
 }
@@ -2801,6 +2876,12 @@ impl GlyphDataMarker {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.data_byte_len
+    }
+}
+
+impl MinByteRange for GlyphDataMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.data_byte_range().end
     }
 }
 

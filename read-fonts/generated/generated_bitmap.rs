@@ -758,6 +758,12 @@ impl IndexSubtableArrayMarker {
     }
 }
 
+impl MinByteRange for IndexSubtableArrayMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.additional_offset_to_index_subtable_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for IndexSubtableArray<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -888,6 +894,18 @@ impl<'a> FontRead<'a> for IndexSubtable<'a> {
     }
 }
 
+impl MinByteRange for IndexSubtable<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+            Self::Format3(item) => item.min_byte_range(),
+            Self::Format4(item) => item.min_byte_range(),
+            Self::Format5(item) => item.min_byte_range(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> IndexSubtable<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -948,6 +966,12 @@ impl IndexSubtable1Marker {
     pub fn sbit_offsets_byte_range(&self) -> Range<usize> {
         let start = self.image_data_offset_byte_range().end;
         start..start + self.sbit_offsets_byte_len
+    }
+}
+
+impl MinByteRange for IndexSubtable1Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.sbit_offsets_byte_range().end
     }
 }
 
@@ -1054,6 +1078,12 @@ impl IndexSubtable2Marker {
     pub fn big_metrics_byte_range(&self) -> Range<usize> {
         let start = self.image_size_byte_range().end;
         start..start + self.big_metrics_byte_len
+    }
+}
+
+impl MinByteRange for IndexSubtable2Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.big_metrics_byte_range().end
     }
 }
 
@@ -1173,6 +1203,12 @@ impl IndexSubtable3Marker {
     }
 }
 
+impl MinByteRange for IndexSubtable3Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.sbit_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for IndexSubtable3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -1276,6 +1312,12 @@ impl IndexSubtable4Marker {
     pub fn glyph_array_byte_range(&self) -> Range<usize> {
         let start = self.num_glyphs_byte_range().end;
         start..start + self.glyph_array_byte_len
+    }
+}
+
+impl MinByteRange for IndexSubtable4Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_array_byte_range().end
     }
 }
 
@@ -1452,6 +1494,12 @@ impl IndexSubtable5Marker {
     pub fn glyph_array_byte_range(&self) -> Range<usize> {
         let start = self.num_glyphs_byte_range().end;
         start..start + self.glyph_array_byte_len
+    }
+}
+
+impl MinByteRange for IndexSubtable5Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_array_byte_range().end
     }
 }
 

@@ -44,6 +44,12 @@ impl TableDirectoryMarker {
     }
 }
 
+impl MinByteRange for TableDirectoryMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.table_records_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for TableDirectory<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -237,6 +243,12 @@ impl TTCHeaderMarker {
     pub fn dsig_offset_byte_range(&self) -> Option<Range<usize>> {
         let start = self.dsig_offset_byte_start?;
         Some(start..start + u32::RAW_BYTE_LEN)
+    }
+}
+
+impl MinByteRange for TTCHeaderMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.table_directory_offsets_byte_range().end
     }
 }
 

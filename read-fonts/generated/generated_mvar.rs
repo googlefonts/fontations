@@ -44,6 +44,12 @@ impl MvarMarker {
     }
 }
 
+impl MinByteRange for MvarMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.value_records_byte_range().end
+    }
+}
+
 impl TopLevelTable for Mvar<'_> {
     /// `MVAR`
     const TAG: Tag = Tag::new(b"MVAR");
