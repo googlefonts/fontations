@@ -84,3 +84,6 @@ impl fmt::Display for DrawError {
         }
     }
 }
+
+#[cfg(feature = "std")]
+impl std::error::Error for DrawError {}
