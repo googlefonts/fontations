@@ -18,6 +18,7 @@ mod parsing_util;
 mod post;
 pub mod serialize;
 mod stat;
+mod vorg;
 pub use parsing_util::{
     parse_drop_tables, parse_name_ids, parse_name_languages, parse_unicodes, populate_gids,
 };
@@ -47,6 +48,7 @@ use write_fonts::{
             name::Name,
             os2::Os2,
             post::Post,
+            vorg::Vorg,
         },
         types::NameId,
         FontRef, TableProvider, TopLevelTable,
@@ -751,6 +753,11 @@ fn subset_table<'a>(
         Post::TAG => font
             .post()
             .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?
+            .subset(plan, font, s, builder),
+
+        Vorg::TAG => font
+            .vorg()
+            .map_err(|_| SubsetError::SubsetTableError(Vorg::TAG))?
             .subset(plan, font, s, builder),
 
         _ => passthrough_table(tag, font, s),
