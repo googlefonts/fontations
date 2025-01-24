@@ -43,7 +43,7 @@ pub trait TableProvider<'a> {
     fn hmtx(&self) -> Result<tables::hmtx::Hmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
-        let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_long_metrics())?;
+        let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_h_metrics())?;
         let data = self.expect_data_for_tag(tables::hmtx::Hmtx::TAG)?;
         tables::hmtx::Hmtx::read(data, number_of_h_metrics, num_glyphs)
     }
@@ -271,7 +271,7 @@ mod tests {
             }
         }
 
-        let number_of_h_metrics = DummyProvider.hhea().unwrap().number_of_long_metrics();
+        let number_of_h_metrics = DummyProvider.hhea().unwrap().number_of_h_metrics();
         let num_glyphs = DummyProvider.maxp().unwrap().num_glyphs();
         let hmtx = DummyProvider.hmtx().unwrap();
 

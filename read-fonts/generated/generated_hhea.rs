@@ -91,7 +91,7 @@ impl HheaMarker {
         start..start + i16::RAW_BYTE_LEN
     }
 
-    pub fn number_of_long_metrics_byte_range(&self) -> Range<usize> {
+    pub fn number_of_h_metrics_byte_range(&self) -> Range<usize> {
         let start = self.metric_data_format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
@@ -99,7 +99,7 @@ impl HheaMarker {
 
 impl MinByteRange for HheaMarker {
     fn min_byte_range(&self) -> Range<usize> {
-        0..self.number_of_long_metrics_byte_range().end
+        0..self.number_of_h_metrics_byte_range().end
     }
 }
 
@@ -215,9 +215,9 @@ impl<'a> Hhea<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    /// Number of LongMetric entries in 'hmtx'/'vmtx' table
-    pub fn number_of_long_metrics(&self) -> u16 {
-        let range = self.shape.number_of_long_metrics_byte_range();
+    /// Number of hMetric entries in 'hmtx' table
+    pub fn number_of_h_metrics(&self) -> u16 {
+        let range = self.shape.number_of_h_metrics_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -248,8 +248,8 @@ impl<'a> SomeTable<'a> for Hhea<'a> {
             10usize => Some(Field::new("caret_offset", self.caret_offset())),
             11usize => Some(Field::new("metric_data_format", self.metric_data_format())),
             12usize => Some(Field::new(
-                "number_of_long_metrics",
-                self.number_of_long_metrics(),
+                "number_of_h_metrics",
+                self.number_of_h_metrics(),
             )),
             _ => None,
         }

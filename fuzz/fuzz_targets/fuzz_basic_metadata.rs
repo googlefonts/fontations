@@ -27,7 +27,7 @@ fn do_metadata_things(data: &[u8]) -> Result<(), Box<dyn Error>> {
     }
 
     if let Ok(hhea) = font.hhea() {
-        let _ = hhea.number_of_long_metrics();
+        let _ = hhea.number_of_h_metrics();
         if let Ok(hmtx) = font.hmtx() {
             let _ = hmtx.h_metrics().iter().count();
             let _ = hmtx.left_side_bearings().iter().count();

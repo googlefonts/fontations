@@ -214,7 +214,7 @@ impl<'a> Vhea<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    /// Number of LongMetric entries in 'hmtx'/'vmtx' table
+    /// Number of advance heights in the vertical metrics (`vmtx`) table.
     pub fn number_of_long_ver_metrics(&self) -> u16 {
         let range = self.shape.number_of_long_ver_metrics_byte_range();
         self.data.read_at(range.start).unwrap()

@@ -34,7 +34,7 @@ pub struct Vhea {
     /// shifted to produce the best appearance. Set to 0 for
     /// non-slanted fonts
     pub caret_offset: i16,
-    /// Number of LongMetric entries in 'hmtx'/'vmtx' table
+    /// Number of advance heights in the vertical metrics (`vmtx`) table.
     pub number_of_long_ver_metrics: u16,
 }
 
