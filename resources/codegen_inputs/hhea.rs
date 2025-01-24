@@ -51,6 +51,6 @@ table Hhea {
     /// 0 for current format.
     #[compile(0)]
     metric_data_format: i16,
-    /// Number of LongMetric entries in 'hmtx'/'vmtx' table
-    number_of_long_metrics: u16,
+    /// Number of hMetric entries in 'hmtx' table
+    number_of_h_metrics: u16,
 }

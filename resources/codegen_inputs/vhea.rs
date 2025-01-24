@@ -50,6 +50,6 @@ table Vhea {
     /// 0 for current format.
     #[compile(0)]
     metric_data_format: i16,
-    /// Number of LongMetric entries in 'hmtx'/'vmtx' table
+    /// Number of advance heights in the vertical metrics (`vmtx`) table.
     number_of_long_ver_metrics: u16,
 }

@@ -35,8 +35,8 @@ pub struct Hhea {
     /// shifted to produce the best appearance. Set to 0 for
     /// non-slanted fonts
     pub caret_offset: i16,
-    /// Number of LongMetric entries in 'hmtx'/'vmtx' table
-    pub number_of_long_metrics: u16,
+    /// Number of hMetric entries in 'hmtx' table
+    pub number_of_h_metrics: u16,
 }
 
 impl Hhea {
@@ -53,7 +53,7 @@ impl Hhea {
         caret_slope_rise: i16,
         caret_slope_run: i16,
         caret_offset: i16,
-        number_of_long_metrics: u16,
+        number_of_h_metrics: u16,
     ) -> Self {
         Self {
             ascender,
@@ -66,7 +66,7 @@ impl Hhea {
             caret_slope_rise,
             caret_slope_run,
             caret_offset,
-            number_of_long_metrics,
+            number_of_h_metrics,
         }
     }
 }
@@ -90,7 +90,7 @@ impl FontWrite for Hhea {
         (0 as i16).write_into(writer);
         (0 as i16).write_into(writer);
         (0 as i16).write_into(writer);
-        self.number_of_long_metrics.write_into(writer);
+        self.number_of_h_metrics.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::TopLevel(Hhea::TAG)
@@ -118,7 +118,7 @@ impl<'a> FromObjRef<read_fonts::tables::hhea::Hhea<'a>> for Hhea {
             caret_slope_rise: obj.caret_slope_rise(),
             caret_slope_run: obj.caret_slope_run(),
             caret_offset: obj.caret_offset(),
-            number_of_long_metrics: obj.number_of_long_metrics(),
+            number_of_h_metrics: obj.number_of_h_metrics(),
         }
     }
 }
