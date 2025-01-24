@@ -523,7 +523,7 @@ impl Scaler for FreeTypeScaler<'_> {
             && self.outlines.gvar.is_some()
             && !self.coords.is_empty()
         {
-            if let Ok(deltas) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
+            if let Ok(Some(deltas)) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
                 &self.outlines.glyf,
                 &self.outlines.loca,
                 self.coords,
@@ -1057,7 +1057,7 @@ impl Scaler for HarfBuzzScaler<'_> {
             && self.outlines.gvar.is_some()
             && !self.coords.is_empty()
         {
-            if let Ok(deltas) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
+            if let Ok(Some(deltas)) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
                 &self.outlines.glyf,
                 &self.outlines.loca,
                 self.coords,

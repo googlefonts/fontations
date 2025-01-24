@@ -139,7 +139,7 @@ where
     for delta in deltas.iter_mut() {
         *delta = Default::default();
     }
-    let Ok(var_data) = gvar.glyph_variation_data(glyph_id) else {
+    let Ok(Some(var_data)) = gvar.glyph_variation_data(glyph_id) else {
         // Empty variation data for a glyph is not an error.
         return Ok(());
     };

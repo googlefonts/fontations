@@ -373,7 +373,8 @@ impl GlyphMetrics<'_> {
             .gvar
             .as_ref()?
             .phantom_point_deltas(glyf, loca, self.coords, glyph_id)
-            .ok()?;
+            .ok()
+            .flatten()?;
         deltas[1] -= deltas[0];
         Some([deltas[0], deltas[1]].map(|delta| delta.x.to_i32()))
     }
