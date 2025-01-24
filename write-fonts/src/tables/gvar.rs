@@ -721,7 +721,7 @@ mod tests {
         assert_eq!(gvar.shared_tuple_count(), 1);
         assert_eq!(gvar.glyph_count(), 3);
 
-        let g1 = gvar.glyph_variation_data(GlyphId::new(1)).unwrap();
+        let g1 = gvar.glyph_variation_data(GlyphId::new(1)).unwrap().unwrap();
         let g1tup = g1.tuples().collect::<Vec<_>>();
         assert_eq!(g1tup.len(), 1);
 
@@ -729,7 +729,7 @@ mod tests {
         assert_eq!(x, vec![30, 40, -50, 101, 10]);
         assert_eq!(y, vec![31, 41, -49, 102, 11]);
 
-        let g2 = gvar.glyph_variation_data(GlyphId::new(2)).unwrap();
+        let g2 = gvar.glyph_variation_data(GlyphId::new(2)).unwrap().unwrap();
         let g2tup = g2.tuples().collect::<Vec<_>>();
         assert_eq!(g2tup.len(), 2);
 
@@ -774,7 +774,7 @@ mod tests {
         assert_eq!(gvar.shared_tuple_count(), 0);
         assert_eq!(gvar.glyph_count(), 1);
 
-        let g1 = gvar.glyph_variation_data(gid).unwrap();
+        let g1 = gvar.glyph_variation_data(gid).unwrap().unwrap();
         let g1tup = g1.tuples().collect::<Vec<_>>();
         assert_eq!(g1tup.len(), 1);
         let tuple_variation = &g1tup[0];
@@ -822,7 +822,7 @@ mod tests {
         assert_eq!(gvar.shared_tuple_count(), 0);
         assert_eq!(gvar.glyph_count(), 1);
 
-        let g1 = gvar.glyph_variation_data(gid).unwrap();
+        let g1 = gvar.glyph_variation_data(gid).unwrap().unwrap();
         let g1tup = g1.tuples().collect::<Vec<_>>();
         assert_eq!(g1tup.len(), 1);
         let tuple_variation = &g1tup[0];
