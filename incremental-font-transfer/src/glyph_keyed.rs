@@ -261,28 +261,28 @@ fn retained_glyphs_total_size<T: GlyphDataOffsetArray>(
 
 /// Objects with this trait can be written to bytes.
 ///
-/// The offset value will be divided by DIVISOR prior to conversion to bytes.
-trait WritableOffset<const DIVISOR: usize> {
+/// The offset value will NOT be divided prior to conversion to bytes.
+trait WritableOffset {
     fn write_to(self, dest: &mut [u8]);
 }
 
-impl<const DIVISOR: usize> WritableOffset<DIVISOR> for u32 {
+impl WritableOffset for u32 {
     fn write_to(self, dest: &mut [u8]) {
-        let data: [u8; 4] = (self / DIVISOR as u32).to_raw();
+        let data: [u8; 4] = self.to_raw();
         dest[..4].copy_from_slice(&data);
     }
 }
 
-impl<const DIVISOR: usize> WritableOffset<DIVISOR> for u16 {
+impl WritableOffset for u16 {
     fn write_to(self, dest: &mut [u8]) {
-        let data: [u8; 2] = (self / DIVISOR as u16).to_raw();
+        let data: [u8; 2] = self.to_raw();
         dest[..2].copy_from_slice(&data);
     }
 }
 
 fn synthesize_offset_array<
     const DIV: usize,
-    OffsetType: WritableOffset<DIV> + TryFrom<usize>,
+    OffsetType: WritableOffset + TryFrom<usize>,
     T: GlyphDataOffsetArray,
 >(
     gids: &IntSet<GlyphId>,
@@ -331,7 +331,7 @@ fn synthesize_offset_array<
                     .ok_or(PatchingError::InternalError)?
                     .copy_from_slice(data);
 
-                let new_off: OffsetType = write_index
+                let new_off: OffsetType = (write_index / DIV)
                     .try_into()
                     .map_err(|_| PatchingError::InternalError)?;
 
@@ -367,7 +367,7 @@ fn synthesize_offset_array<
                 let cur_off = offset_array.offset_for(gid.into())? as usize;
                 let new_off = cur_off - start_off + write_index;
 
-                let new_off: OffsetType = new_off
+                let new_off: OffsetType = (new_off / DIV)
                     .try_into()
                     .map_err(|_| PatchingError::InternalError)?;
                 new_off.write_to(
@@ -382,7 +382,7 @@ fn synthesize_offset_array<
     }
 
     // Write the last offset
-    let new_off: OffsetType = write_index
+    let new_off: OffsetType = (write_index / DIV)
         .try_into()
         .map_err(|_| PatchingError::InternalError)?;
     new_off.write_to(
