@@ -621,7 +621,7 @@ where
     // glyphs are padded to even number of bytes since loca format will be short.
     let glyf = if !short_loca {
         // Since we want a long loca artificially inflate glyf table to ensure long offsets are needed.
-        BeBuffer::new().extend(iter::repeat(0).take(70000))
+        BeBuffer::new().extend(iter::repeat(0).take(140000))
     } else {
         BeBuffer::new()
     };
