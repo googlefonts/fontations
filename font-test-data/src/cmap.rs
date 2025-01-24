@@ -1,6 +1,6 @@
 //! cmap test data for scenarios not readily produced with ttx
 
-use read_fonts::{be_buffer, be_buffer_add, test_helpers::BeBuffer};
+use crate::{be_buffer, bebuffer::BeBuffer};
 
 /// Contains two codepoint ranges, both [6, 64]. Surely you don't duplicate them?
 pub fn repetitive_cmap4() -> BeBuffer {

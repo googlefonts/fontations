@@ -113,7 +113,7 @@ mod enums {
 
 pub mod conditions {
     #[cfg(test)]
-    use read_fonts::test_helpers::BeBuffer;
+    use font_test_data::bebuffer::BeBuffer;
 
     include!("../generated/generated_test_conditions.rs");
 

@@ -112,12 +112,12 @@ impl<'a> SomeRecord<'a> for DeviceRecord<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{be_buffer, be_buffer_add, test_helpers::BeBuffer};
+    use font_test_data::{be_buffer, bebuffer::BeBuffer};
 
     #[test]
     fn read_hdmx() {
         let buf = make_hdmx();
-        let hdmx = Hdmx::read(buf.font_data(), 3).unwrap();
+        let hdmx = Hdmx::read(buf.data().into(), 3).unwrap();
         assert_eq!(hdmx.version(), 0);
         assert_eq!(hdmx.num_records(), 3);
         // Note: this table has sizes for 3 glyphs making each device
@@ -157,7 +157,7 @@ mod tests {
     #[test]
     fn find_by_size() {
         let buf = make_hdmx();
-        let hdmx = Hdmx::read(buf.font_data(), 3).unwrap();
+        let hdmx = Hdmx::read(buf.data().into(), 3).unwrap();
         assert_eq!(hdmx.record_for_size(8).unwrap().pixel_size, 8);
         assert_eq!(hdmx.record_for_size(16).unwrap().pixel_size, 16);
         assert_eq!(hdmx.record_for_size(32).unwrap().pixel_size, 32);

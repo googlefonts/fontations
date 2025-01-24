@@ -541,10 +541,10 @@ impl Iterator for NonDefaultUvsIter<'_> {
 
 #[cfg(test)]
 mod tests {
+    use font_test_data::{be_buffer, bebuffer::BeBuffer};
+
     use super::*;
-    use crate::{
-        be_buffer, be_buffer_add, test_helpers::BeBuffer, FontRef, GlyphId, TableProvider,
-    };
+    use crate::{FontRef, GlyphId, TableProvider};
 
     #[test]
     fn map_codepoints() {
@@ -690,7 +690,7 @@ mod tests {
     #[test]
     fn cmap12_iter_avoid_overflow() {
         let data = cmap12_overflow_data();
-        let cmap12 = Cmap12::read(data.font_data()).unwrap();
+        let cmap12 = Cmap12::read(data.data().into()).unwrap();
         let _ = cmap12.iter().count();
     }
 
@@ -709,14 +709,14 @@ mod tests {
             // groups: [startCode, endCode, startGlyphID]
             [170u32, 1330926671, 328960] // group 0
         };
-        let cmap12 = Cmap12::read(cmap12_data.font_data()).unwrap();
+        let cmap12 = Cmap12::read(cmap12_data.data().into()).unwrap();
         assert!(cmap12.iter().count() <= char::MAX as usize + 1);
     }
 
     #[test]
     fn cmap12_iter_range_clamping() {
         let data = cmap12_overflow_data();
-        let cmap12 = Cmap12::read(data.font_data()).unwrap();
+        let cmap12 = Cmap12::read(data.data().into()).unwrap();
         let ranges = cmap12
             .groups()
             .iter()

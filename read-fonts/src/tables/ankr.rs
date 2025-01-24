@@ -22,8 +22,9 @@ impl<'a> Ankr<'a> {
 
 #[cfg(test)]
 mod tests {
+    use font_test_data::bebuffer::BeBuffer;
+
     use super::*;
-    use crate::test_helpers::BeBuffer;
 
     #[test]
     fn anchor_points() {
@@ -51,7 +52,7 @@ mod tests {
                 .push(entry.len() as u32)
                 .extend(entry.iter().flat_map(|x| [x.0, x.1]));
         }
-        let ankr = Ankr::read(buf.font_data()).unwrap();
+        let ankr = Ankr::read(buf.data().into()).unwrap();
         let anchor_points = (0..4)
             .map(|gid| {
                 let points = ankr.anchor_points(GlyphId::new(gid)).unwrap();

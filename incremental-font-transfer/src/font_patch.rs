@@ -216,14 +216,19 @@ mod tests {
 
     use font_test_data::ift::{
         codepoints_only_format2, glyf_u16_glyph_patches, glyph_keyed_patch_header,
-        table_keyed_patch, test_font_for_patching_with_loca_mod,
+        table_keyed_patch,
     };
     use read_fonts::tables::ift::{CompatibilityId, IFTX_TAG, IFT_TAG};
 
     use crate::{
         font_patch::PatchingError,
         glyph_keyed::tests::assemble_glyph_keyed_patch,
-        patchmap::{IftTableTag, PatchFormat::GlyphKeyed, PatchFormat::TableKeyed, PatchUri},
+        patchmap::{
+            IftTableTag,
+            PatchFormat::{GlyphKeyed, TableKeyed},
+            PatchUri,
+        },
+        testdata::test_font_for_patching_with_loca_mod,
     };
 
     use super::{IncrementalFontPatchBase, PatchInfo};

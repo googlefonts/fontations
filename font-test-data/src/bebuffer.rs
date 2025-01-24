@@ -1,6 +1,6 @@
 //! small utilities used in tests
 
-use crate::{FontData, Scalar};
+use font_types::Scalar;
 use std::collections::HashMap;
 
 /// A convenience type for generating a buffer of big-endian bytes.
@@ -75,8 +75,8 @@ impl BeBuffer {
         }
     }
 
-    pub fn font_data(&self) -> FontData {
-        FontData::new(&self.data)
+    pub fn data(&self) -> &[u8] {
+        &self.data
     }
 }
 
@@ -125,7 +125,7 @@ macro_rules! be_buffer {
         {
             let builder = BeBuffer::new();
             $(
-                be_buffer_add!(builder, $x);
+                $crate::be_buffer_add!(builder, $x);
             )*
             builder
         }

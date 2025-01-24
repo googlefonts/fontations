@@ -267,8 +267,10 @@ fn find_glyph_and_point_count(
 
 #[cfg(test)]
 mod tests {
+    use font_test_data::bebuffer::BeBuffer;
+
     use super::*;
-    use crate::{test_helpers::BeBuffer, FontRef, TableProvider};
+    use crate::{FontRef, TableProvider};
 
     // Shared tuples in the 'gvar' table of the Skia font, as printed
     // in Apple's TrueType specification.
@@ -547,7 +549,7 @@ mod tests {
         buf = buf.push(u32::MAX - 10);
         // two 32-bit entries that overflow when added to the above offset
         buf = buf.push(0u32).push(11u32);
-        let gvar = Gvar::read(buf.font_data()).unwrap();
+        let gvar = Gvar::read(buf.data().into()).unwrap();
         // don't panic with overflow!
         let _ = gvar.data_range_for_gid(GlyphId::new(0));
     }

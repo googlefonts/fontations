@@ -25,8 +25,9 @@ impl<'a> Strike<'a> {
 
 #[cfg(test)]
 mod tests {
+    use font_test_data::bebuffer::BeBuffer;
+
     use crate::tables::sbix::Sbix;
-    use crate::test_helpers::BeBuffer;
 
     #[test]
     fn sbix_strikes_count_overflow_table() {
@@ -39,7 +40,7 @@ mod tests {
             .push(0u16) // flags
             .push(u32::MAX); // num_strikes
 
-        let table = Sbix::read(sbix.font_data(), 5);
+        let table = Sbix::read(sbix.data().into(), 5);
         // Must not panic with "attempt to multiply with overflow".
         assert!(table.is_err());
     }

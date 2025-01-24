@@ -1233,8 +1233,10 @@ pub(crate) fn item_delta(
 
 #[cfg(test)]
 mod tests {
+    use font_test_data::bebuffer::BeBuffer;
+
     use super::*;
-    use crate::{test_helpers::BeBuffer, FontRef, TableProvider};
+    use crate::{FontRef, TableProvider};
 
     #[test]
     fn ivs_regions() {
@@ -1471,7 +1473,7 @@ mod tests {
             .extend([0u16, 1, 2, 3, 4]) // region_indices
             .extend([1u8; 128]); // this is much more data than we need!
 
-        let ivs = ItemVariationData::read(data.font_data()).unwrap();
+        let ivs = ItemVariationData::read(data.data().into()).unwrap();
         let row_len = (3 * u16::RAW_BYTE_LEN) + (2 * u8::RAW_BYTE_LEN); // 3 word deltas, 2 byte deltas
         let expected_len = 2 * row_len;
         assert_eq!(ivs.delta_sets().len(), expected_len);
@@ -1486,7 +1488,7 @@ mod tests {
             .extend([0u16, 1, 2]) // region_indices
             .extend([1u8; 128]); // this is much more data than we need!
 
-        let ivs = ItemVariationData::read(data.font_data()).unwrap();
+        let ivs = ItemVariationData::read(data.data().into()).unwrap();
         let row_len = (2 * u32::RAW_BYTE_LEN) + (2 * u16::RAW_BYTE_LEN); // 1 word (4-byte) delta, 2 short (2-byte)
         let expected_len = 2 * row_len;
         assert_eq!(ivs.delta_sets().len(), expected_len);

@@ -8,8 +8,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
-
+# do NOT create circular deps, even with dev-dependencies. It messes with google3 import.
 [dependencies]
-read-fonts = { workspace = true }
-write-fonts = { workspace = true }
+font-types = { workspace = true }
 

@@ -554,10 +554,12 @@ fn parse_bcd(cursor: &mut Cursor) -> Result<Fixed, Error> {
 
 #[cfg(test)]
 mod tests {
+    use font_test_data::bebuffer::BeBuffer;
+
     use super::*;
     use crate::{
-        tables::variations::ItemVariationStore, test_helpers::BeBuffer, types::F2Dot14, FontData,
-        FontRead, FontRef, TableProvider,
+        tables::variations::ItemVariationStore, types::F2Dot14, FontData, FontRead, FontRef,
+        TableProvider,
     };
 
     #[test]

@@ -39,8 +39,9 @@ impl FdSelect<'_> {
 
 #[cfg(test)]
 mod tests {
+    use font_test_data::bebuffer::BeBuffer;
+
     use super::{FdSelect, GlyphId};
-    use crate::test_helpers::BeBuffer;
     use crate::FontRead;
     use std::ops::Range;
 
@@ -54,7 +55,7 @@ mod tests {
             (128..1024, 2),
         ];
         for data in make_fd_selects(map) {
-            let fd_select = FdSelect::read(data.font_data()).unwrap();
+            let fd_select = FdSelect::read(data.data().into()).unwrap();
             for (range, font_index) in map {
                 for gid in range.clone() {
                     assert_eq!(

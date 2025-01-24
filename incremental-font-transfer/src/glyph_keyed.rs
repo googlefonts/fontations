@@ -703,16 +703,17 @@ pub(crate) mod tests {
             ift::{CompatibilityId, GlyphKeyedPatch, IFTX_TAG, IFT_TAG},
             loca::Loca,
         },
-        test_helpers::BeBuffer,
         FontData, FontRead, ReadError, TableProvider, TopLevelTable,
     };
 
-    use font_test_data::ift::{
-        glyf_and_gvar_u16_glyph_patches, glyf_u16_glyph_patches, glyf_u16_glyph_patches_2,
-        glyph_keyed_patch_header, long_gvar_with_shared_tuples, noop_glyf_glyph_patches,
-        out_of_order_gvar_with_shared_tuples, short_gvar_with_no_shared_tuples,
-        short_gvar_with_shared_tuples, test_font_for_patching,
-        test_font_for_patching_with_loca_mod,
+    use font_test_data::{
+        bebuffer::BeBuffer,
+        ift::{
+            glyf_and_gvar_u16_glyph_patches, glyf_u16_glyph_patches, glyf_u16_glyph_patches_2,
+            glyph_keyed_patch_header, long_gvar_with_shared_tuples, noop_glyf_glyph_patches,
+            out_of_order_gvar_with_shared_tuples, short_gvar_with_no_shared_tuples,
+            short_gvar_with_shared_tuples,
+        },
     };
     use skrifa::{FontRef, Tag};
 
@@ -720,6 +721,7 @@ pub(crate) mod tests {
         font_patch::PatchingError,
         glyph_keyed::apply_glyph_keyed_patches,
         patchmap::{PatchFormat, PatchUri},
+        testdata::{test_font_for_patching, test_font_for_patching_with_loca_mod},
     };
 
     use super::{IftTableTag, PatchInfo};
