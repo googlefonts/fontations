@@ -35,8 +35,9 @@ impl<'a> Svg<'a> {
 
 #[cfg(test)]
 mod tests {
+    use font_test_data::bebuffer::BeBuffer;
+
     use super::*;
-    use crate::test_helpers::BeBuffer;
 
     #[test]
     fn read_dummy_svg_file() {
@@ -71,7 +72,7 @@ mod tests {
         let mut buf = BeBuffer::new();
         buf = buf.extend(data);
 
-        let table = Svg::read(buf.font_data()).unwrap();
+        let table = Svg::read(buf.data().into()).unwrap();
 
         let first_document = &[0, 1, 0, 0, 0, 0, 0, 0, 0, 1][..];
         let second_document = &[0, 2, 0, 0, 0, 0][..];

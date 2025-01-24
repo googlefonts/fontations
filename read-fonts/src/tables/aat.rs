@@ -437,7 +437,7 @@ pub type ExtendedStateTableU16<'a> = ExtendedStateTable<'a, u16>;
 
 #[cfg(test)]
 mod tests {
-    use crate::test_helpers::BeBuffer;
+    use font_test_data::bebuffer::BeBuffer;
 
     use super::*;
 
@@ -450,7 +450,7 @@ mod tests {
         ];
         let mut buf = BeBuffer::new();
         buf = buf.extend(words);
-        let lookup = LookupU16::read(buf.font_data()).unwrap();
+        let lookup = LookupU16::read(buf.data().into()).unwrap();
         for gid in 0..=8 {
             assert_eq!(lookup.value(gid).unwrap(), gid * 2);
         }
@@ -474,7 +474,7 @@ mod tests {
         ];
         let mut buf = BeBuffer::new();
         buf = buf.extend(words);
-        let lookup = LookupU16::read(buf.font_data()).unwrap();
+        let lookup = LookupU16::read(buf.data().into()).unwrap();
         let expected = [(20..=22, 4), (23..=24, 5), (25..=28, 6)];
         for (range, class) in expected {
             for gid in range {
@@ -506,7 +506,7 @@ mod tests {
         ];
         let mut buf = BeBuffer::new();
         buf = buf.extend(words);
-        let lookup = LookupU16::read(buf.font_data()).unwrap();
+        let lookup = LookupU16::read(buf.data().into()).unwrap();
         let expected = [
             (20, 3),
             (21, 2),
@@ -544,7 +544,7 @@ mod tests {
         ];
         let mut buf = BeBuffer::new();
         buf = buf.extend(words);
-        let lookup = LookupU16::read(buf.font_data()).unwrap();
+        let lookup = LookupU16::read(buf.data().into()).unwrap();
         let expected = [(50, 600), (51, 601), (201, 602), (202, 900)];
         for (in_glyph, out_glyph) in expected {
             assert_eq!(lookup.value(in_glyph).unwrap(), out_glyph);
@@ -565,7 +565,7 @@ mod tests {
         ];
         let mut buf = BeBuffer::new();
         buf = buf.extend(words);
-        let lookup = LookupU16::read(buf.font_data()).unwrap();
+        let lookup = LookupU16::read(buf.data().into()).unwrap();
         let expected = &words[3..];
         for (gid, expected) in (201..209).zip(expected) {
             assert_eq!(lookup.value(gid).unwrap(), *expected);
@@ -588,7 +588,7 @@ mod tests {
         let mapped = [3_u32, 8, 2902384, 9, 1, u32::MAX, 60];
         let mut buf = BeBuffer::new();
         buf = buf.extend(words).extend(mapped);
-        let lookup = LookupU32::read(buf.font_data()).unwrap();
+        let lookup = LookupU32::read(buf.data().into()).unwrap();
         for (gid, expected) in (201..209).zip(mapped) {
             assert_eq!(lookup.value(gid).unwrap(), expected);
         }
@@ -639,7 +639,7 @@ mod tests {
             .extend(class_table)
             .extend(state_array)
             .extend(entry_table);
-        let table = ExtendedStateTable::<ContextualData>::read(buf.font_data()).unwrap();
+        let table = ExtendedStateTable::<ContextualData>::read(buf.data().into()).unwrap();
         // check class lookups
         let [class_50, class_80, class_201] =
             [50, 80, 201].map(|gid| table.class(GlyphId16::from(gid)).unwrap());
@@ -712,7 +712,7 @@ mod tests {
             .extend(classes)
             .extend(state_array)
             .extend(entry_table);
-        let table = StateTable::read(buf.font_data()).unwrap();
+        let table = StateTable::read(buf.data().into()).unwrap();
         // check class lookups
         for i in 0..4u8 {
             assert_eq!(table.class(GlyphId16::from(i as u16 + 3)).unwrap(), i + 1);

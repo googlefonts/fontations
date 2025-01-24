@@ -669,7 +669,8 @@ enum ProcessLookupError {
 #[cfg(test)]
 mod tests {
     use super::{super::style, *};
-    use raw::{test_helpers::BeBuffer, FontData, FontRead};
+    use font_test_data::bebuffer::BeBuffer;
+    use raw::{FontData, FontRead};
 
     #[test]
     fn small_caps_subst() {

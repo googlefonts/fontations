@@ -4,8 +4,9 @@ include!("../../generated/generated_head.rs");
 
 #[cfg(test)]
 mod tests {
+    use font_test_data::bebuffer::BeBuffer;
+
     use super::*;
-    use crate::test_helpers::BeBuffer;
 
     #[test]
     fn smoke_text() {
@@ -19,7 +20,7 @@ mod tests {
             .extend([0u16, 12]) // mac_style / ppem
             .extend([2i16, 1, 0]);
 
-        let head = super::Head::read(buf.font_data()).unwrap();
+        let head = super::Head::read(buf.data().into()).unwrap();
         assert_eq!(head.version(), MajorMinor::VERSION_1_0);
         assert_eq!(head.font_revision(), Fixed::from_f64(2.8));
         assert_eq!(head.units_per_em(), 4096);

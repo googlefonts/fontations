@@ -122,10 +122,8 @@ pub static DEFAULT_GLYPH_NAMES: [&str; 258] = [
 
 #[cfg(test)]
 mod tests {
-    use crate::test_helpers::BeBuffer;
-
     use super::*;
-    use font_test_data::post as test_data;
+    use font_test_data::{bebuffer::BeBuffer, post as test_data};
 
     #[test]
     fn test_post() {
@@ -152,10 +150,10 @@ mod tests {
 
         // basic table should not parse in v2.0, because that adds another field:
         let buf = make_basic_post(Version16Dot16::VERSION_2_0);
-        assert!(Post::read(buf.font_data()).is_err());
+        assert!(Post::read(buf.data().into()).is_err());
 
         // but it should be fine on version 3.0, which does not require any extra fields:
         let buf = make_basic_post(Version16Dot16::VERSION_3_0);
-        assert!(Post::read(buf.font_data()).is_ok());
+        assert!(Post::read(buf.data().into()).is_ok());
     }
 }

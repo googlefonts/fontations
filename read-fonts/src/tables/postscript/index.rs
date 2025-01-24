@@ -203,8 +203,9 @@ fn read_offset(
 
 #[cfg(test)]
 mod tests {
+    use font_test_data::bebuffer::BeBuffer;
+
     use super::*;
-    use crate::test_helpers::BeBuffer;
 
     enum IndexParams {
         Format1 { off_size: u8, count: usize },
@@ -281,7 +282,7 @@ mod tests {
             IndexParams::Format2 { off_size, count } => (2, off_size, count),
         };
         let buf = make_index(fmt, off_size, count);
-        let index = Index::new(buf.font_data().as_bytes(), fmt == 2).unwrap();
+        let index = Index::new(buf.data(), fmt == 2).unwrap();
         let built_off_size = match &index {
             Index::Empty => 0,
             Index::Format1(v1) => v1.off_size(),

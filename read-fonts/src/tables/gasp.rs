@@ -4,8 +4,9 @@ include!("../../generated/generated_gasp.rs");
 
 #[cfg(test)]
 mod tests {
+    use font_test_data::bebuffer::BeBuffer;
+
     use super::*;
-    use crate::test_helpers::BeBuffer;
 
     #[test]
     fn smoke_test() {
@@ -20,7 +21,7 @@ mod tests {
                     | GaspRangeBehavior::GASP_SYMMETRIC_SMOOTHING,
             );
 
-        let gasp = Gasp::read(buf.font_data()).unwrap();
+        let gasp = Gasp::read(buf.data().into()).unwrap();
         assert_eq!(gasp.version(), 1);
         assert_eq!(
             gasp.gasp_ranges()[0],

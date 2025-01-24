@@ -85,11 +85,6 @@ pub mod traversal;
 #[cfg(any(test, feature = "codegen_test"))]
 pub mod codegen_test;
 
-#[path = "tests/test_helpers.rs"]
-#[doc(hidden)]
-#[cfg(feature = "std")]
-pub mod test_helpers;
-
 pub use font_data::FontData;
 pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
 pub use offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};

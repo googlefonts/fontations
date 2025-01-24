@@ -20,6 +20,9 @@ pub mod offsets_arrays {
 
     include!("../generated/generated_test_offsets_arrays.rs");
 
+    #[cfg(test)]
+    use font_test_data::bebuffer::BeBuffer;
+
     pub struct VarSizeDummy<'a> {
         #[allow(dead_code)]
         count: u16,
@@ -43,7 +46,7 @@ pub mod offsets_arrays {
 
     #[test]
     fn array_offsets() {
-        let builder = crate::test_helpers::BeBuffer::new()
+        let builder = BeBuffer::new()
             .push(MajorMinor::VERSION_1_0)
             .push(12_u16) // offset to 0xdead
             .push(0u16) // nullable
@@ -51,7 +54,7 @@ pub mod offsets_arrays {
             .push(12u16) // array offset
             .extend([0xdead_u16, 0xbeef]);
 
-        let table = KindsOfOffsets::read(builder.font_data()).unwrap();
+        let table = KindsOfOffsets::read(builder.data().into()).unwrap();
         assert_eq!(table.nonnullable().unwrap().value(), 0xdead);
 
         let array = table.array().unwrap();
@@ -60,17 +63,15 @@ pub mod offsets_arrays {
 
     #[test]
     fn var_len_array_empty() {
-        let builder = crate::test_helpers::BeBuffer::new()
-            .push(0u16)
-            .push(0xdeadbeef_u32);
+        let builder = BeBuffer::new().push(0u16).push(0xdeadbeef_u32);
 
-        let table = VarLenHaver::read(builder.font_data()).unwrap();
+        let table = VarLenHaver::read(builder.data().into()).unwrap();
         assert_eq!(table.other_field(), 0xdeadbeef);
     }
 
     #[test]
     fn var_len_array_some() {
-        let builder = crate::test_helpers::BeBuffer::new()
+        let builder = BeBuffer::new()
             .push(3u16)
             .push(0u16) // first item in array is empty
             .push(2u16)
@@ -79,7 +80,7 @@ pub mod offsets_arrays {
             .extend([7u8, 7, 7, 7, 7])
             .push(0xdeadbeef_u32);
 
-        let table = VarLenHaver::read(builder.font_data()).unwrap();
+        let table = VarLenHaver::read(builder.data().into()).unwrap();
         let kids = table
             .var_len()
             .iter()
@@ -94,7 +95,7 @@ pub mod offsets_arrays {
     #[test]
     #[cfg(feature = "experimental_traverse")]
     fn array_offsets_traverse() {
-        let mut builder = crate::test_helpers::BeBuffer::new()
+        let mut builder = BeBuffer::new()
             .push(MajorMinor::VERSION_1_1)
             .push(22_u16) // offset to [0xf00, 0xba4]
             .push(0u16) // nullable
@@ -116,7 +117,7 @@ pub mod offsets_arrays {
             .push(0xdead_beefu32)
             .extend([0xb01du16, 0xface]); // versioned nonnullable offset;
 
-        let table = KindsOfOffsets::read(builder.font_data()).unwrap();
+        let table = KindsOfOffsets::read(builder.data().into()).unwrap();
         // traversal should not crash
         let _ = format!("{table:?}");
         assert_eq!(
@@ -187,55 +188,51 @@ pub mod count_all {
 }
 
 pub mod conditions {
+    #[cfg(test)]
+    use font_test_data::bebuffer::BeBuffer;
     use font_types::MajorMinor;
 
     include!("../generated/generated_test_conditions.rs");
 
     #[test]
     fn majorminor_1() {
-        let bytes = crate::test_helpers::BeBuffer::new()
-            .push(MajorMinor::VERSION_1_0)
-            .push(0u16);
-        let table = MajorMinorVersion::read(bytes.font_data()).unwrap();
+        let bytes = BeBuffer::new().push(MajorMinor::VERSION_1_0).push(0u16);
+        let table = MajorMinorVersion::read(bytes.data().into()).unwrap();
         assert_eq!(table.always_present(), 0);
     }
 
     #[test]
     fn majorminor_1_1() {
-        let bytes = crate::test_helpers::BeBuffer::new()
-            .push(MajorMinor::VERSION_1_1)
-            .push(0u16);
+        let bytes = BeBuffer::new().push(MajorMinor::VERSION_1_1).push(0u16);
         // shouldn't parse, we're missing a field
-        assert!(MajorMinorVersion::read(bytes.font_data()).is_err());
+        assert!(MajorMinorVersion::read(bytes.data().into()).is_err());
 
-        let bytes = crate::test_helpers::BeBuffer::new()
+        let bytes = BeBuffer::new()
             .push(MajorMinor::VERSION_1_1)
             .push(0u16)
             .push(1u16);
-        let table = MajorMinorVersion::read(bytes.font_data()).unwrap();
+        let table = MajorMinorVersion::read(bytes.data().into()).unwrap();
         assert_eq!(table.if_11(), Some(1));
     }
 
     #[test]
     fn major_minor_2() {
-        let bytes = crate::test_helpers::BeBuffer::new()
-            .push(MajorMinor::VERSION_2_0)
-            .push(0u16);
+        let bytes = BeBuffer::new().push(MajorMinor::VERSION_2_0).push(0u16);
         // shouldn't parse, we're missing a field
-        assert!(MajorMinorVersion::read(bytes.font_data()).is_err());
+        assert!(MajorMinorVersion::read(bytes.data().into()).is_err());
 
-        let bytes = crate::test_helpers::BeBuffer::new()
+        let bytes = BeBuffer::new()
             .push(MajorMinor::VERSION_2_0)
             .push(0u16)
             .push(2u32);
-        let table = MajorMinorVersion::read(bytes.font_data()).unwrap();
+        let table = MajorMinorVersion::read(bytes.data().into()).unwrap();
         assert_eq!(table.if_11(), None);
         assert_eq!(table.if_20(), Some(2));
     }
 
     #[cfg(test)]
-    fn make_flag_data(flags: GotFlags) -> crate::test_helpers::BeBuffer {
-        let mut buf = crate::test_helpers::BeBuffer::new().push(42u16).push(flags);
+    fn make_flag_data(flags: GotFlags) -> BeBuffer {
+        let mut buf = BeBuffer::new().push(42u16).push(flags);
         if flags.contains(GotFlags::FOO) {
             buf = buf.push(0xf00_u16);
         }
@@ -251,7 +248,7 @@ pub mod conditions {
     #[test]
     fn flags_none() {
         let data = make_flag_data(GotFlags::empty());
-        let table = FlagDay::read(data.font_data()).unwrap();
+        let table = FlagDay::read(data.data().into()).unwrap();
         assert!(table.foo().is_none());
         assert!(table.bar().is_none());
     }
@@ -259,7 +256,7 @@ pub mod conditions {
     #[test]
     fn flags_foo() {
         let data = make_flag_data(GotFlags::FOO);
-        let table = FlagDay::read(data.font_data()).unwrap();
+        let table = FlagDay::read(data.data().into()).unwrap();
         assert_eq!(table.foo(), Some(0xf00));
         assert!(table.bar().is_none());
         assert_eq!(table.baz(), Some(0xba2));
@@ -268,7 +265,7 @@ pub mod conditions {
     #[test]
     fn flags_bar() {
         let data = make_flag_data(GotFlags::BAR);
-        let table = FlagDay::read(data.font_data()).unwrap();
+        let table = FlagDay::read(data.data().into()).unwrap();
         assert!(table.foo().is_none());
         assert_eq!(table.bar(), Some(0xba4));
         assert!(table.baz().is_none());
@@ -277,7 +274,7 @@ pub mod conditions {
     #[test]
     fn flags_baz() {
         let data = make_flag_data(GotFlags::BAZ);
-        let table = FlagDay::read(data.font_data()).unwrap();
+        let table = FlagDay::read(data.data().into()).unwrap();
         assert!(table.foo().is_none());
         assert!(table.bar().is_none());
         assert_eq!(table.baz(), Some(0xba2));
@@ -286,7 +283,7 @@ pub mod conditions {
     #[test]
     fn flags_foobar() {
         let data = make_flag_data(GotFlags::BAR | GotFlags::FOO);
-        let table = FlagDay::read(data.font_data()).unwrap();
+        let table = FlagDay::read(data.data().into()).unwrap();
         assert_eq!(table.foo(), Some(0xf00));
         assert_eq!(table.bar(), Some(0xba4));
         assert_eq!(table.baz(), Some(0xba2));
@@ -294,11 +291,9 @@ pub mod conditions {
 
     #[test]
     fn fields_after_conditions_all_none() {
-        let data = crate::test_helpers::BeBuffer::new()
-            .push(GotFlags::empty())
-            .extend([1u16, 2, 3]);
+        let data = BeBuffer::new().push(GotFlags::empty()).extend([1u16, 2, 3]);
 
-        let table = FieldsAfterConditionals::read(data.font_data()).unwrap();
+        let table = FieldsAfterConditionals::read(data.data().into()).unwrap();
         assert_eq!(table.always_here(), 1);
         assert_eq!(table.also_always_here(), 2);
         assert_eq!(table.and_me_too(), 3);
@@ -307,20 +302,18 @@ pub mod conditions {
     #[test]
     #[should_panic(expected = "OutOfBounds")]
     fn fields_after_conditions_wrong_len() {
-        let data = crate::test_helpers::BeBuffer::new()
-            .push(GotFlags::FOO)
-            .extend([1u16, 2, 3]);
+        let data = BeBuffer::new().push(GotFlags::FOO).extend([1u16, 2, 3]);
 
-        let _table = FieldsAfterConditionals::read(data.font_data()).unwrap();
+        let _table = FieldsAfterConditionals::read(data.data().into()).unwrap();
     }
 
     #[test]
     fn fields_after_conditionals_one_present() {
-        let data = crate::test_helpers::BeBuffer::new()
+        let data = BeBuffer::new()
             .push(GotFlags::BAR)
             .extend([1u16, 0xba4, 2, 3]);
 
-        let table = FieldsAfterConditionals::read(data.font_data()).unwrap();
+        let table = FieldsAfterConditionals::read(data.data().into()).unwrap();
         assert_eq!(table.always_here(), 1);
         assert_eq!(table.bar(), Some(0xba4));
         assert_eq!(table.also_always_here(), 2);
@@ -330,11 +323,11 @@ pub mod conditions {
 
     #[test]
     fn fields_after_conditions_all_present() {
-        let data = crate::test_helpers::BeBuffer::new()
+        let data = BeBuffer::new()
             .push(GotFlags::FOO | GotFlags::BAR | GotFlags::BAZ)
             .extend([0xf00u16, 1, 0xba4, 0xba2, 2, 3]);
 
-        let table = FieldsAfterConditionals::read(data.font_data()).unwrap();
+        let table = FieldsAfterConditionals::read(data.data().into()).unwrap();
         assert_eq!(table.foo(), Some(0xf00));
         assert_eq!(table.always_here(), 1);
         assert_eq!(table.bar(), Some(0xba4));

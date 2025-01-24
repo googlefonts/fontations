@@ -137,9 +137,8 @@ impl<'a> std::fmt::Debug for Loca<'a> {
 
 #[cfg(test)]
 mod tests {
+    use font_test_data::bebuffer::BeBuffer;
     use types::Scalar;
-
-    use crate::test_helpers::BeBuffer;
 
     use super::Loca;
 
@@ -163,12 +162,12 @@ mod tests {
 
     fn check_loca_sorting(values: &[u16], is_sorted: bool) {
         let (bytes, is_long) = to_loca_bytes(values);
-        let loca = Loca::read(bytes.font_data(), is_long).unwrap();
+        let loca = Loca::read(bytes.data().into(), is_long).unwrap();
         assert_eq!(loca.all_offsets_are_ascending(), is_sorted);
 
         let u32_values: Vec<u32> = values.iter().map(|v| *v as u32).collect();
         let (bytes, is_long) = to_loca_bytes(&u32_values);
-        let loca = Loca::read(bytes.font_data(), is_long).unwrap();
+        let loca = Loca::read(bytes.data().into(), is_long).unwrap();
         assert_eq!(loca.all_offsets_are_ascending(), is_sorted);
     }
 

@@ -33,13 +33,14 @@ impl FeatureName {
 
 #[cfg(test)]
 mod tests {
+    use font_test_data::bebuffer::BeBuffer;
+
     use super::*;
-    use crate::test_helpers::BeBuffer;
 
     #[test]
     fn feat_example() {
         let feat_data = build_feat_example();
-        let feat = Feat::read(feat_data.font_data()).unwrap();
+        let feat = Feat::read(feat_data.data().into()).unwrap();
         let names = feat.names();
         #[rustfmt::skip]
         let expected_name_fields = [
@@ -87,7 +88,7 @@ mod tests {
     #[test]
     fn feat_find() {
         let feat_data = build_feat_example();
-        let feat = Feat::read(feat_data.font_data()).unwrap();
+        let feat = Feat::read(feat_data.data().into()).unwrap();
         // List of available feature types
         let valid_features = [0, 1, 3, 6];
         for i in 0..10 {

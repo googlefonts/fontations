@@ -59,8 +59,10 @@ impl<'a> FontRead<'a> for SegmentMaps<'a> {
 #[cfg(test)]
 mod tests {
 
+    use font_test_data::bebuffer::BeBuffer;
+
     use super::*;
-    use crate::{test_helpers, FontRef, TableProvider};
+    use crate::{FontRef, TableProvider};
 
     fn value_map(from: f32, to: f32) -> [F2Dot14; 2] {
         [F2Dot14::from_f32(from), F2Dot14::from_f32(to)]
@@ -100,8 +102,6 @@ mod tests {
 
     #[test]
     fn segment_maps_multi_axis() {
-        use test_helpers::BeBuffer;
-
         let segment_one_maps = [
             value_map(-1.0, -1.0),
             value_map(-0.6667, -0.5),
@@ -123,7 +123,7 @@ mod tests {
             .extend(segment_two_maps[0])
             .extend(segment_two_maps[1]);
 
-        let avar = super::Avar::read(data.font_data()).unwrap();
+        let avar = super::Avar::read(data.data().into()).unwrap();
         assert_eq!(avar.axis_segment_maps().iter().count(), 2);
         assert_eq!(
             avar.axis_segment_maps()

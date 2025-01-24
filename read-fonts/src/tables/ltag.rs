@@ -28,8 +28,9 @@ impl<'a> Ltag<'a> {
 
 #[cfg(test)]
 mod tests {
+    use font_test_data::bebuffer::BeBuffer;
+
     use super::*;
-    use crate::test_helpers::BeBuffer;
 
     #[test]
     fn tags() {
@@ -42,7 +43,7 @@ mod tests {
         // string data
         buf = buf.extend("enspsr".as_bytes().iter().copied());
         let expected_tags = [(0, "en"), (1, "sp"), (2, "sr")];
-        let ltag = Ltag::read(buf.font_data()).unwrap();
+        let ltag = Ltag::read(buf.data().into()).unwrap();
         let tags = ltag.tag_indices().collect::<Vec<_>>();
         assert_eq!(tags, expected_tags);
         assert_eq!(ltag.index_for_tag("en"), Some(0));

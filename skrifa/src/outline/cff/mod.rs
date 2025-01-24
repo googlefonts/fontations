@@ -621,8 +621,9 @@ mod tests {
         prelude::{LocationRef, Size},
         MetadataProvider,
     };
+    use font_test_data::bebuffer::BeBuffer;
     use raw::tables::cff2::Cff2;
-    use read_fonts::{test_helpers::BeBuffer, FontRef};
+    use read_fonts::FontRef;
 
     #[test]
     fn unscaled_scaling_sink_produces_integers() {

@@ -480,17 +480,22 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::glyph_keyed::tests::assemble_glyph_keyed_patch;
-    use font_test_data::ift::{
-        glyf_u16_glyph_patches, glyph_keyed_patch_header, table_keyed_format2, table_keyed_patch,
-        test_font_for_patching_with_loca_mod,
+    use crate::{
+        glyph_keyed::tests::assemble_glyph_keyed_patch,
+        testdata::test_font_for_patching_with_loca_mod,
+    };
+    use font_test_data::{
+        bebuffer::BeBuffer,
+        ift::{
+            glyf_u16_glyph_patches, glyph_keyed_patch_header, table_keyed_format2,
+            table_keyed_patch,
+        },
     };
 
     use font_types::{Int24, Tag};
 
     use read_fonts::{
         tables::ift::{IFTX_TAG, IFT_TAG},
-        test_helpers::BeBuffer,
         FontRef,
     };
 
