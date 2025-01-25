@@ -53,8 +53,8 @@ fn serialize(
 #[cfg(test)]
 mod test {
     use super::*;
-    use skrifa::raw::FontRead;
-    use write_fonts::read::test_helpers::BeBuffer;
+    use font_test_data::bebuffer::BeBuffer;
+    use skrifa::raw::{FontData, FontRead};
     #[test]
     fn test_subset_vorg() {
         let raw_bytes: [u8; 280] = [
@@ -80,7 +80,7 @@ mod test {
             0x03, 0x0d, 0x1b, 0x49, 0x03, 0x65, 0x1f, 0xcb, 0x05, 0x64, 0x1f, 0xcc, 0x07, 0x58,
         ];
         let buf = BeBuffer::new().extend(raw_bytes);
-        let vorg = Vorg::read(buf.font_data()).unwrap();
+        let vorg = Vorg::read(FontData::new(buf.data())).unwrap();
 
         let mut plan = Plan::default();
         plan.glyph_map.insert(GlyphId::NOTDEF, GlyphId::NOTDEF);
