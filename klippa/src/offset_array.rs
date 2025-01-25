@@ -30,13 +30,13 @@ where
     ) -> Result<(), SerializeErrorFlags> {
         let t = self
             .get(idx)
-            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
+            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
         let snap = s.snapshot();
         let offset_pos = s.allocate_size(O::RAW_BYTE_LEN, true)?;
 
-        if O::serialize_subset(&t, s, plan, args, offset_pos).is_err() {
+        if let Err(e) = O::serialize_subset(&t, s, plan, args, offset_pos) {
             s.revert_snapshot(snap);
-            return Err(s.error());
+            return Err(e);
         }
 
         Ok(())
@@ -56,18 +56,21 @@ where
         plan: &Plan,
         args: &T::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
-        let Some(Ok(t)) = self.get(idx) else {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
-        };
+        match self.get(idx) {
+            Some(Ok(t)) => {
+                let snap = s.snapshot();
+                let offset_pos = s.allocate_size(O::RAW_BYTE_LEN, true)?;
 
-        let snap = s.snapshot();
-        let offset_pos = s.allocate_size(O::RAW_BYTE_LEN, true)?;
-
-        if O::serialize_subset(&t, s, plan, args, offset_pos).is_err() {
-            s.revert_snapshot(snap);
-            return Err(s.error());
+                match O::serialize_subset(&t, s, plan, args, offset_pos) {
+                    Ok(()) => Ok(()),
+                    Err(e) => {
+                        s.revert_snapshot(snap);
+                        Err(e)
+                    }
+                }
+            }
+            None => Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY),
+            Some(Err(_)) => Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR),
         }
-
-        Ok(())
     }
 }

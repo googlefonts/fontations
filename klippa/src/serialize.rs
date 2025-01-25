@@ -33,6 +33,8 @@ impl SerializeErrorFlags {
     pub const SERIALIZE_ERROR_OUT_OF_ROOM: Self = Self(0x0004);
     pub const SERIALIZE_ERROR_INT_OVERFLOW: Self = Self(0x0008);
     pub const SERIALIZE_ERROR_ARRAY_OVERFLOW: Self = Self(0x0010);
+    pub const SERIALIZE_ERROR_READ_ERROR: Self = Self(0x0020);
+    pub const SERIALIZE_ERROR_EMPTY: Self = Self(0x0040);
 
     fn contains(&self, other: Self) -> bool {
         (self.0 & other.0) == other.0
