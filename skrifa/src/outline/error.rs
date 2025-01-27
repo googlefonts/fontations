@@ -19,6 +19,8 @@ pub enum DrawError {
     InsufficientMemory,
     /// Exceeded a recursion limit when loading a glyph.
     RecursionLimitExceeded(GlyphId),
+    /// Glyph outline contains too many points.
+    TooManyPoints(GlyphId),
     /// Error occurred during hinting.
     HintingFailed(HintError),
     /// An anchor point had invalid indices.
@@ -69,6 +71,7 @@ impl fmt::Display for DrawError {
                 "Recursion limit ({}) exceeded when loading composite component {gid}",
                 super::GLYF_COMPOSITE_RECURSION_LIMIT,
             ),
+            Self::TooManyPoints(gid) => write!(f, "Glyph {gid} contains more than 64k points"),
             Self::HintingFailed(e) => write!(f, "{e}"),
             Self::InvalidAnchorPoint(gid, index) => write!(
                 f,

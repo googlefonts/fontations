@@ -5,13 +5,24 @@ use std::mem::size_of;
 use super::super::{
     path::{to_path, ToPathError},
     pen::PathStyle,
-    Hinting, OutlinePen,
+    DrawError, Hinting, OutlinePen,
 };
 use raw::tables::glyf::PointCoord;
 use read_fonts::{
     tables::glyf::{Glyph, PointFlags},
     types::{F26Dot6, Fixed, GlyphId, Point},
 };
+
+/// Maximum number of points we support in a single outline including
+/// composites.
+///
+/// TrueType uses a 16 bit integer to store contour end points so
+/// we must keep the total count within this value.
+///
+/// The maxp <https://learn.microsoft.com/en-us/typography/opentype/spec/maxp>
+/// table encodes `maxCompositePoints` as a `uint16` so the spec enforces
+/// this limit.
+const MAX_POINTS: usize = u16::MAX as usize;
 
 /// Represents the information necessary to scale a glyph outline.
 ///
@@ -94,6 +105,14 @@ impl Outline<'_> {
             size += std::mem::align_of::<i32>();
         }
         size
+    }
+
+    pub(super) fn ensure_point_count_limit(&self) -> Result<(), DrawError> {
+        if self.points > MAX_POINTS {
+            Err(DrawError::TooManyPoints(self.glyph_id))
+        } else {
+            Ok(())
+        }
     }
 }
 
