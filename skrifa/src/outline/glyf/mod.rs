@@ -1445,7 +1445,7 @@ mod tests {
     }
 
     // fuzzer overflow for composite glyph with too many total points
-    // <https://g-issues.oss-fuzz.com/issues/391753684
+    // <https://issues.oss-fuzz.com/issues/391753684
     #[test]
     fn composite_with_too_many_points() {
         let font = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
