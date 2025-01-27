@@ -61,9 +61,13 @@ impl<'a> Gvar<'a> {
     ///
     /// If there is no variation data for the glyph, returns `Ok(None)`.
     pub fn data_for_gid(&self, gid: GlyphId) -> Result<Option<FontData<'a>>, ReadError> {
-        match self.data_range_for_gid(gid)? {
-            Some(range) => Ok(self.data.slice(range)),
-            None => Ok(None),
+        let range = self.data_range_for_gid(gid)?;
+        if range.is_empty() {
+            return Ok(None);
+        }
+        match self.data.slice(range) {
+            Some(data) => Ok(Some(data)),
+            None => Err(ReadError::OutOfBounds),
         }
     }
 
@@ -85,7 +89,7 @@ impl<'a> Gvar<'a> {
         self.data.as_bytes()
     }
 
-    fn data_range_for_gid(&self, gid: GlyphId) -> Result<Option<Range<usize>>, ReadError> {
+    fn data_range_for_gid(&self, gid: GlyphId) -> Result<Range<usize>, ReadError> {
         let start_idx = gid.to_u32() as usize;
         let end_idx = start_idx + 1;
         let data_start = self.glyph_variation_data_array_offset();
@@ -93,9 +97,9 @@ impl<'a> Gvar<'a> {
             data_start.checked_add(self.glyph_variation_data_offsets().get(start_idx)?.get());
         let end = data_start.checked_add(self.glyph_variation_data_offsets().get(end_idx)?.get());
         let (Some(start), Some(end)) = (start, end) else {
-            return Ok(None);
+            return Err(ReadError::OutOfBounds);
         };
-        Ok(Some(start as usize..end as usize))
+        Ok(start as usize..end as usize)
     }
 
     /// Get the variation data for a specific glyph.
