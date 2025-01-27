@@ -12,7 +12,7 @@ use core_maths::CoreFloat;
 use deltas::AvailableVarMetrics;
 pub use hint::{HintError, HintInstance, HintOutline};
 pub use outline::{Outline, ScaledOutline};
-use raw::FontRef;
+use raw::{FontRef, ReadError};
 
 use super::{DrawError, GlyphHMetrics, Hinting};
 use crate::GLYF_COMPOSITE_RECURSION_LIMIT;
@@ -337,6 +337,7 @@ impl<'a> HarfBuzzScaler<'a> {
         ppem: Option<f32>,
         coords: &'a [F2Dot14],
     ) -> Result<Self, DrawError> {
+        outline.ensure_point_count_limit()?;
         let (is_scaled, scale) = outlines.compute_scale(ppem);
         let memory =
             HarfBuzzOutlineMemory::new(outline, buf).ok_or(DrawError::InsufficientMemory)?;
@@ -400,6 +401,7 @@ impl<'a> FreeTypeScaler<'a> {
         ppem: Option<f32>,
         coords: &'a [F2Dot14],
     ) -> Result<Self, DrawError> {
+        outline.ensure_point_count_limit()?;
         let (is_scaled, scale) = outlines.compute_scale(ppem);
         let memory = FreeTypeOutlineMemory::new(outline, buf, Hinting::None)
             .ok_or(DrawError::InsufficientMemory)?;
@@ -429,6 +431,7 @@ impl<'a> FreeTypeScaler<'a> {
         hinter: &'a HintInstance,
         pedantic_hinting: bool,
     ) -> Result<Self, DrawError> {
+        outline.ensure_point_count_limit()?;
         let (is_scaled, scale) = outlines.compute_scale(ppem);
         let memory = FreeTypeOutlineMemory::new(outline, buf, Hinting::Embedded)
             .ok_or(DrawError::InsufficientMemory)?;
@@ -583,9 +586,19 @@ impl Scaler for FreeTypeScaler<'_> {
             .contours
             .get_mut(contours_start..contours_end)
             .ok_or(InsufficientMemory)?;
-        // Read the contour end points.
+        // Read the contour end points, ensuring that they are properly
+        // ordered.
+        let mut last_end_pt = 0;
         for (end_pt, contour) in contour_end_pts.iter().zip(contours.iter_mut()) {
-            *contour = end_pt.get();
+            let end_pt = end_pt.get();
+            if end_pt < last_end_pt {
+                return Err(ReadError::MalformedData(
+                    "unordered contour end points in TrueType glyph",
+                )
+                .into());
+            }
+            last_end_pt = end_pt;
+            *contour = end_pt;
         }
         // Adjust the running point/contour total counts
         self.point_count += point_count;
@@ -1329,7 +1342,13 @@ impl AvailableVarMetrics {
 mod tests {
     use super::*;
     use crate::MetadataProvider;
-    use read_fonts::{FontRef, TableProvider};
+    use raw::{
+        tables::{
+            glyf::{CompositeGlyphFlags, Glyf, SimpleGlyphFlags},
+            loca::Loca,
+        },
+        FontRead, FontRef, TableProvider,
+    };
 
     #[test]
     fn overlap_flags() {
@@ -1423,5 +1442,59 @@ mod tests {
         // Make sure we have an advance and that the two are the same
         assert!(advance_hvar != F26Dot6::ZERO);
         assert_eq!(advance_hvar, advance_gvar);
+    }
+
+    // fuzzer overflow for composite glyph with too many total points
+    // <https://issues.oss-fuzz.com/issues/391753684
+    #[test]
+    fn composite_with_too_many_points() {
+        let font = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
+        let mut outlines = Outlines::new(&font).unwrap();
+        // Hack glyf and loca to build a glyph that contains more than 64k
+        // total points
+        let mut glyf_buf = font_test_data::bebuffer::BeBuffer::new();
+        // Make a component glyph with 40k points so we overflow the
+        // total limit in a composite
+        let simple_glyph_point_count = 40000;
+        glyf_buf = glyf_buf.push(1u16); // number of contours
+        glyf_buf = glyf_buf.extend([0i16; 4]); // bbox
+        glyf_buf = glyf_buf.push((simple_glyph_point_count - 1) as u16); // contour ends
+        glyf_buf = glyf_buf.push(0u16); // instruction count
+        for _ in 0..simple_glyph_point_count {
+            glyf_buf =
+                glyf_buf.push(SimpleGlyphFlags::X_SHORT_VECTOR | SimpleGlyphFlags::Y_SHORT_VECTOR);
+        }
+        // x/y coords
+        for _ in 0..simple_glyph_point_count * 2 {
+            glyf_buf = glyf_buf.push(0u8);
+        }
+        let glyph0_end = glyf_buf.len();
+        // Now make a composite with two components
+        glyf_buf = glyf_buf.push(-1i16); // negative signifies composite
+        glyf_buf = glyf_buf.extend([0i16; 4]); // bbox
+        for i in 0..2 {
+            let flags = if i == 0 {
+                CompositeGlyphFlags::MORE_COMPONENTS | CompositeGlyphFlags::ARGS_ARE_XY_VALUES
+            } else {
+                CompositeGlyphFlags::ARGS_ARE_XY_VALUES
+            };
+            glyf_buf = glyf_buf.push(flags); // component flag
+            glyf_buf = glyf_buf.push(0u16); // component gid
+            glyf_buf = glyf_buf.extend([0u8; 2]); // x/y offset
+        }
+        let glyph1_end = glyf_buf.len();
+        outlines.glyf = Glyf::read(glyf_buf.data().into()).unwrap();
+        // Now create a loca table
+        let mut loca_buf = font_test_data::bebuffer::BeBuffer::new();
+        loca_buf = loca_buf.extend([0u32, glyph0_end as u32, glyph1_end as u32]);
+        outlines.loca = Loca::read(loca_buf.data().into(), true).unwrap();
+        let gid = GlyphId::new(1);
+        let outline = outlines.outline(gid).unwrap();
+        let mut mem_buf = vec![0u8; outline.required_buffer_size(Default::default())];
+        // This outline has more than 64k points...
+        assert!(outline.points > u16::MAX as usize);
+        let result = FreeTypeScaler::unhinted(&outlines, &outline, &mut mem_buf, None, &[]);
+        // And we get an error instead of an overflow panic
+        assert!(matches!(result, Err(DrawError::TooManyPoints(_))));
     }
 }
