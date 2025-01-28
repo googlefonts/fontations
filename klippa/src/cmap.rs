@@ -232,7 +232,7 @@ fn serialize_cmap(
         2,
         num_retained_records,
         SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
-    );
+    )?;
 
     // Fail if format 4 was dropped and there is no cmap12.
     if drop_format_4 && format12_objidx.is_none() {
@@ -359,12 +359,12 @@ impl Serialize for Cmap4<'_> {
             length_pos,
             s.length() - init_len,
             SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
-        );
+        )?;
         s.check_assign::<u16>(
             segcount_pos,
             seg_count as usize * 2,
             SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
-        );
+        )?;
 
         let entry_selector = 1_u16.max(16 - seg_count.leading_zeros() as u16) - 1;
         s.copy_assign(entry_selector_pos, entry_selector);
@@ -374,7 +374,7 @@ impl Serialize for Cmap4<'_> {
             search_range_pos,
             search_range,
             SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
-        );
+        )?;
 
         let range_shift = if seg_count as usize * 2 > search_range {
             seg_count * 2 - search_range as u16
@@ -699,14 +699,14 @@ impl Serialize for Cmap12<'_> {
             length_pos,
             s.length() - init_pos,
             SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
-        );
+        )?;
 
         // header size = 16
         s.check_assign::<u32>(
             num_groups_pos,
             (s.length() - init_pos - 16) / SequentialMapGroup::RAW_BYTE_LEN,
             SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
-        );
+        )?;
         Ok(())
     }
 }
@@ -765,13 +765,13 @@ impl Serialize for Cmap14<'_> {
             length_pos,
             s.length() - init_len + tail_len,
             SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
-        );
+        )?;
         let num_records = (s.length() - init_len - 10) / VariationSelector::RAW_BYTE_LEN;
         s.check_assign::<u32>(
             num_records_pos,
             num_records,
             SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
-        );
+        )?;
 
         // add links to variation records
         for ((default_pos, non_default_pos), (default_obj_idx, non_default_obj_idx)) in
@@ -990,7 +990,7 @@ fn copy_default_uvs(
         len_pos,
         num_ranges,
         SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
-    );
+    )?;
     Ok(num_ranges as u32)
 }
 

@@ -23,7 +23,7 @@ impl Subset for Post<'_> {
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
         // copy header
-        s.embed_bytes(self.offset_data().as_bytes().get(0..32).unwrap())
+        s.embed_bytes(self.min_table_bytes())
             .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?;
 
         let glyph_names = plan

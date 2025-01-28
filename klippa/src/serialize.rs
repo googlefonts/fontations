@@ -234,12 +234,12 @@ impl Serializer {
         pos: usize,
         obj: usize,
         err_type: SerializeErrorFlags,
-    ) {
+    ) -> Result<(), SerializeErrorFlags> {
         let Ok(val) = T::try_from(obj) else {
-            self.set_err(err_type);
-            return;
+            return Err(self.set_err(err_type));
         };
         self.copy_assign(pos, val);
+        Ok(())
     }
 
     /// copy from a single Scalar type

@@ -1,5 +1,6 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
+mod base;
 mod cmap;
 mod cpal;
 mod fvar;
@@ -10,20 +11,26 @@ mod gvar;
 mod hdmx;
 mod head;
 mod hmtx;
+mod inc_bimap;
 mod layout;
 mod maxp;
 mod name;
+mod offset;
+mod offset_array;
 mod os2;
 mod parsing_util;
 mod post;
 pub mod serialize;
 mod stat;
+mod variations;
 mod vorg;
+use inc_bimap::IncBiMap;
 pub use parsing_util::{
-    parse_drop_tables, parse_name_ids, parse_name_languages, parse_unicodes, populate_gids,
+    parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
 };
 
 use fnv::FnvHashMap;
+use serialize::SerializeErrorFlags;
 use serialize::Serializer;
 use skrifa::MetadataProvider;
 use thiserror::Error;
@@ -33,6 +40,7 @@ use write_fonts::{
     read::{
         collections::{int_set::Domain, IntSet},
         tables::{
+            base::Base,
             cff::Cff,
             cff2::Cff2,
             cmap::{Cmap, CmapSubtable},
@@ -63,6 +71,98 @@ const MAX_NESTING_LEVEL: u8 = 64;
 // this causes tests to fail with 'subtract with overflow error'.
 // See <https://github.com/googlefonts/fontations/issues/997>
 const MAX_GID: GlyphId = GlyphId::new(0xFFFFFF);
+
+// ref: <https://github.com/harfbuzz/harfbuzz/blob/021b44388667903d7bc9c92c924ad079f13b90ce/src/hb-subset-input.cc#L82>
+pub static DEFAULT_LAYOUT_FEATURES: &[Tag] = &[
+    // default shaper
+    // common
+    Tag::new(b"rvrn"),
+    Tag::new(b"ccmp"),
+    Tag::new(b"liga"),
+    Tag::new(b"locl"),
+    Tag::new(b"mark"),
+    Tag::new(b"mkmk"),
+    Tag::new(b"rlig"),
+    //fractions
+    Tag::new(b"frac"),
+    Tag::new(b"numr"),
+    Tag::new(b"dnom"),
+    // horizontal
+    Tag::new(b"calt"),
+    Tag::new(b"clig"),
+    Tag::new(b"curs"),
+    Tag::new(b"kern"),
+    Tag::new(b"rclt"),
+    //vertical
+    Tag::new(b"valt"),
+    Tag::new(b"vert"),
+    Tag::new(b"vkrn"),
+    Tag::new(b"vpal"),
+    Tag::new(b"vrt2"),
+    //ltr
+    Tag::new(b"ltra"),
+    Tag::new(b"ltrm"),
+    //rtl
+    Tag::new(b"rtla"),
+    Tag::new(b"rtlm"),
+    //random
+    Tag::new(b"rand"),
+    //justify
+    Tag::new(b"jalt"),
+    //east asian spacing
+    Tag::new(b"chws"),
+    Tag::new(b"vchw"),
+    Tag::new(b"halt"),
+    Tag::new(b"vhal"),
+    //private
+    Tag::new(b"Harf"),
+    Tag::new(b"HARF"),
+    Tag::new(b"Buzz"),
+    Tag::new(b"BUZZ"),
+    //complex shapers
+    //arabic
+    Tag::new(b"init"),
+    Tag::new(b"medi"),
+    Tag::new(b"fina"),
+    Tag::new(b"isol"),
+    Tag::new(b"med2"),
+    Tag::new(b"fin2"),
+    Tag::new(b"fin3"),
+    Tag::new(b"cswh"),
+    Tag::new(b"mset"),
+    Tag::new(b"stch"),
+    //hangul
+    Tag::new(b"ljmo"),
+    Tag::new(b"vjmo"),
+    Tag::new(b"tjmo"),
+    //tibetan
+    Tag::new(b"abvs"),
+    Tag::new(b"blws"),
+    Tag::new(b"abvm"),
+    Tag::new(b"blwm"),
+    //indic
+    Tag::new(b"nukt"),
+    Tag::new(b"akhn"),
+    Tag::new(b"rphf"),
+    Tag::new(b"rkrf"),
+    Tag::new(b"pref"),
+    Tag::new(b"blwf"),
+    Tag::new(b"half"),
+    Tag::new(b"abvf"),
+    Tag::new(b"pstf"),
+    Tag::new(b"cfar"),
+    Tag::new(b"vatu"),
+    Tag::new(b"cjct"),
+    Tag::new(b"init"),
+    Tag::new(b"pres"),
+    Tag::new(b"abvs"),
+    Tag::new(b"blws"),
+    Tag::new(b"psts"),
+    Tag::new(b"haln"),
+    Tag::new(b"dist"),
+    Tag::new(b"abvm"),
+    Tag::new(b"blwm"),
+];
 
 #[derive(Clone, Copy, Debug)]
 pub struct SubsetFlags(u16);
@@ -181,6 +281,8 @@ pub struct Plan {
     drop_tables: IntSet<Tag>,
     name_ids: IntSet<NameId>,
     name_languages: IntSet<u16>,
+    layout_scripts: IntSet<Tag>,
+    layout_features: IntSet<Tag>,
 
     //old->new feature index map
     gsub_features: FnvHashMap<u16, u16>,
@@ -192,6 +294,11 @@ pub struct Plan {
     colr_palettes: FnvHashMap<u16, u16>,
 
     os2_info: Os2Info,
+
+    //BASE table old variation index -> (New varidx, new delta) mapping
+    base_varidx_delta_map: FnvHashMap<u32, (u32, i32)>,
+    //BASE table varstore retained varidx mapping
+    base_varstore_inner_maps: Vec<IncBiMap>,
 }
 
 #[derive(Default)]
@@ -201,12 +308,15 @@ struct Os2Info {
 }
 
 impl Plan {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         input_gids: &IntSet<GlyphId>,
         input_unicodes: &IntSet<u32>,
         font: &FontRef,
         flags: SubsetFlags,
         drop_tables: &IntSet<Tag>,
+        layout_scripts: &IntSet<Tag>,
+        layout_features: &IntSet<Tag>,
         name_ids: &IntSet<NameId>,
         name_languages: &IntSet<u16>,
     ) -> Self {
@@ -215,6 +325,8 @@ impl Plan {
             font_num_glyphs: get_font_num_glyphs(font),
             subset_flags: flags,
             drop_tables: drop_tables.clone(),
+            layout_scripts: layout_scripts.clone(),
+            layout_features: layout_features.clone(),
             name_ids: name_ids.clone(),
             name_languages: name_languages.clone(),
             ..Default::default()
@@ -229,6 +341,7 @@ impl Plan {
         this.populate_gids_to_retain(font);
         this.create_old_gid_to_new_gid_map();
 
+        this.collect_base_var_indices(font);
         this
     }
 
@@ -468,6 +581,89 @@ impl Plan {
             }
         }
     }
+
+    fn collect_base_var_indices(&mut self, font: &FontRef) {
+        if self.drop_tables.contains(Tag::new(b"BASE")) {
+            return;
+        }
+
+        if font.fvar().is_err() {
+            return;
+        }
+        let Ok(base) = font.base() else {
+            return;
+        };
+
+        let Some(Ok(var_store)) = base.item_var_store() else {
+            return;
+        };
+
+        let mut varidx_set = IntSet::empty();
+        {
+            base.collect_variation_indices(self, &mut varidx_set);
+        }
+
+        let vardata_count = var_store.item_variation_data_count() as u32;
+        remap_variation_indices(vardata_count, &varidx_set, &mut self.base_varidx_delta_map);
+        generate_varstore_inner_maps(
+            &varidx_set,
+            vardata_count,
+            &mut self.base_varstore_inner_maps,
+        );
+    }
+}
+
+// TODO: when instancing, calculate delta value and set new varidx to NO_VARIATIONS_IDX if all axes are pinned
+fn remap_variation_indices(
+    vardata_count: u32,
+    varidx_set: &IntSet<u32>,
+    varidx_delta_map: &mut FnvHashMap<u32, (u32, i32)>,
+) {
+    if vardata_count == 0 || varidx_set.is_empty() {
+        return;
+    }
+
+    let mut new_major: u32 = 0;
+    let mut new_minor: u32 = 0;
+    let mut last_major = varidx_set.first().unwrap() >> 16;
+    for var_idx in varidx_set.iter() {
+        let major = var_idx >> 16;
+        if major >= vardata_count {
+            break;
+        }
+
+        if major != last_major {
+            new_minor = 0;
+            new_major += 1;
+        }
+
+        let new_idx = (new_major << 16) + new_minor;
+        varidx_delta_map.insert(var_idx, (new_idx, 0));
+
+        new_minor += 1;
+        last_major = major;
+    }
+}
+
+fn generate_varstore_inner_maps(
+    varidx_set: &IntSet<u32>,
+    vardata_count: u32,
+    inner_maps: &mut Vec<IncBiMap>,
+) {
+    if varidx_set.is_empty() || vardata_count == 0 {
+        return;
+    }
+
+    inner_maps.resize_with(vardata_count as usize, Default::default);
+    for idx in varidx_set.iter() {
+        let major = idx >> 16;
+        let minor = idx & 0xFFFF;
+        if major >= vardata_count {
+            break;
+        }
+
+        inner_maps[major as usize].add(minor);
+    }
 }
 
 /// glyph closure for Composite glyphs in glyf table
@@ -573,6 +769,10 @@ pub trait NameIdClosure {
     fn collect_name_ids(&self, plan: &mut Plan);
 }
 
+pub(crate) trait CollectVaritionaIndices {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>);
+}
+
 pub const CVT: Tag = Tag::new(b"cvt ");
 pub const DSIG: Tag = Tag::new(b"DSIG");
 pub const EBSC: Tag = Tag::new(b"EBSC");
@@ -590,7 +790,7 @@ pub const PREP: Tag = Tag::new(b"prep");
 pub const SILF: Tag = Tag::new(b"Silf");
 pub const SILL: Tag = Tag::new(b"Sill");
 pub const VDMX: Tag = Tag::new(b"VDMX");
-// This trait is implemented for all font tables
+// This trait is implemented for all font top-level tables
 pub trait Subset {
     /// Subset this table, if successful a subset version of this table will be added to builder
     fn subset(
@@ -600,6 +800,18 @@ pub trait Subset {
         s: &mut Serializer,
         builder: &mut FontBuilder,
     ) -> Result<(), SubsetError>;
+}
+
+// A helper trait providing a 'subset' method for various subtables that have no associated tag
+pub(crate) trait SubsetTable<'a> {
+    type ArgsForSubset: 'a;
+    /// Subset this table and write a subset version of this table into serializer
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: &Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags>;
 }
 
 pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
@@ -697,6 +909,11 @@ fn subset_table<'a>(
     }
 
     match tag {
+        Base::TAG => font
+            .base()
+            .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?
+            .subset(plan, font, s, builder),
+
         Cmap::TAG => font
             .cmap()
             .map_err(|_| SubsetError::SubsetTableError(Cmap::TAG))?

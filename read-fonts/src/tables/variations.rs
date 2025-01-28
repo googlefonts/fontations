@@ -1156,8 +1156,14 @@ impl<'a> ItemVariationData<'a> {
         }
     }
 
+    pub fn get_delta_row_len(&self) -> usize {
+        let word_delta_count = self.word_delta_count();
+        let region_count = self.region_index_count();
+        Self::delta_row_len(word_delta_count, region_count)
+    }
+
     /// the length of one delta set
-    fn delta_row_len(word_delta_count: u16, region_index_count: u16) -> usize {
+    pub fn delta_row_len(word_delta_count: u16, region_index_count: u16) -> usize {
         let region_count = region_index_count as usize;
         let long_words = word_delta_count & 0x8000 != 0;
         let (word_size, small_size) = if long_words { (4, 2) } else { (2, 1) };
@@ -1167,7 +1173,11 @@ impl<'a> ItemVariationData<'a> {
     }
 
     // called from generated code: compute the length in bytes of the delta_sets data
-    fn delta_sets_len(item_count: u16, word_delta_count: u16, region_index_count: u16) -> usize {
+    pub fn delta_sets_len(
+        item_count: u16,
+        word_delta_count: u16,
+        region_index_count: u16,
+    ) -> usize {
         let bytes_per_row = Self::delta_row_len(word_delta_count, region_index_count);
         bytes_per_row * item_count as usize
     }
