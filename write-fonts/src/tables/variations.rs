@@ -141,12 +141,12 @@ impl PackedDeltas {
                 } else if run_type == DeltaRunType::I16 {
                     // with word deltas, a single zero justifies a new run:
                     //https://github.com/fonttools/fonttools/blob/eeaa499981c587/Lib/fontTools/ttLib/tables/TupleVariation.py#L457
-                    match cur_type {
-                        DeltaRunType::Zero | DeltaRunType::I32 => break,
+                    match (cur_type, next_type) {
+                        (DeltaRunType::Zero | DeltaRunType::I32, _) => break,
                         // and a single byte-size value should be inlined, if it lets
                         // us combine two adjoining word-size runs:
                         // https://github.com/fonttools/fonttools/blob/eeaa499981c587/Lib/fontTools/ttLib/tables/TupleVariation.py#L467
-                        DeltaRunType::I8 if next_type == Some(DeltaRunType::I8) => break,
+                        (DeltaRunType::I8, Some(DeltaRunType::Zero | DeltaRunType::I8)) => break,
                         _ => (),
                     }
                 } else if run_type == DeltaRunType::I32 && cur_type != DeltaRunType::I32 {
@@ -660,6 +660,15 @@ mod tests {
     fn split_double_byte_in_words() {
         let packed = PackedDeltas::new(vec![150, 200, 1, 3, -300]);
         assert_eq!(packed.iter_runs().count(), 3)
+    }
+
+    #[test]
+    fn split_byte_then_zero_after_words() {
+        // without split: 10 = 1 + 2 + 2 + 2 + 1 + 2
+        //    with split:  9 = 1 + 2 + 2 + 1 + 3
+        let packed = PackedDeltas::new(vec![150, 200, 1, 0, 1]);
+        assert_eq!(packed.iter_runs().count(), 2);
+        assert_eq!(packed.compute_size(), 9);
     }
 
     #[rstest]
