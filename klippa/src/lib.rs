@@ -1,6 +1,7 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
 mod base;
+mod cblc;
 mod cmap;
 mod cpal;
 mod fvar;
@@ -42,6 +43,8 @@ use write_fonts::{
         collections::{int_set::Domain, IntSet},
         tables::{
             base::Base,
+            cbdt::Cbdt,
+            cblc::Cblc,
             cff::Cff,
             cff2::Cff2,
             cmap::{Cmap, CmapSubtable},
@@ -807,13 +810,14 @@ pub trait Subset {
 // A helper trait providing a 'subset' method for various subtables that have no associated tag
 pub(crate) trait SubsetTable<'a> {
     type ArgsForSubset: 'a;
+    type SubsetOutput: 'a;
     /// Subset this table and write a subset version of this table into serializer
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        args: &Self::ArgsForSubset,
-    ) -> Result<(), SerializeErrorFlags>;
+        args: Self::ArgsForSubset,
+    ) -> Result<Self::SubsetOutput, SerializeErrorFlags>;
 }
 
 pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
@@ -914,6 +918,14 @@ fn subset_table<'a>(
         Base::TAG => font
             .base()
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?
+            .subset(plan, font, s, builder),
+
+        //Skip, handled by Cblc
+        Cbdt::TAG => Ok(()),
+
+        Cblc::TAG => font
+            .cblc()
+            .map_err(|_| SubsetError::SubsetTableError(Cblc::TAG))?
             .subset(plan, font, s, builder),
 
         Cmap::TAG => font

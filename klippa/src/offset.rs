@@ -12,7 +12,7 @@ pub(crate) trait SerializeSubset {
         t: &T,
         s: &mut Serializer,
         plan: &Plan,
-        args: &T::ArgsForSubset,
+        args: T::ArgsForSubset,
         pos: usize,
     ) -> Result<(), SerializeErrorFlags>;
 }
@@ -22,12 +22,12 @@ impl<O: Scalar> SerializeSubset for O {
         t: &T,
         s: &mut Serializer,
         plan: &Plan,
-        args: &T::ArgsForSubset,
+        args: T::ArgsForSubset,
         pos: usize,
     ) -> Result<(), SerializeErrorFlags> {
         s.push()?;
         match t.subset(plan, s, args) {
-            Ok(()) => {
+            Ok(_) => {
                 let Some(obj_idx) = s.pop_pack(true) else {
                     return Err(s.error());
                 };

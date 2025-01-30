@@ -11,7 +11,7 @@ pub(crate) trait SubsetOffsetArray<'a, T: SubsetTable<'a>> {
         idx: usize,
         s: &mut Serializer,
         plan: &Plan,
-        args: &T::ArgsForSubset,
+        args: T::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags>;
 }
 
@@ -26,7 +26,7 @@ where
         idx: usize,
         s: &mut Serializer,
         plan: &Plan,
-        args: &T::ArgsForSubset,
+        args: T::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
         let t = self
             .get(idx)
@@ -54,7 +54,7 @@ where
         idx: usize,
         s: &mut Serializer,
         plan: &Plan,
-        args: &T::ArgsForSubset,
+        args: T::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
         match self.get(idx) {
             Some(Ok(t)) => {
