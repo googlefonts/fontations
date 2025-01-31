@@ -20,6 +20,7 @@ mod offset_array;
 mod os2;
 mod parsing_util;
 mod post;
+mod sbix;
 pub mod serialize;
 mod stat;
 mod variations;
@@ -56,6 +57,7 @@ use write_fonts::{
             name::Name,
             os2::Os2,
             post::Post,
+            sbix::Sbix,
             vorg::Vorg,
         },
         types::NameId,
@@ -970,6 +972,11 @@ fn subset_table<'a>(
         Post::TAG => font
             .post()
             .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?
+            .subset(plan, font, s, builder),
+
+        Sbix::TAG => font
+            .sbix()
+            .map_err(|_| SubsetError::SubsetTableError(Sbix::TAG))?
             .subset(plan, font, s, builder),
 
         Vorg::TAG => font
