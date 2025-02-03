@@ -2,11 +2,11 @@
 
 /// [BitmapSize](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#bitmapsize-record) record.
 record BitmapSize {
-    /// Offset to index subtable from beginning of EBLC/CBLC.
-    index_subtable_array_offset: u32,
-    /// Number of bytes in corresponding index subtables and array.
-    index_tables_size: u32,
-    /// There is an index subtable for each range or format change.
+    /// Offset to IndexSubtableList, from beginning of EBLC/CBLC.
+    index_subtable_list_offset: u32,
+    /// Total size in bytes of the IndexSubtableList including its array of IndexSubtables.
+    index_subtable_list_size: u32,
+    /// Number of IndexSubtables in the IndexSubtableList.
     number_of_index_subtables: u32,
     /// Not used; set to 0.
     color_ref: u32,
@@ -87,14 +87,21 @@ record SmallGlyphMetrics {
     advance: u8,
 }
 
-/// [IndexSubtableArray](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtablearray) table.
-table IndexSubtableArray {
+/// [IndexSubtableList](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtablelist) table.
+#[read_args(number_of_index_subtables: u32)]
+table IndexSubtableList {
+    /// Array of IndexSubtableRecords.
+    #[count($number_of_index_subtables)]
+    index_subtable_records: [IndexSubtableRecord],
+}
+
+record IndexSubtableRecord {
     /// First glyph ID of this range.
     first_glyph_index: GlyphId16,
     /// Last glyph ID of this range (inclusive).
     last_glyph_index: GlyphId16,
-    /// Add to indexSubTableArrayOffset to get offset from beginning of EBLC.
-    additional_offset_to_index_subtable: u32,
+    /// Offset to an IndexSubtable from the start of the IndexSubtableList.
+    index_subtable_offset: Offset32<IndexSubtable>,
 }
 
 /// [IndexSubtables](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtables) format type.

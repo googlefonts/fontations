@@ -10,11 +10,11 @@ use crate::codegen_prelude::*;
 #[repr(C)]
 #[repr(packed)]
 pub struct BitmapSize {
-    /// Offset to index subtable from beginning of EBLC/CBLC.
-    pub index_subtable_array_offset: BigEndian<u32>,
-    /// Number of bytes in corresponding index subtables and array.
-    pub index_tables_size: BigEndian<u32>,
-    /// There is an index subtable for each range or format change.
+    /// Offset to IndexSubtableList, from beginning of EBLC/CBLC.
+    pub index_subtable_list_offset: BigEndian<u32>,
+    /// Total size in bytes of the IndexSubtableList including its array of IndexSubtables.
+    pub index_subtable_list_size: BigEndian<u32>,
+    /// Number of IndexSubtables in the IndexSubtableList.
     pub number_of_index_subtables: BigEndian<u32>,
     /// Not used; set to 0.
     pub color_ref: BigEndian<u32>,
@@ -38,17 +38,17 @@ pub struct BitmapSize {
 }
 
 impl BitmapSize {
-    /// Offset to index subtable from beginning of EBLC/CBLC.
-    pub fn index_subtable_array_offset(&self) -> u32 {
-        self.index_subtable_array_offset.get()
+    /// Offset to IndexSubtableList, from beginning of EBLC/CBLC.
+    pub fn index_subtable_list_offset(&self) -> u32 {
+        self.index_subtable_list_offset.get()
     }
 
-    /// Number of bytes in corresponding index subtables and array.
-    pub fn index_tables_size(&self) -> u32 {
-        self.index_tables_size.get()
+    /// Total size in bytes of the IndexSubtableList including its array of IndexSubtables.
+    pub fn index_subtable_list_size(&self) -> u32 {
+        self.index_subtable_list_size.get()
     }
 
-    /// There is an index subtable for each range or format change.
+    /// Number of IndexSubtables in the IndexSubtableList.
     pub fn number_of_index_subtables(&self) -> u32 {
         self.number_of_index_subtables.get()
     }
@@ -122,10 +122,13 @@ impl<'a> SomeRecord<'a> for BitmapSize {
             name: "BitmapSize",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new(
-                    "index_subtable_array_offset",
-                    self.index_subtable_array_offset(),
+                    "index_subtable_list_offset",
+                    self.index_subtable_list_offset(),
                 )),
-                1usize => Some(Field::new("index_tables_size", self.index_tables_size())),
+                1usize => Some(Field::new(
+                    "index_subtable_list_size",
+                    self.index_subtable_list_size(),
+                )),
                 2usize => Some(Field::new(
                     "number_of_index_subtables",
                     self.number_of_index_subtables(),
@@ -736,80 +739,81 @@ impl<'a> SomeRecord<'a> for SmallGlyphMetrics {
     }
 }
 
-/// [IndexSubtableArray](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtablearray) table.
+/// [IndexSubtableList](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtablelist) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct IndexSubtableArrayMarker {}
+pub struct IndexSubtableListMarker {
+    index_subtable_records_byte_len: usize,
+}
 
-impl IndexSubtableArrayMarker {
-    pub fn first_glyph_index_byte_range(&self) -> Range<usize> {
+impl IndexSubtableListMarker {
+    pub fn index_subtable_records_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + GlyphId16::RAW_BYTE_LEN
-    }
-
-    pub fn last_glyph_index_byte_range(&self) -> Range<usize> {
-        let start = self.first_glyph_index_byte_range().end;
-        start..start + GlyphId16::RAW_BYTE_LEN
-    }
-
-    pub fn additional_offset_to_index_subtable_byte_range(&self) -> Range<usize> {
-        let start = self.last_glyph_index_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        start..start + self.index_subtable_records_byte_len
     }
 }
 
-impl MinByteRange for IndexSubtableArrayMarker {
+impl MinByteRange for IndexSubtableListMarker {
     fn min_byte_range(&self) -> Range<usize> {
-        0..self.additional_offset_to_index_subtable_byte_range().end
+        0..self.index_subtable_records_byte_range().end
     }
 }
 
-impl<'a> FontRead<'a> for IndexSubtableArray<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+impl ReadArgs for IndexSubtableList<'_> {
+    type Args = u32;
+}
+
+impl<'a> FontReadWithArgs<'a> for IndexSubtableList<'a> {
+    fn read_with_args(data: FontData<'a>, args: &u32) -> Result<Self, ReadError> {
+        let number_of_index_subtables = *args;
         let mut cursor = data.cursor();
-        cursor.advance::<GlyphId16>();
-        cursor.advance::<GlyphId16>();
-        cursor.advance::<u32>();
-        cursor.finish(IndexSubtableArrayMarker {})
+        let index_subtable_records_byte_len = (number_of_index_subtables as usize)
+            .checked_mul(IndexSubtableRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        cursor.advance_by(index_subtable_records_byte_len);
+        cursor.finish(IndexSubtableListMarker {
+            index_subtable_records_byte_len,
+        })
     }
 }
 
-/// [IndexSubtableArray](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtablearray) table.
-pub type IndexSubtableArray<'a> = TableRef<'a, IndexSubtableArrayMarker>;
+impl<'a> IndexSubtableList<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, number_of_index_subtables: u32) -> Result<Self, ReadError> {
+        let args = number_of_index_subtables;
+        Self::read_with_args(data, &args)
+    }
+}
+
+/// [IndexSubtableList](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtablelist) table.
+pub type IndexSubtableList<'a> = TableRef<'a, IndexSubtableListMarker>;
 
 #[allow(clippy::needless_lifetimes)]
-impl<'a> IndexSubtableArray<'a> {
-    /// First glyph ID of this range.
-    pub fn first_glyph_index(&self) -> GlyphId16 {
-        let range = self.shape.first_glyph_index_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Last glyph ID of this range (inclusive).
-    pub fn last_glyph_index(&self) -> GlyphId16 {
-        let range = self.shape.last_glyph_index_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Add to indexSubTableArrayOffset to get offset from beginning of EBLC.
-    pub fn additional_offset_to_index_subtable(&self) -> u32 {
-        let range = self.shape.additional_offset_to_index_subtable_byte_range();
-        self.data.read_at(range.start).unwrap()
+impl<'a> IndexSubtableList<'a> {
+    /// Array of IndexSubtableRecords.
+    pub fn index_subtable_records(&self) -> &'a [IndexSubtableRecord] {
+        let range = self.shape.index_subtable_records_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for IndexSubtableArray<'a> {
+impl<'a> SomeTable<'a> for IndexSubtableList<'a> {
     fn type_name(&self) -> &str {
-        "IndexSubtableArray"
+        "IndexSubtableList"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
-            0usize => Some(Field::new("first_glyph_index", self.first_glyph_index())),
-            1usize => Some(Field::new("last_glyph_index", self.last_glyph_index())),
-            2usize => Some(Field::new(
-                "additional_offset_to_index_subtable",
-                self.additional_offset_to_index_subtable(),
+            0usize => Some(Field::new(
+                "index_subtable_records",
+                traversal::FieldType::array_of_records(
+                    stringify!(IndexSubtableRecord),
+                    self.index_subtable_records(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -818,9 +822,70 @@ impl<'a> SomeTable<'a> for IndexSubtableArray<'a> {
 
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for IndexSubtableArray<'a> {
+impl<'a> std::fmt::Debug for IndexSubtableList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct IndexSubtableRecord {
+    /// First glyph ID of this range.
+    pub first_glyph_index: BigEndian<GlyphId16>,
+    /// Last glyph ID of this range (inclusive).
+    pub last_glyph_index: BigEndian<GlyphId16>,
+    /// Offset to an IndexSubtable from the start of the IndexSubtableList.
+    pub index_subtable_offset: BigEndian<Offset32>,
+}
+
+impl IndexSubtableRecord {
+    /// First glyph ID of this range.
+    pub fn first_glyph_index(&self) -> GlyphId16 {
+        self.first_glyph_index.get()
+    }
+
+    /// Last glyph ID of this range (inclusive).
+    pub fn last_glyph_index(&self) -> GlyphId16 {
+        self.last_glyph_index.get()
+    }
+
+    /// Offset to an IndexSubtable from the start of the IndexSubtableList.
+    pub fn index_subtable_offset(&self) -> Offset32 {
+        self.index_subtable_offset.get()
+    }
+
+    /// Offset to an IndexSubtable from the start of the IndexSubtableList.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn index_subtable<'a>(&self, data: FontData<'a>) -> Result<IndexSubtable<'a>, ReadError> {
+        self.index_subtable_offset().resolve(data)
+    }
+}
+
+impl FixedSize for IndexSubtableRecord {
+    const RAW_BYTE_LEN: usize =
+        GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for IndexSubtableRecord {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "IndexSubtableRecord",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("first_glyph_index", self.first_glyph_index())),
+                1usize => Some(Field::new("last_glyph_index", self.last_glyph_index())),
+                2usize => Some(Field::new(
+                    "index_subtable_offset",
+                    FieldType::offset(self.index_subtable_offset(), self.index_subtable(_data)),
+                )),
+                _ => None,
+            }),
+            data,
+        }
     }
 }
 
