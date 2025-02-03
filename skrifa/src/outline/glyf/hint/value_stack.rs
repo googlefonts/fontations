@@ -16,7 +16,7 @@ use HintErrorKind::{ValueStackOverflow, ValueStackUnderflow};
 pub struct ValueStack<'a> {
     values: &'a mut [i32],
     len: usize,
-    is_pedantic: bool,
+    pub(super) is_pedantic: bool,
 }
 
 impl<'a> ValueStack<'a> {
@@ -110,6 +110,24 @@ impl<'a> ValueStack<'a> {
     /// index.
     pub fn pop_usize(&mut self) -> Result<usize, HintErrorKind> {
         Ok(self.pop()? as usize)
+    }
+
+    /// Convenience method for popping a value intended as a count.
+    ///
+    /// When a negative value is encountered, returns an error in pedantic mode
+    /// or 0 otherwise.
+    pub fn pop_count_checked(&mut self) -> Result<usize, HintErrorKind> {
+        let value = self.pop()?;
+        if value < 0 {
+            if self.is_pedantic {
+                Err(HintErrorKind::InvalidStackValue(value))
+            } else {
+                Ok(0)
+            }
+        } else {
+            // Positive i32 always fits into usize
+            Ok(value as usize)
+        }
     }
 
     /// Applies a unary operation.
@@ -355,5 +373,21 @@ mod tests {
         let mut stack = make_stack!(&mut [0]);
         // Don't panic
         let _ = stack.move_index();
+    }
+
+    #[test]
+    fn pop_count_checked() {
+        let mut stack = make_stack!(&mut [-1, 128, -1, 128]);
+        stack.is_pedantic = true;
+        assert_eq!(stack.pop_count_checked(), Ok(128));
+        // In pedantic mode, return an error for negative values
+        assert!(matches!(
+            stack.pop_count_checked(),
+            Err(HintErrorKind::InvalidStackValue(-1))
+        ));
+        stack.is_pedantic = false;
+        assert_eq!(stack.pop_count_checked(), Ok(128));
+        // In non-pedantic mode, return 0 instead of error
+        assert_eq!(stack.pop_count_checked(), Ok(0));
     }
 }
