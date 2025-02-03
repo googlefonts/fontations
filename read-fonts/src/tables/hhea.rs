@@ -3,7 +3,7 @@
 include!("../../generated/generated_hhea.rs");
 
 impl Hhea<'_> {
-    #[deprecated(since = "0.25.3", note = "use number_of_h_metrics instead")]
+    #[deprecated(since = "0.26.0", note = "use number_of_h_metrics instead")]
     pub fn number_of_long_metrics(&self) -> u16 {
         self.number_of_h_metrics()
     }
