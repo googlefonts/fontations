@@ -118,15 +118,10 @@ impl<'a> ValueStack<'a> {
     /// or 0 otherwise.
     pub fn pop_count_checked(&mut self) -> Result<usize, HintErrorKind> {
         let value = self.pop()?;
-        if value < 0 {
-            if self.is_pedantic {
-                Err(HintErrorKind::InvalidStackValue(value))
-            } else {
-                Ok(0)
-            }
+        if value < 0 && self.is_pedantic {
+            Err(HintErrorKind::InvalidStackValue(value))
         } else {
-            // Positive i32 always fits into usize
-            Ok(value as usize)
+            Ok(value.max(0) as usize)
         }
     }
 
