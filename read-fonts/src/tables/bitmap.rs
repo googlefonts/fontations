@@ -18,19 +18,20 @@ impl BitmapSize {
         if !(self.start_glyph_index()..=self.end_glyph_index()).contains(&glyph_id) {
             return Err(ReadError::OutOfBounds);
         }
+        let subtable_list = self.index_subtable_list(offset_data)?;
         let mut location = BitmapLocation {
             bit_depth: self.bit_depth,
             ..BitmapLocation::default()
         };
-        for ix in 0..self.number_of_index_subtables() {
-            let subtable = self.subtable(offset_data, ix)?;
-            if !(subtable.first_glyph_index..=subtable.last_glyph_index).contains(&glyph_id) {
+        for record in subtable_list.index_subtable_records() {
+            let subtable = record.index_subtable(subtable_list.offset_data())?;
+            if !(record.first_glyph_index()..=record.last_glyph_index()).contains(&glyph_id) {
                 continue;
             }
             // glyph index relative to the first glyph in the subtable
             let glyph_ix =
-                glyph_id.to_u32() as usize - subtable.first_glyph_index.to_u32() as usize;
-            match &subtable.kind {
+                glyph_id.to_u32() as usize - record.first_glyph_index().to_u32() as usize;
+            match &subtable {
                 IndexSubtable::Format1(st) => {
                     location.format = st.image_format();
                     let start = st.image_data_offset() as usize
@@ -114,35 +115,23 @@ impl BitmapSize {
         Err(ReadError::OutOfBounds)
     }
 
-    fn subtable<'a>(
+    /// Returns the [IndexSubtableList] associated with this size.
+    ///
+    /// The `offset_data` parameter is provided by the `offset_data()` method
+    /// of the parent `Eblc` or `Cblc` table.
+    pub fn index_subtable_list<'a>(
         &self,
         offset_data: FontData<'a>,
-        index: u32,
-    ) -> Result<BitmapSizeSubtable<'a>, ReadError> {
-        let base_offset = self.index_subtable_array_offset() as usize;
-        const SUBTABLE_HEADER_SIZE: usize = 8;
-        let header_offset = base_offset + index as usize * SUBTABLE_HEADER_SIZE;
-        let header_data = offset_data
-            .slice(header_offset..)
+    ) -> Result<IndexSubtableList<'a>, ReadError> {
+        let start = self.index_subtable_list_offset() as usize;
+        let end = start
+            .checked_add(self.index_subtable_list_size() as usize)
             .ok_or(ReadError::OutOfBounds)?;
-        let header = IndexSubtableArray::read(header_data)?;
-        let subtable_offset = base_offset + header.additional_offset_to_index_subtable() as usize;
-        let subtable_data = offset_data
-            .slice(subtable_offset..)
+        let data = offset_data
+            .slice(start..end)
             .ok_or(ReadError::OutOfBounds)?;
-        let subtable = IndexSubtable::read(subtable_data)?;
-        Ok(BitmapSizeSubtable {
-            first_glyph_index: header.first_glyph_index(),
-            last_glyph_index: header.last_glyph_index(),
-            kind: subtable,
-        })
+        IndexSubtableList::read(data, self.number_of_index_subtables())
     }
-}
-
-struct BitmapSizeSubtable<'a> {
-    pub first_glyph_index: GlyphId16,
-    pub last_glyph_index: GlyphId16,
-    pub kind: IndexSubtable<'a>,
 }
 
 #[derive(Clone, Default)]
