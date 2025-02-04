@@ -157,7 +157,7 @@ impl Fields {
             .find(|fld| &fld.name == name)
             .map(|fld| match &fld.typ {
                 FieldType::Scalar { typ } => typ,
-                _ => panic!("not a scalar field"),
+                _ => panic!("not a scalar field: {:?}", &fld.typ),
             })
             .or_else(|| {
                 self.read_args.as_ref().and_then(|args| {
@@ -1087,7 +1087,7 @@ impl Field {
             let condition = condition.condition_tokens_for_read();
             if self.read_at_parse_time {
                 quote! {
-                    let #name = #condition.then(|| cursor.read::<#typ>()).transpose()?.unwrap_or(0);
+                    let #name = #condition.then(|| cursor.read::<#typ>()).transpose()?.unwrap_or(Default::default());
                 }
             } else {
                 quote! {

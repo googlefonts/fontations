@@ -546,7 +546,6 @@ pub struct EntryData {
     pub feature_tags: Option<Vec<Tag>>,
     pub design_space_count: Option<u16>,
     pub design_space_segments: Option<Vec<DesignSpaceSegment>>,
-    pub copy_count: Option<u8>,
     pub copy_indices: Option<Vec<Uint24>>,
     pub patch_format: Option<u8>,
     pub codepoint_data: Vec<u8>,
@@ -595,14 +594,6 @@ impl FontWrite for EntryData {
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| {
                 self.design_space_segments
-                    .as_ref()
-                    .expect("missing conditional field should have failed validation")
-                    .write_into(writer)
-            });
-        self.format_flags
-            .contains(EntryFormatFlags::COPY_INDICES)
-            .then(|| {
-                self.copy_count
                     .as_ref()
                     .expect("missing conditional field should have failed validation")
                     .write_into(writer)
@@ -699,18 +690,6 @@ impl Validate for EntryData {
                 }
                 self.design_space_segments.validate_impl(ctx);
             });
-            ctx.in_field("copy_count", |ctx| {
-                if !(format_flags.contains(EntryFormatFlags::COPY_INDICES))
-                    && self.copy_count.is_some()
-                {
-                    ctx.report("'copy_count' is present but COPY_INDICES not set")
-                }
-                if (format_flags.contains(EntryFormatFlags::COPY_INDICES))
-                    && self.copy_count.is_none()
-                {
-                    ctx.report("COPY_INDICES is set but 'copy_count' is None")
-                }
-            });
             ctx.in_field("copy_indices", |ctx| {
                 if !(format_flags.contains(EntryFormatFlags::COPY_INDICES))
                     && self.copy_indices.is_some()
@@ -721,11 +700,6 @@ impl Validate for EntryData {
                     && self.copy_indices.is_none()
                 {
                     ctx.report("COPY_INDICES is set but 'copy_indices' is None")
-                }
-                if self.copy_indices.is_some()
-                    && self.copy_indices.as_ref().unwrap().len() > (u8::MAX as usize)
-                {
-                    ctx.report("array exceeds max length");
                 }
             });
             ctx.in_field("patch_format", |ctx| {
@@ -753,7 +727,6 @@ impl<'a> FromObjRef<read_fonts::tables::ift::EntryData<'a>> for EntryData {
             feature_tags: obj.feature_tags().to_owned_obj(offset_data),
             design_space_count: obj.design_space_count(),
             design_space_segments: obj.design_space_segments().to_owned_obj(offset_data),
-            copy_count: obj.copy_count(),
             copy_indices: obj.copy_indices().to_owned_obj(offset_data),
             patch_format: obj.patch_format(),
             codepoint_data: obj.codepoint_data().to_owned_obj(offset_data),

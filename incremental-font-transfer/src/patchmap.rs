@@ -459,6 +459,11 @@ fn decode_format2_entry<'a>(
             .extend(features.iter().map(|t| t.get()));
     }
 
+    // Copy indices
+    if let Some(copy_indices) = entry_data.copy_indices() {
+        // TODO XXXXXXX
+    }
+
     // Design space
     if let Some(design_space_segments) = entry_data.design_space_segments() {
         let mut ranges = HashMap::<Tag, RangeSet<Fixed>>::new();
@@ -1067,6 +1072,8 @@ impl SubsetDefinition {
 struct Entry {
     // Key
     subset_definition: SubsetDefinition,
+    copy_indices: Vec<usize>,
+    append_mode: bool,
     ignored: bool,
 
     // Value
@@ -1086,6 +1093,9 @@ impl Entry {
                 feature_tags: Default::default(),
                 design_space: Default::default(),
             },
+
+            copy_indices: Default::default(),
+            append_mode: false,
             ignored: false,
 
             uri: PatchUri::from_index(
@@ -2642,11 +2652,15 @@ mod tests {
             subset_definition: s1.clone(),
             uri: uri.clone(),
             ignored: false,
+            copy_indices: Default::default(),
+            append_mode: Default::default(),
         };
         let e2 = Entry {
             subset_definition: Default::default(),
             uri: uri.clone(),
             ignored: false,
+            copy_indices: Default::default(),
+            append_mode: Default::default(),
         };
 
         assert!(e1.intersects(&s1));
@@ -2754,11 +2768,15 @@ mod tests {
             subset_definition: s1.clone(),
             uri: uri.clone(),
             ignored: false,
+            copy_indices: Default::default(),
+            append_mode: Default::default(),
         };
         let e2 = Entry {
             subset_definition: Default::default(),
             uri: uri.clone(),
             ignored: false,
+            copy_indices: Default::default(),
+            append_mode: Default::default(),
         };
 
         assert!(e1.intersects(&s1));
