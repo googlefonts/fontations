@@ -23,15 +23,6 @@ use std::{
 pub struct Tag([u8; 4]);
 
 impl Tag {
-    /// A 'null' tag consists of four spaces.
-    ///
-    /// This tag is not a valid identifier, but can be used to represent the
-    /// absence of a tag. See the comments on the [OS/2 `achVendID`][achVendID]
-    /// field.
-    ///
-    /// [achVendID]: https://learn.microsoft.com/en-us/typography/opentype/spec/os2#achvendid
-    pub const NULL: Self = Tag::new(&[0x20; 4]);
-
     /// Construct a `Tag` from raw bytes.
     ///
     /// This does not perform any validation; use [`Tag::new_checked`] for a
@@ -243,9 +234,10 @@ impl Debug for Tag {
     }
 }
 
+// a meaningless placeholder value.
 impl Default for Tag {
     fn default() -> Self {
-        Tag::NULL
+        Tag([b' '; 4])
     }
 }
 
