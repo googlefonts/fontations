@@ -985,7 +985,7 @@ pub struct EntryDataMarker {
     design_space_count_byte_start: Option<usize>,
     design_space_segments_byte_start: Option<usize>,
     design_space_segments_byte_len: Option<usize>,
-    copy_count_byte_start: Option<usize>,
+    copy_mode_and_count_byte_start: Option<usize>,
     copy_indices_byte_start: Option<usize>,
     copy_indices_byte_len: Option<usize>,
     entry_id_delta_byte_start: Option<usize>,
@@ -1020,9 +1020,9 @@ impl EntryDataMarker {
         Some(start..start + self.design_space_segments_byte_len?)
     }
 
-    pub fn copy_count_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.copy_count_byte_start?;
-        Some(start..start + u8::RAW_BYTE_LEN)
+    pub fn copy_mode_and_count_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.copy_mode_and_count_byte_start?;
+        Some(start..start + CopyModeAndCount::RAW_BYTE_LEN)
     }
 
     pub fn copy_indices_byte_range(&self) -> Option<Range<usize>> {
@@ -1041,7 +1041,7 @@ impl EntryDataMarker {
     }
 
     pub fn codepoint_data_byte_range(&self) -> Range<usize> {
-        let start = self . patch_format_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . entry_id_delta_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_indices_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_segments_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_tags_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . format_flags_byte_range () . end)))))))) ;
+        let start = self . patch_format_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . entry_id_delta_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_indices_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_mode_and_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_segments_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_tags_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . format_flags_byte_range () . end)))))))) ;
         start..start + self.codepoint_data_byte_len
     }
 }
@@ -1069,7 +1069,7 @@ impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| cursor.read::<u8>())
             .transpose()?
-            .unwrap_or(0);
+            .unwrap_or(Default::default());
         let feature_tags_byte_start = format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| cursor.position())
@@ -1092,7 +1092,7 @@ impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| cursor.read::<u16>())
             .transpose()?
-            .unwrap_or(0);
+            .unwrap_or(Default::default());
         let design_space_segments_byte_start = format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| cursor.position())
@@ -1107,15 +1107,15 @@ impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
         if let Some(value) = design_space_segments_byte_len {
             cursor.advance_by(value);
         }
-        let copy_count_byte_start = format_flags
+        let copy_mode_and_count_byte_start = format_flags
             .contains(EntryFormatFlags::COPY_INDICES)
             .then(|| cursor.position())
             .transpose()?;
-        let copy_count = format_flags
+        let copy_mode_and_count = format_flags
             .contains(EntryFormatFlags::COPY_INDICES)
-            .then(|| cursor.read::<u8>())
+            .then(|| cursor.read::<CopyModeAndCount>())
             .transpose()?
-            .unwrap_or(0);
+            .unwrap_or(Default::default());
         let copy_indices_byte_start = format_flags
             .contains(EntryFormatFlags::COPY_INDICES)
             .then(|| cursor.position())
@@ -1123,7 +1123,7 @@ impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
         let copy_indices_byte_len = format_flags
             .contains(EntryFormatFlags::COPY_INDICES)
             .then_some(
-                (copy_count as usize)
+                (transforms::custom_count(copy_mode_and_count))
                     .checked_mul(Uint24::RAW_BYTE_LEN)
                     .ok_or(ReadError::OutOfBounds)?,
             );
@@ -1160,7 +1160,7 @@ impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
             design_space_count_byte_start,
             design_space_segments_byte_start,
             design_space_segments_byte_len,
-            copy_count_byte_start,
+            copy_mode_and_count_byte_start,
             copy_indices_byte_start,
             copy_indices_byte_len,
             entry_id_delta_byte_start,
@@ -1214,8 +1214,8 @@ impl<'a> EntryData<'a> {
         Some(self.data.read_array(range).unwrap())
     }
 
-    pub fn copy_count(&self) -> Option<u8> {
-        let range = self.shape.copy_count_byte_range()?;
+    pub fn copy_mode_and_count(&self) -> Option<CopyModeAndCount> {
+        let range = self.shape.copy_mode_and_count_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
@@ -1276,9 +1276,10 @@ impl<'a> SomeTable<'a> for EntryData<'a> {
                     ),
                 ))
             }
-            5usize if format_flags.contains(EntryFormatFlags::COPY_INDICES) => {
-                Some(Field::new("copy_count", self.copy_count().unwrap()))
-            }
+            5usize if format_flags.contains(EntryFormatFlags::COPY_INDICES) => Some(Field::new(
+                "copy_mode_and_count",
+                traversal::FieldType::Unknown,
+            )),
             6usize if format_flags.contains(EntryFormatFlags::COPY_INDICES) => {
                 Some(Field::new("copy_indices", self.copy_indices().unwrap()))
             }

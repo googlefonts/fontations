@@ -7,6 +7,55 @@ use std::str;
 pub const IFT_TAG: types::Tag = Tag::new(b"IFT ");
 pub const IFTX_TAG: types::Tag = Tag::new(b"IFTX");
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CopyModeAndCount(u8);
+
+impl CopyModeAndCount {
+    /// Flag indicating that copy mode is append.
+    ///
+    /// See: https://w3c.github.io/IFT/Overview.html#mapping-entry-copymodeandcount
+    pub const APPEND_MODE_MASK: u8 = 0b10000000;
+
+    /// Mask for the low 7 bits to give the copy index count.
+    pub const COUNT_MASK: u8 = 0b01111111;
+
+    pub fn bits(self) -> u8 {
+        self.0
+    }
+
+    pub fn from_bits(bits: u8) -> Self {
+        Self(bits)
+    }
+
+    /// `true` if any tables reference a shared set of point numbers
+    pub fn append_mode(self) -> bool {
+        (self.0 & Self::APPEND_MODE_MASK) != 0
+    }
+
+    pub fn count(self) -> u8 {
+        self.0 & Self::COUNT_MASK
+    }
+}
+
+impl TryInto<usize> for CopyModeAndCount {
+    type Error = ReadError;
+
+    fn try_into(self) -> Result<usize, Self::Error> {
+        Ok(self.count() as usize)
+    }
+}
+
+impl types::Scalar for CopyModeAndCount {
+    type Raw = <u8 as types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        self.0.to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u8>::from_raw(raw);
+        Self(t)
+    }
+}
+
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, PartialEq, Eq, Default, Ord, PartialOrd, Hash)]
 pub struct CompatibilityId([u8; 16]);

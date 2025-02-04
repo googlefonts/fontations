@@ -1,5 +1,6 @@
 #![parse_module(read_fonts::tables::ift)]
 
+extern scalar CopyModeAndCount;
 extern record U8Or16;
 extern record U16Or24;
 extern record IdDeltaOrLength;
@@ -162,9 +163,11 @@ table EntryData {
 
   // COPY_INDICES
   #[if_flag($format_flags, EntryFormatFlags::COPY_INDICES)]
-  copy_count: u8,
+  #[traverse_with(skip)]
+  #[compile(skip)] // TODO remove this once write fonts side is implemented.]
+  copy_mode_and_count: CopyModeAndCount,
   #[if_flag($format_flags, EntryFormatFlags::COPY_INDICES)]
-  #[count($copy_count)]
+  #[count(custom($copy_mode_and_count))]
   copy_indices: [Uint24],
 
   // ENTRY_ID_DELTA
