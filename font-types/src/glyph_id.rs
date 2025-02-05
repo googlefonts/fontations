@@ -46,6 +46,12 @@ impl From<u16> for GlyphId16 {
     }
 }
 
+impl From<GlyphId16> for usize {
+    fn from(value: GlyphId16) -> Self {
+        value.0 as usize
+    }
+}
+
 impl std::fmt::Display for GlyphId16 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "GID_{}", self.0)
