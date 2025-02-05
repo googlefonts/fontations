@@ -985,9 +985,9 @@ pub struct EntryDataMarker {
     design_space_count_byte_start: Option<usize>,
     design_space_segments_byte_start: Option<usize>,
     design_space_segments_byte_len: Option<usize>,
-    copy_mode_and_count_byte_start: Option<usize>,
-    copy_indices_byte_start: Option<usize>,
-    copy_indices_byte_len: Option<usize>,
+    match_mode_and_count_byte_start: Option<usize>,
+    child_indices_byte_start: Option<usize>,
+    child_indices_byte_len: Option<usize>,
     entry_id_delta_byte_start: Option<usize>,
     entry_id_delta_byte_len: Option<usize>,
     patch_format_byte_start: Option<usize>,
@@ -1020,14 +1020,14 @@ impl EntryDataMarker {
         Some(start..start + self.design_space_segments_byte_len?)
     }
 
-    pub fn copy_mode_and_count_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.copy_mode_and_count_byte_start?;
-        Some(start..start + CopyModeAndCount::RAW_BYTE_LEN)
+    pub fn match_mode_and_count_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.match_mode_and_count_byte_start?;
+        Some(start..start + MatchModeAndCount::RAW_BYTE_LEN)
     }
 
-    pub fn copy_indices_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.copy_indices_byte_start?;
-        Some(start..start + self.copy_indices_byte_len?)
+    pub fn child_indices_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.child_indices_byte_start?;
+        Some(start..start + self.child_indices_byte_len?)
     }
 
     pub fn entry_id_delta_byte_range(&self) -> Option<Range<usize>> {
@@ -1041,7 +1041,7 @@ impl EntryDataMarker {
     }
 
     pub fn codepoint_data_byte_range(&self) -> Range<usize> {
-        let start = self . patch_format_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . entry_id_delta_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_indices_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . copy_mode_and_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_segments_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_tags_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . format_flags_byte_range () . end)))))))) ;
+        let start = self . patch_format_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . entry_id_delta_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . child_indices_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . match_mode_and_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_segments_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_tags_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . format_flags_byte_range () . end)))))))) ;
         start..start + self.codepoint_data_byte_len
     }
 }
@@ -1107,27 +1107,27 @@ impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
         if let Some(value) = design_space_segments_byte_len {
             cursor.advance_by(value);
         }
-        let copy_mode_and_count_byte_start = format_flags
-            .contains(EntryFormatFlags::COPY_INDICES)
+        let match_mode_and_count_byte_start = format_flags
+            .contains(EntryFormatFlags::CHILD_INDICES)
             .then(|| cursor.position())
             .transpose()?;
-        let copy_mode_and_count = format_flags
-            .contains(EntryFormatFlags::COPY_INDICES)
-            .then(|| cursor.read::<CopyModeAndCount>())
+        let match_mode_and_count = format_flags
+            .contains(EntryFormatFlags::CHILD_INDICES)
+            .then(|| cursor.read::<MatchModeAndCount>())
             .transpose()?
             .unwrap_or(Default::default());
-        let copy_indices_byte_start = format_flags
-            .contains(EntryFormatFlags::COPY_INDICES)
+        let child_indices_byte_start = format_flags
+            .contains(EntryFormatFlags::CHILD_INDICES)
             .then(|| cursor.position())
             .transpose()?;
-        let copy_indices_byte_len = format_flags
-            .contains(EntryFormatFlags::COPY_INDICES)
+        let child_indices_byte_len = format_flags
+            .contains(EntryFormatFlags::CHILD_INDICES)
             .then_some(
-                (transforms::custom_count(copy_mode_and_count))
+                (transforms::custom_count(match_mode_and_count))
                     .checked_mul(Uint24::RAW_BYTE_LEN)
                     .ok_or(ReadError::OutOfBounds)?,
             );
-        if let Some(value) = copy_indices_byte_len {
+        if let Some(value) = child_indices_byte_len {
             cursor.advance_by(value);
         }
         let entry_id_delta_byte_start = format_flags
@@ -1160,9 +1160,9 @@ impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
             design_space_count_byte_start,
             design_space_segments_byte_start,
             design_space_segments_byte_len,
-            copy_mode_and_count_byte_start,
-            copy_indices_byte_start,
-            copy_indices_byte_len,
+            match_mode_and_count_byte_start,
+            child_indices_byte_start,
+            child_indices_byte_len,
             entry_id_delta_byte_start,
             entry_id_delta_byte_len,
             patch_format_byte_start,
@@ -1214,13 +1214,13 @@ impl<'a> EntryData<'a> {
         Some(self.data.read_array(range).unwrap())
     }
 
-    pub fn copy_mode_and_count(&self) -> Option<CopyModeAndCount> {
-        let range = self.shape.copy_mode_and_count_byte_range()?;
+    pub fn match_mode_and_count(&self) -> Option<MatchModeAndCount> {
+        let range = self.shape.match_mode_and_count_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
-    pub fn copy_indices(&self) -> Option<&'a [BigEndian<Uint24>]> {
-        let range = self.shape.copy_indices_byte_range()?;
+    pub fn child_indices(&self) -> Option<&'a [BigEndian<Uint24>]> {
+        let range = self.shape.child_indices_byte_range()?;
         Some(self.data.read_array(range).unwrap())
     }
 
@@ -1276,12 +1276,12 @@ impl<'a> SomeTable<'a> for EntryData<'a> {
                     ),
                 ))
             }
-            5usize if format_flags.contains(EntryFormatFlags::COPY_INDICES) => Some(Field::new(
-                "copy_mode_and_count",
+            5usize if format_flags.contains(EntryFormatFlags::CHILD_INDICES) => Some(Field::new(
+                "match_mode_and_count",
                 traversal::FieldType::Unknown,
             )),
-            6usize if format_flags.contains(EntryFormatFlags::COPY_INDICES) => {
-                Some(Field::new("copy_indices", self.copy_indices().unwrap()))
+            6usize if format_flags.contains(EntryFormatFlags::CHILD_INDICES) => {
+                Some(Field::new("child_indices", self.child_indices().unwrap()))
             }
             7usize if format_flags.contains(EntryFormatFlags::ENTRY_ID_DELTA) => {
                 Some(Field::new("entry_id_delta", traversal::FieldType::Unknown))
@@ -1313,7 +1313,7 @@ pub struct EntryFormatFlags {
 impl EntryFormatFlags {
     pub const FEATURES_AND_DESIGN_SPACE: Self = Self { bits: 0b00000001 };
 
-    pub const COPY_INDICES: Self = Self { bits: 0b00000010 };
+    pub const CHILD_INDICES: Self = Self { bits: 0b00000010 };
 
     pub const ENTRY_ID_DELTA: Self = Self { bits: 0b00000100 };
 
@@ -1340,7 +1340,7 @@ impl EntryFormatFlags {
     pub const fn all() -> Self {
         Self {
             bits: Self::FEATURES_AND_DESIGN_SPACE.bits
-                | Self::COPY_INDICES.bits
+                | Self::CHILD_INDICES.bits
                 | Self::ENTRY_ID_DELTA.bits
                 | Self::PATCH_FORMAT.bits
                 | Self::CODEPOINTS_BIT_1.bits
@@ -1566,7 +1566,7 @@ impl std::fmt::Debug for EntryFormatFlags {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let members: &[(&str, Self)] = &[
             ("FEATURES_AND_DESIGN_SPACE", Self::FEATURES_AND_DESIGN_SPACE),
-            ("COPY_INDICES", Self::COPY_INDICES),
+            ("CHILD_INDICES", Self::CHILD_INDICES),
             ("ENTRY_ID_DELTA", Self::ENTRY_ID_DELTA),
             ("PATCH_FORMAT", Self::PATCH_FORMAT),
             ("CODEPOINTS_BIT_1", Self::CODEPOINTS_BIT_1),
