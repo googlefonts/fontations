@@ -319,7 +319,7 @@ pub(crate) enum CountTransform {
     /// requires exactly two args, defined as $arg1 - $arg2 + 2
     SubAddTwo,
     /// requires exactly one arg. Get the count from the $arg1.try_into::<usize>().
-    CustomCount,
+    Custom,
 }
 
 /// Attributes for specifying how to compile a field
@@ -1470,7 +1470,7 @@ static TRANSFORM_IDENTS: &[(CountTransform, &str)] = &[
     (CountTransform::BitmapLen, "bitmap_len"),
     (CountTransform::MaxValueBitmapLen, "max_value_bitmap_len"),
     (CountTransform::SubAddTwo, "subtract_add_two"),
-    (CountTransform::CustomCount, "custom"),
+    (CountTransform::Custom, "custom"),
 ];
 
 impl FromStr for CountTransform {
@@ -1508,7 +1508,7 @@ impl CountTransform {
             CountTransform::BitmapLen => 1,
             CountTransform::MaxValueBitmapLen => 1,
             CountTransform::SubAddTwo => 2,
-            CountTransform::CustomCount => 1,
+            CountTransform::Custom => 1,
         }
     }
 }
@@ -1666,7 +1666,7 @@ impl Count {
                 (CountTransform::SubAddTwo, [a, b]) => {
                     quote!(transforms::subtract_add_two(#a, #b))
                 }
-                (CountTransform::CustomCount, [a]) => {
+                (CountTransform::Custom, [a]) => {
                     quote!(transforms::custom_count(#a))
                 }
                 _ => unreachable!("validated before now"),

@@ -157,7 +157,7 @@ impl Fields {
             .find(|fld| &fld.name == name)
             .map(|fld| match &fld.typ {
                 FieldType::Scalar { typ } => typ,
-                _ => panic!("not a scalar field: {:?}", &fld.typ),
+                _ => panic!("not a scalar field"),
             })
             .or_else(|| {
                 self.read_args.as_ref().and_then(|args| {

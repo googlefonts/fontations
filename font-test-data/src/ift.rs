@@ -296,7 +296,7 @@ pub fn features_and_design_space_format2() -> BeBuffer {
     buffer
 }
 
-pub fn copy_indices_format2() -> BeBuffer {
+pub fn child_indices_format2() -> BeBuffer {
     let mut buffer = be_buffer! {
       2u8,                      // format
 
@@ -347,33 +347,33 @@ pub fn copy_indices_format2() -> BeBuffer {
       0x0064_0000,                            // end = 100
 
       // Entry id = 5
-      {0b00000010u8: "entries[4]"},           // format = COPY_INDICES
-      1u8,                                    // copy count
-      (Uint24::new(0)),                       // copy
+      {0b00000010u8: "entries[4]"},           // format = CHILD_INDICES
+      1u8,                                    // child count
+      (Uint24::new(0)),                       // child[0] = 0
 
       // Entry id = 6
-      {0b00000010u8: "entries[5]"},           // format = COPY_INDICES
-      1u8,                                    // copy count
-      (Uint24::new(2)),                       // copy
+      {0b00000010u8: "entries[5]"},           // format = CHILD_INDICES
+      1u8,                                    // child count
+      (Uint24::new(2)),                       // child
 
       // Entry id = 7
-      {0b00000010u8: "entries[6]"},           // format = COPY_INDICES
-      4u8,                                    // copy count
-      (Uint24::new(3)),                       // copy[0]
-      (Uint24::new(2)),                       // copy[1]
-      (Uint24::new(1)),                       // copy[2]
-      (Uint24::new(0)),                       // copy[3]
+      {0b00000010u8: "entries[6]"},           // format = CHILD_INDICES
+      {4u8: "entries[6]_child_count"},        // child count
+      (Uint24::new(3)),                       // child[0] = 3
+      (Uint24::new(2)),                       // child[1] = 2
+      (Uint24::new(1)),                       // child[2] = 1
+      (Uint24::new(0)),                       // child[3] = 0
 
       // Entry id = 8
-      {0b00000010u8: "entries[7]"},           // format = COPY_INDICES
-      2u8,                                    // copy count
-      (Uint24::new(4)),                       // copy[0]
-      (Uint24::new(5)),                       // copy[1]
+      {0b00000010u8: "entries[7]"},           // format = CHILD_INDICES
+      2u8,                                    // child count
+      (Uint24::new(4)),                       // child[0] = 4
+      (Uint24::new(5)),                       // child[1] = 5
 
       // Entry id = 9
-      {0b00100010u8: "entries[8]"},           // format = CODEPOINT_BIT_2 | COPY_INDICES
-      1u8,                                    // copy count
-      (Uint24::new(0)),                       // copy[0]
+      {0b00100010u8: "entries[8]"},           // format = CODEPOINT_BIT_2 | CHILD_INDICES
+      1u8,                                    // child count
+      (Uint24::new(0)),                       // chil[0] = 0
       100u16,                                 // bias
       [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [100..117]
     };

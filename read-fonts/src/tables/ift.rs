@@ -8,13 +8,13 @@ pub const IFT_TAG: types::Tag = Tag::new(b"IFT ");
 pub const IFTX_TAG: types::Tag = Tag::new(b"IFTX");
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CopyModeAndCount(u8);
+pub struct MatchModeAndCount(u8);
 
-impl CopyModeAndCount {
+impl MatchModeAndCount {
     /// Flag indicating that copy mode is append.
     ///
     /// See: https://w3c.github.io/IFT/Overview.html#mapping-entry-copymodeandcount
-    pub const APPEND_MODE_MASK: u8 = 0b10000000;
+    pub const MATCH_MODE_MASK: u8 = 0b10000000;
 
     /// Mask for the low 7 bits to give the copy index count.
     pub const COUNT_MASK: u8 = 0b01111111;
@@ -27,9 +27,9 @@ impl CopyModeAndCount {
         Self(bits)
     }
 
-    /// `true` if any tables reference a shared set of point numbers
-    pub fn append_mode(self) -> bool {
-        (self.0 & Self::APPEND_MODE_MASK) != 0
+    /// If true matching mode is conjunctive (... AND ...) otherwise disjunctive (... OR ...)
+    pub fn conjunctive_match(self) -> bool {
+        (self.0 & Self::MATCH_MODE_MASK) != 0
     }
 
     pub fn count(self) -> u8 {
@@ -37,7 +37,7 @@ impl CopyModeAndCount {
     }
 }
 
-impl TryInto<usize> for CopyModeAndCount {
+impl TryInto<usize> for MatchModeAndCount {
     type Error = ReadError;
 
     fn try_into(self) -> Result<usize, Self::Error> {
@@ -45,7 +45,7 @@ impl TryInto<usize> for CopyModeAndCount {
     }
 }
 
-impl types::Scalar for CopyModeAndCount {
+impl types::Scalar for MatchModeAndCount {
     type Raw = <u8 as types::Scalar>::Raw;
     fn to_raw(self) -> Self::Raw {
         self.0.to_raw()
