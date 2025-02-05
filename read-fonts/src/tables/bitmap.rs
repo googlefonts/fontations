@@ -342,3 +342,122 @@ impl SbitLineMetrics {
         FieldType::Record(self.traverse(data))
     }
 }
+
+/// [IndexSubtables](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtables) format type.
+#[derive(Clone)]
+pub enum IndexSubtable<'a> {
+    Format1(IndexSubtable1<'a>),
+    Format2(IndexSubtable2<'a>),
+    Format3(IndexSubtable3<'a>),
+    Format4(IndexSubtable4<'a>),
+    Format5(IndexSubtable5<'a>),
+}
+
+impl<'a> IndexSubtable<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+            Self::Format4(item) => item.offset_data(),
+            Self::Format5(item) => item.offset_data(),
+        }
+    }
+
+    /// Format of this IndexSubTable.
+    pub fn index_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.index_format(),
+            Self::Format2(item) => item.index_format(),
+            Self::Format3(item) => item.index_format(),
+            Self::Format4(item) => item.index_format(),
+            Self::Format5(item) => item.index_format(),
+        }
+    }
+
+    /// Format of EBDT image data.
+    pub fn image_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.image_format(),
+            Self::Format2(item) => item.image_format(),
+            Self::Format3(item) => item.image_format(),
+            Self::Format4(item) => item.image_format(),
+            Self::Format5(item) => item.image_format(),
+        }
+    }
+
+    /// Offset to image data in EBDT table.
+    pub fn image_data_offset(&self) -> u32 {
+        match self {
+            Self::Format1(item) => item.image_data_offset(),
+            Self::Format2(item) => item.image_data_offset(),
+            Self::Format3(item) => item.image_data_offset(),
+            Self::Format4(item) => item.image_data_offset(),
+            Self::Format5(item) => item.image_data_offset(),
+        }
+    }
+}
+
+impl ReadArgs for IndexSubtable<'_> {
+    type Args = (GlyphId16, GlyphId16);
+}
+impl<'a> FontReadWithArgs<'a> for IndexSubtable<'a> {
+    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            IndexSubtable1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, args)?))
+            }
+            IndexSubtable2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            IndexSubtable3Marker::FORMAT => {
+                Ok(Self::Format3(FontReadWithArgs::read_with_args(data, args)?))
+            }
+            IndexSubtable4Marker::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
+            IndexSubtable5Marker::FORMAT => Ok(Self::Format5(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl MinByteRange for IndexSubtable<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+            Self::Format3(item) => item.min_byte_range(),
+            Self::Format4(item) => item.min_byte_range(),
+            Self::Format5(item) => item.min_byte_range(),
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> IndexSubtable<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+            Self::Format3(table) => table,
+            Self::Format4(table) => table,
+            Self::Format5(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl std::fmt::Debug for IndexSubtable<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for IndexSubtable<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
+    }
+}

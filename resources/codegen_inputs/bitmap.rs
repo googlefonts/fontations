@@ -101,19 +101,12 @@ record IndexSubtableRecord {
     /// Last glyph ID of this range (inclusive).
     last_glyph_index: GlyphId16,
     /// Offset to an IndexSubtable from the start of the IndexSubtableList.
+    #[read_offset_with($last_glyph_index, $first_glyph_index)]
     index_subtable_offset: Offset32<IndexSubtable>,
 }
 
-/// [IndexSubtables](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtables) format type.
-format u16 IndexSubtable {
-    Format1(IndexSubtable1),
-    Format2(IndexSubtable2),
-    Format3(IndexSubtable3),
-    Format4(IndexSubtable4),
-    Format5(IndexSubtable5),
-}
-
 /// [IndexSubTable1](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable1-variable-metrics-glyphs-with-4-byte-offsets): variable-metrics glyphs with 4-byte offsets.
+#[read_args(last_glyph_index: GlyphId16, first_glyph_index: GlyphId16)]
 table IndexSubtable1 {
     /// Format of this IndexSubTable.
     #[format = 1]
@@ -122,7 +115,7 @@ table IndexSubtable1 {
     image_format: u16,
     /// Offset to image data in EBDT table.
     image_data_offset: u32,
-    #[count(..)]
+    #[count(subtract_add_two($last_glyph_index, $first_glyph_index))]
     sbit_offsets: [u32],
 }
 
@@ -143,6 +136,7 @@ table IndexSubtable2 {
 }
 
 /// [IndexSubTable3](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable3-variable-metrics-glyphs-with-2-byte-offsets): variable-metrics glyphs with 2-byte offsets.
+#[read_args(last_glyph_index: GlyphId16, first_glyph_index: GlyphId16)]
 table IndexSubtable3 {
     /// Format of this IndexSubTable.
     #[format = 3]
@@ -151,7 +145,7 @@ table IndexSubtable3 {
     image_format: u16,
     /// Offset to image data in EBDT table.
     image_data_offset: u32,
-    #[count(..)]
+    #[count(subtract_add_two($last_glyph_index, $first_glyph_index))]
     sbit_offsets: [u16],
 }
 
