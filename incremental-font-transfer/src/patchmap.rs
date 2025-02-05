@@ -363,7 +363,7 @@ struct EntryIntersectionCache<'a> {
     cache: HashMap<usize, bool>,
 }
 
-impl<'a> EntryIntersectionCache<'a> {
+impl EntryIntersectionCache<'_> {
     fn intersects(&mut self, index: usize, subset_definition: &SubsetDefinition) -> bool {
         if let Some(result) = self.cache.get(&index) {
             return *result;

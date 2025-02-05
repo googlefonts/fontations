@@ -13,7 +13,7 @@ pub struct MatchModeAndCount(u8);
 impl MatchModeAndCount {
     /// Flag indicating that copy mode is append.
     ///
-    /// See: https://w3c.github.io/IFT/Overview.html#mapping-entry-copymodeandcount
+    /// See: <https://w3c.github.io/IFT/Overview.html#mapping-entry-copymodeandcount>
     pub const MATCH_MODE_MASK: u8 = 0b10000000;
 
     /// Mask for the low 7 bits to give the copy index count.
