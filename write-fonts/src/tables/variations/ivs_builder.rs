@@ -1,6 +1,7 @@
 //! Building the ItemVariationStore
 
 use std::{
+    cmp::Reverse,
     collections::{BinaryHeap, HashMap, HashSet},
     fmt::{Debug, Display},
 };
@@ -320,7 +321,9 @@ impl<'a> Encoder<'a> {
             }
         }
         // temporarily take ownership of all the encodings
-        let to_process = std::mem::take(&mut self.encodings);
+        let mut to_process = std::mem::take(&mut self.encodings);
+        // pre-sort them like fonttools does, for stability
+        to_process.sort_unstable_by(Encoding::ord_matching_fonttools);
         // convert to a vec of Option<Encoding>;
         // we will replace items with None as they are combined
         let mut to_process = to_process.into_iter().map(Option::Some).collect::<Vec<_>>();
@@ -334,13 +337,15 @@ impl<'a> Encoder<'a> {
                 let gain = red.as_ref().unwrap().compute_gain(blue.as_ref().unwrap());
                 if gain > 0 {
                     log::trace!("adding ({i}, {j} ({gain})) to queue");
-                    queue.push((gain, i, j));
+                    // negate gain to match fonttools and use std::cmp::Reverse to
+                    // mimic Python heapq's "min heap"
+                    queue.push(Reverse((-gain, i, j)));
                 }
             }
         }
 
         // iteratively process each item in the queue
-        while let Some((_gain, i, j)) = queue.pop() {
+        while let Some(Reverse((_gain, i, j))) = queue.pop() {
             if to_process[i].is_none() || to_process[j].is_none() {
                 continue;
             }
@@ -382,7 +387,7 @@ impl<'a> Encoder<'a> {
                 let gain = to_update.compute_gain(&encoding);
                 if gain > 0 {
                     log::trace!("adding ({n}, {ii} ({gain})) to queue");
-                    queue.push((gain, n, ii));
+                    queue.push(Reverse((-gain, ii, n)));
                 }
                 *opt_encoding = Some(encoding);
             }
