@@ -522,14 +522,15 @@ fn decode_format2_entry<'a>(
         entry_data.match_mode_and_count(),
     ) {
         let max_index = entries.len();
-        for i in entry.child_indices.iter() {
-            if *i >= max_index {
+        let it = child_indices.iter().map(|v| Into::<usize>::into(v.get()));
+        for i in it.clone() {
+            if i >= max_index {
                 return Err(ReadError::MalformedData(
                     "Child index must refer to only prior entries.",
                 ));
             }
         }
-        entry.child_indices = child_indices.iter().map(|v| v.get().into()).collect();
+        entry.child_indices = it.collect();
         entry.conjunctive_child_match = match_mode.conjunctive_match();
     }
 
@@ -2344,6 +2345,29 @@ mod tests {
     }
 
     #[test]
+    fn format_2_patch_map_invalid_child_indices() {
+        let mut builder = child_indices_format2();
+        builder.write_at("entries[6]_child", Uint24::new(6));
+
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&builder),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        assert_eq!(
+            intersecting_patches(
+                &font,
+                &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
+            ),
+            Err(ReadError::MalformedData(
+                "Child index must refer to only prior entries."
+            ))
+        );
+    }
+
+    #[test]
     fn format_2_patch_map_disjunctive_child_indices() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -2882,10 +2906,4 @@ mod tests {
             SubsetDefinition::default()
         );
     }
-
-    // TODO test for child indices:
-    // - detects invalid indices
-    // - conjunctive matching
-    // - disjunctive matching
-    // - multi level matching
 }

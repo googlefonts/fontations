@@ -360,7 +360,7 @@ pub fn child_indices_format2() -> BeBuffer {
       {0b00000010u8: "entries[6]"},           // format = CHILD_INDICES
       {4u8: "entries[6]_child_count"},        // child count
       (Uint24::new(3)),                       // child[0] = 3
-      (Uint24::new(2)),                       // child[1] = 2
+      {(Uint24::new(2)): "entries[6]_child"}, // child[1] = 2
       (Uint24::new(1)),                       // child[2] = 1
       (Uint24::new(0)),                       // child[3] = 0
 
