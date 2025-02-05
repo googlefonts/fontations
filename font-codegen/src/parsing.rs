@@ -318,7 +318,7 @@ pub(crate) enum CountTransform {
     MaxValueBitmapLen,
     /// requires exactly two args, defined as $arg1 - $arg2 + 2
     SubAddTwo,
-    /// requires exactly one arg. Get the count from the $arg1.try_into::<usize>().
+    /// requires exactly one arg. Get the count from the $arg1.`try_into::<usize>`().
     Custom,
 }
 
