@@ -1,6 +1,7 @@
 //! Building the ItemVariationStore
 
 use std::{
+    cmp::Reverse,
     collections::{BinaryHeap, HashMap, HashSet},
     fmt::{Debug, Display},
 };
@@ -325,6 +326,16 @@ impl<'a> Encoder<'a> {
         // we will replace items with None as they are combined
         let mut to_process = to_process.into_iter().map(Option::Some).collect::<Vec<_>>();
 
+        // Pre-sort the todo list "for stability" like fonttools does
+        // https://github.com/fonttools/fonttools/blob/307b312/Lib/fontTools/varLib/varStore.py#L629
+        to_process.sort_unstable_by(|a, b| {
+            // Unwrap is safe here because every element is Some(_)
+            a.as_ref()
+                .unwrap()
+                .stable_sort_key()
+                .cmp(&b.as_ref().unwrap().stable_sort_key())
+        });
+
         // build up a priority list of the space savings from combining each pair
         // of encodings
         let mut queue = BinaryHeap::with_capacity(to_process.len());
@@ -334,13 +345,15 @@ impl<'a> Encoder<'a> {
                 let gain = red.as_ref().unwrap().compute_gain(blue.as_ref().unwrap());
                 if gain > 0 {
                     log::trace!("adding ({i}, {j} ({gain})) to queue");
-                    queue.push((gain, i, j));
+                    // negate gain to match fonttools and use std::cmp::Reverse to
+                    // mimic Python heapq's "min heap"
+                    queue.push(Reverse((-gain, i, j)));
                 }
             }
         }
 
         // iteratively process each item in the queue
-        while let Some((_gain, i, j)) = queue.pop() {
+        while let Some(Reverse((_gain, i, j))) = queue.pop() {
             if to_process[i].is_none() || to_process[j].is_none() {
                 continue;
             }
@@ -382,7 +395,7 @@ impl<'a> Encoder<'a> {
                 let gain = to_update.compute_gain(&encoding);
                 if gain > 0 {
                     log::trace!("adding ({n}, {ii} ({gain})) to queue");
-                    queue.push((gain, n, ii));
+                    queue.push(Reverse((-gain, ii, n)));
                 }
                 *opt_encoding = Some(encoding);
             }
@@ -572,6 +585,21 @@ impl RowShape {
 }
 
 impl<'a> Encoding<'a> {
+    fn stable_sort_key(&self) -> (i64, Vec<ColumnBits>) {
+        // Direct translation of Encoding.gain_sort_key() to pre-sort optimizer's todo list.
+        // This is defined as (gain, chars):
+        // https://github.com/fonttools/fonttools/blob/307b3125/Lib/fontTools/varLib/varStore.py#L431-L432
+        // The 'gain' is defined as the "maximum possible byte gain from merging this into
+        // another characteristic" and is computed as:
+        //     gain = max(0, self.overhead - len(self.items))
+        let gain = 0_i64.max((self.shape.overhead() as i64) - (self.deltas.len() as i64));
+        // 'chars' is fonttools' 'characteristic' representation of a row shape, used
+        // here as tie-breaker. It's a packed bitvec with the least significant bits
+        // storing the first item, so it's the inverse of our ColumnBits order.
+        let chars: Vec<_> = self.shape.0.iter().cloned().rev().collect();
+        (gain, chars)
+    }
+
     fn cost(&self) -> usize {
         self.shape.overhead() + (self.shape.row_cost() * self.deltas.len())
     }
