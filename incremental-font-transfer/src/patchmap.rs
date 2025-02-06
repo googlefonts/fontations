@@ -392,19 +392,37 @@ impl EntryIntersectionCache<'_> {
             return true;
         }
 
-        let mut some_match = false;
-        let mut all_match = true;
-        for child_index in entry.child_indices.iter() {
-            let child_intersects = self.intersects(*child_index, subset_definition);
-            some_match = some_match || child_intersects;
-            all_match = all_match && child_intersects;
-        }
-
         if entry.conjunctive_child_match {
-            all_match
+            self.all_children_intersect(entry, subset_definition)
         } else {
-            some_match
+            self.some_children_intersect(entry, subset_definition)
         }
+    }
+
+    fn all_children_intersect(
+        &mut self,
+        entry: &Entry,
+        subset_definition: &SubsetDefinition,
+    ) -> bool {
+        for child_index in entry.child_indices.iter() {
+            if !self.intersects(*child_index, subset_definition) {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn some_children_intersect(
+        &mut self,
+        entry: &Entry,
+        subset_definition: &SubsetDefinition,
+    ) -> bool {
+        for child_index in entry.child_indices.iter() {
+            if self.intersects(*child_index, subset_definition) {
+                return true;
+            }
+        }
+        false
     }
 }
 
