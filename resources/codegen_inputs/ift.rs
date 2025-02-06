@@ -167,7 +167,7 @@ table EntryData {
   #[compile(skip)] // TODO remove this once write fonts side is implemented.]
   match_mode_and_count: MatchModeAndCount,
   #[if_flag($format_flags, EntryFormatFlags::CHILD_INDICES)]
-  #[count(custom($match_mode_and_count))]
+  #[count(try_into($match_mode_and_count))]
   child_indices: [Uint24],
 
   // ENTRY_ID_DELTA

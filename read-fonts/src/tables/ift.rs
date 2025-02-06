@@ -7,6 +7,12 @@ use std::str;
 pub const IFT_TAG: types::Tag = Tag::new(b"IFT ");
 pub const IFTX_TAG: types::Tag = Tag::new(b"IFTX");
 
+/// Wrapper for the packed childEntryMatchModeAndCount field in IFT format 2 mapping table.
+///
+/// Reference: <https://w3c.github.io/IFT/Overview.html#mapping-entry-childentrymatchmodeandcount>
+///
+/// The MSB is a flag which indicates conjunctive (bit set) or disjunctive (bit cleared) matching.
+/// The remaining 7 bits are a count.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MatchModeAndCount(u8);
 
@@ -37,11 +43,11 @@ impl MatchModeAndCount {
     }
 }
 
-impl TryInto<usize> for MatchModeAndCount {
+impl TryFrom<MatchModeAndCount> for usize {
     type Error = ReadError;
 
-    fn try_into(self) -> Result<usize, Self::Error> {
-        Ok(self.count() as usize)
+    fn try_from(value: MatchModeAndCount) -> Result<Self, Self::Error> {
+        Ok(value.count() as usize)
     }
 }
 

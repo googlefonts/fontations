@@ -149,10 +149,6 @@ pub(crate) mod codegen_prelude {
             (count + 7) / 8
         }
 
-        pub fn custom_count<T: TryInto<usize>>(count: T) -> usize {
-            count.try_into().unwrap_or_default()
-        }
-
         pub fn add_multiply<T: TryInto<usize>, U: TryInto<usize>, V: TryInto<usize>>(
             a: T,
             b: U,

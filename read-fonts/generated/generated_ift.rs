@@ -1069,7 +1069,7 @@ impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| cursor.read::<u8>())
             .transpose()?
-            .unwrap_or(Default::default());
+            .unwrap_or_default();
         let feature_tags_byte_start = format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| cursor.position())
@@ -1092,7 +1092,7 @@ impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| cursor.read::<u16>())
             .transpose()?
-            .unwrap_or(Default::default());
+            .unwrap_or_default();
         let design_space_segments_byte_start = format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| cursor.position())
@@ -1115,7 +1115,7 @@ impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
             .contains(EntryFormatFlags::CHILD_INDICES)
             .then(|| cursor.read::<MatchModeAndCount>())
             .transpose()?
-            .unwrap_or(Default::default());
+            .unwrap_or_default();
         let child_indices_byte_start = format_flags
             .contains(EntryFormatFlags::CHILD_INDICES)
             .then(|| cursor.position())
@@ -1123,7 +1123,7 @@ impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
         let child_indices_byte_len = format_flags
             .contains(EntryFormatFlags::CHILD_INDICES)
             .then_some(
-                (transforms::custom_count(match_mode_and_count))
+                (usize::try_from(match_mode_and_count).unwrap_or_default())
                     .checked_mul(Uint24::RAW_BYTE_LEN)
                     .ok_or(ReadError::OutOfBounds)?,
             );
