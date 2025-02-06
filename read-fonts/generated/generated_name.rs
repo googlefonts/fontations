@@ -76,7 +76,7 @@ impl<'a> FontRead<'a> for Name<'a> {
             .compatible(1u16)
             .then(|| cursor.read::<u16>())
             .transpose()?
-            .unwrap_or(Default::default());
+            .unwrap_or_default();
         let lang_tag_record_byte_start = version
             .compatible(1u16)
             .then(|| cursor.position())

@@ -109,7 +109,7 @@ impl<'a> FontRead<'a> for Post<'a> {
             .compatible((2u16, 0u16))
             .then(|| cursor.read::<u16>())
             .transpose()?
-            .unwrap_or(Default::default());
+            .unwrap_or_default();
         let glyph_name_index_byte_start = version
             .compatible((2u16, 0u16))
             .then(|| cursor.position())
