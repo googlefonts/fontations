@@ -861,7 +861,8 @@ impl IndexSubtableRecord {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn index_subtable<'a>(&self, data: FontData<'a>) -> Result<IndexSubtable<'a>, ReadError> {
-        self.index_subtable_offset().resolve(data)
+        let args = (self.last_glyph_index(), self.first_glyph_index());
+        self.index_subtable_offset().resolve_with_args(data, &args)
     }
 }
 
@@ -886,118 +887,6 @@ impl<'a> SomeRecord<'a> for IndexSubtableRecord {
             }),
             data,
         }
-    }
-}
-
-/// [IndexSubtables](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtables) format type.
-#[derive(Clone)]
-pub enum IndexSubtable<'a> {
-    Format1(IndexSubtable1<'a>),
-    Format2(IndexSubtable2<'a>),
-    Format3(IndexSubtable3<'a>),
-    Format4(IndexSubtable4<'a>),
-    Format5(IndexSubtable5<'a>),
-}
-
-impl<'a> IndexSubtable<'a> {
-    ///Return the `FontData` used to resolve offsets for this table.
-    pub fn offset_data(&self) -> FontData<'a> {
-        match self {
-            Self::Format1(item) => item.offset_data(),
-            Self::Format2(item) => item.offset_data(),
-            Self::Format3(item) => item.offset_data(),
-            Self::Format4(item) => item.offset_data(),
-            Self::Format5(item) => item.offset_data(),
-        }
-    }
-
-    /// Format of this IndexSubTable.
-    pub fn index_format(&self) -> u16 {
-        match self {
-            Self::Format1(item) => item.index_format(),
-            Self::Format2(item) => item.index_format(),
-            Self::Format3(item) => item.index_format(),
-            Self::Format4(item) => item.index_format(),
-            Self::Format5(item) => item.index_format(),
-        }
-    }
-
-    /// Format of EBDT image data.
-    pub fn image_format(&self) -> u16 {
-        match self {
-            Self::Format1(item) => item.image_format(),
-            Self::Format2(item) => item.image_format(),
-            Self::Format3(item) => item.image_format(),
-            Self::Format4(item) => item.image_format(),
-            Self::Format5(item) => item.image_format(),
-        }
-    }
-
-    /// Offset to image data in EBDT table.
-    pub fn image_data_offset(&self) -> u32 {
-        match self {
-            Self::Format1(item) => item.image_data_offset(),
-            Self::Format2(item) => item.image_data_offset(),
-            Self::Format3(item) => item.image_data_offset(),
-            Self::Format4(item) => item.image_data_offset(),
-            Self::Format5(item) => item.image_data_offset(),
-        }
-    }
-}
-
-impl<'a> FontRead<'a> for IndexSubtable<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0usize)?;
-        match format {
-            IndexSubtable1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            IndexSubtable2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            IndexSubtable3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
-            IndexSubtable4Marker::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
-            IndexSubtable5Marker::FORMAT => Ok(Self::Format5(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other.into())),
-        }
-    }
-}
-
-impl MinByteRange for IndexSubtable<'_> {
-    fn min_byte_range(&self) -> Range<usize> {
-        match self {
-            Self::Format1(item) => item.min_byte_range(),
-            Self::Format2(item) => item.min_byte_range(),
-            Self::Format3(item) => item.min_byte_range(),
-            Self::Format4(item) => item.min_byte_range(),
-            Self::Format5(item) => item.min_byte_range(),
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> IndexSubtable<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-            Self::Format3(table) => table,
-            Self::Format4(table) => table,
-            Self::Format5(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for IndexSubtable<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for IndexSubtable<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -1040,18 +929,43 @@ impl MinByteRange for IndexSubtable1Marker {
     }
 }
 
-impl<'a> FontRead<'a> for IndexSubtable1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+impl ReadArgs for IndexSubtable1<'_> {
+    type Args = (GlyphId16, GlyphId16);
+}
+
+impl<'a> FontReadWithArgs<'a> for IndexSubtable1<'a> {
+    fn read_with_args(
+        data: FontData<'a>,
+        args: &(GlyphId16, GlyphId16),
+    ) -> Result<Self, ReadError> {
+        let (last_glyph_index, first_glyph_index) = *args;
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u32>();
         let sbit_offsets_byte_len =
-            cursor.remaining_bytes() / u32::RAW_BYTE_LEN * u32::RAW_BYTE_LEN;
+            (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
+                .checked_mul(u32::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(sbit_offsets_byte_len);
         cursor.finish(IndexSubtable1Marker {
             sbit_offsets_byte_len,
         })
+    }
+}
+
+impl<'a> IndexSubtable1<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(
+        data: FontData<'a>,
+        last_glyph_index: GlyphId16,
+        first_glyph_index: GlyphId16,
+    ) -> Result<Self, ReadError> {
+        let args = (last_glyph_index, first_glyph_index);
+        Self::read_with_args(data, &args)
     }
 }
 
@@ -1274,18 +1188,43 @@ impl MinByteRange for IndexSubtable3Marker {
     }
 }
 
-impl<'a> FontRead<'a> for IndexSubtable3<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+impl ReadArgs for IndexSubtable3<'_> {
+    type Args = (GlyphId16, GlyphId16);
+}
+
+impl<'a> FontReadWithArgs<'a> for IndexSubtable3<'a> {
+    fn read_with_args(
+        data: FontData<'a>,
+        args: &(GlyphId16, GlyphId16),
+    ) -> Result<Self, ReadError> {
+        let (last_glyph_index, first_glyph_index) = *args;
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u32>();
         let sbit_offsets_byte_len =
-            cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
+            (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
+                .checked_mul(u16::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(sbit_offsets_byte_len);
         cursor.finish(IndexSubtable3Marker {
             sbit_offsets_byte_len,
         })
+    }
+}
+
+impl<'a> IndexSubtable3<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(
+        data: FontData<'a>,
+        last_glyph_index: GlyphId16,
+        first_glyph_index: GlyphId16,
+    ) -> Result<Self, ReadError> {
+        let args = (last_glyph_index, first_glyph_index);
+        Self::read_with_args(data, &args)
     }
 }
 

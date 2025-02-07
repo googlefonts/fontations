@@ -358,6 +358,74 @@ fn merge_intersecting_entries<const RECORD_INTERSECTION: bool>(
     }
 }
 
+struct EntryIntersectionCache<'a> {
+    entries: &'a [Entry],
+    cache: HashMap<usize, bool>,
+}
+
+impl EntryIntersectionCache<'_> {
+    fn intersects(&mut self, index: usize, subset_definition: &SubsetDefinition) -> bool {
+        if let Some(result) = self.cache.get(&index) {
+            return *result;
+        }
+
+        let Some(entry) = self.entries.get(index) else {
+            return false;
+        };
+
+        let result = self.compute_intersection(entry, subset_definition);
+        self.cache.insert(index, result);
+        result
+    }
+
+    fn compute_intersection(
+        &mut self,
+        entry: &Entry,
+        subset_definition: &SubsetDefinition,
+    ) -> bool {
+        // See: https://w3c.github.io/IFT/Overview.html#abstract-opdef-check-entry-intersection
+        if !entry.intersects(subset_definition) {
+            return false;
+        }
+
+        if entry.child_indices.is_empty() {
+            return true;
+        }
+
+        if entry.conjunctive_child_match {
+            self.all_children_intersect(entry, subset_definition)
+        } else {
+            self.some_children_intersect(entry, subset_definition)
+        }
+    }
+
+    fn all_children_intersect(
+        &mut self,
+        entry: &Entry,
+        subset_definition: &SubsetDefinition,
+    ) -> bool {
+        for child_index in entry.child_indices.iter() {
+            if !self.intersects(*child_index, subset_definition) {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn some_children_intersect(
+        &mut self,
+        entry: &Entry,
+        subset_definition: &SubsetDefinition,
+    ) -> bool {
+        for child_index in entry.child_indices.iter() {
+            if self.intersects(*child_index, subset_definition) {
+                return true;
+            }
+        }
+        false
+    }
+}
+
 fn add_intersecting_format2_patches(
     source_table: &IftTableTag,
     map: &PatchMapFormat2,
@@ -366,25 +434,32 @@ fn add_intersecting_format2_patches(
 ) -> Result<(), ReadError> {
     let entries = decode_format2_entries(source_table, map)?;
 
-    for (order, mut e) in entries.into_iter().enumerate() {
+    // Caches the result of intersection check for an entry index.
+    let mut entry_intersection_cache = EntryIntersectionCache {
+        entries: &entries,
+        cache: Default::default(),
+    };
+
+    for (order, e) in entries.iter().enumerate() {
         if e.ignored {
             continue;
         }
 
-        if !e.intersects(subset_definition) {
+        if !entry_intersection_cache.intersects(order, subset_definition) {
             continue;
         }
 
-        if e.uri.encoding().is_invalidating() {
+        let mut uri = e.uri.clone();
+        if uri.encoding().is_invalidating() {
             // for invalidating keyed patches we need to record information about intersection size to use later
             // for patch selection.
-            e.uri.intersection_info = IntersectionInfo::from_subset(
+            uri.intersection_info = IntersectionInfo::from_subset(
                 e.subset_definition.intersection(subset_definition),
                 order,
             );
         }
 
-        patches.push(e.uri)
+        patches.push(uri)
     }
 
     Ok(())
@@ -459,6 +534,24 @@ fn decode_format2_entry<'a>(
             .extend(features.iter().map(|t| t.get()));
     }
 
+    // Copy indices
+    if let (Some(child_indices), Some(match_mode)) = (
+        entry_data.child_indices(),
+        entry_data.match_mode_and_count(),
+    ) {
+        let max_index = entries.len();
+        let it = child_indices.iter().map(|v| Into::<usize>::into(v.get()));
+        for i in it.clone() {
+            if i >= max_index {
+                return Err(ReadError::MalformedData(
+                    "Child index must refer to only prior entries.",
+                ));
+            }
+        }
+        entry.child_indices = it.collect();
+        entry.conjunctive_child_match = match_mode.conjunctive_match();
+    }
+
     // Design space
     if let Some(design_space_segments) = entry_data.design_space_segments() {
         let mut ranges = HashMap::<Tag, RangeSet<Fixed>>::new();
@@ -476,19 +569,6 @@ fn decode_format2_entry<'a>(
         }
 
         entry.subset_definition.design_space = DesignSpace::Ranges(ranges);
-    }
-
-    // Copy Indices
-    if let Some(copy_indices) = entry_data.copy_indices() {
-        for index in copy_indices {
-            let entry_to_copy =
-                entries
-                    .get(index.get().to_u32() as usize)
-                    .ok_or(ReadError::MalformedData(
-                        "copy index can only refer to a previous entry.",
-                    ))?;
-            entry.union(entry_to_copy);
-        }
     }
 
     // Entry ID
@@ -1067,6 +1147,8 @@ impl SubsetDefinition {
 struct Entry {
     // Key
     subset_definition: SubsetDefinition,
+    child_indices: Vec<usize>,
+    conjunctive_child_match: bool,
     ignored: bool,
 
     // Value
@@ -1086,6 +1168,9 @@ impl Entry {
                 feature_tags: Default::default(),
                 design_space: Default::default(),
             },
+
+            child_indices: Default::default(),
+            conjunctive_child_match: false,
             ignored: false,
 
             uri: PatchUri::from_index(
@@ -1152,12 +1237,6 @@ impl Entry {
 
         false
     }
-
-    /// Union in the subset definition (codepoints, features, and design space segments)
-    /// from other.
-    fn union(&mut self, other: &Entry) {
-        self.subset_definition.union(&other.subset_definition);
-    }
 }
 
 #[cfg(test)]
@@ -1165,7 +1244,7 @@ mod tests {
     use super::*;
     use font_test_data as test_data;
     use font_test_data::ift::{
-        codepoints_only_format2, copy_indices_format2, custom_ids_format2, feature_map_format1,
+        child_indices_format2, codepoints_only_format2, custom_ids_format2, feature_map_format1,
         features_and_design_space_format2, simple_format1, string_ids_format2, u16_entries_format1,
     };
     use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
@@ -2284,23 +2363,47 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_copy_indices() {
+    fn format_2_patch_map_invalid_child_indices() {
+        let mut builder = child_indices_format2();
+        builder.write_at("entries[6]_child", Uint24::new(6));
+
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&copy_indices_format2()),
+            Some(&builder),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let e3 = f2(3, copy_indices_format2().offset_for("entries[2]"));
-        let e5 = f2(5, copy_indices_format2().offset_for("entries[4]"));
-        let e6 = f2(6, copy_indices_format2().offset_for("entries[5]"));
-        let e7 = f2(7, copy_indices_format2().offset_for("entries[6]"));
-        let e8 = f2(8, copy_indices_format2().offset_for("entries[7]"));
-        let e9 = f2(9, copy_indices_format2().offset_for("entries[8]"));
+        assert_eq!(
+            intersecting_patches(
+                &font,
+                &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
+            ),
+            Err(ReadError::MalformedData(
+                "Child index must refer to only prior entries."
+            ))
+        );
+    }
+
+    #[test]
+    fn format_2_patch_map_disjunctive_child_indices() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&child_indices_format2()),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let e3 = f2(3, child_indices_format2().offset_for("entries[2]"));
+        let e5 = f2(5, child_indices_format2().offset_for("entries[4]"));
+        let e6 = f2(6, child_indices_format2().offset_for("entries[5]"));
+        let e7 = f2(7, child_indices_format2().offset_for("entries[6]"));
+        let e8 = f2(8, child_indices_format2().offset_for("entries[7]"));
+        let e9 = f2(9, child_indices_format2().offset_for("entries[8]"));
         test_intersection(&font, [], [], []);
-        test_intersection(&font, [0x05], [], [e5, e9]);
-        test_intersection(&font, [0x65], [], [e9]);
+        test_intersection(&font, [0x05], [], [e5, e7, e8]);
+        test_intersection(&font, [0x65], [], []);
+        test_intersection(&font, [0x05, 0x65], [], [e5, e7, e8, e9]);
 
         test_design_space_intersection(
             &font,
@@ -2312,7 +2415,7 @@ mod tests {
                     .into_iter()
                     .collect(),
             )]),
-            [e3, e6],
+            [e3, e6, e7, e8],
         );
 
         test_design_space_intersection(
@@ -2325,7 +2428,44 @@ mod tests {
                     .into_iter()
                     .collect(),
             )]),
-            [e3, e5, e6, e7, e8, e9],
+            [e3, e5, e6, e7, e8],
+        );
+    }
+
+    #[test]
+    fn format_2_patch_map_conjunctive_child_indices() {
+        let mut builder = child_indices_format2();
+        builder.write_at("entries[6]_child_count", 0b10000000u8 | 4u8);
+
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&builder),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let e2 = f2(2, child_indices_format2().offset_for("entries[1]"));
+        let e3 = f2(3, child_indices_format2().offset_for("entries[2]"));
+        let e4 = f2(4, child_indices_format2().offset_for("entries[3]"));
+        let e5 = f2(5, child_indices_format2().offset_for("entries[4]"));
+        let e6 = f2(6, child_indices_format2().offset_for("entries[5]"));
+        let e7 = f2(7, child_indices_format2().offset_for("entries[6]"));
+        let e8 = f2(8, child_indices_format2().offset_for("entries[7]"));
+        test_intersection(&font, [0x05], [], [e5, e8]);
+        test_design_space_intersection(
+            &font,
+            [0x05, 51],
+            FeatureSet::from([Tag::new(b"liga"), Tag::new(b"rlig")]),
+            DesignSpace::from([(
+                Tag::new(b"wght"),
+                [
+                    Fixed::from_i32(75)..=Fixed::from_i32(75),
+                    Fixed::from_i32(500)..=Fixed::from_i32(500),
+                ]
+                .into_iter()
+                .collect(),
+            )]),
+            [e2, e3, e4, e5, e6, e7, e8],
         );
     }
 
@@ -2642,11 +2782,15 @@ mod tests {
             subset_definition: s1.clone(),
             uri: uri.clone(),
             ignored: false,
+            child_indices: Default::default(),
+            conjunctive_child_match: Default::default(),
         };
         let e2 = Entry {
             subset_definition: Default::default(),
             uri: uri.clone(),
             ignored: false,
+            child_indices: Default::default(),
+            conjunctive_child_match: Default::default(),
         };
 
         assert!(e1.intersects(&s1));
@@ -2754,11 +2898,15 @@ mod tests {
             subset_definition: s1.clone(),
             uri: uri.clone(),
             ignored: false,
+            child_indices: Default::default(),
+            conjunctive_child_match: Default::default(),
         };
         let e2 = Entry {
             subset_definition: Default::default(),
             uri: uri.clone(),
             ignored: false,
+            child_indices: Default::default(),
+            conjunctive_child_match: Default::default(),
         };
 
         assert!(e1.intersects(&s1));

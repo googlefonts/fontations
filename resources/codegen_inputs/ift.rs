@@ -1,5 +1,6 @@
 #![parse_module(read_fonts::tables::ift)]
 
+extern scalar MatchModeAndCount;
 extern record U8Or16;
 extern record U16Or24;
 extern record IdDeltaOrLength;
@@ -160,12 +161,14 @@ table EntryData {
   #[count($design_space_count)]
   design_space_segments: [DesignSpaceSegment],
 
-  // COPY_INDICES
-  #[if_flag($format_flags, EntryFormatFlags::COPY_INDICES)]
-  copy_count: u8,
-  #[if_flag($format_flags, EntryFormatFlags::COPY_INDICES)]
-  #[count($copy_count)]
-  copy_indices: [Uint24],
+  // CHILD_INDICES
+  #[if_flag($format_flags, EntryFormatFlags::CHILD_INDICES)]
+  #[traverse_with(skip)]
+  #[compile(skip)] // TODO remove this once write fonts side is implemented.]
+  match_mode_and_count: MatchModeAndCount,
+  #[if_flag($format_flags, EntryFormatFlags::CHILD_INDICES)]
+  #[count(try_into($match_mode_and_count))]
+  child_indices: [Uint24],
 
   // ENTRY_ID_DELTA
   #[read_with($entry_id_string_data_offset)]
@@ -190,7 +193,7 @@ flags u8 EntryFormatFlags {
   FEATURES_AND_DESIGN_SPACE = 0b00000001,
 
   // Fields specifying copy indices are present.
-  COPY_INDICES = 0b00000010,
+  CHILD_INDICES = 0b00000010,
 
   // Fields specifying the entry ID delta are present.
   ENTRY_ID_DELTA = 0b00000100,

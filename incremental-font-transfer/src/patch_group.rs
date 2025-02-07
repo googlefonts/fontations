@@ -1446,7 +1446,7 @@ mod tests {
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
         let g = PatchGroup::select_next_patches(font.clone(), &s);
 
-        assert!(g.is_err());
+        assert!(g.is_err(), "did not fail as expected.");
         if let Err(err) = g {
             assert_eq!(ReadError::ValidationError, err);
         }

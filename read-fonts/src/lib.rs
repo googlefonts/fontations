@@ -174,6 +174,13 @@ pub(crate) mod codegen_prelude {
         pub fn half<T: TryInto<usize>>(val: T) -> usize {
             val.try_into().unwrap_or_default() / 2
         }
+
+        pub fn subtract_add_two<T: TryInto<usize>, U: TryInto<usize>>(lhs: T, rhs: U) -> usize {
+            lhs.try_into()
+                .unwrap_or_default()
+                .saturating_sub(rhs.try_into().unwrap_or_default())
+                .saturating_add(2)
+        }
     }
 }
 

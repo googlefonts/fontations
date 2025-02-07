@@ -7,6 +7,61 @@ use std::str;
 pub const IFT_TAG: types::Tag = Tag::new(b"IFT ");
 pub const IFTX_TAG: types::Tag = Tag::new(b"IFTX");
 
+/// Wrapper for the packed childEntryMatchModeAndCount field in IFT format 2 mapping table.
+///
+/// Reference: <https://w3c.github.io/IFT/Overview.html#mapping-entry-childentrymatchmodeandcount>
+///
+/// The MSB is a flag which indicates conjunctive (bit set) or disjunctive (bit cleared) matching.
+/// The remaining 7 bits are a count.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MatchModeAndCount(u8);
+
+impl MatchModeAndCount {
+    /// Flag indicating that copy mode is append.
+    ///
+    /// See: <https://w3c.github.io/IFT/Overview.html#mapping-entry-copymodeandcount>
+    pub const MATCH_MODE_MASK: u8 = 0b10000000;
+
+    /// Mask for the low 7 bits to give the copy index count.
+    pub const COUNT_MASK: u8 = 0b01111111;
+
+    pub fn bits(self) -> u8 {
+        self.0
+    }
+
+    pub fn from_bits(bits: u8) -> Self {
+        Self(bits)
+    }
+
+    /// If true matching mode is conjunctive (... AND ...) otherwise disjunctive (... OR ...)
+    pub fn conjunctive_match(self) -> bool {
+        (self.0 & Self::MATCH_MODE_MASK) != 0
+    }
+
+    pub fn count(self) -> u8 {
+        self.0 & Self::COUNT_MASK
+    }
+}
+
+impl TryFrom<MatchModeAndCount> for usize {
+    type Error = ReadError;
+
+    fn try_from(value: MatchModeAndCount) -> Result<Self, Self::Error> {
+        Ok(value.count() as usize)
+    }
+}
+
+impl types::Scalar for MatchModeAndCount {
+    type Raw = <u8 as types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        self.0.to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u8>::from_raw(raw);
+        Self(t)
+    }
+}
+
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, PartialEq, Eq, Default, Ord, PartialOrd, Hash)]
 pub struct CompatibilityId([u8; 16]);

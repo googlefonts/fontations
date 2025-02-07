@@ -1087,7 +1087,7 @@ impl Field {
             let condition = condition.condition_tokens_for_read();
             if self.read_at_parse_time {
                 quote! {
-                    let #name = #condition.then(|| cursor.read::<#typ>()).transpose()?.unwrap_or(0);
+                    let #name = #condition.then(|| cursor.read::<#typ>()).transpose()?.unwrap_or_default();
                 }
             } else {
                 quote! {
