@@ -1521,8 +1521,8 @@ mod tests {
 
         let var_data = var_data_array.get(0).unwrap().unwrap();
         assert_eq!(var_data.region_indexes(), &[0, 1]);
-        assert_eq!(var_data.item_count(), 8); // not 7!
-        // [0, -1] should be in here
+        // count must be 8, not 7, because [0, -1] should be in here
+        assert_eq!(var_data.item_count(), 8);
         assert_eq!(var_data.delta_set(0).collect::<Vec<_>>(), vec![0, -1]);
         assert_eq!(var_data.delta_set(1).collect::<Vec<_>>(), vec![1, 2]);
         assert_eq!(var_data.delta_set(2).collect::<Vec<_>>(), vec![3, 4]);
