@@ -321,20 +321,12 @@ impl<'a> Encoder<'a> {
             }
         }
         // temporarily take ownership of all the encodings
-        let to_process = std::mem::take(&mut self.encodings);
+        let mut to_process = std::mem::take(&mut self.encodings);
+        // pre-sort them like fonttools does, for stability
+        to_process.sort_unstable_by(Encoding::ord_matching_fonttools);
         // convert to a vec of Option<Encoding>;
         // we will replace items with None as they are combined
         let mut to_process = to_process.into_iter().map(Option::Some).collect::<Vec<_>>();
-
-        // Pre-sort the todo list "for stability" like fonttools does
-        // https://github.com/fonttools/fonttools/blob/307b312/Lib/fontTools/varLib/varStore.py#L629
-        to_process.sort_unstable_by(|a, b| {
-            // Unwrap is safe here because every element is Some(_)
-            a.as_ref()
-                .unwrap()
-                .stable_sort_key()
-                .cmp(&b.as_ref().unwrap().stable_sort_key())
-        });
 
         // build up a priority list of the space savings from combining each pair
         // of encodings
@@ -585,21 +577,6 @@ impl RowShape {
 }
 
 impl<'a> Encoding<'a> {
-    fn stable_sort_key(&self) -> (i64, Vec<ColumnBits>) {
-        // Direct translation of Encoding.gain_sort_key() to pre-sort optimizer's todo list.
-        // This is defined as (gain, chars):
-        // https://github.com/fonttools/fonttools/blob/307b3125/Lib/fontTools/varLib/varStore.py#L431-L432
-        // The 'gain' is defined as the "maximum possible byte gain from merging this into
-        // another characteristic" and is computed as:
-        //     gain = max(0, self.overhead - len(self.items))
-        let gain = 0_i64.max((self.shape.overhead() as i64) - (self.deltas.len() as i64));
-        // 'chars' is fonttools' 'characteristic' representation of a row shape, used
-        // here as tie-breaker. It's a packed bitvec with the least significant bits
-        // storing the first item, so it's the inverse of our ColumnBits order.
-        let chars: Vec<_> = self.shape.0.iter().cloned().rev().collect();
-        (gain, chars)
-    }
-
     fn cost(&self) -> usize {
         self.shape.overhead() + (self.shape.row_cost() * self.deltas.len())
     }
