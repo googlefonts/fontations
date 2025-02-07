@@ -1,6 +1,7 @@
 //! Building the ItemVariationStore
 
 use std::{
+    cmp::Reverse,
     collections::{BinaryHeap, HashMap, HashSet},
     fmt::{Debug, Display},
 };
@@ -320,7 +321,9 @@ impl<'a> Encoder<'a> {
             }
         }
         // temporarily take ownership of all the encodings
-        let to_process = std::mem::take(&mut self.encodings);
+        let mut to_process = std::mem::take(&mut self.encodings);
+        // pre-sort them like fonttools does, for stability
+        to_process.sort_unstable_by(Encoding::ord_matching_fonttools);
         // convert to a vec of Option<Encoding>;
         // we will replace items with None as they are combined
         let mut to_process = to_process.into_iter().map(Option::Some).collect::<Vec<_>>();
@@ -334,13 +337,15 @@ impl<'a> Encoder<'a> {
                 let gain = red.as_ref().unwrap().compute_gain(blue.as_ref().unwrap());
                 if gain > 0 {
                     log::trace!("adding ({i}, {j} ({gain})) to queue");
-                    queue.push((gain, i, j));
+                    // negate gain to match fonttools and use std::cmp::Reverse to
+                    // mimic Python heapq's "min heap"
+                    queue.push(Reverse((-gain, i, j)));
                 }
             }
         }
 
         // iteratively process each item in the queue
-        while let Some((_gain, i, j)) = queue.pop() {
+        while let Some(Reverse((_gain, i, j))) = queue.pop() {
             if to_process[i].is_none() || to_process[j].is_none() {
                 continue;
             }
@@ -382,7 +387,7 @@ impl<'a> Encoder<'a> {
                 let gain = to_update.compute_gain(&encoding);
                 if gain > 0 {
                     log::trace!("adding ({n}, {ii} ({gain})) to queue");
-                    queue.push((gain, n, ii));
+                    queue.push(Reverse((-gain, ii, n)));
                 }
                 *opt_encoding = Some(encoding);
             }
@@ -1462,5 +1467,78 @@ mod tests {
         assert_eq!(var_data.word_delta_count, 0);
         assert_eq!(var_data.region_indexes, vec![0, 1]); // not 1, 3
         assert_eq!(var_data.delta_sets, vec![50, 100]);
+    }
+
+    #[test]
+    fn we_match_fonttools_stable_order() {
+        use rand::seq::SliceRandom;
+        use rand::thread_rng;
+
+        let mut builder = VariationStoreBuilder::new(1);
+        let r1 = VariationRegion::new(vec![reg_coords(-1.0, -1.0, 0.0)]);
+        let r2 = VariationRegion::new(vec![reg_coords(0.0, 1.0, 1.0)]);
+
+        let mut delta_sets = vec![
+            // 7 delta sets with row shape "BB"
+            vec![(r1.clone(), 1), (r2.clone(), 2)],
+            vec![(r1.clone(), 3), (r2.clone(), 4)],
+            vec![(r1.clone(), 5), (r2.clone(), 6)],
+            vec![(r1.clone(), 7), (r2.clone(), 8)],
+            vec![(r1.clone(), 9), (r2.clone(), 10)],
+            vec![(r1.clone(), 11), (r2.clone(), 12)],
+            vec![(r1.clone(), 13), (r2.clone(), 14)],
+            // 4 delta sets with row shape "-S"
+            vec![(r1.clone(), 0), (r2.clone(), -130)],
+            vec![(r1.clone(), 0), (r2.clone(), -129)],
+            vec![(r1.clone(), 0), (r2.clone(), 128)],
+            vec![(r1.clone(), 0), (r2.clone(), 129)],
+            // 1 delta set with row shape "-B".
+            // The gain from merging the following into either one of the previous
+            // encodings happens to be the same so the order in which the winning pair
+            // gets popped from the heap (sorted by relative gain) depends on the order
+            // in which the delta sets were pushed; the sort key that fonttools uses to
+            // sort the inputs (for stability) is such that the encoding with row shape
+            // "-B" will be merged with the first encoding with row shape "BB" and not
+            // with the second one with row shape "-S".
+            vec![(r1.clone(), 0), (r2.clone(), -1)],
+        ];
+
+        // Add delta sets in random order and test that the algorithm is stable
+        let mut rng = thread_rng();
+        delta_sets.shuffle(&mut rng);
+        for deltas in delta_sets {
+            builder.add_deltas(deltas);
+        }
+
+        let (store, _) = builder.build();
+
+        let bytes = crate::dump_table(&store).unwrap();
+        let data = FontData::new(&bytes);
+        let reloaded = read_fonts::tables::variations::ItemVariationStore::read(data).unwrap();
+
+        assert_eq!(reloaded.item_variation_data_count(), 2);
+        let var_data_array = reloaded.item_variation_data();
+
+        let var_data = var_data_array.get(0).unwrap().unwrap();
+        assert_eq!(var_data.region_indexes(), &[0, 1]);
+        // count must be 8, not 7, because [0, -1] should be in here
+        assert_eq!(var_data.item_count(), 8);
+        assert_eq!(var_data.delta_set(0).collect::<Vec<_>>(), vec![0, -1]);
+        assert_eq!(var_data.delta_set(1).collect::<Vec<_>>(), vec![1, 2]);
+        assert_eq!(var_data.delta_set(2).collect::<Vec<_>>(), vec![3, 4]);
+        assert_eq!(var_data.delta_set(3).collect::<Vec<_>>(), vec![5, 6]);
+        assert_eq!(var_data.delta_set(4).collect::<Vec<_>>(), vec![7, 8]);
+        assert_eq!(var_data.delta_set(5).collect::<Vec<_>>(), vec![9, 10]);
+        assert_eq!(var_data.delta_set(6).collect::<Vec<_>>(), vec![11, 12]);
+        assert_eq!(var_data.delta_set(7).collect::<Vec<_>>(), vec![13, 14]);
+
+        let var_data = var_data_array.get(1).unwrap().unwrap();
+        assert_eq!(var_data.region_indexes(), &[1]);
+        assert_eq!(var_data.item_count(), 4);
+        // ... and not in here
+        assert_eq!(var_data.delta_set(0).collect::<Vec<_>>(), vec![-130]);
+        assert_eq!(var_data.delta_set(1).collect::<Vec<_>>(), vec![-129]);
+        assert_eq!(var_data.delta_set(2).collect::<Vec<_>>(), vec![128]);
+        assert_eq!(var_data.delta_set(3).collect::<Vec<_>>(), vec![129]);
     }
 }
