@@ -135,11 +135,11 @@ impl<'a> AxisCollection<'a> {
     ///
     /// * Setting selectors that don't match an axis are ignored.
     /// * Setting values are clamped to the range of their associated axis
-    ///     before normalization.
+    ///   before normalization.
     /// * If more than one setting for an axis is provided, the last one is
-    ///     used.
+    ///   used.
     /// * Omitted settings are set to 0.0, representing the default position
-    ///     in variation space.
+    ///   in variation space.
     ///
     /// # Examples
     ///
@@ -165,12 +165,12 @@ impl<'a> AxisCollection<'a> {
     ///
     /// * Setting selectors that don't match an axis are ignored.
     /// * Setting values are clamped to the range of their associated axis
-    ///     before normalization.
+    ///   before normalization.
     /// * If more than one setting for an axis is provided, the last one is
-    ///     used.
+    ///   used.
     /// * If no setting for an axis is provided, the associated coordinate is
-    ///     set to the normalized value 0.0, representing the default position
-    ///     in variation space.
+    ///   set to the normalized value 0.0, representing the default position
+    ///   in variation space.
     ///
     /// # Examples
     ///
@@ -207,7 +207,7 @@ impl<'a> AxisCollection<'a> {
     ///
     /// * Setting selectors that don't match an axis are dropped.
     /// * If more than one setting for an axis is provided, the last one is
-    ///     retained.
+    ///   retained.
     /// * Setting values are clamped to the range of their associated axis.
     ///
     /// # Examples
