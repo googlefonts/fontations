@@ -18,6 +18,9 @@ features = ["libm", "serde", "std"]
 std = ["font-types/std"]
 codegen_test = []
 scaler_test = []
+# experimental support for incremental font transfer (https://www.w3.org/TR/IFT/)
+# code behind this feature does not honor semver and may break at any time.
+ift = []
 # this feature is not stable, but provides untyped traversal of font tables.
 # we do not consider this feature public API for the purposes of semver.
 experimental_traverse = ["std"]

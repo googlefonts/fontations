@@ -19,8 +19,8 @@ default = ["read-fonts/std"]
 cli = ["clap", "regex"]
 
 [dependencies]
-read-fonts = { workspace = true }
-write-fonts = { workspace = true }
+read-fonts = { workspace = true, features = ["ift"] }
+write-fonts = { workspace = true, features = ["ift"] }
 font-types = { workspace = true }
 skrifa = { workspace = true }
 klippa = { workspace = true }

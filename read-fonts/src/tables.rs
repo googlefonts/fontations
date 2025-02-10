@@ -28,7 +28,6 @@ pub mod head;
 pub mod hhea;
 pub mod hmtx;
 pub mod hvar;
-pub mod ift;
 pub mod layout;
 pub mod loca;
 pub mod ltag;
@@ -48,6 +47,9 @@ pub mod vhea;
 pub mod vmtx;
 pub mod vorg;
 pub mod vvar;
+
+#[cfg(feature = "ift")]
+pub mod ift;
 
 /// Computes the table checksum for the given data.
 ///

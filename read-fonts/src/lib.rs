@@ -144,6 +144,7 @@ pub(crate) mod codegen_prelude {
             (count.try_into().unwrap_or_default() + 7) / 8
         }
 
+        #[cfg(feature = "ift")]
         pub fn max_value_bitmap_len<T: TryInto<usize>>(count: T) -> usize {
             let count: usize = count.try_into().unwrap_or_default() + 1usize;
             (count + 7) / 8
@@ -160,6 +161,7 @@ pub(crate) mod codegen_prelude {
                 .saturating_mul(c.try_into().unwrap_or_default())
         }
 
+        #[cfg(feature = "ift")]
         pub fn multiply_add<T: TryInto<usize>, U: TryInto<usize>, V: TryInto<usize>>(
             a: T,
             b: U,

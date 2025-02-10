@@ -19,6 +19,7 @@ default = []
 read = []
 dot2 = ["dep:dot2"]
 serde = ["dep:serde", "font-types/serde", "read-fonts/serde"]
+ift = ["read-fonts/ift"]
 
 [dependencies]
 font-types = { workspace = true }

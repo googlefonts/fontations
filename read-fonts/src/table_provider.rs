@@ -210,11 +210,13 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    #[cfg(feature = "ift")]
     fn ift(&self) -> Result<tables::ift::Ift<'a>, ReadError> {
         self.expect_data_for_tag(tables::ift::IFT_TAG)
             .and_then(FontRead::read)
     }
 
+    #[cfg(feature = "ift")]
     fn iftx(&self) -> Result<tables::ift::Ift<'a>, ReadError> {
         self.expect_data_for_tag(tables::ift::IFTX_TAG)
             .and_then(FontRead::read)
