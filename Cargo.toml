@@ -40,12 +40,12 @@ core_maths = "0.1"
 # default-features enabled by `skrifa`. Other crates using `read-fonts`
 # that want default features will have to enable them directly.
 font-test-data = { path = "font-test-data" }
-font-types = { version = "0.8.2", path = "font-types" }
-read-fonts = { version = "0.26.0", path = "read-fonts", default-features = false }
+font-types = { version = "0.8.3", path = "font-types" }
+read-fonts = { version = "0.27.0", path = "read-fonts", default-features = false }
 # Disable default-features so that fauntlet can use skrifa without autohint
 # shaping support
-skrifa = { version = "0.27.0", path = "skrifa", default-features = false, features = ["std"] }
-write-fonts = { version = "0.34.1", path = "write-fonts" }
+skrifa = { version = "0.28.0", path = "skrifa", default-features = false, features = ["std"] }
+write-fonts = { version = "0.35.0", path = "write-fonts" }
 shared-brotli-patch-decoder = { version = "0.1.0", path = "shared-brotli-patch-decoder" }
 incremental-font-transfer = { version = "0.1.0", path = "incremental-font-transfer" }
 klippa = { version = "0.1.0", path = "klippa" }
