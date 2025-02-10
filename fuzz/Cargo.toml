@@ -17,8 +17,8 @@ release = false
 [dependencies]
 libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
 font-types = { workspace = true }
-read-fonts = { workspace = true, default-features = true }
-write-fonts = { workspace = true, default-features = true }
+read-fonts = { workspace = true, default-features = true, features = ["ift"] }
+write-fonts = { workspace = true, default-features = true, features = ["ift"] }
 skrifa = { workspace = true }
 incremental-font-transfer = { workspace = true }
 

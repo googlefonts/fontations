@@ -17,7 +17,6 @@ pub mod head;
 pub mod hhea;
 pub mod hmtx;
 pub mod hvar;
-pub mod ift;
 pub mod layout;
 pub mod loca;
 pub mod maxp;
@@ -31,6 +30,9 @@ pub mod stat;
 pub mod variations;
 pub mod vhea;
 pub mod vmtx;
+
+#[cfg(feature = "ift")]
+pub mod ift;
 
 // ensure that all of our types implement the serde traits
 #[cfg(feature = "serde")]
