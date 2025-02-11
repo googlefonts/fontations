@@ -358,7 +358,7 @@ impl Intermediate {
     }
 
     /// Derive intermediate coordinates from a peak position as OpenType would
-    /// do. For non-zero peak positions, this is equivalent to definining a
+    /// do. For non-zero peak positions, this is equivalent to defining a
     /// non-intermediate region. For zero peak positions, this is equivalent to
     /// specifying that the axis does not contribute.
     /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuple-variation-store-header>
