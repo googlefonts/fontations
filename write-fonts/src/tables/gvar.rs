@@ -704,7 +704,7 @@ mod tests {
             .into_iter()
             .map(|peak| AxisCoordinates {
                 peak,
-                intermediates: None,
+                intermediate: None,
             })
             .collect()
     }
