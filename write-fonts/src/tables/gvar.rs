@@ -325,12 +325,19 @@ impl GlyphDelta {
     }
 }
 
+#[derive(Debug)]
 pub struct AxisCoordinates {
     peak: F2Dot14,
     intermediate: Option<Intermediate>,
 }
 
-#[derive(PartialEq, Clone, Copy)]
+impl AxisCoordinates {
+    pub fn new(peak: F2Dot14, intermediate: Option<Intermediate>) -> Self {
+        Self { peak, intermediate }
+    }
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub struct Intermediate {
     minimum: F2Dot14,
     maximum: F2Dot14,
@@ -1342,5 +1349,130 @@ mod tests {
         let variations = GlyphVariations::new(GlyphId::NOTDEF, vec![]);
         let gvar = Gvar::new(vec![variations], 2).unwrap();
         assert_eq!(gvar.axis_count, 2);
+    }
+
+    #[test]
+    /// Test the derivation of implied minimum and maximum coordinates from a
+    /// peak coordinate.
+    fn intermediate_defaults() {
+        assert_eq!(
+            Intermediate::explicit(F2Dot14::from_f32(0.1), F2Dot14::from_f32(0.2)),
+            Intermediate {
+                minimum: F2Dot14::from_f32(0.1),
+                maximum: F2Dot14::from_f32(0.2),
+            }
+        );
+
+        assert_eq!(
+            Intermediate::implied_by_peak(F2Dot14::from_f32(-0.3)),
+            Intermediate {
+                minimum: F2Dot14::from_f32(-0.3),
+                maximum: F2Dot14::from_f32(0.0),
+            }
+        );
+
+        assert_eq!(
+            Intermediate::implied_by_peak(F2Dot14::from_f32(0.3)),
+            Intermediate {
+                minimum: F2Dot14::from_f32(0.0),
+                maximum: F2Dot14::from_f32(0.3),
+            }
+        );
+    }
+
+    #[test]
+    /// Test the logic for determining whether individual intermediates need to
+    /// be serialised in the context of their peak coordinates.
+    fn intermediates_only_when_explicit_needed() {
+        let any_points = vec![]; // could be anything
+
+        // If an intermediate is not provided, one SHOULD NOT be serialised.
+        let deltas = GlyphDeltas::new(
+            vec![AxisCoordinates::new(F2Dot14::from_f32(0.5), None)],
+            any_points.clone(),
+        );
+        assert_eq!(deltas.intermediate_region, None);
+
+        // If an intermediate is provided but is equal to the implicit
+        // intermediate from the peak, it SHOULD NOT be serialised.
+        let deltas = GlyphDeltas::new(
+            vec![AxisCoordinates::new(
+                F2Dot14::from_f32(0.5),
+                Some(Intermediate::implied_by_peak(F2Dot14::from_f32(0.5))),
+            )],
+            any_points.clone(),
+        );
+        assert_eq!(deltas.intermediate_region, None);
+
+        // If an intermediate is provided and it is not equal to the implicit
+        // intermediate from the peak, it SHOULD be serialised.
+        let deltas = GlyphDeltas::new(
+            vec![AxisCoordinates::new(
+                F2Dot14::from_f32(0.5),
+                Some(Intermediate::explicit(
+                    F2Dot14::from_f32(-0.3),
+                    F2Dot14::from_f32(0.4),
+                )),
+            )],
+            any_points.clone(),
+        );
+        assert_eq!(
+            deltas.intermediate_region,
+            Some((
+                Tuple::new(vec![F2Dot14::from_f32(-0.3)]),
+                Tuple::new(vec![F2Dot14::from_f32(0.4)]),
+            ))
+        );
+    }
+
+    #[test]
+    /// Test the logic for determining whether multiple intermediates need to be
+    /// serialised in the context of their peak coordinates and each other.
+    fn intermediates_only_when_at_least_one_needed() {
+        let any_points = vec![]; // could be anything
+
+        // If every intermediate can be implied, none should be serialised.
+        let deltas = GlyphDeltas::new(
+            vec![
+                AxisCoordinates::new(F2Dot14::from_f32(0.5), None),
+                AxisCoordinates::new(
+                    F2Dot14::from_f32(0.5),
+                    Some(Intermediate::implied_by_peak(F2Dot14::from_f32(0.5))),
+                ),
+            ],
+            any_points.clone(),
+        );
+        assert_eq!(deltas.intermediate_region, None);
+
+        // If even one intermediate cannot be implied, all should be serialised.
+        let deltas = GlyphDeltas::new(
+            vec![
+                AxisCoordinates::new(F2Dot14::from_f32(0.5), None),
+                AxisCoordinates::new(F2Dot14::from_f32(0.5), None),
+                AxisCoordinates::new(
+                    F2Dot14::from_f32(0.5),
+                    Some(Intermediate::explicit(
+                        F2Dot14::from_f32(-0.3),
+                        F2Dot14::from_f32(0.4),
+                    )),
+                ),
+            ],
+            any_points,
+        );
+        assert_eq!(
+            deltas.intermediate_region,
+            Some((
+                Tuple::new(vec![
+                    F2Dot14::from_f32(0.0),
+                    F2Dot14::from_f32(0.0),
+                    F2Dot14::from_f32(-0.3)
+                ]),
+                Tuple::new(vec![
+                    F2Dot14::from_f32(0.5),
+                    F2Dot14::from_f32(0.5),
+                    F2Dot14::from_f32(0.4)
+                ]),
+            ))
+        );
     }
 }
