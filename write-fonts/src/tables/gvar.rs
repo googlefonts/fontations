@@ -326,28 +326,43 @@ impl GlyphDelta {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// Normalized coordinates representing the influence of a single axis on a
+/// region. This is an unzipped representation of the Tuples that will be
+/// serialised in a TupleVariationHeader.
+/// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuple-variation-store-header>
+/// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvaroverview#variation-data>
 pub struct AxisCoordinates {
     peak: F2Dot14,
     intermediate: Option<Intermediate>,
 }
 
 impl AxisCoordinates {
+    /// Create coordinates from a peak position, and optionally an intermediate
+    /// value for when it cannot be implied from it.
     pub fn new(peak: F2Dot14, intermediate: Option<Intermediate>) -> Self {
         Self { peak, intermediate }
     }
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
+/// Intermediate normalized coordinates for a corresponding peak.
 pub struct Intermediate {
     minimum: F2Dot14,
     maximum: F2Dot14,
 }
 
 impl Intermediate {
+    /// Create intermediate coordinates based on explicitly known values.
     pub fn explicit(minimum: F2Dot14, maximum: F2Dot14) -> Self {
         Self { minimum, maximum }
     }
 
+    /// Derive intermediate coordinates from a peak position as OpenType would
+    /// do. For non-zero peak positions, this is equivalent to definining a
+    /// non-intermediate region. For zero peak positions, this is equivalent to
+    /// specifying that the axis does not contribute.
+    /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuple-variation-store-header>
+    /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvaroverview#variation-data>
     pub fn implied_by_peak(peak: F2Dot14) -> Self {
         Self {
             minimum: peak.min(F2Dot14::ZERO),
