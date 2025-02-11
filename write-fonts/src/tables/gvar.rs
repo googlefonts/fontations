@@ -325,49 +325,37 @@ impl GlyphDelta {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-/// Normalized coordinates representing the influence of a single axis on a
-/// region. This is an unzipped representation of the Tuples that will be
-/// serialised in a TupleVariationHeader.
-/// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuple-variation-store-header>
-/// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvaroverview#variation-data>
-pub struct AxisCoordinates {
+/// The influence of a single axis on a variation region.
+///
+/// The values here end up serialized in the peak/start/end tuples in the
+/// [`TupleVariationHeader`].
+///
+/// The name 'Tent' is taken from HarfBuzz.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Tent {
     peak: F2Dot14,
-    intermediate: Option<Intermediate>,
+    min: F2Dot14,
+    max: F2Dot14,
 }
 
-impl AxisCoordinates {
-    /// Create coordinates from a peak position, and optionally an intermediate
-    /// value for when it cannot be implied from it.
-    pub fn new(peak: F2Dot14, intermediate: Option<Intermediate>) -> Self {
-        Self { peak, intermediate }
-    }
-}
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-/// Intermediate normalized coordinates for a corresponding peak.
-pub struct Intermediate {
-    minimum: F2Dot14,
-    maximum: F2Dot14,
-}
-
-impl Intermediate {
-    /// Create intermediate coordinates based on explicitly known values.
-    pub fn explicit(minimum: F2Dot14, maximum: F2Dot14) -> Self {
-        Self { minimum, maximum }
+impl Tent {
+    /// Construct a new tent from a peak value and optional intermediate values.
+    ///
+    /// If the intermediate values are `None`, they will be inferred from the
+    /// peak value. If all of the intermediate values in all `Tent`s can be
+    /// inferred for a given variation, they can be omitted from the [`TupleVariationHeader`].
+    pub fn new(peak: F2Dot14, intermediate: Option<(F2Dot14, F2Dot14)>) -> Self {
+        let (min, max) = intermediate.unwrap_or_else(|| Tent::implied_intermediates_for_peak(peak));
+        Self { peak, min, max }
     }
 
-    /// Derive intermediate coordinates from a peak position as OpenType would
-    /// do. For non-zero peak positions, this is equivalent to defining a
-    /// non-intermediate region. For zero peak positions, this is equivalent to
-    /// specifying that the axis does not contribute.
-    /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuple-variation-store-header>
-    /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvaroverview#variation-data>
-    pub fn implied_by_peak(peak: F2Dot14) -> Self {
-        Self {
-            minimum: peak.min(F2Dot14::ZERO),
-            maximum: peak.max(F2Dot14::ZERO),
-        }
+    fn requires_intermediate(&self) -> bool {
+        (self.min, self.max) != Self::implied_intermediates_for_peak(self.peak)
+    }
+
+    fn implied_intermediates_for_peak(peak: F2Dot14) -> (F2Dot14, F2Dot14) {
+        (peak.min(F2Dot14::ZERO), peak.max(F2Dot14::ZERO))
     }
 }
 
@@ -376,30 +364,17 @@ impl GlyphDeltas {
     ///
     /// A None delta means do not explicitly encode, typically because IUP suggests
     /// it isn't required.
-    pub fn new(axis_coordinates: Vec<AxisCoordinates>, deltas: Vec<GlyphDelta>) -> Self {
-        let peak_tuple = Tuple::new(axis_coordinates.iter().map(|coords| coords.peak).collect());
+    pub fn new(tents: Vec<Tent>, deltas: Vec<GlyphDelta>) -> Self {
+        let peak_tuple = Tuple::new(tents.iter().map(|coords| coords.peak).collect());
 
-        // File size optimisation: only write explicit intermediates if at least
-        // one tent's differs from the default implied by its peak.
+        // File size optimisation: if all the intermediates can be derived from
+        // the relevant peak values, don't serialize them.
         // https://github.com/fonttools/fonttools/blob/b467579c/Lib/fontTools/ttLib/tables/TupleVariation.py#L184-L193
-        let (minimums, maximums, intermediates_required) = axis_coordinates.into_iter().fold(
-            (Tuple::default(), Tuple::default(), false),
-            |(mut minimums, mut maximums, mut required), coords| {
-                let implicit = Intermediate::implied_by_peak(coords.peak);
-
-                required |= coords
-                    .intermediate
-                    .is_some_and(|explicit| explicit != implicit);
-
-                let Intermediate { minimum, maximum } = coords.intermediate.unwrap_or(implicit);
-                minimums.values.push(minimum);
-                maximums.values.push(maximum);
-
-                (minimums, maximums, required)
-            },
-        );
-
-        let intermediate_region = intermediates_required.then_some((minimums, maximums));
+        let intermediate_region = if tents.iter().any(Tent::requires_intermediate) {
+            Some(tents.iter().map(|tent| (tent.min, tent.max)).unzip())
+        } else {
+            None
+        };
 
         // at construction time we build both iup optimized & not versions
         // of ourselves, to determine what representation is most efficient;
@@ -651,6 +626,12 @@ impl GlyphVariationData {
     }
 }
 
+impl Extend<F2Dot14> for Tuple {
+    fn extend<T: IntoIterator<Item = F2Dot14>>(&mut self, iter: T) {
+        self.values.extend(iter);
+    }
+}
+
 impl Validate for GlyphVariationData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         const MAX_TUPLE_VARIATIONS: usize = 4095;
@@ -720,13 +701,10 @@ mod tests {
     use super::*;
 
     /// Helper function to concisely state test cases without intermediates.
-    fn peaks(peaks: Vec<F2Dot14>) -> Vec<AxisCoordinates> {
+    fn peaks(peaks: Vec<F2Dot14>) -> Vec<Tent> {
         peaks
             .into_iter()
-            .map(|peak| AxisCoordinates {
-                peak,
-                intermediate: None,
-            })
+            .map(|peak| Tent::new(peak, None))
             .collect()
     }
 
@@ -1366,35 +1344,6 @@ mod tests {
     }
 
     #[test]
-    /// Test the derivation of implied minimum and maximum coordinates from a
-    /// peak coordinate.
-    fn intermediate_defaults() {
-        assert_eq!(
-            Intermediate::explicit(F2Dot14::from_f32(0.1), F2Dot14::from_f32(0.2)),
-            Intermediate {
-                minimum: F2Dot14::from_f32(0.1),
-                maximum: F2Dot14::from_f32(0.2),
-            }
-        );
-
-        assert_eq!(
-            Intermediate::implied_by_peak(F2Dot14::from_f32(-0.3)),
-            Intermediate {
-                minimum: F2Dot14::from_f32(-0.3),
-                maximum: F2Dot14::from_f32(0.0),
-            }
-        );
-
-        assert_eq!(
-            Intermediate::implied_by_peak(F2Dot14::from_f32(0.3)),
-            Intermediate {
-                minimum: F2Dot14::from_f32(0.0),
-                maximum: F2Dot14::from_f32(0.3),
-            }
-        );
-    }
-
-    #[test]
     /// Test the logic for determining whether individual intermediates need to
     /// be serialised in the context of their peak coordinates.
     fn intermediates_only_when_explicit_needed() {
@@ -1402,7 +1351,7 @@ mod tests {
 
         // If an intermediate is not provided, one SHOULD NOT be serialised.
         let deltas = GlyphDeltas::new(
-            vec![AxisCoordinates::new(F2Dot14::from_f32(0.5), None)],
+            vec![Tent::new(F2Dot14::from_f32(0.5), None)],
             any_points.clone(),
         );
         assert_eq!(deltas.intermediate_region, None);
@@ -1410,9 +1359,9 @@ mod tests {
         // If an intermediate is provided but is equal to the implicit
         // intermediate from the peak, it SHOULD NOT be serialised.
         let deltas = GlyphDeltas::new(
-            vec![AxisCoordinates::new(
+            vec![Tent::new(
                 F2Dot14::from_f32(0.5),
-                Some(Intermediate::implied_by_peak(F2Dot14::from_f32(0.5))),
+                Some(Tent::implied_intermediates_for_peak(F2Dot14::from_f32(0.5))),
             )],
             any_points.clone(),
         );
@@ -1421,12 +1370,9 @@ mod tests {
         // If an intermediate is provided and it is not equal to the implicit
         // intermediate from the peak, it SHOULD be serialised.
         let deltas = GlyphDeltas::new(
-            vec![AxisCoordinates::new(
+            vec![Tent::new(
                 F2Dot14::from_f32(0.5),
-                Some(Intermediate::explicit(
-                    F2Dot14::from_f32(-0.3),
-                    F2Dot14::from_f32(0.4),
-                )),
+                Some((F2Dot14::from_f32(-0.3), F2Dot14::from_f32(0.4))),
             )],
             any_points.clone(),
         );
@@ -1448,11 +1394,8 @@ mod tests {
         // If every intermediate can be implied, none should be serialised.
         let deltas = GlyphDeltas::new(
             vec![
-                AxisCoordinates::new(F2Dot14::from_f32(0.5), None),
-                AxisCoordinates::new(
-                    F2Dot14::from_f32(0.5),
-                    Some(Intermediate::implied_by_peak(F2Dot14::from_f32(0.5))),
-                ),
+                Tent::new(F2Dot14::from_f32(0.5), None),
+                Tent::new(F2Dot14::from_f32(0.5), None),
             ],
             any_points.clone(),
         );
@@ -1461,14 +1404,11 @@ mod tests {
         // If even one intermediate cannot be implied, all should be serialised.
         let deltas = GlyphDeltas::new(
             vec![
-                AxisCoordinates::new(F2Dot14::from_f32(0.5), None),
-                AxisCoordinates::new(F2Dot14::from_f32(0.5), None),
-                AxisCoordinates::new(
+                Tent::new(F2Dot14::from_f32(0.5), None),
+                Tent::new(F2Dot14::from_f32(0.5), None),
+                Tent::new(
                     F2Dot14::from_f32(0.5),
-                    Some(Intermediate::explicit(
-                        F2Dot14::from_f32(-0.3),
-                        F2Dot14::from_f32(0.4),
-                    )),
+                    Some((F2Dot14::from_f32(-0.3), F2Dot14::from_f32(0.4))),
                 ),
             ],
             any_points,
