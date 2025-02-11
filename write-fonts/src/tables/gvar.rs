@@ -327,16 +327,25 @@ impl GlyphDelta {
 
 pub struct AxisCoordinates {
     peak: F2Dot14,
-    intermediates: Option<(F2Dot14, F2Dot14)>,
+    intermediate: Option<Intermediate>,
 }
 
-impl AxisCoordinates {
-    /// Get the minimum and maximum only if they differ from their defaults as
-    /// calculated from the peak.
-    fn required_intermediates(&self) -> Option<(F2Dot14, F2Dot14)> {
-        self.intermediates.filter(|(min, max)| {
-            (min, max) != (&self.peak.min(F2Dot14::ZERO), &self.peak.max(F2Dot14::ZERO))
-        })
+#[derive(PartialEq, Clone, Copy)]
+pub struct Intermediate {
+    minimum: F2Dot14,
+    maximum: F2Dot14,
+}
+
+impl Intermediate {
+    pub fn explicit(minimum: F2Dot14, maximum: F2Dot14) -> Self {
+        Self { minimum, maximum }
+    }
+
+    pub fn implied_by_peak(peak: F2Dot14) -> Self {
+        Self {
+            minimum: peak.min(F2Dot14::ZERO),
+            maximum: peak.max(F2Dot14::ZERO),
+        }
     }
 }
 
@@ -348,17 +357,28 @@ impl GlyphDeltas {
     pub fn new(axis_coordinates: Vec<AxisCoordinates>, deltas: Vec<GlyphDelta>) -> Self {
         let peak_tuple = Tuple::new(axis_coordinates.iter().map(|coords| coords.peak).collect());
 
-        // File size optimisation: only write explicit minimums and maximums if
-        // at least one of the tents requires them.
+        // File size optimisation: only write explicit intermediates if at least
+        // one tent's differs from the default implied by its peak.
         // https://github.com/fonttools/fonttools/blob/b467579c/Lib/fontTools/ttLib/tables/TupleVariation.py#L184-L193
-        let required_intermediates = axis_coordinates
-            .iter()
-            .map(|coords| coords.required_intermediates())
-            .collect::<Option<Vec<_>>>();
+        let (intermediates, intermediates_required) = axis_coordinates
+            .into_iter()
+            .map(|coords| {
+                let implicit = Intermediate::implied_by_peak(coords.peak);
 
-        let intermediate_region = required_intermediates
-            .map(|inters| inters.into_iter().unzip())
-            .map(|(min, max)| (Tuple::new(min), Tuple::new(max)));
+                let (Intermediate { minimum, maximum }, required) = coords
+                    .intermediate
+                    .map(|explicit| (explicit, explicit != implicit))
+                    .unwrap_or_else(|| (implicit, false));
+
+                ((minimum, maximum), required)
+            })
+            .collect::<((Vec<_>, Vec<_>), Vec<_>)>();
+
+        let intermediate_region = intermediates_required
+            .into_iter()
+            .any(|required| required)
+            .then_some(intermediates)
+            .map(|(minimums, maximums)| (Tuple::new(minimums), Tuple::new(maximums)));
 
         // at construction time we build both iup optimized & not versions
         // of ourselves, to determine what representation is most efficient;
