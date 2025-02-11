@@ -346,6 +346,13 @@ impl Plan {
         this.populate_gids_to_retain(font);
         this.create_old_gid_to_new_gid_map();
 
+        //update the unicode to new gid list
+        let num = this.unicode_to_new_gid_list.len();
+        for i in 0..num {
+            let old_gid = this.unicode_to_new_gid_list[i].1;
+            let new_gid = this.glyph_map.get(&old_gid).unwrap();
+            this.unicode_to_new_gid_list[i].1 = *new_gid;
+        }
         this.collect_base_var_indices(font);
         this
     }
@@ -416,6 +423,7 @@ impl Plan {
                     .insert_range(*range.start()..=GlyphId::from(last as u32));
             }
         }
+        self.unicode_to_new_gid_list.sort();
         self.glyphset_gsub
             .extend(self.unicode_to_new_gid_list.iter().map(|t| t.1));
         self.unicodes
