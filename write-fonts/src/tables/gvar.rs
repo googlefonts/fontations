@@ -325,7 +325,7 @@ impl GlyphDelta {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct AxisCoordinates {
     peak: F2Dot14,
     intermediate: Option<Intermediate>,
@@ -367,25 +367,24 @@ impl GlyphDeltas {
         // File size optimisation: only write explicit intermediates if at least
         // one tent's differs from the default implied by its peak.
         // https://github.com/fonttools/fonttools/blob/b467579c/Lib/fontTools/ttLib/tables/TupleVariation.py#L184-L193
-        let (intermediates, intermediates_required) = axis_coordinates
-            .into_iter()
-            .map(|coords| {
+        let (minimums, maximums, intermediates_required) = axis_coordinates.into_iter().fold(
+            (Tuple::default(), Tuple::default(), false),
+            |(mut minimums, mut maximums, mut required), coords| {
                 let implicit = Intermediate::implied_by_peak(coords.peak);
 
-                let (Intermediate { minimum, maximum }, required) = coords
+                required |= coords
                     .intermediate
-                    .map(|explicit| (explicit, explicit != implicit))
-                    .unwrap_or_else(|| (implicit, false));
+                    .is_some_and(|explicit| explicit != implicit);
 
-                ((minimum, maximum), required)
-            })
-            .collect::<((Vec<_>, Vec<_>), Vec<_>)>();
+                let Intermediate { minimum, maximum } = coords.intermediate.unwrap_or(implicit);
+                minimums.values.push(minimum);
+                maximums.values.push(maximum);
 
-        let intermediate_region = intermediates_required
-            .into_iter()
-            .any(|required| required)
-            .then_some(intermediates)
-            .map(|(minimums, maximums)| (Tuple::new(minimums), Tuple::new(maximums)));
+                (minimums, maximums, required)
+            },
+        );
+
+        let intermediate_region = intermediates_required.then_some((minimums, maximums));
 
         // at construction time we build both iup optimized & not versions
         // of ourselves, to determine what representation is most efficient;
