@@ -818,14 +818,14 @@ pub trait Subset {
 // A helper trait providing a 'subset' method for various subtables that have no associated tag
 pub(crate) trait SubsetTable<'a> {
     type ArgsForSubset: 'a;
-    type SubsetOutput: 'a;
+    type Output: 'a;
     /// Subset this table and write a subset version of this table into serializer
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
         args: Self::ArgsForSubset,
-    ) -> Result<Self::SubsetOutput, SerializeErrorFlags>;
+    ) -> Result<Self::Output, SerializeErrorFlags>;
 }
 
 pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {

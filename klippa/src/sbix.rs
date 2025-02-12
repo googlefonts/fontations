@@ -36,7 +36,7 @@ fn serialize_header(sbix: &Sbix, s: &mut Serializer) -> Result<(), SerializeErro
 
 impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, Strike<'a>, Offset32> {
     type ArgsForSubset = ();
-    type SubsetOutput = ();
+    type Output = ();
     fn subset(
         &self,
         plan: &Plan,
@@ -97,7 +97,7 @@ impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, Strike<'a>, Offset32> {
 
 impl SubsetTable<'_> for Strike<'_> {
     type ArgsForSubset = ();
-    type SubsetOutput = ();
+    type Output = ();
 
     fn subset(
         &self,

@@ -1,10 +1,11 @@
 //! impl subset() for CBLC
-use crate::serialize::{OffsetWhence, SerializeErrorFlags, Serializer};
-use crate::{Plan, Subset, SubsetError, SubsetTable};
-use skrifa::raw::collections::IntSet;
-use write_fonts::types::FixedSize;
+use crate::{
+    serialize::{OffsetWhence, SerializeErrorFlags, Serializer},
+    Plan, Subset, SubsetError, SubsetTable,
+};
 use write_fonts::{
     read::{
+        collections::IntSet,
         tables::{
             bitmap::{
                 BitmapSize, IndexSubtable, IndexSubtable1, IndexSubtable3, IndexSubtableList,
@@ -15,7 +16,7 @@ use write_fonts::{
         },
         FontRef, TableProvider, TopLevelTable,
     },
-    types::{GlyphId, Offset32},
+    types::{FixedSize, GlyphId, Offset32},
     FontBuilder,
 };
 
@@ -82,17 +83,14 @@ impl Subset for Cblc<'_> {
 impl<'a> SubsetTable<'a> for BitmapSize {
     // (Cblc table, CBDT table, src_bitmapsize_bytes, cbdt_out)
     type ArgsForSubset = (&'a Cblc<'a>, &'a Cbdt<'a>, &'a [u8], &'a mut Vec<u8>);
-    type SubsetOutput = ();
+    type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
-        let cblc = args.0;
-        let cbdt = args.1;
-        let src_bytes = args.2;
-        let cbdt_out = args.3;
+        let (cblc, cbdt, src_bytes, cbdt_out) = args;
 
         if self.start_glyph_index() > plan.glyphset.last().unwrap()
             || self.end_glyph_index() < plan.glyphset.first().unwrap()
@@ -147,14 +145,14 @@ impl<'a> SubsetTable<'a> for BitmapSize {
 impl<'a> SubsetTable<'a> for IndexSubtableList<'a> {
     type ArgsForSubset = (&'a Cbdt<'a>, &'a mut Vec<u8>);
     // min_gid(new), max_gid(new), indexSubtableListSize, numberOfIndexSubtables
-    type SubsetOutput = (GlyphId, GlyphId, usize, usize);
+    type Output = (GlyphId, GlyphId, usize, usize);
 
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
         args: Self::ArgsForSubset,
-    ) -> Result<Self::SubsetOutput, SerializeErrorFlags> {
+    ) -> Result<Self::Output, SerializeErrorFlags> {
         let records = self.index_subtable_records();
         let src_num_records = records.len();
 
@@ -208,7 +206,7 @@ impl<'a> SubsetTable<'a> for IndexSubtableList<'a> {
 impl SubsetTable<'_> for IndexSubtableRecord {
     // (obj_idx, first_glyph_id(new), last_glyph_id(new))
     type ArgsForSubset = (usize, GlyphId, GlyphId);
-    type SubsetOutput = ();
+    type Output = ();
     fn subset(
         &self,
         _plan: &Plan,
@@ -255,7 +253,7 @@ impl<'a> SubsetTable<'a> for IndexSubtable1<'a> {
     type ArgsForSubset = (&'a IndexSubtableRecord, &'a Cbdt<'a>, &'a mut Vec<u8>);
 
     // output:(first_gid, end_gid, size of subsetted table)
-    type SubsetOutput = (GlyphId, GlyphId, usize);
+    type Output = (GlyphId, GlyphId, usize);
 
     fn subset(
         &self,
@@ -374,7 +372,7 @@ impl<'a> SubsetTable<'a> for IndexSubtable3<'a> {
     type ArgsForSubset = (&'a IndexSubtableRecord, &'a Cbdt<'a>, &'a mut Vec<u8>);
 
     // output:(first_gid, end_gid, size of subsetted table)
-    type SubsetOutput = (GlyphId, GlyphId, usize);
+    type Output = (GlyphId, GlyphId, usize);
     fn subset(
         &self,
         plan: &Plan,

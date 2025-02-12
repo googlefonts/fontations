@@ -91,7 +91,7 @@ impl Subset for Base<'_> {
 
 impl SubsetTable<'_> for Axis<'_> {
     type ArgsForSubset = ();
-    type SubsetOutput = ();
+    type Output = ();
     fn subset(
         &self,
         plan: &Plan,
@@ -117,7 +117,7 @@ impl SubsetTable<'_> for Axis<'_> {
 
 impl SubsetTable<'_> for BaseScriptList<'_> {
     type ArgsForSubset = ();
-    type SubsetOutput = ();
+    type Output = ();
 
     fn subset(
         &self,
@@ -146,7 +146,7 @@ impl SubsetTable<'_> for BaseScriptList<'_> {
 
 impl<'a> SubsetTable<'a> for BaseScriptRecord {
     type ArgsForSubset = FontData<'a>;
-    type SubsetOutput = ();
+    type Output = ();
 
     fn subset(
         &self,
@@ -165,7 +165,7 @@ impl<'a> SubsetTable<'a> for BaseScriptRecord {
 
 impl SubsetTable<'_> for BaseScript<'_> {
     type ArgsForSubset = ();
-    type SubsetOutput = ();
+    type Output = ();
 
     fn subset(
         &self,
@@ -200,7 +200,7 @@ impl SubsetTable<'_> for BaseScript<'_> {
 
 impl SubsetTable<'_> for BaseValues<'_> {
     type ArgsForSubset = ();
-    type SubsetOutput = ();
+    type Output = ();
 
     fn subset(
         &self,
@@ -226,7 +226,7 @@ impl SubsetTable<'_> for BaseValues<'_> {
 
 impl SubsetTable<'_> for MinMax<'_> {
     type ArgsForSubset = ();
-    type SubsetOutput = ();
+    type Output = ();
 
     fn subset(
         &self,
@@ -267,7 +267,7 @@ impl SubsetTable<'_> for MinMax<'_> {
 
 impl<'a> SubsetTable<'a> for FeatMinMaxRecord {
     type ArgsForSubset = FontData<'a>;
-    type SubsetOutput = ();
+    type Output = ();
 
     fn subset(
         &self,
@@ -298,7 +298,7 @@ impl<'a> SubsetTable<'a> for FeatMinMaxRecord {
 
 impl<'a> SubsetTable<'a> for BaseLangSysRecord {
     type ArgsForSubset = FontData<'a>;
-    type SubsetOutput = ();
+    type Output = ();
 
     fn subset(
         &self,
@@ -318,7 +318,7 @@ impl<'a> SubsetTable<'a> for BaseLangSysRecord {
 
 impl SubsetTable<'_> for BaseCoord<'_> {
     type ArgsForSubset = ();
-    type SubsetOutput = ();
+    type Output = ();
     fn subset(
         &self,
         plan: &Plan,
@@ -335,7 +335,7 @@ impl SubsetTable<'_> for BaseCoord<'_> {
 
 impl SubsetTable<'_> for BaseCoordFormat1<'_> {
     type ArgsForSubset = ();
-    type SubsetOutput = ();
+    type Output = ();
     fn subset(
         &self,
         _plan: &Plan,
@@ -348,7 +348,7 @@ impl SubsetTable<'_> for BaseCoordFormat1<'_> {
 
 impl SubsetTable<'_> for BaseCoordFormat2<'_> {
     type ArgsForSubset = ();
-    type SubsetOutput = ();
+    type Output = ();
     fn subset(
         &self,
         plan: &Plan,
@@ -369,7 +369,7 @@ impl SubsetTable<'_> for BaseCoordFormat2<'_> {
 
 impl SubsetTable<'_> for BaseCoordFormat3<'_> {
     type ArgsForSubset = ();
-    type SubsetOutput = ();
+    type Output = ();
 
     fn subset(
         &self,

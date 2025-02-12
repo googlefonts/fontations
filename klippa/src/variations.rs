@@ -15,7 +15,7 @@ use write_fonts::{
 
 impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
     type ArgsForSubset = &'a Vec<IncBiMap>;
-    type SubsetOutput = ();
+    type Output = ();
 
     fn subset(
         &self,
@@ -65,7 +65,7 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
 
 impl<'a> SubsetTable<'a> for VariationRegionList<'a> {
     type ArgsForSubset = &'a IncBiMap;
-    type SubsetOutput = ();
+    type Output = ();
 
     fn subset(
         &self,
@@ -157,7 +157,7 @@ fn serialize_var_data_offset_array(
 
 impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
     type ArgsForSubset = (&'a IncBiMap, &'a IncBiMap);
-    type SubsetOutput = ();
+    type Output = ();
 
     fn subset(
         &self,

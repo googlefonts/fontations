@@ -62,7 +62,7 @@ impl NameIdClosure for Feature<'_> {
 
 impl<'a> SubsetTable<'a> for DeviceOrVariationIndex<'a> {
     type ArgsForSubset = &'a FnvHashMap<u32, (u32, i32)>;
-    type SubsetOutput = ();
+    type Output = ();
 
     fn subset(
         &self,
@@ -79,7 +79,7 @@ impl<'a> SubsetTable<'a> for DeviceOrVariationIndex<'a> {
 
 impl SubsetTable<'_> for Device<'_> {
     type ArgsForSubset = ();
-    type SubsetOutput = ();
+    type Output = ();
     fn subset(
         &self,
         _plan: &Plan,
@@ -92,7 +92,7 @@ impl SubsetTable<'_> for Device<'_> {
 
 impl<'a> SubsetTable<'a> for VariationIndex<'a> {
     type ArgsForSubset = &'a FnvHashMap<u32, (u32, i32)>;
-    type SubsetOutput = ();
+    type Output = ();
 
     fn subset(
         &self,
