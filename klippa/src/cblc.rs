@@ -70,10 +70,6 @@ impl Subset for Cblc<'_> {
             }
         }
 
-        if num_sizes == 0 || cbdt_out.is_empty() {
-            return Err(SubsetError::SubsetTableError(Cblc::TAG));
-        }
-
         s.copy_assign(num_sizes_pos, num_sizes);
         builder.add_raw(Cbdt::TAG, cbdt_out);
         Ok(())
