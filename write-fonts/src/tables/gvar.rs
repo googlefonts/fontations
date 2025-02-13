@@ -325,22 +325,57 @@ impl GlyphDelta {
     }
 }
 
+/// The influence of a single axis on a variation region.
+///
+/// The values here end up serialized in the peak/start/end tuples in the
+/// [`TupleVariationHeader`].
+///
+/// The name 'Tent' is taken from HarfBuzz.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Tent {
+    peak: F2Dot14,
+    min: F2Dot14,
+    max: F2Dot14,
+}
+
+impl Tent {
+    /// Construct a new tent from a peak value and optional intermediate values.
+    ///
+    /// If the intermediate values are `None`, they will be inferred from the
+    /// peak value. If all of the intermediate values in all `Tent`s can be
+    /// inferred for a given variation, they can be omitted from the [`TupleVariationHeader`].
+    pub fn new(peak: F2Dot14, intermediate: Option<(F2Dot14, F2Dot14)>) -> Self {
+        let (min, max) = intermediate.unwrap_or_else(|| Tent::implied_intermediates_for_peak(peak));
+        Self { peak, min, max }
+    }
+
+    fn requires_intermediate(&self) -> bool {
+        (self.min, self.max) != Self::implied_intermediates_for_peak(self.peak)
+    }
+
+    fn implied_intermediates_for_peak(peak: F2Dot14) -> (F2Dot14, F2Dot14) {
+        (peak.min(F2Dot14::ZERO), peak.max(F2Dot14::ZERO))
+    }
+}
+
 impl GlyphDeltas {
     /// Create a new set of deltas.
     ///
     /// A None delta means do not explicitly encode, typically because IUP suggests
     /// it isn't required.
-    pub fn new(
-        peak_tuple: Tuple,
-        deltas: Vec<GlyphDelta>,
-        intermediate_region: Option<(Tuple, Tuple)>,
-    ) -> Self {
-        if let Some((start, end)) = intermediate_region.as_ref() {
-            assert!(
-                start.len() == end.len() && start.len() == peak_tuple.len(),
-                "all tuples must have equal length"
-            );
-        }
+    pub fn new(tents: Vec<Tent>, deltas: Vec<GlyphDelta>) -> Self {
+        let peak_tuple = Tuple::new(tents.iter().map(|coords| coords.peak).collect());
+
+        // File size optimisation: if all the intermediates can be derived from
+        // the relevant peak values, don't serialize them.
+        // https://github.com/fonttools/fonttools/blob/b467579c/Lib/fontTools/ttLib/tables/TupleVariation.py#L184-L193
+        let intermediate_region = if tents.iter().any(Tent::requires_intermediate) {
+            Some(tents.iter().map(|tent| (tent.min, tent.max)).unzip())
+        } else {
+            None
+        };
+
         // at construction time we build both iup optimized & not versions
         // of ourselves, to determine what representation is most efficient;
         // the caller will look at the generated packed points to decide which
@@ -591,6 +626,12 @@ impl GlyphVariationData {
     }
 }
 
+impl Extend<F2Dot14> for Tuple {
+    fn extend<T: IntoIterator<Item = F2Dot14>>(&mut self, iter: T) {
+        self.values.extend(iter);
+    }
+}
+
 impl Validate for GlyphVariationData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         const MAX_TUPLE_VARIATIONS: usize = 4095;
@@ -659,6 +700,14 @@ impl std::error::Error for GvarInputError {}
 mod tests {
     use super::*;
 
+    /// Helper function to concisely state test cases without intermediates.
+    fn peaks(peaks: Vec<F2Dot14>) -> Vec<Tent> {
+        peaks
+            .into_iter()
+            .map(|peak| Tent::new(peak, None))
+            .collect()
+    }
+
     #[test]
     fn gvar_smoke_test() {
         let _ = env_logger::builder().is_test(true).try_init();
@@ -668,7 +717,7 @@ mod tests {
                 GlyphVariations::new(
                     GlyphId::new(1),
                     vec![GlyphDeltas::new(
-                        Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                        peaks(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
                         vec![
                             GlyphDelta::required(30, 31),
                             GlyphDelta::required(40, 41),
@@ -676,14 +725,13 @@ mod tests {
                             GlyphDelta::required(101, 102),
                             GlyphDelta::required(10, 11),
                         ],
-                        None,
                     )],
                 ),
                 GlyphVariations::new(
                     GlyphId::new(2),
                     vec![
                         GlyphDeltas::new(
-                            Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                            peaks(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
                             vec![
                                 GlyphDelta::required(11, -20),
                                 GlyphDelta::required(69, -41),
@@ -691,10 +739,9 @@ mod tests {
                                 GlyphDelta::required(168, 101),
                                 GlyphDelta::required(1, 2),
                             ],
-                            None,
                         ),
                         GlyphDeltas::new(
-                            Tuple::new(vec![F2Dot14::from_f32(0.8), F2Dot14::from_f32(1.0)]),
+                            peaks(vec![F2Dot14::from_f32(0.8), F2Dot14::from_f32(1.0)]),
                             vec![
                                 GlyphDelta::required(3, -200),
                                 GlyphDelta::required(4, -500),
@@ -702,7 +749,6 @@ mod tests {
                                 GlyphDelta::required(6, -1200),
                                 GlyphDelta::required(7, -1500),
                             ],
-                            None,
                         ),
                     ],
                 ),
@@ -752,7 +798,7 @@ mod tests {
             vec![GlyphVariations::new(
                 gid,
                 vec![GlyphDeltas::new(
-                    Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                    peaks(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
                     vec![
                         GlyphDelta::required(30, 31),
                         GlyphDelta::optional(30, 31),
@@ -761,7 +807,6 @@ mod tests {
                         GlyphDelta::required(10, 11),
                         GlyphDelta::optional(10, 11),
                     ],
-                    None,
                 )],
             )],
             2,
@@ -808,9 +853,8 @@ mod tests {
             vec![GlyphVariations::new(
                 gid,
                 vec![GlyphDeltas::new(
-                    Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                    peaks(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
                     points,
-                    None,
                 )],
             )],
             2,
@@ -842,7 +886,7 @@ mod tests {
             GlyphId::new(0),
             vec![
                 GlyphDeltas::new(
-                    Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                    peaks(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
                     vec![
                         GlyphDelta::required(1, 2),
                         GlyphDelta::optional(3, 4),
@@ -851,10 +895,9 @@ mod tests {
                         GlyphDelta::required(7, 8),
                         GlyphDelta::optional(7, 8),
                     ],
-                    None,
                 ),
                 GlyphDeltas::new(
-                    Tuple::new(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
+                    peaks(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
                     vec![
                         GlyphDelta::required(10, 20),
                         GlyphDelta::optional(30, 40),
@@ -863,7 +906,6 @@ mod tests {
                         GlyphDelta::required(70, 80),
                         GlyphDelta::optional(70, 80),
                     ],
-                    None,
                 ),
             ],
         );
@@ -880,22 +922,20 @@ mod tests {
             GlyphId::new(0),
             vec![
                 GlyphDeltas::new(
-                    Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                    peaks(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
                     vec![
                         GlyphDelta::required(1, 2),
                         GlyphDelta::required(3, 4),
                         GlyphDelta::required(5, 6),
                     ],
-                    None,
                 ),
                 GlyphDeltas::new(
-                    Tuple::new(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
+                    peaks(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
                     vec![
                         GlyphDelta::required(2, 4),
                         GlyphDelta::required(6, 8),
                         GlyphDelta::required(7, 9),
                     ],
-                    None,
                 ),
             ],
         );
@@ -913,7 +953,7 @@ mod tests {
             GlyphId::new(0),
             vec![
                 GlyphDeltas::new(
-                    Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                    peaks(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
                     vec![
                         GlyphDelta::required(1, 2),
                         GlyphDelta::optional(3, 4),
@@ -922,10 +962,9 @@ mod tests {
                         GlyphDelta::required(7, 8),
                         GlyphDelta::optional(7, 8),
                     ],
-                    None,
                 ),
                 GlyphDeltas::new(
-                    Tuple::new(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
+                    peaks(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
                     vec![
                         GlyphDelta::required(10, 20),
                         GlyphDelta::required(35, 40),
@@ -934,10 +973,9 @@ mod tests {
                         GlyphDelta::required(70, 80),
                         GlyphDelta::optional(70, 80),
                     ],
-                    None,
                 ),
                 GlyphDeltas::new(
-                    Tuple::new(vec![F2Dot14::from_f32(0.5), F2Dot14::from_f32(1.0)]),
+                    peaks(vec![F2Dot14::from_f32(0.5), F2Dot14::from_f32(1.0)]),
                     vec![
                         GlyphDelta::required(1, 2),
                         GlyphDelta::optional(3, 4),
@@ -946,7 +984,6 @@ mod tests {
                         GlyphDelta::optional(7, 8),
                         GlyphDelta::optional(7, 8),
                     ],
-                    None,
                 ),
             ],
         );
@@ -968,7 +1005,7 @@ mod tests {
             GlyphId::new(0),
             vec![
                 GlyphDeltas::new(
-                    Tuple::new(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
+                    peaks(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
                     vec![
                         GlyphDelta::optional(0, 0),
                         GlyphDelta::required(35, 0),
@@ -977,10 +1014,9 @@ mod tests {
                         GlyphDelta::optional(0, 0),
                         GlyphDelta::optional(0, 0),
                     ],
-                    None,
                 ),
                 GlyphDeltas::new(
-                    Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                    peaks(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
                     vec![
                         GlyphDelta::optional(0, 0),
                         GlyphDelta::required(26, 15),
@@ -989,7 +1025,6 @@ mod tests {
                         GlyphDelta::optional(0, 0),
                         GlyphDelta::optional(0, 0),
                     ],
-                    None,
                 ),
             ],
         );
@@ -1020,7 +1055,7 @@ mod tests {
             GlyphId::NOTDEF,
             vec![
                 GlyphDeltas::new(
-                    Tuple::new(vec![
+                    peaks(vec![
                         F2Dot14::from_f32(-1.0),
                         F2Dot14::from_f32(0.0),
                         F2Dot14::from_f32(0.0),
@@ -1033,10 +1068,9 @@ mod tests {
                         GlyphDelta::optional(0, 0),
                         GlyphDelta::optional(0, 0),
                     ],
-                    None,
                 ),
                 GlyphDeltas::new(
-                    Tuple::new(vec![
+                    peaks(vec![
                         F2Dot14::from_f32(0.0),
                         F2Dot14::from_f32(1.0),
                         F2Dot14::from_f32(0.0),
@@ -1049,10 +1083,9 @@ mod tests {
                         GlyphDelta::optional(0, 0),
                         GlyphDelta::optional(0, 0),
                     ],
-                    None,
                 ),
                 GlyphDeltas::new(
-                    Tuple::new(vec![
+                    peaks(vec![
                         F2Dot14::from_f32(0.0),
                         F2Dot14::from_f32(0.0),
                         F2Dot14::from_f32(-1.0),
@@ -1065,10 +1098,9 @@ mod tests {
                         GlyphDelta::optional(0, 0),
                         GlyphDelta::optional(0, 0),
                     ],
-                    None,
                 ),
                 GlyphDeltas::new(
-                    Tuple::new(vec![
+                    peaks(vec![
                         F2Dot14::from_f32(0.0),
                         F2Dot14::from_f32(0.0),
                         F2Dot14::from_f32(1.0),
@@ -1081,10 +1113,9 @@ mod tests {
                         GlyphDelta::optional(0, 0),
                         GlyphDelta::optional(0, 0),
                     ],
-                    None,
                 ),
                 GlyphDeltas::new(
-                    Tuple::new(vec![
+                    peaks(vec![
                         F2Dot14::from_f32(-1.0),
                         F2Dot14::from_f32(1.0),
                         F2Dot14::from_f32(0.0),
@@ -1097,10 +1128,9 @@ mod tests {
                         GlyphDelta::optional(0, 0),
                         GlyphDelta::optional(0, 0),
                     ],
-                    None,
                 ),
                 GlyphDeltas::new(
-                    Tuple::new(vec![
+                    peaks(vec![
                         F2Dot14::from_f32(-1.0),
                         F2Dot14::from_f32(0.0),
                         F2Dot14::from_f32(-1.0),
@@ -1113,10 +1143,9 @@ mod tests {
                         GlyphDelta::optional(0, 0),
                         GlyphDelta::optional(0, 0),
                     ],
-                    None,
                 ),
                 GlyphDeltas::new(
-                    Tuple::new(vec![
+                    peaks(vec![
                         F2Dot14::from_f32(-1.0),
                         F2Dot14::from_f32(0.0),
                         F2Dot14::from_f32(1.0),
@@ -1129,7 +1158,6 @@ mod tests {
                         GlyphDelta::optional(0, 0),
                         GlyphDelta::optional(0, 0),
                     ],
-                    None,
                 ),
             ],
         );
@@ -1148,7 +1176,7 @@ mod tests {
     fn make_31_bytes_of_variation_data() -> Vec<GlyphDeltas> {
         vec![
             GlyphDeltas::new(
-                Tuple::new(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
+                peaks(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
                 vec![
                     GlyphDelta::optional(0, 0),
                     GlyphDelta::required(35, 0),
@@ -1157,10 +1185,9 @@ mod tests {
                     GlyphDelta::optional(0, 0),
                     GlyphDelta::optional(0, 0),
                 ],
-                None,
             ),
             GlyphDeltas::new(
-                Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                peaks(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
                 vec![
                     GlyphDelta::optional(0, 0),
                     GlyphDelta::required(26, 15),
@@ -1169,7 +1196,6 @@ mod tests {
                     GlyphDelta::optional(0, 0),
                     GlyphDelta::required(1, 0),
                 ],
-                None,
             ),
         ]
     }
@@ -1256,14 +1282,12 @@ mod tests {
                 GlyphId::new(i),
                 vec![
                     GlyphDeltas::new(
-                        Tuple::new(vec![F2Dot14::from_f32(1.0)]),
+                        peaks(vec![F2Dot14::from_f32(1.0)]),
                         vec![GlyphDelta::required(10, 20)],
-                        None,
                     ),
                     GlyphDeltas::new(
-                        Tuple::new(vec![F2Dot14::from_f32(-1.0)]),
+                        peaks(vec![F2Dot14::from_f32(-1.0)]),
                         vec![GlyphDelta::required(-10, -20)],
-                        None,
                     ),
                 ],
             ))
@@ -1292,14 +1316,12 @@ mod tests {
             GlyphId::NOTDEF,
             vec![
                 GlyphDeltas::new(
-                    Tuple::new(vec![F2Dot14::from_f32(1.0)]),
+                    peaks(vec![F2Dot14::from_f32(1.0)]),
                     vec![GlyphDelta::required(1, 2)],
-                    None,
                 ),
                 GlyphDeltas::new(
-                    Tuple::new(vec![F2Dot14::from_f32(1.0)]),
+                    peaks(vec![F2Dot14::from_f32(1.0)]),
                     vec![GlyphDelta::required(1, 2)],
-                    None,
                 ),
             ],
         );
@@ -1319,5 +1341,92 @@ mod tests {
         let variations = GlyphVariations::new(GlyphId::NOTDEF, vec![]);
         let gvar = Gvar::new(vec![variations], 2).unwrap();
         assert_eq!(gvar.axis_count, 2);
+    }
+
+    #[test]
+    /// Test the logic for determining whether individual intermediates need to
+    /// be serialised in the context of their peak coordinates.
+    fn intermediates_only_when_explicit_needed() {
+        let any_points = vec![]; // could be anything
+
+        // If an intermediate is not provided, one SHOULD NOT be serialised.
+        let deltas = GlyphDeltas::new(
+            vec![Tent::new(F2Dot14::from_f32(0.5), None)],
+            any_points.clone(),
+        );
+        assert_eq!(deltas.intermediate_region, None);
+
+        // If an intermediate is provided but is equal to the implicit
+        // intermediate from the peak, it SHOULD NOT be serialised.
+        let deltas = GlyphDeltas::new(
+            vec![Tent::new(
+                F2Dot14::from_f32(0.5),
+                Some(Tent::implied_intermediates_for_peak(F2Dot14::from_f32(0.5))),
+            )],
+            any_points.clone(),
+        );
+        assert_eq!(deltas.intermediate_region, None);
+
+        // If an intermediate is provided and it is not equal to the implicit
+        // intermediate from the peak, it SHOULD be serialised.
+        let deltas = GlyphDeltas::new(
+            vec![Tent::new(
+                F2Dot14::from_f32(0.5),
+                Some((F2Dot14::from_f32(-0.3), F2Dot14::from_f32(0.4))),
+            )],
+            any_points.clone(),
+        );
+        assert_eq!(
+            deltas.intermediate_region,
+            Some((
+                Tuple::new(vec![F2Dot14::from_f32(-0.3)]),
+                Tuple::new(vec![F2Dot14::from_f32(0.4)]),
+            ))
+        );
+    }
+
+    #[test]
+    /// Test the logic for determining whether multiple intermediates need to be
+    /// serialised in the context of their peak coordinates and each other.
+    fn intermediates_only_when_at_least_one_needed() {
+        let any_points = vec![]; // could be anything
+
+        // If every intermediate can be implied, none should be serialised.
+        let deltas = GlyphDeltas::new(
+            vec![
+                Tent::new(F2Dot14::from_f32(0.5), None),
+                Tent::new(F2Dot14::from_f32(0.5), None),
+            ],
+            any_points.clone(),
+        );
+        assert_eq!(deltas.intermediate_region, None);
+
+        // If even one intermediate cannot be implied, all should be serialised.
+        let deltas = GlyphDeltas::new(
+            vec![
+                Tent::new(F2Dot14::from_f32(0.5), None),
+                Tent::new(F2Dot14::from_f32(0.5), None),
+                Tent::new(
+                    F2Dot14::from_f32(0.5),
+                    Some((F2Dot14::from_f32(-0.3), F2Dot14::from_f32(0.4))),
+                ),
+            ],
+            any_points,
+        );
+        assert_eq!(
+            deltas.intermediate_region,
+            Some((
+                Tuple::new(vec![
+                    F2Dot14::from_f32(0.0),
+                    F2Dot14::from_f32(0.0),
+                    F2Dot14::from_f32(-0.3)
+                ]),
+                Tuple::new(vec![
+                    F2Dot14::from_f32(0.5),
+                    F2Dot14::from_f32(0.5),
+                    F2Dot14::from_f32(0.4)
+                ]),
+            ))
+        );
     }
 }
