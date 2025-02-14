@@ -313,6 +313,19 @@ impl<T: Domain> IntSet<T> {
         }
     }
 
+    /// Sets the members of this set to self - other.
+    pub fn subtract(&mut self, other: &IntSet<T>) {
+        match (&mut self.0, &other.0) {
+            (Membership::Inclusive(a), Membership::Inclusive(b)) => a.subtract(b),
+            (Membership::Inclusive(a), Membership::Exclusive(b)) => a.intersect(b),
+            (Membership::Exclusive(a), Membership::Inclusive(b)) => a.union(b),
+            (Membership::Exclusive(a), Membership::Exclusive(b)) => {
+                a.reversed_subtract(b);
+                self.invert();
+            }
+        }
+    }
+
     /// Returns true if this set contains at least one element in 'range'.
     pub fn intersects_range(&self, range: RangeInclusive<T>) -> bool {
         let domain_min = T::ordered_values()
@@ -2034,12 +2047,29 @@ mod test {
         );
     }
 
+    fn check_subtract(a: &SetOpInput, b: &SetOpInput) {
+        let x = 13;
+        let mut set_a = a.to_set(x);
+        let set_b = b.to_set(x);
+
+        let should_contain_x = a.has_x && (!b.has_x);
+        set_a.subtract(&set_b);
+
+        assert_eq!(
+            set_a.contains(x),
+            should_contain_x,
+            "{}",
+            set_operation_test_message(a, b, "subtract", should_contain_x)
+        );
+    }
+
     #[test]
     fn set_operations() {
         for a in SetOpInput::get_all_inputs() {
             for b in SetOpInput::get_all_inputs() {
                 check_union(&a, &b);
                 check_intersect(&a, &b);
+                check_subtract(&a, &b);
             }
         }
     }

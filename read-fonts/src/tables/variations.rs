@@ -14,6 +14,13 @@ pub struct DeltaSetIndex {
     pub inner: u16,
 }
 
+impl DeltaSetIndex {
+    pub const NO_VARIATION_INDEX: Self = Self {
+        outer: (NO_VARIATION_INDEX >> 16) as u16,
+        inner: (NO_VARIATION_INDEX & 0xFFFF) as u16,
+    };
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TupleIndex(u16);

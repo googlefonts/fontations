@@ -47,6 +47,34 @@ impl IncBiMap {
     pub(crate) fn keys(&self) -> Iter<'_, u32> {
         self.back_map.iter()
     }
+
+    fn clear(&mut self) {
+        self.forw_map.clear();
+        self.back_map.clear();
+    }
+
+    // after finished adding all mappings in a random order,
+    // reassign rhs to lhs so that they are in the same order.
+    pub(crate) fn sort(&mut self) {
+        let mut work = self.back_map.clone();
+        work.sort();
+
+        self.clear();
+        for lhs in work.iter() {
+            self.add(*lhs);
+        }
+    }
+}
+
+impl FromIterator<u32> for IncBiMap {
+    fn from_iter<I: IntoIterator<Item = u32>>(iter: I) -> Self {
+        let mut m = IncBiMap::default();
+
+        for lhs in iter {
+            m.add(lhs);
+        }
+        m
+    }
 }
 
 #[cfg(test)]
