@@ -584,6 +584,8 @@ fn compare_with_expected(output_dir: &Path, output_file: &Path, expected_file: &
     let expected = fs::read(expected_file).unwrap();
     let output = fs::read(output_file).unwrap();
     if expected != output {
+        // uncomment to overwrite expected file with output for updating integration tests
+        // fs::write(expected_file, &output).unwrap(); return;
         assert_has_ttx_exec();
         let expected_file_prefix = expected_file.file_stem().unwrap().to_str().unwrap();
         let expected_ttx = format!("{expected_file_prefix}.expected.ttx");
