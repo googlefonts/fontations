@@ -499,3 +499,345 @@ impl FromObjRef<read_fonts::tables::postscript::FdSelectRange4> for FdSelectRang
         }
     }
 }
+
+/// Charset with custom glyph id to string id mappings.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum CustomCharset {
+    Format0(CharsetFormat0),
+    Format1(CharsetFormat1),
+    Format2(CharsetFormat2),
+}
+
+impl CustomCharset {
+    /// Construct a new `CharsetFormat0` subtable
+    pub fn format_0(glyph: Vec<u16>) -> Self {
+        Self::Format0(CharsetFormat0::new(glyph))
+    }
+
+    /// Construct a new `CharsetFormat1` subtable
+    pub fn format_1(ranges: Vec<CharsetRange1>) -> Self {
+        Self::Format1(CharsetFormat1::new(ranges))
+    }
+
+    /// Construct a new `CharsetFormat2` subtable
+    pub fn format_2(ranges: Vec<CharsetRange2>) -> Self {
+        Self::Format2(CharsetFormat2::new(ranges))
+    }
+}
+
+impl Default for CustomCharset {
+    fn default() -> Self {
+        Self::Format0(Default::default())
+    }
+}
+
+impl FontWrite for CustomCharset {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Format0(item) => item.write_into(writer),
+            Self::Format1(item) => item.write_into(writer),
+            Self::Format2(item) => item.write_into(writer),
+        }
+    }
+    fn table_type(&self) -> TableType {
+        match self {
+            Self::Format0(item) => item.table_type(),
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+        }
+    }
+}
+
+impl Validate for CustomCharset {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format0(item) => item.validate_impl(ctx),
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
+        }
+    }
+}
+
+impl FromObjRef<read_fonts::tables::postscript::CustomCharset<'_>> for CustomCharset {
+    fn from_obj_ref(obj: &read_fonts::tables::postscript::CustomCharset, _: FontData) -> Self {
+        use read_fonts::tables::postscript::CustomCharset as ObjRefType;
+        match obj {
+            ObjRefType::Format0(item) => CustomCharset::Format0(item.to_owned_table()),
+            ObjRefType::Format1(item) => CustomCharset::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => CustomCharset::Format2(item.to_owned_table()),
+        }
+    }
+}
+
+impl FromTableRef<read_fonts::tables::postscript::CustomCharset<'_>> for CustomCharset {}
+
+impl<'a> FontRead<'a> for CustomCharset {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::postscript::CustomCharset as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+impl From<CharsetFormat0> for CustomCharset {
+    fn from(src: CharsetFormat0) -> CustomCharset {
+        CustomCharset::Format0(src)
+    }
+}
+
+impl From<CharsetFormat1> for CustomCharset {
+    fn from(src: CharsetFormat1) -> CustomCharset {
+        CustomCharset::Format1(src)
+    }
+}
+
+impl From<CharsetFormat2> for CustomCharset {
+    fn from(src: CharsetFormat2) -> CustomCharset {
+        CustomCharset::Format2(src)
+    }
+}
+
+/// Charset format 0.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CharsetFormat0 {
+    /// Glyph name array.
+    pub glyph: Vec<u16>,
+}
+
+impl CharsetFormat0 {
+    /// Construct a new `CharsetFormat0`
+    pub fn new(glyph: Vec<u16>) -> Self {
+        Self {
+            glyph: glyph.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for CharsetFormat0 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (0 as u8).write_into(writer);
+        self.glyph.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CharsetFormat0")
+    }
+}
+
+impl Validate for CharsetFormat0 {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl<'a> FromObjRef<read_fonts::tables::postscript::CharsetFormat0<'a>> for CharsetFormat0 {
+    fn from_obj_ref(obj: &read_fonts::tables::postscript::CharsetFormat0<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        CharsetFormat0 {
+            glyph: obj.glyph().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::postscript::CharsetFormat0<'a>> for CharsetFormat0 {}
+
+impl<'a> FontRead<'a> for CharsetFormat0 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::postscript::CharsetFormat0 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// Charset format 1.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CharsetFormat1 {
+    /// Range1 array.
+    pub ranges: Vec<CharsetRange1>,
+}
+
+impl CharsetFormat1 {
+    /// Construct a new `CharsetFormat1`
+    pub fn new(ranges: Vec<CharsetRange1>) -> Self {
+        Self {
+            ranges: ranges.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for CharsetFormat1 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (1 as u8).write_into(writer);
+        self.ranges.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CharsetFormat1")
+    }
+}
+
+impl Validate for CharsetFormat1 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("CharsetFormat1", |ctx| {
+            ctx.in_field("ranges", |ctx| {
+                self.ranges.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::postscript::CharsetFormat1<'a>> for CharsetFormat1 {
+    fn from_obj_ref(obj: &read_fonts::tables::postscript::CharsetFormat1<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        CharsetFormat1 {
+            ranges: obj.ranges().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::postscript::CharsetFormat1<'a>> for CharsetFormat1 {}
+
+impl<'a> FontRead<'a> for CharsetFormat1 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::postscript::CharsetFormat1 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// Range struct for Charset format 1.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CharsetRange1 {
+    /// First glyph in range.
+    pub first: u16,
+    /// Glyphs left in range (excluding first).
+    pub n_left: u8,
+}
+
+impl CharsetRange1 {
+    /// Construct a new `CharsetRange1`
+    pub fn new(first: u16, n_left: u8) -> Self {
+        Self { first, n_left }
+    }
+}
+
+impl FontWrite for CharsetRange1 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.first.write_into(writer);
+        self.n_left.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CharsetRange1")
+    }
+}
+
+impl Validate for CharsetRange1 {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl FromObjRef<read_fonts::tables::postscript::CharsetRange1> for CharsetRange1 {
+    fn from_obj_ref(obj: &read_fonts::tables::postscript::CharsetRange1, _: FontData) -> Self {
+        CharsetRange1 {
+            first: obj.first(),
+            n_left: obj.n_left(),
+        }
+    }
+}
+
+/// Charset format 2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CharsetFormat2 {
+    /// Range2 array.
+    pub ranges: Vec<CharsetRange2>,
+}
+
+impl CharsetFormat2 {
+    /// Construct a new `CharsetFormat2`
+    pub fn new(ranges: Vec<CharsetRange2>) -> Self {
+        Self {
+            ranges: ranges.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for CharsetFormat2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (2 as u8).write_into(writer);
+        self.ranges.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CharsetFormat2")
+    }
+}
+
+impl Validate for CharsetFormat2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("CharsetFormat2", |ctx| {
+            ctx.in_field("ranges", |ctx| {
+                self.ranges.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::postscript::CharsetFormat2<'a>> for CharsetFormat2 {
+    fn from_obj_ref(obj: &read_fonts::tables::postscript::CharsetFormat2<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        CharsetFormat2 {
+            ranges: obj.ranges().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::postscript::CharsetFormat2<'a>> for CharsetFormat2 {}
+
+impl<'a> FontRead<'a> for CharsetFormat2 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::postscript::CharsetFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// Range struct for Charset format 2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CharsetRange2 {
+    /// First glyph in range.
+    pub first: u16,
+    /// Glyphs left in range (excluding first).
+    pub n_left: u16,
+}
+
+impl CharsetRange2 {
+    /// Construct a new `CharsetRange2`
+    pub fn new(first: u16, n_left: u16) -> Self {
+        Self { first, n_left }
+    }
+}
+
+impl FontWrite for CharsetRange2 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.first.write_into(writer);
+        self.n_left.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CharsetRange2")
+    }
+}
+
+impl Validate for CharsetRange2 {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl FromObjRef<read_fonts::tables::postscript::CharsetRange2> for CharsetRange2 {
+    fn from_obj_ref(obj: &read_fonts::tables::postscript::CharsetRange2, _: FontData) -> Self {
+        CharsetRange2 {
+            first: obj.first(),
+            n_left: obj.n_left(),
+        }
+    }
+}

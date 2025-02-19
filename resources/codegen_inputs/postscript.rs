@@ -90,3 +90,56 @@ record FdSelectRange4 {
     /// FD index for all glyphs in range.
     fd: u16,
 }
+
+/// Charset with custom glyph id to string id mappings.
+format u8 CustomCharset {
+    Format0(CharsetFormat0),
+    Format1(CharsetFormat1),
+    Format2(CharsetFormat2),
+}
+
+/// Charset format 0.
+table CharsetFormat0 {
+    /// Format; =0
+    #[format = 0]
+    format: u8,
+    /// Glyph name array.
+    #[count(..)]
+    glyph: [u16],
+}
+
+/// Charset format 1.
+table CharsetFormat1 {
+    /// Format; =1
+    #[format = 1]
+    format: u8,
+    /// Range1 array.
+    #[count(..)]
+    ranges: [CharsetRange1],
+}
+
+/// Range struct for Charset format 1.
+record CharsetRange1 {
+    /// First glyph in range.
+    first: u16,
+    /// Glyphs left in range (excluding first).
+    n_left: u8,
+}
+
+/// Charset format 2.
+table CharsetFormat2 {
+    /// Format; =2
+    #[format = 2]
+    format: u8,
+    /// Range2 array.
+    #[count(..)]
+    ranges: [CharsetRange2],
+}
+
+/// Range struct for Charset format 2.
+record CharsetRange2 {
+    /// First glyph in range.
+    first: u16,
+    /// Glyphs left in range (excluding first).
+    n_left: u16,
+}
