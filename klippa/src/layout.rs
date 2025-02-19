@@ -60,8 +60,9 @@ impl NameIdClosure for Feature<'_> {
     }
 }
 
-impl SubsetTable<'_> for DeviceOrVariationIndex<'_> {
-    type ArgsForSubset = FnvHashMap<u32, (u32, i32)>;
+impl<'a> SubsetTable<'a> for DeviceOrVariationIndex<'a> {
+    type ArgsForSubset = &'a FnvHashMap<u32, (u32, i32)>;
+    type Output = ();
 
     fn subset(
         &self,
@@ -70,7 +71,7 @@ impl SubsetTable<'_> for DeviceOrVariationIndex<'_> {
         args: &FnvHashMap<u32, (u32, i32)>,
     ) -> Result<(), SerializeErrorFlags> {
         match self {
-            Self::Device(item) => item.subset(plan, s, &()),
+            Self::Device(item) => item.subset(plan, s, ()),
             Self::VariationIndex(item) => item.subset(plan, s, args),
         }
     }
@@ -78,18 +79,20 @@ impl SubsetTable<'_> for DeviceOrVariationIndex<'_> {
 
 impl SubsetTable<'_> for Device<'_> {
     type ArgsForSubset = ();
+    type Output = ();
     fn subset(
         &self,
         _plan: &Plan,
         s: &mut Serializer,
-        _args: &(),
+        _args: (),
     ) -> Result<(), SerializeErrorFlags> {
         s.embed_bytes(self.min_table_bytes()).map(|_| ())
     }
 }
 
-impl SubsetTable<'_> for VariationIndex<'_> {
-    type ArgsForSubset = FnvHashMap<u32, (u32, i32)>;
+impl<'a> SubsetTable<'a> for VariationIndex<'a> {
+    type ArgsForSubset = &'a FnvHashMap<u32, (u32, i32)>;
+    type Output = ();
 
     fn subset(
         &self,

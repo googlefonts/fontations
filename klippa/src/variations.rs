@@ -13,8 +13,9 @@ use write_fonts::{
     types::{BigEndian, F2Dot14, FixedSize, Offset32},
 };
 
-impl SubsetTable<'_> for ItemVariationStore<'_> {
-    type ArgsForSubset = Vec<IncBiMap>;
+impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
+    type ArgsForSubset = &'a Vec<IncBiMap>;
+    type Output = ();
 
     fn subset(
         &self,
@@ -62,8 +63,9 @@ impl SubsetTable<'_> for ItemVariationStore<'_> {
     }
 }
 
-impl SubsetTable<'_> for VariationRegionList<'_> {
-    type ArgsForSubset = IncBiMap;
+impl<'a> SubsetTable<'a> for VariationRegionList<'a> {
+    type ArgsForSubset = &'a IncBiMap;
+    type Output = ();
 
     fn subset(
         &self,
@@ -136,7 +138,7 @@ fn serialize_var_data_offset_array(
                     &var_data,
                     s,
                     plan,
-                    &(inner_map, region_map),
+                    (inner_map, region_map),
                     offset_pos,
                 )?;
                 vardata_count += 1;
@@ -155,12 +157,13 @@ fn serialize_var_data_offset_array(
 
 impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
     type ArgsForSubset = (&'a IncBiMap, &'a IncBiMap);
+    type Output = ();
 
     fn subset(
         &self,
         _plan: &Plan,
         s: &mut Serializer,
-        args: &(&IncBiMap, &IncBiMap),
+        args: (&IncBiMap, &IncBiMap),
     ) -> Result<(), SerializeErrorFlags> {
         let inner_map = &args.0;
         let region_map = &args.1;

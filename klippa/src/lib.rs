@@ -1,6 +1,7 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
 mod base;
+mod cblc;
 mod cmap;
 mod cpal;
 mod fvar;
@@ -42,6 +43,8 @@ use write_fonts::{
         collections::{int_set::Domain, IntSet},
         tables::{
             base::Base,
+            cbdt::Cbdt,
+            cblc::Cblc,
             cff::Cff,
             cff2::Cff2,
             cmap::{Cmap, CmapSubtable},
@@ -343,6 +346,13 @@ impl Plan {
         this.populate_gids_to_retain(font);
         this.create_old_gid_to_new_gid_map();
 
+        //update the unicode to new gid list
+        let num = this.unicode_to_new_gid_list.len();
+        for i in 0..num {
+            let old_gid = this.unicode_to_new_gid_list[i].1;
+            let new_gid = this.glyph_map.get(&old_gid).unwrap();
+            this.unicode_to_new_gid_list[i].1 = *new_gid;
+        }
         this.collect_base_var_indices(font);
         this
     }
@@ -413,6 +423,7 @@ impl Plan {
                     .insert_range(*range.start()..=GlyphId::from(last as u32));
             }
         }
+        self.unicode_to_new_gid_list.sort();
         self.glyphset_gsub
             .extend(self.unicode_to_new_gid_list.iter().map(|t| t.1));
         self.unicodes
@@ -807,13 +818,14 @@ pub trait Subset {
 // A helper trait providing a 'subset' method for various subtables that have no associated tag
 pub(crate) trait SubsetTable<'a> {
     type ArgsForSubset: 'a;
+    type Output: 'a;
     /// Subset this table and write a subset version of this table into serializer
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        args: &Self::ArgsForSubset,
-    ) -> Result<(), SerializeErrorFlags>;
+        args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags>;
 }
 
 pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
@@ -914,6 +926,14 @@ fn subset_table<'a>(
         Base::TAG => font
             .base()
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?
+            .subset(plan, font, s, builder),
+
+        //Skip, handled by Cblc
+        Cbdt::TAG => Ok(()),
+
+        Cblc::TAG => font
+            .cblc()
+            .map_err(|_| SubsetError::SubsetTableError(Cblc::TAG))?
             .subset(plan, font, s, builder),
 
         Cmap::TAG => font

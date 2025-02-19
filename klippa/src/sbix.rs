@@ -24,7 +24,7 @@ impl Subset for Sbix<'_> {
     ) -> Result<(), SubsetError> {
         serialize_header(self, s).map_err(|_| SubsetError::SubsetTableError(Sbix::TAG))?;
         self.strikes()
-            .subset(plan, s, &())
+            .subset(plan, s, ())
             .map_err(|_| SubsetError::SubsetTableError(Sbix::TAG))
     }
 }
@@ -36,11 +36,12 @@ fn serialize_header(sbix: &Sbix, s: &mut Serializer) -> Result<(), SerializeErro
 
 impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, Strike<'a>, Offset32> {
     type ArgsForSubset = ();
+    type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        _args: &Self::ArgsForSubset,
+        _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
         let num_strikes_pos = s.embed(0_u32)?;
         let orig_num = self.len();
@@ -59,7 +60,7 @@ impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, Strike<'a>, Offset32> {
             let offset_pos = s.allocate_size(Offset32::RAW_BYTE_LEN, true)?;
 
             s.push()?;
-            match t.subset(plan, s, &()) {
+            match t.subset(plan, s, ()) {
                 Ok(()) => {
                     let Some(obj_idx) = s.pop_pack(true) else {
                         return Err(s.error());
@@ -96,12 +97,13 @@ impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, Strike<'a>, Offset32> {
 
 impl SubsetTable<'_> for Strike<'_> {
     type ArgsForSubset = ();
+    type Output = ();
 
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        _args: &Self::ArgsForSubset,
+        _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
         let snap = s.snapshot();
         s.embed(self.ppem())?;

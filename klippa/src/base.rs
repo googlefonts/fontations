@@ -43,7 +43,7 @@ impl Subset for Base<'_> {
                 return Err(SubsetError::SubsetTableError(Base::TAG));
             };
 
-            Offset16::serialize_subset(&h_axis, s, plan, &(), haxis_offset_pos)
+            Offset16::serialize_subset(&h_axis, s, plan, (), haxis_offset_pos)
                 .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?;
         }
 
@@ -57,7 +57,7 @@ impl Subset for Base<'_> {
                 return Err(SubsetError::SubsetTableError(Base::TAG));
             };
 
-            Offset16::serialize_subset(&v_axis, s, plan, &(), vaxis_offset_pos)
+            Offset16::serialize_subset(&v_axis, s, plan, (), vaxis_offset_pos)
                 .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?;
         }
 
@@ -91,12 +91,12 @@ impl Subset for Base<'_> {
 
 impl SubsetTable<'_> for Axis<'_> {
     type ArgsForSubset = ();
-
+    type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        _args: &(),
+        _args: (),
     ) -> Result<(), SerializeErrorFlags> {
         let base_taglist_offset_pos = s.embed(0_u16)?;
         let base_scriptlist_offset_pos = s.embed(0_u16)?;
@@ -111,18 +111,19 @@ impl SubsetTable<'_> for Axis<'_> {
         let Ok(base_scriptlist) = self.base_script_list() else {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
         };
-        Offset16::serialize_subset(&base_scriptlist, s, plan, &(), base_scriptlist_offset_pos)
+        Offset16::serialize_subset(&base_scriptlist, s, plan, (), base_scriptlist_offset_pos)
     }
 }
 
 impl SubsetTable<'_> for BaseScriptList<'_> {
     type ArgsForSubset = ();
+    type Output = ();
 
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        _args: &(),
+        _args: (),
     ) -> Result<(), SerializeErrorFlags> {
         let script_count_pos = s.embed(0_u16)?;
         let mut count: usize = 0;
@@ -132,7 +133,7 @@ impl SubsetTable<'_> for BaseScriptList<'_> {
                 continue;
             }
 
-            script_record.subset(plan, s, &self.offset_data())?;
+            script_record.subset(plan, s, self.offset_data())?;
             count += 1;
         }
         s.check_assign::<u16>(
@@ -145,37 +146,39 @@ impl SubsetTable<'_> for BaseScriptList<'_> {
 
 impl<'a> SubsetTable<'a> for BaseScriptRecord {
     type ArgsForSubset = FontData<'a>;
+    type Output = ();
 
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        data: &FontData,
+        data: FontData,
     ) -> Result<(), SerializeErrorFlags> {
         s.embed(self.base_script_tag())?;
         let base_script_offset_pos = s.embed(0_u16)?;
-        let Ok(base_script) = self.base_script(*data) else {
+        let Ok(base_script) = self.base_script(data) else {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
         };
-        Offset16::serialize_subset(&base_script, s, plan, &(), base_script_offset_pos)
+        Offset16::serialize_subset(&base_script, s, plan, (), base_script_offset_pos)
     }
 }
 
 impl SubsetTable<'_> for BaseScript<'_> {
     type ArgsForSubset = ();
+    type Output = ();
 
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        _args: &Self::ArgsForSubset,
+        _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
         let base_values_offset_pos = s.embed(0_u16)?;
         if !self.base_values_offset().is_null() {
             let Some(Ok(base_value)) = self.base_values() else {
                 return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
             };
-            Offset16::serialize_subset(&base_value, s, plan, &(), base_values_offset_pos)?;
+            Offset16::serialize_subset(&base_value, s, plan, (), base_values_offset_pos)?;
         }
 
         let default_min_max_offset_pos = s.embed(0_u16)?;
@@ -183,13 +186,13 @@ impl SubsetTable<'_> for BaseScript<'_> {
             let Some(Ok(default_min_max)) = self.default_min_max() else {
                 return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
             };
-            Offset16::serialize_subset(&default_min_max, s, plan, &(), default_min_max_offset_pos)?;
+            Offset16::serialize_subset(&default_min_max, s, plan, (), default_min_max_offset_pos)?;
         }
 
         s.embed(self.base_lang_sys_count())?;
 
         for record in self.base_lang_sys_records().iter() {
-            record.subset(plan, s, &self.offset_data())?;
+            record.subset(plan, s, self.offset_data())?;
         }
         Ok(())
     }
@@ -197,12 +200,13 @@ impl SubsetTable<'_> for BaseScript<'_> {
 
 impl SubsetTable<'_> for BaseValues<'_> {
     type ArgsForSubset = ();
+    type Output = ();
 
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        _args: &Self::ArgsForSubset,
+        _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
         s.embed(self.default_baseline_index())?;
         // base_coord count
@@ -212,7 +216,7 @@ impl SubsetTable<'_> for BaseValues<'_> {
         let org_num_base_coords = self.base_coord_count() as usize;
         let base_coords = self.base_coords();
         for idx in 0..org_num_base_coords {
-            base_coords.subset_offset(idx, s, plan, &())?;
+            base_coords.subset_offset(idx, s, plan, ())?;
             base_coord_count += 1;
         }
         s.copy_assign(count_pos, base_coord_count);
@@ -222,19 +226,20 @@ impl SubsetTable<'_> for BaseValues<'_> {
 
 impl SubsetTable<'_> for MinMax<'_> {
     type ArgsForSubset = ();
+    type Output = ();
 
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        _args: &Self::ArgsForSubset,
+        _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
         let min_coord_offset_pos = s.embed(0_u16)?;
         if !self.min_coord_offset().is_null() {
             let Some(Ok(min_coord)) = self.min_coord() else {
                 return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
             };
-            Offset16::serialize_subset(&min_coord, s, plan, &(), min_coord_offset_pos)?;
+            Offset16::serialize_subset(&min_coord, s, plan, (), min_coord_offset_pos)?;
         }
 
         let max_coord_offset_pos = s.embed(0_u16)?;
@@ -242,7 +247,7 @@ impl SubsetTable<'_> for MinMax<'_> {
             let Some(Ok(max_coord)) = self.max_coord() else {
                 return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
             };
-            Offset16::serialize_subset(&max_coord, s, plan, &(), max_coord_offset_pos)?;
+            Offset16::serialize_subset(&max_coord, s, plan, (), max_coord_offset_pos)?;
         }
 
         let feat_min_max_count_pos = s.embed(0_u16)?;
@@ -252,7 +257,7 @@ impl SubsetTable<'_> for MinMax<'_> {
             if !plan.layout_features.contains(feature_tag) {
                 continue;
             }
-            record.subset(plan, s, &self.offset_data())?;
+            record.subset(plan, s, self.offset_data())?;
             count += 1;
         }
         s.copy_assign(feat_min_max_count_pos, count);
@@ -262,29 +267,30 @@ impl SubsetTable<'_> for MinMax<'_> {
 
 impl<'a> SubsetTable<'a> for FeatMinMaxRecord {
     type ArgsForSubset = FontData<'a>;
+    type Output = ();
 
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        data: &FontData,
+        data: FontData,
     ) -> Result<(), SerializeErrorFlags> {
         s.embed(self.feature_table_tag())?;
 
         let min_coord_offset_pos = s.embed(0_u16)?;
         if !self.min_coord_offset().is_null() {
-            let Some(Ok(min_coord)) = self.min_coord(*data) else {
+            let Some(Ok(min_coord)) = self.min_coord(data) else {
                 return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
             };
-            Offset16::serialize_subset(&min_coord, s, plan, &(), min_coord_offset_pos)?;
+            Offset16::serialize_subset(&min_coord, s, plan, (), min_coord_offset_pos)?;
         }
 
         let max_coord_offset_pos = s.embed(0_u16)?;
         if !self.max_coord_offset().is_null() {
-            let Some(Ok(max_coord)) = self.max_coord(*data) else {
+            let Some(Ok(max_coord)) = self.max_coord(data) else {
                 return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
             };
-            Offset16::serialize_subset(&max_coord, s, plan, &(), max_coord_offset_pos)?;
+            Offset16::serialize_subset(&max_coord, s, plan, (), max_coord_offset_pos)?;
         }
         Ok(())
     }
@@ -292,46 +298,49 @@ impl<'a> SubsetTable<'a> for FeatMinMaxRecord {
 
 impl<'a> SubsetTable<'a> for BaseLangSysRecord {
     type ArgsForSubset = FontData<'a>;
+    type Output = ();
 
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        data: &FontData,
+        data: FontData,
     ) -> Result<(), SerializeErrorFlags> {
         s.embed(self.base_lang_sys_tag())?;
 
         let min_max_offset_pos = s.embed(0_u16)?;
-        let Ok(min_max) = self.min_max(*data) else {
+        let Ok(min_max) = self.min_max(data) else {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
         };
-        Offset16::serialize_subset(&min_max, s, plan, &(), min_max_offset_pos)
+        Offset16::serialize_subset(&min_max, s, plan, (), min_max_offset_pos)
     }
 }
 
 impl SubsetTable<'_> for BaseCoord<'_> {
     type ArgsForSubset = ();
+    type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        _args: &Self::ArgsForSubset,
+        _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
         match self {
-            Self::Format1(item) => item.subset(plan, s, &()),
-            Self::Format2(item) => item.subset(plan, s, &()),
-            Self::Format3(item) => item.subset(plan, s, &()),
+            Self::Format1(item) => item.subset(plan, s, ()),
+            Self::Format2(item) => item.subset(plan, s, ()),
+            Self::Format3(item) => item.subset(plan, s, ()),
         }
     }
 }
 
 impl SubsetTable<'_> for BaseCoordFormat1<'_> {
     type ArgsForSubset = ();
+    type Output = ();
     fn subset(
         &self,
         _plan: &Plan,
         s: &mut Serializer,
-        _args: &Self::ArgsForSubset,
+        _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
         s.embed_bytes(self.min_table_bytes()).map(|_| ())
     }
@@ -339,11 +348,12 @@ impl SubsetTable<'_> for BaseCoordFormat1<'_> {
 
 impl SubsetTable<'_> for BaseCoordFormat2<'_> {
     type ArgsForSubset = ();
+    type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        _args: &Self::ArgsForSubset,
+        _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
         s.embed_bytes(self.min_table_bytes())?;
         let Some(new_gid) = plan.glyph_map.get(&GlyphId::from(self.reference_glyph())) else {
@@ -359,12 +369,13 @@ impl SubsetTable<'_> for BaseCoordFormat2<'_> {
 
 impl SubsetTable<'_> for BaseCoordFormat3<'_> {
     type ArgsForSubset = ();
+    type Output = ();
 
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        _args: &Self::ArgsForSubset,
+        _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
         s.embed(self.base_coord_format())?;
         s.embed(self.coordinate())?;
