@@ -263,6 +263,7 @@ mod tests {
     use read_fonts::FontRef;
 
     use crate::{font_builder::checksum_and_padding, FontBuilder};
+    use rand::Rng;
 
     #[test]
     fn sets_binary_search_assists() {
@@ -293,5 +294,22 @@ mod tests {
             assert!(pad < 4);
             assert!((i + pad as usize) % 4 == 0, "pad {i} +{pad} bytes");
         }
+    }
+
+    #[test]
+    fn validate_font_checksum() {
+        // Add a dummy 'head' plus a couple of made-up tables containing random bytes
+        // and verify that the total font checksum is always equal to the special
+        // constant 0xB1B0AFBA, which should be the case if the FontBuilder computed
+        // the head.checksum_adjustment correctly.
+        let head_size = 54;
+        let mut rng = rand::thread_rng();
+        let mut builder = FontBuilder::default();
+        for tag in [Tag::new(b"head"), Tag::new(b"FOO "), Tag::new(b"BAR ")] {
+            let data: Vec<u8> = (0..=head_size).map(|_| rng.gen()).collect();
+            builder.add_raw(tag, data);
+        }
+        let font_data = builder.build();
+        assert_eq!(read_fonts::tables::compute_checksum(&font_data), 0xB1B0AFBA);
     }
 }
