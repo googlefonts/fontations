@@ -318,7 +318,7 @@ mod tests {
     use font_test_data::bebuffer::BeBuffer;
 
     #[test]
-    fn iso_abode_charset() {
+    fn iso_adobe_charset() {
         // Offset of 0 signifies the ISOAdobe charset
         let charset_offset = 0;
         let num_glyphs = 64;
