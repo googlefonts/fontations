@@ -259,11 +259,14 @@ impl std::error::Error for BuilderError {
 
 #[cfg(test)]
 mod tests {
+    use super::{RECOMMENDED_TABLE_ORDER_CFF, RECOMMENDED_TABLE_ORDER_TTF};
     use font_types::Tag;
     use read_fonts::FontRef;
 
     use crate::{font_builder::checksum_and_padding, FontBuilder};
+    use rand::seq::SliceRandom;
     use rand::Rng;
+    use rstest::rstest;
 
     #[test]
     fn sets_binary_search_assists() {
@@ -311,5 +314,29 @@ mod tests {
         }
         let font_data = builder.build();
         assert_eq!(read_fonts::tables::compute_checksum(&font_data), 0xB1B0AFBA);
+    }
+
+    #[rstest]
+    #[case::ttf(&RECOMMENDED_TABLE_ORDER_TTF)]
+    #[case::cff(&RECOMMENDED_TABLE_ORDER_CFF)]
+    fn recommended_table_order(#[case] recommended_order: &[Tag]) {
+        let dsig = Tag::new(b"DSIG");
+        let mut builder = FontBuilder::default();
+        builder.add_raw(dsig, vec![0]);
+        let mut tags = recommended_order.to_vec();
+        tags.shuffle(&mut rand::thread_rng());
+        for tag in tags {
+            builder.add_raw(tag, vec![0]);
+        }
+        builder.add_raw(Tag::new(b"ZZZZ"), vec![0]);
+        builder.add_raw(Tag::new(b"AAAA"), vec![0]);
+
+        // recommended order first, then sorted additional tags, and last DSIG
+        let mut expected = recommended_order.to_vec();
+        expected.push(Tag::new(b"AAAA"));
+        expected.push(Tag::new(b"ZZZZ"));
+        expected.push(dsig);
+
+        assert_eq!(builder.ordered_tags(), expected);
     }
 }
