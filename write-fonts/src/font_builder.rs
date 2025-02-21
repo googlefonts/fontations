@@ -207,8 +207,12 @@ impl<'a> FontBuilder<'a> {
         let mut data = writer.into_data().bytes;
         checksums.push(read_fonts::tables::compute_checksum(&data));
 
+        // Summing all the individual table checksums, including the table directory's,
+        // gives the checksum for the entire font.
+        // The checksum_adjustment is computed as 0xB1B0AFBA - checksum, modulo 2^32.
+        // https://learn.microsoft.com/en-us/typography/opentype/spec/otff#calculating-checksums
         let checksum = checksums.into_iter().fold(0u32, u32::wrapping_add);
-        let checksum_adjustment = 0xB1B0_AFBAu32.wrapping_sub(checksum); // BiboAfba!
+        let checksum_adjustment = 0xB1B0_AFBAu32.wrapping_sub(checksum);
 
         for tag in table_order {
             let table = self.tables.remove(&tag).unwrap();
