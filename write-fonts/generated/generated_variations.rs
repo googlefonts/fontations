@@ -88,9 +88,7 @@ pub struct Tuple {
 impl Tuple {
     /// Construct a new `Tuple`
     pub fn new(values: Vec<F2Dot14>) -> Self {
-        Self {
-            values: values.into_iter().map(Into::into).collect(),
-        }
+        Self { values }
     }
 }
 
@@ -142,7 +140,7 @@ impl DeltaSetIndexMapFormat0 {
         Self {
             entry_format,
             map_count,
-            map_data: map_data.into_iter().map(Into::into).collect(),
+            map_data,
         }
     }
 }
@@ -212,7 +210,7 @@ impl DeltaSetIndexMapFormat1 {
         Self {
             entry_format,
             map_count,
-            map_data: map_data.into_iter().map(Into::into).collect(),
+            map_data,
         }
     }
 }
@@ -448,9 +446,7 @@ pub struct VariationRegion {
 impl VariationRegion {
     /// Construct a new `VariationRegion`
     pub fn new(region_axes: Vec<RegionAxisCoordinates>) -> Self {
-        Self {
-            region_axes: region_axes.into_iter().map(Into::into).collect(),
-        }
+        Self { region_axes }
     }
 }
 
@@ -643,8 +639,8 @@ impl ItemVariationData {
         Self {
             item_count,
             word_delta_count,
-            region_indexes: region_indexes.into_iter().map(Into::into).collect(),
-            delta_sets: delta_sets.into_iter().map(Into::into).collect(),
+            region_indexes,
+            delta_sets,
         }
     }
 }

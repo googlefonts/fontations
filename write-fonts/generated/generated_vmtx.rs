@@ -20,8 +20,8 @@ impl Vmtx {
     /// Construct a new `Vmtx`
     pub fn new(v_metrics: Vec<LongMetric>, top_side_bearings: Vec<i16>) -> Self {
         Self {
-            v_metrics: v_metrics.into_iter().map(Into::into).collect(),
-            top_side_bearings: top_side_bearings.into_iter().map(Into::into).collect(),
+            v_metrics,
+            top_side_bearings,
         }
     }
 }

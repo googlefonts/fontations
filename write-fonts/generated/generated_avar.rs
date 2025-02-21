@@ -105,9 +105,7 @@ pub struct SegmentMaps {
 impl SegmentMaps {
     /// Construct a new `SegmentMaps`
     pub fn new(axis_value_maps: Vec<AxisValueMap>) -> Self {
-        Self {
-            axis_value_maps: axis_value_maps.into_iter().map(Into::into).collect(),
-        }
+        Self { axis_value_maps }
     }
 }
 

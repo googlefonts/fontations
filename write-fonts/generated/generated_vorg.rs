@@ -22,7 +22,7 @@ impl Vorg {
     pub fn new(default_vert_origin_y: i16, vert_origin_y_metrics: Vec<VertOriginYMetrics>) -> Self {
         Self {
             default_vert_origin_y,
-            vert_origin_y_metrics: vert_origin_y_metrics.into_iter().map(Into::into).collect(),
+            vert_origin_y_metrics,
         }
     }
 }

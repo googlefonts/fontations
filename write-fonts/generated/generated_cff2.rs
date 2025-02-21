@@ -33,9 +33,9 @@ impl Cff2Header {
         Self {
             header_size,
             top_dict_length,
-            _padding: _padding.into_iter().map(Into::into).collect(),
-            top_dict_data: top_dict_data.into_iter().map(Into::into).collect(),
-            trailing_data: trailing_data.into_iter().map(Into::into).collect(),
+            _padding,
+            top_dict_data,
+            trailing_data,
         }
     }
 }

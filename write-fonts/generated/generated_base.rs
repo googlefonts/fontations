@@ -157,9 +157,7 @@ pub struct BaseTagList {
 impl BaseTagList {
     /// Construct a new `BaseTagList`
     pub fn new(baseline_tags: Vec<Tag>) -> Self {
-        Self {
-            baseline_tags: baseline_tags.into_iter().map(Into::into).collect(),
-        }
+        Self { baseline_tags }
     }
 }
 
@@ -217,7 +215,7 @@ impl BaseScriptList {
     /// Construct a new `BaseScriptList`
     pub fn new(base_script_records: Vec<BaseScriptRecord>) -> Self {
         Self {
-            base_script_records: base_script_records.into_iter().map(Into::into).collect(),
+            base_script_records,
         }
     }
 }
@@ -340,7 +338,7 @@ impl BaseScript {
         Self {
             base_values: base_values.into(),
             default_min_max: default_min_max.into(),
-            base_lang_sys_records: base_lang_sys_records.into_iter().map(Into::into).collect(),
+            base_lang_sys_records,
         }
     }
 }
@@ -541,7 +539,7 @@ impl MinMax {
         Self {
             min_coord: min_coord.into(),
             max_coord: max_coord.into(),
-            feat_min_max_records: feat_min_max_records.into_iter().map(Into::into).collect(),
+            feat_min_max_records,
         }
     }
 }

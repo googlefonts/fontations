@@ -25,7 +25,7 @@ impl Gasp {
         Self {
             version,
             num_ranges,
-            gasp_ranges: gasp_ranges.into_iter().map(Into::into).collect(),
+            gasp_ranges,
         }
     }
 }

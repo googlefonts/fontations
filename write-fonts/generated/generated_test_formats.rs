@@ -63,9 +63,7 @@ pub struct Table2 {
 impl Table2 {
     /// Construct a new `Table2`
     pub fn new(values: Vec<u16>) -> Self {
-        Self {
-            values: values.into_iter().map(Into::into).collect(),
-        }
+        Self { values }
     }
 }
 

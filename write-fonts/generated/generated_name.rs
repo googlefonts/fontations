@@ -19,7 +19,7 @@ impl Name {
     /// Construct a new `Name`
     pub fn new(name_record: Vec<NameRecord>) -> Self {
         Self {
-            name_record: name_record.into_iter().map(Into::into).collect(),
+            name_record,
             ..Default::default()
         }
     }

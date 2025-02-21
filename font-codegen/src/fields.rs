@@ -117,8 +117,8 @@ impl Fields {
                 .map(|arg| FieldConstructorInfo {
                     name: fld.name_for_compile().into_owned(),
                     arg_tokens: arg,
-                    is_offset: fld.is_offset_or_array_of_offsets(),
                     is_array: fld.is_array(),
+                    needs_into: fld.constructor_needs_into(),
                     manual_compile_type: fld.attrs.compile_type.is_some(),
                 })
         })
@@ -347,8 +347,10 @@ impl Condition {
 pub(crate) struct FieldConstructorInfo {
     pub(crate) name: syn::Ident,
     pub(crate) arg_tokens: TokenStream,
-    pub(crate) is_offset: bool,
     pub(crate) is_array: bool,
+    // if the type used in the `new` method is different from the type of the
+    // field declared in the struct, we need to convert it with `Into`
+    pub(crate) needs_into: bool,
     pub(crate) manual_compile_type: bool,
 }
 
@@ -541,6 +543,19 @@ impl Field {
             FieldType::PendingResolution { typ } => {
                 panic!("Should have resolved {}", quote! { #typ })
             }
+        }
+    }
+
+    fn constructor_needs_into(&self) -> bool {
+        match &self.typ {
+            FieldType::Offset { .. } => true,
+            FieldType::Array { inner_typ } => {
+                matches!(inner_typ.as_ref(), FieldType::Offset { .. })
+            }
+            FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => false,
+
+            FieldType::Struct { .. } | FieldType::Scalar { .. } => false,
+            FieldType::PendingResolution { .. } => panic!("resolved before now"),
         }
     }
 

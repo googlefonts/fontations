@@ -63,7 +63,7 @@ impl Cpal {
             num_palettes,
             num_color_records,
             color_records_array: color_records_array.into(),
-            color_record_indices: color_record_indices.into_iter().map(Into::into).collect(),
+            color_record_indices,
             ..Default::default()
         }
     }

@@ -17,9 +17,7 @@ pub struct Cmap {
 impl Cmap {
     /// Construct a new `Cmap`
     pub fn new(encoding_records: Vec<EncodingRecord>) -> Self {
-        Self {
-            encoding_records: encoding_records.into_iter().map(Into::into).collect(),
-        }
+        Self { encoding_records }
     }
 }
 
@@ -393,7 +391,7 @@ impl Cmap0 {
     pub fn new(language: u16, glyph_id_array: Vec<u8>) -> Self {
         Self {
             language,
-            glyph_id_array: glyph_id_array.into_iter().map(Into::into).collect(),
+            glyph_id_array,
         }
     }
 }
@@ -454,7 +452,7 @@ impl Cmap2 {
         Self {
             length,
             language,
-            sub_header_keys: sub_header_keys.into_iter().map(Into::into).collect(),
+            sub_header_keys,
         }
     }
 }
@@ -580,11 +578,11 @@ impl Cmap4 {
     ) -> Self {
         Self {
             language,
-            end_code: end_code.into_iter().map(Into::into).collect(),
-            start_code: start_code.into_iter().map(Into::into).collect(),
-            id_delta: id_delta.into_iter().map(Into::into).collect(),
-            id_range_offsets: id_range_offsets.into_iter().map(Into::into).collect(),
-            glyph_id_array: glyph_id_array.into_iter().map(Into::into).collect(),
+            end_code,
+            start_code,
+            id_delta,
+            id_range_offsets,
+            glyph_id_array,
         }
     }
 }
@@ -669,7 +667,7 @@ impl Cmap6 {
             language,
             first_code,
             entry_count,
-            glyph_id_array: glyph_id_array.into_iter().map(Into::into).collect(),
+            glyph_id_array,
         }
     }
 }
@@ -754,9 +752,9 @@ impl Cmap8 {
         Self {
             length,
             language,
-            is32: is32.into_iter().map(Into::into).collect(),
+            is32,
             num_groups,
-            groups: groups.into_iter().map(Into::into).collect(),
+            groups,
         }
     }
 }
@@ -895,7 +893,7 @@ impl Cmap10 {
             language,
             start_char_code,
             num_chars,
-            glyph_id_array: glyph_id_array.into_iter().map(Into::into).collect(),
+            glyph_id_array,
         }
     }
 }
@@ -956,10 +954,7 @@ pub struct Cmap12 {
 impl Cmap12 {
     /// Construct a new `Cmap12`
     pub fn new(language: u32, groups: Vec<SequentialMapGroup>) -> Self {
-        Self {
-            language,
-            groups: groups.into_iter().map(Into::into).collect(),
-        }
+        Self { language, groups }
     }
 }
 
@@ -1032,7 +1027,7 @@ impl Cmap13 {
             length,
             language,
             num_groups,
-            groups: groups.into_iter().map(Into::into).collect(),
+            groups,
         }
     }
 }
@@ -1157,7 +1152,7 @@ impl Cmap14 {
         Self {
             length,
             num_var_selector_records,
-            var_selector: var_selector.into_iter().map(Into::into).collect(),
+            var_selector,
         }
     }
 }
@@ -1289,7 +1284,7 @@ impl DefaultUvs {
     pub fn new(num_unicode_value_ranges: u32, ranges: Vec<UnicodeRange>) -> Self {
         Self {
             num_unicode_value_ranges,
-            ranges: ranges.into_iter().map(Into::into).collect(),
+            ranges,
         }
     }
 }
@@ -1349,7 +1344,7 @@ impl NonDefaultUvs {
     pub fn new(num_uvs_mappings: u32, uvs_mapping: Vec<UvsMapping>) -> Self {
         Self {
             num_uvs_mappings,
-            uvs_mapping: uvs_mapping.into_iter().map(Into::into).collect(),
+            uvs_mapping,
         }
     }
 }

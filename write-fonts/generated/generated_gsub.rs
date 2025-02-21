@@ -400,7 +400,7 @@ impl SingleSubstFormat2 {
     pub fn new(coverage: CoverageTable, substitute_glyph_ids: Vec<GlyphId16>) -> Self {
         Self {
             coverage: coverage.into(),
-            substitute_glyph_ids: substitute_glyph_ids.into_iter().map(Into::into).collect(),
+            substitute_glyph_ids,
         }
     }
 }
@@ -535,7 +535,7 @@ impl Sequence {
     /// Construct a new `Sequence`
     pub fn new(substitute_glyph_ids: Vec<GlyphId16>) -> Self {
         Self {
-            substitute_glyph_ids: substitute_glyph_ids.into_iter().map(Into::into).collect(),
+            substitute_glyph_ids,
         }
     }
 }
@@ -669,7 +669,7 @@ impl AlternateSet {
     /// Construct a new `AlternateSet`
     pub fn new(alternate_glyph_ids: Vec<GlyphId16>) -> Self {
         Self {
-            alternate_glyph_ids: alternate_glyph_ids.into_iter().map(Into::into).collect(),
+            alternate_glyph_ids,
         }
     }
 }
@@ -860,7 +860,7 @@ impl Ligature {
     pub fn new(ligature_glyph: GlyphId16, component_glyph_ids: Vec<GlyphId16>) -> Self {
         Self {
             ligature_glyph,
-            component_glyph_ids: component_glyph_ids.into_iter().map(Into::into).collect(),
+            component_glyph_ids,
         }
     }
 }
@@ -1121,7 +1121,7 @@ impl ReverseChainSingleSubstFormat1 {
             coverage: coverage.into(),
             backtrack_coverages: backtrack_coverages.into_iter().map(Into::into).collect(),
             lookahead_coverages: lookahead_coverages.into_iter().map(Into::into).collect(),
-            substitute_glyph_ids: substitute_glyph_ids.into_iter().map(Into::into).collect(),
+            substitute_glyph_ids,
         }
     }
 }

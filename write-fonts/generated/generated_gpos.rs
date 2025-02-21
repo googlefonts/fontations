@@ -576,9 +576,7 @@ pub struct MarkArray {
 impl MarkArray {
     /// Construct a new `MarkArray`
     pub fn new(mark_records: Vec<MarkRecord>) -> Self {
-        Self {
-            mark_records: mark_records.into_iter().map(Into::into).collect(),
-        }
+        Self { mark_records }
     }
 }
 
@@ -1371,7 +1369,7 @@ impl CursivePosFormat1 {
     pub fn new(coverage: CoverageTable, entry_exit_record: Vec<EntryExitRecord>) -> Self {
         Self {
             coverage: coverage.into(),
-            entry_exit_record: entry_exit_record.into_iter().map(Into::into).collect(),
+            entry_exit_record,
         }
     }
 }

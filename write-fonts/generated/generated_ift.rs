@@ -169,9 +169,9 @@ impl PatchMapFormat1 {
             glyph_count,
             glyph_map: glyph_map.into(),
             feature_map: feature_map.into(),
-            applied_entries_bitmap: applied_entries_bitmap.into_iter().map(Into::into).collect(),
+            applied_entries_bitmap,
             uri_template_length,
-            uri_template: uri_template.into_iter().map(Into::into).collect(),
+            uri_template,
             patch_format,
         }
     }
@@ -295,7 +295,7 @@ impl FeatureMap {
     pub fn new(feature_count: u16, entry_map_data: Vec<u8>) -> Self {
         Self {
             feature_count,
-            entry_map_data: entry_map_data.into_iter().map(Into::into).collect(),
+            entry_map_data,
         }
     }
 }
@@ -425,7 +425,7 @@ impl PatchMapFormat2 {
             entries: entries.into(),
             entry_id_string_data: entry_id_string_data.into(),
             uri_template_length,
-            uri_template: uri_template.into_iter().map(Into::into).collect(),
+            uri_template,
         }
     }
 }
@@ -500,9 +500,7 @@ pub struct MappingEntries {
 impl MappingEntries {
     /// Construct a new `MappingEntries`
     pub fn new(entry_data: Vec<u8>) -> Self {
-        Self {
-            entry_data: entry_data.into_iter().map(Into::into).collect(),
-        }
+        Self { entry_data }
     }
 }
 
@@ -556,7 +554,7 @@ impl EntryData {
     pub fn new(format_flags: EntryFormatFlags, codepoint_data: Vec<u8>) -> Self {
         Self {
             format_flags,
-            codepoint_data: codepoint_data.into_iter().map(Into::into).collect(),
+            codepoint_data,
             ..Default::default()
         }
     }
@@ -796,9 +794,7 @@ pub struct IdStringData {
 impl IdStringData {
     /// Construct a new `IdStringData`
     pub fn new(id_data: Vec<u8>) -> Self {
-        Self {
-            id_data: id_data.into_iter().map(Into::into).collect(),
-        }
+        Self { id_data }
     }
 }
 
@@ -928,7 +924,7 @@ impl TablePatch {
             tag,
             flags,
             max_uncompressed_length,
-            brotli_stream: brotli_stream.into_iter().map(Into::into).collect(),
+            brotli_stream,
         }
     }
 }
@@ -1001,7 +997,7 @@ impl GlyphKeyedPatch {
             flags,
             compatibility_id,
             max_uncompressed_length,
-            brotli_stream: brotli_stream.into_iter().map(Into::into).collect(),
+            brotli_stream,
         }
     }
 }
@@ -1075,7 +1071,7 @@ impl GlyphPatches {
         Self {
             glyph_count,
             table_count,
-            tables: tables.into_iter().map(Into::into).collect(),
+            tables,
             glyph_data: glyph_data.into_iter().map(Into::into).collect(),
         }
     }
@@ -1133,9 +1129,7 @@ pub struct GlyphData {
 impl GlyphData {
     /// Construct a new `GlyphData`
     pub fn new(data: Vec<u8>) -> Self {
-        Self {
-            data: data.into_iter().map(Into::into).collect(),
-        }
+        Self { data }
     }
 }
 
