@@ -754,7 +754,13 @@ pub(crate) mod tests {
             assert_eq!(tag_a, tag_b);
             let data_a = a.table_data(tag_a).unwrap();
             let data_b = b.table_data(tag_b).unwrap();
-            assert_eq!(data_a.as_bytes(), data_b.as_bytes(), "{}", tag_a);
+            if tag_a == Tag::new(b"head") {
+                // ignore the head.checksum_adjustment, which will necessarily differ
+                assert_eq!(data_a.as_bytes()[..8], data_b.as_bytes()[..8]);
+                assert_eq!(data_a.as_bytes()[12..], data_b.as_bytes()[12..]);
+            } else {
+                assert_eq!(data_a.as_bytes(), data_b.as_bytes(), "{}", tag_a);
+            }
         }
     }
 

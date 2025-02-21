@@ -47,6 +47,40 @@ impl TableDirectory {
     }
 }
 
+// https://learn.microsoft.com/en-us/typography/opentype/spec/recom#optimized-table-ordering
+const RECOMMENDED_TABLE_ORDER_TTF: [Tag; 19] = [
+    Tag::new(b"head"),
+    Tag::new(b"hhea"),
+    Tag::new(b"maxp"),
+    Tag::new(b"OS/2"),
+    Tag::new(b"hmtx"),
+    Tag::new(b"LTSH"),
+    Tag::new(b"VDMX"),
+    Tag::new(b"hdmx"),
+    Tag::new(b"cmap"),
+    Tag::new(b"fpgm"),
+    Tag::new(b"prep"),
+    Tag::new(b"cvt "),
+    Tag::new(b"loca"),
+    Tag::new(b"glyf"),
+    Tag::new(b"kern"),
+    Tag::new(b"name"),
+    Tag::new(b"post"),
+    Tag::new(b"gasp"),
+    Tag::new(b"PCLT"),
+];
+
+const RECOMMENDED_TABLE_ORDER_CFF: [Tag; 8] = [
+    Tag::new(b"head"),
+    Tag::new(b"hhea"),
+    Tag::new(b"maxp"),
+    Tag::new(b"OS/2"),
+    Tag::new(b"name"),
+    Tag::new(b"cmap"),
+    Tag::new(b"post"),
+    Tag::new(b"CFF "),
+];
+
 impl<'a> FontBuilder<'a> {
     /// Create a new builder to compile a binary font
     pub fn new() -> Self {
@@ -93,35 +127,103 @@ impl<'a> FontBuilder<'a> {
         self.tables.contains_key(&tag)
     }
 
+    /// Returns the builder's table tags in the order recommended by the OpenType spec.
+    ///
+    /// Table tags not in the recommended order are sorted lexicographically, and 'DSIG'
+    /// is always sorted last.
+    /// The presence of the 'CFF ' table determines which of the two recommended orders is used.
+    /// This matches fontTools' `sortedTagList` function.
+    ///
+    /// See:
+    /// <https://learn.microsoft.com/en-us/typography/opentype/spec/recom#optimized-table-ordering>
+    /// <https://github.com/fonttools/fonttools/blob/8d6b2f8f87637fcad8dae498d32eae738cd951bf/Lib/fontTools/ttLib/ttFont.py#L1096-L1117>
+    pub fn ordered_tags(&self) -> Vec<Tag> {
+        let recommended_order: &[Tag] = if self.contains(Tag::new(b"CFF ")) {
+            &RECOMMENDED_TABLE_ORDER_CFF
+        } else {
+            &RECOMMENDED_TABLE_ORDER_TTF
+        };
+        // Sort tags into three groups:
+        //   Group 0: tags that are in the recommended order, sorted accordingly.
+        //   Group 1: tags not in the recommended order, sorted alphabetically.
+        //   Group 2: 'DSIG' is always sorted last, matching fontTools' behavior.
+        let mut ordered_tags: Vec<Tag> = self.tables.keys().copied().collect();
+        let dsig = Tag::new(b"DSIG");
+        ordered_tags.sort_unstable_by_key(|rtag| {
+            let tag = *rtag;
+            if tag == dsig {
+                (2, 0, tag)
+            } else if let Some(idx) = recommended_order.iter().position(|t| t == rtag) {
+                (0, idx, tag)
+            } else {
+                (1, 0, tag)
+            }
+        });
+
+        ordered_tags
+    }
+
     /// Assemble all the tables into a binary font file with a [Table Directory].
     ///
     /// [Table Directory]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-directory
+    /// [Calculating Checksums]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#calculating-checksums
     pub fn build(&mut self) -> Vec<u8> {
         let header_len = std::mem::size_of::<u32>() // sfnt
             + std::mem::size_of::<u16>() * 4 // num_tables to range_shift
             + self.tables.len() * TABLE_RECORD_LEN;
 
+        // note this is the order of the tables themselves, not the records in the table directory
+        // which are sorted by tag so they can be binary searched
+        let table_order = self.ordered_tags();
+
         let mut position = header_len as u32;
-        let table_records: Vec<_> = self
-            .tables
-            .iter_mut()
-            .map(|(tag, data)| {
-                let offset = position;
-                let length = data.len() as u32;
-                position += length;
-                let (checksum, padding) = checksum_and_padding(data);
-                position += padding;
-                TableRecord::new(*tag, checksum, offset, length)
-            })
-            .collect();
+        let mut checksums = Vec::new();
+        let head_tag = Tag::new(b"head");
+
+        let mut table_records = Vec::new();
+        for tag in table_order.iter() {
+            // safe to unwrap as ordered_tags() guarantees that all keys exist
+            let data = self.tables.get_mut(tag).unwrap();
+            let offset = position;
+            let length = data.len() as u32;
+            position += length;
+            if *tag == head_tag {
+                // The head table checksum is computed with the checksum field set to 0.
+                // Equivalent to Python's `data[:8] + b"\0\0\0\0" + data[12:]`
+                let head = data.to_mut();
+                head[8..12].copy_from_slice(&[0, 0, 0, 0]);
+            }
+            let (checksum, padding) = checksum_and_padding(data);
+            checksums.push(checksum);
+            position += padding;
+            table_records.push(TableRecord::new(*tag, checksum, offset, length));
+        }
+        table_records.sort_unstable_by_key(|record| record.tag);
 
         let directory = TableDirectory::from_table_records(table_records);
 
         let mut writer = TableWriter::default();
         directory.write_into(&mut writer);
         let mut data = writer.into_data().bytes;
-        for table in self.tables.values() {
-            data.extend_from_slice(table);
+        checksums.push(read_fonts::tables::compute_checksum(&data));
+
+        // Summing all the individual table checksums, including the table directory's,
+        // gives the checksum for the entire font.
+        // The checksum_adjustment is computed as 0xB1B0AFBA - checksum, modulo 2^32.
+        // https://learn.microsoft.com/en-us/typography/opentype/spec/otff#calculating-checksums
+        let checksum = checksums.into_iter().fold(0u32, u32::wrapping_add);
+        let checksum_adjustment = 0xB1B0_AFBAu32.wrapping_sub(checksum);
+
+        for tag in table_order {
+            let table = self.tables.remove(&tag).unwrap();
+            if tag == head_tag {
+                // store the checksum_adjustment in the head table
+                data.extend_from_slice(&table[..8]);
+                data.extend_from_slice(&checksum_adjustment.to_be_bytes());
+                data.extend_from_slice(&table[12..]);
+            } else {
+                data.extend_from_slice(&table);
+            }
             let rem = round4(table.len()) - table.len();
             let padding = [0u8; 4];
             data.extend_from_slice(&padding[..rem]);
@@ -161,10 +263,14 @@ impl std::error::Error for BuilderError {
 
 #[cfg(test)]
 mod tests {
+    use super::{RECOMMENDED_TABLE_ORDER_CFF, RECOMMENDED_TABLE_ORDER_TTF};
     use font_types::Tag;
     use read_fonts::FontRef;
 
     use crate::{font_builder::checksum_and_padding, FontBuilder};
+    use rand::seq::SliceRandom;
+    use rand::Rng;
+    use rstest::rstest;
 
     #[test]
     fn sets_binary_search_assists() {
@@ -195,5 +301,46 @@ mod tests {
             assert!(pad < 4);
             assert!((i + pad as usize) % 4 == 0, "pad {i} +{pad} bytes");
         }
+    }
+
+    #[test]
+    fn validate_font_checksum() {
+        // Add a dummy 'head' plus a couple of made-up tables containing random bytes
+        // and verify that the total font checksum is always equal to the special
+        // constant 0xB1B0AFBA, which should be the case if the FontBuilder computed
+        // the head.checksum_adjustment correctly.
+        let head_size = 54;
+        let mut rng = rand::thread_rng();
+        let mut builder = FontBuilder::default();
+        for tag in [Tag::new(b"head"), Tag::new(b"FOO "), Tag::new(b"BAR ")] {
+            let data: Vec<u8> = (0..=head_size).map(|_| rng.gen()).collect();
+            builder.add_raw(tag, data);
+        }
+        let font_data = builder.build();
+        assert_eq!(read_fonts::tables::compute_checksum(&font_data), 0xB1B0AFBA);
+    }
+
+    #[rstest]
+    #[case::ttf(&RECOMMENDED_TABLE_ORDER_TTF)]
+    #[case::cff(&RECOMMENDED_TABLE_ORDER_CFF)]
+    fn recommended_table_order(#[case] recommended_order: &[Tag]) {
+        let dsig = Tag::new(b"DSIG");
+        let mut builder = FontBuilder::default();
+        builder.add_raw(dsig, vec![0]);
+        let mut tags = recommended_order.to_vec();
+        tags.shuffle(&mut rand::thread_rng());
+        for tag in tags {
+            builder.add_raw(tag, vec![0]);
+        }
+        builder.add_raw(Tag::new(b"ZZZZ"), vec![0]);
+        builder.add_raw(Tag::new(b"AAAA"), vec![0]);
+
+        // recommended order first, then sorted additional tags, and last DSIG
+        let mut expected = recommended_order.to_vec();
+        expected.push(Tag::new(b"AAAA"));
+        expected.push(Tag::new(b"ZZZZ"));
+        expected.push(dsig);
+
+        assert_eq!(builder.ordered_tags(), expected);
     }
 }
