@@ -752,18 +752,15 @@ pub(crate) mod tests {
 
         for (tag_a, tag_b) in it_a.zip(it_b) {
             assert_eq!(tag_a, tag_b);
-            if tag_a == Tag::new(b"head") {
-                // zero out checksum_adjustment field
-                let mut a = a.table_data(tag_a).unwrap().as_bytes().to_vec();
-                let mut b = b.table_data(tag_b).unwrap().as_bytes().to_vec();
-                a[8..12].copy_from_slice(&[0, 0, 0, 0]);
-                b[8..12].copy_from_slice(&[0, 0, 0, 0]);
-                assert_eq!(a, b, "{}", tag_a);
-                continue;
-            }
             let data_a = a.table_data(tag_a).unwrap();
             let data_b = b.table_data(tag_b).unwrap();
-            assert_eq!(data_a.as_bytes(), data_b.as_bytes(), "{}", tag_a);
+            if tag_a == Tag::new(b"head") {
+                // ignore the head.checksum_adjustment, which will necessarily differ
+                assert_eq!(data_a.as_bytes()[..8], data_b.as_bytes()[..8]);
+                assert_eq!(data_a.as_bytes()[12..], data_b.as_bytes()[12..]);
+            } else {
+                assert_eq!(data_a.as_bytes(), data_b.as_bytes(), "{}", tag_a);
+            }
         }
     }
 
