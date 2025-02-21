@@ -291,13 +291,13 @@ pub(crate) fn generate_compile_impl(
     let constructor_field_inits = constructor_args_raw.iter().map(
         |FieldConstructorInfo {
              name,
-             is_offset,
              is_array,
+             needs_into,
              ..
          }| {
-            if *is_array {
+            if *is_array && *needs_into {
                 quote!(#name: #name.into_iter().map(Into::into).collect())
-            } else if *is_offset {
+            } else if *needs_into {
                 quote!( #name: #name.into())
             } else {
                 name.into_token_stream()

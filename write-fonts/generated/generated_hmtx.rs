@@ -21,8 +21,8 @@ impl Hmtx {
     /// Construct a new `Hmtx`
     pub fn new(h_metrics: Vec<LongMetric>, left_side_bearings: Vec<i16>) -> Self {
         Self {
-            h_metrics: h_metrics.into_iter().map(Into::into).collect(),
-            left_side_bearings: left_side_bearings.into_iter().map(Into::into).collect(),
+            h_metrics,
+            left_side_bearings,
         }
     }
 }

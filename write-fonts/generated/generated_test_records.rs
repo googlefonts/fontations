@@ -16,7 +16,7 @@ impl BasicTable {
     /// Construct a new `BasicTable`
     pub fn new(simple_records: Vec<SimpleRecord>, array_records: Vec<ContainsArrays>) -> Self {
         Self {
-            simple_records: simple_records.into_iter().map(Into::into).collect(),
+            simple_records,
             array_records,
         }
     }
@@ -127,10 +127,7 @@ pub struct ContainsArrays {
 impl ContainsArrays {
     /// Construct a new `ContainsArrays`
     pub fn new(scalars: Vec<u16>, records: Vec<SimpleRecord>) -> Self {
-        Self {
-            scalars: scalars.into_iter().map(Into::into).collect(),
-            records: records.into_iter().map(Into::into).collect(),
-        }
+        Self { scalars, records }
     }
 }
 

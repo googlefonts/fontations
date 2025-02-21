@@ -25,8 +25,8 @@ impl CffHeader {
         Self {
             hdr_size,
             off_size,
-            _padding: _padding.into_iter().map(Into::into).collect(),
-            trailing_data: trailing_data.into_iter().map(Into::into).collect(),
+            _padding,
+            trailing_data,
         }
     }
 }

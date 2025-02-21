@@ -206,9 +206,7 @@ pub struct AttachPoint {
 impl AttachPoint {
     /// Construct a new `AttachPoint`
     pub fn new(point_indices: Vec<u16>) -> Self {
-        Self {
-            point_indices: point_indices.into_iter().map(Into::into).collect(),
-        }
+        Self { point_indices }
     }
 }
 

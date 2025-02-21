@@ -84,10 +84,7 @@ pub struct AxisInstanceArrays {
 impl AxisInstanceArrays {
     /// Construct a new `AxisInstanceArrays`
     pub fn new(axes: Vec<VariationAxisRecord>, instances: Vec<InstanceRecord>) -> Self {
-        Self {
-            axes: axes.into_iter().map(Into::into).collect(),
-            instances,
-        }
+        Self { axes, instances }
     }
 }
 

@@ -16,9 +16,7 @@ pub struct Meta {
 impl Meta {
     /// Construct a new `Meta`
     pub fn new(data_maps: Vec<DataMapRecord>) -> Self {
-        Self {
-            data_maps: data_maps.into_iter().map(Into::into).collect(),
-        }
+        Self { data_maps }
     }
 }
 

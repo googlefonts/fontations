@@ -32,7 +32,7 @@ impl TableDirectory {
             search_range,
             entry_selector,
             range_shift,
-            table_records: table_records.into_iter().map(Into::into).collect(),
+            table_records,
         }
     }
 }

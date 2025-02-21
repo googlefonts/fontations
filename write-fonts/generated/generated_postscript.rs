@@ -25,8 +25,8 @@ impl Index1 {
         Self {
             count,
             off_size,
-            offsets: offsets.into_iter().map(Into::into).collect(),
-            data: data.into_iter().map(Into::into).collect(),
+            offsets,
+            data,
         }
     }
 }
@@ -88,8 +88,8 @@ impl Index2 {
         Self {
             count,
             off_size,
-            offsets: offsets.into_iter().map(Into::into).collect(),
-            data: data.into_iter().map(Into::into).collect(),
+            offsets,
+            data,
         }
     }
 }
@@ -239,9 +239,7 @@ pub struct FdSelectFormat0 {
 impl FdSelectFormat0 {
     /// Construct a new `FdSelectFormat0`
     pub fn new(fds: Vec<u8>) -> Self {
-        Self {
-            fds: fds.into_iter().map(Into::into).collect(),
-        }
+        Self { fds }
     }
 }
 
@@ -295,10 +293,7 @@ pub struct FdSelectFormat3 {
 impl FdSelectFormat3 {
     /// Construct a new `FdSelectFormat3`
     pub fn new(ranges: Vec<FdSelectRange3>, sentinel: u16) -> Self {
-        Self {
-            ranges: ranges.into_iter().map(Into::into).collect(),
-            sentinel,
-        }
+        Self { ranges, sentinel }
     }
 }
 
@@ -404,10 +399,7 @@ pub struct FdSelectFormat4 {
 impl FdSelectFormat4 {
     /// Construct a new `FdSelectFormat4`
     pub fn new(ranges: Vec<FdSelectRange4>, sentinel: u32) -> Self {
-        Self {
-            ranges: ranges.into_iter().map(Into::into).collect(),
-            sentinel,
-        }
+        Self { ranges, sentinel }
     }
 }
 
@@ -608,9 +600,7 @@ pub struct CharsetFormat0 {
 impl CharsetFormat0 {
     /// Construct a new `CharsetFormat0`
     pub fn new(glyph: Vec<u16>) -> Self {
-        Self {
-            glyph: glyph.into_iter().map(Into::into).collect(),
-        }
+        Self { glyph }
     }
 }
 
@@ -659,9 +649,7 @@ pub struct CharsetFormat1 {
 impl CharsetFormat1 {
     /// Construct a new `CharsetFormat1`
     pub fn new(ranges: Vec<CharsetRange1>) -> Self {
-        Self {
-            ranges: ranges.into_iter().map(Into::into).collect(),
-        }
+        Self { ranges }
     }
 }
 
@@ -756,9 +744,7 @@ pub struct CharsetFormat2 {
 impl CharsetFormat2 {
     /// Construct a new `CharsetFormat2`
     pub fn new(ranges: Vec<CharsetRange2>) -> Self {
-        Self {
-            ranges: ranges.into_iter().map(Into::into).collect(),
-        }
+        Self { ranges }
     }
 }
 

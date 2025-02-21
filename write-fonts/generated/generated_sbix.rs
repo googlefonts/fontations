@@ -95,7 +95,7 @@ impl Strike {
         Self {
             ppem,
             ppi,
-            glyph_data_offsets: glyph_data_offsets.into_iter().map(Into::into).collect(),
+            glyph_data_offsets,
         }
     }
 }
@@ -155,7 +155,7 @@ impl GlyphData {
             origin_offset_x,
             origin_offset_y,
             graphic_type,
-            data: data.into_iter().map(Into::into).collect(),
+            data,
         }
     }
 }

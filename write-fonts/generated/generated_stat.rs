@@ -609,7 +609,7 @@ impl AxisValueFormat4 {
         Self {
             flags,
             value_name_id,
-            axis_values: axis_values.into_iter().map(Into::into).collect(),
+            axis_values,
         }
     }
 }

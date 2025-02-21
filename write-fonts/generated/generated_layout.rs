@@ -18,9 +18,7 @@ pub struct ScriptList {
 impl ScriptList {
     /// Construct a new `ScriptList`
     pub fn new(script_records: Vec<ScriptRecord>) -> Self {
-        Self {
-            script_records: script_records.into_iter().map(Into::into).collect(),
-        }
+        Self { script_records }
     }
 }
 
@@ -131,7 +129,7 @@ impl Script {
     pub fn new(default_lang_sys: Option<LangSys>, lang_sys_records: Vec<LangSysRecord>) -> Self {
         Self {
             default_lang_sys: default_lang_sys.into(),
-            lang_sys_records: lang_sys_records.into_iter().map(Into::into).collect(),
+            lang_sys_records,
         }
     }
 }
@@ -258,7 +256,7 @@ impl LangSys {
     /// Construct a new `LangSys`
     pub fn new(feature_indices: Vec<u16>) -> Self {
         Self {
-            feature_indices: feature_indices.into_iter().map(Into::into).collect(),
+            feature_indices,
             ..Default::default()
         }
     }
@@ -320,9 +318,7 @@ pub struct FeatureList {
 impl FeatureList {
     /// Construct a new `FeatureList`
     pub fn new(feature_records: Vec<FeatureRecord>) -> Self {
-        Self {
-            feature_records: feature_records.into_iter().map(Into::into).collect(),
-        }
+        Self { feature_records }
     }
 }
 
@@ -437,7 +433,7 @@ impl Feature {
     pub fn new(feature_params: Option<FeatureParams>, lookup_list_indices: Vec<u16>) -> Self {
         Self {
             feature_params: feature_params.into(),
-            lookup_list_indices: lookup_list_indices.into_iter().map(Into::into).collect(),
+            lookup_list_indices,
         }
     }
 }
@@ -629,9 +625,7 @@ pub struct CoverageFormat1 {
 impl CoverageFormat1 {
     /// Construct a new `CoverageFormat1`
     pub fn new(glyph_array: Vec<GlyphId16>) -> Self {
-        Self {
-            glyph_array: glyph_array.into_iter().map(Into::into).collect(),
-        }
+        Self { glyph_array }
     }
 }
 
@@ -689,9 +683,7 @@ pub struct CoverageFormat2 {
 impl CoverageFormat2 {
     /// Construct a new `CoverageFormat2`
     pub fn new(range_records: Vec<RangeRecord>) -> Self {
-        Self {
-            range_records: range_records.into_iter().map(Into::into).collect(),
-        }
+        Self { range_records }
     }
 }
 
@@ -887,7 +879,7 @@ impl ClassDefFormat1 {
     pub fn new(start_glyph_id: GlyphId16, class_value_array: Vec<u16>) -> Self {
         Self {
             start_glyph_id,
-            class_value_array: class_value_array.into_iter().map(Into::into).collect(),
+            class_value_array,
         }
     }
 }
@@ -949,7 +941,7 @@ impl ClassDefFormat2 {
     /// Construct a new `ClassDefFormat2`
     pub fn new(class_range_records: Vec<ClassRangeRecord>) -> Self {
         Self {
-            class_range_records: class_range_records.into_iter().map(Into::into).collect(),
+            class_range_records,
         }
     }
 }
@@ -1330,8 +1322,8 @@ impl SequenceRule {
         seq_lookup_records: Vec<SequenceLookupRecord>,
     ) -> Self {
         Self {
-            input_sequence: input_sequence.into_iter().map(Into::into).collect(),
-            seq_lookup_records: seq_lookup_records.into_iter().map(Into::into).collect(),
+            input_sequence,
+            seq_lookup_records,
         }
     }
 }
@@ -1554,8 +1546,8 @@ impl ClassSequenceRule {
     /// Construct a new `ClassSequenceRule`
     pub fn new(input_sequence: Vec<u16>, seq_lookup_records: Vec<SequenceLookupRecord>) -> Self {
         Self {
-            input_sequence: input_sequence.into_iter().map(Into::into).collect(),
-            seq_lookup_records: seq_lookup_records.into_iter().map(Into::into).collect(),
+            input_sequence,
+            seq_lookup_records,
         }
     }
 }
@@ -1625,7 +1617,7 @@ impl SequenceContextFormat3 {
     ) -> Self {
         Self {
             coverages: coverages.into_iter().map(Into::into).collect(),
-            seq_lookup_records: seq_lookup_records.into_iter().map(Into::into).collect(),
+            seq_lookup_records,
         }
     }
 }
@@ -1970,10 +1962,10 @@ impl ChainedSequenceRule {
         seq_lookup_records: Vec<SequenceLookupRecord>,
     ) -> Self {
         Self {
-            backtrack_sequence: backtrack_sequence.into_iter().map(Into::into).collect(),
-            input_sequence: input_sequence.into_iter().map(Into::into).collect(),
-            lookahead_sequence: lookahead_sequence.into_iter().map(Into::into).collect(),
-            seq_lookup_records: seq_lookup_records.into_iter().map(Into::into).collect(),
+            backtrack_sequence,
+            input_sequence,
+            lookahead_sequence,
+            seq_lookup_records,
         }
     }
 }
@@ -2252,10 +2244,10 @@ impl ChainedClassSequenceRule {
         seq_lookup_records: Vec<SequenceLookupRecord>,
     ) -> Self {
         Self {
-            backtrack_sequence: backtrack_sequence.into_iter().map(Into::into).collect(),
-            input_sequence: input_sequence.into_iter().map(Into::into).collect(),
-            lookahead_sequence: lookahead_sequence.into_iter().map(Into::into).collect(),
-            seq_lookup_records: seq_lookup_records.into_iter().map(Into::into).collect(),
+            backtrack_sequence,
+            input_sequence,
+            lookahead_sequence,
+            seq_lookup_records,
         }
     }
 }
@@ -2356,7 +2348,7 @@ impl ChainedSequenceContextFormat3 {
             backtrack_coverages: backtrack_coverages.into_iter().map(Into::into).collect(),
             input_coverages: input_coverages.into_iter().map(Into::into).collect(),
             lookahead_coverages: lookahead_coverages.into_iter().map(Into::into).collect(),
-            seq_lookup_records: seq_lookup_records.into_iter().map(Into::into).collect(),
+            seq_lookup_records,
         }
     }
 }
@@ -2821,10 +2813,7 @@ impl FeatureVariations {
     /// Construct a new `FeatureVariations`
     pub fn new(feature_variation_records: Vec<FeatureVariationRecord>) -> Self {
         Self {
-            feature_variation_records: feature_variation_records
-                .into_iter()
-                .map(Into::into)
-                .collect(),
+            feature_variation_records,
         }
     }
 }
@@ -3455,9 +3444,7 @@ pub struct FeatureTableSubstitution {
 impl FeatureTableSubstitution {
     /// Construct a new `FeatureTableSubstitution`
     pub fn new(substitutions: Vec<FeatureTableSubstitutionRecord>) -> Self {
-        Self {
-            substitutions: substitutions.into_iter().map(Into::into).collect(),
-        }
+        Self { substitutions }
     }
 }
 
@@ -3757,7 +3744,7 @@ impl CharacterVariantParams {
             sample_text_name_id,
             num_named_parameters,
             first_param_ui_label_name_id,
-            character: character.into_iter().map(Into::into).collect(),
+            character,
         }
     }
 }
