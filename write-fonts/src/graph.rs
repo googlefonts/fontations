@@ -288,7 +288,7 @@ impl Graph {
     /// Attempt to pack the graph.
     ///
     /// This involves finding an order for objects such that all offsets are
-    /// resolveable.
+    /// resolvable.
     ///
     /// In the simple case, this just means finding a topological ordering.
     /// In exceptional cases, however, this may require us to significantly

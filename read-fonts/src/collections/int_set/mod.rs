@@ -427,7 +427,7 @@ impl<T> IntSet<T> {
     /// Return the inverted version of this set.
     pub fn invert(&mut self) {
         let reuse_storage = match &mut self.0 {
-            // take the existing storage to reuse in a new set of the oppposite
+            // take the existing storage to reuse in a new set of the opposite
             // type.
             Membership::Inclusive(s) | Membership::Exclusive(s) => {
                 std::mem::replace(s, BitSet::empty())
