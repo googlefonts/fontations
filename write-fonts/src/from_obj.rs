@@ -45,7 +45,7 @@ pub trait ToOwnedObj<T> {
     fn to_owned_obj(&self, data: FontData) -> T;
 }
 
-/// A conversion from a fully resolveable parsed font table to its owned equivalent.
+/// A conversion from a fully resolvable parsed font table to its owned equivalent.
 ///
 /// As with [`ToOwnedObj`], you should not need to implement this manually.
 pub trait ToOwnedTable<T>: ToOwnedObj<T> {
