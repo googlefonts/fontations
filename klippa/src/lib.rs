@@ -12,6 +12,7 @@ mod gvar;
 mod hdmx;
 mod head;
 mod hmtx;
+mod hvar;
 mod inc_bimap;
 mod layout;
 mod maxp;
@@ -26,6 +27,7 @@ pub mod serialize;
 mod stat;
 mod variations;
 mod vorg;
+mod vvar;
 use inc_bimap::IncBiMap;
 pub use parsing_util::{
     parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
@@ -56,12 +58,14 @@ use write_fonts::{
             gvar::Gvar,
             hdmx::Hdmx,
             head::Head,
+            hvar::Hvar,
             loca::Loca,
             name::Name,
             os2::Os2,
             post::Post,
             sbix::Sbix,
             vorg::Vorg,
+            vvar::Vvar,
         },
         types::NameId,
         FontRef, TableProvider, TopLevelTable,
@@ -75,7 +79,7 @@ const MAX_NESTING_LEVEL: u8 = 64;
 // Support 24-bit gids. This should probably be extended to u32::MAX but
 // this causes tests to fail with 'subtract with overflow error'.
 // See <https://github.com/googlefonts/fontations/issues/997>
-const MAX_GID: GlyphId = GlyphId::new(0xFFFFFF);
+const MAX_GID: GlyphId = GlyphId::new(0xFFFFFFFF);
 
 // ref: <https://github.com/harfbuzz/harfbuzz/blob/021b44388667903d7bc9c92c924ad079f13b90ce/src/hb-subset-input.cc#L82>
 pub static DEFAULT_LAYOUT_FEATURES: &[Tag] = &[
@@ -969,6 +973,16 @@ fn subset_table<'a>(
         Hmtx::TAG => font
             .hmtx()
             .map_err(|_| SubsetError::SubsetTableError(Hmtx::TAG))?
+            .subset(plan, font, s, builder),
+
+        Hvar::TAG => font
+            .hvar()
+            .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?
+            .subset(plan, font, s, builder),
+
+        Vvar::TAG => font
+            .vvar()
+            .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?
             .subset(plan, font, s, builder),
 
         //Skip, handled by glyf

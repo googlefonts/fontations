@@ -5,23 +5,26 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     Plan, SubsetTable,
 };
+use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
-        tables::variations::{ItemVariationData, ItemVariationStore, VariationRegionList},
+        tables::variations::{
+            DeltaSetIndexMap, ItemVariationData, ItemVariationStore, VariationRegionList,
+        },
     },
-    types::{BigEndian, F2Dot14, FixedSize, Offset32},
+    types::{BigEndian, F2Dot14, FixedSize, GlyphId, Offset32},
 };
 
 impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
-    type ArgsForSubset = &'a Vec<IncBiMap>;
+    type ArgsForSubset = &'a [IncBiMap];
     type Output = ();
 
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        inner_maps: &Vec<IncBiMap>,
+        inner_maps: &[IncBiMap],
     ) -> Result<(), SerializeErrorFlags> {
         s.embed(self.format())?;
 
@@ -416,6 +419,102 @@ fn collect_region_refs(
                 break;
             }
         }
+    }
+}
+
+pub(crate) struct DeltaSetIndexMapSerializePlan<'a> {
+    outer_bit_count: u8,
+    inner_bit_count: u8,
+    output_map: &'a FnvHashMap<GlyphId, u32>,
+    map_count: u32,
+}
+
+impl<'a> DeltaSetIndexMapSerializePlan<'a> {
+    pub(crate) fn new(
+        outer_bit_count: u8,
+        inner_bit_count: u8,
+        output_map: &'a FnvHashMap<GlyphId, u32>,
+        map_count: u32,
+    ) -> Self {
+        Self {
+            outer_bit_count,
+            inner_bit_count,
+            output_map,
+            map_count,
+        }
+    }
+
+    pub(crate) fn width(&self) -> u8 {
+        (self.outer_bit_count + self.inner_bit_count + 7) / 8
+    }
+
+    pub(crate) fn inner_bit_count(&self) -> u8 {
+        self.inner_bit_count
+    }
+
+    pub(crate) fn output_map(&self) -> &'a FnvHashMap<GlyphId, u32> {
+        self.output_map
+    }
+
+    pub(crate) fn map_count(&self) -> u32 {
+        self.map_count
+    }
+}
+
+impl<'a> SubsetTable<'a> for DeltaSetIndexMap<'a> {
+    type ArgsForSubset = &'a DeltaSetIndexMapSerializePlan<'a>;
+    type Output = ();
+
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        index_map_subset_plan: &'a DeltaSetIndexMapSerializePlan<'a>,
+    ) -> Result<(), SerializeErrorFlags> {
+        let output_map = index_map_subset_plan.output_map();
+        let width = index_map_subset_plan.width();
+        let inner_bit_count = index_map_subset_plan.inner_bit_count();
+
+        let map_count = index_map_subset_plan.map_count();
+        // sanity check
+        if map_count > 0 && (((inner_bit_count - 1) & (!0xF)) != 0 || (((width - 1) & (!0x3)) != 0))
+        {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+        }
+
+        let format: u8 = if map_count <= 0xFFFF { 0 } else { 1 };
+        s.embed(format)?;
+
+        let entry_format = ((width - 1) << 4) | (inner_bit_count - 1);
+        s.embed(entry_format)?;
+
+        if format == 0 {
+            s.embed(map_count as u16)?;
+        } else {
+            s.embed(map_count)?;
+        }
+
+        let num_data_bytes = width as usize * map_count as usize;
+        let mapdata_pos = s.allocate_size(num_data_bytes, true)?;
+
+        let be_byte_index_start = 4 - width as usize;
+        for (new_gid, _) in plan.new_to_old_gid_list.iter() {
+            let Some(v) = output_map.get(new_gid) else {
+                continue;
+            };
+            if *v == 0 {
+                continue;
+            }
+
+            let outer = v >> 16;
+            let inner = v & 0xFFFF;
+            let u = (outer << inner_bit_count) | inner;
+            let data_bytes = u.to_be_bytes();
+            let data_pos = mapdata_pos + (new_gid.to_u32() as usize) * width as usize;
+            s.copy_assign_from_bytes(data_pos, data_bytes.get(be_byte_index_start..4).unwrap());
+        }
+
+        Ok(())
     }
 }
 
