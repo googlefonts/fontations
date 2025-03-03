@@ -73,11 +73,15 @@ fn split_subtables(
     new_data.write(generic_lookup.lookup_type());
     new_data.write(generic_lookup.lookup_flag());
     new_data.write(n_total_subtables);
+    let old_mark_filter_set = generic_lookup.mark_filtering_set();
     for sub in data.offsets {
         match new_subtables.get(&sub.object) {
             Some(new) => new.iter().for_each(|id| new_data.add_offset(*id, 2, 0)),
             None => new_data.add_offset(sub.object, 2, 0),
         }
+    }
+    if let Some(mark_filtering_set) = old_mark_filter_set {
+        new_data.write(mark_filtering_set);
     }
 
     graph.nodes.get_mut(&lookup).unwrap().size = new_data.bytes.len() as _;

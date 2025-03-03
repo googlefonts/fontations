@@ -1670,35 +1670,38 @@ mod tests {
         assert_eq!(graph.order.len(), EXPECTED_N_TABLES);
     }
 
+    fn make_big_pair_pos(glyph_range: Range<u16>) -> crate::tables::gpos::PositionLookup {
+        use crate::tables::{gpos, layout};
+        let coverage = glyph_range.clone().map(GlyphId16::new).collect();
+        let pair_sets = glyph_range
+            .map(|id| {
+                let value_rec = gpos::ValueRecord::new().with_x_advance(id as _);
+                gpos::PairSet::new(
+                    // 165 is arbitrary; we want a big enough value that each
+                    // PairSet is 'fairly large'.
+                    (id..id + 165)
+                        .map(|id2| {
+                            gpos::PairValueRecord::new(
+                                GlyphId16::new(id2),
+                                value_rec.clone(),
+                                gpos::ValueRecord::default(),
+                            )
+                        })
+                        .collect(),
+                )
+            })
+            .collect::<Vec<_>>();
+        gpos::PositionLookup::Pair(layout::Lookup::new(
+            layout::LookupFlag::empty(),
+            vec![gpos::PairPos::format_1(coverage, pair_sets)],
+        ))
+    }
+
     #[test]
     fn pack_real_gpos_table_with_extension_promotion() {
         use crate::tables::{gpos, layout};
 
         let _ = env_logger::builder().is_test(true).try_init();
-
-        fn make_big_pair_pos(glyph_range: Range<u16>) -> gpos::PositionLookup {
-            let coverage = glyph_range.clone().map(GlyphId16::new).collect();
-            let pair_sets = glyph_range
-                .map(|id| {
-                    let value_rec = gpos::ValueRecord::new().with_x_advance(id as _);
-                    gpos::PairSet::new(
-                        (id..id + 165)
-                            .map(|id2| {
-                                gpos::PairValueRecord::new(
-                                    GlyphId16::new(id2),
-                                    value_rec.clone(),
-                                    gpos::ValueRecord::default(),
-                                )
-                            })
-                            .collect(),
-                    )
-                })
-                .collect::<Vec<_>>();
-            gpos::PositionLookup::Pair(layout::Lookup::new(
-                layout::LookupFlag::empty(),
-                vec![gpos::PairPos::format_1(coverage, pair_sets)],
-            ))
-        }
 
         // this is a shallow graph with large nodes, which makes it easier
         // to visualize with graphviz.
@@ -1738,6 +1741,36 @@ mod tests {
         // if our impl changes and this is failing because we're only promoting
         // a single extension, then that's great
         assert_eq!(n_tables_before + 2, graph.order.len());
+    }
+
+    #[test]
+    fn preserve_mark_filter_set_after_split() {
+        use crate::tables::{gpos, layout};
+        use read_fonts::tables::gpos as rgpos;
+        use read_fonts::FontRead as _;
+
+        let mut pp = make_big_pair_pos(0..100);
+        let gpos::PositionLookup::Pair(ppos) = &mut pp else {
+            panic!("oops");
+        };
+        ppos.mark_filtering_set = Some(404);
+        ppos.lookup_flag |= layout::LookupFlag::USE_MARK_FILTERING_SET;
+        let table = gpos::Gpos::new(
+            Default::default(),
+            Default::default(),
+            layout::LookupList::new(vec![pp]),
+        );
+        let bytes = crate::dump_table(&table).unwrap();
+        let rgpos = rgpos::Gpos::read(bytes.as_slice().into()).unwrap();
+        let lookups = rgpos.lookup_list().unwrap();
+        assert_eq!(lookups.lookup_count(), 1);
+        let lookup = lookups.lookups().get(0).unwrap();
+        // after splitting, the mark filter set id should be the same
+        assert_eq!(lookup.mark_filtering_set(), Some(404));
+        match lookup.subtables().unwrap() {
+            rgpos::PositionSubtables::Pair(subtables) => assert_eq!(subtables.len(), 2),
+            _ => panic!("extremely wrong"),
+        };
     }
 
     #[test]
