@@ -13,7 +13,7 @@ use write_fonts::{
             DeltaSetIndexMap, ItemVariationData, ItemVariationStore, VariationRegionList,
         },
     },
-    types::{BigEndian, F2Dot14, FixedSize, GlyphId, Offset32},
+    types::{BigEndian, F2Dot14, FixedSize, Offset32},
 };
 
 impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
@@ -425,7 +425,7 @@ fn collect_region_refs(
 pub(crate) struct DeltaSetIndexMapSerializePlan<'a> {
     outer_bit_count: u8,
     inner_bit_count: u8,
-    output_map: &'a FnvHashMap<GlyphId, u32>,
+    output_map: &'a FnvHashMap<u32, u32>,
     map_count: u32,
 }
 
@@ -433,7 +433,7 @@ impl<'a> DeltaSetIndexMapSerializePlan<'a> {
     pub(crate) fn new(
         outer_bit_count: u8,
         inner_bit_count: u8,
-        output_map: &'a FnvHashMap<GlyphId, u32>,
+        output_map: &'a FnvHashMap<u32, u32>,
         map_count: u32,
     ) -> Self {
         Self {
@@ -452,7 +452,7 @@ impl<'a> DeltaSetIndexMapSerializePlan<'a> {
         self.inner_bit_count
     }
 
-    pub(crate) fn output_map(&self) -> &'a FnvHashMap<GlyphId, u32> {
+    pub(crate) fn output_map(&self) -> &'a FnvHashMap<u32, u32> {
         self.output_map
     }
 
@@ -499,7 +499,7 @@ impl<'a> SubsetTable<'a> for DeltaSetIndexMap<'a> {
 
         let be_byte_index_start = 4 - width as usize;
         for (new_gid, _) in plan.new_to_old_gid_list.iter() {
-            let Some(v) = output_map.get(new_gid) else {
+            let Some(v) = output_map.get(&new_gid.to_u32()) else {
                 continue;
             };
             if *v == 0 {

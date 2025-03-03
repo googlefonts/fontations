@@ -52,7 +52,6 @@ impl Colr<'_> {
         layer_indices: &mut IntSet<u32>,
         palette_indices: &mut IntSet<u16>,
         variation_indices: &mut IntSet<u32>,
-        delta_set_indices: &mut IntSet<u32>,
     ) {
         if self.version() < 1 {
             return;
@@ -80,18 +79,6 @@ impl Colr<'_> {
             c.glyph_set.union(glyph_set);
             for clip_record in clip_list.clips() {
                 clip_record.v1_closure(&mut c, &clip_list);
-            }
-        }
-
-        //when a DeltaSetIndexMap is included, collected variation indices are actually delta set indices, we need to map them into variation indices
-        if let Some(Ok(var_index_map)) = self.var_index_map() {
-            delta_set_indices.extend(variation_indices.iter());
-            variation_indices.clear();
-            for idx in delta_set_indices.iter() {
-                if let Ok(var_idx) = var_index_map.get(idx) {
-                    let var_idx = ((var_idx.outer as u32) << 16) + var_idx.inner as u32;
-                    variation_indices.insert(var_idx);
-                }
             }
         }
     }
