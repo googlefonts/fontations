@@ -13,7 +13,7 @@ use write_fonts::{
             DeltaSetIndexMap, ItemVariationData, ItemVariationStore, VariationRegionList,
         },
     },
-    types::{BigEndian, F2Dot14, FixedSize, GlyphId, Offset32},
+    types::{BigEndian, F2Dot14, FixedSize, Offset32},
 };
 
 impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
@@ -425,7 +425,7 @@ fn collect_region_refs(
 pub(crate) struct DeltaSetIndexMapSerializePlan<'a> {
     outer_bit_count: u8,
     inner_bit_count: u8,
-    output_map: &'a FnvHashMap<GlyphId, u32>,
+    output_map: &'a FnvHashMap<u32, u32>,
     map_count: u32,
 }
 
@@ -433,7 +433,7 @@ impl<'a> DeltaSetIndexMapSerializePlan<'a> {
     pub(crate) fn new(
         outer_bit_count: u8,
         inner_bit_count: u8,
-        output_map: &'a FnvHashMap<GlyphId, u32>,
+        output_map: &'a FnvHashMap<u32, u32>,
         map_count: u32,
     ) -> Self {
         Self {
@@ -452,7 +452,7 @@ impl<'a> DeltaSetIndexMapSerializePlan<'a> {
         self.inner_bit_count
     }
 
-    pub(crate) fn output_map(&self) -> &'a FnvHashMap<GlyphId, u32> {
+    pub(crate) fn output_map(&self) -> &'a FnvHashMap<u32, u32> {
         self.output_map
     }
 
@@ -467,7 +467,7 @@ impl<'a> SubsetTable<'a> for DeltaSetIndexMap<'a> {
 
     fn subset(
         &self,
-        plan: &Plan,
+        _plan: &Plan,
         s: &mut Serializer,
         index_map_subset_plan: &'a DeltaSetIndexMapSerializePlan<'a>,
     ) -> Result<(), SerializeErrorFlags> {
@@ -498,8 +498,8 @@ impl<'a> SubsetTable<'a> for DeltaSetIndexMap<'a> {
         let mapdata_pos = s.allocate_size(num_data_bytes, true)?;
 
         let be_byte_index_start = 4 - width as usize;
-        for (new_gid, _) in plan.new_to_old_gid_list.iter() {
-            let Some(v) = output_map.get(new_gid) else {
+        for i in 0..map_count {
+            let Some(v) = output_map.get(&i) else {
                 continue;
             };
             if *v == 0 {
@@ -510,7 +510,7 @@ impl<'a> SubsetTable<'a> for DeltaSetIndexMap<'a> {
             let inner = v & 0xFFFF;
             let u = (outer << inner_bit_count) | inner;
             let data_bytes = u.to_be_bytes();
-            let data_pos = mapdata_pos + (new_gid.to_u32() as usize) * width as usize;
+            let data_pos = mapdata_pos + (i as usize) * width as usize;
             s.copy_assign_from_bytes(data_pos, data_bytes.get(be_byte_index_start..4).unwrap());
         }
 

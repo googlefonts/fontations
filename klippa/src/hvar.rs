@@ -16,7 +16,7 @@ use write_fonts::{
         },
         FontRef, ReadError, TopLevelTable,
     },
-    types::{GlyphId, Offset32},
+    types::Offset32,
     FontBuilder,
 };
 
@@ -115,7 +115,7 @@ pub(crate) struct IndexMapSubsetPlan {
     max_inners: Vec<u16>,
     outer_bit_count: u8,
     inner_bit_count: u8,
-    output_map: FnvHashMap<GlyphId, u32>,
+    output_map: FnvHashMap<u32, u32>,
 }
 
 impl IndexMapSubsetPlan {
@@ -237,7 +237,7 @@ impl IndexMapSubsetPlan {
             let new_outer = outer_map.get(outer as u32).unwrap();
             let new_inner = inner_maps[outer as usize].get(v.inner as u32).unwrap();
             self.output_map
-                .insert(*new_gid, (*new_outer << 16) | *new_inner);
+                .insert(new_gid.to_u32(), (*new_outer << 16) | *new_inner);
         }
     }
 
@@ -352,7 +352,10 @@ impl HvarVvarSubsetPlan {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{FontData, FontRead};
+    use write_fonts::{
+        read::{FontData, FontRead},
+        types::GlyphId,
+    };
     #[test]
     fn test_subset_hvar_noop() {
         let raw_bytes: [u8; 98] = [

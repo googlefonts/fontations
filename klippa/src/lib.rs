@@ -3,6 +3,7 @@
 mod base;
 mod cblc;
 mod cmap;
+mod colr;
 mod cpal;
 mod fvar;
 mod glyf_loca;
@@ -50,6 +51,8 @@ use write_fonts::{
             cff::Cff,
             cff2::Cff2,
             cmap::{Cmap, CmapSubtable},
+            colr::Colr,
+            cpal::Cpal,
             cvar::Cvar,
             gasp,
             glyf::{Glyf, Glyph},
@@ -301,6 +304,12 @@ pub struct Plan {
     colrv1_layers: FnvHashMap<u32, u32>,
     //old->new CPAL palette index map
     colr_palettes: FnvHashMap<u16, u16>,
+    // COLR varstore retained varidx mapping
+    colr_varstore_inner_maps: Vec<IncBiMap>,
+    // COLR table old variation index -> (New varidx, new delta) mapping
+    colr_varidx_delta_map: FnvHashMap<u32, (u32, i32)>,
+    // COLR table new delta set index -> new var index mapping
+    colr_new_deltaset_idx_varidx_map: FnvHashMap<u32, u32>,
 
     os2_info: Os2Info,
 
@@ -549,18 +558,80 @@ impl Plan {
             let mut layer_indices = IntSet::empty();
             let mut palette_indices = IntSet::empty();
             let mut variation_indices = IntSet::empty();
-            let mut delta_set_indices = IntSet::empty();
             colr.v1_closure(
                 &mut self.glyphset_colred,
                 &mut layer_indices,
                 &mut palette_indices,
                 &mut variation_indices,
-                &mut delta_set_indices,
             );
+
             colr.v0_closure_palette_indices(&self.glyphset_colred, &mut palette_indices);
             self.colrv1_layers = remap_indices(layer_indices);
             self.colr_palettes = remap_palette_indices(palette_indices);
-            //TODO: generate varstore innermaps or something similar
+
+            if variation_indices.is_empty() {
+                return;
+            }
+            // generate 3 maps:
+            // colr_varidx_delta_map
+            // When delta set index map is not included, it's a mapping from varIdx-> (new varIdx,delta).
+            // Otherwise, it's a mapping from old delta set idx-> (new delta set idx, delta).
+            // Mapping delta set indices is the same as gid mapping.
+            //
+            // colr_varstore_inner_maps:
+            // mapping from old varidx -> new varidx
+            //
+            // colr_new_deltaset_idx_varidx_map:
+            // generate new delta set idx-> new var_idx map if DeltsSetIndexMap exists
+            if let Some(Ok(var_store)) = colr.item_variation_store() {
+                let vardata_count = var_store.item_variation_data_count() as u32;
+                let Ok(var_index_map) = colr.var_index_map().transpose() else {
+                    return;
+                };
+
+                let mut delta_set_indices = IntSet::empty();
+                let mut deltaset_idx_var_idx_map = FnvHashMap::default();
+                // when a DeltaSetIndexMap is included, collected variation indices are actually delta set indices,
+                // we need to map them into variation indices
+                if var_index_map.is_some() {
+                    let var_index_map = var_index_map.as_ref().unwrap();
+                    delta_set_indices.extend(variation_indices.iter());
+                    variation_indices.clear();
+                    for idx in delta_set_indices.iter() {
+                        if let Ok(var_idx) = var_index_map.get(idx) {
+                            let var_idx = ((var_idx.outer as u32) << 16) + var_idx.inner as u32;
+                            variation_indices.insert(var_idx);
+                            deltaset_idx_var_idx_map.insert(idx, var_idx);
+                        }
+                    }
+                }
+                remap_variation_indices(
+                    vardata_count,
+                    &variation_indices,
+                    &mut self.colr_varidx_delta_map,
+                );
+                generate_varstore_inner_maps(
+                    &variation_indices,
+                    vardata_count,
+                    &mut self.colr_varstore_inner_maps,
+                );
+
+                // if DeltaSetIndexMap exists, we need to use deltaset index instead of var_idx
+                if var_index_map.is_some() {
+                    let (new_deltaset_idx_varidx_map, deltaset_idx_delta_map) =
+                        remap_delta_set_indices(
+                            &delta_set_indices,
+                            &deltaset_idx_var_idx_map,
+                            &self.colr_varidx_delta_map,
+                        );
+                    let _ = std::mem::replace(
+                        &mut self.colr_new_deltaset_idx_varidx_map,
+                        new_deltaset_idx_varidx_map,
+                    );
+                    let _ =
+                        std::mem::replace(&mut self.colr_varidx_delta_map, deltaset_idx_delta_map);
+                }
+            }
         } else {
             self.glyphset_colred.union(&self.glyphset_gsub);
         }
@@ -681,6 +752,31 @@ fn generate_varstore_inner_maps(
 
         inner_maps[major as usize].add(minor);
     }
+}
+//
+fn remap_delta_set_indices(
+    delta_set_indices: &IntSet<u32>,
+    deltaset_idx_var_idx_map: &FnvHashMap<u32, u32>,
+    varidx_delta_map: &FnvHashMap<u32, (u32, i32)>,
+) -> (FnvHashMap<u32, u32>, FnvHashMap<u32, (u32, i32)>) {
+    let mut new_deltaset_idx_varidx_map = FnvHashMap::default();
+    let mut deltaset_idx_delta_map = FnvHashMap::default();
+    let mut new_idx = 0_u32;
+
+    for deltaset_idx in delta_set_indices.iter() {
+        let Some(var_idx) = deltaset_idx_var_idx_map.get(&deltaset_idx) else {
+            continue;
+        };
+
+        let Some((new_var_idx, delta)) = varidx_delta_map.get(var_idx) else {
+            continue;
+        };
+
+        new_deltaset_idx_varidx_map.insert(new_idx, *new_var_idx);
+        deltaset_idx_delta_map.insert(deltaset_idx, (new_idx, *delta));
+        new_idx += 1;
+    }
+    (new_deltaset_idx_varidx_map, deltaset_idx_delta_map)
 }
 
 /// glyph closure for Composite glyphs in glyf table
@@ -943,6 +1039,18 @@ fn subset_table<'a>(
         Cmap::TAG => font
             .cmap()
             .map_err(|_| SubsetError::SubsetTableError(Cmap::TAG))?
+            .subset(plan, font, s, builder),
+
+        Colr::TAG => font
+            .colr()
+            .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?
+            .subset(plan, font, s, builder),
+
+        //TODO: if SVG is present and we support subsetting SVG table, pass through CPAL table
+        // see fonttools: <https://github.com/fonttools/fonttools/blob/64e5277d040e1a5c84f21f8fb8a5dc7d8ad3c3fa/Lib/fontTools/subset/__init__.py#L2545>
+        Cpal::TAG => font
+            .cpal()
+            .map_err(|_| SubsetError::SubsetTableError(Cpal::TAG))?
             .subset(plan, font, s, builder),
 
         Glyf::TAG => font
