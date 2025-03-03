@@ -45,7 +45,7 @@ read-fonts = { version = "0.27.2", path = "read-fonts", default-features = false
 # Disable default-features so that fauntlet can use skrifa without autohint
 # shaping support
 skrifa = { version = "0.28.1", path = "skrifa", default-features = false, features = ["std"] }
-write-fonts = { version = "0.36.1", path = "write-fonts" }
+write-fonts = { version = "0.36.2", path = "write-fonts" }
 shared-brotli-patch-decoder = { version = "0.1.0", path = "shared-brotli-patch-decoder" }
 incremental-font-transfer = { version = "0.1.0", path = "incremental-font-transfer" }
 klippa = { version = "0.1.0", path = "klippa" }
