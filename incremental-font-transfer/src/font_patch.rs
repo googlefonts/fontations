@@ -23,7 +23,7 @@ use read_fonts::tables::ift::{CompatibilityId, GlyphKeyedPatch, TableKeyedPatch}
 
 use read_fonts::{FontData, FontRead, FontRef, ReadError};
 
-use shared_brotli_patch_decoder::DecodeError;
+use shared_brotli_patch_decoder::decode_error::DecodeError;
 
 /// A trait for types to which an incremental font transfer patch can be applied.
 ///
@@ -88,6 +88,9 @@ impl From<DecodeError> for PatchingError {
             DecodeError::MaxSizeExceeded => PatchingError::InvalidPatch("Max size exceeded."),
             DecodeError::ExcessInputData => {
                 PatchingError::InvalidPatch("Input brotli stream has excess bytes.")
+            }
+            DecodeError::IoError(_) => {
+                PatchingError::InvalidPatch("IO error decoding input brotli stream.")
             }
         }
     }

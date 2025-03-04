@@ -1,40 +1,10 @@
-use brotlic_sys::{
-    BrotliDecoderAttachDictionary, BrotliDecoderCreateInstance, BrotliDecoderDecompressStream,
-    BrotliDecoderDestroyInstance, BrotliDecoderResult_BROTLI_DECODER_RESULT_ERROR,
-    BrotliDecoderResult_BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT,
-    BrotliDecoderResult_BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT,
-    BrotliDecoderResult_BROTLI_DECODER_RESULT_SUCCESS,
-    BrotliSharedDictionaryType_BROTLI_SHARED_DICTIONARY_RAW, BROTLI_FALSE,
-};
-use core::ptr;
+#[cfg(feature = "c-brotli")]
+mod c_brotli;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum DecodeError {
-    InitFailure,
-    InvalidStream,
-    InvalidDictionary,
-    MaxSizeExceeded,
-    ExcessInputData,
-}
+#[cfg(feature = "rust-brotli")]
+mod rust_brotli;
 
-impl std::fmt::Display for DecodeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            DecodeError::InitFailure => write!(f, "Failed to initialize the brotli decoder."),
-            DecodeError::InvalidStream => {
-                write!(f, "Brotli compressed stream is invalid, decoding failed.")
-            }
-            DecodeError::InvalidDictionary => write!(f, "Shared dictionary format is invalid."),
-            DecodeError::MaxSizeExceeded => write!(f, "Decompressed size greater than maximum."),
-            DecodeError::ExcessInputData => write!(
-                f,
-                "There is unconsumed data in the input stream after decoding."
-            ),
-        }
-    }
-}
-
-impl std::error::Error for DecodeError {}
+pub mod decode_error;
 
 /// Decodes shared brotli encoded data using the optional shared dictionary.
 ///
@@ -47,109 +17,39 @@ pub fn shared_brotli_decode(
     encoded: &[u8],
     shared_dictionary: Option<&[u8]>,
     max_uncompressed_length: usize,
-) -> Result<Vec<u8>, DecodeError> {
-    #[cfg(fuzzing)]
-    {
-        // When running under a fuzzer disable brotli decoding and instead just pass through the input data.
-        // This allows the fuzzer to more effectively explore code gated behind brotli decoding.
-        // TODO(garretrieger): instead consider modifying the top level IFT apis to allow a custom brotli decoder
-        //   implementation to be provided. This would allow fuzzing to sub in a custom impl that could return all
-        //   of the possible errors that the standard impl here can generate.
-        return if encoded.len() <= max_uncompressed_length {
-            Ok(encoded.to_vec())
-        } else {
-            Err(DecodeError::MaxSizeExceeded)
-        };
-    }
-
-    let decoder = unsafe { BrotliDecoderCreateInstance(None, None, ptr::null_mut()) };
-    if decoder.is_null() {
-        return Err(DecodeError::InitFailure);
-    }
-
-    if let Some(shared_dictionary) = shared_dictionary {
-        if unsafe {
-            BrotliDecoderAttachDictionary(
-                decoder,
-                BrotliSharedDictionaryType_BROTLI_SHARED_DICTIONARY_RAW,
-                shared_dictionary.len(),
-                shared_dictionary.as_ptr(),
-            )
-        } == BROTLI_FALSE
+) -> Result<Vec<u8>, decode_error::DecodeError> {
+    cfg_if::cfg_if! {
+        if #[cfg(fuzzing)]
         {
-            unsafe {
-                BrotliDecoderDestroyInstance(decoder);
-            }
-            return Err(DecodeError::InvalidDictionary);
+            // When running under a fuzzer disable brotli decoding and instead just pass through the input data.
+            // This allows the fuzzer to more effectively explore code gated behind brotli decoding.
+            // TODO(garretrieger): instead consider modifying the top level IFT apis to allow a custom brotli decoder
+            //   implementation to be provided. This would allow fuzzing to sub in a custom impl that could return all
+            //   of the possible errors that the standard impl here can generate.
+            return if encoded.len() <= max_uncompressed_length {
+                Ok(encoded.to_vec())
+            } else {
+                Err(DecodeError::MaxSizeExceeded)
+            };
+        } else if #[cfg(feature = "c-brotli")] {
+            #[allow(clippy::needless_return)]
+            return c_brotli::shared_brotli_decode_c(
+                encoded,
+                shared_dictionary,
+                max_uncompressed_length,
+            );
+        } else if #[cfg(feature = "rust-brotli")] {
+            return rust_brotli::shared_brotli_decode_rust(encoded, shared_dictionary, max_uncompressed_length);
+        } else {
+            compile_error!("At least one of 'c_brotli' or 'rust_brotli' must be enabled.");
         }
     }
-
-    let mut sink = vec![0u8; max_uncompressed_length];
-
-    let mut next_in = encoded.as_ptr();
-    let mut available_in = encoded.len();
-    let mut next_out = sink.as_mut_ptr();
-    let mut available_out = sink.len();
-    let mut total_out = 0;
-
-    let mut error: Option<DecodeError> = None;
-    loop {
-        let result = unsafe {
-            BrotliDecoderDecompressStream(
-                decoder,
-                &mut available_in,
-                &mut next_in,
-                &mut available_out,
-                &mut next_out,
-                &mut total_out,
-            )
-        };
-
-        #[allow(non_upper_case_globals)]
-        match result {
-            BrotliDecoderResult_BROTLI_DECODER_RESULT_SUCCESS => break,
-            BrotliDecoderResult_BROTLI_DECODER_RESULT_ERROR => {
-                error = Some(DecodeError::InvalidStream);
-                break;
-            }
-            BrotliDecoderResult_BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT if available_in == 0 => {
-                // Needs more input and none is available.
-                error = Some(DecodeError::InvalidStream);
-                break;
-            }
-            BrotliDecoderResult_BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT if available_out == 0 => {
-                // Needs more output space, but none is available.
-                error = Some(DecodeError::MaxSizeExceeded);
-                break;
-            }
-            _ => continue,
-        }
-    }
-
-    unsafe {
-        BrotliDecoderDestroyInstance(decoder);
-    }
-    if let Some(error) = error {
-        return Err(error);
-    }
-
-    if available_in > 0 {
-        // There's is data left in the input stream, which is not allowed
-        return Err(DecodeError::ExcessInputData);
-    }
-
-    if total_out > sink.len() {
-        return Err(DecodeError::MaxSizeExceeded);
-    }
-
-    sink.resize(total_out, 0);
-
-    Ok(sink)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use decode_error::DecodeError;
 
     const TARGET: &[u8] = "hijkabcdeflmnohijkabcdeflmno\n".as_bytes();
     const BASE: &str = "abcdef\n";
@@ -209,6 +109,11 @@ mod tests {
         );
     }
 
+    // TODO(garretrieger): there doesn't seem to be an easy way to detect this condition with
+    // the rust brotli implementation. So disable for now. However, we need to make this behaviour
+    // consistent between the two possible implementations. Either don't check for this in the c
+    // version, or figure out how to have a similar check in rust.
+    #[cfg(feature = "c-brotli")]
     #[test]
     fn brotli_decode_too_much_input() {
         let mut patch: Vec<u8> = NO_DICT_PATCH.to_vec();
