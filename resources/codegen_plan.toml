@@ -14,6 +14,11 @@ source = "resources/codegen_inputs/colr.rs"
 target = "read-fonts/generated/generated_colr.rs"
 
 [[generate]]
+mode = "compile"
+source = "resources/codegen_inputs/colr.rs"
+target = "write-fonts/generated/generated_colr.rs"
+
+[[generate]]
 mode = "parse"
 source = "resources/codegen_inputs/cpal.rs"
 target = "read-fonts/generated/generated_cpal.rs"

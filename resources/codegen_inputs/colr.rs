@@ -6,6 +6,7 @@
 table Colr {
     /// Table version number - set to 0 or 1.
     #[version]
+    #[compile(self.compute_version())]
     version: u16,
     /// Number of BaseGlyph records; may be 0 in a version 1 table.
     num_base_glyph_records: u16,
