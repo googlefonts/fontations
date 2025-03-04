@@ -11,8 +11,16 @@ repository.workspace = true
 # RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features
 all-features = true
 
+[features]
+default = ["c-brotli"]
+c-brotli = ["dep:brotlic-sys"]
+rust-brotli = ["dep:brotli-decompressor"]
+
+
 [dependencies]
-brotlic-sys = {version = "0.2.2"}
+brotlic-sys = {version = "0.2.2", optional = true}
+brotli-decompressor = {version = "4.0.2", optional = true}
+cfg-if = "0.1"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
