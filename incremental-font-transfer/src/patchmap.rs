@@ -1040,9 +1040,9 @@ impl DesignSpace {
 /// Stores a description of a font subset over codepoints, feature tags, and design space.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct SubsetDefinition {
-    codepoints: IntSet<u32>,
-    feature_tags: FeatureSet,
-    design_space: DesignSpace,
+    pub codepoints: IntSet<u32>,
+    pub feature_tags: FeatureSet,
+    pub design_space: DesignSpace,
 }
 
 impl SubsetDefinition {
@@ -1075,7 +1075,7 @@ impl SubsetDefinition {
         }
     }
 
-    fn union(&mut self, other: &SubsetDefinition) {
+    pub fn union(&mut self, other: &SubsetDefinition) {
         self.codepoints.union(&other.codepoints);
 
         match &other.feature_tags {
