@@ -2,7 +2,10 @@
 
 include!("../../generated/generated_variations.rs");
 
-use super::gvar::SharedTuples;
+use super::{
+    glyf::{PointCoord, PointFlags, PointMarker},
+    gvar::{GlyphDelta, SharedTuples},
+};
 
 pub const NO_VARIATION_INDEX: u32 = 0xFFFFFFFF;
 /// Outer and inner indices for reading from an [ItemVariationStore].
@@ -52,14 +55,13 @@ impl TupleIndex {
     /// Mask for the low 12 bits to give the shared tuple records index.
     pub const TUPLE_INDEX_MASK: u16 = 0x0FFF;
 
+    #[inline(always)]
     fn tuple_len(self, axis_count: u16, flag: usize) -> usize {
-        match flag {
-            0 => self.embedded_peak_tuple(),
-            1 => self.intermediate_region(),
-            _ => panic!("only 0 or 1 allowed here"),
+        if flag == 0 {
+            self.embedded_peak_tuple() as usize * axis_count as usize
+        } else {
+            self.intermediate_region() as usize * axis_count as usize
         }
-        .then_some(axis_count as usize)
-        .unwrap_or_default()
     }
 
     pub fn bits(self) -> u16 {
@@ -160,6 +162,7 @@ impl<'a> TupleVariationHeader<'a> {
     /// Peak tuple record for this tuple variation table — optional,
     /// determined by flags in the tupleIndex value.  Note that this
     /// must always be included in the 'cvar' table.
+    #[inline(always)]
     pub fn peak_tuple(&self) -> Option<Tuple<'a>> {
         self.tuple_index().embedded_peak_tuple().then(|| {
             let range = self.shape.peak_tuple_byte_range();
@@ -171,6 +174,7 @@ impl<'a> TupleVariationHeader<'a> {
 
     /// Intermediate start tuple record for this tuple variation table
     /// — optional, determined by flags in the tupleIndex value.
+    #[inline(always)]
     pub fn intermediate_start_tuple(&self) -> Option<Tuple<'a>> {
         self.tuple_index().intermediate_region().then(|| {
             let range = self.shape.intermediate_start_tuple_byte_range();
@@ -182,6 +186,7 @@ impl<'a> TupleVariationHeader<'a> {
 
     /// Intermediate end tuple record for this tuple variation table
     /// — optional, determined by flags in the tupleIndex value.
+    #[inline(always)]
     pub fn intermediate_end_tuple(&self) -> Option<Tuple<'a>> {
         self.tuple_index().intermediate_region().then(|| {
             let range = self.shape.intermediate_end_tuple_byte_range();
@@ -192,6 +197,7 @@ impl<'a> TupleVariationHeader<'a> {
     }
 
     /// Compute the actual length of this table in bytes
+    #[inline(always)]
     fn byte_len(&self, axis_count: u16) -> usize {
         const FIXED_LEN: usize = u16::RAW_BYTE_LEN + TupleIndex::RAW_BYTE_LEN;
         let tuple_byte_len = F2Dot14::RAW_BYTE_LEN * axis_count as usize;
@@ -217,6 +223,7 @@ impl Tuple<'_> {
         self.values.is_empty()
     }
 
+    #[inline(always)]
     pub fn get(&self, idx: usize) -> Option<F2Dot14> {
         self.values.get(idx).map(BigEndian::get)
     }
@@ -233,7 +240,7 @@ impl Default for Tuple<'_> {
 }
 
 /// [Packed "Point" Numbers](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-point-numbers)
-#[derive(Clone, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct PackedPointNumbers<'a> {
     data: FontData<'a>,
 }
@@ -275,6 +282,7 @@ impl<'a> PackedPointNumbers<'a> {
     }
 
     /// the number of bytes to encode the packed point numbers
+    #[inline(never)]
     fn total_len(&self) -> usize {
         let (n_points, mut n_bytes) = self.count_and_count_bytes();
         if n_points == 0 {
@@ -584,6 +592,7 @@ impl<'a> TupleVariationHeaderIter<'a> {
 impl<'a> Iterator for TupleVariationHeaderIter<'a> {
     type Item = Result<TupleVariationHeader<'a>, ReadError>;
 
+    #[inline(never)]
     fn next(&mut self) -> Option<Self::Item> {
         if self.current == self.n_headers {
             return None;
@@ -661,6 +670,7 @@ impl<'a, T> TupleVariationIter<'a, T>
 where
     T: TupleDelta,
 {
+    #[inline(never)]
     fn next_tuple(&mut self) -> Option<TupleVariation<'a, T>> {
         if self.parent.tuple_count() == self.current {
             return None;
@@ -672,17 +682,12 @@ where
         let data_len = header.variation_data_size() as usize;
         let var_data = self.serialized_data.take_up_to(data_len)?;
 
-        let (point_numbers, packed_deltas) = if header.tuple_index().private_point_numbers() {
-            PackedPointNumbers::split_off_front(var_data)
-        } else {
-            (self.parent.shared_point_numbers.clone()?, var_data)
-        };
         Some(TupleVariation {
             axis_count: self.parent.axis_count,
             header,
             shared_tuples: self.parent.shared_tuples.clone(),
-            packed_deltas: PackedDeltas::consume_all(packed_deltas),
-            point_numbers,
+            serialized_data: var_data,
+            shared_point_numbers: self.parent.shared_point_numbers.clone(),
             _marker: std::marker::PhantomData,
         })
     }
@@ -705,8 +710,8 @@ pub struct TupleVariation<'a, T> {
     axis_count: u16,
     header: TupleVariationHeader<'a>,
     shared_tuples: Option<SharedTuples<'a>>,
-    packed_deltas: PackedDeltas<'a>,
-    point_numbers: PackedPointNumbers<'a>,
+    serialized_data: FontData<'a>,
+    shared_point_numbers: Option<PackedPointNumbers<'a>>,
     _marker: std::marker::PhantomData<fn() -> T>,
 }
 
@@ -716,11 +721,17 @@ where
 {
     /// Returns true if this tuple provides deltas for all points in a glyph.
     pub fn has_deltas_for_all_points(&self) -> bool {
-        self.point_numbers.count() == 0
-    }
-
-    pub fn point_numbers(&'a self) -> PackedPointNumbersIter<'a> {
-        self.point_numbers.iter()
+        if self.header.tuple_index().private_point_numbers() {
+            PackedPointNumbers {
+                data: self.serialized_data,
+            }
+            .count()
+                == 0
+        } else if let Some(shared) = &self.shared_point_numbers {
+            shared.count() == 0
+        } else {
+            false
+        }
     }
 
     /// Returns the 'peak' tuple for this variation
@@ -754,25 +765,28 @@ where
         const ZERO: Fixed = Fixed::ZERO;
         let mut scalar = Fixed::ONE;
         let peak = self.peak();
-        let inter_start = self.header.intermediate_start_tuple();
-        let inter_end = self.header.intermediate_end_tuple();
         if peak.len() != self.axis_count as usize {
             return None;
         }
-
-        for i in 0..self.axis_count {
-            let i = i as usize;
+        let intermediate = self
+            .header
+            .intermediate_start_tuple()
+            .zip(self.header.intermediate_end_tuple());
+        for (i, peak) in peak
+            .values
+            .iter()
+            .enumerate()
+            .filter(|(_, peak)| peak.get() != F2Dot14::ZERO)
+        {
+            let peak = peak.get().to_fixed();
             let coord = coords.get(i).copied().unwrap_or_default().to_fixed();
-            let peak = peak.get(i).unwrap_or_default().to_fixed();
-            if peak == ZERO || peak == coord {
+            if peak == coord {
                 continue;
             }
-
             if coord == ZERO {
                 return None;
             }
-
-            if let (Some(inter_start), Some(inter_end)) = (&inter_start, &inter_end) {
+            if let Some((inter_start, inter_end)) = &intermediate {
                 let start = inter_start.get(i).unwrap_or_default().to_fixed();
                 let end = inter_end.get(i).unwrap_or_default().to_fixed();
                 if coord <= start || coord >= end {
@@ -790,7 +804,7 @@ where
                 scalar = scalar.mul_div(coord, peak);
             }
         }
-        Some(scalar)
+        (scalar != Fixed::ZERO).then_some(scalar)
     }
 
     /// Compute the floating point scalar for this tuple at the given location
@@ -850,9 +864,178 @@ where
     ///
     /// This does not account for scaling. Returns only explicitly encoded
     /// deltas, e.g. an omission by IUP will not be present.
-    pub fn deltas(&'a self) -> TupleDeltaIter<'a, T> {
-        TupleDeltaIter::new(&self.point_numbers, &self.packed_deltas)
+    pub fn deltas(&self) -> TupleDeltaIter<'a, T> {
+        let (point_numbers, packed_deltas) = self.point_numbers_and_packed_deltas();
+        let count = point_numbers.count() as usize;
+        let packed_deltas = if count == 0 {
+            PackedDeltas::consume_all(packed_deltas)
+        } else {
+            PackedDeltas::new(packed_deltas, if T::is_point() { count * 2 } else { count })
+        };
+        TupleDeltaIter::new(&point_numbers, packed_deltas)
     }
+
+    fn point_numbers_and_packed_deltas(&self) -> (PackedPointNumbers<'a>, FontData<'a>) {
+        if self.header.tuple_index().private_point_numbers() {
+            PackedPointNumbers::split_off_front(self.serialized_data)
+        } else {
+            (
+                self.shared_point_numbers.clone().unwrap_or_default(),
+                self.serialized_data,
+            )
+        }
+    }
+}
+
+impl<'a> TupleVariation<'a, GlyphDelta> {
+    pub fn accumulate_dense_deltas<D: PointCoord>(
+        &self,
+        deltas: &mut [Point<D>],
+        scalar: Fixed,
+    ) -> Result<(), ReadError> {
+        let (_, packed_deltas) = self.point_numbers_and_packed_deltas();
+        let mut cursor = packed_deltas.cursor();
+        if scalar == Fixed::ONE {
+            // scalar of 1.0 is common so avoid the costly conversions and
+            // multiplications per coord
+            read_dense_deltas(&mut cursor, deltas, |delta, new_delta| {
+                delta.x += D::from_i32(new_delta);
+            })?;
+            read_dense_deltas(&mut cursor, deltas, |delta, new_delta| {
+                delta.y += D::from_i32(new_delta);
+            })?;
+        } else {
+            read_dense_deltas(&mut cursor, deltas, |delta, new_delta| {
+                delta.x += D::from_fixed(Fixed::from_i32(new_delta) * scalar);
+            })?;
+            read_dense_deltas(&mut cursor, deltas, |delta, new_delta| {
+                delta.y += D::from_fixed(Fixed::from_i32(new_delta) * scalar);
+            })?;
+        }
+        Ok(())
+    }
+
+    pub fn accumulate_sparse_deltas<D: PointCoord>(
+        &self,
+        deltas: &mut [Point<D>],
+        flags: &mut [PointFlags],
+        scalar: Fixed,
+    ) -> Result<(), ReadError> {
+        let (point_numbers, packed_deltas) = self.point_numbers_and_packed_deltas();
+        let mut cursor = packed_deltas.cursor();
+        let count = point_numbers.count() as usize;
+        if scalar == Fixed::ONE {
+            // scalar of 1.0 is common so avoid the costly conversions and
+            // multiplications per coord
+            read_sparse_deltas(&mut cursor, &point_numbers, count, |ix, new_delta| {
+                if let Some((delta, flag)) = deltas.get_mut(ix).zip(flags.get_mut(ix)) {
+                    delta.x += D::from_i32(new_delta);
+                    flag.set_marker(PointMarker::HAS_DELTA);
+                }
+            })?;
+            read_sparse_deltas(&mut cursor, &point_numbers, count, |ix, new_delta| {
+                if let Some(delta) = deltas.get_mut(ix) {
+                    delta.y += D::from_i32(new_delta);
+                }
+            })?;
+        } else {
+            read_sparse_deltas(&mut cursor, &point_numbers, count, |ix, new_delta| {
+                if let Some((delta, flag)) = deltas.get_mut(ix).zip(flags.get_mut(ix)) {
+                    delta.x += D::from_fixed(Fixed::from_i32(new_delta) * scalar);
+                    flag.set_marker(PointMarker::HAS_DELTA);
+                }
+            })?;
+            read_sparse_deltas(&mut cursor, &point_numbers, count, |ix, new_delta| {
+                if let Some(delta) = deltas.get_mut(ix) {
+                    delta.y += D::from_fixed(Fixed::from_i32(new_delta) * scalar);
+                }
+            })?;
+        }
+        Ok(())
+    }
+}
+
+fn read_dense_deltas<T>(
+    cursor: &mut Cursor,
+    deltas: &mut [T],
+    mut f: impl FnMut(&mut T, i32),
+) -> Result<(), ReadError> {
+    let count = deltas.len();
+    let mut cur = 0;
+    while cur < count {
+        let control: u8 = cursor.read()?;
+        let value_type = DeltaRunType::new(control);
+        let run_count = ((control & DELTA_RUN_COUNT_MASK) + 1) as usize;
+        let dest = deltas
+            .get_mut(cur..cur + run_count)
+            .ok_or(ReadError::OutOfBounds)?;
+        match value_type {
+            DeltaRunType::Zero => {}
+            DeltaRunType::I8 => {
+                let packed_deltas = cursor.read_array::<i8>(run_count)?;
+                for (delta, new_delta) in dest.iter_mut().zip(packed_deltas) {
+                    f(delta, *new_delta as i32);
+                }
+            }
+            DeltaRunType::I16 => {
+                let packed_deltas = cursor.read_array::<BigEndian<i16>>(run_count)?;
+                for (delta, new_delta) in dest.iter_mut().zip(packed_deltas) {
+                    f(delta, new_delta.get() as i32);
+                }
+            }
+            DeltaRunType::I32 => {
+                let packed_deltas = cursor.read_array::<BigEndian<i32>>(run_count)?;
+                for (delta, new_delta) in dest.iter_mut().zip(packed_deltas) {
+                    f(delta, new_delta.get());
+                }
+            }
+        }
+        cur += run_count;
+    }
+    Ok(())
+}
+
+fn read_sparse_deltas(
+    cursor: &mut Cursor,
+    point_numbers: &PackedPointNumbers,
+    count: usize,
+    mut f: impl FnMut(usize, i32),
+) -> Result<(), ReadError> {
+    let mut cur = 0;
+    let mut points_iter = point_numbers.iter().map(|ix| ix as usize);
+    while cur < count {
+        let control: u8 = cursor.read()?;
+        let value_type = DeltaRunType::new(control);
+        let run_count = ((control & DELTA_RUN_COUNT_MASK) + 1) as usize;
+        match value_type {
+            DeltaRunType::Zero => {
+                for _ in 0..run_count {
+                    let point_ix = points_iter.next().ok_or(ReadError::OutOfBounds)?;
+                    f(point_ix, 0);
+                }
+            }
+            DeltaRunType::I8 => {
+                let packed_deltas = cursor.read_array::<i8>(run_count)?;
+                for (new_delta, point_ix) in packed_deltas.iter().zip(points_iter.by_ref()) {
+                    f(point_ix, *new_delta as i32);
+                }
+            }
+            DeltaRunType::I16 => {
+                let packed_deltas = cursor.read_array::<BigEndian<i16>>(run_count)?;
+                for (new_delta, point_ix) in packed_deltas.iter().zip(points_iter.by_ref()) {
+                    f(point_ix, new_delta.get() as i32);
+                }
+            }
+            DeltaRunType::I32 => {
+                let packed_deltas = cursor.read_array::<BigEndian<i32>>(run_count)?;
+                for (new_delta, point_ix) in packed_deltas.iter().zip(points_iter.by_ref()) {
+                    f(point_ix, new_delta.get());
+                }
+            }
+        }
+        cur += run_count;
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug)]
@@ -877,7 +1060,7 @@ impl<'a, T> TupleDeltaIter<'a, T>
 where
     T: TupleDelta,
 {
-    fn new(points: &'a PackedPointNumbers, deltas: &'a PackedDeltas) -> TupleDeltaIter<'a, T> {
+    fn new(points: &PackedPointNumbers<'a>, deltas: PackedDeltas<'a>) -> TupleDeltaIter<'a, T> {
         let mut points = points.iter();
         let next_point = points.next();
         let values = if T::is_point() {
