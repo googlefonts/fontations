@@ -592,13 +592,13 @@ impl<'a> TupleVariationHeaderIter<'a> {
 impl<'a> Iterator for TupleVariationHeaderIter<'a> {
     type Item = Result<TupleVariationHeader<'a>, ReadError>;
 
-    #[inline(never)]
     fn next(&mut self) -> Option<Self::Item> {
         if self.current == self.n_headers {
             return None;
         }
         self.current += 1;
         let next = TupleVariationHeader::read(self.data, self.axis_count);
+
         let next_len = next
             .as_ref()
             .map(|table| table.byte_len(self.axis_count))
@@ -611,7 +611,7 @@ impl<'a> Iterator for TupleVariationHeaderIter<'a> {
 #[derive(Clone)]
 pub struct TupleVariationData<'a, T> {
     pub(crate) axis_count: u16,
-    pub(crate) shared_tuples: Option<SharedTuples<'a>>,
+    pub(crate) shared_tuples: Option<ComputedArray<'a, Tuple<'a>>>,
     pub(crate) shared_point_numbers: Option<PackedPointNumbers<'a>>,
     pub(crate) tuple_count: TupleVariationCount,
     // the data for all the tuple variation headers
@@ -668,7 +668,7 @@ pub struct TupleVariationIter<'a, T> {
 
 impl<'a, T> TupleVariationIter<'a, T>
 where
-    T: TupleDelta,
+    T: TupleDelta + 'a,
 {
     #[inline(never)]
     fn next_tuple(&mut self) -> Option<TupleVariation<'a, T>> {
@@ -695,7 +695,7 @@ where
 
 impl<'a, T> Iterator for TupleVariationIter<'a, T>
 where
-    T: TupleDelta,
+    T: TupleDelta + 'a,
 {
     type Item = TupleVariation<'a, T>;
 
@@ -709,7 +709,7 @@ where
 pub struct TupleVariation<'a, T> {
     axis_count: u16,
     header: TupleVariationHeader<'a>,
-    shared_tuples: Option<SharedTuples<'a>>,
+    shared_tuples: Option<ComputedArray<'a, Tuple<'a>>>,
     serialized_data: FontData<'a>,
     shared_point_numbers: Option<PackedPointNumbers<'a>>,
     _marker: std::marker::PhantomData<fn() -> T>,
@@ -739,7 +739,7 @@ where
         self.header
             .tuple_index()
             .tuple_records_index()
-            .and_then(|idx| self.shared_tuples.as_ref()?.tuples().get(idx as usize).ok())
+            .and_then(|idx| self.shared_tuples.as_ref()?.get(idx as usize).ok())
             .or_else(|| self.header.peak_tuple())
             .unwrap_or_default()
     }
