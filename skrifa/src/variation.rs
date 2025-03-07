@@ -4,7 +4,7 @@ use read_fonts::{
     tables::avar::Avar,
     tables::fvar::{self, Fvar},
     types::{Fixed, Tag},
-    TableProvider,
+    FontRef, TableProvider,
 };
 
 use crate::{
@@ -90,7 +90,7 @@ pub struct AxisCollection<'a> {
 
 impl<'a> AxisCollection<'a> {
     /// Creates a new axis collection from the given font.
-    pub fn new(font: &impl TableProvider<'a>) -> Self {
+    pub fn new(font: &FontRef<'a>) -> Self {
         let fvar = font.fvar().ok();
         let avar = font.avar().ok();
         Self { fvar, avar }
@@ -349,7 +349,7 @@ pub struct NamedInstanceCollection<'a> {
 
 impl<'a> NamedInstanceCollection<'a> {
     /// Creates a new instance collection from the given font.
-    pub fn new(font: &impl TableProvider<'a>) -> Self {
+    pub fn new(font: &FontRef<'a>) -> Self {
         Self {
             axes: AxisCollection::new(font),
         }
