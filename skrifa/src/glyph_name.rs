@@ -20,7 +20,7 @@ const MAX_GLYPH_NAME_LEN: usize = 63;
 ///
 /// This sources glyph names from the `post` and `CFF` tables in that order.
 /// If glyph names are not available in either, then they are synthesized
-/// as `gidNNN` where `NNN` is the glyph identifier. Use the
+/// as `gidDDD` where `DDD` is the glyph identifier in decimal. Use the
 /// [`source`](Self::source) to determine which source was chosen.
 #[derive(Clone)]
 pub struct GlyphNames<'a> {
@@ -111,8 +111,8 @@ pub enum GlyphNameSource {
     Post,
     /// Glyph names are sourced from the `CFF` table.
     Cff,
-    /// Glyph names are synthesized in the format `gidNNN` where `NNN` is
-    /// the glyph identifier.
+    /// Glyph names are synthesized in the format `gidDDD` where `DDD` is
+    /// the glyph identifier in decimal.
     Synthesized,
 }
 

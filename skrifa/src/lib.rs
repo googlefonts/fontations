@@ -40,11 +40,11 @@ pub mod setting;
 pub mod string;
 
 mod collections;
-mod glyph_names;
+mod glyph_name;
 mod provider;
 mod variation;
 
-pub use glyph_names::{GlyphName, GlyphNameSource, GlyphNames};
+pub use glyph_name::{GlyphName, GlyphNameSource, GlyphNames};
 #[doc(inline)]
 pub use outline::{OutlineGlyph, OutlineGlyphCollection};
 pub use variation::{Axis, AxisCollection, NamedInstance, NamedInstanceCollection};
