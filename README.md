@@ -1,4 +1,4 @@
-[![CI Build Status](https://github.com/googlefonts/fontations/workflows/Continuous%20integration/badge.svg?branch=main)](https://github.com/googlefonts/fontations/actions/workflows/rust.yml?query=workflow%3AContinuous+integration+branch%3Amain)
+[![CI Status](https://github.com/googlefonts/fontations/actions/workflows/rust.yml/badge.svg)](https://github.com/googlefonts/fontations/actions/workflows/rust.yml)
 [![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/fontations.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:fontations)
 
 
@@ -11,12 +11,12 @@ robust and performant open tools for a variety of font engineering and
 production tasks. For an overview of the motivations, see
 [googlefonts/oxidize][oxidize].
 
-## structure
+## Structure
 
-Currently, this repo contains three main library crates: [`font-types`][], [`read-fonts`][],
-and [`write-fonts`][], in addition to one binary crate, [`otexplorer`][]:
+Currently, this repo contains four main library crates: [`font-types`][], [`read-fonts`][],
+[`write-fonts`][], and [`skrifa`][]:
 
-- `font-types` contains common definitions of the core types used in the
+- [`font-types`][] contains common definitions of the core types used in the
   OpenType spec. This is a small crate, and is intended as a basic dependency
   for any project reading or manipulating font data.
 - [`read-fonts`][] contains code for parsing and accessing font files. It is
@@ -27,9 +27,10 @@ and [`write-fonts`][], in addition to one binary crate, [`otexplorer`][]:
   as well as code for compiling these and writing out font files. It has an
   optional dependency on `read-fonts`, in which case it can also parse font
   data, which can then be modified and written back out to disk.
-- [`otexplorer`][] is a binary crate for exploring the contents of font files.
-  It is developed as a debugging tool, and may also be useful as an example of
-  how the [`read-fonts`][] crate can be used.
+- [`skrifa`][] is a mid level library that provides access to various types of
+  metadata contained in a font as well as support for loading glyph outlines.
+    - It's primary purpose is to replace FreeType in Google applications.
+    - It is also used for tasks such as produce assets for https://fonts.google.com/icons
 
 ## depgraph
 
@@ -100,7 +101,14 @@ To reproduce a fuzzer issue:
 1. Pass the repro file to the fuzzer
    * `target/x86_64-unknown-linux-gnu/release/fuzz_skrifa_outline ~/Downloads/clusterfuzz-testcase-minimized-fuzz_skrifa_outline-6213391169945600`
 
-## contributing
+## Performance
+
+### Harfbuzz
+
+https://github.com/harfbuzz/harfbuzz/blob/main/perf/README.md has instructions on
+running harfbuzz benchmarks, including against Fontations.
+
+## Contributing
 
 We have included a few git hooks that you may choose to use to ensure that
 patches will pass CI; these are in `resources/githooks`.
@@ -115,7 +123,7 @@ git config core.hooksPath "./resources/githooks"
 **note**: If you wish to use the hooks on macOS, install the gnu coreutils
 (`brew install coreutils`, via homebrew.)
 
-## releasing
+## Releasing
 
 We use [`cargo-release`] to help guide the release process. It can be installed
 with `cargo install cargo-release`. You may need to install `pkg-config` via your
@@ -200,7 +208,7 @@ OR build and run in one command:
 [`read-fonts`]: ./read-fonts
 [`font-types`]: ./font-types
 [`write-fonts`]: ./write-fonts
-[`otexplorer`]: ./otexplorer
+[`skrifa`]: ./skrifa
 [oxidize]: https://github.com/googlefonts/oxidize
 [codegen-tour]: ./docs/codegen-tour.md
 [`cargo-release`]: https://github.com/crate-ci/cargo-release
