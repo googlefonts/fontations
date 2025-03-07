@@ -13,8 +13,8 @@ pub(crate) enum DecyclerError {
 /// The graph is expected to have unique node identifiers of type `T`
 /// and traversal depth is limited to the constant `D`.
 ///
-/// This is based on `hb_decycler_t` in HarfBuzz (https://github.com/harfbuzz/harfbuzz/blob/a2ea5d28cb5387f4de2049802474b817be15ad5b/src/hb-decycler.hh)
-/// which is an extension of Floyd's tortoise and hare algorithm (https://en.wikipedia.org/wiki/Cycle_detection#Floyd's_tortoise_and_hare)
+/// This is based on `hb_decycler_t` in HarfBuzz (<https://github.com/harfbuzz/harfbuzz/blob/a2ea5d28cb5387f4de2049802474b817be15ad5b/src/hb-decycler.hh>)
+/// which is an extension of Floyd's tortoise and hare algorithm (<https://en.wikipedia.org/wiki/Cycle_detection#Floyd's_tortoise_and_hare>)
 /// to DFS traversals.
 ///
 /// Unlike the implementation in HB which supports traversals of arbitrary
