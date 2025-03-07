@@ -27,7 +27,7 @@ use read_fonts::{
         glyf::Glyf, gvar::Gvar, hmtx::LongMetric, hvar::Hvar, loca::Loca, os2::SelectionFlags,
     },
     types::{BigEndian, Fixed, GlyphId},
-    TableProvider,
+    FontRef, TableProvider,
 };
 
 use super::instance::{LocationRef, NormalizedCoord, Size};
@@ -100,11 +100,7 @@ pub struct Metrics {
 impl Metrics {
     /// Creates new metrics for the given font, size, and location in
     /// normalized variation space.
-    pub fn new<'a>(
-        font: &impl TableProvider<'a>,
-        size: Size,
-        location: impl Into<LocationRef<'a>>,
-    ) -> Self {
+    pub fn new<'a>(font: &FontRef<'a>, size: Size, location: impl Into<LocationRef<'a>>) -> Self {
         let head = font.head();
         let mut metrics = Metrics {
             units_per_em: head.map(|head| head.units_per_em()).unwrap_or_default(),
@@ -231,11 +227,7 @@ pub struct GlyphMetrics<'a> {
 impl<'a> GlyphMetrics<'a> {
     /// Creates new glyph metrics from the given font, size, and location in
     /// normalized variation space.
-    pub fn new(
-        font: &impl TableProvider<'a>,
-        size: Size,
-        location: impl Into<LocationRef<'a>>,
-    ) -> Self {
+    pub fn new(font: &FontRef<'a>, size: Size, location: impl Into<LocationRef<'a>>) -> Self {
         let glyph_count = font
             .maxp()
             .map(|maxp| maxp.num_glyphs() as u32)
