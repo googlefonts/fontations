@@ -42,7 +42,7 @@ mod traversal;
 #[cfg(test)]
 mod traversal_tests;
 
-use raw::tables::colr;
+use raw::{tables::colr, FontRef};
 #[cfg(test)]
 use serde::{Deserialize, Serialize};
 
@@ -388,7 +388,7 @@ pub struct ColorGlyphCollection<'a> {
 
 impl<'a> ColorGlyphCollection<'a> {
     /// Creates a new collection of paintable color glyphs for the given font.
-    pub fn new(font: &impl TableProvider<'a>) -> Self {
+    pub fn new(font: &FontRef<'a>) -> Self {
         let colr = font.colr().ok();
         let upem = font.head().map(|h| h.units_per_em());
 
