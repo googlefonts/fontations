@@ -6,6 +6,9 @@ mod rust_brotli;
 
 pub mod decode_error;
 
+#[cfg(fuzzing)]
+use decode_error::DecodeError;
+
 /// Decodes shared brotli encoded data using the optional shared dictionary.
 ///
 /// The shared dictionary is a raw LZ77 style dictionary, see:
