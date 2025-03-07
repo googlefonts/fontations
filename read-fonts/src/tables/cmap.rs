@@ -732,26 +732,22 @@ mod tests {
         assert_eq!(count, 10);
     }
 
-    // reconstructed cmap from <https://oss-fuzz.com/testcase-detail/5141969742397440>
-    fn cmap12_overflow_data() -> BeBuffer {
-        be_buffer! {
+    // oss-fuzz: detected integer addition overflow in Cmap12::group()
+    // ref: https://oss-fuzz.com/testcase-detail/5141969742397440
+    // and https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=69547
+    #[test]
+    fn cmap12_iter_avoid_overflow() {
+        // reconstructed cmap from <https://oss-fuzz.com/testcase-detail/5141969742397440>
+        let data = be_buffer! {
             12u16,      // format
             0u16,       // reserved, set to 0
             0u32,       // length, ignored
             0u32,       // language, ignored
             2u32,       // numGroups
             // groups: [startCode, endCode, startGlyphID]
-            [0u32, 16777215, 0], // group 0
-            [255u32, 0xFFFFFFFF, 0] // group 1
-        }
-    }
-
-    // oss-fuzz: detected integer addition overflow in Cmap12::group()
-    // ref: https://oss-fuzz.com/testcase-detail/5141969742397440
-    // and https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=69547
-    #[test]
-    fn cmap12_iter_avoid_overflow() {
-        let data = cmap12_overflow_data();
+            [0xFFFFFFFA_u32, 0xFFFFFFFC, 0], // group 0
+            [0xFFFFFFFB_u32, 0xFFFFFFFF, 0] // group 1
+        };
         let cmap12 = Cmap12::read(data.data().into()).unwrap();
         let _ = cmap12.iter().count();
     }
@@ -822,7 +818,16 @@ mod tests {
 
     #[test]
     fn cmap12_iter_range_clamping() {
-        let data = cmap12_overflow_data();
+        let data = be_buffer! {
+            12u16,      // format
+            0u16,       // reserved, set to 0
+            0u32,       // length, ignored
+            0u32,       // language, ignored
+            2u32,       // numGroups
+            // groups: [startCode, endCode, startGlyphID]
+            [0u32, 16777215, 0], // group 0
+            [255u32, 0xFFFFFFFF, 0] // group 1
+        };
         let cmap12 = Cmap12::read(data.data().into()).unwrap();
         let ranges = cmap12
             .groups()
