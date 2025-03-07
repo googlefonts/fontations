@@ -40,6 +40,7 @@ pub mod setting;
 pub mod string;
 
 mod collections;
+mod decycler;
 mod provider;
 mod variation;
 

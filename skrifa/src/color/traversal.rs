@@ -12,40 +12,24 @@ use super::{
     Brush, ColorPainter, ColorStop, PaintCachedColorGlyph, PaintError, Transform,
 };
 
+use crate::decycler::{Decycler, DecyclerError};
+
 use alloc::vec::Vec;
 
 #[cfg(feature = "libm")]
 #[allow(unused_imports)]
 use core_maths::*;
 
-#[cfg(any(test, feature = "std"))]
-mod visited_set {
-    pub type VisitedSet = std::collections::HashSet<usize>;
-}
+pub(crate) type PaintDecycler = Decycler<usize, MAX_TRAVERSAL_DEPTH>;
 
-#[cfg(not(any(test, feature = "std")))]
-mod visited_set {
-    /// A subset of the HashSet type that pretends every insertion is
-    /// new.
-    ///
-    /// This is used in `no_std` builds to represent a visited set that never
-    /// detects cycles. We rely only on a traversal depth check to avoid
-    /// infinite recursion instead.
-    #[derive(Default)]
-    pub struct VisitedSet {}
-
-    impl VisitedSet {
-        /// Like HashSet, returns true if the value doesn't already exist in
-        /// the set. In our case, that's always.
-        pub fn insert(&mut self, _value: usize) -> bool {
-            true
+impl From<DecyclerError> for PaintError {
+    fn from(value: DecyclerError) -> Self {
+        match value {
+            DecyclerError::CycleDetected => Self::PaintCycleDetected,
+            DecyclerError::DepthLimitExceeded => Self::DepthLimitExceeded,
         }
-
-        pub fn remove(&mut self, _value: &usize) {}
     }
 }
-
-pub use visited_set::VisitedSet;
 
 /// Depth at which we will stop traversing and return an error.
 ///
@@ -55,7 +39,7 @@ pub use visited_set::VisitedSet;
 /// This limit matches the one used in HarfBuzz:
 /// HB_MAX_NESTING_LEVEL: <https://github.com/harfbuzz/harfbuzz/blob/c2f8f35a6cfce43b88552b3eb5c05062ac7007b2/src/hb-limits.hh#L53>
 /// hb_paint_context_t: <https://github.com/harfbuzz/harfbuzz/blob/c2f8f35a6cfce43b88552b3eb5c05062ac7007b2/src/OT/Color/COLR/COLR.hh#L74>
-const MAX_TRAVERSAL_DEPTH: u32 = 64;
+const MAX_TRAVERSAL_DEPTH: usize = 64;
 
 pub(crate) fn get_clipbox_font_units(
     colr_instance: &ColrInstance,
@@ -153,8 +137,8 @@ pub(crate) fn traverse_with_callbacks(
     paint: &ResolvedPaint,
     instance: &ColrInstance,
     painter: &mut impl ColorPainter,
-    visited_set: &mut VisitedSet,
-    recurse_depth: u32,
+    decycler: &mut PaintDecycler,
+    recurse_depth: usize,
 ) -> Result<(), PaintError> {
     if recurse_depth >= MAX_TRAVERSAL_DEPTH {
         return Err(PaintError::DepthLimitExceeded);
@@ -164,17 +148,14 @@ pub(crate) fn traverse_with_callbacks(
             for layer_index in range.clone() {
                 // Perform cycle detection with paint id here, second part of the tuple.
                 let (layer_paint, paint_id) = (*instance).v1_layer(layer_index)?;
-                if !visited_set.insert(paint_id) {
-                    return Err(PaintError::PaintCycleDetected);
-                }
+                let mut cycle_guard = decycler.enter(paint_id)?;
                 traverse_with_callbacks(
                     &resolve_paint(instance, &layer_paint)?,
                     instance,
                     painter,
-                    visited_set,
+                    &mut cycle_guard,
                     recurse_depth + 1,
                 )?;
-                visited_set.remove(&paint_id);
             }
             Ok(())
         }
@@ -482,7 +463,7 @@ pub(crate) fn traverse_with_callbacks(
                 &resolve_paint(instance, paint)?,
                 instance,
                 &mut optimizer,
-                visited_set,
+                decycler,
                 recurse_depth + 1,
             );
 
@@ -493,7 +474,7 @@ pub(crate) fn traverse_with_callbacks(
                     &resolve_paint(instance, paint)?,
                     instance,
                     painter,
-                    visited_set,
+                    decycler,
                     recurse_depth + 1,
                 );
                 painter.pop_clip();
@@ -505,12 +486,9 @@ pub(crate) fn traverse_with_callbacks(
             let glyph_id = (*glyph_id).into();
             match (*instance).v1_base_glyph(glyph_id)? {
                 Some((base_glyph, base_glyph_paint_id)) => {
-                    if !visited_set.insert(base_glyph_paint_id) {
-                        return Err(PaintError::PaintCycleDetected);
-                    }
-
+                    let mut cycle_guard = decycler.enter(base_glyph_paint_id)?;
                     let draw_result = painter.paint_cached_color_glyph(glyph_id)?;
-                    let result = match draw_result {
+                    match draw_result {
                         PaintCachedColorGlyph::Ok => Ok(()),
                         PaintCachedColorGlyph::Unimplemented => {
                             let clipbox = get_clipbox_font_units(instance, glyph_id);
@@ -523,7 +501,7 @@ pub(crate) fn traverse_with_callbacks(
                                 &resolve_paint(instance, &base_glyph)?,
                                 instance,
                                 painter,
-                                visited_set,
+                                &mut cycle_guard,
                                 recurse_depth + 1,
                             );
                             if clipbox.is_some() {
@@ -531,9 +509,7 @@ pub(crate) fn traverse_with_callbacks(
                             }
                             result
                         }
-                    };
-                    visited_set.remove(&base_glyph_paint_id);
-                    result
+                    }
                 }
                 None => Err(PaintError::GlyphNotFound(glyph_id)),
             }
@@ -558,7 +534,7 @@ pub(crate) fn traverse_with_callbacks(
                 &resolve_paint(instance, next_paint)?,
                 instance,
                 painter,
-                visited_set,
+                decycler,
                 recurse_depth + 1,
             );
             painter.pop_transform();
@@ -574,7 +550,7 @@ pub(crate) fn traverse_with_callbacks(
                 &resolve_paint(instance, backdrop_paint)?,
                 instance,
                 painter,
-                visited_set,
+                decycler,
                 recurse_depth + 1,
             );
             result?;
@@ -583,7 +559,7 @@ pub(crate) fn traverse_with_callbacks(
                 &resolve_paint(instance, source_paint)?,
                 instance,
                 painter,
-                visited_set,
+                decycler,
                 recurse_depth + 1,
             );
             painter.pop_layer();
