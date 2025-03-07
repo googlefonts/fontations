@@ -1,3 +1,5 @@
+use crate::GlyphNames;
+
 use super::{
     attribute::Attributes,
     charmap::Charmap,
@@ -25,6 +27,9 @@ pub trait MetadataProvider<'a>: Sized {
     /// Returns an iterator over the collection of localized strings for the
     /// given informational string identifier.
     fn localized_strings(&self, id: StringId) -> LocalizedStrings<'a>;
+
+    /// Returns the mapping from glyph identifiers to names.
+    fn glyph_names(&self) -> GlyphNames<'a>;
 
     /// Returns the global font metrics for the specified size and location in
     /// normalized variation space.
@@ -69,6 +74,11 @@ impl<'a> MetadataProvider<'a> for FontRef<'a> {
     /// given informational string identifier.
     fn localized_strings(&self, id: StringId) -> LocalizedStrings<'a> {
         LocalizedStrings::new(self, id)
+    }
+
+    /// Returns the mapping from glyph identifiers to names.
+    fn glyph_names(&self) -> GlyphNames<'a> {
+        GlyphNames::new(self)
     }
 
     /// Returns the global font metrics for the specified size and location in
