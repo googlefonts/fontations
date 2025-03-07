@@ -4,7 +4,7 @@ include!("../../generated/generated_variations.rs");
 
 use super::{
     glyf::{PointCoord, PointFlags, PointMarker},
-    gvar::{GlyphDelta, SharedTuples},
+    gvar::GlyphDelta,
 };
 
 pub const NO_VARIATION_INDEX: u32 = 0xFFFFFFFF;
