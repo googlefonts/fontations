@@ -55,7 +55,9 @@ use read_fonts::{
 
 use std::{fmt::Debug, ops::Range};
 
-use traversal::{get_clipbox_font_units, traverse_v0_range, traverse_with_callbacks, VisitedSet};
+use traversal::{
+    get_clipbox_font_units, traverse_v0_range, traverse_with_callbacks, PaintDecycler,
+};
 
 pub use transform::Transform;
 
@@ -356,13 +358,13 @@ impl<'a> ColorGlyph<'a> {
                     painter.push_clip_box(rect);
                 }
 
-                let mut visited_set = VisitedSet::default();
-                visited_set.insert(*paint_id);
+                let mut decycler = PaintDecycler::default();
+                let mut cycle_guard = decycler.enter(*paint_id)?;
                 traverse_with_callbacks(
                     &resolve_paint(&instance, paint)?,
                     &instance,
                     painter,
-                    &mut visited_set,
+                    &mut cycle_guard,
                     0,
                 )?;
 
