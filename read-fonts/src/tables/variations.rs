@@ -196,6 +196,24 @@ impl<'a> TupleVariationHeader<'a> {
         })
     }
 
+    /// Intermediate tuple records for this tuple variation table
+    /// — optional, determined by flags in the tupleIndex value.
+    #[inline(always)]
+    pub fn intermediate_tuples(&self) -> Option<(Tuple<'a>, Tuple<'a>)> {
+        self.tuple_index().intermediate_region().then(|| {
+            let start_range = self.shape.intermediate_start_tuple_byte_range();
+            let end_range = self.shape.intermediate_end_tuple_byte_range();
+            (
+                Tuple {
+                    values: self.data.read_array(start_range).unwrap(),
+                },
+                Tuple {
+                    values: self.data.read_array(end_range).unwrap(),
+                },
+            )
+        })
+    }
+
     /// Compute the actual length of this table in bytes
     #[inline(always)]
     fn byte_len(&self, axis_count: u16) -> usize {
@@ -768,10 +786,7 @@ where
         if peak.len() != self.axis_count as usize {
             return None;
         }
-        let intermediate = self
-            .header
-            .intermediate_start_tuple()
-            .zip(self.header.intermediate_end_tuple());
+        let intermediate = self.header.intermediate_tuples();
         for (i, peak) in peak
             .values
             .iter()
