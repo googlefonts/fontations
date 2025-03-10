@@ -219,12 +219,21 @@ impl<'a> SimpleGlyph<'a> {
             return Err(ReadError::InvalidArrayLen);
         }
         let mut cursor = FontData::new(self.glyph_data()).cursor();
+        // We'll need at most n_points flags, but fewer if there are repeats
+        let flags_data = cursor.read_array::<u8>(n_points.min(cursor.remaining_bytes()))?;
+        let mut flags_iter = flags_data.iter().copied();
+        // Keep track of the actual number of flag bytes read so that we can
+        // create a new cursor for reading coordinates
+        let mut read_flags_bytes = 0;
         let mut i = 0;
-        while i < n_points {
-            let flag = cursor.read::<SimpleGlyphFlags>()?;
-            let flag_bits = flag.bits();
-            if flag.contains(SimpleGlyphFlags::REPEAT_FLAG) {
-                let count = (cursor.read::<u8>()? as usize + 1).min(n_points - i);
+        while let Some(flag_bits) = flags_iter.next() {
+            read_flags_bytes += 1;
+            if SimpleGlyphFlags::from_bits_truncate(flag_bits)
+                .contains(SimpleGlyphFlags::REPEAT_FLAG)
+            {
+                let count = (flags_iter.next().ok_or(ReadError::OutOfBounds)? as usize + 1)
+                    .min(n_points - i);
+                read_flags_bytes += 1;
                 for f in &mut flags[i..i + count] {
                     f.0 = flag_bits;
                 }
@@ -233,7 +242,12 @@ impl<'a> SimpleGlyph<'a> {
                 flags[i].0 = flag_bits;
                 i += 1;
             }
+            if i == n_points {
+                break;
+            }
         }
+        let mut cursor = FontData::new(self.glyph_data()).cursor();
+        cursor.advance_by(read_flags_bytes);
         let mut x = 0i32;
         for (&point_flags, point) in flags.iter().zip(points.as_mut()) {
             let mut delta = 0i32;

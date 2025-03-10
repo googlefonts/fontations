@@ -9,7 +9,6 @@ mod outline;
 #[allow(unused_imports)]
 use core_maths::CoreFloat;
 
-use deltas::AvailableVarMetrics;
 pub use hint::{HintError, HintInstance, HintOutline};
 pub use outline::{Outline, ScaledOutline};
 use raw::{FontRef, ReadError};
@@ -54,7 +53,6 @@ pub struct Outlines<'a> {
     glyph_count: u16,
     units_per_em: u16,
     os2_vmetrics: [i16; 2],
-    var_metrics: AvailableVarMetrics,
     prefer_interpreter: bool,
 }
 
@@ -63,16 +61,6 @@ impl<'a> Outlines<'a> {
         let loca = font.loca(None).ok()?;
         let glyf = font.glyf().ok()?;
         let glyph_metrics = GlyphHMetrics::new(font)?;
-        let var_metrics = match glyph_metrics.hvar.as_ref() {
-            Some(hvar) => {
-                if hvar.lsb_mapping().is_some() {
-                    AvailableVarMetrics::All
-                } else {
-                    AvailableVarMetrics::Advances
-                }
-            }
-            None => AvailableVarMetrics::None,
-        };
         let (
             glyph_count,
             max_function_defs,
@@ -137,7 +125,6 @@ impl<'a> Outlines<'a> {
             glyph_count,
             units_per_em: font.head().ok()?.units_per_em(),
             os2_vmetrics,
-            var_metrics,
             prefer_interpreter,
         })
     }
@@ -260,7 +247,6 @@ impl Outlines<'_> {
 }
 
 trait Scaler {
-    fn coords(&self) -> &[F2Dot14];
     fn outlines(&self) -> &Outlines;
     fn setup_phantom_points(
         &mut self,
@@ -293,9 +279,8 @@ trait Scaler {
             _ => [0; 4],
         };
         let outlines = self.outlines();
-        let coords: &[F2Dot14] = self.coords();
-        let lsb = outlines.glyph_metrics.lsb(glyph_id, coords);
-        let advance = outlines.glyph_metrics.advance_width(glyph_id, coords);
+        let lsb = outlines.glyph_metrics.lsb(glyph_id, &[]);
+        let advance = outlines.glyph_metrics.advance_width(glyph_id, &[]);
         let [ascent, descent] = outlines.os2_vmetrics.map(|x| x as i32);
         let tsb = ascent - bounds[3] as i32;
         let vadvance = ascent - descent;
@@ -506,10 +491,6 @@ impl Scaler for FreeTypeScaler<'_> {
         self.phantom[3].y = self.phantom[2].y - F26Dot6::from_bits(vadvance);
     }
 
-    fn coords(&self) -> &[F2Dot14] {
-        self.coords
-    }
-
     fn outlines(&self) -> &Outlines {
         self.outlines
     }
@@ -519,10 +500,7 @@ impl Scaler for FreeTypeScaler<'_> {
         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttgload.c#L1572>
         let scale = self.scale;
         let mut unscaled = self.phantom.map(|point| point.map(|x| x.to_bits()));
-        if self.outlines.glyph_metrics.hvar.is_none()
-            && self.outlines.gvar.is_some()
-            && !self.coords.is_empty()
-        {
+        if self.outlines.gvar.is_some() && !self.coords.is_empty() {
             if let Ok(Some(deltas)) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
                 &self.outlines.glyf,
                 &self.outlines.loca,
@@ -626,16 +604,7 @@ impl Scaler for FreeTypeScaler<'_> {
                 .iup_buffer
                 .get_mut(..point_count + PHANTOM_POINT_COUNT)
                 .ok_or(InsufficientMemory)?;
-            if deltas::simple_glyph(
-                gvar,
-                glyph_id,
-                self.coords,
-                self.outlines.var_metrics,
-                glyph,
-                iup_buffer,
-                deltas,
-            )
-            .is_ok()
+            if deltas::simple_glyph(gvar, glyph_id, self.coords, glyph, iup_buffer, deltas).is_ok()
             {
                 have_deltas = true;
             }
@@ -647,7 +616,7 @@ impl Scaler for FreeTypeScaler<'_> {
             if have_deltas {
                 for ((point, unscaled), delta) in scaled
                     .iter_mut()
-                    .zip(unscaled.iter_mut())
+                    .zip(unscaled.iter())
                     .zip(self.memory.deltas.iter())
                 {
                     let delta = delta.map(Fixed::to_f26dot6);
@@ -655,6 +624,20 @@ impl Scaler for FreeTypeScaler<'_> {
                     // The computed scale factor has an i32 -> 26.26 conversion built in. This undoes the
                     // extra shift.
                     *point = scaled.map(|v| F26Dot6::from_bits(v.to_i32()));
+                }
+                // FreeType applies different rounding to HVAR deltas. Since
+                // we're only using gvar, mimic that behavior for phantom point
+                // deltas when an HVAR table is present
+                if self.outlines.glyph_metrics.hvar.is_some() {
+                    for ((point, unscaled), delta) in scaled[phantom_start..]
+                        .iter_mut()
+                        .zip(&unscaled[phantom_start..])
+                        .zip(&self.memory.deltas[phantom_start..])
+                    {
+                        let delta = delta.map(Fixed::to_i32).map(F26Dot6::from_i32);
+                        let scaled = (unscaled.map(F26Dot6::from_i32) + delta) * scale;
+                        *point = scaled.map(|v| F26Dot6::from_bits(v.to_i32()));
+                    }
                 }
                 if is_hinted {
                     // For hinting, we need to adjust the unscaled points as well.
@@ -681,18 +664,7 @@ impl Scaler for FreeTypeScaler<'_> {
             }
         }
         // Commit our potentially modified phantom points.
-        if self.outlines.glyph_metrics.hvar.is_some() && self.is_hinted {
-            self.phantom[0] *= self.scale;
-            self.phantom[1] *= self.scale;
-        } else {
-            for (i, point) in scaled[phantom_start..]
-                .iter()
-                .enumerate()
-                .take(PHANTOM_POINT_COUNT)
-            {
-                self.phantom[i] = *point;
-            }
-        }
+        self.phantom.copy_from_slice(&scaled[phantom_start..]);
         if let (Some(hinter), true) = (self.hinter.as_ref(), is_hinted) {
             if !ins.is_empty() {
                 // Create a copy of our scaled points in original_scaled.
@@ -775,14 +747,14 @@ impl Scaler for FreeTypeScaler<'_> {
                 .get_mut(delta_base..delta_base + count)
                 .ok_or(InsufficientMemory)?;
             if deltas::composite_glyph(gvar, glyph_id, self.coords, &mut deltas[..]).is_ok() {
-                // Apply selective deltas to phantom points.
-                self.outlines.var_metrics.phantom_deltas(
-                    &mut self.phantom,
-                    deltas,
-                    |phantom, delta| {
-                        phantom.x += F26Dot6::from_bits(delta.x.to_i32());
-                    },
-                );
+                // Apply deltas to phantom points.
+                for (phantom, delta) in self
+                    .phantom
+                    .iter_mut()
+                    .zip(&deltas[deltas.len() - PHANTOM_POINT_COUNT..])
+                {
+                    *phantom += delta.map(Fixed::to_i32).map(F26Dot6::from_bits);
+                }
                 have_deltas = true;
             }
             self.component_delta_count += count;
@@ -1040,10 +1012,6 @@ impl Scaler for HarfBuzzScaler<'_> {
         self.phantom[3].y = self.phantom[2].y - vadvance as f32;
     }
 
-    fn coords(&self) -> &[F2Dot14] {
-        self.coords
-    }
-
     fn outlines(&self) -> &Outlines {
         self.outlines
     }
@@ -1139,16 +1107,7 @@ impl Scaler for HarfBuzzScaler<'_> {
                 .iup_buffer
                 .get_mut(..point_count + PHANTOM_POINT_COUNT)
                 .ok_or(InsufficientMemory)?;
-            if deltas::simple_glyph(
-                gvar,
-                glyph_id,
-                self.coords,
-                self.outlines.var_metrics,
-                glyph,
-                iup_buffer,
-                deltas,
-            )
-            .is_ok()
+            if deltas::simple_glyph(gvar, glyph_id, self.coords, glyph, iup_buffer, deltas).is_ok()
             {
                 for (point, delta) in points.iter_mut().zip(deltas) {
                     *point += *delta;
@@ -1195,14 +1154,14 @@ impl Scaler for HarfBuzzScaler<'_> {
                 .get_mut(delta_base..delta_base + count)
                 .ok_or(InsufficientMemory)?;
             if deltas::composite_glyph(gvar, glyph_id, self.coords, &mut deltas[..]).is_ok() {
-                // Apply selective deltas to phantom points.
-                self.outlines.var_metrics.phantom_deltas(
-                    &mut self.phantom,
-                    deltas,
-                    |phantom, delta| {
-                        phantom.x += delta.x;
-                    },
-                );
+                // Apply deltas to phantom points.
+                for (phantom, delta) in self
+                    .phantom
+                    .iter_mut()
+                    .zip(&deltas[deltas.len() - PHANTOM_POINT_COUNT..])
+                {
+                    *phantom += *delta;
+                }
                 have_deltas = true;
             }
             self.component_delta_count += count;
@@ -1313,28 +1272,6 @@ fn map_point(transform: [f32; 6], p: Point<f32>) -> Point<f32> {
     Point {
         x: transform[0] * p.x + transform[2] * p.y + transform[4],
         y: transform[1] * p.x + transform[3] * p.y + transform[5],
-    }
-}
-
-impl AvailableVarMetrics {
-    /// Calls `f` for each combination of phantom point and its associated
-    /// delta based on the available metrics present in `self`.
-    fn phantom_deltas<P, D>(
-        self,
-        phantom: &mut [Point<P>; 4],
-        deltas: &[Point<D>],
-        f: impl Fn(&mut Point<P>, &Point<D>),
-    ) {
-        match self {
-            Self::None => {
-                f(&mut phantom[0], &deltas[deltas.len() - 4]);
-                f(&mut phantom[1], &deltas[deltas.len() - 3]);
-            }
-            Self::Advances => {
-                f(&mut phantom[0], &deltas[deltas.len() - 4]);
-            }
-            Self::All => {}
-        }
     }
 }
 

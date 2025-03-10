@@ -55,17 +55,29 @@ pub fn compare_glyphs(
         // only for TrueType glyphs)
         if let Some(skrifa_advance) = maybe_skrifa_advance {
             if ft_advance != skrifa_advance {
-                writeln!(
-                std::io::stderr(),
-                "[{path:?}#{} ppem: {} coords: {:?}] glyph id {} advance doesn't match:\nFreeType: {ft_advance:?}\nSkrifa:   {skrifa_advance:?}",
-                options.index,
-                options.ppem,
-                options.coords,
-                gid.to_u32(),
-            )
-            .unwrap();
-                if exit_on_fail {
-                    std::process::exit(1);
+                if let Some((hvar_adv, gvar_adv)) =
+                    skrifa_instance.hvar_and_gvar_advance_deltas(gid)
+                {
+                    // Some fonts have slight discrepancies between HVAR and
+                    // gvar advance deltas.
+                    // If these _are_ the same but the scaler computed advance
+                    // is different then we definitely have a bug.
+                    // If the difference is greater than 1 then we might have
+                    // a bug.
+                    if hvar_adv == gvar_adv || (ft_advance - skrifa_advance).abs() > 1.0 {
+                        writeln!(
+                            std::io::stderr(),
+                            "[{path:?}#{} ppem: {} coords: {:?}] glyph id {} advance doesn't match:\nFreeType: {ft_advance:?}\nSkrifa:   {skrifa_advance:?}",
+                            options.index,
+                            options.ppem,
+                            options.coords,
+                            gid.to_u32(),
+                        )
+                        .unwrap();
+                        if exit_on_fail {
+                            std::process::exit(1);
+                        }
+                    }
                 }
             }
         }

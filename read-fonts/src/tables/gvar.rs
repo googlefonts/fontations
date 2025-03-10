@@ -183,7 +183,7 @@ impl<'a> GlyphVariationData<'a> {
         Ok(GlyphVariationData {
             tuple_count: count,
             axis_count,
-            shared_tuples: Some(shared_tuples),
+            shared_tuples: Some(shared_tuples.tuples()),
             shared_point_numbers,
             header_data,
             serialized_data,
