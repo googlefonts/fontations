@@ -20,7 +20,7 @@ rust-brotli = ["dep:brotli-decompressor"]
 [dependencies]
 brotlic-sys = {version = "0.2.2", optional = true}
 brotli-decompressor = {version = "4.0.2", optional = true}
-cfg-if = "0.1"
+cfg-if = "1.0.0"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
