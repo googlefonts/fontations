@@ -641,7 +641,7 @@ pub struct TupleVariationData<'a, T> {
 
 impl<'a, T> TupleVariationData<'a, T>
 where
-    T: TupleDelta + 'a,
+    T: TupleDelta,
 {
     pub fn tuples(&self) -> TupleVariationIter<'a, T> {
         TupleVariationIter {
@@ -686,7 +686,7 @@ pub struct TupleVariationIter<'a, T> {
 
 impl<'a, T> TupleVariationIter<'a, T>
 where
-    T: TupleDelta + 'a,
+    T: TupleDelta,
 {
     #[inline(never)]
     fn next_tuple(&mut self) -> Option<TupleVariation<'a, T>> {
@@ -713,7 +713,7 @@ where
 
 impl<'a, T> Iterator for TupleVariationIter<'a, T>
 where
-    T: TupleDelta + 'a,
+    T: TupleDelta,
 {
     type Item = TupleVariation<'a, T>;
 
@@ -750,6 +750,11 @@ where
         } else {
             false
         }
+    }
+
+    pub fn point_numbers(&self) -> PackedPointNumbersIter<'a> {
+        let (point_numbers, _) = self.point_numbers_and_packed_deltas();
+        point_numbers.iter()
     }
 
     /// Returns the 'peak' tuple for this variation
@@ -1094,7 +1099,7 @@ where
 }
 
 /// Trait for deltas that are computed in a tuple variation store.
-pub trait TupleDelta: Sized + Copy {
+pub trait TupleDelta: Sized + Copy + 'static {
     /// Returns true if the delta is a point and requires reading two values
     /// from the packed delta stream.
     fn is_point() -> bool;
@@ -1718,5 +1723,72 @@ mod tests {
         let iter = PackedPointNumbersIter::new(0xFFFF, FontData::new(&buf).cursor());
         // Don't panic!
         let _ = iter.count();
+    }
+
+    // Dense accumulator should match iterator
+    #[test]
+    fn accumulate_dense() {
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+        let gvar = font.gvar().unwrap();
+        let gvar_data = gvar.glyph_variation_data(GlyphId::new(1)).unwrap().unwrap();
+        let mut count = 0;
+        for tuple in gvar_data.tuples() {
+            if !tuple.has_deltas_for_all_points() {
+                continue;
+            }
+            let iter_deltas = tuple
+                .deltas()
+                .map(|delta| (delta.x_delta, delta.y_delta))
+                .collect::<Vec<_>>();
+            let mut delta_buf = vec![Point::broadcast(Fixed::ZERO); iter_deltas.len()];
+            tuple
+                .accumulate_dense_deltas(&mut delta_buf, Fixed::ONE)
+                .unwrap();
+            let accum_deltas = delta_buf
+                .iter()
+                .map(|delta| (delta.x.to_i32(), delta.y.to_i32()))
+                .collect::<Vec<_>>();
+            assert_eq!(iter_deltas, accum_deltas);
+            count += iter_deltas.len();
+        }
+        assert!(count != 0);
+    }
+
+    // Sparse accumulator should match iterator
+    #[test]
+    fn accumulate_sparse() {
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+        let gvar = font.gvar().unwrap();
+        let gvar_data = gvar.glyph_variation_data(GlyphId::new(2)).unwrap().unwrap();
+        let mut count = 0;
+        for tuple in gvar_data.tuples() {
+            if tuple.has_deltas_for_all_points() {
+                continue;
+            }
+            let iter_deltas = tuple.deltas().collect::<Vec<_>>();
+            let max_modified_point = iter_deltas
+                .iter()
+                .max_by_key(|delta| delta.position)
+                .unwrap()
+                .position as usize;
+            let mut delta_buf = vec![Point::broadcast(Fixed::ZERO); max_modified_point + 1];
+            let mut flags = vec![PointFlags::default(); delta_buf.len()];
+            tuple
+                .accumulate_sparse_deltas(&mut delta_buf, &mut flags, Fixed::ONE)
+                .unwrap();
+            let mut accum_deltas = vec![];
+            for (i, (delta, flag)) in delta_buf.iter().zip(flags).enumerate() {
+                if flag.has_marker(PointMarker::HAS_DELTA) {
+                    accum_deltas.push(GlyphDelta::new(
+                        i as u16,
+                        delta.x.to_i32(),
+                        delta.y.to_i32(),
+                    ));
+                }
+            }
+            assert_eq!(iter_deltas, accum_deltas);
+            count += iter_deltas.len();
+        }
+        assert!(count != 0);
     }
 }
