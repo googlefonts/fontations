@@ -522,11 +522,14 @@ fn iup_contour_optimize(
             // Assemble solution
             let mut solution = HashSet::new();
             let mut i = Some(start);
-            while i > Some(start.saturating_sub(n)) {
+
+            // As in Python, this must be true when `i` is non-negative and `start - n` is negative
+            while i > start.checked_sub(n) {
                 let idx = i.unwrap();
                 solution.insert(idx % n);
                 i = dp_result.chain[idx];
             }
+
             // this should only be None for the first loop, when start is n - 1
             if i == start.checked_sub(n) {
                 // Python reads [-1] to get 0, usize doesn't like that
@@ -1312,5 +1315,46 @@ mod tests {
         let contour_ends = vec![2];
 
         iup_delta_optimize(deltas, coords, 0.5, &contour_ends).unwrap();
+    }
+
+    // https://github.com/googlefonts/fontc/issues/1116
+    // This test case triggered an error caused by a slight semantic difference
+    // that was introduced from us transitioning to unsigned values in porting
+    // the Python original.
+    #[test]
+    fn bug_fontc_1116() {
+        let mut deltas = vec![
+            Vec2 { x: 0.0, y: 0.0 },
+            Vec2 { x: 0.0, y: 3.0 },
+            Vec2 { x: 0.0, y: 0.0 },
+            Vec2 { x: 0.0, y: 0.0 },
+            Vec2 { x: 2.0, y: 3.0 },
+            Vec2 { x: 2.0, y: 0.0 },
+            Vec2 { x: 1.0, y: 3.0 },
+            Vec2 { x: 1.0, y: 0.0 },
+            Vec2 { x: 0.0, y: 0.0 },
+            Vec2 { x: 0.0, y: 1.0 },
+            Vec2 { x: 1.0, y: 0.0 },
+            Vec2 { x: 1.0, y: 0.0 },
+        ];
+        let mut coords = [
+            (0.0, 0.0),
+            (0.0, 3.0),
+            (0.0, 0.0),
+            (0.0, 0.0),
+            (2.0, 3.0),
+            (2.0, 0.0),
+            (1.0, 3.0),
+            (1.0, 0.0),
+            (0.0, 0.0),
+            (0.0, 1.0),
+            (1.0, 0.0),
+            (1.0, 0.0),
+        ]
+        .into_iter()
+        .map(|(x, y)| Point::new(x, y))
+        .collect::<Vec<_>>();
+
+        iup_contour_optimize(&mut deltas, &mut coords, 0.5).unwrap();
     }
 }

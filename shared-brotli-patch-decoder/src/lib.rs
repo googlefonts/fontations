@@ -6,6 +6,9 @@ mod rust_brotli;
 
 pub mod decode_error;
 
+#[cfg(fuzzing)]
+use decode_error::DecodeError;
+
 /// Decodes shared brotli encoded data using the optional shared dictionary.
 ///
 /// The shared dictionary is a raw LZ77 style dictionary, see:
@@ -41,7 +44,7 @@ pub fn shared_brotli_decode(
         } else if #[cfg(feature = "rust-brotli")] {
             return rust_brotli::shared_brotli_decode_rust(encoded, shared_dictionary, max_uncompressed_length);
         } else {
-            compile_error!("At least one of 'c_brotli' or 'rust_brotli' must be enabled.");
+            compile_error!("At least one of 'c-brotli' or 'rust-brotli' must be enabled.");
         }
     }
 }
