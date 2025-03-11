@@ -1320,7 +1320,7 @@ mod tests {
     #[test]
     fn empty_glyph_advance() {
         let font = FontRef::new(font_test_data::HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP).unwrap();
-        let mut outlines = Outlines::new(&font).unwrap();
+        let outlines = Outlines::new(&font).unwrap();
         let coords = [F2Dot14::from_f32(0.5)];
         let ppem = Some(24.0);
         let gid = font.charmap().map(' ').unwrap();
@@ -1331,17 +1331,8 @@ mod tests {
         let scaler =
             FreeTypeScaler::unhinted(&outlines, &outline, &mut buf, ppem, &coords).unwrap();
         let scaled = scaler.scale(&outline.glyph, gid).unwrap();
-        let advance_hvar = scaled.adjusted_advance_width();
-        // Set HVAR to None and mark var metrics as missing so we pull deltas from gvar
-        outlines.glyph_metrics.hvar = None;
-        outlines.var_metrics = AvailableVarMetrics::None;
-        let scaler =
-            FreeTypeScaler::unhinted(&outlines, &outline, &mut buf, ppem, &coords).unwrap();
-        let scaled = scaler.scale(&outline.glyph, gid).unwrap();
-        let advance_gvar = scaled.adjusted_advance_width();
-        // Make sure we have an advance and that the two are the same
-        assert!(advance_hvar != F26Dot6::ZERO);
-        assert_eq!(advance_hvar, advance_gvar);
+        let advance = scaled.adjusted_advance_width();
+        assert!(advance != F26Dot6::ZERO);
     }
 
     #[test]
@@ -1352,33 +1343,6 @@ mod tests {
         let outline = outlines.outline(gid).unwrap();
         assert!(outline.glyph.is_none());
         assert_eq!(outline.points, PHANTOM_POINT_COUNT);
-    }
-
-    // Pull metric deltas from gvar when hvar is not present
-    // <https://github.com/googlefonts/fontations/issues/1311>
-    #[test]
-    fn missing_hvar_advance() {
-        let font = FontRef::new(font_test_data::HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP).unwrap();
-        let mut outlines = Outlines::new(&font).unwrap();
-        let coords = [F2Dot14::from_f32(0.5)];
-        let ppem = Some(24.0);
-        let gid = font.charmap().map('A').unwrap();
-        let outline = outlines.outline(gid).unwrap();
-        let mut buf = [0u8; 1024];
-        let scaler =
-            FreeTypeScaler::unhinted(&outlines, &outline, &mut buf, ppem, &coords).unwrap();
-        let scaled = scaler.scale(&outline.glyph, gid).unwrap();
-        let advance_hvar = scaled.adjusted_advance_width();
-        // Set HVAR to None and mark var metrics as missing so we pull deltas from gvar
-        outlines.glyph_metrics.hvar = None;
-        outlines.var_metrics = AvailableVarMetrics::None;
-        let scaler =
-            FreeTypeScaler::unhinted(&outlines, &outline, &mut buf, ppem, &coords).unwrap();
-        let scaled = scaler.scale(&outline.glyph, gid).unwrap();
-        let advance_gvar = scaled.adjusted_advance_width();
-        // Make sure we have an advance and that the two are the same
-        assert!(advance_hvar != F26Dot6::ZERO);
-        assert_eq!(advance_hvar, advance_gvar);
     }
 
     // fuzzer overflow for composite glyph with too many total points

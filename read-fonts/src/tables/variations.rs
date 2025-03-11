@@ -902,7 +902,7 @@ where
     }
 }
 
-impl<'a> TupleVariation<'a, GlyphDelta> {
+impl TupleVariation<'_, GlyphDelta> {
     pub fn accumulate_dense_deltas<D: PointCoord>(
         &self,
         deltas: &mut [Point<D>],
