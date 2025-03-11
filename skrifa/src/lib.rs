@@ -40,8 +40,8 @@ pub mod setting;
 pub mod string;
 
 mod collections;
-mod glyph_name;
 mod decycler;
+mod glyph_name;
 mod provider;
 mod variation;
 

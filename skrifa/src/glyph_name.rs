@@ -5,7 +5,7 @@ use raw::{
     tables::{
         cff::Cff,
         post::Post,
-        postscript::{Charset, CharsetIter},
+        postscript::{Charset, CharsetIter, StringId as Sid},
     },
     types::GlyphId,
     FontRef, TableProvider,
@@ -30,10 +30,14 @@ pub struct GlyphNames<'a> {
 impl<'a> GlyphNames<'a> {
     /// Creates a new object for accessing glyph names from the given font.
     pub fn new(font: &FontRef<'a>) -> Self {
+        let num_glyphs = font
+            .maxp()
+            .map(|maxp| maxp.num_glyphs() as u32)
+            .unwrap_or_default();
         if let Ok(post) = font.post() {
             if post.num_names() != 0 {
                 return Self {
-                    inner: Inner::Post(post),
+                    inner: Inner::Post(post, num_glyphs),
                 };
             }
         }
@@ -46,10 +50,6 @@ impl<'a> GlyphNames<'a> {
                 inner: Inner::Cff(cff, charset),
             };
         }
-        let num_glyphs = font
-            .maxp()
-            .map(|maxp| maxp.num_glyphs() as u32)
-            .unwrap_or_default();
         Self {
             inner: Inner::Synthesized(num_glyphs),
         }
@@ -67,9 +67,8 @@ impl<'a> GlyphNames<'a> {
     /// Returns the number of glyphs in the font.
     pub fn num_glyphs(&self) -> u32 {
         match &self.inner {
-            Inner::Post(post) => post.num_names() as u32,
+            Inner::Post(_, n) | Inner::Synthesized(n) => *n,
             Inner::Cff(_, charset) => charset.num_glyphs(),
-            Inner::Synthesized(n) => *n,
         }
     }
 
@@ -78,26 +77,22 @@ impl<'a> GlyphNames<'a> {
         if glyph_id.to_u32() >= self.num_glyphs() {
             return None;
         }
-        match &self.inner {
-            Inner::Post(post) => {
-                let name = post.glyph_name(glyph_id.try_into().ok()?)?;
-                Some(GlyphName::from_bytes(name.as_bytes()))
-            }
-            Inner::Cff(cff, charset) => {
-                let sid = charset.string_id(glyph_id).ok()?;
-                let str = cff.string(sid)?;
-                let name = core::str::from_utf8(str.bytes()).ok()?;
-                Some(GlyphName::from_bytes(name.as_bytes()))
-            }
-            Inner::Synthesized(_) => Some(GlyphName::synthesize(glyph_id)),
-        }
+        let name = match &self.inner {
+            Inner::Post(post, _) => GlyphName::from_post(post, glyph_id),
+            Inner::Cff(cff, charset) => charset
+                .string_id(glyph_id)
+                .ok()
+                .and_then(|sid| GlyphName::from_cff_sid(cff, sid)),
+            _ => None,
+        };
+        Some(name.unwrap_or_else(|| GlyphName::synthesize(glyph_id)))
     }
 
     /// Returns an iterator yielding the identifier and name for all glyphs in
     /// the font.
     pub fn iter(&self) -> impl Iterator<Item = (GlyphId, GlyphName)> + 'a + Clone {
         match &self.inner {
-            Inner::Post(post) => Iter::Post(0, post.clone()),
+            Inner::Post(post, n) => Iter::Post(0..*n, post.clone()),
             Inner::Cff(cff, charset) => Iter::Cff(cff.clone(), charset.iter()),
             Inner::Synthesized(n) => Iter::Synthesized(0..*n),
         }
@@ -121,6 +116,7 @@ pub enum GlyphNameSource {
 pub struct GlyphName {
     name: [u8; MAX_GLYPH_NAME_LEN],
     len: u8,
+    is_synthesized: bool,
 }
 
 impl GlyphName {
@@ -130,15 +126,40 @@ impl GlyphName {
         core::str::from_utf8(bytes).unwrap_or_default()
     }
 
+    /// Returns true if the glyph name was synthesized, i.e. not found in any
+    /// source.
+    pub fn is_synthesized(&self) -> bool {
+        self.is_synthesized
+    }
+
     fn from_bytes(bytes: &[u8]) -> Self {
         let mut name = Self::default();
         name.append(bytes);
         name
     }
 
+    fn from_post(post: &Post, glyph_id: GlyphId) -> Option<Self> {
+        glyph_id
+            .try_into()
+            .ok()
+            .and_then(|id| post.glyph_name(id))
+            .map(|s| s.as_bytes())
+            .map(Self::from_bytes)
+    }
+
+    fn from_cff_sid(cff: &Cff, sid: Sid) -> Option<Self> {
+        cff.string(sid)
+            .and_then(|s| core::str::from_utf8(s.bytes()).ok())
+            .map(|s| s.as_bytes())
+            .map(Self::from_bytes)
+    }
+
     fn synthesize(glyph_id: GlyphId) -> Self {
         use core::fmt::Write;
-        let mut name = Self::default();
+        let mut name = Self {
+            is_synthesized: true,
+            ..Self::default()
+        };
         let _ = write!(GlyphNameWrite(&mut name), "gid{}", glyph_id.to_u32());
         name
     }
@@ -159,13 +180,17 @@ impl Default for GlyphName {
         Self {
             name: [0; MAX_GLYPH_NAME_LEN],
             len: 0,
+            is_synthesized: false,
         }
     }
 }
 
 impl core::fmt::Debug for GlyphName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:?}", self.as_str())
+        f.debug_struct("GlyphName")
+            .field("name", &self.as_str())
+            .field("is_synthesized", &self.is_synthesized)
+            .finish()
     }
 }
 
@@ -200,40 +225,53 @@ impl core::fmt::Write for GlyphNameWrite<'_> {
 
 #[derive(Clone)]
 enum Inner<'a> {
-    Post(Post<'a>),
+    // Second field is num_glyphs
+    Post(Post<'a>, u32),
     Cff(Cff<'a>, Charset<'a>),
     Synthesized(u32),
 }
 
 #[derive(Clone)]
 enum Iter<'a> {
-    Post(u32, Post<'a>),
+    Post(Range<u32>, Post<'a>),
     Cff(Cff<'a>, CharsetIter<'a>),
     Synthesized(Range<u32>),
+}
+
+impl Iter<'_> {
+    fn next_name(&mut self) -> Option<Result<(GlyphId, GlyphName), GlyphId>> {
+        match self {
+            Self::Post(range, post) => {
+                let gid = GlyphId::new(range.next()?);
+                Some(
+                    GlyphName::from_post(post, gid)
+                        .map(|name| (gid, name))
+                        .ok_or(gid),
+                )
+            }
+            Self::Cff(cff, iter) => {
+                let (gid, sid) = iter.next()?;
+                Some(
+                    GlyphName::from_cff_sid(cff, sid)
+                        .map(|name| (gid, name))
+                        .ok_or(gid),
+                )
+            }
+            Self::Synthesized(range) => {
+                let gid = GlyphId::new(range.next()?);
+                Some(Ok((gid, GlyphName::synthesize(gid))))
+            }
+        }
+    }
 }
 
 impl Iterator for Iter<'_> {
     type Item = (GlyphId, GlyphName);
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            Self::Post(cur, post) => {
-                let gid = GlyphId::new(*cur);
-                *cur = cur.checked_add(1)?;
-                Some((
-                    gid,
-                    GlyphName::from_bytes(post.glyph_name(gid.try_into().ok()?)?.as_bytes()),
-                ))
-            }
-            Self::Cff(cff, iter) => {
-                let (gid, sid) = iter.next()?;
-                let str = cff.string(sid)?;
-                Some((gid, GlyphName::from_bytes(str.bytes())))
-            }
-            Self::Synthesized(range) => {
-                let gid = GlyphId::new(range.next()?);
-                Some((gid, GlyphName::synthesize(gid)))
-            }
+        match self.next_name()? {
+            Ok(gid_name) => Some(gid_name),
+            Err(gid) => Some((gid, GlyphName::synthesize(gid))),
         }
     }
 }
@@ -250,6 +288,9 @@ mod tests {
         };
         let names_buf = (0..count).map(|i| format!("gid{i}")).collect::<Vec<_>>();
         let expected_names = names_buf.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+        for (_, name) in names.iter() {
+            assert!(name.is_synthesized())
+        }
         check_names(&names, &expected_names, GlyphNameSource::Synthesized);
     }
 
@@ -291,6 +332,49 @@ mod tests {
             "A.008",
             "A.009",
             "A.010",
+        ];
+        check_names(&names, &expected_names, GlyphNameSource::Post);
+    }
+
+    #[test]
+    fn post_glyph_names_partial() {
+        let font = FontRef::new(font_test_data::HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP).unwrap();
+        let mut names = GlyphNames::new(&font);
+        let Inner::Post(_, len) = &mut names.inner else {
+            panic!("it's a post table!");
+        };
+        // Increase count by 4 so we synthesize the remaining names
+        *len += 4;
+        let expected_names = [
+            ".notdef",
+            "space",
+            "A",
+            "I",
+            "T",
+            "Aacute",
+            "Agrave",
+            "Iacute",
+            "Igrave",
+            "Amacron",
+            "Imacron",
+            "acutecomb",
+            "gravecomb",
+            "macroncomb",
+            "A.001",
+            "A.002",
+            "A.003",
+            "A.004",
+            "A.005",
+            "A.006",
+            "A.007",
+            "A.008",
+            "A.009",
+            "A.010",
+            // synthesized names...
+            "gid24",
+            "gid25",
+            "gid26",
+            "gid27",
         ];
         check_names(&names, &expected_names, GlyphNameSource::Post);
     }
