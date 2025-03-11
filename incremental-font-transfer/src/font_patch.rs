@@ -59,7 +59,7 @@ pub enum PatchingError {
     SerializationError(SerializeErrorFlags),
     IncompatiblePatch,
     NonIncrementalFont,
-    InvalidPatch(&'static str),
+    InvalidPatch(String),
     EmptyPatchList,
     InternalError,
     MissingPatches,
@@ -71,28 +71,36 @@ impl From<SerializeErrorFlags> for PatchingError {
     }
 }
 
-impl From<ReadError> for PatchingError {
-    fn from(err: ReadError) -> Self {
-        PatchingError::FontParsingFailed(err)
+impl PatchingError {
+    pub(crate) fn from_patch_decode_error(decoding_error: DecodeError, uri: &str) -> Self {
+        match decoding_error {
+            DecodeError::InitFailure => {
+                PatchingError::InvalidPatch(format!("Failure to init brotli encoder. ({})", uri))
+            }
+            DecodeError::InvalidStream => {
+                PatchingError::InvalidPatch(format!("Malformed brotli stream. ({})", uri))
+            }
+            DecodeError::InvalidDictionary => {
+                PatchingError::InvalidPatch(format!("Malformed dictionary. ({})", uri))
+            }
+            DecodeError::MaxSizeExceeded => {
+                PatchingError::InvalidPatch(format!("Max size exceeded. ({})", uri))
+            }
+            DecodeError::ExcessInputData => PatchingError::InvalidPatch(format!(
+                "Input brotli stream has excess bytes. ({})",
+                uri
+            )),
+            DecodeError::IoError(_) => PatchingError::InvalidPatch(format!(
+                "IO error decoding input brotli stream. ({})",
+                uri
+            )),
+        }
     }
 }
 
-impl From<DecodeError> for PatchingError {
-    fn from(decoding_error: DecodeError) -> Self {
-        match decoding_error {
-            DecodeError::InitFailure => {
-                PatchingError::InvalidPatch("Failure to init brotli encoder.")
-            }
-            DecodeError::InvalidStream => PatchingError::InvalidPatch("Malformed brotli stream."),
-            DecodeError::InvalidDictionary => PatchingError::InvalidPatch("Malformed dictionary."),
-            DecodeError::MaxSizeExceeded => PatchingError::InvalidPatch("Max size exceeded."),
-            DecodeError::ExcessInputData => {
-                PatchingError::InvalidPatch("Input brotli stream has excess bytes.")
-            }
-            DecodeError::IoError(_) => {
-                PatchingError::InvalidPatch("IO error decoding input brotli stream.")
-            }
-        }
+impl From<ReadError> for PatchingError {
+    fn from(err: ReadError) -> Self {
+        PatchingError::FontParsingFailed(err)
     }
 }
 

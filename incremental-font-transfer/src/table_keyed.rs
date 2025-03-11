@@ -22,7 +22,9 @@ pub(crate) fn apply_table_keyed_patch(
     font: &FontRef,
 ) -> Result<Vec<u8>, PatchingError> {
     if patch.format() != Tag::new(b"iftk") {
-        return Err(PatchingError::InvalidPatch("Patch file tag is not 'iftk'"));
+        return Err(PatchingError::InvalidPatch(
+            "Patch file tag is not 'iftk'".to_string(),
+        ));
     }
 
     // brotli stream starts at the (u32 tag + u8 flags + u32 length) = 9th byte
@@ -43,7 +45,9 @@ pub(crate) fn apply_table_keyed_patch(
             patch.patch_offsets().get(i),
             patch.patch_offsets().get(next),
         ) else {
-            return Err(PatchingError::InvalidPatch("Missing patch offset."));
+            return Err(PatchingError::InvalidPatch(
+                "Missing patch offset.".to_string(),
+            ));
         };
 
         let offset = offset.get().to_u32();
@@ -53,7 +57,7 @@ pub(crate) fn apply_table_keyed_patch(
             .and_then(|v| v.checked_sub(STREAM_START))
         else {
             return Err(PatchingError::InvalidPatch(
-                "Patch offsets are not in sorted order.",
+                "Patch offsets are not in sorted order.".to_string(),
             ));
         };
 
@@ -94,7 +98,7 @@ fn apply_table_patch(
         &table_patch.brotli_stream()[..stream_length]
     } else {
         return Err(PatchingError::InvalidPatch(
-            "Brotli stream is larger then the maxUncompressedLength field.",
+            "Brotli stream is larger then the maxUncompressedLength field.".to_string(),
         ));
     };
     let r = match (base_data, replacement) {
@@ -105,13 +109,13 @@ fn apply_table_patch(
         ),
         (None, false) => {
             return Err(PatchingError::InvalidPatch(
-                "Trying to patch a base table that doesn't exist.",
+                "Trying to patch a base table that doesn't exist.".to_string(),
             ))
         }
         _ => shared_brotli_decode(stream, None, table_patch.max_uncompressed_length() as usize),
     };
 
-    r.map_err(PatchingError::from)
+    r.map_err(|e| PatchingError::from_patch_decode_error(e, "table_keyed_TODO"))
 }
 
 pub(crate) fn copy_unprocessed_tables<'a>(
@@ -219,7 +223,9 @@ mod tests {
         let font = FontRef::new(font.as_slice()).unwrap();
 
         assert_eq!(
-            Err(PatchingError::InvalidPatch("Patch file tag is not 'iftk'")),
+            Err(PatchingError::InvalidPatch(
+                "Patch file tag is not 'iftk'".to_string()
+            )),
             apply_table_keyed_patch(&patch, &font)
         );
     }
@@ -276,7 +282,7 @@ mod tests {
 
         assert_eq!(
             Err(PatchingError::InvalidPatch(
-                "Patch offsets are not in sorted order."
+                "Patch offsets are not in sorted order.".to_string()
             )),
             apply_table_keyed_patch(&patch, &font)
         );
@@ -343,7 +349,7 @@ mod tests {
 
         assert_eq!(
             Err(PatchingError::InvalidPatch(
-                "Trying to patch a base table that doesn't exist."
+                "Trying to patch a base table that doesn't exist.".to_string()
             )),
             apply_table_keyed_patch(&patch, &font)
         );
@@ -429,7 +435,9 @@ mod tests {
         let font = FontRef::new(font.as_slice()).unwrap();
 
         assert_eq!(
-            Err(PatchingError::InvalidPatch("Max size exceeded.")),
+            Err(PatchingError::InvalidPatch(
+                "Max size exceeded. (table_keyed_TODO)".to_string()
+            )),
             apply_table_keyed_patch(&patch, &font)
         );
     }
