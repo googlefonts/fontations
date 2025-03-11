@@ -41,6 +41,7 @@ pub mod string;
 
 mod collections;
 mod glyph_name;
+mod decycler;
 mod provider;
 mod variation;
 

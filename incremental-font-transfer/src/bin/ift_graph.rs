@@ -26,6 +26,10 @@ struct Args {
     /// The input IFT font file.
     #[arg(short, long)]
     font: std::path::PathBuf,
+
+    // In the graph output include the patch path associated with each edge.
+    #[arg(long)]
+    include_patch_paths: bool,
 }
 
 fn standard_features() -> BTreeSet<Tag> {
@@ -199,15 +203,24 @@ fn to_next_font(
         .expect("Patch application failed."))
 }
 
+#[derive(Clone, Default, Ord, PartialEq, PartialOrd, Eq)]
+struct NodeName(String);
+
+#[derive(Clone, Default, Ord, PartialEq, PartialOrd, Eq)]
+struct Edge {
+    name: NodeName,
+    uri: String,
+}
+
 fn to_graph(
     base_path: &Path,
     font: FontRef<'_>,
-    mut graph: BTreeMap<String, BTreeSet<String>>,
-) -> Result<BTreeMap<String, BTreeSet<String>>, UriTemplateError> {
+    mut graph: BTreeMap<NodeName, BTreeSet<Edge>>,
+) -> Result<BTreeMap<NodeName, BTreeSet<Edge>>, UriTemplateError> {
     let patches =
         intersecting_patches(&font, &SubsetDefinition::all()).expect("patch map parsing failed");
 
-    let node_name = get_node_name(&font).unwrap();
+    let node_name = NodeName(get_node_name(&font).unwrap());
     graph.entry(node_name.clone()).or_default();
 
     for patch in patches {
@@ -216,13 +229,17 @@ fn to_graph(
             continue;
         }
 
+        let uri_string = patch.uri_string()?;
         let next_font = to_next_font(base_path, &font, patch)?;
         let next_font = FontRef::new(&next_font).expect("Downstream font parsing failed");
 
         {
             let e = graph.entry(node_name.clone()).or_default();
             let next_node_name = get_node_name(&next_font).unwrap();
-            e.insert(next_node_name);
+            e.insert(Edge {
+                name: NodeName(next_node_name),
+                uri: uri_string,
+            });
         }
 
         graph = to_graph(base_path, next_font, graph)?
@@ -247,7 +264,16 @@ fn main() {
         .unwrap_or_else(|_| panic!("Input font contains malformed URI templates."));
 
     for (key, values) in graph {
-        let values: Vec<_> = values.into_iter().collect();
+        let key = key.0;
+        let values: Vec<_> = if !args.include_patch_paths {
+            values.into_iter().map(|edge| edge.name.0).collect()
+        } else {
+            // Add the patch URI to the node name
+            values
+                .into_iter()
+                .map(|edge| format!("{}|{}", edge.name.0, edge.uri))
+                .collect()
+        };
         println!("{key};{}", values.join(";"));
     }
 }
