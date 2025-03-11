@@ -43,9 +43,11 @@ pub(crate) fn apply_glyph_keyed_patches<D: SharedBrotliDecoder>(
 ) -> Result<Vec<u8>, PatchingError> {
     let mut decompression_buffer: Vec<Vec<u8>> = Vec::with_capacity(patches.len());
 
-    for (_, patch) in patches {
+    for (info, patch) in patches {
         if patch.format() != Tag::new(b"ifgk") {
-            return Err(PatchingError::InvalidPatch("Patch file tag is not 'ifgk'"));
+            return Err(PatchingError::InvalidPatch(
+                "Patch file tag is not 'ifgk'".to_string(),
+            ));
         }
 
         decompression_buffer.push(
@@ -55,7 +57,7 @@ pub(crate) fn apply_glyph_keyed_patches<D: SharedBrotliDecoder>(
                     None,
                     patch.max_uncompressed_length() as usize,
                 )
-                .map_err(PatchingError::from)?,
+                .map_err(|e| PatchingError::from_patch_decode_error(e, info.uri()))?,
         );
     }
 
@@ -84,7 +86,7 @@ pub(crate) fn apply_glyph_keyed_patches<D: SharedBrotliDecoder>(
         if table_tag == Glyf::TAG {
             let (Some(glyf), Ok(loca)) = (font.table_data(Glyf::TAG), font.loca(None)) else {
                 return Err(PatchingError::InvalidPatch(
-                    "Trying to patch glyf/loca but base font doesn't have them.",
+                    "Trying to patch glyf/loca but base font doesn't have them.".to_string(),
                 ));
             };
             patch_offset_array(
@@ -103,7 +105,7 @@ pub(crate) fn apply_glyph_keyed_patches<D: SharedBrotliDecoder>(
         } else if table_tag == Gvar::TAG {
             let Ok(gvar) = font.gvar() else {
                 return Err(PatchingError::InvalidPatch(
-                    "Trying to patch gvar but base font doesn't have them.",
+                    "Trying to patch gvar but base font doesn't have them.".to_string(),
                 ));
             };
             patch_offset_array(
@@ -122,7 +124,7 @@ pub(crate) fn apply_glyph_keyed_patches<D: SharedBrotliDecoder>(
                 .and_then(|t| t.cff_charstrings_offset())
             else {
                 return Err(PatchingError::InvalidPatch(
-                    "Required CFF charstrings offset is missing from IFT table.",
+                    "Required CFF charstrings offset is missing from IFT table.".to_string(),
                 ));
             };
             patch_offset_array(
@@ -142,7 +144,7 @@ pub(crate) fn apply_glyph_keyed_patches<D: SharedBrotliDecoder>(
                 .and_then(|t| t.cff2_charstrings_offset())
             else {
                 return Err(PatchingError::InvalidPatch(
-                    "Required CFF2 charstrings offset is missing from IFT table.",
+                    "Required CFF2 charstrings offset is missing from IFT table.".to_string(),
                 ));
             };
             patch_offset_array(
@@ -201,7 +203,7 @@ fn table_tag_list(glyph_patches: &[GlyphPatches]) -> Result<BTreeSet<Tag>, Patch
             .any(|(prev_tag, next_tag)| next_tag <= prev_tag)
         {
             return Err(PatchingError::InvalidPatch(
-                "Duplicate or unsorted table tag.",
+                "Duplicate or unsorted table tag.".to_string(),
             ));
         }
     }
@@ -469,7 +471,7 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
 
     if gids.last().unwrap_or(GlyphId::new(0)) > max_glyph_id {
         return Err(PatchingError::InvalidPatch(
-            "Patch would add a glyph beyond this fonts maximum.",
+            "Patch would add a glyph beyond this fonts maximum.".to_string(),
         ));
     }
 
@@ -775,7 +777,9 @@ impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
         self.loca
             // Note: get_raw(...) applies the * 2 for short loca when needed.
             .get_raw(gid.to_u32() as usize)
-            .ok_or(PatchingError::InvalidPatch("Start loca entry is missing."))
+            .ok_or(PatchingError::InvalidPatch(
+                "Start loca entry is missing.".to_string(),
+            ))
     }
 
     fn all_offsets_are_ascending(&self) -> bool {
@@ -1817,7 +1821,9 @@ pub(crate) mod tests {
 
         assert_eq!(
             apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder),
-            Err(PatchingError::InvalidPatch("Patch file tag is not 'ifgk'"))
+            Err(PatchingError::InvalidPatch(
+                "Patch file tag is not 'ifgk'".to_string()
+            ))
         );
     }
 
@@ -1894,7 +1900,7 @@ pub(crate) mod tests {
         assert_eq!(
             apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder),
             Err(PatchingError::InvalidPatch(
-                "Duplicate or unsorted table tag."
+                "Duplicate or unsorted table tag.".to_string()
             ))
         );
     }
@@ -1914,7 +1920,7 @@ pub(crate) mod tests {
         assert_eq!(
             apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder),
             Err(PatchingError::InvalidPatch(
-                "Duplicate or unsorted table tag."
+                "Duplicate or unsorted table tag.".to_string()
             ))
         );
     }
@@ -1960,7 +1966,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn glyph_keyed_uncompressed_length_to_small() {
+    fn glyph_keyed_uncompressed_length_too_small() {
         let len = glyf_u16_glyph_patches().as_slice().len();
         let mut patch =
             assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
@@ -1974,7 +1980,9 @@ pub(crate) mod tests {
 
         assert_eq!(
             apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder),
-            Err(PatchingError::InvalidPatch("Max size exceeded.")),
+            Err(PatchingError::InvalidPatch(
+                "Max size exceeded. ()".to_string()
+            )),
         );
     }
 
@@ -1993,7 +2001,7 @@ pub(crate) mod tests {
         assert_eq!(
             apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder),
             Err(PatchingError::InvalidPatch(
-                "Patch would add a glyph beyond this fonts maximum."
+                "Patch would add a glyph beyond this fonts maximum.".to_string()
             )),
         );
     }

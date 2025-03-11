@@ -375,6 +375,10 @@ pub struct PatchInfo {
 }
 
 impl PatchInfo {
+    pub(crate) fn uri(&self) -> &str {
+        &self.uri
+    }
+
     pub(crate) fn tag(&self) -> &IftTableTag {
         &self.source_table
     }
