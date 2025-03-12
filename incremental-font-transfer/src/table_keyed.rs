@@ -115,7 +115,12 @@ fn apply_table_patch(
         _ => shared_brotli_decode(stream, None, table_patch.max_uncompressed_length() as usize),
     };
 
-    r.map_err(|e| PatchingError::from_patch_decode_error(e, "table_keyed_TODO"))
+    r.map_err(|e| {
+        PatchingError::from_patch_decode_error(
+            e,
+            &format!("table_keyed patch to {}", table_patch.tag()),
+        )
+    })
 }
 
 pub(crate) fn copy_unprocessed_tables<'a>(
@@ -436,7 +441,7 @@ mod tests {
 
         assert_eq!(
             Err(PatchingError::InvalidPatch(
-                "Max size exceeded. (table_keyed_TODO)".to_string()
+                "Max size exceeded. (table_keyed patch to tab1)".to_string()
             )),
             apply_table_keyed_patch(&patch, &font)
         );

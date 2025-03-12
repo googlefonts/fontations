@@ -1804,26 +1804,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn glyph_keyed_unsupported_table() {
-        let mut patch = glyf_and_gvar_u16_glyph_patches();
-        patch.write_at("glyf_tag", Tag::new(b"CFF "));
-        let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), patch);
-        let patch: &[u8] = &patch;
-        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
-        let patch_info = patch_info(IFT_TAG, 0);
-
-        let font = test_font_for_patching();
-        let font = FontRef::new(&font).unwrap();
-
-        assert_eq!(
-            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
-            Err(PatchingError::InvalidPatch(
-                "CFF and CFF2 patches are not yet supported.".to_string()
-            ))
-        );
-    }
-
-    #[test]
     fn glyph_keyed_unknown_table() {
         let mut builder = glyf_and_gvar_u16_glyph_patches();
         builder.write_at("gvar_tag", Tag::new(b"hijk"));

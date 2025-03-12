@@ -77,9 +77,10 @@ impl PatchingError {
             DecodeError::InitFailure => {
                 PatchingError::InvalidPatch(format!("Failure to init brotli encoder. ({})", uri))
             }
-            DecodeError::InvalidStream => {
-                PatchingError::InvalidPatch(format!("Malformed brotli stream. ({})", uri))
-            }
+            DecodeError::InvalidStream(msg) => PatchingError::InvalidPatch(format!(
+                "Malformed brotli stream uri = {}, msg = {}",
+                uri, msg
+            )),
             DecodeError::InvalidDictionary => {
                 PatchingError::InvalidPatch(format!("Malformed dictionary. ({})", uri))
             }
