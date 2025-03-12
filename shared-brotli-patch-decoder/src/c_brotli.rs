@@ -61,12 +61,16 @@ pub fn shared_brotli_decode_c(
         match result {
             BrotliDecoderResult_BROTLI_DECODER_RESULT_SUCCESS => break,
             BrotliDecoderResult_BROTLI_DECODER_RESULT_ERROR => {
-                error = Some(DecodeError::InvalidStream);
+                error = Some(DecodeError::InvalidStream(
+                    "BrotliDecoderResult_BROTLI_DECODER_RESULT_ERROR".to_string(),
+                ));
                 break;
             }
             BrotliDecoderResult_BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT if available_in == 0 => {
                 // Needs more input and none is available.
-                error = Some(DecodeError::InvalidStream);
+                error = Some(DecodeError::InvalidStream(
+                    "BrotliDecoderResult_BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT".to_string(),
+                ));
                 break;
             }
             BrotliDecoderResult_BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT if available_out == 0 => {
