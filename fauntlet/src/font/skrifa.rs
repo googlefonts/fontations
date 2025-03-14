@@ -83,6 +83,22 @@ impl<'a> SkrifaInstance<'a> {
             .advance_width(glyph_id)
     }
 
+    pub fn hvar_and_gvar_advance_deltas(&self, glyph_id: GlyphId) -> Option<(i32, i32)> {
+        let hvar = self.font.hvar().ok()?;
+        let gvar = self.font.gvar().ok()?;
+        let hvar_delta = hvar.advance_width_delta(glyph_id, &self.coords).ok()?;
+        let gvar_delta = gvar
+            .phantom_point_deltas(
+                &self.font.glyf().ok()?,
+                &self.font.loca(None).ok()?,
+                &self.coords,
+                glyph_id,
+            )
+            .ok()??[1]
+            .x;
+        Some((hvar_delta.to_i32(), gvar_delta.to_i32()))
+    }
+
     /// Returns the scaler adjusted advance width when available.
     pub fn outline(
         &mut self,

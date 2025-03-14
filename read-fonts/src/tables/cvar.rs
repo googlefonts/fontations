@@ -204,9 +204,12 @@ mod tests {
         for (coords, expected_deltas) in cases {
             let coords = coords.map(F2Dot14::from_f32);
             let mut deltas = vec![0; expected_deltas.len()];
-            for (tuple, weight) in cvar_data.active_tuples_at(&coords) {
+            for tuple in cvar_data.tuples() {
+                let Some(scalar) = tuple.compute_scalar(&coords) else {
+                    continue;
+                };
                 for delta in tuple.deltas() {
-                    let scaled_delta = delta.apply_scalar(weight);
+                    let scaled_delta = delta.apply_scalar(scalar);
                     deltas[delta.position as usize] += scaled_delta.to_bits();
                 }
             }
