@@ -62,7 +62,7 @@ where
                 let offset_pos = s.allocate_size(O::RAW_BYTE_LEN, true)?;
 
                 match O::serialize_subset(&t, s, plan, args, offset_pos) {
-                    Ok(()) => Ok(()),
+                    Ok(_) => Ok(()),
                     Err(e) => {
                         s.revert_snapshot(snap);
                         Err(e)
