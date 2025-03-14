@@ -425,7 +425,9 @@ impl IntSet<u32> {
 }
 
 impl<T> IntSet<T> {
-    /// Create a new empty `IntSet`.
+    /// Create a new, (empty) `IntSet`.
+    ///
+    /// You can create a new full set with [`IntSet::all`].
     pub const fn new() -> Self {
         Self::empty()
     }
