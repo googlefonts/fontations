@@ -5,6 +5,7 @@ mod cblc;
 mod cmap;
 mod cpal;
 mod fvar;
+mod gdef;
 mod glyf_loca;
 mod gpos;
 mod gsub;
@@ -308,6 +309,11 @@ pub struct Plan {
     base_varidx_delta_map: FnvHashMap<u32, (u32, i32)>,
     //BASE table varstore retained varidx mapping
     base_varstore_inner_maps: Vec<IncBiMap>,
+
+    //Old layout item variation index -> (New varidx, delta) mapping
+    layout_varidx_delta_map: FnvHashMap<u32, (u32, i32)>,
+    //GDEF table varstore retained varidx mapping
+    gdef_varstore_inner_maps: Vec<IncBiMap>,
 }
 
 #[derive(Default)]
@@ -509,6 +515,7 @@ impl Plan {
         }
 
         self.nameid_closure(font);
+        self.collect_layout_var_indices(font);
     }
 
     fn create_old_gid_to_new_gid_map(&mut self) {
@@ -597,6 +604,35 @@ impl Plan {
                 gpos.collect_name_ids(self);
             }
         }
+    }
+
+    fn collect_layout_var_indices(&mut self, font: &FontRef) {
+        if self.drop_tables.contains(Tag::new(b"GDEF")) {
+            return;
+        }
+        let Ok(gdef) = font.gdef() else {
+            return;
+        };
+        let Some(Ok(var_store)) = gdef.item_var_store() else {
+            return;
+        };
+        let mut varidx_set = IntSet::empty();
+        gdef.collect_variation_indices(self, &mut varidx_set);
+
+        //TODO: collect variation indices from GPOS
+
+        let vardata_count = var_store.item_variation_data_count() as u32;
+        remap_variation_indices(
+            vardata_count,
+            &varidx_set,
+            &mut self.layout_varidx_delta_map,
+        );
+
+        generate_varstore_inner_maps(
+            &varidx_set,
+            vardata_count,
+            &mut self.gdef_varstore_inner_maps,
+        );
     }
 
     fn collect_base_var_indices(&mut self, font: &FontRef) {
