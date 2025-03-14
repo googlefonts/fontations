@@ -419,6 +419,13 @@ impl IntSet<u32> {
 }
 
 impl<T> IntSet<T> {
+    /// Create a new, (empty) `IntSet`.
+    ///
+    /// You can create a new full set with [`IntSet::all`].
+    pub fn new() -> IntSet<T> {
+        Self::empty()
+    }
+
     /// Create a new empty set (inclusive).
     pub fn empty() -> IntSet<T> {
         IntSet(Membership::Inclusive(BitSet::empty()), PhantomData::<T>)
