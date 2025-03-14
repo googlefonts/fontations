@@ -2,7 +2,7 @@
 
 use crate::{
     serialize::{SerializeErrorFlags, Serializer},
-    CollectVaritionaIndices, NameIdClosure, Plan, SubsetTable,
+    CollectVariationIndices, NameIdClosure, Plan, SubsetTable,
 };
 use fnv::FnvHashMap;
 use write_fonts::read::{
@@ -111,7 +111,7 @@ impl<'a> SubsetTable<'a> for VariationIndex<'a> {
     }
 }
 
-impl CollectVaritionaIndices for DeviceOrVariationIndex<'_> {
+impl CollectVariationIndices for DeviceOrVariationIndex<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
         match self {
             Self::Device(_item) => (),
@@ -120,7 +120,7 @@ impl CollectVaritionaIndices for DeviceOrVariationIndex<'_> {
     }
 }
 
-impl CollectVaritionaIndices for VariationIndex<'_> {
+impl CollectVariationIndices for VariationIndex<'_> {
     fn collect_variation_indices(&self, _plan: &Plan, varidx_set: &mut IntSet<u32>) {
         if self.delta_format() == DeltaFormat::VariationIndex {
             let var_idx =

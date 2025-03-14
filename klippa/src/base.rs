@@ -4,7 +4,7 @@ use crate::{
     offset::{SerializeCopy, SerializeSubset},
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, Serializer},
-    CollectVaritionaIndices, Plan, Subset, SubsetError, SubsetTable,
+    CollectVariationIndices, Plan, Subset, SubsetError, SubsetTable,
 };
 use write_fonts::{
     read::{
@@ -398,7 +398,7 @@ impl SubsetTable<'_> for BaseCoordFormat3<'_> {
     }
 }
 
-impl CollectVaritionaIndices for Base<'_> {
+impl CollectVariationIndices for Base<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
         if let Some(Ok(h_axis)) = self.horiz_axis() {
             h_axis.collect_variation_indices(plan, varidx_set);
@@ -410,7 +410,7 @@ impl CollectVaritionaIndices for Base<'_> {
     }
 }
 
-impl CollectVaritionaIndices for Axis<'_> {
+impl CollectVariationIndices for Axis<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
         let Ok(base_scriptlist) = self.base_script_list() else {
             return;
@@ -419,7 +419,7 @@ impl CollectVaritionaIndices for Axis<'_> {
     }
 }
 
-impl CollectVaritionaIndices for BaseScriptList<'_> {
+impl CollectVariationIndices for BaseScriptList<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
         for script_record in self.base_script_records().iter() {
             let script_tag = script_record.base_script_tag();
@@ -435,7 +435,7 @@ impl CollectVaritionaIndices for BaseScriptList<'_> {
     }
 }
 
-impl CollectVaritionaIndices for BaseScript<'_> {
+impl CollectVariationIndices for BaseScript<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
         if let Some(Ok(base_values)) = self.base_values() {
             base_values.collect_variation_indices(plan, varidx_set);
@@ -453,7 +453,7 @@ impl CollectVaritionaIndices for BaseScript<'_> {
     }
 }
 
-impl CollectVaritionaIndices for BaseValues<'_> {
+impl CollectVariationIndices for BaseValues<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
         for base_coord in self.base_coords().iter().flatten() {
             base_coord.collect_variation_indices(plan, varidx_set);
@@ -461,7 +461,7 @@ impl CollectVaritionaIndices for BaseValues<'_> {
     }
 }
 
-impl CollectVaritionaIndices for MinMax<'_> {
+impl CollectVariationIndices for MinMax<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
         if let Some(Ok(min_coord)) = self.min_coord() {
             min_coord.collect_variation_indices(plan, varidx_set);
@@ -488,7 +488,7 @@ impl CollectVaritionaIndices for MinMax<'_> {
     }
 }
 
-impl CollectVaritionaIndices for BaseCoord<'_> {
+impl CollectVariationIndices for BaseCoord<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
         if let Self::Format3(item) = self {
             item.collect_variation_indices(plan, varidx_set);
@@ -496,7 +496,7 @@ impl CollectVaritionaIndices for BaseCoord<'_> {
     }
 }
 
-impl CollectVaritionaIndices for BaseCoordFormat3<'_> {
+impl CollectVariationIndices for BaseCoordFormat3<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
         let Some(Ok(device)) = self.device() else {
             return;

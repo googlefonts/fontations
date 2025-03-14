@@ -6,6 +6,7 @@ mod cmap;
 mod colr;
 mod cpal;
 mod fvar;
+mod gdef;
 mod glyf_loca;
 mod gpos;
 mod gsub;
@@ -29,6 +30,7 @@ mod stat;
 mod variations;
 mod vorg;
 mod vvar;
+use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
 pub use parsing_util::{
     parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
@@ -300,6 +302,9 @@ pub struct Plan {
     gsub_features: FnvHashMap<u16, u16>,
     gpos_features: FnvHashMap<u16, u16>,
 
+    // used_mark_sets mapping: old->new
+    used_mark_sets_map: FnvHashMap<u16, u16>,
+
     //old->new colrv1 layer index map
     colrv1_layers: FnvHashMap<u32, u32>,
     //old->new CPAL palette index map
@@ -317,6 +322,11 @@ pub struct Plan {
     base_varidx_delta_map: FnvHashMap<u32, (u32, i32)>,
     //BASE table varstore retained varidx mapping
     base_varstore_inner_maps: Vec<IncBiMap>,
+
+    //Old layout item variation index -> (New varidx, delta) mapping
+    layout_varidx_delta_map: FnvHashMap<u32, (u32, i32)>,
+    //GDEF table varstore retained varidx mapping
+    gdef_varstore_inner_maps: Vec<IncBiMap>,
 }
 
 #[derive(Default)]
@@ -518,6 +528,7 @@ impl Plan {
         }
 
         self.nameid_closure(font);
+        self.collect_layout_var_indices(font);
     }
 
     fn create_old_gid_to_new_gid_map(&mut self) {
@@ -566,8 +577,11 @@ impl Plan {
             );
 
             colr.v0_closure_palette_indices(&self.glyphset_colred, &mut palette_indices);
-            self.colrv1_layers = remap_indices(layer_indices);
-            self.colr_palettes = remap_palette_indices(palette_indices);
+            let _ = std::mem::replace(&mut self.colrv1_layers, remap_indices(layer_indices));
+            let _ = std::mem::replace(
+                &mut self.colr_palettes,
+                remap_palette_indices(palette_indices),
+            );
 
             if variation_indices.is_empty() {
                 return;
@@ -668,6 +682,40 @@ impl Plan {
                 gpos.collect_name_ids(self);
             }
         }
+    }
+
+    fn collect_layout_var_indices(&mut self, font: &FontRef) {
+        if self.drop_tables.contains(Tag::new(b"GDEF")) {
+            return;
+        }
+        let Ok(gdef) = font.gdef() else {
+            return;
+        };
+
+        let mut used_mark_sets = IntSet::empty();
+        gdef.collect_used_mark_sets(self, &mut used_mark_sets);
+        let _ = std::mem::replace(&mut self.used_mark_sets_map, remap_indices(used_mark_sets));
+
+        let Some(Ok(var_store)) = gdef.item_var_store() else {
+            return;
+        };
+        let mut varidx_set = IntSet::empty();
+        gdef.collect_variation_indices(self, &mut varidx_set);
+
+        //TODO: collect variation indices from GPOS
+
+        let vardata_count = var_store.item_variation_data_count() as u32;
+        remap_variation_indices(
+            vardata_count,
+            &varidx_set,
+            &mut self.layout_varidx_delta_map,
+        );
+
+        generate_varstore_inner_maps(
+            &varidx_set,
+            vardata_count,
+            &mut self.gdef_varstore_inner_maps,
+        );
     }
 
     fn collect_base_var_indices(&mut self, font: &FontRef) {
@@ -829,13 +877,13 @@ fn get_font_num_glyphs(font: &FontRef) -> usize {
     ret.max(maxp.num_glyphs() as usize)
 }
 
-fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash + From<u32>>(
+fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash + From<u16>>(
     indices: IntSet<T>,
 ) -> FnvHashMap<T, T> {
     indices
         .iter()
         .enumerate()
-        .map(|x| (x.1, T::from(x.0 as u32)))
+        .map(|x| (x.1, T::from(x.0 as u16)))
         .collect()
 }
 
@@ -882,7 +930,7 @@ pub trait NameIdClosure {
     fn collect_name_ids(&self, plan: &mut Plan);
 }
 
-pub(crate) trait CollectVaritionaIndices {
+pub(crate) trait CollectVariationIndices {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>);
 }
 
