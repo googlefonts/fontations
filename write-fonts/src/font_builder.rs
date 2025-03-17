@@ -187,9 +187,11 @@ impl<'a> FontBuilder<'a> {
             let offset = position;
             let length = data.len() as u32;
             position += length;
-            if *tag == head_tag {
+            if *tag == head_tag && data.len() >= 12 {
                 // The head table checksum is computed with the checksum field set to 0.
                 // Equivalent to Python's `data[:8] + b"\0\0\0\0" + data[12:]`
+                //
+                // Only do this if there is enough data in the head table to write the bytes.
                 let head = data.to_mut();
                 head[8..12].copy_from_slice(&[0, 0, 0, 0]);
             }
@@ -216,7 +218,7 @@ impl<'a> FontBuilder<'a> {
 
         for tag in table_order {
             let table = self.tables.remove(&tag).unwrap();
-            if tag == head_tag {
+            if tag == head_tag && table.len() >= 12 {
                 // store the checksum_adjustment in the head table
                 data.extend_from_slice(&table[..8]);
                 data.extend_from_slice(&checksum_adjustment.to_be_bytes());
@@ -318,6 +320,36 @@ mod tests {
         }
         let font_data = builder.build();
         assert_eq!(read_fonts::tables::compute_checksum(&font_data), 0xB1B0AFBA);
+    }
+
+    #[test]
+    fn minimum_head_size_for_checksum_rewrite() {
+        let mut builder = FontBuilder::default();
+        builder.add_raw(
+            Tag::new(b"head"),
+            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        );
+
+        let font_data = builder.build();
+        let font = FontRef::new(&font_data).unwrap();
+        let head = font.table_data(Tag::new(b"head")).unwrap();
+
+        assert_eq!(
+            head.as_bytes(),
+            &vec![0, 1, 2, 3, 4, 5, 6, 7, 65, 61, 62, 10]
+        );
+    }
+
+    #[test]
+    fn doesnt_overflow_head() {
+        let mut builder = FontBuilder::default();
+        builder.add_raw(Tag::new(b"head"), vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+
+        let font_data = builder.build();
+        let font = FontRef::new(&font_data).unwrap();
+        let head = font.table_data(Tag::new(b"head")).unwrap();
+
+        assert_eq!(head.as_bytes(), &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     }
 
     #[rstest]
