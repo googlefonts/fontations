@@ -168,6 +168,10 @@ impl<'a> FontBuilder<'a> {
     /// [Table Directory]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-directory
     /// [Calculating Checksums]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#calculating-checksums
     pub fn build(&mut self) -> Vec<u8> {
+        // See: https://learn.microsoft.com/en-us/typography/opentype/spec/head
+        const HEAD_CHECKSUM_START: usize = 8;
+        const HEAD_CHECKSUM_END: usize = 12;
+
         let header_len = std::mem::size_of::<u32>() // sfnt
             + std::mem::size_of::<u16>() * 4 // num_tables to range_shift
             + self.tables.len() * TABLE_RECORD_LEN;
@@ -187,13 +191,13 @@ impl<'a> FontBuilder<'a> {
             let offset = position;
             let length = data.len() as u32;
             position += length;
-            if *tag == head_tag && data.len() >= 12 {
+            if *tag == head_tag && data.len() >= HEAD_CHECKSUM_END {
                 // The head table checksum is computed with the checksum field set to 0.
-                // Equivalent to Python's `data[:8] + b"\0\0\0\0" + data[12:]`
+                // Equivalent to Python's `data[:HEAD_CHECKSUM_START] + b"\0\0\0\0" + data[HEAD_CHECKSUM_END:]`
                 //
                 // Only do this if there is enough data in the head table to write the bytes.
                 let head = data.to_mut();
-                head[8..12].copy_from_slice(&[0, 0, 0, 0]);
+                head[HEAD_CHECKSUM_START..HEAD_CHECKSUM_END].copy_from_slice(&[0, 0, 0, 0]);
             }
             let (checksum, padding) = checksum_and_padding(data);
             checksums.push(checksum);
@@ -218,11 +222,11 @@ impl<'a> FontBuilder<'a> {
 
         for tag in table_order {
             let table = self.tables.remove(&tag).unwrap();
-            if tag == head_tag && table.len() >= 12 {
+            if tag == head_tag && table.len() >= HEAD_CHECKSUM_END {
                 // store the checksum_adjustment in the head table
-                data.extend_from_slice(&table[..8]);
+                data.extend_from_slice(&table[..HEAD_CHECKSUM_START]);
                 data.extend_from_slice(&checksum_adjustment.to_be_bytes());
-                data.extend_from_slice(&table[12..]);
+                data.extend_from_slice(&table[HEAD_CHECKSUM_END..]);
             } else {
                 data.extend_from_slice(&table);
             }
