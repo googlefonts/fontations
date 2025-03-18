@@ -908,6 +908,22 @@ where
 }
 
 impl TupleVariation<'_, GlyphDelta> {
+    /// Reads the set of deltas from this tuple variation.
+    ///
+    /// This is significantly faster than using the [`Self::deltas`]
+    /// method but requires preallocated memory to store deltas and
+    /// flags.
+    ///
+    /// This method should only be used when the tuple variation is dense,
+    /// that is, [`Self::has_deltas_for_all_points`] returns true.
+    ///
+    /// The size of `deltas` must be the same as the target value set to
+    /// which the variation is applied. For simple outlines, this is
+    /// `num_points + 4` and for composites it is `num_components + 4`
+    /// (where the `+ 4` is to accommodate phantom points).
+    ///
+    /// The `deltas` slice will not be zeroed before accumulation and each
+    /// delta will be multiplied by the given `scalar`.
     pub fn accumulate_dense_deltas<D: PointCoord>(
         &self,
         deltas: &mut [Point<D>],
@@ -935,6 +951,27 @@ impl TupleVariation<'_, GlyphDelta> {
         Ok(())
     }
 
+    /// Reads the set of deltas from this tuple variation.
+    ///
+    /// This is significantly faster than using the [`Self::deltas`]
+    /// method but requires preallocated memory to store deltas and
+    /// flags.
+    ///
+    /// This method should only be used when the tuple variation is sparse,
+    /// that is, [`Self::has_deltas_for_all_points`] returns false.
+    ///
+    /// The size of `deltas` must be the same as the target value set to
+    /// which the variation is applied. For simple outlines, this is
+    /// `num_points + 4` and for composites it is `num_components + 4`
+    /// (where the `+ 4` is to accommodate phantom points).
+    ///
+    /// The `deltas` and `flags` slices must be the same size. Modifications
+    /// to `deltas` will be sparse and for each entry that is modified, the
+    /// [PointMarker::HAS_DELTA] marker will be set for the corresponding
+    /// entry in the `flags` slice.
+    ///
+    /// The `deltas` slice will not be zeroed before accumulation and each
+    /// delta will be multiplied by the given `scalar`.
     pub fn accumulate_sparse_deltas<D: PointCoord>(
         &self,
         deltas: &mut [Point<D>],
