@@ -6,7 +6,7 @@ use read_fonts::{
         os2::{Os2, SelectionFlags},
         post::Post,
     },
-    TableProvider,
+    FontRef, TableProvider,
 };
 
 /// Stretch, style and weight attributes of a font.
@@ -30,7 +30,7 @@ pub struct Attributes {
 impl Attributes {
     /// Extracts the stretch, style and weight attributes for the default
     /// instance of the given font.
-    pub fn new<'a>(font: &impl TableProvider<'a>) -> Self {
+    pub fn new(font: &FontRef) -> Self {
         if let Ok(os2) = font.os2() {
             // Prefer values from the OS/2 table if it exists. We also use
             // the post table to extract the angle for oblique styles.

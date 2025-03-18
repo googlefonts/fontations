@@ -13,8 +13,9 @@ and stored in the `ttf` directory; the `ttf` files are the actual test inputs.
 
 ## fea
 
-The `fea` directory contains fea files describing test cases. Similarly to ttx,
-these are compiled and stored in the `ttf` directory. Each test case is
+The `fea` directory contains fea files describing test cases, as this is a
+very good format for describing layout tables. Similarly to ttx,
+these are compiled to ttf and stored in the `ttf` directory. Each test case is
 comprised of a FEA file and a corresponding glyph list.
 
 ## extracted data
@@ -106,7 +107,7 @@ all of the inputs.
 
 ```shell
 # from the repo root
-somewhere/fontations $ ./resources/test_fonts/rebuild.sh
+somewhere/fontations $ ./font-test-data/test_data/rebuild.sh
 ```
 
 [OFL]: https://scripts.sil.org/cms/scripts/page.php?site_id=nrsi&id=OFL

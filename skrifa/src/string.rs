@@ -25,7 +25,7 @@
 
 use read_fonts::{
     tables::name::{CharIter, Name, NameRecord, NameString},
-    TableProvider,
+    FontRef, TableProvider,
 };
 
 use core::fmt;
@@ -57,7 +57,7 @@ pub struct LocalizedStrings<'a> {
 
 impl<'a> LocalizedStrings<'a> {
     /// Creates a new localized string iterator from the given font and string identifier.
-    pub fn new(font: &impl TableProvider<'a>, id: StringId) -> Self {
+    pub fn new(font: &FontRef<'a>, id: StringId) -> Self {
         let name = font.name().ok();
         let records = name
             .as_ref()

@@ -42,7 +42,7 @@ mod traversal;
 #[cfg(test)]
 mod traversal_tests;
 
-use raw::tables::colr;
+use raw::{tables::colr, FontRef};
 #[cfg(test)]
 use serde::{Deserialize, Serialize};
 
@@ -55,7 +55,9 @@ use read_fonts::{
 
 use std::{fmt::Debug, ops::Range};
 
-use traversal::{get_clipbox_font_units, traverse_v0_range, traverse_with_callbacks, VisitedSet};
+use traversal::{
+    get_clipbox_font_units, traverse_v0_range, traverse_with_callbacks, PaintDecycler,
+};
 
 pub use transform::Transform;
 
@@ -356,13 +358,13 @@ impl<'a> ColorGlyph<'a> {
                     painter.push_clip_box(rect);
                 }
 
-                let mut visited_set = VisitedSet::default();
-                visited_set.insert(*paint_id);
+                let mut decycler = PaintDecycler::default();
+                let mut cycle_guard = decycler.enter(*paint_id)?;
                 traverse_with_callbacks(
                     &resolve_paint(&instance, paint)?,
                     &instance,
                     painter,
-                    &mut visited_set,
+                    &mut cycle_guard,
                     0,
                 )?;
 
@@ -388,7 +390,7 @@ pub struct ColorGlyphCollection<'a> {
 
 impl<'a> ColorGlyphCollection<'a> {
     /// Creates a new collection of paintable color glyphs for the given font.
-    pub fn new(font: &impl TableProvider<'a>) -> Self {
+    pub fn new(font: &FontRef<'a>) -> Self {
         let colr = font.colr().ok();
         let upem = font.head().map(|h| h.units_per_em());
 
