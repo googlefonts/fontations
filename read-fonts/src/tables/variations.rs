@@ -1012,6 +1012,10 @@ impl TupleVariation<'_, GlyphDelta> {
     }
 }
 
+/// This is basically a manually applied loop unswitching optimization
+/// for reading deltas. It reads each typed run into a slice for processing
+/// instead of handling each delta individually with all the necessary
+/// branching that implies.
 fn read_dense_deltas<T>(
     cursor: &mut Cursor,
     deltas: &mut [T],
@@ -1052,6 +1056,7 @@ fn read_dense_deltas<T>(
     Ok(())
 }
 
+/// See [read_dense_deltas] docs.
 fn read_sparse_deltas(
     cursor: &mut Cursor,
     point_numbers: &PackedPointNumbers,
