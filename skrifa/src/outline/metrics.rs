@@ -26,7 +26,7 @@ impl<'a> GlyphHMetrics<'a> {
     /// coordinates in 2.14 fixed point.
     pub fn advance_width(&self, gid: GlyphId, coords: &'a [F2Dot14]) -> i32 {
         let mut advance = self.hmtx.advance(gid).unwrap_or_default() as i32;
-        if let Some(hvar) = &self.hvar {
+        if let (false, Some(hvar)) = (coords.is_empty(), &self.hvar) {
             advance += hvar
                 .advance_width_delta(gid, coords)
                 .map(|delta| delta.to_i32())
@@ -40,7 +40,7 @@ impl<'a> GlyphHMetrics<'a> {
     /// coordinates in 2.14 fixed point.    
     pub fn lsb(&self, gid: GlyphId, coords: &'a [F2Dot14]) -> i32 {
         let mut lsb = self.hmtx.side_bearing(gid).unwrap_or_default() as i32;
-        if let Some(hvar) = &self.hvar {
+        if let (false, Some(hvar)) = (coords.is_empty(), &self.hvar) {
             lsb += hvar
                 .lsb_delta(gid, coords)
                 .map(|delta| delta.to_i32())

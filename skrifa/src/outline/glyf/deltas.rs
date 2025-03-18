@@ -11,16 +11,6 @@ use read_fonts::{
 
 use super::PHANTOM_POINT_COUNT;
 
-#[derive(Copy, Clone, Debug)]
-pub(super) enum AvailableVarMetrics {
-    /// Full variable metrics with advances and side-bearings.
-    All,
-    /// Variable advances but not side-bearings.
-    Advances,
-    /// No variable metrics table.
-    None,
-}
-
 /// Compute a set of deltas for the component offsets of a composite glyph.
 ///
 /// Interpolation is meaningless for component offsets so this is a
@@ -58,7 +48,6 @@ pub(super) fn simple_glyph<C, D>(
     gvar: &Gvar,
     glyph_id: GlyphId,
     coords: &[F2Dot14],
-    var_metrics: AvailableVarMetrics,
     glyph: SimpleGlyph<C>,
     iup_buffer: &mut [Point<D>],
     deltas: &mut [Point<D>],
@@ -83,17 +72,6 @@ where
         flags,
         contours,
     } = glyph;
-    // Determine which phantom points to modify based on the presence and
-    // content of the HVAR table.
-    let actual_len = match var_metrics {
-        // Modify LSB and advance
-        AvailableVarMetrics::None => points.len() - 2,
-        // Modify only LSB
-        AvailableVarMetrics::Advances => points.len() - 3,
-        // Modify nothing
-        AvailableVarMetrics::All => points.len() - PHANTOM_POINT_COUNT,
-    };
-    let deltas = &mut deltas[..actual_len];
     compute_deltas_for_glyph(gvar, glyph_id, coords, deltas, |scalar, tuple, deltas| {
         // Infer missing deltas by interpolation.
         // Prepare our working buffer by converting the points to 16.16
@@ -102,13 +80,7 @@ where
             *iup_point = point.map(D::from);
             flag.clear_marker(PointMarker::HAS_DELTA);
         }
-        for tuple_delta in tuple.deltas() {
-            let ix = tuple_delta.position as usize;
-            if let (Some(flag), Some(point)) = (flags.get_mut(ix), iup_buffer.get_mut(ix)) {
-                flag.set_marker(PointMarker::HAS_DELTA);
-                *point += tuple_delta.apply_scalar(scalar);
-            }
-        }
+        tuple.accumulate_sparse_deltas(iup_buffer, flags, scalar)?;
         interpolate_deltas(points, flags, contours, &mut iup_buffer[..])
             .ok_or(ReadError::OutOfBounds)?;
         for ((delta, point), iup_point) in deltas.iter_mut().zip(points).zip(iup_buffer.iter()) {
@@ -147,9 +119,7 @@ where
         // Fast path: tuple contains all points, we can simply accumulate
         // the deltas directly.
         if tuple.has_deltas_for_all_points() {
-            for (delta, tuple_delta) in deltas.iter_mut().zip(tuple.deltas()) {
-                *delta += tuple_delta.apply_scalar(scalar);
-            }
+            tuple.accumulate_dense_deltas(deltas, scalar)?;
         } else {
             // Slow path is, annoyingly, different for simple vs composite
             // so let the caller handle it
