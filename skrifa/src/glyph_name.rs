@@ -27,6 +27,14 @@ pub struct GlyphNames<'a> {
     inner: Inner<'a>,
 }
 
+#[derive(Clone)]
+enum Inner<'a> {
+    // Second field is num_glyphs
+    Post(Post<'a>, u32),
+    Cff(Cff<'a>, Charset<'a>),
+    Synthesized(u32),
+}
+
 impl<'a> GlyphNames<'a> {
     /// Creates a new object for accessing glyph names from the given font.
     pub fn new(font: &FontRef<'a>) -> Self {
@@ -164,6 +172,13 @@ impl GlyphName {
         name
     }
 
+    /// Appends the given bytes to `self` while keeping the maximum length
+    /// at 63 bytes.
+    ///
+    /// This exists primarily to support the [`core::fmt::Write`] impl
+    /// (which is used for generating synthesized glyph names) because
+    /// we have no guarantee of how many times `write_str` might be called
+    /// for a given format.
     fn append(&mut self, bytes: &[u8]) {
         // We simply truncate when length exceeds the max since glyph names
         // are expected to be <= 63 chars
@@ -221,14 +236,6 @@ impl core::fmt::Write for GlyphNameWrite<'_> {
         self.0.append(s.as_bytes());
         Ok(())
     }
-}
-
-#[derive(Clone)]
-enum Inner<'a> {
-    // Second field is num_glyphs
-    Post(Post<'a>, u32),
-    Cff(Cff<'a>, Charset<'a>),
-    Synthesized(u32),
 }
 
 #[derive(Clone)]
