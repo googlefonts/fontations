@@ -93,6 +93,10 @@ impl<'a> GlyphNames<'a> {
                 .and_then(|sid| GlyphName::from_cff_sid(cff, sid)),
             _ => None,
         };
+        // If name is empty string, synthesize it
+        if name.as_ref().is_none_or(|s| s.is_empty()) {
+            return Some(GlyphName::synthesize(glyph_id));
+        }
         Some(name.unwrap_or_else(|| GlyphName::synthesize(glyph_id)))
     }
 
