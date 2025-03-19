@@ -308,6 +308,11 @@ impl<'a> ClassDefFormat1<'a> {
                 (GlyphId16::new(gid), val.get())
             })
     }
+
+    /// Return the number of glyphs explicitly assigned to a class in this table
+    pub fn population(&self) -> usize {
+        self.glyph_count() as usize
+    }
 }
 
 impl<'a> ClassDefFormat2<'a> {
@@ -334,6 +339,26 @@ impl<'a> ClassDefFormat2<'a> {
             (start..=end).map(|gid| (GlyphId16::new(gid), range.class()))
         })
     }
+
+    /// Return the number of glyphs explicitly assigned to a class in this table
+    pub fn population(&self) -> usize {
+        self.class_range_records()
+            .iter()
+            .fold(0, |acc, record| acc + record.population())
+    }
+}
+
+impl ClassRangeRecord {
+    /// Return the number of glyphs explicitly assigned to a class in this table
+    pub fn population(&self) -> usize {
+        let start = self.start_glyph_id().to_u32() as usize;
+        let end = self.end_glyph_id().to_u32() as usize;
+        if start > end {
+            0
+        } else {
+            end - start + 1
+        }
+    }
 }
 
 impl ClassDef<'_> {
@@ -354,6 +379,14 @@ impl ClassDef<'_> {
             ClassDef::Format2(inner) => (None, Some(inner.iter())),
         };
         one.into_iter().flatten().chain(two.into_iter().flatten())
+    }
+
+    /// Return the number of glyphs explicitly assigned to a class in this table
+    pub fn population(&self) -> usize {
+        match self {
+            ClassDef::Format1(table) => table.population(),
+            ClassDef::Format2(table) => table.population(),
+        }
     }
 }
 

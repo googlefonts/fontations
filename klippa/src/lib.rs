@@ -278,9 +278,11 @@ pub struct Plan {
     glyphset_gsub: IntSet<GlyphId>,
     glyphset_colred: IntSet<GlyphId>,
     glyphset: IntSet<GlyphId>,
-    //Old->New glyph id mapping,
+    /// Old->New glyph id mapping,
     glyph_map: FnvHashMap<GlyphId, GlyphId>,
-    //New->Old glyph id mapping,
+    // Old->New glyph id (in glyph_set_gsub) mapping
+    glyph_map_gsub: FnvHashMap<GlyphId, GlyphId>,
+    /// New->Old glyph id mapping,
     reverse_glyph_map: FnvHashMap<GlyphId, GlyphId>,
 
     new_to_old_gid_list: Vec<(GlyphId, GlyphId)>,
@@ -369,6 +371,7 @@ impl Plan {
         this.populate_gids_to_retain(font);
         this.create_old_gid_to_new_gid_map();
 
+        this.create_glyph_map_gsub();
         //update the unicode to new gid list
         let num = this.unicode_to_new_gid_list.len();
         for i in 0..num {
@@ -561,6 +564,15 @@ impl Plan {
             .extend(self.new_to_old_gid_list.iter().map(|x| (x.1, x.0)));
         self.reverse_glyph_map
             .extend(self.new_to_old_gid_list.iter().map(|x| (x.0, x.1)));
+    }
+
+    fn create_glyph_map_gsub(&mut self) {
+        let map: FnvHashMap<GlyphId, GlyphId> = self
+            .glyphset_gsub
+            .iter()
+            .filter_map(|g| self.glyph_map.get(&g).map(|new_gid| (g, *new_gid)))
+            .collect();
+        let _ = std::mem::replace(&mut self.glyph_map_gsub, map);
     }
 
     fn colr_closure(&mut self, font: &FontRef) {
