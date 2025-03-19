@@ -2,7 +2,7 @@ import sys
 import os
 
 from fontTools.ttLib import TTFont, newTable
-from fontTools.fontBuilder import addFvar
+from fontTools.fontBuilder import addFvar, FontBuilder
 
 from fontTools.feaLib.builder import addOpenTypeFeatures
 
@@ -13,13 +13,14 @@ VARFONT_AXES = [
 
 def makeTTFont(glyph_list_path):
     glyphs = get_glyph_list(glyph_list_path)
-    font = TTFont()
-    font.setGlyphOrder(glyphs)
+    builder = FontBuilder(1024, isTTF=True)
+    builder.setupGlyphOrder(glyphs)
+    builder.setupPost()
     # hack, but no need to modify the existing test files
     if "variations" in glyph_list_path:
-        font["name"] = newTable("name")
-        addFvar(font, VARFONT_AXES, [])
-    return font
+        builder.setupNameTable({})
+        builder.setupFvar(VARFONT_AXES, [])
+    return builder.font
 
 def get_glyph_list(path):
     with open(path) as f:
