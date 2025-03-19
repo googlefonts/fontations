@@ -6,7 +6,7 @@
 
 use std::fmt;
 
-use ansi_term::{Color, Colour::Red, Style};
+use nu_ansi_term::{Color, Color::Red, Style};
 
 #[macro_export]
 macro_rules! assert_hex_eq {

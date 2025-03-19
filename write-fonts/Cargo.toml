@@ -32,7 +32,7 @@ indexmap = "2.0"
 
 [dev-dependencies]
 diff = "0.1.12"
-ansi_term = "0.12.1"
+nu-ansi-term = "0.50.1"
 font-test-data = { workspace = true }
 read-fonts = { workspace = true, features = [
   "codegen_test", "experimental_traverse"
