@@ -14,7 +14,7 @@ pub(crate) trait SerializeSubset {
         plan: &Plan,
         args: T::ArgsForSubset,
         pos: usize,
-    ) -> Result<(), SerializeErrorFlags>;
+    ) -> Result<T::Output, SerializeErrorFlags>;
 }
 
 impl<O: Scalar> SerializeSubset for O {
@@ -24,10 +24,10 @@ impl<O: Scalar> SerializeSubset for O {
         plan: &Plan,
         args: T::ArgsForSubset,
         pos: usize,
-    ) -> Result<(), SerializeErrorFlags> {
+    ) -> Result<T::Output, SerializeErrorFlags> {
         s.push()?;
         match t.subset(plan, s, args) {
-            Ok(_) => {
+            Ok(ret) => {
                 let Some(obj_idx) = s.pop_pack(true) else {
                     return Err(s.error());
                 };
@@ -37,7 +37,8 @@ impl<O: Scalar> SerializeSubset for O {
                     OffsetWhence::Head,
                     0,
                     false,
-                )
+                )?;
+                Ok(ret)
             }
             Err(e) => {
                 s.pop_discard();
@@ -54,6 +55,12 @@ pub(crate) trait SerializeCopy {
         s: &mut Serializer,
         pos: usize,
     ) -> Result<(), SerializeErrorFlags>;
+
+    fn serialize_copy_from_bytes(
+        src_bytes: &[u8],
+        s: &mut Serializer,
+        pos: usize,
+    ) -> Result<(), SerializeErrorFlags>;
 }
 
 impl<O: Scalar> SerializeCopy for O {
@@ -64,6 +71,26 @@ impl<O: Scalar> SerializeCopy for O {
     ) -> Result<(), SerializeErrorFlags> {
         s.push()?;
         s.embed_bytes(t.min_table_bytes())?;
+
+        let Some(obj_idx) = s.pop_pack(true) else {
+            return Err(s.error());
+        };
+        s.add_link(
+            pos..pos + O::RAW_BYTE_LEN,
+            obj_idx,
+            OffsetWhence::Head,
+            0,
+            false,
+        )
+    }
+
+    fn serialize_copy_from_bytes(
+        src_bytes: &[u8],
+        s: &mut Serializer,
+        pos: usize,
+    ) -> Result<(), SerializeErrorFlags> {
+        s.push()?;
+        s.embed_bytes(src_bytes)?;
 
         let Some(obj_idx) = s.pop_pack(true) else {
             return Err(s.error());
