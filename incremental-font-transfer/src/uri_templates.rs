@@ -7,7 +7,6 @@ enum ParseState {
 
     // Expression parsing,
     Expression(Variable),
-    ExpressionPercentEncoded(PercentEncoded),
 }
 
 enum Variable {
@@ -15,7 +14,12 @@ enum Variable {
     I,
     ID,
     ID6,
+    ID64,
     D,
+    DX(u8),
+    Undefined,
+    PercentEncodedDigitOne,
+    PercentEncodedDigitTwo,
 }
 
 enum PercentEncoded {
@@ -49,6 +53,8 @@ impl std::error::Error for UriTemplateError {}
 /// set of variables used in the expansion (id, id64, d1, d2, d3, and d4).
 ///
 /// All arguments are assumed to be utf8 encoded strings.
+///
+/// TODO take id as the raw integer or id string and convert to id and id64 as needed.
 pub(crate) fn expand_template(
     template_string: &str,
     id_value: &str,
@@ -75,7 +81,9 @@ pub(crate) fn expand_template(
                 output.append(*byte);
                 ParseState::Literal
             }
-            _ => todo!(),
+            ParseState::Expression(variable) => {
+                output.handle_expression(*byte, variable, id_value, id64_value)?
+            }
         }
     }
 
@@ -108,6 +116,53 @@ impl OutputBuffer {
                 Ok(ParseState::Literal)
             }
         }
+    }
+
+    fn handle_expression(
+        &mut self,
+        byte: u8,
+        variable: Variable,
+        id_value: &str,
+        id64_value: &str,
+    ) -> Result<ParseState, UriTemplateError> {
+        // TODO check for and error an unsupported byte values.
+        match (variable, byte) {
+            // Variable matching
+            (Variable::Begin, b'i') => Ok(ParseState::Expression(Variable::I)),
+            (Variable::Begin, b'd') => Ok(ParseState::Expression(Variable::D)),
+            (Variable::I, b'd') => Ok(ParseState::Expression(Variable::ID)),
+            (Variable::ID, b'6') => Ok(ParseState::Expression(Variable::ID6)),
+            (Variable::ID6, b'4') => Ok(ParseState::Expression(Variable::ID64)),
+            (Variable::D, b'1') => Ok(ParseState::Expression(Variable::DX(1))),
+            (Variable::D, b'2') => Ok(ParseState::Expression(Variable::DX(2))),
+            (Variable::D, b'3') => Ok(ParseState::Expression(Variable::DX(3))),
+            (Variable::D, b'4') => Ok(ParseState::Expression(Variable::DX(4))),
+
+            // termination states
+            (Variable::ID, b'}') => {
+                self.append_str(id_value);
+                Ok(ParseState::Literal)
+            }
+            (Variable::ID64, b'}') => {
+                // TODO percent encode any characters in id64 as needed.
+                self.append_str(id64_value);
+                Ok(ParseState::Literal)
+            }
+            (Variable::DX(digit), b'}') => todo!(),
+            (Variable::Undefined, b'}') => {
+                // Undefined variable name just ignore it.
+                Ok(ParseState::Literal)
+            }
+
+            // TODO percent encoding validation.
+
+            // Everything else is just skipping through an undefined variable name.
+            _ => Ok(ParseState::Expression(Variable::Undefined)),
+        }
+    }
+
+    fn append_str(&mut self, value: &str) {
+        self.0.push_str(value)
     }
 
     fn append(&mut self, byte: u8) {
@@ -234,6 +289,70 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn valid_expansions() {
+        assert_eq!(
+            expand_template("{id}{id64}", "abc", "def"),
+            Ok("abcdef".to_string())
+        );
+
+        assert_eq!(
+            expand_template("//foo.bar/{id}", "abc", "def"),
+            Ok("//foo.bar/abc".to_string())
+        );
+
+        assert_eq!(
+            expand_template("//foo.bar/{id}/baz", "abc", "def"),
+            Ok("//foo.bar/abc/baz".to_string())
+        );
+
+        assert_eq!(
+            expand_template("//foo.bar/{id64}", "abc", "def"),
+            Ok("//foo.bar/def".to_string())
+        );
+
+        assert_eq!(
+            expand_template("//foo.bar/{id64}/baz", "abc", "def"),
+            Ok("//foo.bar/def/baz".to_string())
+        );
+    }
+
+    #[test]
+    fn undefined_expansions() {
+        assert_eq!(
+            expand_template("//foo.bar/{idd}/baz", "abc", "def"),
+            Ok("//foo.bar//baz".to_string())
+        );
+
+        assert_eq!(
+            expand_template("//foo.bar/{d5}/baz", "abc", "def"),
+            Ok("//foo.bar//baz".to_string())
+        );
+
+        assert_eq!(
+            expand_template("//foo.bar/{id74}/{id}", "abc", "def"),
+            Ok("//foo.bar//abc".to_string())
+        );
+
+        assert_eq!(
+            expand_template("//foo.bar/{foo_bar}", "abc", "def"),
+            Ok("//foo.bar/".to_string())
+        );
+
+        assert_eq!(
+            expand_template("//foo.bar/{foo%ab}", "abc", "def"),
+            Ok("//foo.bar/".to_string())
+        );
+    }
+
+    #[test]
+    fn unterminated_expression() {
+        assert_eq!(
+            expand_template("{id64", "abc", "def"),
+            Err(UriTemplateError)
+        );
+    }
+
+    #[test]
     fn invalid_percent_encoding() {
         assert_eq!(
             expand_template("foo/b%a/", "abc", "def"),
@@ -281,10 +400,9 @@ pub(crate) mod tests {
     }
 
     // Valid cases:
-    // - variable expansion
-    // - undefined variables ignored
+    // - variable expansion needs percent encoding.
 
     // Error cases for literals:
+    // - validates percent encoding in variable name
     // - unsupported operators error
-    // - incomplete expression (no close brace)
 }
