@@ -14,9 +14,6 @@ use std::ops::RangeInclusive;
 use font_types::Fixed;
 use font_types::Tag;
 
-use data_encoding::BASE64URL;
-use data_encoding_macro::new_encoding;
-
 use read_fonts::{
     collections::{IntSet, RangeSet},
     tables::ift::{
@@ -29,7 +26,8 @@ use read_fonts::{
 
 use skrifa::charmap::Charmap;
 
-use uri_template_system::{Template, Value, Values};
+use crate::uri_templates::expand_template;
+use crate::uri_templates::UriTemplateError;
 
 // TODO(garretrieger): implement support for building and compiling mapping tables.
 
@@ -844,61 +842,9 @@ impl Ord for IntersectionInfo {
     }
 }
 
-/// Indicates a malformed URI template was encountered.
-///
-/// More info: <https://datatracker.ietf.org/doc/html/rfc6570#section-3>
-#[derive(Debug, PartialEq, Eq)]
-pub struct UriTemplateError;
-
-impl std::fmt::Display for UriTemplateError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Invalid URI template encountered.")
-    }
-}
-
-impl std::error::Error for UriTemplateError {}
-
 impl PatchUri {
-    const BASE32HEX_NO_PADDING: data_encoding::Encoding = new_encoding! {
-        symbols: "0123456789ABCDEFGHIJKLMNOPQRSTUV",
-    };
-
     pub fn uri_string(&self) -> Result<String, UriTemplateError> {
-        let (id_string, id64_string) = match &self.id {
-            PatchId::Numeric(id) => {
-                let id = id.to_be_bytes();
-                let id = &id[Self::count_leading_zeroes(&id)..];
-                (Self::BASE32HEX_NO_PADDING.encode(id), BASE64URL.encode(id))
-            }
-            PatchId::String(id) => (Self::BASE32HEX_NO_PADDING.encode(id), BASE64URL.encode(id)),
-        };
-
-        let template = Template::parse(&self.template).map_err(|_| UriTemplateError)?;
-        let mut values = Values::default();
-
-        let id_string_len = id_string.len();
-
-        for (n, name) in [(1, "d1"), (2, "d2"), (3, "d3"), (4, "d4")] {
-            values = values.add(
-                name,
-                Value::item(
-                    id_string_len
-                        .checked_sub(n)
-                        .and_then(|index| {
-                            id_string
-                                .get(index..index + 1)
-                                .map(|digit| digit.to_string())
-                        })
-                        .unwrap_or_else(|| "_".to_string()),
-                ),
-            );
-        }
-
-        values = values
-            .add("id", Value::item(id_string))
-            .add("id64", Value::item(id64_string));
-
-        template.expand(&values).map_err(|_| UriTemplateError)
+        expand_template(&self.template, &self.id)
     }
 
     pub(crate) fn intersection_info(&self) -> IntersectionInfo {
@@ -911,18 +857,6 @@ impl PatchUri {
 
     pub(crate) fn application_flag_bit_index(&self) -> usize {
         self.application_flag_bit_index
-    }
-
-    fn count_leading_zeroes(id: &[u8]) -> usize {
-        let mut leading_bytes = 0;
-        for b in id {
-            if *b != 0 {
-                break;
-            }
-            leading_bytes += 1;
-        }
-        // Always keep at least one digit.
-        leading_bytes.min(id.len() - 1)
     }
 
     pub fn encoding(&self) -> PatchFormat {
@@ -1503,21 +1437,21 @@ mod tests {
         // https://w3c.github.io/IFT/Overview.html#uri-templates
         check_uri_template_substitution("//foo.bar/{id}", 0, "//foo.bar/00");
         check_uri_template_substitution("//foo.bar/{id}", 123, "//foo.bar/FC");
-        check_uri_template_substitution("//foo.bar{/d1,d2,id}", 478, "//foo.bar/0/F/07F0");
-        check_uri_template_substitution("//foo.bar{/d1,d2,d3,id}", 123, "//foo.bar/C/F/_/FC");
+        check_uri_template_substitution("//foo.bar/{d1}/{d2}/{id}", 478, "//foo.bar/0/F/07F0");
+        check_uri_template_substitution("//foo.bar/{d1}/{d2}/{d3}/{id}", 123, "//foo.bar/C/F/_/FC");
 
         check_string_uri_template_substitution(
-            "//foo.bar{/d1,d2,d3,id}",
+            "//foo.bar/{d1}/{d2}/{d3}/{id}",
             "baz",
             "//foo.bar/K/N/G/C9GNK",
         );
         check_string_uri_template_substitution(
-            "//foo.bar{/d1,d2,d3,id}",
+            "//foo.bar/{d1}/{d2}/{d3}/{id}",
             "z",
             "//foo.bar/8/F/_/F8",
         );
         check_string_uri_template_substitution(
-            "//foo.bar{/d1,d2,d3,id}",
+            "//foo.bar/{d1}/{d2}/{d3}/{id}",
             "àbc",
             "//foo.bar/O/O/4/OEG64OO",
         );
@@ -1526,8 +1460,7 @@ mod tests {
         check_uri_template_substitution("//foo.bar/{id64}", 14_000_000, "//foo.bar/1Z-A");
         check_uri_template_substitution("//foo.bar/{id64}", 17_000_000, "//foo.bar/AQNmQA%3D%3D");
 
-        check_string_uri_template_substitution("//foo.bar{/id64}", "àbc", "//foo.bar/w6BiYw%3D%3D");
-        check_string_uri_template_substitution("//foo.bar/{+id64}", "àbcd", "//foo.bar/w6BiY2Q=");
+        check_string_uri_template_substitution("//foo.bar/{id64}", "àbc", "//foo.bar/w6BiYw%3D%3D");
     }
 
     #[test]

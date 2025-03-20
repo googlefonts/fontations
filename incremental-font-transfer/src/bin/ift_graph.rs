@@ -12,7 +12,8 @@ use font_types::Tag;
 use incremental_font_transfer::{
     font_patch::IncrementalFontPatchBase,
     patch_group::PatchInfo,
-    patchmap::{intersecting_patches, PatchFormat, PatchUri, SubsetDefinition, UriTemplateError},
+    patchmap::{intersecting_patches, PatchFormat, PatchUri, SubsetDefinition},
+    uri_templates::UriTemplateError,
 };
 use read_fonts::{ReadError, TableProvider};
 use skrifa::{FontRef, MetadataProvider};
