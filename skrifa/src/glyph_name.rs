@@ -308,7 +308,7 @@ mod tests {
     }
 
     #[test]
-    fn synthesize_for_emtpy_names() {
+    fn synthesize_for_empty_names() {
         let mut post_data = font_test_data::post::SIMPLE.to_vec();
         // last name in this post data is "hola" so pop 5 bytes and then
         // push a 0 to simulate an empty name
