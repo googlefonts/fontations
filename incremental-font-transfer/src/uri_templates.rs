@@ -18,6 +18,7 @@ enum Variable {
     D,
     DX(u8),
     Undefined,
+    Dot,
     PercentEncodedDigitOne,
     PercentEncodedDigitTwo,
 }
@@ -67,19 +68,8 @@ pub(crate) fn expand_template(
     for byte in template_string.as_bytes() {
         state = match state {
             ParseState::Literal => output.handle_literal(*byte)?,
-            ParseState::LiteralPercentEncoded(PercentEncoded::DigitOne) => {
-                if !is_hexdig(*byte) {
-                    return Err(UriTemplateError);
-                }
-                output.append(*byte);
-                ParseState::LiteralPercentEncoded(PercentEncoded::DigitTwo)
-            }
-            ParseState::LiteralPercentEncoded(PercentEncoded::DigitTwo) => {
-                if !is_hexdig(*byte) {
-                    return Err(UriTemplateError);
-                }
-                output.append(*byte);
-                ParseState::Literal
+            ParseState::LiteralPercentEncoded(digit) => {
+                output.handle_percent_encoding(*byte, digit)?
             }
             ParseState::Expression(variable) => {
                 output.handle_expression(*byte, variable, id_value, id64_value)?
@@ -118,6 +108,23 @@ impl OutputBuffer {
         }
     }
 
+    fn handle_percent_encoding(
+        &mut self,
+        byte: u8,
+        digit: PercentEncoded,
+    ) -> Result<ParseState, UriTemplateError> {
+        if !is_hexdig(byte) {
+            return Err(UriTemplateError);
+        }
+        self.append(byte);
+        match digit {
+            PercentEncoded::DigitOne => {
+                Ok(ParseState::LiteralPercentEncoded(PercentEncoded::DigitTwo))
+            }
+            PercentEncoded::DigitTwo => Ok(ParseState::Literal),
+        }
+    }
+
     fn handle_expression(
         &mut self,
         byte: u8,
@@ -125,6 +132,10 @@ impl OutputBuffer {
         id_value: &str,
         id64_value: &str,
     ) -> Result<ParseState, UriTemplateError> {
+        if !is_varchar(byte) {
+            return Err(UriTemplateError);
+        }
+
         // TODO check for and error an unsupported byte values.
         match (variable, byte) {
             // Variable matching
@@ -148,7 +159,10 @@ impl OutputBuffer {
                 self.append_str(id64_value);
                 Ok(ParseState::Literal)
             }
-            (Variable::DX(digit), b'}') => todo!(),
+            (Variable::DX(digit), b'}') => {
+                self.append_id_digit(id_value, digit);
+                Ok(ParseState::Literal)
+            }
             (Variable::Undefined, b'}') => {
                 // Undefined variable name just ignore it.
                 Ok(ParseState::Literal)
@@ -156,9 +170,26 @@ impl OutputBuffer {
 
             // TODO percent encoding validation.
 
+            // Dot validity checking
+            (Variable::Begin, b'.') => Err(UriTemplateError), // . operator not allowed.
+            (Variable::Dot, b'}') | (Variable::Dot, b'.') => {
+                Err(UriTemplateError) // trailing . or .. is not allowed.
+            }
+            (_, b'.') => Ok(ParseState::Expression(Variable::Dot)),
+
             // Everything else is just skipping through an undefined variable name.
             _ => Ok(ParseState::Expression(Variable::Undefined)),
         }
+    }
+
+    fn append_id_digit(&mut self, id_value: &str, digit: u8) {
+        self.append(
+            *id_value
+                .len()
+                .checked_sub(digit.into())
+                .and_then(|index| id_value.as_bytes().get(index))
+                .unwrap_or(&b'_'),
+        )
     }
 
     fn append_str(&mut self, value: &str) {
@@ -186,10 +217,26 @@ enum ByteClass {
 
 static BYTE_CLASSIFICATION: OnceLock<[ByteClass; 255]> = OnceLock::new();
 
+/// Returns true if byte is a hexdig.
+///
+/// As defined here: https://datatracker.ietf.org/doc/html/rfc6570#section-1.5
 fn is_hexdig(byte: u8) -> bool {
     (byte >= 0x41 && byte <= 0x46)
         || (byte >= 0x61 && byte <= 0x66)
         || (byte >= 0x30 && byte <= 0x39)
+}
+
+/// Returns true if byte is a varchar.
+///
+/// As defined here: https://datatracker.ietf.org/doc/html/rfc6570#section-2.3
+fn is_varchar(byte: u8) -> bool {
+    (byte >= 0x41 && byte <= 0x5A)
+        || (byte >= 0x61 && byte <= 0x7A)
+        || (byte >= 0x30 && byte <= 0x39)
+        || byte == b'.'
+        || byte == b'_'
+        || byte == b'%'
+        || byte == b'}'
 }
 
 fn literal_byte_classification() -> &'static [ByteClass; 255] {
@@ -314,6 +361,16 @@ pub(crate) mod tests {
             expand_template("//foo.bar/{id64}/baz", "abc", "def"),
             Ok("//foo.bar/def/baz".to_string())
         );
+
+        assert_eq!(
+            expand_template("//foo.bar/{d1}/{d2}/{d3}/{id}", "FC", "def"),
+            Ok("//foo.bar/C/F/_/FC".to_string())
+        );
+
+        assert_eq!(
+            expand_template("//foo.bar/{d1}/{d2}/{d3}/{d4}/{id}", "ABCD", "def"),
+            Ok("//foo.bar/D/C/B/A/ABCD".to_string())
+        );
     }
 
     #[test]
@@ -342,12 +399,55 @@ pub(crate) mod tests {
             expand_template("//foo.bar/{foo%ab}", "abc", "def"),
             Ok("//foo.bar/".to_string())
         );
+
+        assert_eq!(
+            expand_template("//foo.bar/{foo.a.b}", "abc", "def"),
+            Ok("//foo.bar/".to_string())
+        );
     }
 
     #[test]
     fn unterminated_expression() {
         assert_eq!(
             expand_template("{id64", "abc", "def"),
+            Err(UriTemplateError)
+        );
+    }
+
+    #[test]
+    fn unsupported_operator() {
+        assert_eq!(
+            expand_template("{+id}", "abc", "def"),
+            Err(UriTemplateError)
+        );
+        assert_eq!(
+            expand_template("{.id}", "abc", "def"),
+            Err(UriTemplateError)
+        );
+        assert_eq!(
+            expand_template("{/id}", "abc", "def"),
+            Err(UriTemplateError)
+        );
+    }
+
+    // TODO bad percent encoding in variable name
+
+    #[test]
+    fn bad_variable_name() {
+        assert_eq!(
+            expand_template("{i+d}", "abc", "def"),
+            Err(UriTemplateError)
+        );
+        assert_eq!(
+            expand_template("{i/d}", "abc", "def"),
+            Err(UriTemplateError)
+        );
+        assert_eq!(
+            expand_template("{id.}", "abc", "def"), // trailing '.'s are not allowed
+            Err(UriTemplateError)
+        );
+        assert_eq!(
+            expand_template("{i..d}", "abc", "def"), // .. is not allowed
             Err(UriTemplateError)
         );
     }
@@ -400,9 +500,14 @@ pub(crate) mod tests {
     }
 
     // Valid cases:
+    // - d1-4 expansions.
     // - variable expansion needs percent encoding.
 
     // Error cases for literals:
     // - validates percent encoding in variable name
     // - unsupported operators error
+    // - non varchar variable names
+    // - variable name leading '.'
+    // - variable name trailing '.'
+    // - variable name foo..bar
 }
