@@ -1,3 +1,13 @@
+//! Implementation of the specific variant of URI template expansion required by the IFT specification.
+//!
+//! Context: https://w3c.github.io/IFT/Overview.html#uri-templates
+//!
+//! In IFT RFC6570 style uri templates are used, however the IFT specification restricts template syntax
+//! to a subset (level 1 with a predefined set of variables) of the full RFC6570 syntax. This implements
+//! a URI template expander that adheres to the IFT specific requirements.
+//!
+//! By implementing our own we avoid pulling in a much larger general purpose template expansion library
+//! and improve performance versus a more general implementation.
 use std::{ops::RangeInclusive, sync::OnceLock};
 
 enum ParseState {
