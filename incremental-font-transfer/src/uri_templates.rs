@@ -86,10 +86,11 @@ pub(crate) fn expand_template(
     let mut id64_string_encoded: OutputBuffer = Default::default();
     for byte in id64_string.as_bytes() {
         let byte_info = &byte_info_map[*byte as usize];
-        if byte_info.is_unreserved {
-            id64_string_encoded.append(*byte)
-        } else {
-            id64_string_encoded.append_percent_encoded(*byte).unwrap()
+        match byte_info {
+            ByteInfo::CopiedLiteralUnreserved | ByteInfo::CopiedLiteralHexDigit => {
+                id64_string_encoded.append(*byte)
+            }
+            _ => id64_string_encoded.append_percent_encoded(*byte).unwrap(),
         }
     }
 
@@ -124,14 +125,14 @@ fn expand_template_inner(
     let byte_info_map = byte_info_map();
 
     for byte in template_string.as_bytes() {
-        let byte_info = &byte_info_map[*byte as usize];
+        let byte_info = byte_info_map[*byte as usize];
         state = match state {
-            ParseState::Literal => output.handle_literal(byte_info)?,
+            ParseState::Literal => output.handle_literal(byte_info, *byte)?,
             ParseState::LiteralPercentEncoded(digit) => {
-                output.handle_percent_encoding(byte_info, digit)?
+                output.handle_percent_encoding(byte_info, digit, *byte)?
             }
             ParseState::Expression(variable) => {
-                output.handle_expression(byte_info, variable, id_value, id64_value)?
+                output.handle_expression(variable, *byte, id_value, id64_value)?
             }
         }
     }
@@ -153,20 +154,26 @@ impl OutputBuffer {
     /// - Percent encodes the character
     /// - Substitution expression begins.
     /// - Something invalid encountered.
-    fn handle_literal(&mut self, byte_info: &ByteInfo) -> Result<ParseState, UriTemplateError> {
-        match byte_info.literal_class {
-            LiteralClass::Invalid => Err(UriTemplateError),
-            LiteralClass::Percent => {
-                self.append(byte_info.value);
+    fn handle_literal(
+        &mut self,
+        byte_info: ByteInfo,
+        value: u8,
+    ) -> Result<ParseState, UriTemplateError> {
+        match byte_info {
+            ByteInfo::Invalid => Err(UriTemplateError),
+            ByteInfo::Percent => {
+                self.append(value);
                 Ok(ParseState::LiteralPercentEncoded(Digit::One))
             }
-            LiteralClass::StartExpression => Ok(ParseState::Expression(Variable::Begin)),
-            LiteralClass::LiteralCopied => {
-                self.append(byte_info.value);
+            ByteInfo::StartExpression => Ok(ParseState::Expression(Variable::Begin)),
+            ByteInfo::CopiedLiteral
+            | ByteInfo::CopiedLiteralHexDigit
+            | ByteInfo::CopiedLiteralUnreserved => {
+                self.append(value);
                 Ok(ParseState::Literal)
             }
-            LiteralClass::LiteralPercentEncoded => self
-                .append_percent_encoded(byte_info.value)
+            ByteInfo::PercentEncodedLiteral => self
+                .append_percent_encoded(value)
                 .map(|_| ParseState::Literal),
         }
     }
@@ -176,16 +183,19 @@ impl OutputBuffer {
     /// Copies to the output if it is.
     fn handle_percent_encoding(
         &mut self,
-        byte_info: &ByteInfo,
+        byte_info: ByteInfo,
         digit: Digit,
+        value: u8,
     ) -> Result<ParseState, UriTemplateError> {
-        if !byte_info.is_hex_digit {
-            return Err(UriTemplateError);
-        }
-        self.append(byte_info.value);
-        match digit {
-            Digit::One => Ok(ParseState::LiteralPercentEncoded(Digit::Two)),
-            Digit::Two => Ok(ParseState::Literal),
+        match byte_info {
+            ByteInfo::CopiedLiteralHexDigit => {
+                self.append(value);
+                match digit {
+                    Digit::One => Ok(ParseState::LiteralPercentEncoded(Digit::Two)),
+                    Digit::Two => Ok(ParseState::Literal),
+                }
+            }
+            _ => Err(UriTemplateError),
         }
     }
 
@@ -197,12 +207,12 @@ impl OutputBuffer {
     ///   and returns an error if it doesn't.
     fn handle_expression(
         &mut self,
-        byte_info: &ByteInfo,
         variable: Variable,
+        value: u8,
         id_value: &str,
         id64_value: &str,
     ) -> Result<ParseState, UriTemplateError> {
-        match (variable, byte_info.value) {
+        match (variable, value) {
             // ### Variable matching ###
             (Variable::Begin, b'i') => Ok(ParseState::Expression(Variable::I)),
             (Variable::Begin, b'd') => Ok(ParseState::Expression(Variable::D)),
@@ -262,44 +272,39 @@ impl OutputBuffer {
     }
 }
 
-/// Stores information on how the template expansion treats each possible byte
-/// value.
-#[derive(Copy, Clone)]
-struct ByteInfo {
-    literal_class: LiteralClass,
-    is_hex_digit: bool,
-    is_unreserved: bool,
-    value: u8,
-}
-
-/// Classifies each byte value [0-255] into how it is handled by literal expansion.
-#[derive(Copy, Clone)]
-enum LiteralClass {
-    Invalid,               // This byte is not allowed in a URI template
-    Percent,               // The % character starts a percent encoding
-    LiteralCopied,         // This byte should be copied directly
-    LiteralPercentEncoded, // This byte should be percent encoded and then copied.
-    StartExpression,       // { starts an expression.
-}
-
-impl Default for ByteInfo {
-    fn default() -> Self {
-        ByteInfo {
-            literal_class: LiteralClass::Invalid,
-            is_hex_digit: false,
-            is_unreserved: false,
-            value: 0,
-        }
-    }
+/// Classifies each byte value [0-255] into how it is handled by uri template expansion.
+#[derive(Copy, Clone, Default)]
+enum ByteInfo {
+    #[default]
+    Invalid, // This byte is not allowed in a URI template
+    Percent,                 // The % character starts a percent encoding
+    CopiedLiteral,           // This byte should be copied directly
+    CopiedLiteralHexDigit,   // This byte should be copied directly and it's a valid hex digit.
+    CopiedLiteralUnreserved, //  This byte should be copied directly and it's a unreserved character.
+    PercentEncodedLiteral,   // This byte should be percent encoded and then copied.
+    StartExpression,         // { starts an expression.
 }
 
 impl ByteInfo {
     fn new(value: u8) -> Self {
-        ByteInfo {
-            literal_class: Self::literal_class(value),
-            is_hex_digit: value.is_ascii_hexdigit(),
-            is_unreserved: Self::ascii_url_unreserved(value),
-            value,
+        match value {
+            b'{' => ByteInfo::StartExpression,
+            b'%' => ByteInfo::Percent,
+            _ => {
+                if !Self::ascii_allowed_as_literal(value) {
+                    ByteInfo::Invalid
+                } else if Self::ascii_url_reserved_or_unreserved(value) {
+                    if value.is_ascii_hexdigit() {
+                        ByteInfo::CopiedLiteralHexDigit
+                    } else if Self::ascii_url_unreserved(value) {
+                        ByteInfo::CopiedLiteralUnreserved
+                    } else {
+                        ByteInfo::CopiedLiteral
+                    }
+                } else {
+                    ByteInfo::PercentEncodedLiteral
+                }
+            }
         }
     }
 
@@ -346,22 +351,6 @@ impl ByteInfo {
                 | b';'
                 | b'=')
     }
-
-    fn literal_class(value: u8) -> LiteralClass {
-        match value {
-            b'{' => LiteralClass::StartExpression,
-            b'%' => LiteralClass::Percent,
-            _ => {
-                if !Self::ascii_allowed_as_literal(value) {
-                    LiteralClass::Invalid
-                } else if Self::ascii_url_reserved_or_unreserved(value) {
-                    LiteralClass::LiteralCopied
-                } else {
-                    LiteralClass::LiteralPercentEncoded
-                }
-            }
-        }
-    }
 }
 
 const NUM_U8S: usize = u8::MAX as usize + 1;
@@ -372,6 +361,8 @@ static BYTE_INFO_MAP: OnceLock<[ByteInfo; NUM_U8S]> = OnceLock::new();
 ///
 /// See ByteInfo for more details.
 fn byte_info_map() -> &'static [ByteInfo; NUM_U8S] {
+    // TODO(garretrieger): populate a static array using a macro instead of runtime initialization.
+    // TODO(garretrieger): map only byte values 0 to 7F, everything after defaults to the same value.
     // See: https://datatracker.ietf.org/doc/html/rfc6570#section-2.1
     BYTE_INFO_MAP.get_or_init(|| {
         let mut info: [ByteInfo; NUM_U8S] = [ByteInfo::default(); NUM_U8S];
