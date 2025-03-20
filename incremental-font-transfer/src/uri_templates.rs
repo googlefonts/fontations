@@ -29,9 +29,6 @@ enum Variable {
     ID64,
     D,
     DX(u8),
-    Undefined,
-    Dot,
-    PercentEncoding(Digit),
 }
 
 /// Which digit of a percent encoding we're on
@@ -156,10 +153,6 @@ impl OutputBuffer {
         id_value: &str,
         id64_value: &str,
     ) -> Result<ParseState, UriTemplateError> {
-        if !byte_info.is_varchar {
-            return Err(UriTemplateError);
-        }
-
         match (variable, byte_info.value) {
             // ### Variable matching ###
             (Variable::Begin, b'i') => Ok(ParseState::Expression(Variable::I)),
@@ -186,43 +179,9 @@ impl OutputBuffer {
                 self.append_id_digit(id_value, digit);
                 Ok(ParseState::Literal)
             }
-            (Variable::Undefined, b'}') => {
-                // Undefined variable name just ignore it.
-                Ok(ParseState::Literal)
-            }
-            (Variable::PercentEncoding(_), b'}') => Err(UriTemplateError), // Unterminated percent encoding
 
-            // ### Percent Encoding Validation ###
-            (Variable::PercentEncoding(digit), _) => {
-                if !byte_info.is_hex_digit {
-                    return Err(UriTemplateError);
-                }
-
-                match digit {
-                    Digit::One => Ok(ParseState::Expression(Variable::PercentEncoding(
-                        Digit::Two,
-                    ))),
-                    Digit::Two => Ok(ParseState::Expression(Variable::Undefined)),
-                }
-            }
-
-            // ### Dot validity checking ###
-            (Variable::Begin, b'.') => Err(UriTemplateError), // . operator not allowed.
-            (Variable::Dot, b'}') | (Variable::Dot, b'.') => {
-                Err(UriTemplateError) // trailing . or .. is not allowed.
-            }
-            (_, b'.') => Ok(ParseState::Expression(Variable::Dot)),
-
-            // ### Enter percent encoding ###
-            (_, b'%') => Ok(ParseState::Expression(Variable::PercentEncoding(
-                Digit::One,
-            ))),
-
-            // ### Everything else ###
-            (_, b'}') => Err(UriTemplateError), // Unexpected closing brace
-
-            // Just skipping through an undefined variable name.
-            _ => Ok(ParseState::Expression(Variable::Undefined)),
+            // Anything else that doesn't exactly match one of the defined variables is an error.
+            _ => Err(UriTemplateError),
         }
     }
 
@@ -261,7 +220,6 @@ impl OutputBuffer {
 struct ByteInfo {
     literal_class: LiteralClass,
     is_hex_digit: bool,
-    is_varchar: bool,
     value: u8,
 }
 
@@ -280,7 +238,6 @@ impl Default for ByteInfo {
         ByteInfo {
             literal_class: LiteralClass::Invalid,
             is_hex_digit: false,
-            is_varchar: false,
             value: 0,
         }
     }
@@ -291,16 +248,8 @@ impl ByteInfo {
         ByteInfo {
             literal_class: Self::literal_class(value),
             is_hex_digit: value.is_ascii_hexdigit(),
-            is_varchar: Self::is_varchar(value),
             value,
         }
-    }
-
-    /// Returns true if byte is a varchar.
-    ///
-    /// As defined here: <https://datatracker.ietf.org/doc/html/rfc6570#section-2.3>
-    fn is_varchar(byte: u8) -> bool {
-        byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'_' || byte == b'%' || byte == b'}'
     }
 
     fn ascii_allowed_as_literal(value: u8) -> bool {
@@ -466,69 +415,55 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn undefined_expansions() {
+    fn undefined_variables() {
         assert_eq!(
             expand_template("//foo.bar/{idd}/baz", "abc", "def"),
-            Ok("//foo.bar//baz".to_string())
+            Err(UriTemplateError),
         );
 
         assert_eq!(
             expand_template("//foo.bar/{idid}/baz", "abc", "def"),
-            Ok("//foo.bar//baz".to_string())
+            Err(UriTemplateError),
         );
 
         assert_eq!(
             expand_template("//foo.bar/{id_id}/baz", "abc", "def"),
-            Ok("//foo.bar//baz".to_string())
+            Err(UriTemplateError),
         );
 
         assert_eq!(
             expand_template("//foo.bar/{_id}/baz", "abc", "def"),
-            Ok("//foo.bar//baz".to_string())
+            Err(UriTemplateError),
         );
 
         assert_eq!(
             expand_template("//foo.bar/{7id}/baz", "abc", "def"),
-            Ok("//foo.bar//baz".to_string())
+            Err(UriTemplateError),
         );
 
         assert_eq!(
             expand_template("//foo.bar/{Id}/baz", "abc", "def"),
-            Ok("//foo.bar//baz".to_string())
+            Err(UriTemplateError),
         );
 
         assert_eq!(
             expand_template("//foo.bar/{d5}/baz", "abc", "def"),
-            Ok("//foo.bar//baz".to_string())
+            Err(UriTemplateError),
         );
 
         assert_eq!(
             expand_template("//foo.bar/{id74}/{id}", "abc", "def"),
-            Ok("//foo.bar//abc".to_string())
-        );
-
-        assert_eq!(
-            expand_template("//foo.bar/{foo_bar}", "abc", "def"),
-            Ok("//foo.bar/".to_string())
+            Err(UriTemplateError),
         );
 
         assert_eq!(
             expand_template("//foo.bar/{foo%ab}", "abc", "def"),
-            Ok("//foo.bar/".to_string())
+            Err(UriTemplateError),
         );
 
         assert_eq!(
             expand_template("//foo.bar/{%ab}", "abc", "def"),
-            Ok("//foo.bar/".to_string())
-        );
-        assert_eq!(
-            expand_template("//foo.bar/{%abg}", "abc", "def"),
-            Ok("//foo.bar/".to_string())
-        );
-
-        assert_eq!(
-            expand_template("//foo.bar/{foo.a.b}", "abc", "def"),
-            Ok("//foo.bar/".to_string())
+            Err(UriTemplateError),
         );
     }
 
