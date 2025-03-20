@@ -108,12 +108,12 @@ impl OutputBuffer {
     /// - Something invalid encountered.
     fn handle_literal(&mut self, byte_info: &ByteInfo) -> Result<ParseState, UriTemplateError> {
         match byte_info.literal_class {
-            LiteralClass::Invalid | LiteralClass::CloseBrace => Err(UriTemplateError),
+            LiteralClass::Invalid | LiteralClass::EndExpression => Err(UriTemplateError),
             LiteralClass::Percent => {
                 self.append(byte_info.value);
                 Ok(ParseState::LiteralPercentEncoded(Digit::One))
             }
-            LiteralClass::OpenBrace => Ok(ParseState::Expression(Variable::Begin)),
+            LiteralClass::StartExpression => Ok(ParseState::Expression(Variable::Begin)),
             LiteralClass::LiteralCopied => {
                 self.append(byte_info.value);
                 Ok(ParseState::Literal)
@@ -145,7 +145,7 @@ impl OutputBuffer {
 
     /// Decode the variable name in the expression and substitute a value if needed.
     ///
-    /// - Value is substitued if one of the defined variable names are encountered.
+    /// - Value is substituted if one of the defined variable names are encountered.
     /// - Otherwise the variable name is undefined and the expression is replaced with an empty string.
     /// - Also validates the variable name follows level 1 expression grammar (<https://datatracker.ietf.org/doc/html/rfc6570#section-2.2>)
     ///   and returns an error if it doesn't.
@@ -272,8 +272,8 @@ enum LiteralClass {
     Percent,               // The % character starts a percent encoding
     LiteralCopied,         // This byte should be copied directly
     LiteralPercentEncoded, // This byte should be percent encoded and then copied.
-    OpenBrace,             // { starts an expression.
-    CloseBrace,            // } ends an expression.
+    StartExpression,       // { starts an expression.
+    EndExpression,         // } ends an expression.
 }
 
 impl ByteInfo {
@@ -359,8 +359,8 @@ fn byte_info_map() -> &'static [ByteInfo; NUM_U8S] {
         }
 
         // ## Template control characters ##
-        info['{' as usize].literal_class = LiteralClass::OpenBrace;
-        info['}' as usize].literal_class = LiteralClass::CloseBrace;
+        info['{' as usize].literal_class = LiteralClass::StartExpression;
+        info['}' as usize].literal_class = LiteralClass::EndExpression;
         info['%' as usize].literal_class = LiteralClass::Percent;
 
         // ## Invalid Characters ##
@@ -578,7 +578,7 @@ pub(crate) mod tests {
             Err(UriTemplateError)
         );
         assert_eq!(
-            expand_template("{.}", "abc", "def"), // begining '.'s are not allowed
+            expand_template("{.}", "abc", "def"), // beginning '.'s are not allowed
             Err(UriTemplateError)
         );
         assert_eq!(
