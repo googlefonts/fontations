@@ -676,6 +676,11 @@ mod tests {
     fn cmap4_iter_explicit_notdef() {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let cmap4 = find_cmap4(&font.cmap().unwrap()).unwrap();
+        let mut notdef_count = 0;
+        for (_, glyph_id) in cmap4.iter() {
+            notdef_count += (glyph_id == GlyphId::NOTDEF) as i32;
+        }
+        assert!(notdef_count > 0);
         assert_eq!(cmap4.map_codepoint(0xFFFF_u32), Some(GlyphId::NOTDEF));
     }
 
