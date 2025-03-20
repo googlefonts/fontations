@@ -1,6 +1,6 @@
 //! Implementation of the specific variant of URI template expansion required by the IFT specification.
 //!
-//! Context: https://w3c.github.io/IFT/Overview.html#uri-templates
+//! Context: <https://w3c.github.io/IFT/Overview.html#uri-templates>
 //!
 //! In IFT RFC6570 style uri templates are used, however the IFT specification restricts template syntax
 //! to a subset (level 1 with a predefined set of variables) of the full RFC6570 syntax. This implements
@@ -58,9 +58,9 @@ impl std::error::Error for UriTemplateError {}
 
 /// Implements uri template expansion from incremental font transfer.
 ///
-/// Specification: https://w3c.github.io/IFT/Overview.html#uri-templates
+/// Specification: <https://w3c.github.io/IFT/Overview.html#uri-templates>
 ///
-/// IFT uri templates are a subset of the more general https://datatracker.ietf.org/doc/html/rfc6570
+/// IFT uri templates are a subset of the more general <https://datatracker.ietf.org/doc/html/rfc6570>
 /// uri templates. Notably, only level one substitution expressions are supported and there are a fixed
 /// set of variables used in the expansion (id, id64, d1, d2, d3, and d4).
 ///
@@ -74,7 +74,7 @@ pub(crate) fn expand_template(
     let mut output: OutputBuffer = Default::default();
 
     let mut state = ParseState::Literal;
-    let byte_info_map = byte_info();
+    let byte_info_map = byte_info_map();
 
     for byte in template_string.as_bytes() {
         let byte_info = &byte_info_map[*byte as usize];
@@ -147,7 +147,7 @@ impl OutputBuffer {
     ///
     /// - Value is substitued if one of the defined variable names are encountered.
     /// - Otherwise the variable name is undefined and the expression is replaced with an empty string.
-    /// - Also validates the variable name follows level 1 expression grammar (https://datatracker.ietf.org/doc/html/rfc6570#section-2.2)
+    /// - Also validates the variable name follows level 1 expression grammar (<https://datatracker.ietf.org/doc/html/rfc6570#section-2.2>)
     ///   and returns an error if it doesn't.
     fn handle_expression(
         &mut self,
@@ -226,9 +226,9 @@ impl OutputBuffer {
         }
     }
 
-    // Appends the expanded value of d1, d2, d3, or d4.
-    //
-    // See: https://w3c.github.io/IFT/Overview.html#uri-templates
+    /// Appends the expanded value of d1, d2, d3, or d4.
+    ///
+    /// See: <https://w3c.github.io/IFT/Overview.html#uri-templates>
     fn append_id_digit(&mut self, id_value: &str, digit: u8) {
         self.append(
             *id_value
@@ -288,14 +288,14 @@ impl ByteInfo {
 
     /// Returns true if byte is a hexdig.
     ///
-    /// As defined here: https://datatracker.ietf.org/doc/html/rfc6570#section-1.5
+    /// As defined here: <https://datatracker.ietf.org/doc/html/rfc6570#section-1.5>
     fn is_hexdig(byte: u8) -> bool {
         DIGIT.contains(&byte) || HEX_ALPHA_UPPER.contains(&byte) || HEX_ALPHA_LOWER.contains(&byte)
     }
 
     /// Returns true if byte is a varchar.
     ///
-    /// As defined here: https://datatracker.ietf.org/doc/html/rfc6570#section-2.3
+    /// As defined here: <https://datatracker.ietf.org/doc/html/rfc6570#section-2.3>
     fn is_varchar(byte: u8) -> bool {
         ALPHA_LOWER.contains(&byte)
             || ALPHA_UPPER.contains(&byte)
@@ -315,14 +315,14 @@ const CTL_AND_SPACE: RangeInclusive<u8> = 0x00..=0x20;
 const HEX_ALPHA_UPPER: RangeInclusive<u8> = 0x41..=0x46;
 const HEX_ALPHA_LOWER: RangeInclusive<u8> = 0x61..=0x66;
 
-static BYTE_CLASSIFICATION: OnceLock<[ByteInfo; NUM_U8S]> = OnceLock::new();
+static BYTE_INFO_MAP: OnceLock<[ByteInfo; NUM_U8S]> = OnceLock::new();
 
 /// Returns a map of information about each possible u8 byte value.
 ///
 /// See ByteInfo for more details.
-fn byte_info() -> &'static [ByteInfo; NUM_U8S] {
+fn byte_info_map() -> &'static [ByteInfo; NUM_U8S] {
     // See: https://datatracker.ietf.org/doc/html/rfc6570#section-2.1
-    BYTE_CLASSIFICATION.get_or_init(|| {
+    BYTE_INFO_MAP.get_or_init(|| {
         let mut info: [ByteInfo; NUM_U8S] = [ByteInfo::new(LiteralClass::Invalid, 0); NUM_U8S];
 
         // Start by assuming all values must be percent encoded, and then enumerate
