@@ -3,7 +3,7 @@ use std::{ops::RangeInclusive, sync::OnceLock};
 enum ParseState {
     // Literal parsing
     Literal,
-    LiteralPercentEncoded(PercentEncoded),
+    LiteralPercentEncoded(Digit),
 
     // Expression parsing,
     Expression(Variable),
@@ -20,12 +20,13 @@ enum Variable {
     DX(u8),
     Undefined,
     Dot,
-    PercentEncoding(PercentEncoded),
+    PercentEncoding(Digit),
 }
 
-enum PercentEncoded {
-    DigitOne,
-    DigitTwo,
+/// Which digit of a percent encoding we're on
+enum Digit {
+    One,
+    Two,
 }
 
 #[derive(Default)]
@@ -63,15 +64,17 @@ pub(crate) fn expand_template(
     let mut output: OutputBuffer = Default::default();
 
     let mut state = ParseState::Literal;
+    let byte_info_map = byte_info();
 
     for byte in template_string.as_bytes() {
+        let byte_info = &byte_info_map[*byte as usize];
         state = match state {
-            ParseState::Literal => output.handle_literal(*byte)?,
+            ParseState::Literal => output.handle_literal(byte_info)?,
             ParseState::LiteralPercentEncoded(digit) => {
-                output.handle_percent_encoding(*byte, digit)?
+                output.handle_percent_encoding(byte_info, digit)?
             }
             ParseState::Expression(variable) => {
-                output.handle_expression(*byte, variable, id_value, id64_value)?
+                output.handle_expression(byte_info, variable, id_value, id64_value)?
             }
         }
     }
@@ -93,22 +96,20 @@ impl OutputBuffer {
     /// - Percent encodes the character
     /// - Substitution expression begins.
     /// - Something invalid encountered.
-    fn handle_literal(&mut self, byte: u8) -> Result<ParseState, UriTemplateError> {
-        let class: ByteClass = literal_byte_classification()[byte as usize];
-
-        match class {
-            ByteClass::Invalid | ByteClass::CloseBrace => Err(UriTemplateError),
-            ByteClass::Percent => {
-                self.append(byte);
-                Ok(ParseState::LiteralPercentEncoded(PercentEncoded::DigitOne))
+    fn handle_literal(&mut self, byte_info: &ByteInfo) -> Result<ParseState, UriTemplateError> {
+        match byte_info.literal_class {
+            LiteralClass::Invalid | LiteralClass::CloseBrace => Err(UriTemplateError),
+            LiteralClass::Percent => {
+                self.append(byte_info.value);
+                Ok(ParseState::LiteralPercentEncoded(Digit::One))
             }
-            ByteClass::OpenBrace => Ok(ParseState::Expression(Variable::Begin)),
-            ByteClass::LiteralCopied => {
-                self.append(byte);
+            LiteralClass::OpenBrace => Ok(ParseState::Expression(Variable::Begin)),
+            LiteralClass::LiteralCopied => {
+                self.append(byte_info.value);
                 Ok(ParseState::Literal)
             }
-            ByteClass::LiteralPercentEncoded => {
-                self.append_percent_encoded(byte);
+            LiteralClass::LiteralPercentEncoded => {
+                self.append_percent_encoded(byte_info.value);
                 Ok(ParseState::Literal)
             }
         }
@@ -119,18 +120,16 @@ impl OutputBuffer {
     /// Copies to the output if it is.
     fn handle_percent_encoding(
         &mut self,
-        byte: u8,
-        digit: PercentEncoded,
+        byte_info: &ByteInfo,
+        digit: Digit,
     ) -> Result<ParseState, UriTemplateError> {
-        if !is_hexdig(byte) {
+        if !byte_info.is_hex_digit {
             return Err(UriTemplateError);
         }
-        self.append(byte);
+        self.append(byte_info.value);
         match digit {
-            PercentEncoded::DigitOne => {
-                Ok(ParseState::LiteralPercentEncoded(PercentEncoded::DigitTwo))
-            }
-            PercentEncoded::DigitTwo => Ok(ParseState::Literal),
+            Digit::One => Ok(ParseState::LiteralPercentEncoded(Digit::Two)),
+            Digit::Two => Ok(ParseState::Literal),
         }
     }
 
@@ -142,16 +141,16 @@ impl OutputBuffer {
     ///   and returns an error if it doesn't.
     fn handle_expression(
         &mut self,
-        byte: u8,
+        byte_info: &ByteInfo,
         variable: Variable,
         id_value: &str,
         id64_value: &str,
     ) -> Result<ParseState, UriTemplateError> {
-        if !is_varchar(byte) {
+        if !byte_info.is_varchar {
             return Err(UriTemplateError);
         }
 
-        match (variable, byte) {
+        match (variable, byte_info.value) {
             // ### Variable matching ###
             (Variable::Begin, b'i') => Ok(ParseState::Expression(Variable::I)),
             (Variable::Begin, b'd') => Ok(ParseState::Expression(Variable::D)),
@@ -184,16 +183,16 @@ impl OutputBuffer {
             (Variable::PercentEncoding(_), b'}') => Err(UriTemplateError), // Unterminated percent encoding
 
             // ### Percent Encoding Validation ###
-            (Variable::PercentEncoding(digit), byte) => {
-                if !is_hexdig(byte) {
+            (Variable::PercentEncoding(digit), _) => {
+                if !byte_info.is_hex_digit {
                     return Err(UriTemplateError);
                 }
 
                 match digit {
-                    PercentEncoded::DigitOne => Ok(ParseState::Expression(
-                        Variable::PercentEncoding(PercentEncoded::DigitTwo),
-                    )),
-                    PercentEncoded::DigitTwo => Ok(ParseState::Expression(Variable::Undefined)),
+                    Digit::One => Ok(ParseState::Expression(Variable::PercentEncoding(
+                        Digit::Two,
+                    ))),
+                    Digit::Two => Ok(ParseState::Expression(Variable::Undefined)),
                 }
             }
 
@@ -206,7 +205,7 @@ impl OutputBuffer {
 
             // ### Enter percent encoding ###
             (_, b'%') => Ok(ParseState::Expression(Variable::PercentEncoding(
-                PercentEncoded::DigitOne,
+                Digit::One,
             ))),
 
             // ### Everything else ###
@@ -246,14 +245,56 @@ impl OutputBuffer {
     }
 }
 
+/// Stores information on how the template expansion treats each possible byte
+/// value.
 #[derive(Copy, Clone)]
-enum ByteClass {
+struct ByteInfo {
+    literal_class: LiteralClass,
+    is_hex_digit: bool,
+    is_varchar: bool,
+    value: u8,
+}
+
+/// Classifies each byte value [0-255] into how it is handled by literal expansion.
+#[derive(Copy, Clone)]
+enum LiteralClass {
     Invalid,               // This byte is not allowed in a URI template
     Percent,               // The % character starts a percent encoding
     LiteralCopied,         // This byte should be copied directly
     LiteralPercentEncoded, // This byte should be percent encoded and then copied.
     OpenBrace,             // { starts an expression.
     CloseBrace,            // } ends an expression.
+}
+
+impl ByteInfo {
+    fn new(class: LiteralClass, value: u8) -> Self {
+        ByteInfo {
+            literal_class: class,
+            is_hex_digit: Self::is_hexdig(value),
+            is_varchar: Self::is_varchar(value),
+            value,
+        }
+    }
+
+    /// Returns true if byte is a hexdig.
+    ///
+    /// As defined here: https://datatracker.ietf.org/doc/html/rfc6570#section-1.5
+    fn is_hexdig(byte: u8) -> bool {
+        DIGIT.contains(&byte) || HEX_ALPHA_UPPER.contains(&byte) || HEX_ALPHA_LOWER.contains(&byte)
+    }
+
+    /// Returns true if byte is a varchar.
+    ///
+    /// As defined here: https://datatracker.ietf.org/doc/html/rfc6570#section-2.3
+    fn is_varchar(byte: u8) -> bool {
+        ALPHA_LOWER.contains(&byte)
+            || ALPHA_UPPER.contains(&byte)
+            || DIGIT.contains(&byte)
+            || byte == b'.'
+            || byte == b'_'
+            || byte == b'%'
+            || byte == b'}'
+    }
 }
 
 const NUM_U8S: usize = 256;
@@ -264,85 +305,69 @@ const CTL_AND_SPACE: RangeInclusive<u8> = 0x00..=0x20;
 const HEX_ALPHA_UPPER: RangeInclusive<u8> = 0x41..=0x46;
 const HEX_ALPHA_LOWER: RangeInclusive<u8> = 0x61..=0x66;
 
-static BYTE_CLASSIFICATION: OnceLock<[ByteClass; NUM_U8S]> = OnceLock::new();
+static BYTE_CLASSIFICATION: OnceLock<[ByteInfo; NUM_U8S]> = OnceLock::new();
 
-/// Returns true if byte is a hexdig.
+/// Returns a map of information about each possible u8 byte value.
 ///
-/// As defined here: https://datatracker.ietf.org/doc/html/rfc6570#section-1.5
-fn is_hexdig(byte: u8) -> bool {
-    DIGIT.contains(&byte) || HEX_ALPHA_UPPER.contains(&byte) || HEX_ALPHA_LOWER.contains(&byte)
-}
-
-/// Returns true if byte is a varchar.
-///
-/// As defined here: https://datatracker.ietf.org/doc/html/rfc6570#section-2.3
-fn is_varchar(byte: u8) -> bool {
-    ALPHA_LOWER.contains(&byte)
-        || ALPHA_UPPER.contains(&byte)
-        || DIGIT.contains(&byte)
-        || byte == b'.'
-        || byte == b'_'
-        || byte == b'%'
-        || byte == b'}'
-}
-
-/// Returns a mapping which classes all u8 values into how they are treated during literal expansion.
-///
-/// See ByteClass for more details.
-fn literal_byte_classification() -> &'static [ByteClass; NUM_U8S] {
+/// See ByteInfo for more details.
+fn byte_info() -> &'static [ByteInfo; NUM_U8S] {
     // See: https://datatracker.ietf.org/doc/html/rfc6570#section-2.1
     BYTE_CLASSIFICATION.get_or_init(|| {
+        let mut info: [ByteInfo; NUM_U8S] = [ByteInfo::new(LiteralClass::Invalid, 0); NUM_U8S];
+
         // Start by assuming all values must be percent encoded, and then enumerate
         // the specific values which are special or allowed to be copied directly.
-        let mut classes: [ByteClass; NUM_U8S] = [ByteClass::LiteralPercentEncoded; NUM_U8S];
+        for value in 0..=u8::MAX {
+            info[value as usize] = ByteInfo::new(LiteralClass::LiteralPercentEncoded, value);
+        }
 
         // ## URL Allowed ##
 
         // Alpha
         for i in ALPHA_LOWER {
-            classes[i as usize] = ByteClass::LiteralCopied;
+            info[i as usize].literal_class = LiteralClass::LiteralCopied;
         }
         for i in ALPHA_UPPER {
-            classes[i as usize] = ByteClass::LiteralCopied;
+            info[i as usize].literal_class = LiteralClass::LiteralCopied;
         }
 
         // Digit
         for i in DIGIT {
-            classes[i as usize] = ByteClass::LiteralCopied;
+            info[i as usize].literal_class = LiteralClass::LiteralCopied;
         }
-        classes['-' as usize] = ByteClass::LiteralCopied;
-        classes['.' as usize] = ByteClass::LiteralCopied;
-        classes['_' as usize] = ByteClass::LiteralCopied;
-        classes['~' as usize] = ByteClass::LiteralCopied;
+        info['-' as usize].literal_class = LiteralClass::LiteralCopied;
+        info['.' as usize].literal_class = LiteralClass::LiteralCopied;
+        info['_' as usize].literal_class = LiteralClass::LiteralCopied;
+        info['~' as usize].literal_class = LiteralClass::LiteralCopied;
 
         // Reserved
         for i in [
             ':', '/', '?', '#', '[', ']', '@', '!', '$', '&', '\'', '(', ')', '*', '+', ',', ';',
             '=',
         ] {
-            classes[i as usize] = ByteClass::LiteralCopied;
+            info[i as usize].literal_class = LiteralClass::LiteralCopied;
         }
 
         // ## Template control characters ##
-        classes['{' as usize] = ByteClass::OpenBrace;
-        classes['}' as usize] = ByteClass::CloseBrace;
-        classes['%' as usize] = ByteClass::Percent;
+        info['{' as usize].literal_class = LiteralClass::OpenBrace;
+        info['}' as usize].literal_class = LiteralClass::CloseBrace;
+        info['%' as usize].literal_class = LiteralClass::Percent;
 
         // ## Invalid Characters ##
 
         for i in CTL_AND_SPACE {
-            classes[i as usize] = ByteClass::Invalid;
+            info[i as usize].literal_class = LiteralClass::Invalid;
         }
-        classes[0x22] = ByteClass::Invalid;
-        classes[0x27] = ByteClass::Invalid;
-        classes[0x3C] = ByteClass::Invalid;
-        classes[0x3E] = ByteClass::Invalid;
-        classes[0x5C] = ByteClass::Invalid;
-        classes[0x5E] = ByteClass::Invalid;
-        classes[0x60] = ByteClass::Invalid;
-        classes[0x7C] = ByteClass::Invalid;
+        info[0x22].literal_class = LiteralClass::Invalid;
+        info[0x27].literal_class = LiteralClass::Invalid;
+        info[0x3C].literal_class = LiteralClass::Invalid;
+        info[0x3E].literal_class = LiteralClass::Invalid;
+        info[0x5C].literal_class = LiteralClass::Invalid;
+        info[0x5E].literal_class = LiteralClass::Invalid;
+        info[0x60].literal_class = LiteralClass::Invalid;
+        info[0x7C].literal_class = LiteralClass::Invalid;
 
-        classes
+        info
     })
 }
 
@@ -373,8 +398,8 @@ pub(crate) mod tests {
         );
 
         assert_eq!(
-            expand_template("foo/b%bFar", "abc", "def"),
-            Ok("foo/b%bFar".to_string())
+            expand_template("foo/b%bFgr", "abc", "def"),
+            Ok("foo/b%bFgr".to_string())
         );
     }
 
@@ -478,6 +503,10 @@ pub(crate) mod tests {
 
         assert_eq!(
             expand_template("//foo.bar/{%ab}", "abc", "def"),
+            Ok("//foo.bar/".to_string())
+        );
+        assert_eq!(
+            expand_template("//foo.bar/{%abg}", "abc", "def"),
             Ok("//foo.bar/".to_string())
         );
 
