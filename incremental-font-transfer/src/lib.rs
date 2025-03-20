@@ -16,6 +16,8 @@ pub mod glyph_keyed;
 pub mod patch_group;
 pub mod patchmap;
 pub mod table_keyed;
+
+#[allow(dead_code)] // Not used by the main library yet
 mod uri_templates;
 
 #[cfg(test)]
