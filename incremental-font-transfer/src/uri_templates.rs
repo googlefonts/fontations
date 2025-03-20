@@ -8,8 +8,12 @@
 //!
 //! By implementing our own we avoid pulling in a much larger general purpose template expansion library
 //! and improve performance versus a more general implementation.
+use data_encoding::BASE64URL;
+use data_encoding_macro::new_encoding;
 use std::fmt::Write;
 use std::sync::OnceLock;
+
+use crate::patchmap::PatchId;
 
 enum ParseState {
     // Literal parsing
@@ -44,7 +48,7 @@ struct OutputBuffer(String);
 ///
 /// More info: <https://datatracker.ietf.org/doc/html/rfc6570#section-3>
 #[derive(Debug, PartialEq, Eq)]
-pub struct UriTemplateError; // TODO(garretrieger): change patchmap to use this.
+pub struct UriTemplateError;
 
 impl std::fmt::Display for UriTemplateError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -62,13 +66,58 @@ impl std::error::Error for UriTemplateError {}
 /// uri templates. Notably, only level one substitution expressions are supported and there are a fixed
 /// set of variables used in the expansion (id, id64, d1, d2, d3, and d4).
 ///
-/// All arguments are assumed to be utf8 encoded strings.
+/// template_string is assumed to be a utf8 encoded string.
 pub(crate) fn expand_template(
+    template_string: &str,
+    patch_id: &PatchId,
+) -> Result<String, UriTemplateError> {
+    let (id_string, id64_string) = match &patch_id {
+        PatchId::Numeric(id) => {
+            let id = id.to_be_bytes();
+            let id = &id[count_leading_zeroes(&id)..];
+            (BASE32HEX_NO_PADDING.encode(id), BASE64URL.encode(id))
+        }
+        PatchId::String(id) => (BASE32HEX_NO_PADDING.encode(id), BASE64URL.encode(id)),
+    };
+
+    // id64 might contain characters outside of the unreserved set which require percent encoding.
+    // scan it and replace characters as needed. (ref: https://datatracker.ietf.org/doc/html/rfc6570#section-3.2.1)
+    let byte_info_map = byte_info_map();
+    let mut id64_string_encoded: OutputBuffer = Default::default();
+    for byte in id64_string.as_bytes() {
+        let byte_info = &byte_info_map[*byte as usize];
+        if byte_info.is_unreserved {
+            id64_string_encoded.append(*byte)
+        } else {
+            id64_string_encoded.append_percent_encoded(*byte).unwrap()
+        }
+    }
+
+    expand_template_inner(template_string, &id_string, &id64_string_encoded.0)
+}
+
+const BASE32HEX_NO_PADDING: data_encoding::Encoding = new_encoding! {
+    symbols: "0123456789ABCDEFGHIJKLMNOPQRSTUV",
+};
+
+fn count_leading_zeroes(id: &[u8]) -> usize {
+    let mut leading_bytes = 0;
+    for b in id {
+        if *b != 0 {
+            break;
+        }
+        leading_bytes += 1;
+    }
+    // Always keep at least one digit.
+    leading_bytes.min(id.len() - 1)
+}
+
+/// Expands template string with the provided id and id64 string values.
+fn expand_template_inner(
     template_string: &str,
     id_value: &str,
     id64_value: &str,
 ) -> Result<String, UriTemplateError> {
-    // TODO(garretrieger): additional method which take id as the raw integer or id string and convert to id and id64 as needed.
     let mut output: OutputBuffer = Default::default();
 
     let mut state = ParseState::Literal;
@@ -171,7 +220,6 @@ impl OutputBuffer {
                 Ok(ParseState::Literal)
             }
             (Variable::ID64, b'}') => {
-                // TODO percent encode any characters in id64 as needed.
                 self.append_str(id64_value);
                 Ok(ParseState::Literal)
             }
@@ -220,6 +268,7 @@ impl OutputBuffer {
 struct ByteInfo {
     literal_class: LiteralClass,
     is_hex_digit: bool,
+    is_unreserved: bool,
     value: u8,
 }
 
@@ -238,6 +287,7 @@ impl Default for ByteInfo {
         ByteInfo {
             literal_class: LiteralClass::Invalid,
             is_hex_digit: false,
+            is_unreserved: false,
             value: 0,
         }
     }
@@ -248,6 +298,7 @@ impl ByteInfo {
         ByteInfo {
             literal_class: Self::literal_class(value),
             is_hex_digit: value.is_ascii_hexdigit(),
+            is_unreserved: Self::ascii_url_unreserved(value),
             value,
         }
     }
@@ -269,19 +320,15 @@ impl ByteInfo {
         }
     }
 
+    fn ascii_url_unreserved(value: u8) -> bool {
+        // See: https://datatracker.ietf.org/doc/html/rfc6570#section-1.5
+        value.is_ascii_alphanumeric() || matches!(value, b'-' | b'.' | b'_' | b'~')
+    }
+
     fn ascii_url_reserved_or_unreserved(value: u8) -> bool {
         // See: https://datatracker.ietf.org/doc/html/rfc6570#section-1.5
-        if value.is_ascii_alphanumeric() {
-            return true;
-        }
-
-        matches!(
-            value,
-            b'-' | b'.'
-                | b'_'
-                | b'~'
-                | b':'
-                | b'/'
+        Self::ascii_url_unreserved(value)
+            || matches!(value, |b':'| b'/'
                 | b'?'
                 | b'#'
                 | b'['
@@ -297,8 +344,7 @@ impl ByteInfo {
                 | b'+'
                 | b','
                 | b';'
-                | b'='
-        )
+                | b'=')
     }
 
     fn literal_class(value: u8) -> LiteralClass {
@@ -338,14 +384,87 @@ fn byte_info_map() -> &'static [ByteInfo; NUM_U8S] {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use crate::patchmap::PatchId;
     use crate::uri_templates::UriTemplateError;
 
-    use super::expand_template;
+    use super::{expand_template, expand_template_inner};
+
+    #[test]
+    fn spec_examples() {
+        // Tests of all IFT spec URI template examples from:
+        // https://w3c.github.io/IFT/Overview.html#uri-templates
+        assert_eq!(
+            expand_template("//foo.bar/{id}", &PatchId::Numeric(123)),
+            Ok("//foo.bar/FC".to_string())
+        );
+
+        assert_eq!(
+            expand_template("//foo.bar/{id}", &PatchId::Numeric(0)),
+            Ok("//foo.bar/00".to_string())
+        );
+
+        assert_eq!(
+            expand_template("//foo.bar/{d1}/{d2}/{id}", &PatchId::Numeric(478)),
+            Ok("//foo.bar/0/F/07F0".to_string())
+        );
+
+        assert_eq!(
+            expand_template("//foo.bar/{d1}/{d2}/{d3}/{id}", &PatchId::Numeric(123)),
+            Ok("//foo.bar/C/F/_/FC".to_string())
+        );
+
+        assert_eq!(
+            expand_template(
+                "//foo.bar/{d1}/{d2}/{d3}/{id}",
+                &PatchId::String(Vec::from_iter("baz".as_bytes().iter().copied()))
+            ),
+            Ok("//foo.bar/K/N/G/C9GNK".to_string())
+        );
+
+        assert_eq!(
+            expand_template(
+                "//foo.bar/{d1}/{d2}/{d3}/{id}",
+                &PatchId::String(Vec::from_iter("z".as_bytes().iter().copied()))
+            ),
+            Ok("//foo.bar/8/F/_/F8".to_string())
+        );
+
+        assert_eq!(
+            expand_template(
+                "//foo.bar/{d1}/{d2}/{d3}/{id}",
+                &PatchId::String(Vec::from_iter("àbc".as_bytes().iter().copied()))
+            ),
+            Ok("//foo.bar/O/O/4/OEG64OO".to_string())
+        );
+
+        assert_eq!(
+            expand_template("//foo.bar/{id64}", &PatchId::Numeric(14000000)),
+            Ok("//foo.bar/1Z-A".to_string())
+        );
+
+        assert_eq!(
+            expand_template("//foo.bar/{id64}", &PatchId::Numeric(0)),
+            Ok("//foo.bar/AA%3D%3D".to_string())
+        );
+
+        assert_eq!(
+            expand_template("//foo.bar/{id64}", &PatchId::Numeric(17000000)),
+            Ok("//foo.bar/AQNmQA%3D%3D".to_string())
+        );
+
+        assert_eq!(
+            expand_template(
+                "//foo.bar/{id64}",
+                &PatchId::String(Vec::from_iter("àbc".as_bytes().iter().copied()))
+            ),
+            Ok("//foo.bar/w6BiYw%3D%3D".to_string())
+        );
+    }
 
     #[test]
     fn copied_literals_only() {
         assert_eq!(
-            expand_template("foo/bar$", "abc", "def"),
+            expand_template_inner("foo/bar$", "abc", "def"),
             Ok("foo/bar$".to_string())
         );
     }
@@ -353,17 +472,17 @@ pub(crate) mod tests {
     #[test]
     fn percent_encoding_copied() {
         assert_eq!(
-            expand_template("%af%AF%09", "abc", "def"),
+            expand_template_inner("%af%AF%09", "abc", "def"),
             Ok("%af%AF%09".to_string())
         );
 
         assert_eq!(
-            expand_template("foo/b%a8", "abc", "def"),
+            expand_template_inner("foo/b%a8", "abc", "def"),
             Ok("foo/b%a8".to_string())
         );
 
         assert_eq!(
-            expand_template("foo/b%bFgr", "abc", "def"),
+            expand_template_inner("foo/b%bFgr", "abc", "def"),
             Ok("foo/b%bFgr".to_string())
         );
     }
@@ -371,7 +490,7 @@ pub(crate) mod tests {
     #[test]
     fn percent_encodes_literals() {
         assert_eq!(
-            expand_template("foo/bàr", "abc", "def"),
+            expand_template_inner("foo/bàr", "abc", "def"),
             Ok("foo/b%C3%A0r".to_string())
         );
     }
@@ -379,37 +498,37 @@ pub(crate) mod tests {
     #[test]
     fn valid_expansions() {
         assert_eq!(
-            expand_template("{id}{id64}", "abc", "def"),
+            expand_template_inner("{id}{id64}", "abc", "def"),
             Ok("abcdef".to_string())
         );
 
         assert_eq!(
-            expand_template("//foo.bar/{id}", "abc", "def"),
+            expand_template_inner("//foo.bar/{id}", "abc", "def"),
             Ok("//foo.bar/abc".to_string())
         );
 
         assert_eq!(
-            expand_template("//foo.bar/{id}/baz", "abc", "def"),
+            expand_template_inner("//foo.bar/{id}/baz", "abc", "def"),
             Ok("//foo.bar/abc/baz".to_string())
         );
 
         assert_eq!(
-            expand_template("//foo.bar/{id64}", "abc", "def"),
+            expand_template_inner("//foo.bar/{id64}", "abc", "def"),
             Ok("//foo.bar/def".to_string())
         );
 
         assert_eq!(
-            expand_template("//foo.bar/{id64}/baz", "abc", "def"),
+            expand_template_inner("//foo.bar/{id64}/baz", "abc", "def"),
             Ok("//foo.bar/def/baz".to_string())
         );
 
         assert_eq!(
-            expand_template("//foo.bar/{d1}/{d2}/{d3}/{id}", "FC", "def"),
+            expand_template_inner("//foo.bar/{d1}/{d2}/{d3}/{id}", "FC", "def"),
             Ok("//foo.bar/C/F/_/FC".to_string())
         );
 
         assert_eq!(
-            expand_template("//foo.bar/{d1}/{d2}/{d3}/{d4}/{id}", "ABCD", "def"),
+            expand_template_inner("//foo.bar/{d1}/{d2}/{d3}/{d4}/{id}", "ABCD", "def"),
             Ok("//foo.bar/D/C/B/A/ABCD".to_string())
         );
     }
@@ -417,52 +536,52 @@ pub(crate) mod tests {
     #[test]
     fn undefined_variables() {
         assert_eq!(
-            expand_template("//foo.bar/{idd}/baz", "abc", "def"),
+            expand_template_inner("//foo.bar/{idd}/baz", "abc", "def"),
             Err(UriTemplateError),
         );
 
         assert_eq!(
-            expand_template("//foo.bar/{idid}/baz", "abc", "def"),
+            expand_template_inner("//foo.bar/{idid}/baz", "abc", "def"),
             Err(UriTemplateError),
         );
 
         assert_eq!(
-            expand_template("//foo.bar/{id_id}/baz", "abc", "def"),
+            expand_template_inner("//foo.bar/{id_id}/baz", "abc", "def"),
             Err(UriTemplateError),
         );
 
         assert_eq!(
-            expand_template("//foo.bar/{_id}/baz", "abc", "def"),
+            expand_template_inner("//foo.bar/{_id}/baz", "abc", "def"),
             Err(UriTemplateError),
         );
 
         assert_eq!(
-            expand_template("//foo.bar/{7id}/baz", "abc", "def"),
+            expand_template_inner("//foo.bar/{7id}/baz", "abc", "def"),
             Err(UriTemplateError),
         );
 
         assert_eq!(
-            expand_template("//foo.bar/{Id}/baz", "abc", "def"),
+            expand_template_inner("//foo.bar/{Id}/baz", "abc", "def"),
             Err(UriTemplateError),
         );
 
         assert_eq!(
-            expand_template("//foo.bar/{d5}/baz", "abc", "def"),
+            expand_template_inner("//foo.bar/{d5}/baz", "abc", "def"),
             Err(UriTemplateError),
         );
 
         assert_eq!(
-            expand_template("//foo.bar/{id74}/{id}", "abc", "def"),
+            expand_template_inner("//foo.bar/{id74}/{id}", "abc", "def"),
             Err(UriTemplateError),
         );
 
         assert_eq!(
-            expand_template("//foo.bar/{foo%ab}", "abc", "def"),
+            expand_template_inner("//foo.bar/{foo%ab}", "abc", "def"),
             Err(UriTemplateError),
         );
 
         assert_eq!(
-            expand_template("//foo.bar/{%ab}", "abc", "def"),
+            expand_template_inner("//foo.bar/{%ab}", "abc", "def"),
             Err(UriTemplateError),
         );
     }
@@ -470,7 +589,7 @@ pub(crate) mod tests {
     #[test]
     fn unterminated_expression() {
         assert_eq!(
-            expand_template("{id64", "abc", "def"),
+            expand_template_inner("{id64", "abc", "def"),
             Err(UriTemplateError)
         );
     }
@@ -478,71 +597,74 @@ pub(crate) mod tests {
     #[test]
     fn unsupported_operator() {
         assert_eq!(
-            expand_template("{+id}", "abc", "def"),
+            expand_template_inner("{+id}", "abc", "def"),
             Err(UriTemplateError)
         );
         assert_eq!(
-            expand_template("{.id}", "abc", "def"),
+            expand_template_inner("{.id}", "abc", "def"),
             Err(UriTemplateError)
         );
         assert_eq!(
-            expand_template("{/id}", "abc", "def"),
+            expand_template_inner("{/id}", "abc", "def"),
             Err(UriTemplateError)
         );
-        assert_eq!(expand_template("{/}", "abc", "def"), Err(UriTemplateError));
+        assert_eq!(
+            expand_template_inner("{/}", "abc", "def"),
+            Err(UriTemplateError)
+        );
     }
 
     #[test]
     fn bad_variable_name() {
         assert_eq!(
             // Variable names must have at least one char
-            expand_template("{}", "abc", "def"),
+            expand_template_inner("{}", "abc", "def"),
             Err(UriTemplateError)
         );
         assert_eq!(
             // Variable names must have at least one char
-            expand_template("{}}", "abc", "def"),
+            expand_template_inner("{}}", "abc", "def"),
             Err(UriTemplateError)
         );
 
         assert_eq!(
-            expand_template("{id}}", "abc", "def"), // double closing brace
+            expand_template_inner("{id}}", "abc", "def"), // double closing brace
             Err(UriTemplateError)
         );
 
         assert_eq!(
-            expand_template("{i+d}", "abc", "def"),
+            expand_template_inner("{i+d}", "abc", "def"),
             Err(UriTemplateError)
         );
         assert_eq!(
-            expand_template("{i/d}", "abc", "def"),
+            expand_template_inner("{i/d}", "abc", "def"),
             Err(UriTemplateError)
         );
         assert_eq!(
-            expand_template("{.}", "abc", "def"), // beginning '.'s are not allowed
+            expand_template_inner("{.}", "abc", "def"), // beginning '.'s are not allowed
             Err(UriTemplateError)
         );
         assert_eq!(
-            expand_template("{a.}", "abc", "def"), // trailing '.'s are not allowed
+            expand_template_inner("{a.}", "abc", "def"), // trailing '.'s are not allowed
             Err(UriTemplateError)
         );
         assert_eq!(
-            expand_template("{id.}", "abc", "def"), // trailing '.'s are not allowed
+            expand_template_inner("{id.}", "abc", "def"), // trailing '.'s are not allowed
             Err(UriTemplateError)
         );
         assert_eq!(
-            expand_template("{i..d}", "abc", "def"), // .. is not allowed
+            expand_template_inner("{i..d}", "abc", "def"), // .. is not allowed
             Err(UriTemplateError)
         );
 
         assert_eq!(
-            expand_template("{id:1}", "abc", "def"), // ":" prefix operator not allowed.
+            expand_template_inner("{id:1}", "abc", "def"), // ":" prefix operator not allowed.
             Err(UriTemplateError)
         );
 
         assert_eq!(
             // Multiple variables in an expression is not supported at level 1.
-            expand_template("{id,id64}", "abc", "def"),
+            expand_template_inner("{id,id64}", "abc", "def"),
             Err(UriTemplateError)
         );
     }
@@ -551,22 +673,22 @@ pub(crate) mod tests {
     fn bad_percent_encoding_in_variable_names() {
         assert_eq!(
             // Unterminated
-            expand_template("{%}", "abc", "def"),
+            expand_template_inner("{%}", "abc", "def"),
             Err(UriTemplateError)
         );
         assert_eq!(
             // Unterminated
-            expand_template("{%A}", "abc", "def"),
+            expand_template_inner("{%A}", "abc", "def"),
             Err(UriTemplateError)
         );
         assert_eq!(
             // non hex digit
-            expand_template("{%AG}", "abc", "def"),
+            expand_template_inner("{%AG}", "abc", "def"),
             Err(UriTemplateError)
         );
         assert_eq!(
             // non hex digit
-            expand_template("{id%GA}", "abc", "def"),
+            expand_template_inner("{id%GA}", "abc", "def"),
             Err(UriTemplateError)
         );
     }
@@ -574,17 +696,17 @@ pub(crate) mod tests {
     #[test]
     fn invalid_percent_encoding() {
         assert_eq!(
-            expand_template("foo/b%a/", "abc", "def"),
+            expand_template_inner("foo/b%a/", "abc", "def"),
             Err(UriTemplateError)
         );
 
         assert_eq!(
-            expand_template("foo/b%a", "abc", "def"),
+            expand_template_inner("foo/b%a", "abc", "def"),
             Err(UriTemplateError)
         );
 
         assert_eq!(
-            expand_template("foo/b%a{id}", "abc", "def"),
+            expand_template_inner("foo/b%a{id}", "abc", "def"),
             Err(UriTemplateError)
         );
     }
@@ -592,7 +714,7 @@ pub(crate) mod tests {
     #[test]
     fn unexpected_close_brace() {
         assert_eq!(
-            expand_template("foo/b}ar", "abc", "def"),
+            expand_template_inner("foo/b}ar", "abc", "def"),
             Err(UriTemplateError)
         );
     }
@@ -600,24 +722,27 @@ pub(crate) mod tests {
     #[test]
     fn invalid_characters() {
         assert_eq!(
-            expand_template("foo/\"bar\"", "abc", "def"),
+            expand_template_inner("foo/\"bar\"", "abc", "def"),
             Err(UriTemplateError)
         );
 
         assert_eq!(
-            expand_template("foo bar", "abc", "def"),
+            expand_template_inner("foo bar", "abc", "def"),
             Err(UriTemplateError)
         );
 
         let mut input: String = "foo".to_string();
         input.push(0x00 as char);
-        assert_eq!(expand_template(&input, "abc", "def"), Err(UriTemplateError));
+        assert_eq!(
+            expand_template_inner(&input, "abc", "def"),
+            Err(UriTemplateError)
+        );
 
         let mut input: String = "foo".to_string();
         input.push(0x1F as char);
-        assert_eq!(expand_template(&input, "abc", "def"), Err(UriTemplateError));
+        assert_eq!(
+            expand_template_inner(&input, "abc", "def"),
+            Err(UriTemplateError)
+        );
     }
-
-    // TODO(garretrieger): add tests for valid cases
-    // - variable expansion needs percent encoding.
 }

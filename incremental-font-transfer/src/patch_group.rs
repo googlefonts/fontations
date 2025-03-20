@@ -10,8 +10,9 @@ use crate::{
     font_patch::{IncrementalFontPatchBase, PatchingError},
     patchmap::{
         intersecting_patches, IftTableTag, IntersectionInfo, PatchFormat, PatchUri,
-        SubsetDefinition, UriTemplateError,
+        SubsetDefinition,
     },
+    uri_templates::UriTemplateError,
 };
 
 /// A group of patches derived from a single IFT font.
