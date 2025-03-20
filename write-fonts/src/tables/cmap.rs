@@ -890,10 +890,14 @@ mod tests {
         let bytes = dump_table(table).unwrap();
         let readcmap = read_fonts::tables::cmap::Cmap4::read(bytes.as_slice().into()).unwrap();
 
-        readcmap
+        let mut mapping = readcmap
             .iter()
             .map(|(c, gid)| (char::from_u32(c).unwrap(), gid))
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        // cmap4 always ends with a 65535 => notdef entry. Sanity check
+        // this and then pop it to avoid messing with tests
+        assert_eq!(mapping.pop(), Some(('\u{FFFF}', GlyphId::NOTDEF)));
+        mapping
     }
 
     #[test]
