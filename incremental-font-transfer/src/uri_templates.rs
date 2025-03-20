@@ -8,7 +8,8 @@
 //!
 //! By implementing our own we avoid pulling in a much larger general purpose template expansion library
 //! and improve performance versus a more general implementation.
-use std::{ops::RangeInclusive, sync::OnceLock};
+use std::fmt::Write;
+use std::sync::OnceLock;
 
 enum ParseState {
     // Literal parsing
@@ -108,7 +109,7 @@ impl OutputBuffer {
     /// - Something invalid encountered.
     fn handle_literal(&mut self, byte_info: &ByteInfo) -> Result<ParseState, UriTemplateError> {
         match byte_info.literal_class {
-            LiteralClass::Invalid | LiteralClass::EndExpression => Err(UriTemplateError),
+            LiteralClass::Invalid => Err(UriTemplateError),
             LiteralClass::Percent => {
                 self.append(byte_info.value);
                 Ok(ParseState::LiteralPercentEncoded(Digit::One))
@@ -118,10 +119,9 @@ impl OutputBuffer {
                 self.append(byte_info.value);
                 Ok(ParseState::Literal)
             }
-            LiteralClass::LiteralPercentEncoded => {
-                self.append_percent_encoded(byte_info.value);
-                Ok(ParseState::Literal)
-            }
+            LiteralClass::LiteralPercentEncoded => self
+                .append_percent_encoded(byte_info.value)
+                .map(|_| ParseState::Literal),
         }
     }
 
@@ -250,8 +250,8 @@ impl OutputBuffer {
     }
 
     // Appends the percent encoded representation (%XX) of a byte to the output.
-    fn append_percent_encoded(&mut self, byte: u8) {
-        self.0.push_str(&format!("%{:02X}", byte));
+    fn append_percent_encoded(&mut self, byte: u8) -> Result<(), UriTemplateError> {
+        write!(&mut self.0, "%{:02X}", byte).map_err(|_| UriTemplateError)
     }
 }
 
@@ -273,47 +273,84 @@ enum LiteralClass {
     LiteralCopied,         // This byte should be copied directly
     LiteralPercentEncoded, // This byte should be percent encoded and then copied.
     StartExpression,       // { starts an expression.
-    EndExpression,         // } ends an expression.
+}
+
+impl Default for ByteInfo {
+    fn default() -> Self {
+        ByteInfo {
+            literal_class: LiteralClass::Invalid,
+            is_hex_digit: false,
+            is_varchar: false,
+            value: 0,
+        }
+    }
 }
 
 impl ByteInfo {
-    fn new(class: LiteralClass, value: u8) -> Self {
+    fn new(value: u8) -> Self {
         ByteInfo {
-            literal_class: class,
-            is_hex_digit: Self::is_hexdig(value),
+            literal_class: Self::literal_class(value),
+            is_hex_digit: value.is_ascii_hexdigit(),
             is_varchar: Self::is_varchar(value),
             value,
         }
-    }
-
-    /// Returns true if byte is a hexdig.
-    ///
-    /// As defined here: <https://datatracker.ietf.org/doc/html/rfc6570#section-1.5>
-    fn is_hexdig(byte: u8) -> bool {
-        DIGIT.contains(&byte) || HEX_ALPHA_UPPER.contains(&byte) || HEX_ALPHA_LOWER.contains(&byte)
     }
 
     /// Returns true if byte is a varchar.
     ///
     /// As defined here: <https://datatracker.ietf.org/doc/html/rfc6570#section-2.3>
     fn is_varchar(byte: u8) -> bool {
-        ALPHA_LOWER.contains(&byte)
-            || ALPHA_UPPER.contains(&byte)
-            || DIGIT.contains(&byte)
-            || byte == b'.'
-            || byte == b'_'
-            || byte == b'%'
-            || byte == b'}'
+        byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'_' || byte == b'%' || byte == b'}'
+    }
+
+    fn ascii_allowed_as_literal(value: u8) -> bool {
+        // See: https://datatracker.ietf.org/doc/html/rfc6570#section-2.1
+        match value {
+            0x21
+            | 0x23..=0x24
+            | 0x26
+            | 0x28..=0x3B
+            | 0x3D
+            | 0x3F..=0x5B
+            | 0x5D
+            | 0x5F
+            | 0x61..=0x7A
+            | 0x7E => true,
+            _ => value > 0x7F, // All non-ascii bytes are allowed
+        }
+    }
+
+    fn ascii_url_reserved_or_unreserved(value: u8) -> bool {
+        // See: https://datatracker.ietf.org/doc/html/rfc6570#section-1.5
+        if value.is_ascii_alphanumeric() {
+            return true;
+        }
+
+        match value {
+            b'-' | b'.' | b'_' | b'~' | b':' | b'/' | b'?' | b'#' | b'[' | b']' | b'@' | b'!'
+            | b'$' | b'&' | b'\'' | b'(' | b')' | b'*' | b'+' | b',' | b';' | b'=' => true,
+            _ => false,
+        }
+    }
+
+    fn literal_class(value: u8) -> LiteralClass {
+        match value {
+            b'{' => LiteralClass::StartExpression,
+            b'%' => LiteralClass::Percent,
+            _ => {
+                if !Self::ascii_allowed_as_literal(value) {
+                    LiteralClass::Invalid
+                } else if Self::ascii_url_reserved_or_unreserved(value) {
+                    LiteralClass::LiteralCopied
+                } else {
+                    LiteralClass::LiteralPercentEncoded
+                }
+            }
+        }
     }
 }
 
-const NUM_U8S: usize = 256;
-const ALPHA_UPPER: RangeInclusive<u8> = 0x41..=0x5A;
-const ALPHA_LOWER: RangeInclusive<u8> = 0x61..=0x7A;
-const DIGIT: RangeInclusive<u8> = 0x30..=0x39;
-const CTL_AND_SPACE: RangeInclusive<u8> = 0x00..=0x20;
-const HEX_ALPHA_UPPER: RangeInclusive<u8> = 0x41..=0x46;
-const HEX_ALPHA_LOWER: RangeInclusive<u8> = 0x61..=0x66;
+const NUM_U8S: usize = u8::MAX as usize + 1;
 
 static BYTE_INFO_MAP: OnceLock<[ByteInfo; NUM_U8S]> = OnceLock::new();
 
@@ -323,60 +360,10 @@ static BYTE_INFO_MAP: OnceLock<[ByteInfo; NUM_U8S]> = OnceLock::new();
 fn byte_info_map() -> &'static [ByteInfo; NUM_U8S] {
     // See: https://datatracker.ietf.org/doc/html/rfc6570#section-2.1
     BYTE_INFO_MAP.get_or_init(|| {
-        let mut info: [ByteInfo; NUM_U8S] = [ByteInfo::new(LiteralClass::Invalid, 0); NUM_U8S];
-
-        // Start by assuming all values must be percent encoded, and then enumerate
-        // the specific values which are special or allowed to be copied directly.
+        let mut info: [ByteInfo; NUM_U8S] = [ByteInfo::default(); NUM_U8S];
         for value in 0..=u8::MAX {
-            info[value as usize] = ByteInfo::new(LiteralClass::LiteralPercentEncoded, value);
+            info[value as usize] = ByteInfo::new(value);
         }
-
-        // ## URL Allowed ##
-
-        // Alpha
-        for i in ALPHA_LOWER {
-            info[i as usize].literal_class = LiteralClass::LiteralCopied;
-        }
-        for i in ALPHA_UPPER {
-            info[i as usize].literal_class = LiteralClass::LiteralCopied;
-        }
-
-        // Digit
-        for i in DIGIT {
-            info[i as usize].literal_class = LiteralClass::LiteralCopied;
-        }
-        info['-' as usize].literal_class = LiteralClass::LiteralCopied;
-        info['.' as usize].literal_class = LiteralClass::LiteralCopied;
-        info['_' as usize].literal_class = LiteralClass::LiteralCopied;
-        info['~' as usize].literal_class = LiteralClass::LiteralCopied;
-
-        // Reserved
-        for i in [
-            ':', '/', '?', '#', '[', ']', '@', '!', '$', '&', '\'', '(', ')', '*', '+', ',', ';',
-            '=',
-        ] {
-            info[i as usize].literal_class = LiteralClass::LiteralCopied;
-        }
-
-        // ## Template control characters ##
-        info['{' as usize].literal_class = LiteralClass::StartExpression;
-        info['}' as usize].literal_class = LiteralClass::EndExpression;
-        info['%' as usize].literal_class = LiteralClass::Percent;
-
-        // ## Invalid Characters ##
-
-        for i in CTL_AND_SPACE {
-            info[i as usize].literal_class = LiteralClass::Invalid;
-        }
-        info[0x22].literal_class = LiteralClass::Invalid;
-        info[0x27].literal_class = LiteralClass::Invalid;
-        info[0x3C].literal_class = LiteralClass::Invalid;
-        info[0x3E].literal_class = LiteralClass::Invalid;
-        info[0x5C].literal_class = LiteralClass::Invalid;
-        info[0x5E].literal_class = LiteralClass::Invalid;
-        info[0x60].literal_class = LiteralClass::Invalid;
-        info[0x7C].literal_class = LiteralClass::Invalid;
-
         info
     })
 }
