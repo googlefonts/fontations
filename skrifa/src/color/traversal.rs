@@ -587,8 +587,8 @@ pub(crate) fn traverse_with_callbacks(
                 resolved_stops,
                 recurse_depth + 1,
             );
-            painter.pop_layer();
-            painter.pop_layer();
+            painter.pop_layer_with_mode(*mode);
+            painter.pop_layer_with_mode(CompositeMode::SrcOver);
             result
         }
     }
