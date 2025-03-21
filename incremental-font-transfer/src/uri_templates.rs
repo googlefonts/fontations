@@ -65,8 +65,6 @@ impl std::error::Error for UriTemplateError {}
 /// IFT uri templates are a subset of the more general <https://datatracker.ietf.org/doc/html/rfc6570>
 /// uri templates. Notably, only level one substitution expressions are supported and there are a fixed
 /// set of variables used in the expansion (id, id64, d1, d2, d3, and d4).
-///
-/// template_string is assumed to be a utf8 encoded string.
 pub(crate) fn expand_template(
     template_string: &str,
     patch_id: &PatchId,
@@ -102,15 +100,7 @@ const BASE32HEX_NO_PADDING: data_encoding::Encoding = new_encoding! {
 };
 
 fn count_leading_zeroes(id: &[u8]) -> usize {
-    let mut leading_bytes = 0;
-    for b in id {
-        if *b != 0 {
-            break;
-        }
-        leading_bytes += 1;
-    }
-    // Always keep at least one digit.
-    leading_bytes.min(id.len() - 1)
+    id.iter().take_while(|b| **b == 0).count().min(id.len() - 1)
 }
 
 /// Expands template string with the provided id and id64 string values.
