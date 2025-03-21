@@ -26,6 +26,9 @@ pub(crate) type PaintDecycler = Decycler<usize, MAX_TRAVERSAL_DEPTH>;
 // The largest gradient in Noto Color Emoji has 13 stops.
 //
 // Only one ColorStopVec will be created per paint graph traversal.
+//
+// Usage of SmallVec as a response to Behdad's wonderful memory usage analysis:
+// <https://docs.google.com/document/d/1S47f3E--yqvFdG7lmmufxRoFi_wMzotC03v8UvS_p54/edit?tab=t.0#heading=h.bfj7urloz3oe>
 const MAX_INLINE_COLOR_STOPS: usize = 32;
 
 pub(crate) type ColorStopVec = crate::collections::SmallVec<ColorStop, MAX_INLINE_COLOR_STOPS>;
@@ -152,13 +155,12 @@ pub(crate) fn traverse_with_callbacks(
     instance: &ColrInstance,
     painter: &mut impl ColorPainter,
     decycler: &mut PaintDecycler,
-    stop_buffer: &mut ColorStopVec,
+    resolved_stops: &mut ColorStopVec,
     recurse_depth: usize,
 ) -> Result<(), PaintError> {
     if recurse_depth >= MAX_TRAVERSAL_DEPTH {
         return Err(PaintError::DepthLimitExceeded);
     }
-    let resolved_stops = stop_buffer;
     match paint {
         ResolvedPaint::ColrLayers { range } => {
             for layer_index in range.clone() {
