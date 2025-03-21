@@ -263,7 +263,22 @@ pub trait ColorPainter {
     /// Open a new layer, and merge the layer down using `composite_mode` when
     /// [`pop_layer`](ColorPainter::pop_layer) is called, signalling that this layer is done drawing.
     fn push_layer(&mut self, composite_mode: CompositeMode);
-    fn pop_layer(&mut self);
+
+    /// Merge the pushed layer down using `composite_mode` passed to the matching
+    /// [`push_layer`](ColorPainter::push_layer).
+    fn pop_layer(&mut self) {}
+
+    /// Alternative version of [`push_layer`](ColorPainter::push_layer) where the
+    /// `composite_mode` is also passed to the method. This is useful for
+    /// graphics libraries that need the compositing mode at layer pop time
+    /// and do not want to manually track the mode.
+    ///
+    /// Only one of [`pop_layer`](ColorPainter::pop_layer) or this method
+    /// need to be implemented. By default, this simply calls
+    /// [`pop_layer`](ColorPainter::pop_layer).
+    fn pop_layer_with_mode(&mut self, _composite_mode: CompositeMode) {
+        self.pop_layer();
+    }
 }
 
 /// Distinguishes available color glyph formats.
