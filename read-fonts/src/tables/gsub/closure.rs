@@ -27,7 +27,7 @@ use super::{
 // we put ClosureCtx in its own module to enforce visibility rules;
 // specifically we don't want cur_glyphs to be reachable directly
 mod ctx {
-    use std::collections::{hash_map::Entry, HashMap};
+    use std::collections::HashMap;
 
     use types::GlyphId16;
 
@@ -62,11 +62,11 @@ mod ctx {
         }
 
         pub(super) fn current_glyphs(&self) -> &IntSet<GlyphId16> {
-            self.cur_glyphs.as_ref().unwrap_or(&self.glyphs)
+            self.cur_glyphs.as_ref().unwrap_or(self.glyphs)
         }
 
         pub(super) fn glyphs(&self) -> &IntSet<GlyphId16> {
-            &self.glyphs
+            self.glyphs
         }
 
         pub(super) fn add_glyph(&mut self, gid: GlyphId16) {
@@ -102,56 +102,37 @@ mod ctx {
             if self.needs_to_do_lookup(lookup_id, current_glyphs.as_ref()) {
                 self.cur_glyphs = current_glyphs;
                 lookup.add_reachable_glyphs(self)?;
-                self.update_lookup_key(lookup_id);
-                assert!(
-                    self.cur_glyphs.is_none(),
-                    "always cleared after updating key"
-                );
+                self.cur_glyphs = None;
             }
             Ok(())
         }
 
         /// skip lookups if we've already seen them with our current state
         /// <https://github.com/fonttools/fonttools/blob/a6f59a4f87a0111060/Lib/fontTools/subset/__init__.py#L1510>
-        fn needs_to_do_lookup(&self, id: u16, current_glyphs: Option<&IntSet<GlyphId16>>) -> bool {
-            let Some((count, covered)) = self.finished_lookups.get(&id) else {
-                return true;
-            };
-            if *count as u64 != self.glyphs.len() {
-                return true;
+        fn needs_to_do_lookup(
+            &mut self,
+            id: u16,
+            current_glyphs: Option<&IntSet<GlyphId16>>,
+        ) -> bool {
+            let (count, covered) = self.finished_lookups.entry(id).or_insert((0, None));
+            if *count != self.glyphs.len() {
+                *count = self.glyphs.len();
+                *covered = Some(IntSet::new());
             }
-            // and if length is the same, we only care if...
-            match (current_glyphs.as_ref(), covered.as_ref()) {
-                (Some(current), Some(prev)) => !current.iter().all(|gid| prev.contains(gid)),
-                (Some(current), None) => !current.iter().all(|gid| self.glyphs.contains(gid)),
-                (None, Some(_)) => true,
-                (None, None) => false,
+            //TODO: would be nice to have IntSet::is_subset
+            if current_glyphs.unwrap_or(self.glyphs).iter().all(|gid| {
+                covered
+                    .as_ref()
+                    .map(|cov| cov.contains(gid))
+                    // only true if self.glyphs is empty, which means it's a noop anyway?
+                    .unwrap_or(false)
+            }) {
+                return false;
             }
-        }
-
-        // update our key for this lookup.
-        //
-        // The logic here is based on
-        // https://github.com/fonttools/fonttools/blob/a6f59a4f87a0111060/Lib/fontTools/subset/__init__.py#L1510
-        fn update_lookup_key(&mut self, id: u16) {
-            match self.finished_lookups.entry(id) {
-                Entry::Occupied(entry) => {
-                    let (count, covered) = entry.into_mut();
-                    *count = self.glyphs.len();
-                    *covered = match (covered.take(), self.cur_glyphs.take()) {
-                        (Some(mut cov), Some(cur)) => {
-                            cov.extend(cur.iter());
-                            Some(cov)
-                        }
-                        // because 'None' means 'reachable by all glyphs',
-                        // if either side is None than it wins.
-                        _ => None,
-                    };
-                }
-                Entry::Vacant(entry) => {
-                    entry.insert_entry((self.glyphs.len(), self.cur_glyphs.take()));
-                }
-            }
+            covered
+                .get_or_insert_default()
+                .extend(current_glyphs.unwrap_or(self.glyphs).iter());
+            true
         }
     }
 }
