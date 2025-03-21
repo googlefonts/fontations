@@ -102,7 +102,7 @@ impl From<ReadError> for PaintError {
 ///
 /// All gradient callbacks of [`ColorPainter`] normalize color stops to be in the range of 0
 /// to 1.
-#[derive(Clone, PartialEq, Debug, Default)]
+#[derive(Copy, Clone, PartialEq, Debug, Default)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
 // This repr(C) is required so that C-side FFI's
 // are able to cast the ColorStop slice to a C-side array pointer.
@@ -350,6 +350,7 @@ impl<'a> ColorGlyph<'a> {
         painter: &mut impl ColorPainter,
     ) -> Result<(), PaintError> {
         let instance = instance::ColrInstance::new(self.colr.clone(), location.into().coords());
+        let mut stop_buffer = traversal::ColorStopVec::default();
         match &self.root_paint_ref {
             ColorGlyphRoot::V1Paint(paint, paint_id, glyph_id, _) => {
                 let clipbox = get_clipbox_font_units(&instance, *glyph_id);
@@ -365,6 +366,7 @@ impl<'a> ColorGlyph<'a> {
                     &instance,
                     painter,
                     &mut cycle_guard,
+                    &mut stop_buffer,
                     0,
                 )?;
 
