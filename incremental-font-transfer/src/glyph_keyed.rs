@@ -25,7 +25,7 @@ use read_fonts::{
     FontData, FontRef, ReadError, TableProvider,
 };
 
-use klippa::serialize::{OffsetWhence, Serializer};
+use klippa::serialize::{OffsetWhence, SerializeErrorFlags, Serializer};
 use shared_brotli_patch_decoder::shared_brotli_decode;
 use skrifa::GlyphId;
 use std::borrow::Cow;
@@ -416,7 +416,19 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
     }
 
     // TODO(garretrieger): pre-check loca has all ascending offsets.
-    // TODO(garretrieger): check if loca format will need to switch, if so that's an error.
+
+    // Check to see if the offset size needs to be upgraded
+    let new_offset_type = if total_data_size > offset_type.max_representable_size() {
+        offset_array
+            .available_offset_types()
+            .filter(|candidate_type| candidate_type.max_representable_size() >= total_data_size)
+            .next()
+            .ok_or(PatchingError::SerializationError(
+                SerializeErrorFlags::SERIALIZE_ERROR_OFFSET_OVERFLOW,
+            ))?
+    } else {
+        offset_type
+    };
 
     if gids.last().unwrap_or(GlyphId::new(0)) > max_glyph_id {
         return Err(PatchingError::InvalidPatch(
@@ -425,11 +437,12 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
     }
 
     // Step 2: patch together the new data array (by copying in ranges of data in the correct order).
-    // Note: max_glyph_id + 2 here because we want num glyphs + 1
-    let offsets_size = (max_glyph_id.to_u32() as usize + 2) * offset_type.offset_width();
+    // Note: we synthesize using whatever new_offset_type was selected above.
+    // Note: max_glyph_id + 2 here because we want num glyphs + 1.
+    let offsets_size = (max_glyph_id.to_u32() as usize + 2) * new_offset_type.offset_width();
     let mut new_data = vec![0u8; total_data_size as usize];
     let mut new_offsets = vec![0u8; offsets_size];
-    match offset_type {
+    match new_offset_type {
         OffsetType::ShortDivByTwo => synthesize_offset_array::<2, u16, _>(
             &gids,
             max_glyph_id,
@@ -449,18 +462,26 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
     }
 
     // Step 3: add new tables to the output builder
-    offset_array.add_to_font(font_builder, new_data, new_offsets)?;
+    offset_array.add_to_font(font_builder, new_data, new_offsets, new_offset_type)?;
 
     Ok(())
 }
 
 /// Classifies the different style of offsets that can be used in a data offset array.
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum OffsetType {
     Long,
     ShortDivByTwo,
 }
 
 impl OffsetType {
+    fn max_representable_size(&self) -> u64 {
+        match self {
+            Self::Long => (1 << 32) - 1,
+            Self::ShortDivByTwo => ((1 << 16) - 1) * 2,
+        }
+    }
+
     fn offset_width(&self) -> usize {
         match self {
             Self::Long => 4,
@@ -485,6 +506,12 @@ struct GlyfAndLoca<'a> {
 trait GlyphDataOffsetArray {
     fn offset_type(&self) -> OffsetType;
 
+    /// Returns which offset types this array could be changed into.
+    ///
+    /// If no changes are possible will only include offset_type().
+    /// Types are listed in ascending order of size.
+    fn available_offset_types(&self) -> impl Iterator<Item = OffsetType>;
+
     /// Returns the offset associated with a specific gid.
     ///
     /// This is the offset at which data for that glyph starts.
@@ -500,8 +527,11 @@ trait GlyphDataOffsetArray {
         font_builder: &mut FontBuilder<'a>,
         data: impl Into<Cow<'a, [u8]>>,
         offsets: impl Into<Cow<'a, [u8]>>,
+        offset_type: OffsetType,
     ) -> Result<(), PatchingError>;
 }
+
+const LOCA_OFFSET_TYPES: [OffsetType; 2] = [OffsetType::ShortDivByTwo, OffsetType::Long];
 
 impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
     fn offset_type(&self) -> OffsetType {
@@ -509,6 +539,14 @@ impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
             Loca::Short(_) => OffsetType::ShortDivByTwo,
             Loca::Long(_) => OffsetType::Long,
         }
+    }
+
+    fn available_offset_types(&self) -> impl Iterator<Item = OffsetType> {
+        // loca cannot change types so the only type available is what this already is.
+        LOCA_OFFSET_TYPES
+            .iter()
+            .copied()
+            .filter(|offset_type| *offset_type == self.offset_type())
     }
 
     fn offset_for(&self, gid: GlyphId) -> Result<u32, PatchingError> {
@@ -533,12 +571,22 @@ impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
         font_builder: &mut FontBuilder<'a>,
         data: impl Into<Cow<'a, [u8]>>,
         offsets: impl Into<Cow<'a, [u8]>>,
+        new_offset_type: OffsetType,
     ) -> Result<(), PatchingError> {
+        if new_offset_type != self.offset_type() {
+            // glyf/loca does not support changing offset types.
+            return Err(PatchingError::SerializationError(
+                SerializeErrorFlags::SERIALIZE_ERROR_OFFSET_OVERFLOW,
+            ));
+        }
+
         font_builder.add_raw(Glyf::TAG, data);
         font_builder.add_raw(Loca::TAG, offsets);
         Ok(())
     }
 }
+
+const GVAR_OFFSET_TYPES: [OffsetType; 2] = [OffsetType::ShortDivByTwo, OffsetType::Long];
 
 impl GlyphDataOffsetArray for Gvar<'_> {
     fn offset_type(&self) -> OffsetType {
@@ -547,6 +595,11 @@ impl GlyphDataOffsetArray for Gvar<'_> {
         } else {
             OffsetType::ShortDivByTwo
         }
+    }
+
+    fn available_offset_types(&self) -> impl Iterator<Item = OffsetType> {
+        // loca cannot change types so the only type available is what this already is.
+        GVAR_OFFSET_TYPES.iter().copied()
     }
 
     fn offset_for(&self, gid: GlyphId) -> Result<u32, PatchingError> {
@@ -585,6 +638,7 @@ impl GlyphDataOffsetArray for Gvar<'_> {
         font_builder: &mut FontBuilder<'a>,
         data: impl Into<Cow<'a, [u8]>>,
         offsets: impl Into<Cow<'a, [u8]>>,
+        new_offset_type: OffsetType,
     ) -> Result<(), PatchingError> {
         // typical gvar layout (see: https://learn.microsoft.com/en-us/typography/opentype/spec/gvar):
         //   Part 1 - Header
@@ -605,7 +659,11 @@ impl GlyphDataOffsetArray for Gvar<'_> {
         let part4_data = data.into();
 
         let original_offsets_range = self.shape().glyph_variation_data_offsets_byte_range();
-        if part2_offsets.len() != original_offsets_range.end - original_offsets_range.start {
+
+        // TODO(garretrieger): support changing offset sizes. At minimum will need to update the flag value.
+        if new_offset_type != self.offset_type()
+            || part2_offsets.len() != original_offsets_range.end - original_offsets_range.start
+        {
             // computed offsets array length should not have changed from the original offsets array length
             return Err(PatchingError::InternalError);
         }
