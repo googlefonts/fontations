@@ -349,7 +349,8 @@ impl<'a> ColorGlyph<'a> {
         location: impl Into<LocationRef<'a>>,
         painter: &mut impl ColorPainter,
     ) -> Result<(), PaintError> {
-        let instance = instance::ColrInstance::new(self.colr.clone(), location.into().coords());
+        let instance =
+            instance::ColrInstance::new(self.colr.clone(), location.into().effective_coords());
         let mut resolved_stops = traversal::ColorStopVec::default();
         match &self.root_paint_ref {
             ColorGlyphRoot::V1Paint(paint, paint_id, glyph_id, _) => {
