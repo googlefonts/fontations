@@ -230,8 +230,8 @@ impl MacRomanMapping {
     }
 }
 
-/// a lookup table for the Mac Moman encoding. this matches the values 128..=255
-/// to specific unicode values.
+/// A lookup table for the Mac Roman encoding. This matches the values `128..=255`
+/// to specific Unicode values.
 #[rustfmt::skip]
 static MAC_ROMAN_DECODE: [u16; 128] = [
     196, 197, 199, 201, 209, 214, 220, 225, 224, 226, 228, 227, 229, 231, 233,
@@ -246,7 +246,7 @@ static MAC_ROMAN_DECODE: [u16; 128] = [
     731, 711,
 ];
 
-/// A lookup pairing (sorted) unicode values to Mac Roman values
+/// A lookup pairing (sorted) Unicode values to Mac Roman values
 #[rustfmt::skip]
 static MAC_ROMAN_ENCODE: [(u16, u8); 128] = [
     (160, 202), (161, 193), (162, 162), (163, 163),

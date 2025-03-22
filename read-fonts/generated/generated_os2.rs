@@ -925,14 +925,14 @@ impl<'a> Os2<'a> {
         Some(self.data.read_at(range.start).unwrap())
     }
 
-    /// This is the Unicode code point, in UTF-16 encoding, of a character that
+    /// This is the Unicode codepoint, in UTF-16 encoding, of a character that
     /// can be used for a default glyph.
     pub fn us_default_char(&self) -> Option<u16> {
         let range = self.shape.us_default_char_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
-    /// his is the Unicode code point, in UTF-16 encoding, of a character that
+    /// This is the Unicode codepoint, in UTF-16 encoding, of a character that
     /// can be used as a default break character.
     pub fn us_break_char(&self) -> Option<u16> {
         let range = self.shape.us_break_char_byte_range()?;

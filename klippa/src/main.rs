@@ -30,7 +30,7 @@ struct Args {
     #[arg(short, long)]
     gids: Option<String>,
 
-    /// List of unicode codepoints
+    /// List of Unicode codepoints
     #[arg(short, long)]
     unicodes: Option<String>,
 

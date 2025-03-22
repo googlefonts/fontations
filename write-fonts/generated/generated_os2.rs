@@ -122,10 +122,10 @@ pub struct Os2 {
     /// This metric specifies the distance between the baseline and the
     /// approximate height of uppercase letters measured in FUnits.
     pub s_cap_height: Option<i16>,
-    /// This is the Unicode code point, in UTF-16 encoding, of a character that
+    /// This is the Unicode codepoint, in UTF-16 encoding, of a character that
     /// can be used for a default glyph.
     pub us_default_char: Option<u16>,
-    /// his is the Unicode code point, in UTF-16 encoding, of a character that
+    /// This is the Unicode codepoint, in UTF-16 encoding, of a character that
     /// can be used as a default break character.
     pub us_break_char: Option<u16>,
     /// This field is used for fonts with multiple optical styles.
