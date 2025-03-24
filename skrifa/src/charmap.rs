@@ -28,7 +28,9 @@ pub use read_fonts::tables::cmap::MapVariant;
 /// Mapping of characters to nominal glyph identifiers.
 ///
 /// The mappings are derived from the [cmap](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap)
-/// table.
+/// table. Depending on the font, the returned mapping may have entries that point to virtual/phantom glyph
+/// ids beyond the `num_glyphs` entry of the `maxp` table, which are only used during the shaping process,
+/// for example.
 ///
 /// ## Obtaining a Charmap
 ///
