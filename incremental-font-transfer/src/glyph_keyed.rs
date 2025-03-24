@@ -421,8 +421,7 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
     let new_offset_type = if total_data_size > offset_type.max_representable_size() {
         offset_array
             .available_offset_types()
-            .filter(|candidate_type| candidate_type.max_representable_size() >= total_data_size)
-            .next()
+            .find(|candidate_type| candidate_type.max_representable_size() >= total_data_size)
             .ok_or(PatchingError::SerializationError(
                 SerializeErrorFlags::SERIALIZE_ERROR_OFFSET_OVERFLOW,
             ))?
@@ -598,7 +597,6 @@ impl GlyphDataOffsetArray for Gvar<'_> {
     }
 
     fn available_offset_types(&self) -> impl Iterator<Item = OffsetType> {
-        // loca cannot change types so the only type available is what this already is.
         GVAR_OFFSET_TYPES.iter().copied()
     }
 
@@ -640,6 +638,8 @@ impl GlyphDataOffsetArray for Gvar<'_> {
         offsets: impl Into<Cow<'a, [u8]>>,
         new_offset_type: OffsetType,
     ) -> Result<(), PatchingError> {
+        const GVAR_FLAGS_OFFSET: usize = 15;
+
         // typical gvar layout (see: https://learn.microsoft.com/en-us/typography/opentype/spec/gvar):
         //   Part 1 - Header
         //   Part 2 - glyphVariationDataOffsets[glyphCount + 1]
@@ -660,17 +660,31 @@ impl GlyphDataOffsetArray for Gvar<'_> {
 
         let original_offsets_range = self.shape().glyph_variation_data_offsets_byte_range();
 
-        // TODO(garretrieger): support changing offset sizes. At minimum will need to update the flag value.
-        if new_offset_type != self.offset_type()
-            || part2_offsets.len() != original_offsets_range.end - original_offsets_range.start
+        if new_offset_type == self.offset_type()
+            && part2_offsets.len() != original_offsets_range.end - original_offsets_range.start
         {
             // computed offsets array length should not have changed from the original offsets array length
+            // if offset type is not changing.
             return Err(PatchingError::InternalError);
         }
 
-        let part1_header = orig_bytes
-            .get(0..original_offsets_range.start)
+        let part1_header_pre_flag = orig_bytes
+            .get(0..GVAR_FLAGS_OFFSET)
             .ok_or(PatchingError::InternalError)?;
+
+        let part1_header_post_flag = orig_bytes
+            .get(GVAR_FLAGS_OFFSET + 1..original_offsets_range.start)
+            .ok_or(PatchingError::InternalError)?;
+
+        let mut flags: u8 = orig_bytes
+            .get(GVAR_FLAGS_OFFSET)
+            .copied()
+            .ok_or(PatchingError::InternalError)?;
+        if new_offset_type.offset_width() == 4 {
+            flags |= 0b00000001;
+        } else {
+            flags &= 0b11111110;
+        }
 
         let max_new_size = orig_size + part4_data.len();
         let mut serializer = Serializer::new(max_new_size);
@@ -678,7 +692,9 @@ impl GlyphDataOffsetArray for Gvar<'_> {
         // part 1 and 2 - write gvar header and offsets
         serializer
             .start_serialize()
-            .and(serializer.embed_bytes(part1_header))
+            .and(serializer.embed_bytes(part1_header_pre_flag))
+            .and(serializer.embed(flags))
+            .and(serializer.embed_bytes(part1_header_post_flag))
             .and(serializer.embed_bytes(&part2_offsets))
             .map_err(PatchingError::from)?;
 
@@ -769,11 +785,11 @@ pub(crate) mod tests {
         ift::{
             glyf_and_gvar_u16_glyph_patches, glyf_u16_glyph_patches, glyf_u16_glyph_patches_2,
             glyph_keyed_patch_header, long_gvar_with_shared_tuples, noop_glyf_glyph_patches,
-            out_of_order_gvar_with_shared_tuples, short_gvar_with_no_shared_tuples,
-            short_gvar_with_shared_tuples,
+            out_of_order_gvar_with_shared_tuples, short_gvar_near_maximum_offset_size,
+            short_gvar_with_no_shared_tuples, short_gvar_with_shared_tuples,
         },
     };
-    use skrifa::{FontRef, Tag};
+    use skrifa::{FontRef, GlyphId, Tag};
 
     use crate::{
         font_patch::PatchingError,
@@ -1361,6 +1377,79 @@ pub(crate) mod tests {
             b'r', 0u8, // gid 8
         ]);
         assert_eq!(&expected_gvar, new_gvar);
+    }
+
+    #[test]
+    fn glyph_keyed_gvar_requires_offset_type_switch() {
+        let patch = assemble_glyph_keyed_patch(
+            glyph_keyed_patch_header(),
+            glyf_and_gvar_u16_glyph_patches(),
+        );
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(IFT_TAG, 0);
+
+        let gvar = short_gvar_near_maximum_offset_size();
+
+        let font = test_font_for_patching_with_loca_mod(
+            true,
+            |_| {},
+            HashMap::from([
+                (Gvar::TAG, gvar.as_slice()),
+                (Tag::new(b"IFT "), vec![0, 0, 0, 0].as_slice()),
+            ]),
+        );
+        let font = FontRef::new(&font).unwrap();
+
+        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched = FontRef::new(&patched).unwrap();
+
+        let new_gvar: &[u8] = patched.table_data(Gvar::TAG).unwrap().as_bytes();
+        let new_gvar = FontData::new(new_gvar);
+        let new_gvar = Gvar::read(new_gvar).unwrap();
+
+        let gid0_data = vec![1u8; 131066];
+        assert_eq!(
+            new_gvar
+                .data_for_gid(GlyphId::new(0))
+                .unwrap()
+                .unwrap()
+                .as_bytes(),
+            &gid0_data
+        );
+
+        assert!(new_gvar.data_for_gid(GlyphId::new(1)).unwrap().is_none());
+
+        assert_eq!(
+            new_gvar
+                .data_for_gid(GlyphId::new(2))
+                .unwrap()
+                .unwrap()
+                .as_bytes(),
+            b"mn"
+        );
+
+        assert!(new_gvar.data_for_gid(GlyphId::new(6)).unwrap().is_none());
+
+        assert_eq!(
+            new_gvar
+                .data_for_gid(GlyphId::new(7))
+                .unwrap()
+                .unwrap()
+                .as_bytes(),
+            b"opq",
+        );
+
+        assert_eq!(
+            new_gvar
+                .data_for_gid(GlyphId::new(8))
+                .unwrap()
+                .unwrap()
+                .as_bytes(),
+            b"r",
+        );
+
+        assert!(new_gvar.data_for_gid(GlyphId::new(9)).unwrap().is_none());
     }
 
     #[test]
