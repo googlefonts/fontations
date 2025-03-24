@@ -380,23 +380,17 @@ impl ByteInfo {
 
 // This macro generates the byte info array at compile time.
 const NUM_U8S: usize = u8::MAX as usize + 1;
-macro_rules! generate_byte_info_array {
-    () => {{
-        const ARRAY: [ByteInfo; NUM_U8S] = {
-            let mut info = [ByteInfo::Invalid; NUM_U8S];
-            let mut i = 0;
-            while i < NUM_U8S {
-                info[i] = ByteInfo::new(i as u8);
-                i += 1;
-            }
-            info
-        };
-        ARRAY
-    }};
-}
 
 /// This maps each possiblue byte (u8) value to an enum which classifies how that value is handled during expansion.
-static BYTE_INFO_MAP: [ByteInfo; NUM_U8S] = generate_byte_info_array!();
+static BYTE_INFO_MAP: [ByteInfo; NUM_U8S] = {
+    let mut info = [ByteInfo::Invalid; NUM_U8S];
+    let mut i = 0;
+    while i < NUM_U8S {
+        info[i] = ByteInfo::new(i as u8);
+        i += 1;
+    }
+    info
+};
 
 #[cfg(test)]
 pub(crate) mod tests {
