@@ -3,6 +3,8 @@
 //! Used for incremental font transfer. Specification:
 //! <https://w3c.github.io/IFT/Overview.html>
 
+use std::iter::repeat;
+
 use font_types::{Int24, Tag, Uint24};
 
 use crate::{be_buffer, bebuffer::BeBuffer};
@@ -1018,6 +1020,71 @@ pub fn short_gvar_with_no_shared_tuples() -> BeBuffer {
     buffer.write_at("glyph_offset[13]", end_offset);
     buffer.write_at("glyph_offset[14]", end_offset);
     buffer.write_at("glyph_offset[15]", end_offset);
+
+    buffer
+}
+
+pub fn short_gvar_near_maximum_offset_size() -> BeBuffer {
+    // This is a short offset gvar table whose glyph data is at the maximum representable size with short offsets
+
+    // This gvar has the correct header and tuple structure but the per glyph variation data is not valid.
+    // Meant for testing with IFT glyph keyed patching which treats the per glyph data as opaque blobs.
+    let buffer = be_buffer! {
+      // HEADER
+      1u16,  // major version
+      0u16,  // minor version
+      1u16,  // axis count
+      {0u16: "shared_tuple_count"},
+      {0u32: "shared_tuples_offset"},
+      15u16, // glyph count
+      0u16,  // flags
+      {0u32: "glyph_variation_data_offset"},
+
+      // OFFSETS
+      {0u16: "glyph_offset[0]"},
+      {0u16: "glyph_offset[1]"},
+      {0u16: "glyph_offset[2]"},
+      {0u16: "glyph_offset[3]"},
+      {0u16: "glyph_offset[4]"},
+      {0u16: "glyph_offset[5]"},
+      {0u16: "glyph_offset[6]"},
+      {0u16: "glyph_offset[7]"},
+      {0u16: "glyph_offset[8]"},
+      {0u16: "glyph_offset[9]"},
+      {0u16: "glyph_offset[10]"},
+      {0u16: "glyph_offset[11]"},
+      {0u16: "glyph_offset[12]"},
+      {0u16: "glyph_offset[13]"},
+      {0u16: "glyph_offset[14]"},
+      {0u16: "glyph_offset[15]"},
+
+      // GLYPH VARIATION DATA
+      {1u8: "glyph_0"}
+    };
+
+    // Glyph 0
+    let mut buffer = buffer.extend(repeat(1u8).take(131065));
+
+    let data_offset = buffer.offset_for("glyph_0");
+    buffer.write_at("shared_tuples_offset", data_offset as u32);
+    buffer.write_at("glyph_variation_data_offset", data_offset as u32);
+
+    buffer.write_at("glyph_offset[0]", 0u16);
+    buffer.write_at("glyph_offset[1]", 65533u16);
+    buffer.write_at("glyph_offset[2]", 65533u16);
+    buffer.write_at("glyph_offset[3]", 65533u16);
+    buffer.write_at("glyph_offset[4]", 65533u16);
+    buffer.write_at("glyph_offset[5]", 65533u16);
+    buffer.write_at("glyph_offset[6]", 65533u16);
+    buffer.write_at("glyph_offset[7]", 65533u16);
+    buffer.write_at("glyph_offset[8]", 65533u16);
+    buffer.write_at("glyph_offset[9]", 65533u16);
+    buffer.write_at("glyph_offset[10]", 65533u16);
+    buffer.write_at("glyph_offset[11]", 65533u16);
+    buffer.write_at("glyph_offset[12]", 65533u16);
+    buffer.write_at("glyph_offset[13]", 65533u16);
+    buffer.write_at("glyph_offset[14]", 65533u16);
+    buffer.write_at("glyph_offset[15]", 65533u16);
 
     buffer
 }
