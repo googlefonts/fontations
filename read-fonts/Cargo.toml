@@ -41,6 +41,7 @@ bytemuck = { workspace = true }
 font-test-data = { workspace = true }
 criterion = "0.5.1"
 rand = "0.8.5"
+serde_json = { workspace = true }
 
 [[bench]]
 name = "int_set_benchmark"

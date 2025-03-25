@@ -1657,7 +1657,7 @@ mod tests {
         static ALL_POINTS: FontData = FontData::new(&[0]);
         let (all_points, _) = PackedPointNumbers::split_off_front(ALL_POINTS);
         // in which case the iterator just keeps incrementing until u16::MAX
-        assert_eq!(all_points.iter().count(), u16::MAX as _);
+        assert_eq!(all_points.iter().count(), u16::MAX as usize);
     }
 
     /// Test that we split properly when the coordinate boundary doesn't align

@@ -140,6 +140,10 @@ impl Domain for SmallInt {
         SmallInt::new(member.value())
     }
 
+    fn contains(value: u32) -> bool {
+        value <= Self::MAX_VALUE
+    }
+
     fn is_continuous() -> bool {
         true
     }
@@ -208,6 +212,10 @@ impl Domain for SmallEvenInt {
 
     fn from_u32(member: InDomain) -> SmallEvenInt {
         SmallEvenInt::new(member.value())
+    }
+
+    fn contains(value: u32) -> bool {
+        (value % 2) == 0 && value <= Self::MAX_VALUE
     }
 
     fn is_continuous() -> bool {

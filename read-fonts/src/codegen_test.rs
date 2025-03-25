@@ -86,7 +86,7 @@ pub mod offsets_arrays {
             .iter()
             .map(|x| x.unwrap())
             .collect::<Vec<_>>();
-        assert_eq!(kids[0].bytes, &[]);
+        assert!(kids[0].bytes.is_empty());
         assert_eq!(kids[1].bytes, &[1, 1]);
         assert_eq!(kids[2].bytes, &[7, 7, 7, 7, 7]);
         assert_eq!(table.other_field(), 0xdeadbeef)
