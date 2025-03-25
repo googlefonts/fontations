@@ -20,6 +20,7 @@ const PAGE_MASK: u32 = PAGE_BITS - 1;
 
 /// A fixed size (512 bits wide) page of bits that records integer set membership from `[0, 511]`.
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct BitPage {
     storage: [Element; PAGE_SIZE as usize],
     len: Cell<u32>,
@@ -408,7 +409,7 @@ mod test {
     #[test]
     fn test_iter_bit_indices() {
         let items: Vec<_> = Iter::new(0).collect();
-        assert_eq!(items, vec![]);
+        assert_eq!(items.len(), 0);
 
         let items: Vec<_> = Iter::new(1).collect();
         assert_eq!(items, vec![0]);
@@ -642,9 +643,9 @@ mod test {
     fn page_iter_after() {
         let mut page = BitPage::new_zeroes();
         let items: Vec<_> = page.iter_after(0).collect();
-        assert_eq!(items, vec![]);
+        assert!(items.is_empty());
         let items: Vec<_> = page.iter_after(256).collect();
-        assert_eq!(items, vec![]);
+        assert!(items.is_empty());
 
         page.insert(1);
         page.insert(12);
@@ -673,7 +674,7 @@ mod test {
         assert_eq!(items, vec![400, 511]);
 
         let items: Vec<_> = page.iter_after(511).collect();
-        assert_eq!(items, vec![]);
+        assert!(items.is_empty());
 
         let items: Vec<_> = page.iter_after(390).collect();
         assert_eq!(items, vec![400, 511]);
@@ -686,9 +687,9 @@ mod test {
     fn page_iter_after_rev() {
         let mut page = BitPage::new_zeroes();
         let items: Vec<_> = page.iter_after(0).collect();
-        assert_eq!(items, vec![]);
+        assert!(items.is_empty());
         let items: Vec<_> = page.iter_after(256).collect();
-        assert_eq!(items, vec![]);
+        assert!(items.is_empty());
 
         page.insert(1);
         page.insert(12);
@@ -717,7 +718,7 @@ mod test {
         assert_eq!(items, vec![511, 400]);
 
         let items: Vec<_> = page.iter_after(511).rev().collect();
-        assert_eq!(items, vec![]);
+        assert!(items.is_empty());
 
         let items: Vec<_> = page.iter_after(390).rev().collect();
         assert_eq!(items, vec![511, 400]);

@@ -14,6 +14,7 @@ const PAGE_BITS_LOG_2: u32 = PAGE_BITS.ilog2();
 
 /// An ordered integer (u32) set.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct BitSet {
     // TODO(garretrieger): consider a "small array" type instead of Vec.
     pages: Vec<BitPage>,
@@ -625,6 +626,7 @@ impl<'a> BitSetBuilder<'a> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct PageInfo {
     // index into pages vector of this page
     index: u32,
@@ -914,13 +916,13 @@ mod test {
         );
 
         assert_eq!(bitset.iter_after(3000).collect::<Vec<u32>>(), vec![3001]);
-        assert_eq!(bitset.iter_after(3001).collect::<Vec<u32>>(), vec![]);
-        assert_eq!(bitset.iter_after(3002).collect::<Vec<u32>>(), vec![]);
-        assert_eq!(bitset.iter_after(5000).collect::<Vec<u32>>(), vec![]);
-        assert_eq!(bitset.iter_after(u32::MAX).collect::<Vec<u32>>(), vec![]);
+        assert_eq!(bitset.iter_after(3001).count(), 0);
+        assert_eq!(bitset.iter_after(3002).count(), 0);
+        assert_eq!(bitset.iter_after(5000).count(), 0);
+        assert_eq!(bitset.iter_after(u32::MAX).count(), 0);
 
         bitset.insert(u32::MAX);
-        assert_eq!(bitset.iter_after(u32::MAX).collect::<Vec<u32>>(), vec![]);
+        assert_eq!(bitset.iter_after(u32::MAX).count(), 0);
         assert_eq!(
             bitset.iter_after(u32::MAX - 1).collect::<Vec<u32>>(),
             vec![u32::MAX]
@@ -931,7 +933,7 @@ mod test {
 
         assert_eq!(bitset.iter_after(510).collect::<Vec<u32>>(), vec![511, 512]);
         assert_eq!(bitset.iter_after(511).collect::<Vec<u32>>(), vec![512]);
-        assert_eq!(bitset.iter_after(512).collect::<Vec<u32>>(), vec![]);
+        assert!(bitset.iter_after(512).collect::<Vec<u32>>().is_empty());
     }
 
     #[test]
