@@ -11,6 +11,8 @@ use crate::{be_buffer, bebuffer::BeBuffer};
 
 pub static IFT_BASE: &[u8] = include_bytes!("../test_data/ttf/ift_base.ttf");
 
+pub static CFF_FONT: &[u8] = include_bytes!("../test_data/ttf/NotoSansJP-Regular.subset.otf");
+
 // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-1
 pub fn simple_format1() -> BeBuffer {
     let mut buffer = be_buffer! {
@@ -809,6 +811,56 @@ pub fn glyf_and_gvar_u16_glyph_patches() -> BeBuffer {
     let offset = buffer.offset_for("gvar_gid_8_data") as u32;
     buffer.write_at("gvar_gid_8_offset", offset);
     buffer.write_at("end_offset", offset + 1);
+
+    buffer
+}
+
+pub fn cff_u16_glyph_patches() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      4u32,       // glyph count
+      {1u8: "table_count"},        // table count
+
+      // 4 glyph ids
+      [1,      // first gid
+       38,
+       47,
+       59u16], // last gid
+
+      (Tag::new(b"CFF ")),   // tables * 1
+
+      // 5 glyph data offsets
+      {0u32: "gid_1_offset"},
+      {0u32: "gid_38_offset"},
+      {0u32: "gid_47_offset"},
+      {0u32: "gid_59_offset"},
+      {0u32: "end_offset"},
+
+      // data blocks
+      {b'a': "gid_1_data"},
+      [b'b', b'c'],
+
+      {b'd': "gid_38_data"},
+      [b'e', b'f', b'g'],
+
+      {b'h': "gid_47_data"},
+      [b'i', b'j', b'k', b'l'],
+
+      {b'm': "gid_59_data"},
+      [b'n']
+    };
+
+    let offset = buffer.offset_for("gid_1_data") as u32;
+    buffer.write_at("gid_1_offset", offset);
+
+    let offset = buffer.offset_for("gid_38_data") as u32;
+    buffer.write_at("gid_38_offset", offset);
+
+    let offset = buffer.offset_for("gid_47_data") as u32;
+    buffer.write_at("gid_47_offset", offset);
+
+    let offset = buffer.offset_for("gid_59_data") as u32;
+    buffer.write_at("gid_59_offset", offset);
+    buffer.write_at("end_offset", offset + 2);
 
     buffer
 }
