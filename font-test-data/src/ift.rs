@@ -3,7 +3,7 @@
 //! Used for incremental font transfer. Specification:
 //! <https://w3c.github.io/IFT/Overview.html>
 
-use std::iter::repeat;
+use std::iter;
 
 use font_types::{Int24, Tag, Uint24};
 
@@ -1063,7 +1063,7 @@ pub fn short_gvar_near_maximum_offset_size() -> BeBuffer {
     };
 
     // Glyph 0
-    let mut buffer = buffer.extend(repeat(1u8).take(131065));
+    let mut buffer = buffer.extend(iter::repeat(1u8).take(131065));
 
     let data_offset = buffer.offset_for("glyph_0");
     buffer.write_at("shared_tuples_offset", data_offset as u32);

@@ -11,18 +11,18 @@ use crate::table_keyed::copy_unprocessed_tables;
 use crate::{font_patch::PatchingError, patch_group::PatchInfo};
 
 use font_types::Scalar;
-use read_fonts::tables::glyf::Glyf;
-use read_fonts::tables::gvar::{Gvar, GvarFlags};
-use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
-use read_fonts::TopLevelTable;
+
 use read_fonts::{
     collections::IntSet,
     tables::{
+        glyf::Glyf,
+        gvar::{Gvar, GvarFlags},
         ift::{GlyphKeyedPatch, GlyphPatches},
+        ift::{IFTX_TAG, IFT_TAG},
         loca::Loca,
     },
     types::Tag,
-    FontData, FontRef, ReadError, TableProvider,
+    FontData, FontRef, ReadError, TableProvider, TopLevelTable,
 };
 
 use klippa::serialize::{OffsetWhence, SerializeErrorFlags, Serializer};
@@ -474,7 +474,7 @@ enum OffsetType {
 }
 
 impl OffsetType {
-    fn max_representable_size(&self) -> u64 {
+    fn max_representable_size(self) -> u64 {
         match self {
             Self::Long => (1 << 32) - 1,
             Self::ShortDivByTwo => ((1 << 16) - 1) * 2,
@@ -530,8 +530,6 @@ trait GlyphDataOffsetArray {
     ) -> Result<(), PatchingError>;
 }
 
-const LOCA_OFFSET_TYPES: [OffsetType; 2] = [OffsetType::ShortDivByTwo, OffsetType::Long];
-
 impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
     fn offset_type(&self) -> OffsetType {
         match self.loca {
@@ -541,11 +539,7 @@ impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
     }
 
     fn available_offset_types(&self) -> impl Iterator<Item = OffsetType> {
-        // loca cannot change types so the only type available is what this already is.
-        LOCA_OFFSET_TYPES
-            .iter()
-            .copied()
-            .filter(|offset_type| *offset_type == self.offset_type())
+        std::iter::once(self.offset_type())
     }
 
     fn offset_for(&self, gid: GlyphId) -> Result<u32, PatchingError> {
@@ -585,8 +579,6 @@ impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
     }
 }
 
-const GVAR_OFFSET_TYPES: [OffsetType; 2] = [OffsetType::ShortDivByTwo, OffsetType::Long];
-
 impl GlyphDataOffsetArray for Gvar<'_> {
     fn offset_type(&self) -> OffsetType {
         if self.flags().contains(GvarFlags::LONG_OFFSETS) {
@@ -597,6 +589,7 @@ impl GlyphDataOffsetArray for Gvar<'_> {
     }
 
     fn available_offset_types(&self) -> impl Iterator<Item = OffsetType> {
+        const GVAR_OFFSET_TYPES: [OffsetType; 2] = [OffsetType::ShortDivByTwo, OffsetType::Long];
         GVAR_OFFSET_TYPES.iter().copied()
     }
 
