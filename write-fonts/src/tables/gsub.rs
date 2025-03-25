@@ -10,8 +10,7 @@ use super::layout::{
 };
 
 #[cfg(test)]
-#[path = "../tests/test_gsub.rs"]
-mod tests;
+mod spec_tests;
 
 /// A GSUB lookup list table.
 pub type SubstitutionLookupList = LookupList<SubstitutionLookup>;

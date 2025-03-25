@@ -17,10 +17,8 @@ use super::{
 };
 
 #[cfg(test)]
-#[path = "../tests/test_gpos.rs"]
 mod spec_tests;
 
-#[path = "./value_record.rs"]
 mod value_record;
 pub use value_record::ValueRecord;
 
