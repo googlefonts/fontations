@@ -152,4 +152,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: check typos
-        uses: crate-ci/typos@v1.29.9
+        uses: crate-ci/typos@v1.30.2
