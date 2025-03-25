@@ -11,21 +11,20 @@ use crate::table_keyed::copy_unprocessed_tables;
 use crate::{font_patch::PatchingError, patch_group::PatchInfo};
 
 use font_types::{Scalar, Uint24};
-use read_fonts::tables::cff::Cff;
-use read_fonts::tables::cff2::Cff2;
-use read_fonts::tables::postscript::{dict, Index1};
-use read_fonts::FontRead;
 use read_fonts::{
     collections::IntSet,
     tables::{
+        cff::Cff,
+        cff2::Cff2,
         glyf::Glyf,
         gvar::{Gvar, GvarFlags},
         ift::{GlyphKeyedPatch, GlyphPatches},
         ift::{IFTX_TAG, IFT_TAG},
         loca::Loca,
+        postscript::{dict, Index1},
     },
     types::Tag,
-    FontData, FontRef, ReadError, TableProvider, TopLevelTable,
+    FontData, FontRead, FontRef, ReadError, TableProvider, TopLevelTable,
 };
 
 use klippa::serialize::{OffsetWhence, SerializeErrorFlags, Serializer};
