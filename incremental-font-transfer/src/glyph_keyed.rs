@@ -10,7 +10,7 @@ use crate::patchmap::IftTableTag;
 use crate::table_keyed::copy_unprocessed_tables;
 use crate::{font_patch::PatchingError, patch_group::PatchInfo};
 
-use font_types::Scalar;
+use font_types::{Scalar, Uint24};
 use read_fonts::tables::cff::Cff;
 use read_fonts::tables::cff2::Cff2;
 use read_fonts::tables::postscript::{dict, Index1};
@@ -285,6 +285,13 @@ impl WritableOffset for u32 {
     }
 }
 
+impl WritableOffset for Uint24 {
+    fn write_to(self, dest: &mut [u8]) {
+        let data: [u8; 3] = self.to_raw();
+        dest[..3].copy_from_slice(&data);
+    }
+}
+
 impl WritableOffset for u16 {
     fn write_to(self, dest: &mut [u8]) {
         let data: [u8; 2] = self.to_raw();
@@ -302,6 +309,7 @@ impl WritableOffset for u8 {
 fn synthesize_offset_array<
     const DIV: usize,
     const BIAS: usize,
+    const OFF_SIZE: usize,
     OffsetType: WritableOffset + TryFrom<usize>,
     T: GlyphDataOffsetArray,
 >(
@@ -322,7 +330,6 @@ fn synthesize_offset_array<
     let mut keep_it = retained_glyphs_in_font(gids, max_glyph_id).peekable();
     let mut replacement_data_it = replacement_data.iter();
     let mut write_index = 0;
-    let off_size = std::mem::size_of::<OffsetType>();
 
     loop {
         let (range, replace) = match (replace_it.peek(), keep_it.peek()) {
@@ -357,7 +364,7 @@ fn synthesize_offset_array<
 
                 new_off.write_to(
                     new_offsets
-                        .get_mut(gid as usize * off_size..)
+                        .get_mut(gid as usize * OFF_SIZE..)
                         .ok_or(PatchingError::InternalError)?,
                 );
 
@@ -392,7 +399,7 @@ fn synthesize_offset_array<
                     .map_err(|_| PatchingError::InternalError)?;
                 new_off.write_to(
                     new_offsets
-                        .get_mut(gid as usize * off_size..)
+                        .get_mut(gid as usize * OFF_SIZE..)
                         .ok_or(PatchingError::InternalError)?,
                 );
             }
@@ -407,7 +414,7 @@ fn synthesize_offset_array<
         .map_err(|_| PatchingError::InternalError)?;
     new_off.write_to(
         new_offsets
-            .get_mut(new_offsets.len() - off_size..)
+            .get_mut(new_offsets.len() - OFF_SIZE..)
             .ok_or(PatchingError::InternalError)?,
     );
 
@@ -463,7 +470,7 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
     let mut new_offsets = vec![0u8; offsets_size];
     match new_offset_type {
         // Bias 1 offsets
-        OffsetType::CffOne => synthesize_offset_array::<1, 1, u8, _>(
+        OffsetType::CffOne => synthesize_offset_array::<1, 1, 1, u8, _>(
             &gids,
             max_glyph_id,
             &replacement_data,
@@ -471,7 +478,7 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
             new_data.as_mut_slice(),
             new_offsets.as_mut_slice(),
         )?,
-        OffsetType::CffTwo => synthesize_offset_array::<1, 1, u16, _>(
+        OffsetType::CffTwo => synthesize_offset_array::<1, 1, 2, u16, _>(
             &gids,
             max_glyph_id,
             &replacement_data,
@@ -479,8 +486,15 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
             new_data.as_mut_slice(),
             new_offsets.as_mut_slice(),
         )?,
-        OffsetType::CffThree => todo!(),
-        OffsetType::CffFour => synthesize_offset_array::<1, 1, u32, _>(
+        OffsetType::CffThree => synthesize_offset_array::<1, 1, 3, Uint24, _>(
+            &gids,
+            max_glyph_id,
+            &replacement_data,
+            &offset_array,
+            new_data.as_mut_slice(),
+            new_offsets.as_mut_slice(),
+        )?,
+        OffsetType::CffFour => synthesize_offset_array::<1, 1, 4, u32, _>(
             &gids,
             max_glyph_id,
             &replacement_data,
@@ -489,7 +503,7 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
             new_offsets.as_mut_slice(),
         )?,
         // Bias 0 offsets
-        OffsetType::ShortDivByTwo => synthesize_offset_array::<2, 0, u16, _>(
+        OffsetType::ShortDivByTwo => synthesize_offset_array::<2, 0, 2, u16, _>(
             &gids,
             max_glyph_id,
             &replacement_data,
@@ -497,7 +511,7 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
             new_data.as_mut_slice(),
             new_offsets.as_mut_slice(),
         )?,
-        OffsetType::Long => synthesize_offset_array::<1, 0, u32, _>(
+        OffsetType::Long => synthesize_offset_array::<1, 0, 4, u32, _>(
             &gids,
             max_glyph_id,
             &replacement_data,
@@ -992,6 +1006,7 @@ pub(crate) mod tests {
     use std::{
         collections::{BTreeSet, HashMap},
         io::Write,
+        iter,
     };
 
     use brotlic::CompressorWriter;
@@ -1976,7 +1991,67 @@ pub(crate) mod tests {
         assert_eq!(b"mn", new_cff.charstrings.get(59).unwrap());
     }
 
-    // TODO XXXX CFF test with upgraded offset sizesq
+    #[test]
+    fn cff_patching_changes_offset_size() {
+        let patch_buffer = cff_u16_glyph_patches();
+        let mut patch_buffer = patch_buffer.extend(iter::repeat(42u8).take(70_000));
+        patch_buffer.write_at("end_offset", patch_buffer.len() as u32);
+
+        let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), patch_buffer);
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(IFT_TAG, 0);
+
+        let cff_font = FontRef::new(CFF_FONT).unwrap();
+        let mut font_builder = FontBuilder::new();
+        font_builder.copy_missing_tables(cff_font);
+        let ift_data = vec![0, 0, 0, 0];
+        font_builder.add_raw(Tag::new(b"IFT "), ift_data.as_slice());
+
+        let cff_font_data = font_builder.build();
+        let cff_font = FontRef::new(cff_font_data.as_slice()).unwrap();
+
+        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &cff_font).unwrap();
+        let patched = FontRef::new(&patched).unwrap();
+
+        let old_cff = CFFAndCharStrings::from_font(&cff_font, GlyphId::new(59)).unwrap();
+        let new_cff = CFFAndCharStrings::from_font(&patched, GlyphId::new(59)).unwrap();
+
+        assert_eq!(new_cff.charstrings.off_size(), 3);
+        assert_eq!(old_cff.charstrings.count(), new_cff.charstrings.count());
+
+        // Unmodified glyphs
+        assert_eq!(
+            old_cff.charstrings.get(0).unwrap(),
+            new_cff.charstrings.get(0).unwrap()
+        );
+        assert_eq!(
+            old_cff.charstrings.get(2).unwrap(),
+            new_cff.charstrings.get(2).unwrap()
+        );
+        assert_eq!(
+            old_cff.charstrings.get(34).unwrap(),
+            new_cff.charstrings.get(34).unwrap()
+        );
+        assert_eq!(
+            old_cff.charstrings.get(37).unwrap(),
+            new_cff.charstrings.get(37).unwrap()
+        );
+        assert_eq!(
+            old_cff.charstrings.get(39).unwrap(),
+            new_cff.charstrings.get(39).unwrap()
+        );
+
+        // Inserted glyphs
+        assert_eq!(b"abc", new_cff.charstrings.get(1).unwrap());
+        assert_eq!(b"defg", new_cff.charstrings.get(38).unwrap());
+        assert_eq!(b"hijkl", new_cff.charstrings.get(47).unwrap());
+        assert_eq!(
+            [b'm', b'n', 42, 42, 42],
+            &new_cff.charstrings.get(59).unwrap()[0..5]
+        );
+        assert_eq!(70_002, new_cff.charstrings.get(59).unwrap().len());
+    }
 
     // TODO test of invalid cases:
     // - patch data offsets unordered.
