@@ -611,19 +611,13 @@ impl CFFAndCharStrings<'_> {
 
         // Where offsets are relative too, from the spec: the byte that precedes object
         // data.
-        let offset_base = charstrings
-            .shape()
-            .data_byte_range()
-            .start
-            .checked_sub(1)
-            .ok_or(ReadError::MalformedData("Invalid data start."))?;
-
+        let offset_base = charstrings.shape().data_byte_range().start;
         let charstrings_object_data = charstrings_data
             .split_off(offset_base)
             .ok_or(ReadError::OutOfBounds)?
             .as_bytes();
 
-        if charstrings.count() as u32 != max_glyph_id.to_u32() {
+        if charstrings.count() as u32 != max_glyph_id.to_u32() + 1 {
             return Err(ReadError::MalformedData(
                 "CFF charstrings glyph count does not match maxp's.",
             ));
@@ -987,6 +981,7 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
         // Generate the final output
         serializer.end_serialize();
         let new_cff = serializer.copy_bytes();
+
         font_builder.add_raw(Cff::TAG, new_cff);
         Ok(())
     }
@@ -1013,13 +1008,15 @@ pub(crate) mod tests {
     use font_test_data::{
         bebuffer::BeBuffer,
         ift::{
-            glyf_and_gvar_u16_glyph_patches, glyf_u16_glyph_patches, glyf_u16_glyph_patches_2,
-            glyph_keyed_patch_header, long_gvar_with_shared_tuples, noop_glyf_glyph_patches,
-            out_of_order_gvar_with_shared_tuples, short_gvar_near_maximum_offset_size,
-            short_gvar_with_no_shared_tuples, short_gvar_with_shared_tuples,
+            cff_u16_glyph_patches, glyf_and_gvar_u16_glyph_patches, glyf_u16_glyph_patches,
+            glyf_u16_glyph_patches_2, glyph_keyed_patch_header, long_gvar_with_shared_tuples,
+            noop_glyf_glyph_patches, out_of_order_gvar_with_shared_tuples,
+            short_gvar_near_maximum_offset_size, short_gvar_with_no_shared_tuples,
+            short_gvar_with_shared_tuples, CFF_FONT,
         },
     };
     use skrifa::{FontRef, GlyphId, Tag};
+    use write_fonts::FontBuilder;
 
     use crate::{
         font_patch::PatchingError,
@@ -1028,7 +1025,7 @@ pub(crate) mod tests {
         testdata::{test_font_for_patching, test_font_for_patching_with_loca_mod},
     };
 
-    use super::{IftTableTag, PatchInfo};
+    use super::{CFFAndCharStrings, IftTableTag, PatchInfo};
 
     pub(crate) fn assemble_glyph_keyed_patch(mut header: BeBuffer, payload: BeBuffer) -> BeBuffer {
         let payload_data: &[u8] = &payload;
@@ -1703,7 +1700,7 @@ pub(crate) mod tests {
     #[test]
     fn glyph_keyed_unsupported_table() {
         let mut patch = glyf_and_gvar_u16_glyph_patches();
-        patch.write_at("glyf_tag", Tag::new(b"CFF "));
+        patch.write_at("glyf_tag", Tag::new(b"CFF2"));
         let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), patch);
         let patch: &[u8] = &patch;
         let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
@@ -1715,7 +1712,7 @@ pub(crate) mod tests {
         assert_eq!(
             apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
             Err(PatchingError::InvalidPatch(
-                "CFF and CFF2 patches are not yet supported."
+                "CFF2 patches are not yet supported."
             ))
         );
     }
@@ -1924,6 +1921,62 @@ pub(crate) mod tests {
             ))),
         );
     }
+
+    #[test]
+    fn cff_patching() {
+        let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), cff_u16_glyph_patches());
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(IFT_TAG, 0);
+
+        let cff_font = FontRef::new(CFF_FONT).unwrap();
+        let mut font_builder = FontBuilder::new();
+        font_builder.copy_missing_tables(cff_font);
+        let ift_data = vec![0, 0, 0, 0];
+        font_builder.add_raw(Tag::new(b"IFT "), ift_data.as_slice());
+
+        let cff_font_data = font_builder.build();
+        let cff_font = FontRef::new(cff_font_data.as_slice()).unwrap();
+
+        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &cff_font).unwrap();
+        let patched = FontRef::new(&patched).unwrap();
+
+        let old_cff = CFFAndCharStrings::from_font(&cff_font, GlyphId::new(59)).unwrap();
+        let new_cff = CFFAndCharStrings::from_font(&patched, GlyphId::new(59)).unwrap();
+
+        assert_eq!(new_cff.charstrings.off_size(), 2);
+        assert_eq!(old_cff.charstrings.count(), new_cff.charstrings.count());
+
+        // Unmodified glyphs
+        assert_eq!(
+            old_cff.charstrings.get(0).unwrap(),
+            new_cff.charstrings.get(0).unwrap()
+        );
+        assert_eq!(
+            old_cff.charstrings.get(2).unwrap(),
+            new_cff.charstrings.get(2).unwrap()
+        );
+        assert_eq!(
+            old_cff.charstrings.get(34).unwrap(),
+            new_cff.charstrings.get(34).unwrap()
+        );
+        assert_eq!(
+            old_cff.charstrings.get(37).unwrap(),
+            new_cff.charstrings.get(37).unwrap()
+        );
+        assert_eq!(
+            old_cff.charstrings.get(39).unwrap(),
+            new_cff.charstrings.get(39).unwrap()
+        );
+
+        // Inserted glyphs
+        assert_eq!(b"abc", new_cff.charstrings.get(1).unwrap());
+        assert_eq!(b"defg", new_cff.charstrings.get(38).unwrap());
+        assert_eq!(b"hijkl", new_cff.charstrings.get(47).unwrap());
+        assert_eq!(b"mn", new_cff.charstrings.get(59).unwrap());
+    }
+
+    // TODO XXXX CFF test with upgraded offset sizesq
 
     // TODO test of invalid cases:
     // - patch data offsets unordered.
