@@ -301,6 +301,7 @@ impl WritableOffset for u8 {
 
 fn synthesize_offset_array<
     const DIV: usize,
+    const BIAS: usize,
     OffsetType: WritableOffset + TryFrom<usize>,
     T: GlyphDataOffsetArray,
 >(
@@ -350,7 +351,7 @@ fn synthesize_offset_array<
                     .ok_or(PatchingError::InternalError)?
                     .copy_from_slice(data);
 
-                let new_off: OffsetType = (write_index / DIV)
+                let new_off: OffsetType = ((write_index / DIV) + BIAS)
                     .try_into()
                     .map_err(|_| PatchingError::InternalError)?;
 
@@ -386,7 +387,7 @@ fn synthesize_offset_array<
                 let cur_off = offset_array.offset_for(gid.into())? as usize;
                 let new_off = cur_off - start_off + write_index;
 
-                let new_off: OffsetType = (new_off / DIV)
+                let new_off: OffsetType = ((new_off / DIV) + BIAS)
                     .try_into()
                     .map_err(|_| PatchingError::InternalError)?;
                 new_off.write_to(
@@ -401,7 +402,7 @@ fn synthesize_offset_array<
     }
 
     // Write the last offset
-    let new_off: OffsetType = (write_index / DIV)
+    let new_off: OffsetType = ((write_index / DIV) + BIAS)
         .try_into()
         .map_err(|_| PatchingError::InternalError)?;
     new_off.write_to(
@@ -461,7 +462,8 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
     let mut new_data = vec![0u8; total_data_size as usize];
     let mut new_offsets = vec![0u8; offsets_size];
     match new_offset_type {
-        OffsetType::One => synthesize_offset_array::<1, u8, _>(
+        // Bias 1 offsets
+        OffsetType::CffOne => synthesize_offset_array::<1, 1, u8, _>(
             &gids,
             max_glyph_id,
             &replacement_data,
@@ -469,7 +471,7 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
             new_data.as_mut_slice(),
             new_offsets.as_mut_slice(),
         )?,
-        OffsetType::Two(OffsetDivisor::None) => synthesize_offset_array::<1, u16, _>(
+        OffsetType::CffTwo => synthesize_offset_array::<1, 1, u16, _>(
             &gids,
             max_glyph_id,
             &replacement_data,
@@ -477,7 +479,8 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
             new_data.as_mut_slice(),
             new_offsets.as_mut_slice(),
         )?,
-        OffsetType::Two(OffsetDivisor::Half) => synthesize_offset_array::<2, u16, _>(
+        OffsetType::CffThree => todo!(),
+        OffsetType::CffFour => synthesize_offset_array::<1, 1, u32, _>(
             &gids,
             max_glyph_id,
             &replacement_data,
@@ -485,8 +488,16 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
             new_data.as_mut_slice(),
             new_offsets.as_mut_slice(),
         )?,
-        OffsetType::Three => todo!(),
-        OffsetType::Four => synthesize_offset_array::<1, u32, _>(
+        // Bias 0 offsets
+        OffsetType::ShortDivByTwo => synthesize_offset_array::<2, 0, u16, _>(
+            &gids,
+            max_glyph_id,
+            &replacement_data,
+            &offset_array,
+            new_data.as_mut_slice(),
+            new_offsets.as_mut_slice(),
+        )?,
+        OffsetType::Long => synthesize_offset_array::<1, 0, u32, _>(
             &gids,
             max_glyph_id,
             &replacement_data,
@@ -505,38 +516,46 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
 /// Classifies the different style of offsets that can be used in a data offset array.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum OffsetType {
-    One,
-    Two(OffsetDivisor),
-    Three,
-    Four,
-}
+    // CFF needs it's own offset types since CFF offsets have a 1 byte bias.
+    CffOne,
+    CffTwo,
+    CffThree,
+    CffFour,
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum OffsetDivisor {
-    None,
-    Half,
+    // For gvar, loca, glyf
+    ShortDivByTwo,
+    Long,
 }
 
 impl OffsetType {
     fn max_representable_size(self) -> u64 {
         match self {
-            Self::Two(OffsetDivisor::Half) => ((1 << 16) - 1) * 2,
-            _ => (1 << (self.offset_width() * 8)) - 1,
+            Self::ShortDivByTwo => ((1 << 16) - 1) * 2,
+            _ => (1 << (self.offset_width() * 8)) - 1 - self.offset_bias() as u64,
         }
     }
 
     fn offset_width(&self) -> usize {
         match self {
-            Self::One => 1,
-            Self::Two(_) => 2,
-            Self::Three => 3,
-            Self::Four => 4,
+            Self::CffOne => 1,
+            Self::CffTwo => 2,
+            Self::CffThree => 3,
+            Self::CffFour => 4,
+            Self::ShortDivByTwo => 2,
+            Self::Long => 4,
         }
     }
 
     fn offset_divisor(&self) -> u64 {
         match self {
-            Self::Two(OffsetDivisor::Half) => 2,
+            Self::ShortDivByTwo => 2,
+            _ => 1,
+        }
+    }
+
+    fn offset_bias(&self) -> u32 {
+        match self {
+            Self::ShortDivByTwo | Self::Long => 0,
             _ => 1,
         }
     }
@@ -579,10 +598,10 @@ impl CFFAndCharStrings<'_> {
         let charstrings = Index1::read(charstrings_data)?;
 
         let offset_type = match charstrings.off_size() {
-            1 => OffsetType::One,
-            2 => OffsetType::Two(OffsetDivisor::None),
-            3 => OffsetType::Three,
-            4 => OffsetType::Four,
+            1 => OffsetType::CffOne,
+            2 => OffsetType::CffTwo,
+            3 => OffsetType::CffThree,
+            4 => OffsetType::CffFour,
             _ => {
                 return Err(ReadError::MalformedData(
                     "Invalid charstrings offset size (is not 1, 2, 3, or 4).",
@@ -661,8 +680,8 @@ trait GlyphDataOffsetArray {
 impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
     fn offset_type(&self) -> OffsetType {
         match self.loca {
-            Loca::Short(_) => OffsetType::Two(OffsetDivisor::Half),
-            Loca::Long(_) => OffsetType::Four,
+            Loca::Short(_) => OffsetType::ShortDivByTwo,
+            Loca::Long(_) => OffsetType::Long,
         }
     }
 
@@ -710,14 +729,14 @@ impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
 impl GlyphDataOffsetArray for Gvar<'_> {
     fn offset_type(&self) -> OffsetType {
         if self.flags().contains(GvarFlags::LONG_OFFSETS) {
-            OffsetType::Four
+            OffsetType::Long
         } else {
-            OffsetType::Two(OffsetDivisor::Half)
+            OffsetType::ShortDivByTwo
         }
     }
 
     fn available_offset_types(&self) -> impl Iterator<Item = OffsetType> {
-        [OffsetType::Two(OffsetDivisor::Half), OffsetType::Four]
+        [OffsetType::ShortDivByTwo, OffsetType::Long]
             .iter()
             .copied()
     }
@@ -891,10 +910,10 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
 
     fn available_offset_types(&self) -> impl Iterator<Item = OffsetType> {
         [
-            OffsetType::One,
-            OffsetType::Two(OffsetDivisor::None),
-            OffsetType::Three,
-            OffsetType::Four,
+            OffsetType::CffOne,
+            OffsetType::CffTwo,
+            OffsetType::CffThree,
+            OffsetType::CffFour,
         ]
         .iter()
         .copied()
@@ -940,9 +959,6 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
         // 1. Copy everything preceeding charstrings unmodified into the new table.
         // 2. Synthesize a new charstrings to the requested offset size.
 
-        // TODO(garretrieger): XXXX when CFF offset array is produced it must include a +1 to each offset value,
-        //                     since CFF offsets are relative to the byte preceeding object data.
-
         let offset_data: &[u8] = &offsets.into();
         let outline_data: &[u8] = &data.into();
         let max_new_size = self.charstrings_offset + // this is the size of everything other than charstrings
@@ -966,7 +982,7 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
             .and(serializer.embed(offset_type.offset_width() as u8))
             .and(serializer.embed_bytes(offset_data))
             .and(serializer.embed_bytes(outline_data))
-            .map_err(|e| PatchingError::SerializationError(e))?;
+            .map_err(PatchingError::SerializationError)?;
 
         // Generate the final output
         serializer.end_serialize();
