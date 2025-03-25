@@ -809,9 +809,9 @@ impl GlyphDataOffsetArray for Gvar<'_> {
         }
 
         let max_new_size = orig_size + part4_data.len();
-        let mut serializer = Serializer::new(max_new_size);
 
         // part 1 and 2 - write gvar header and offsets
+        let mut serializer = Serializer::new(max_new_size);
         serializer
             .start_serialize()
             .and(serializer.embed_bytes(part1_header_pre_flag))
@@ -933,12 +933,46 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
         offsets: impl Into<Cow<'a, [u8]>>,
         offset_type: OffsetType,
     ) -> Result<(), PatchingError> {
-        // TODO(garretrieger): implement me, including offset size upgrading as needed.
-        // - first copy everything before charstrings as is, this is OK because charstrings is gauranteed to be at
-        //   the end of the table (by the IFT spec).
-        // - second reconstruct the new charstrings table using the supplied offset size.
+        // The IFT specification requires that for IFT fonts CFF tables must have the charstrings data
+        // at the end and not overlapping anything (see: https://w3c.github.io/IFT/Overview.html#cff).
+        //
+        // This allows us to significantly simplify the CFF table reconstruction in this method:
+        // 1. Copy everything preceeding charstrings unmodified into the new table.
+        // 2. Synthesize a new charstrings to the requested offset size.
 
-        todo!()
+        // TODO(garretrieger): XXXX when CFF offset array is produced it must include a +1 to each offset value,
+        //                     since CFF offsets are relative to the byte preceeding object data.
+
+        let offset_data: &[u8] = &offsets.into();
+        let outline_data: &[u8] = &data.into();
+        let max_new_size = self.charstrings_offset + // this is the size of everything other than charstrings
+            outline_data.len() +
+            offset_data.len() +
+            3; // fixed size of INDEX structures.
+
+        let mut serializer = Serializer::new(max_new_size);
+
+        // Part 1 - Non charstrings data.
+        let r = serializer.start_serialize().and(
+            serializer.embed_bytes(
+                self.cff_data
+                    .get(0..self.charstrings_offset)
+                    .ok_or(PatchingError::FontParsingFailed(ReadError::OutOfBounds))?,
+            ),
+        );
+
+        // Part 2 - Charstrings data.
+        r.and(serializer.embed(self.charstrings.count()))
+            .and(serializer.embed(offset_type.offset_width() as u8))
+            .and(serializer.embed_bytes(offset_data))
+            .and(serializer.embed_bytes(outline_data))
+            .map_err(|e| PatchingError::SerializationError(e))?;
+
+        // Generate the final output
+        serializer.end_serialize();
+        let new_cff = serializer.copy_bytes();
+        font_builder.add_raw(Cff::TAG, new_cff);
+        Ok(())
     }
 }
 
