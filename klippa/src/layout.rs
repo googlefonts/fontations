@@ -1,5 +1,7 @@
 //! impl subset() for layout common tables
 
+use std::cmp::Ordering;
+
 use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, NameIdClosure, Plan, SubsetTable,
@@ -10,8 +12,9 @@ use write_fonts::{
         collections::IntSet,
         tables::layout::{
             CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2, ClassRangeRecord,
-            CoverageTable, DeltaFormat, Device, DeviceOrVariationIndex, Feature, FeatureParams,
-            SizeParams, StylisticSetParams, VariationIndex,
+            CoverageFormat1, CoverageFormat2, CoverageTable, DeltaFormat, Device,
+            DeviceOrVariationIndex, Feature, FeatureParams, RangeRecord, SizeParams,
+            StylisticSetParams, VariationIndex,
         },
         types::{GlyphId, GlyphId16, NameId},
     },
@@ -365,14 +368,13 @@ fn classdef_remap_and_serialize(
 }
 
 trait Serialize<'a> {
+    type Args: 'a;
     /// Serialize this table
-    fn serialize(
-        s: &mut Serializer,
-        new_gid_classes: &[(u16, u16)],
-    ) -> Result<(), SerializeErrorFlags>;
+    fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags>;
 }
 
 impl<'a> Serialize<'a> for ClassDef<'a> {
+    type Args = &'a [(u16, u16)];
     fn serialize(
         s: &mut Serializer,
         new_gid_classes: &[(u16, u16)],
@@ -412,6 +414,7 @@ impl<'a> Serialize<'a> for ClassDef<'a> {
 }
 
 impl<'a> Serialize<'a> for ClassDefFormat1<'a> {
+    type Args = &'a [(u16, u16)];
     fn serialize(
         s: &mut Serializer,
         new_gid_classes: &[(u16, u16)],
@@ -455,6 +458,7 @@ impl<'a> Serialize<'a> for ClassDefFormat1<'a> {
 }
 
 impl<'a> Serialize<'a> for ClassDefFormat2<'a> {
+    type Args = &'a [(u16, u16)];
     fn serialize(
         s: &mut Serializer,
         new_gid_classes: &[(u16, u16)],
@@ -508,6 +512,212 @@ impl<'a> Serialize<'a> for ClassDefFormat2<'a> {
         s.copy_assign(pos + 2, prev_g);
         // update range count
         s.copy_assign(range_count_pos, num_ranges);
+        Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for CoverageTable<'a> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        match self {
+            CoverageTable::Format1(sub) => sub.subset(plan, s, args),
+            CoverageTable::Format2(sub) => sub.subset(plan, s, args),
+        }
+    }
+}
+
+impl<'a> SubsetTable<'a> for CoverageFormat1<'a> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        let glyph_count = (self.glyph_count() as usize).min(plan.font_num_glyphs);
+        let Some(glyph_array) = self.glyph_array().get(0..glyph_count) else {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+        };
+
+        let num_bits = 16 - (glyph_count as u16).leading_zeros() as usize;
+        // if/else branches return the same result, it's just an optimization that
+        // we pick the faster approach depending on the number of glyphs
+        let retained_glyphs: Vec<u32> =
+            if glyph_count > (plan.glyphset_gsub.len() as usize) * num_bits {
+                plan.glyphset_gsub
+                    .iter()
+                    .filter_map(|old_gid| {
+                        glyph_array
+                            .binary_search_by(|g| g.get().to_u32().cmp(&old_gid.to_u32()))
+                            .ok()
+                            .and_then(|_| plan.glyph_map_gsub.get(&old_gid))
+                            .map(|g| g.to_u32())
+                    })
+                    .collect()
+            } else {
+                glyph_array
+                    .iter()
+                    .filter_map(|g| {
+                        plan.glyph_map_gsub
+                            .get(&GlyphId::from(g.get()))
+                            .map(|g| g.to_u32())
+                    })
+                    .collect()
+            };
+
+        CoverageTable::serialize(s, &retained_glyphs)
+    }
+}
+
+impl<'a> SubsetTable<'a> for CoverageFormat2<'a> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        let range_count = self.range_count();
+        if range_count as usize > plan.font_num_glyphs {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        }
+        let num_bits = 16 - range_count.leading_zeros() as usize;
+        // if/else branches return the same result, it's just an optimization that
+        // we pick the faster approach depending on the number of glyphs
+        let retained_glyphs: Vec<u32> = if self.population() > plan.glyph_map_gsub.len() * num_bits
+        {
+            let range_records = self.range_records();
+            plan.glyphset_gsub
+                .iter()
+                .filter_map(|g| {
+                    range_records
+                        .binary_search_by(|rec| {
+                            if rec.end_glyph_id().to_u32() < g.to_u32() {
+                                Ordering::Less
+                            } else if rec.start_glyph_id().to_u32() > g.to_u32() {
+                                Ordering::Greater
+                            } else {
+                                Ordering::Equal
+                            }
+                        })
+                        .ok()
+                        .and_then(|_| plan.glyph_map_gsub.get(&g))
+                        .map(|gid| gid.to_u32())
+                })
+                .collect()
+        } else {
+            self.range_records()
+                .iter()
+                .flat_map(|r| {
+                    r.iter().filter_map(|g| {
+                        plan.glyph_map_gsub
+                            .get(&GlyphId::from(g))
+                            .map(|gid| gid.to_u32())
+                    })
+                })
+                .collect()
+        };
+        CoverageTable::serialize(s, &retained_glyphs)
+    }
+}
+
+impl<'a> Serialize<'a> for CoverageTable<'a> {
+    type Args = &'a [u32];
+    fn serialize(s: &mut Serializer, glyphs: &[u32]) -> Result<(), SerializeErrorFlags> {
+        if glyphs.is_empty() {
+            return CoverageFormat1::serialize(s, glyphs);
+        }
+
+        let glyph_count = glyphs.len();
+        let mut num_ranges = 1_u16;
+        let mut last = glyphs[0];
+
+        for g in glyphs.iter().skip(1) {
+            if last + 1 != *g {
+                num_ranges += 1;
+            }
+
+            last = *g;
+        }
+
+        // TODO: add support for unsorted glyph list??
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/59001aa9527c056ad08626cfec9a079b65d8aec8/src/OT/Layout/Common/Coverage.hh#L143>
+        if glyph_count <= num_ranges as usize * 3 {
+            CoverageFormat1::serialize(s, glyphs)
+        } else {
+            CoverageFormat2::serialize(s, (glyphs, num_ranges))
+        }
+    }
+}
+
+impl<'a> Serialize<'a> for CoverageFormat1<'a> {
+    type Args = &'a [u32];
+    fn serialize(s: &mut Serializer, glyphs: &[u32]) -> Result<(), SerializeErrorFlags> {
+        //format
+        s.embed(1_u16)?;
+
+        // count
+        let count = glyphs.len();
+        s.embed(count as u16)?;
+
+        let pos = s.allocate_size(count * 2, true)?;
+        for (idx, g) in glyphs.iter().enumerate() {
+            s.copy_assign(pos + idx * 2, *g as u16);
+        }
+        Ok(())
+    }
+}
+
+impl<'a> Serialize<'a> for CoverageFormat2<'a> {
+    type Args = (&'a [u32], u16);
+    fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags> {
+        let (glyphs, range_count) = args;
+        //format
+        s.embed(2_u16)?;
+
+        //range_count
+        s.embed(range_count)?;
+
+        // range records
+        let pos = s.allocate_size((range_count as usize) * RangeRecord::RAW_BYTE_LEN, true)?;
+
+        let mut last = glyphs[0] as u16;
+        let mut range = 0;
+        for (idx, g) in glyphs.iter().enumerate() {
+            let g = *g as u16;
+            let range_pos = pos + range * RangeRecord::RAW_BYTE_LEN;
+            if last + 1 != g {
+                if range == 0 {
+                    //start glyph
+                    s.copy_assign(range_pos, g);
+
+                    //coverage index
+                    s.copy_assign(range_pos + 4, idx as u16);
+                } else {
+                    //end glyph
+                    s.copy_assign(range_pos + 2, last);
+                    range += 1;
+
+                    let new_range_pos = range_pos + RangeRecord::RAW_BYTE_LEN;
+                    //start glyph
+                    s.copy_assign(new_range_pos, g);
+                    //coverage index
+                    s.copy_assign(new_range_pos + 4, idx as u16);
+                }
+            }
+            last = g;
+        }
+
+        let last_range_pos = pos + range * RangeRecord::RAW_BYTE_LEN;
+        s.copy_assign(last_range_pos, last);
         Ok(())
     }
 }
@@ -644,6 +854,87 @@ mod test {
 
         let subsetted_data = s.copy_bytes();
         let expected_bytes: [u8; 8] = [0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01];
+        assert_eq!(subsetted_data, expected_bytes);
+    }
+
+    #[test]
+    fn test_subset_coverage_format2_to_format1() {
+        let font = FontRef::new(include_bytes!(
+            "../test-data/fonts/IndicTestHowrah-Regular.ttf"
+        ))
+        .unwrap();
+        let gdef = font.gdef().unwrap();
+        let attach_list = gdef.attach_list().unwrap().unwrap();
+        let coverage = attach_list.coverage().unwrap();
+
+        let mut plan = Plan {
+            font_num_glyphs: 611,
+            ..Default::default()
+        };
+        plan.glyphset_gsub.insert(GlyphId::NOTDEF);
+        plan.glyphset_gsub.insert(GlyphId::from(68_u32));
+
+        plan.glyph_map_gsub.insert(GlyphId::NOTDEF, GlyphId::NOTDEF);
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(68_u32), GlyphId::from(3_u32));
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+        let ret = coverage.subset(&plan, &mut s, ());
+        assert!(ret.is_ok());
+
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let subsetted_data = s.copy_bytes();
+        let expected_bytes: [u8; 6] = [0x00, 0x01, 0x00, 0x01, 0x00, 0x03];
+        assert_eq!(subsetted_data, expected_bytes);
+    }
+
+    #[test]
+    fn test_subset_coverage_format1() {
+        let font = FontRef::new(include_bytes!("../test-data/fonts/AdobeVFPrototype.otf")).unwrap();
+        let gpos = font.gpos().unwrap();
+        let gpos_lookup = gpos.lookup_list().unwrap().lookups().get(0).unwrap();
+
+        let Ok(PositionSubtables::Pair(subtables)) = gpos_lookup.subtables() else {
+            panic!("invalid lookup!")
+        };
+        let Ok(PairPos::Format1(pair_pos1)) = subtables.get(0) else {
+            panic!("invalid lookup!")
+        };
+
+        let coverage = pair_pos1.coverage().unwrap();
+
+        let mut plan = Plan {
+            font_num_glyphs: 313,
+            ..Default::default()
+        };
+        plan.glyphset_gsub.insert(GlyphId::NOTDEF);
+        plan.glyphset_gsub.insert(GlyphId::from(34_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(35_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(36_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(56_u32));
+
+        plan.glyph_map_gsub.insert(GlyphId::NOTDEF, GlyphId::NOTDEF);
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(34_u32), GlyphId::from(1_u32));
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(35_u32), GlyphId::from(2_u32));
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(36_u32), GlyphId::from(3_u32));
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(56_u32), GlyphId::from(4_u32));
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+        let ret = coverage.subset(&plan, &mut s, ());
+        assert!(ret.is_ok());
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let subsetted_data = s.copy_bytes();
+        let expected_bytes: [u8; 8] = [0x00, 0x01, 0x00, 0x02, 0x00, 0x02, 0x00, 0x04];
         assert_eq!(subsetted_data, expected_bytes);
     }
 }
