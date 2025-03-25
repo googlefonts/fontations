@@ -963,7 +963,7 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
         // at the end and not overlapping anything (see: https://w3c.github.io/IFT/Overview.html#cff).
         //
         // This allows us to significantly simplify the CFF table reconstruction in this method:
-        // 1. Copy everything preceeding charstrings unmodified into the new table.
+        // 1. Copy everything preceding charstrings unmodified into the new table.
         // 2. Synthesize a new charstrings to the requested offset size.
 
         let offset_data: &[u8] = &offsets.into();
