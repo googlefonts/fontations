@@ -12,6 +12,7 @@ use crate::{font_patch::PatchingError, patch_group::PatchInfo};
 
 use font_types::Scalar;
 use read_fonts::tables::cff::Cff;
+use read_fonts::tables::cff2::Cff2;
 use read_fonts::tables::postscript::{dict, Index1};
 use read_fonts::FontRead;
 use read_fonts::{
@@ -112,10 +113,19 @@ pub(crate) fn apply_glyph_keyed_patches(
                 &mut font_builder,
             )?;
             processed_tables.insert(Gvar::TAG);
-        } else if table_tag == Tag::new(b"CFF ") || table_tag == Tag::new(b"CFF2") {
+        } else if table_tag == Cff::TAG {
+            patch_offset_array(
+                Cff::TAG,
+                &glyph_patches,
+                CFFAndCharStrings::from_font(font, max_glyph_id).map_err(PatchingError::from)?,
+                max_glyph_id,
+                &mut font_builder,
+            )?;
+            processed_tables.insert(Cff::TAG);
+        } else if table_tag == Cff2::TAG {
             // TODO(garretrieger): add CFF and CFF2 support as well.
             return Err(PatchingError::InvalidPatch(
-                "CFF and CFF2 patches are not yet supported.",
+                "CFF2 patches are not yet supported.",
             ));
         } else {
             // All other table tags are ignored.
@@ -451,7 +461,7 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
     let mut new_data = vec![0u8; total_data_size as usize];
     let mut new_offsets = vec![0u8; offsets_size];
     match new_offset_type {
-        OffsetType::OneByte => synthesize_offset_array::<1, u8, _>(
+        OffsetType::One => synthesize_offset_array::<1, u8, _>(
             &gids,
             max_glyph_id,
             &replacement_data,
@@ -459,7 +469,7 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
             new_data.as_mut_slice(),
             new_offsets.as_mut_slice(),
         )?,
-        OffsetType::TwoByte(OffsetDivisor::None) => synthesize_offset_array::<1, u16, _>(
+        OffsetType::Two(OffsetDivisor::None) => synthesize_offset_array::<1, u16, _>(
             &gids,
             max_glyph_id,
             &replacement_data,
@@ -467,7 +477,7 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
             new_data.as_mut_slice(),
             new_offsets.as_mut_slice(),
         )?,
-        OffsetType::TwoByte(OffsetDivisor::Half) => synthesize_offset_array::<2, u16, _>(
+        OffsetType::Two(OffsetDivisor::Half) => synthesize_offset_array::<2, u16, _>(
             &gids,
             max_glyph_id,
             &replacement_data,
@@ -475,8 +485,8 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
             new_data.as_mut_slice(),
             new_offsets.as_mut_slice(),
         )?,
-        OffsetType::ThreeByte => todo!(),
-        OffsetType::FourByte => synthesize_offset_array::<1, u32, _>(
+        OffsetType::Three => todo!(),
+        OffsetType::Four => synthesize_offset_array::<1, u32, _>(
             &gids,
             max_glyph_id,
             &replacement_data,
@@ -495,10 +505,10 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
 /// Classifies the different style of offsets that can be used in a data offset array.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum OffsetType {
-    OneByte,
-    TwoByte(OffsetDivisor),
-    ThreeByte,
-    FourByte,
+    One,
+    Two(OffsetDivisor),
+    Three,
+    Four,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -510,23 +520,23 @@ enum OffsetDivisor {
 impl OffsetType {
     fn max_representable_size(self) -> u64 {
         match self {
-            Self::TwoByte(OffsetDivisor::Half) => ((1 << 16) - 1) * 2,
-            _ => (1 << self.offset_width() * 8) - 1,
+            Self::Two(OffsetDivisor::Half) => ((1 << 16) - 1) * 2,
+            _ => (1 << (self.offset_width() * 8)) - 1,
         }
     }
 
     fn offset_width(&self) -> usize {
         match self {
-            Self::OneByte => 1,
-            Self::TwoByte(_) => 2,
-            Self::ThreeByte => 3,
-            Self::FourByte => 4,
+            Self::One => 1,
+            Self::Two(_) => 2,
+            Self::Three => 3,
+            Self::Four => 4,
         }
     }
 
     fn offset_divisor(&self) -> u64 {
         match self {
-            Self::TwoByte(OffsetDivisor::Half) => 2,
+            Self::Two(OffsetDivisor::Half) => 2,
             _ => 1,
         }
     }
@@ -538,12 +548,18 @@ struct GlyfAndLoca<'a> {
 }
 
 struct CFFAndCharStrings<'a> {
-    cff: Cff<'a>,
+    cff_data: &'a [u8],
     charstrings: Index1<'a>,
+    charstrings_object_data: &'a [u8],
+    charstrings_offset: usize,
+    offset_type: OffsetType,
 }
 
 impl CFFAndCharStrings<'_> {
-    fn from_font<'a>(font: FontRef<'a>) -> Result<CFFAndCharStrings<'a>, ReadError> {
+    fn from_font<'a>(
+        font: &FontRef<'a>,
+        max_glyph_id: GlyphId,
+    ) -> Result<CFFAndCharStrings<'a>, ReadError> {
         let cff = font.cff()?;
         // CFF fonts have only one top dict entry:
         // https://learn.microsoft.com/en-us/typography/opentype/spec/cff
@@ -562,14 +578,51 @@ impl CFFAndCharStrings<'_> {
 
         let charstrings = Index1::read(charstrings_data)?;
 
-        Ok(CFFAndCharStrings { cff, charstrings })
+        let offset_type = match charstrings.off_size() {
+            1 => OffsetType::One,
+            2 => OffsetType::Two(OffsetDivisor::None),
+            3 => OffsetType::Three,
+            4 => OffsetType::Four,
+            _ => {
+                return Err(ReadError::MalformedData(
+                    "Invalid charstrings offset size (is not 1, 2, 3, or 4).",
+                ))
+            }
+        };
+
+        // Where offsets are relative too, from the spec: the byte that precedes object
+        // data.
+        let offset_base = charstrings
+            .shape()
+            .data_byte_range()
+            .start
+            .checked_sub(1)
+            .ok_or(ReadError::MalformedData("Invalid data start."))?;
+
+        let charstrings_object_data = charstrings_data
+            .split_off(offset_base)
+            .ok_or(ReadError::OutOfBounds)?
+            .as_bytes();
+
+        if charstrings.count() as u32 != max_glyph_id.to_u32() {
+            return Err(ReadError::MalformedData(
+                "CFF charstrings glyph count does not match maxp's.",
+            ));
+        }
+
+        Ok(CFFAndCharStrings {
+            cff_data: cff.offset_data().as_bytes(),
+            charstrings,
+            charstrings_object_data,
+            charstrings_offset,
+            offset_type,
+        })
     }
 
     fn charstrings_offset(top_dict: &[u8]) -> Option<usize> {
-        for entry in dict::entries(top_dict, None) {
-            match entry {
-                Ok(dict::Entry::CharstringsOffset(offset)) => return Some(offset),
-                _ => {}
+        for entry in dict::entries(top_dict, None).flatten() {
+            if let dict::Entry::CharstringsOffset(offset) = entry {
+                return Some(offset);
             }
         }
         None
@@ -608,8 +661,8 @@ trait GlyphDataOffsetArray {
 impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
     fn offset_type(&self) -> OffsetType {
         match self.loca {
-            Loca::Short(_) => OffsetType::TwoByte(OffsetDivisor::Half),
-            Loca::Long(_) => OffsetType::FourByte,
+            Loca::Short(_) => OffsetType::Two(OffsetDivisor::Half),
+            Loca::Long(_) => OffsetType::Four,
         }
     }
 
@@ -657,19 +710,16 @@ impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
 impl GlyphDataOffsetArray for Gvar<'_> {
     fn offset_type(&self) -> OffsetType {
         if self.flags().contains(GvarFlags::LONG_OFFSETS) {
-            OffsetType::FourByte
+            OffsetType::Four
         } else {
-            OffsetType::TwoByte(OffsetDivisor::Half)
+            OffsetType::Two(OffsetDivisor::Half)
         }
     }
 
     fn available_offset_types(&self) -> impl Iterator<Item = OffsetType> {
-        [
-            OffsetType::TwoByte(OffsetDivisor::Half),
-            OffsetType::FourByte,
-        ]
-        .iter()
-        .copied()
+        [OffsetType::Two(OffsetDivisor::Half), OffsetType::Four]
+            .iter()
+            .copied()
     }
 
     fn offset_for(&self, gid: GlyphId) -> Result<u32, PatchingError> {
@@ -836,23 +886,44 @@ impl GlyphDataOffsetArray for Gvar<'_> {
 
 impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
     fn offset_type(&self) -> OffsetType {
-        todo!()
+        self.offset_type
     }
 
     fn available_offset_types(&self) -> impl Iterator<Item = OffsetType> {
-        todo!()
+        [
+            OffsetType::One,
+            OffsetType::Two(OffsetDivisor::None),
+            OffsetType::Three,
+            OffsetType::Four,
+        ]
+        .iter()
+        .copied()
     }
 
     fn offset_for(&self, gid: GlyphId) -> Result<u32, PatchingError> {
-        todo!()
+        self.charstrings
+            .get_offset(gid.to_u32() as usize)
+            .map_err(|_| PatchingError::FontParsingFailed(ReadError::OutOfBounds))
+            .map(|offset| offset as u32)
     }
 
     fn all_offsets_are_ascending(&self) -> bool {
-        todo!()
+        let it1 =
+            (0..self.charstrings.count()).map(|index| self.offset_for(GlyphId::new(index as u32)));
+        let it2 = it1.clone().skip(1);
+
+        !it1.zip(it2).any(|(start, end)| {
+            let (Ok(start), Ok(end)) = (start, end) else {
+                return true;
+            };
+            start > end
+        })
     }
 
     fn get(&self, range: Range<usize>) -> Result<&[u8], PatchingError> {
-        todo!()
+        self.charstrings_object_data
+            .get(range)
+            .ok_or(PatchingError::FontParsingFailed(ReadError::OutOfBounds))
     }
 
     fn add_to_font<'a>(
@@ -862,6 +933,11 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
         offsets: impl Into<Cow<'a, [u8]>>,
         offset_type: OffsetType,
     ) -> Result<(), PatchingError> {
+        // TODO(garretrieger): implement me, including offset size upgrading as needed.
+        // - first copy everything before charstrings as is, this is OK because charstrings is gauranteed to be at
+        //   the end of the table (by the IFT spec).
+        // - second reconstruct the new charstrings table using the supplied offset size.
+
         todo!()
     }
 }
