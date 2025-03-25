@@ -35,9 +35,9 @@ struct Args {
     #[arg(short, long)]
     text: Option<String>,
 
-    /// Comma separate list of unicode codepoint values (base 10) to extend the font to cover.
+    /// Comma separated list of Unicode codepoint values (base 10) to extend the font to cover.
     ///
-    /// * indicates to include all unicode code points.
+    /// * indicates to include all Unicode codepoints.
     #[arg(short, long, value_delimiter = ',', num_args = 1..)]
     unicodes: Vec<String>,
 
@@ -227,7 +227,7 @@ impl std::fmt::Display for ParsingError {
                 )
             }
             ParsingError::UnicodeCodepointParsingFailed(value) => {
-                write!(f, "Invalid unicode code point value: {}", value,)
+                write!(f, "Invalid unicode codepoint value: {}", value,)
             }
             ParsingError::FeatureTagParsingFailed(value) => {
                 write!(f, "Invalid feature tag value: {value}")

@@ -152,11 +152,11 @@ table Os2 {
     /// approximate height of uppercase letters measured in FUnits.
     #[since_version(2)]
     s_cap_height: i16,
-    /// This is the Unicode code point, in UTF-16 encoding, of a character that
+    /// This is the Unicode codepoint, in UTF-16 encoding, of a character that
     /// can be used for a default glyph.
     #[since_version(2)]
     us_default_char: u16,
-    /// his is the Unicode code point, in UTF-16 encoding, of a character that
+    /// This is the Unicode codepoint, in UTF-16 encoding, of a character that
     /// can be used as a default break character.
     #[since_version(2)]
     us_break_char: u16,
