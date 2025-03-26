@@ -305,119 +305,126 @@ impl WritableOffset for u8 {
     }
 }
 
-fn synthesize_offset_array<
-    const DIV: usize,
-    const BIAS: usize,
-    const OFF_SIZE: usize,
-    OffsetType: WritableOffset + TryFrom<usize>,
-    T: GlyphDataOffsetArray,
->(
-    gids: &IntSet<GlyphId>,
+struct OffsetArrayBuilder<'a, T: GlyphDataOffsetArray> {
+    gids: &'a IntSet<GlyphId>,
     max_glyph_id: GlyphId,
-    replacement_data: &[&[u8]],
-    offset_array: &T,
-    new_data: &mut [u8],
-    new_offsets: &mut [u8],
-) -> Result<(), PatchingError> {
-    if !offset_array.all_offsets_are_ascending() {
-        return Err(PatchingError::FontParsingFailed(ReadError::MalformedData(
-            "offset array contains unordered offsets.",
-        )));
-    }
+    replacement_data: &'a [&'a [u8]],
+    offset_array: &'a T,
+    new_data: &'a mut [u8],
+    new_offsets: &'a mut [u8],
+}
 
-    let mut replace_it = gids.iter_ranges().peekable();
-    let mut keep_it = retained_glyphs_in_font(gids, max_glyph_id).peekable();
-    let mut replacement_data_it = replacement_data.iter();
-    let mut write_index = 0;
-
-    loop {
-        let (range, replace) = match (replace_it.peek(), keep_it.peek()) {
-            (Some(replace), Some(keep)) => {
-                if replace.start() <= keep.start() {
-                    (replace_it.next().unwrap(), true)
-                } else {
-                    (keep_it.next().unwrap(), false)
-                }
-            }
-            (Some(_), None) => (replace_it.next().unwrap(), true),
-            (None, Some(_)) => (keep_it.next().unwrap(), false),
-            (None, None) => break,
-        };
-
-        let (start, end) = (range.start().to_u32(), range.end().to_u32());
-
-        if replace {
-            for gid in start..=end {
-                let data = *replacement_data_it
-                    .next()
-                    .ok_or(PatchingError::InternalError)?;
-
-                new_data
-                    .get_mut(write_index..write_index + data.len())
-                    .ok_or(PatchingError::InternalError)?
-                    .copy_from_slice(data);
-
-                let new_off: OffsetType = ((write_index / DIV) + BIAS)
-                    .try_into()
-                    .map_err(|_| PatchingError::InternalError)?;
-
-                new_off.write_to(
-                    new_offsets
-                        .get_mut(gid as usize * OFF_SIZE..)
-                        .ok_or(PatchingError::InternalError)?,
-                );
-
-                write_index += data.len();
-                // Add padding if the offset gets divided
-                if DIV > 1 {
-                    write_index += data.len() % DIV;
-                }
-            }
-        } else {
-            let start_off = offset_array.offset_for(start.into())? as usize;
-            let end_off = offset_array.offset_for(
-                end.checked_add(1)
-                    .ok_or(PatchingError::InternalError)?
-                    .into(),
-            )? as usize;
-
-            let len = end_off
-                .checked_sub(start_off)
-                .ok_or(PatchingError::InternalError)?;
-            new_data
-                .get_mut(write_index..write_index + len)
-                .ok_or(PatchingError::InternalError)?
-                .copy_from_slice(offset_array.get(start_off..end_off)?);
-
-            for gid in start..=end {
-                let cur_off = offset_array.offset_for(gid.into())? as usize;
-                let new_off = cur_off - start_off + write_index;
-
-                let new_off: OffsetType = ((new_off / DIV) + BIAS)
-                    .try_into()
-                    .map_err(|_| PatchingError::InternalError)?;
-                new_off.write_to(
-                    new_offsets
-                        .get_mut(gid as usize * OFF_SIZE..)
-                        .ok_or(PatchingError::InternalError)?,
-                );
-            }
-
-            write_index += len;
+impl<T: GlyphDataOffsetArray> OffsetArrayBuilder<'_, T> {
+    fn synthesize_offset_array<
+        OffsetInfo: OffsetTypeInfo,
+        OffsetType: WritableOffset + TryFrom<usize>,
+    >(
+        self,
+    ) -> Result<(), PatchingError> {
+        if !self.offset_array.all_offsets_are_ascending() {
+            return Err(PatchingError::FontParsingFailed(ReadError::MalformedData(
+                "offset array contains unordered offsets.",
+            )));
         }
+
+        let divisor: usize = OffsetInfo::divisor() as usize;
+        let bias: usize = OffsetInfo::bias() as usize;
+        let width: usize = OffsetInfo::width();
+
+        let mut replace_it = self.gids.iter_ranges().peekable();
+        let mut keep_it = retained_glyphs_in_font(self.gids, self.max_glyph_id).peekable();
+        let mut replacement_data_it = self.replacement_data.iter();
+        let mut write_index = 0;
+
+        loop {
+            let (range, replace) = match (replace_it.peek(), keep_it.peek()) {
+                (Some(replace), Some(keep)) => {
+                    if replace.start() <= keep.start() {
+                        (replace_it.next().unwrap(), true)
+                    } else {
+                        (keep_it.next().unwrap(), false)
+                    }
+                }
+                (Some(_), None) => (replace_it.next().unwrap(), true),
+                (None, Some(_)) => (keep_it.next().unwrap(), false),
+                (None, None) => break,
+            };
+
+            let (start, end) = (range.start().to_u32(), range.end().to_u32());
+
+            if replace {
+                for gid in start..=end {
+                    let data = *replacement_data_it
+                        .next()
+                        .ok_or(PatchingError::InternalError)?;
+
+                    self.new_data
+                        .get_mut(write_index..write_index + data.len())
+                        .ok_or(PatchingError::InternalError)?
+                        .copy_from_slice(data);
+
+                    let new_off: OffsetType = ((write_index / divisor) + bias)
+                        .try_into()
+                        .map_err(|_| PatchingError::InternalError)?;
+
+                    new_off.write_to(
+                        self.new_offsets
+                            .get_mut(gid as usize * width..)
+                            .ok_or(PatchingError::InternalError)?,
+                    );
+
+                    write_index += data.len();
+                    // Add padding if the offset gets divided
+                    if divisor > 1 {
+                        write_index += data.len() % divisor;
+                    }
+                }
+            } else {
+                let start_off = self.offset_array.offset_for(start.into())? as usize;
+                let end_off = self.offset_array.offset_for(
+                    end.checked_add(1)
+                        .ok_or(PatchingError::InternalError)?
+                        .into(),
+                )? as usize;
+
+                let len = end_off
+                    .checked_sub(start_off)
+                    .ok_or(PatchingError::InternalError)?;
+                self.new_data
+                    .get_mut(write_index..write_index + len)
+                    .ok_or(PatchingError::InternalError)?
+                    .copy_from_slice(self.offset_array.get(start_off..end_off)?);
+
+                for gid in start..=end {
+                    let cur_off = self.offset_array.offset_for(gid.into())? as usize;
+                    let new_off = cur_off - start_off + write_index;
+
+                    let new_off: OffsetType = ((new_off / divisor) + bias)
+                        .try_into()
+                        .map_err(|_| PatchingError::InternalError)?;
+                    new_off.write_to(
+                        self.new_offsets
+                            .get_mut(gid as usize * width..)
+                            .ok_or(PatchingError::InternalError)?,
+                    );
+                }
+
+                write_index += len;
+            }
+        }
+
+        // Write the last offset
+        let new_off: OffsetType = ((write_index / divisor) + bias)
+            .try_into()
+            .map_err(|_| PatchingError::InternalError)?;
+        new_off.write_to(
+            self.new_offsets
+                .get_mut(self.new_offsets.len() - width..)
+                .ok_or(PatchingError::InternalError)?,
+        );
+
+        Ok(())
     }
-
-    // Write the last offset
-    let new_off: OffsetType = ((write_index / DIV) + BIAS)
-        .try_into()
-        .map_err(|_| PatchingError::InternalError)?;
-    new_off.write_to(
-        new_offsets
-            .get_mut(new_offsets.len() - OFF_SIZE..)
-            .ok_or(PatchingError::InternalError)?,
-    );
-
-    Ok(())
 }
 
 fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
@@ -467,57 +474,31 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
     let offsets_size = (max_glyph_id.to_u32() as usize + 2) * new_offset_type.offset_width();
     let mut new_data = vec![0u8; total_data_size as usize];
     let mut new_offsets = vec![0u8; offsets_size];
+
+    let offset_array_builder = OffsetArrayBuilder {
+        gids: &gids,
+        max_glyph_id,
+        replacement_data: &replacement_data,
+        offset_array: &offset_array,
+        new_data: new_data.as_mut_slice(),
+        new_offsets: new_offsets.as_mut_slice(),
+    };
+
     match new_offset_type {
         // Bias 1 offsets
-        OffsetType::CffOne => synthesize_offset_array::<1, 1, 1, u8, _>(
-            &gids,
-            max_glyph_id,
-            &replacement_data,
-            &offset_array,
-            new_data.as_mut_slice(),
-            new_offsets.as_mut_slice(),
-        )?,
-        OffsetType::CffTwo => synthesize_offset_array::<1, 1, 2, u16, _>(
-            &gids,
-            max_glyph_id,
-            &replacement_data,
-            &offset_array,
-            new_data.as_mut_slice(),
-            new_offsets.as_mut_slice(),
-        )?,
-        OffsetType::CffThree => synthesize_offset_array::<1, 1, 3, Uint24, _>(
-            &gids,
-            max_glyph_id,
-            &replacement_data,
-            &offset_array,
-            new_data.as_mut_slice(),
-            new_offsets.as_mut_slice(),
-        )?,
-        OffsetType::CffFour => synthesize_offset_array::<1, 1, 4, u32, _>(
-            &gids,
-            max_glyph_id,
-            &replacement_data,
-            &offset_array,
-            new_data.as_mut_slice(),
-            new_offsets.as_mut_slice(),
-        )?,
+        OffsetType::CffOne => offset_array_builder.synthesize_offset_array::<CffOneInfo, u8>()?,
+        OffsetType::CffTwo => offset_array_builder.synthesize_offset_array::<CffTwoInfo, u16>()?,
+        OffsetType::CffThree => {
+            offset_array_builder.synthesize_offset_array::<CffThreeInfo, Uint24>()?
+        }
+        OffsetType::CffFour => {
+            offset_array_builder.synthesize_offset_array::<CffFourInfo, u32>()?
+        }
         // Bias 0 offsets
-        OffsetType::ShortDivByTwo => synthesize_offset_array::<2, 0, 2, u16, _>(
-            &gids,
-            max_glyph_id,
-            &replacement_data,
-            &offset_array,
-            new_data.as_mut_slice(),
-            new_offsets.as_mut_slice(),
-        )?,
-        OffsetType::Long => synthesize_offset_array::<1, 0, 4, u32, _>(
-            &gids,
-            max_glyph_id,
-            &replacement_data,
-            &offset_array,
-            new_data.as_mut_slice(),
-            new_offsets.as_mut_slice(),
-        )?,
+        OffsetType::ShortDivByTwo => {
+            offset_array_builder.synthesize_offset_array::<ShortDivByTwoInfo, u16>()?
+        }
+        OffsetType::Long => offset_array_builder.synthesize_offset_array::<LongInfo, u32>()?,
     }
 
     // Step 3: add new tables to the output builder
@@ -540,6 +521,106 @@ enum OffsetType {
     Long,
 }
 
+trait OffsetTypeInfo {
+    fn width() -> usize;
+    fn divisor() -> u64;
+    fn bias() -> u32;
+}
+
+struct CffOneInfo;
+
+impl OffsetTypeInfo for CffOneInfo {
+    fn width() -> usize {
+        1
+    }
+
+    fn divisor() -> u64 {
+        1
+    }
+
+    fn bias() -> u32 {
+        1
+    }
+}
+
+struct CffTwoInfo;
+
+impl OffsetTypeInfo for CffTwoInfo {
+    fn width() -> usize {
+        2
+    }
+
+    fn divisor() -> u64 {
+        1
+    }
+
+    fn bias() -> u32 {
+        1
+    }
+}
+
+struct CffThreeInfo;
+
+impl OffsetTypeInfo for CffThreeInfo {
+    fn width() -> usize {
+        3
+    }
+
+    fn divisor() -> u64 {
+        1
+    }
+
+    fn bias() -> u32 {
+        1
+    }
+}
+
+struct CffFourInfo;
+
+impl OffsetTypeInfo for CffFourInfo {
+    fn width() -> usize {
+        4
+    }
+
+    fn divisor() -> u64 {
+        1
+    }
+
+    fn bias() -> u32 {
+        1
+    }
+}
+
+struct ShortDivByTwoInfo;
+impl OffsetTypeInfo for ShortDivByTwoInfo {
+    fn width() -> usize {
+        2
+    }
+
+    fn divisor() -> u64 {
+        2
+    }
+
+    fn bias() -> u32 {
+        0
+    }
+}
+
+struct LongInfo;
+impl OffsetTypeInfo for LongInfo {
+    fn width() -> usize {
+        4
+    }
+
+    fn divisor() -> u64 {
+        1
+    }
+
+    fn bias() -> u32 {
+        0
+    }
+}
+
 impl OffsetType {
     fn max_representable_size(self) -> u64 {
         match self {
@@ -550,26 +631,34 @@ impl OffsetType {
 
     fn offset_width(&self) -> usize {
         match self {
-            Self::CffOne => 1,
-            Self::CffTwo => 2,
-            Self::CffThree => 3,
-            Self::CffFour => 4,
-            Self::ShortDivByTwo => 2,
-            Self::Long => 4,
+            Self::CffOne => CffOneInfo::width(),
+            Self::CffTwo => CffTwoInfo::width(),
+            Self::CffThree => CffThreeInfo::width(),
+            Self::CffFour => CffFourInfo::width(),
+            Self::ShortDivByTwo => ShortDivByTwoInfo::width(),
+            Self::Long => LongInfo::width(),
         }
     }
 
     fn offset_divisor(&self) -> u64 {
         match self {
-            Self::ShortDivByTwo => 2,
-            _ => 1,
+            Self::CffOne => CffOneInfo::divisor(),
+            Self::CffTwo => CffTwoInfo::divisor(),
+            Self::CffThree => CffThreeInfo::divisor(),
+            Self::CffFour => CffFourInfo::divisor(),
+            Self::ShortDivByTwo => ShortDivByTwoInfo::divisor(),
+            Self::Long => LongInfo::divisor(),
         }
     }
 
     fn offset_bias(&self) -> u32 {
         match self {
-            Self::ShortDivByTwo | Self::Long => 0,
-            _ => 1,
+            Self::CffOne => CffOneInfo::bias(),
+            Self::CffTwo => CffTwoInfo::bias(),
+            Self::CffThree => CffThreeInfo::bias(),
+            Self::CffFour => CffFourInfo::bias(),
+            Self::ShortDivByTwo => ShortDivByTwoInfo::bias(),
+            Self::Long => LongInfo::bias(),
         }
     }
 }
