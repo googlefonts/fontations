@@ -2604,12 +2604,14 @@ mod test {
         assert_eq!(a.cmp(&b), Ordering::Less);
     }
 
+    #[cfg(feature = "serde")]
     fn roundtrip_json<T: Domain>(set: &IntSet<T>) -> Result<IntSet<T>, serde_json::Error> {
         let json = serde_json::to_vec(&set).unwrap();
         serde_json::from_slice(&json)
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn simple_serde() {
         let mut set = IntSet::empty();
         set.insert(0u32);
@@ -2618,6 +2620,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn serde_non_contiguous() {
         fn ev(val: u16) -> EvenInts {
             assert!(val % 2 == 0);
@@ -2628,6 +2631,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     #[should_panic(expected = "out of range for domain")]
     fn serde_non_contiguous_out_of_domain() {
         let set = IntSet::from([1u16, 2, 3, 4, 5, 6, 7]);
@@ -2636,6 +2640,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn non_contiguous_inverted() {
         let all = IntSet::<u16>::all();
         let bytes = serde_json::to_vec(&all).unwrap();
@@ -2648,6 +2653,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn serde_inverted() {
         let mut set = IntSet::all();
         set.remove_range(0u16..=420);
@@ -2657,6 +2663,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn serde_inverted_out_of_domain() {
         let mut set = IntSet::all();
         set.remove_range(0u16..=250);
@@ -2670,6 +2677,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     #[should_panic(expected = "out of range for domain")]
     fn serde_out_of_domain() {
         let set = IntSet::from([u32::MAX]);
