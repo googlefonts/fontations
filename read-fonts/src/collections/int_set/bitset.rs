@@ -158,8 +158,12 @@ impl BitSet {
             .unwrap_or(false)
     }
 
-    pub(crate) fn empty() -> BitSet {
-        BitSet::default()
+    pub(crate) const fn empty() -> BitSet {
+        BitSet {
+            pages: Vec::new(),
+            page_map: Vec::new(),
+            length: 0,
+        }
     }
 
     /// Remove all members from this set.
