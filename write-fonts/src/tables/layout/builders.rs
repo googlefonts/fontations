@@ -1,7 +1,8 @@
 //! Common utilities and helpers for constructing layout tables
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
+use read_fonts::collections::IntSet;
 use types::GlyphId16;
 
 use super::{
@@ -9,15 +10,129 @@ use super::{
     CoverageTable, RangeRecord,
 };
 
-/// A builder for [ClassDef] tables.
+/// An opinionated builder for `ClassDef`s.
+///
+/// This ensures that class ids are assigned based on the size of the class.
+///
+/// If you need to know the values assigned to particular classes, call the
+/// [`ClassDefBuilder::build_with_mapping`] method, which will build the final
+/// [`ClassDef`] table, and will also return a map from the original class sets
+/// to the final assigned class id values.
+///
+/// If you don't care about this, you can also construct a `ClassDef` from any
+/// iterator over `(GlyphId16, u16)` tuples, using collect:
+///
+/// ```
+/// # use write_fonts::{types::GlyphId16, tables::layout::ClassDef};
+/// let gid1 = GlyphId16::new(1);
+/// let gid2 = GlyphId16::new(2);
+/// let gid3 = GlyphId16::new(2);
+/// let my_class: ClassDef = [(gid1, 2), (gid2, 3), (gid3, 4)].into_iter().collect();
+/// ```
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ClassDefBuilder {
+    classes: HashSet<IntSet<GlyphId16>>,
+    all_glyphs: IntSet<GlyphId16>,
+    use_class_0: bool,
+}
+
+/// A builder for [CoverageTable] tables.
 ///
 /// This will choose the best format based for the included glyphs.
-#[derive(Debug, PartialEq, Eq)]
-pub struct ClassDefBuilder {
-    pub items: BTreeMap<GlyphId16, u16>,
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct CoverageTableBuilder {
+    // invariant: is always sorted
+    glyphs: Vec<GlyphId16>,
 }
 
 impl ClassDefBuilder {
+    /// Create a new `ClassDefBuilder`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create a new `ClassDefBuilder` that will assign glyphs to class 0.
+    ///
+    /// In general, class 0 is a sentinel value returned when a glyph is not
+    /// assigned to any other class; however in some cases (specifically in
+    /// GPOS type two lookups) the `ClassDef` has an accompanying [`CoverageTable`],
+    /// which means that class 0 can be used, since it is known that the class
+    /// is only checked if a glyph is known to have _some_ class.
+    pub fn new_using_class_0() -> Self {
+        Self {
+            use_class_0: true,
+            ..Default::default()
+        }
+    }
+
+    pub(crate) fn can_add(&self, cls: &IntSet<GlyphId16>) -> bool {
+        self.classes.contains(cls) || cls.iter().all(|gid| !self.all_glyphs.contains(gid))
+    }
+
+    /// Check that this class can be added to this classdef, and add it if so.
+    ///
+    /// returns `true` if the class is added, and `false` otherwise.
+    pub fn checked_add(&mut self, cls: IntSet<GlyphId16>) -> bool {
+        if self.can_add(&cls) {
+            self.all_glyphs.extend(cls.iter());
+            self.classes.insert(cls);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Returns a compiled [`ClassDef`], as well as a mapping from our glyph sets
+    /// to the final class ids.
+    ///
+    /// This sorts the classes, ensuring that larger classes are first.
+    ///
+    /// (This is needed when subsequent structures are ordered based on the
+    /// final order of class assignments.)
+    pub fn build_with_mapping(self) -> (ClassDef, HashMap<IntSet<GlyphId16>, u16>) {
+        let mut classes = self.classes.into_iter().collect::<Vec<_>>();
+        // we match the sort order used by fonttools, see:
+        // <https://github.com/fonttools/fonttools/blob/9a46f9d3ab01e3/Lib/fontTools/otlLib/builder.py#L2677>
+        classes.sort_unstable_by_key(|cls| {
+            (
+                std::cmp::Reverse(cls.len()),
+                cls.iter().next().unwrap_or_default().to_u16(),
+            )
+        });
+        classes.dedup();
+        let add_one = u16::from(!self.use_class_0);
+        let mapping = classes
+            .into_iter()
+            .enumerate()
+            .map(|(i, cls)| (cls, i as u16 + add_one))
+            .collect::<HashMap<_, _>>();
+        let class_def = mapping
+            .iter()
+            .flat_map(|(cls, id)| cls.iter().map(move |gid| (gid, *id)))
+            .collect();
+
+        (class_def, mapping)
+    }
+
+    /// Build a final [`ClassDef`] table.
+    pub fn build(self) -> ClassDef {
+        self.build_with_mapping().0
+    }
+}
+
+/// Builder logic for classdefs.
+///
+/// This handles the actual serialization, picking the best format based on the
+/// included glyphs.
+///
+/// This will choose the best format based for the included glyphs.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct ClassDefBuilderImpl {
+    items: BTreeMap<GlyphId16, u16>,
+}
+
+impl ClassDefBuilderImpl {
     fn prefer_format_1(&self) -> bool {
         const U16_LEN: usize = std::mem::size_of::<u16>();
         const FORMAT1_HEADER_LEN: usize = U16_LEN * 3;
@@ -62,15 +177,6 @@ impl ClassDefBuilder {
     }
 }
 
-/// A builder for [CoverageTable] tables.
-///
-/// This will choose the best format based for the included glyphs.
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct CoverageTableBuilder {
-    // invariant: is always sorted
-    glyphs: Vec<GlyphId16>,
-}
-
 impl CoverageTableBuilder {
     /// Create a new builder from a vec of `GlyphId`.
     pub fn from_glyphs(mut glyphs: Vec<GlyphId16>) -> Self {
@@ -111,7 +217,7 @@ impl CoverageTableBuilder {
     }
 }
 
-impl FromIterator<(GlyphId16, u16)> for ClassDefBuilder {
+impl FromIterator<(GlyphId16, u16)> for ClassDefBuilderImpl {
     fn from_iter<T: IntoIterator<Item = (GlyphId16, u16)>>(iter: T) -> Self {
         Self {
             items: iter.into_iter().filter(|(_, cls)| *cls != 0).collect(),
@@ -171,20 +277,22 @@ fn should_choose_coverage_format_2(glyphs: &[GlyphId16]) -> bool {
 mod tests {
     use std::ops::RangeInclusive;
 
+    use read_fonts::collections::IntSet;
+
     use crate::tables::layout::DeltaFormat;
 
     use super::*;
 
     #[test]
     fn classdef_format() {
-        let builder: ClassDefBuilder = [(3u16, 4u16), (4, 6), (5, 1), (9, 5), (10, 2), (11, 3)]
+        let builder: ClassDefBuilderImpl = [(3u16, 4u16), (4, 6), (5, 1), (9, 5), (10, 2), (11, 3)]
             .map(|(gid, cls)| (GlyphId16::new(gid), cls))
             .into_iter()
             .collect();
 
         assert!(builder.prefer_format_1());
 
-        let builder: ClassDefBuilder = [(1u16, 1u16), (3, 4), (9, 5), (10, 2), (11, 3)]
+        let builder: ClassDefBuilderImpl = [(1u16, 1u16), (3, 4), (9, 5), (10, 2), (11, 3)]
             .map(|(gid, cls)| (GlyphId16::new(gid), cls))
             .into_iter()
             .collect();
@@ -204,7 +312,7 @@ mod tests {
 
         // 3 ranges of 4 glyphs at 6 bytes a range should be smaller than writing
         // out the 3 * 4 classes directly
-        let builder: ClassDefBuilder = iter_class_items(5, 8, 3)
+        let builder: ClassDefBuilderImpl = iter_class_items(5, 8, 3)
             .chain(iter_class_items(9, 12, 4))
             .chain(iter_class_items(13, 16, 5))
             .collect();
@@ -234,7 +342,7 @@ mod tests {
         gid_class_pairs
             .iter()
             .map(|(gid, cls)| (GlyphId16::new(*gid), *cls))
-            .collect::<ClassDefBuilder>()
+            .collect::<ClassDefBuilderImpl>()
             .build()
     }
 
@@ -251,7 +359,7 @@ mod tests {
     // an empty classdef should always be format 2
     #[test]
     fn class_def_builder_empty() {
-        let builder = ClassDefBuilder::from_iter([]);
+        let builder = ClassDefBuilderImpl::from_iter([]);
         let built = builder.build();
 
         assert_eq!(
@@ -300,5 +408,55 @@ mod tests {
         let cls = make_f2_class([1..=1, 2..=9]);
         assert_eq!(cls.get(GlyphId16::new(2)), 2);
         assert_eq!(cls.get(GlyphId16::new(20)), 0);
+    }
+
+    fn make_glyph_class<const N: usize>(glyphs: [u16; N]) -> IntSet<GlyphId16> {
+        glyphs.into_iter().map(GlyphId16::new).collect()
+    }
+
+    #[test]
+    fn smoke_test_class_builder() {
+        let mut builder = ClassDefBuilder::new();
+        builder.checked_add(make_glyph_class([6, 10]));
+        let cls = builder.build();
+        assert_eq!(cls.get(GlyphId16::new(6)), 1);
+
+        let mut builder = ClassDefBuilder::new_using_class_0();
+        builder.checked_add(make_glyph_class([6, 10]));
+        let cls = builder.build();
+        assert_eq!(cls.get(GlyphId16::new(6)), 0);
+        assert_eq!(cls.get(GlyphId16::new(10)), 0);
+    }
+
+    #[test]
+    fn classdef_assign_order() {
+        // - longer classes before short ones
+        // - if tied, lowest glyph id first
+
+        let mut builder = ClassDefBuilder::default();
+        builder.checked_add(make_glyph_class([7, 8, 9]));
+        builder.checked_add(make_glyph_class([1, 12]));
+        builder.checked_add(make_glyph_class([3, 4]));
+        let cls = builder.build();
+        assert_eq!(cls.get(GlyphId16::new(9)), 1);
+        assert_eq!(cls.get(GlyphId16::new(1)), 2);
+        assert_eq!(cls.get(GlyphId16::new(4)), 3);
+        // notdef
+        assert_eq!(cls.get(GlyphId16::new(5)), 0);
+    }
+
+    #[test]
+    fn we_handle_dupes() {
+        let mut builder = ClassDefBuilder::default();
+        let c1 = make_glyph_class([1, 2, 3, 4]);
+        let c2 = make_glyph_class([4, 3, 2, 1, 1]);
+        let c3 = make_glyph_class([1, 5, 6, 7]);
+        assert!(builder.checked_add(c1.clone()));
+        assert!(builder.checked_add(c2.clone()));
+        assert!(!builder.checked_add(c3.clone()));
+
+        let (_, map) = builder.build_with_mapping();
+        assert_eq!(map.get(&c1), map.get(&c2));
+        assert!(!map.contains_key(&c3));
     }
 }
