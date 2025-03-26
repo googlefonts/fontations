@@ -76,6 +76,14 @@ impl<'a> Index<'a> {
             Self::Format2(ix) => ix.get(index),
         }
     }
+
+    pub fn off_size(&self) -> u8 {
+        match self {
+            Self::Empty => 0,
+            Self::Format1(ix) => ix.off_size(),
+            Self::Format2(ix) => ix.off_size(),
+        }
+    }
 }
 
 impl<'a> From<Index1<'a>> for Index<'a> {

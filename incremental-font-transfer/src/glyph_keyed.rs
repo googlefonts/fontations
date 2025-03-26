@@ -11,6 +11,7 @@ use crate::table_keyed::copy_unprocessed_tables;
 use crate::{font_patch::PatchingError, patch_group::PatchInfo};
 
 use font_types::{Scalar, Uint24};
+use read_fonts::tables::postscript::Index;
 use read_fonts::{
     collections::IntSet,
     tables::{
@@ -21,7 +22,7 @@ use read_fonts::{
         ift::{GlyphKeyedPatch, GlyphPatches},
         ift::{IFTX_TAG, IFT_TAG},
         loca::Loca,
-        postscript::{dict, Index1},
+        postscript::{dict, Index1, Index2},
     },
     types::Tag,
     FontData, FontRead, FontRef, ReadError, TableProvider, TopLevelTable,
@@ -115,16 +116,22 @@ pub(crate) fn apply_glyph_keyed_patches(
             patch_offset_array(
                 Cff::TAG,
                 &glyph_patches,
-                CFFAndCharStrings::from_font(font, max_glyph_id).map_err(PatchingError::from)?,
+                CFFAndCharStrings::from_cff_font(font, max_glyph_id)
+                    .map_err(PatchingError::from)?,
                 max_glyph_id,
                 &mut font_builder,
             )?;
             processed_tables.insert(Cff::TAG);
         } else if table_tag == Cff2::TAG {
-            // TODO(garretrieger): add CFF and CFF2 support as well.
-            return Err(PatchingError::InvalidPatch(
-                "CFF2 patches are not yet supported.",
-            ));
+            patch_offset_array(
+                Cff2::TAG,
+                &glyph_patches,
+                CFFAndCharStrings::from_cff2_font(font, max_glyph_id)
+                    .map_err(PatchingError::from)?,
+                max_glyph_id,
+                &mut font_builder,
+            )?;
+            processed_tables.insert(Cff::TAG);
         } else {
             // All other table tags are ignored.
             continue;
@@ -606,14 +613,14 @@ struct GlyfAndLoca<'a> {
 
 struct CFFAndCharStrings<'a> {
     cff_data: &'a [u8],
-    charstrings: Index1<'a>,
+    charstrings: Index<'a>,
     charstrings_object_data: &'a [u8],
     charstrings_offset: usize,
     offset_type: OffsetType,
 }
 
 impl CFFAndCharStrings<'_> {
-    fn from_font<'a>(
+    fn from_cff_font<'a>(
         font: &FontRef<'a>,
         max_glyph_id: GlyphId,
     ) -> Result<CFFAndCharStrings<'a>, ReadError> {
@@ -624,18 +631,84 @@ impl CFFAndCharStrings<'_> {
             .top_dicts()
             .get(0)
             .map_err(|_| ReadError::MalformedData("CFF is missing top dict."))?;
-
-        let charstrings_offset = Self::charstrings_offset(top_dict)
-            .ok_or(ReadError::MalformedData("Missing charstrings offset."))?;
-
-        let charstrings_data = cff
-            .offset_data()
-            .split_off(charstrings_offset)
-            .ok_or(ReadError::OutOfBounds)?;
-
+        let charstrings_offset = Self::charstrings_offset(top_dict)?;
+        let charstrings_data = Self::charstrings_data(cff.offset_data(), charstrings_offset)?;
         let charstrings = Index1::read(charstrings_data)?;
+        let offset_type = Self::offset_type(charstrings.off_size())?;
 
-        let offset_type = match charstrings.off_size() {
+        let offset_base = charstrings.shape().data_byte_range().start;
+        let charstrings_object_data = charstrings_data
+            .split_off(offset_base)
+            .ok_or(ReadError::OutOfBounds)?
+            .as_bytes();
+
+        Self::check_glyph_count(charstrings.count() as u32, max_glyph_id)?;
+
+        Ok(CFFAndCharStrings {
+            cff_data: cff.offset_data().as_bytes(),
+            charstrings: Index::Format1(charstrings),
+            charstrings_object_data,
+            charstrings_offset,
+            offset_type,
+        })
+    }
+
+    fn from_cff2_font<'a>(
+        font: &FontRef<'a>,
+        max_glyph_id: GlyphId,
+    ) -> Result<CFFAndCharStrings<'a>, ReadError> {
+        let cff2 = font.cff2()?;
+        let charstrings_offset = Self::charstrings_offset(cff2.top_dict_data())?;
+        let charstrings_data = Self::charstrings_data(cff2.offset_data(), charstrings_offset)?;
+        let charstrings = Index2::read(charstrings_data)?;
+        let offset_type = Self::offset_type(charstrings.off_size())?;
+
+        let offset_base = charstrings.shape().data_byte_range().start;
+        let charstrings_object_data = charstrings_data
+            .split_off(offset_base)
+            .ok_or(ReadError::OutOfBounds)?
+            .as_bytes();
+
+        Self::check_glyph_count(charstrings.count(), max_glyph_id)?;
+
+        Ok(CFFAndCharStrings {
+            cff_data: cff2.offset_data().as_bytes(),
+            charstrings: Index::Format2(charstrings),
+            charstrings_object_data,
+            charstrings_offset,
+            offset_type,
+        })
+    }
+
+    fn check_glyph_count(count: u32, max_glyph_id: GlyphId) -> Result<(), ReadError> {
+        if count != max_glyph_id.to_u32() + 1 {
+            return Err(ReadError::MalformedData(
+                "CFF/CFF2 charstrings glyph count does not match maxp's.",
+            ));
+        }
+        Ok(())
+    }
+
+    fn charstrings_data(
+        table_data: FontData,
+        charstrings_offset: usize,
+    ) -> Result<FontData, ReadError> {
+        Ok(table_data
+            .split_off(charstrings_offset)
+            .ok_or(ReadError::OutOfBounds)?)
+    }
+
+    fn charstrings_offset(top_dict: &[u8]) -> Result<usize, ReadError> {
+        for entry in dict::entries(top_dict, None).flatten() {
+            if let dict::Entry::CharstringsOffset(offset) = entry {
+                return Ok(offset);
+            }
+        }
+        Err(ReadError::MalformedData("Missing charstrings offset."))
+    }
+
+    fn offset_type(size: u8) -> Result<OffsetType, ReadError> {
+        Ok(match size {
             1 => OffsetType::CffOne(Default::default()),
             2 => OffsetType::CffTwo(Default::default()),
             3 => OffsetType::CffThree(Default::default()),
@@ -645,38 +718,7 @@ impl CFFAndCharStrings<'_> {
                     "Invalid charstrings offset size (is not 1, 2, 3, or 4).",
                 ))
             }
-        };
-
-        // Where offsets are relative too, from the spec: the byte that precedes object
-        // data.
-        let offset_base = charstrings.shape().data_byte_range().start;
-        let charstrings_object_data = charstrings_data
-            .split_off(offset_base)
-            .ok_or(ReadError::OutOfBounds)?
-            .as_bytes();
-
-        if charstrings.count() as u32 != max_glyph_id.to_u32() + 1 {
-            return Err(ReadError::MalformedData(
-                "CFF charstrings glyph count does not match maxp's.",
-            ));
-        }
-
-        Ok(CFFAndCharStrings {
-            cff_data: cff.offset_data().as_bytes(),
-            charstrings,
-            charstrings_object_data,
-            charstrings_offset,
-            offset_type,
         })
-    }
-
-    fn charstrings_offset(top_dict: &[u8]) -> Option<usize> {
-        for entry in dict::entries(top_dict, None).flatten() {
-            if let dict::Entry::CharstringsOffset(offset) = entry {
-                return Some(offset);
-            }
-        }
-        None
     }
 }
 
@@ -988,7 +1030,6 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
         // This allows us to significantly simplify the CFF table reconstruction in this method:
         // 1. Copy everything preceding charstrings unmodified into the new table.
         // 2. Synthesize a new charstrings to the requested offset size.
-
         let offset_data: &[u8] = &offsets.offset_array;
         let outline_data: &[u8] = &offsets.data;
         let max_new_size = self.charstrings_offset + // this is the size of everything other than charstrings
@@ -1008,8 +1049,15 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
         );
 
         // Part 2 - Charstrings data.
-        r.and(serializer.embed(self.charstrings.count()))
-            .and(serializer.embed(offset_type.offset_width() as u8))
+        let r = match &self.charstrings {
+            // Count size differs between format 1 and 2 so pull out the inner type in
+            // order to embed the count with the correct width.
+            Index::Format1(charstrings) => r.and(serializer.embed(charstrings.count())),
+            Index::Format2(charstrings) => r.and(serializer.embed(charstrings.count())),
+            Index::Empty => return Err(PatchingError::InternalError),
+        };
+
+        r.and(serializer.embed(offset_type.offset_width() as u8))
             .and(serializer.embed_bytes(offset_data))
             .and(serializer.embed_bytes(outline_data))
             .map_err(PatchingError::SerializationError)?;
@@ -1735,26 +1783,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn glyph_keyed_unsupported_table() {
-        let mut patch = glyf_and_gvar_u16_glyph_patches();
-        patch.write_at("glyf_tag", Tag::new(b"CFF2"));
-        let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), patch);
-        let patch: &[u8] = &patch;
-        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
-        let patch_info = patch_info(IFT_TAG, 0);
-
-        let font = test_font_for_patching();
-        let font = FontRef::new(&font).unwrap();
-
-        assert_eq!(
-            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
-            Err(PatchingError::InvalidPatch(
-                "CFF2 patches are not yet supported."
-            ))
-        );
-    }
-
-    #[test]
     fn glyph_keyed_unknown_table() {
         let mut builder = glyf_and_gvar_u16_glyph_patches();
         builder.write_at("gvar_tag", Tag::new(b"hijk"));
@@ -1978,8 +2006,8 @@ pub(crate) mod tests {
         let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &cff_font).unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
-        let old_cff = CFFAndCharStrings::from_font(&cff_font, GlyphId::new(59)).unwrap();
-        let new_cff = CFFAndCharStrings::from_font(&patched, GlyphId::new(59)).unwrap();
+        let old_cff = CFFAndCharStrings::from_cff_font(&cff_font, GlyphId::new(59)).unwrap();
+        let new_cff = CFFAndCharStrings::from_cff_font(&patched, GlyphId::new(59)).unwrap();
 
         assert_eq!(new_cff.charstrings.off_size(), 2);
         assert_eq!(old_cff.charstrings.count(), new_cff.charstrings.count());
@@ -2036,8 +2064,8 @@ pub(crate) mod tests {
         let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &cff_font).unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
-        let old_cff = CFFAndCharStrings::from_font(&cff_font, GlyphId::new(59)).unwrap();
-        let new_cff = CFFAndCharStrings::from_font(&patched, GlyphId::new(59)).unwrap();
+        let old_cff = CFFAndCharStrings::from_cff_font(&cff_font, GlyphId::new(59)).unwrap();
+        let new_cff = CFFAndCharStrings::from_cff_font(&patched, GlyphId::new(59)).unwrap();
 
         assert_eq!(new_cff.charstrings.off_size(), 3);
         assert_eq!(old_cff.charstrings.count(), new_cff.charstrings.count());
