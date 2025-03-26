@@ -638,39 +638,18 @@ impl<'de, T: Domain> serde::Deserialize<'de> for IntSet<T> {
         D: serde::Deserializer<'de>,
     {
         let members = Membership::deserialize(deserializer)?;
-        // we need to verify that the values are valid for the given domain;
-        // we construct a temporary u32 intset so we can iterate the raw values.
-        let temp = IntSet::<u32>(members, PhantomData);
-        // an inverted set checks the domain during iteration, so invalid values
-        // are guarded against.
-        //
-        // HELPME GARRET: please confirm my understanding is correct
-        if temp.is_inverted() {
-            return Ok(IntSet(temp.0, PhantomData));
-        }
-        if T::is_continuous() {
-            let start = T::ordered_values().next().unwrap_or(0);
-            let end = T::ordered_values().next_back().unwrap_or(0);
+        let bits = match &members {
+            Membership::Inclusive(bit_set) => bit_set,
+            Membership::Exclusive(bit_set) => bit_set,
+        };
 
-            let Some((min, max)) = temp.iter().next().zip(temp.iter().next_back()) else {
-                // if set has no values, it is valid by construction
-                return Ok(IntSet(temp.0, PhantomData));
-            };
-            if (start..=end).contains(&min) && (start..=end).contains(&max) {
-                // no gaps and the range is fully covered: we're good
-                return Ok(IntSet(temp.0, PhantomData));
-            }
-        }
-
-        // if we aren't contiguous and we aren't inverted we need to check the
-        // validity of each member directly :/
-        if let Some(bad) = temp.iter().find(|val| !T::contains(*val)) {
+        if let Some(bad) = bits.iter().find(|val| !T::contains(*val)) {
             return Err(serde::de::Error::custom(format!(
                 "value '{bad}' out of range for domain {}",
                 std::any::type_name::<T>(),
             )));
         }
-        Ok(IntSet(temp.0, PhantomData))
+        Ok(IntSet(members, PhantomData))
     }
 }
 
@@ -2636,6 +2615,36 @@ mod test {
         set.insert(0u32);
         set.insert(u32::MAX);
         assert_eq!(roundtrip_json(&set).unwrap(), set);
+    }
+
+    #[test]
+    fn serde_non_contiguous() {
+        fn ev(val: u16) -> EvenInts {
+            assert!(val % 2 == 0);
+            EvenInts(val)
+        }
+        let set = IntSet::<EvenInts>::from([ev(2), ev(166), ev(u16::MAX - 1)]);
+        assert_eq!(roundtrip_json(&set).unwrap(), set);
+    }
+
+    #[test]
+    #[should_panic(expected = "out of range for domain")]
+    fn serde_non_contiguous_out_of_domain() {
+        let set = IntSet::from([1u16, 2, 3, 4, 5, 6, 7]);
+        let bytes = serde_json::to_vec(&set).unwrap();
+        serde_json::from_slice::<IntSet<EvenInts>>(&bytes).unwrap();
+    }
+
+    #[test]
+    fn non_contiguous_inverted() {
+        let all = IntSet::<u16>::all();
+        let bytes = serde_json::to_vec(&all).unwrap();
+        let readback: IntSet<EvenInts> = serde_json::from_slice(&bytes).unwrap();
+        let mut iter = readback.iter().map(|v| v.0);
+        let mut values = (&mut iter).take(5).collect::<Vec<_>>();
+        values.extend(iter.rev().take(5));
+
+        assert_eq!(values, [0, 2, 4, 6, 8, 65534, 65532, 65530, 65528, 65526])
     }
 
     #[test]
