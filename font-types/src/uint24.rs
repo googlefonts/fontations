@@ -55,6 +55,7 @@ impl From<Uint24> for usize {
     }
 }
 
+/// Indicates an error coverting an integer value into a Uint24 due to overflow.
 #[derive(Debug)]
 pub struct TryFromUint24Error;
 

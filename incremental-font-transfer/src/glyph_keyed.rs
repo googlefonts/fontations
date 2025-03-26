@@ -30,7 +30,6 @@ use read_fonts::{
 use klippa::serialize::{OffsetWhence, SerializeErrorFlags, Serializer};
 use shared_brotli_patch_decoder::shared_brotli_decode;
 use skrifa::GlyphId;
-use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap};
 use std::ops::{Range, RangeInclusive};
 
@@ -246,8 +245,8 @@ fn retained_glyphs_total_size<T: GlyphDataOffsetArray>(
     gids: &IntSet<GlyphId>,
     offsets: &T,
     max_glyph_id: GlyphId,
-) -> Result<u64, PatchingError> {
-    let mut total_size = 0u64;
+) -> Result<usize, PatchingError> {
+    let mut total_size = 0usize;
     for keep_range in retained_glyphs_in_font(gids, max_glyph_id) {
         let start = *keep_range.start();
         let end: GlyphId = keep_range
@@ -264,45 +263,15 @@ fn retained_glyphs_total_size<T: GlyphDataOffsetArray>(
             .checked_sub(start_offset) // TODO: this can be removed if we pre-verify ascending order
             .ok_or(PatchingError::FontParsingFailed(ReadError::MalformedData(
                 "offset entries are not in ascending order",
-            )))? as u64;
+            )))? as usize;
     }
 
     Ok(total_size)
 }
 
-/// Objects with this trait can be written to bytes.
-///
-/// The offset value will NOT be divided prior to conversion to bytes.
-trait WritableOffset {
-    fn write_to(self, dest: &mut [u8]);
-}
-
-impl WritableOffset for u32 {
-    fn write_to(self, dest: &mut [u8]) {
-        let data: [u8; 4] = self.to_raw();
-        dest[..4].copy_from_slice(&data);
-    }
-}
-
-impl WritableOffset for Uint24 {
-    fn write_to(self, dest: &mut [u8]) {
-        let data: [u8; 3] = self.to_raw();
-        dest[..3].copy_from_slice(&data);
-    }
-}
-
-impl WritableOffset for u16 {
-    fn write_to(self, dest: &mut [u8]) {
-        let data: [u8; 2] = self.to_raw();
-        dest[..2].copy_from_slice(&data);
-    }
-}
-
-impl WritableOffset for u8 {
-    fn write_to(self, dest: &mut [u8]) {
-        let data: [u8; 1] = self.to_raw();
-        dest[..1].copy_from_slice(&data);
-    }
+struct OffsetArrayAndData {
+    data: Vec<u8>,
+    offset_array: Vec<u8>,
 }
 
 struct OffsetArrayBuilder<'a, T: GlyphDataOffsetArray> {
@@ -310,26 +279,28 @@ struct OffsetArrayBuilder<'a, T: GlyphDataOffsetArray> {
     max_glyph_id: GlyphId,
     replacement_data: &'a [&'a [u8]],
     offset_array: &'a T,
-    new_data: &'a mut [u8],
-    new_offsets: &'a mut [u8],
+    new_data_len: usize,
+    new_offsets_len: usize,
 }
 
 impl<T: GlyphDataOffsetArray> OffsetArrayBuilder<'_, T> {
-    fn synthesize_offset_array<
-        OffsetInfo: OffsetTypeInfo,
-        OffsetType: WritableOffset + TryFrom<usize>,
-    >(
+    fn synthesize_offset_array<OffsetInfo: OffsetTypeInfo, OffsetType: Scalar + TryFrom<usize>>(
         self,
-    ) -> Result<(), PatchingError> {
+    ) -> Result<OffsetArrayAndData, PatchingError> {
         if !self.offset_array.all_offsets_are_ascending() {
             return Err(PatchingError::FontParsingFailed(ReadError::MalformedData(
                 "offset array contains unordered offsets.",
             )));
         }
 
-        let divisor: usize = OffsetInfo::divisor() as usize;
+        let mut new_data = vec![0u8; self.new_data_len];
+        let mut new_offsets = Serializer::new(self.new_offsets_len);
+        new_offsets
+            .start_serialize()
+            .map_err(PatchingError::SerializationError)?;
+
+        let divisor = OffsetInfo::divisor();
         let bias: usize = OffsetInfo::bias() as usize;
-        let width: usize = OffsetInfo::width();
 
         let mut replace_it = self.gids.iter_ranges().peekable();
         let mut keep_it = retained_glyphs_in_font(self.gids, self.max_glyph_id).peekable();
@@ -353,12 +324,12 @@ impl<T: GlyphDataOffsetArray> OffsetArrayBuilder<'_, T> {
             let (start, end) = (range.start().to_u32(), range.end().to_u32());
 
             if replace {
-                for gid in start..=end {
+                for _ in start..=end {
                     let data = *replacement_data_it
                         .next()
                         .ok_or(PatchingError::InternalError)?;
 
-                    self.new_data
+                    new_data
                         .get_mut(write_index..write_index + data.len())
                         .ok_or(PatchingError::InternalError)?
                         .copy_from_slice(data);
@@ -367,11 +338,9 @@ impl<T: GlyphDataOffsetArray> OffsetArrayBuilder<'_, T> {
                         .try_into()
                         .map_err(|_| PatchingError::InternalError)?;
 
-                    new_off.write_to(
-                        self.new_offsets
-                            .get_mut(gid as usize * width..)
-                            .ok_or(PatchingError::InternalError)?,
-                    );
+                    new_offsets
+                        .embed(new_off)
+                        .map_err(PatchingError::SerializationError)?;
 
                     write_index += data.len();
                     // Add padding if the offset gets divided
@@ -390,7 +359,7 @@ impl<T: GlyphDataOffsetArray> OffsetArrayBuilder<'_, T> {
                 let len = end_off
                     .checked_sub(start_off)
                     .ok_or(PatchingError::InternalError)?;
-                self.new_data
+                new_data
                     .get_mut(write_index..write_index + len)
                     .ok_or(PatchingError::InternalError)?
                     .copy_from_slice(self.offset_array.get(start_off..end_off)?);
@@ -402,11 +371,9 @@ impl<T: GlyphDataOffsetArray> OffsetArrayBuilder<'_, T> {
                     let new_off: OffsetType = ((new_off / divisor) + bias)
                         .try_into()
                         .map_err(|_| PatchingError::InternalError)?;
-                    new_off.write_to(
-                        self.new_offsets
-                            .get_mut(gid as usize * width..)
-                            .ok_or(PatchingError::InternalError)?,
-                    );
+                    new_offsets
+                        .embed(new_off)
+                        .map_err(PatchingError::SerializationError)?;
                 }
 
                 write_index += len;
@@ -417,13 +384,16 @@ impl<T: GlyphDataOffsetArray> OffsetArrayBuilder<'_, T> {
         let new_off: OffsetType = ((write_index / divisor) + bias)
             .try_into()
             .map_err(|_| PatchingError::InternalError)?;
-        new_off.write_to(
-            self.new_offsets
-                .get_mut(self.new_offsets.len() - width..)
-                .ok_or(PatchingError::InternalError)?,
-        );
+        new_offsets
+            .embed(new_off)
+            .map_err(PatchingError::SerializationError)?;
 
-        Ok(())
+        new_offsets.end_serialize();
+
+        Ok(OffsetArrayAndData {
+            data: new_data,
+            offset_array: new_offsets.copy_bytes(),
+        })
     }
 }
 
@@ -443,7 +413,7 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
     // Step 1: determine the new total size of the data portion.
     let mut total_data_size = retained_glyphs_total_size(&gids, &offset_array, max_glyph_id)?;
     for data in replacement_data.iter() {
-        let len = data.len() as u64;
+        let len = data.len();
         // note: include padding when needed (if offsets are divided for storage)
         total_data_size += len + (len % offset_type.offset_divisor());
     }
@@ -472,19 +442,17 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
     // Note: we synthesize using whatever new_offset_type was selected above.
     // Note: max_glyph_id + 2 here because we want num glyphs + 1.
     let offsets_size = (max_glyph_id.to_u32() as usize + 2) * new_offset_type.offset_width();
-    let mut new_data = vec![0u8; total_data_size as usize];
-    let mut new_offsets = vec![0u8; offsets_size];
 
     let offset_array_builder = OffsetArrayBuilder {
         gids: &gids,
         max_glyph_id,
         replacement_data: &replacement_data,
         offset_array: &offset_array,
-        new_data: new_data.as_mut_slice(),
-        new_offsets: new_offsets.as_mut_slice(),
+        new_data_len: total_data_size as usize,
+        new_offsets_len: offsets_size,
     };
 
-    match new_offset_type {
+    let new_offsets = match new_offset_type {
         // Bias 1 offsets
         OffsetType::CffOne => offset_array_builder.synthesize_offset_array::<CffOneInfo, u8>()?,
         OffsetType::CffTwo => offset_array_builder.synthesize_offset_array::<CffTwoInfo, u16>()?,
@@ -499,10 +467,10 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
             offset_array_builder.synthesize_offset_array::<ShortDivByTwoInfo, u16>()?
         }
         OffsetType::Long => offset_array_builder.synthesize_offset_array::<LongInfo, u32>()?,
-    }
+    };
 
     // Step 3: add new tables to the output builder
-    offset_array.add_to_font(font_builder, new_data, new_offsets, new_offset_type)?;
+    offset_array.add_to_font(font_builder, new_offsets, new_offset_type)?;
 
     Ok(())
 }
@@ -523,7 +491,7 @@ enum OffsetType {
 
 trait OffsetTypeInfo {
     fn width() -> usize;
-    fn divisor() -> u64;
+    fn divisor() -> usize;
     fn bias() -> u32;
 }
 
@@ -534,7 +502,7 @@ impl OffsetTypeInfo for CffOneInfo {
         1
     }
 
-    fn divisor() -> u64 {
+    fn divisor() -> usize {
         1
     }
 
@@ -550,7 +518,7 @@ impl OffsetTypeInfo for CffTwoInfo {
         2
     }
 
-    fn divisor() -> u64 {
+    fn divisor() -> usize {
         1
     }
 
@@ -566,7 +534,7 @@ impl OffsetTypeInfo for CffThreeInfo {
         3
     }
 
-    fn divisor() -> u64 {
+    fn divisor() -> usize {
         1
     }
 
@@ -582,7 +550,7 @@ impl OffsetTypeInfo for CffFourInfo {
         4
     }
 
-    fn divisor() -> u64 {
+    fn divisor() -> usize {
         1
     }
 
@@ -597,7 +565,7 @@ impl OffsetTypeInfo for ShortDivByTwoInfo {
         2
     }
 
-    fn divisor() -> u64 {
+    fn divisor() -> usize {
         2
     }
 
@@ -612,7 +580,7 @@ impl OffsetTypeInfo for LongInfo {
         4
     }
 
-    fn divisor() -> u64 {
+    fn divisor() -> usize {
         1
     }
 
@@ -622,10 +590,10 @@ impl OffsetTypeInfo for LongInfo {
 }
 
 impl OffsetType {
-    fn max_representable_size(self) -> u64 {
+    fn max_representable_size(self) -> usize {
         match self {
             Self::ShortDivByTwo => ((1 << 16) - 1) * 2,
-            _ => (1 << (self.offset_width() * 8)) - 1 - self.offset_bias() as u64,
+            _ => (1 << (self.offset_width() * 8)) - 1 - self.offset_bias() as usize,
         }
     }
 
@@ -640,7 +608,7 @@ impl OffsetType {
         }
     }
 
-    fn offset_divisor(&self) -> u64 {
+    fn offset_divisor(&self) -> usize {
         match self {
             Self::CffOne => CffOneInfo::divisor(),
             Self::CffTwo => CffTwoInfo::divisor(),
@@ -764,11 +732,10 @@ trait GlyphDataOffsetArray {
 
     fn get(&self, range: Range<usize>) -> Result<&[u8], PatchingError>;
 
-    fn add_to_font<'a>(
+    fn add_to_font(
         &self,
-        font_builder: &mut FontBuilder<'a>,
-        data: impl Into<Cow<'a, [u8]>>,
-        offsets: impl Into<Cow<'a, [u8]>>,
+        font_builder: &mut FontBuilder,
+        offsets: OffsetArrayAndData,
         offset_type: OffsetType,
     ) -> Result<(), PatchingError>;
 }
@@ -802,11 +769,10 @@ impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
             .ok_or(PatchingError::from(ReadError::OutOfBounds))
     }
 
-    fn add_to_font<'a>(
+    fn add_to_font(
         &self,
-        font_builder: &mut FontBuilder<'a>,
-        data: impl Into<Cow<'a, [u8]>>,
-        offsets: impl Into<Cow<'a, [u8]>>,
+        font_builder: &mut FontBuilder,
+        offsets: OffsetArrayAndData,
         new_offset_type: OffsetType,
     ) -> Result<(), PatchingError> {
         if new_offset_type != self.offset_type() {
@@ -816,8 +782,8 @@ impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
             ));
         }
 
-        font_builder.add_raw(Glyf::TAG, data);
-        font_builder.add_raw(Loca::TAG, offsets);
+        font_builder.add_raw(Glyf::TAG, offsets.data);
+        font_builder.add_raw(Loca::TAG, offsets.offset_array);
         Ok(())
     }
 }
@@ -868,11 +834,10 @@ impl GlyphDataOffsetArray for Gvar<'_> {
             .map(|fd| fd.as_bytes())
     }
 
-    fn add_to_font<'a>(
+    fn add_to_font(
         &self,
-        font_builder: &mut FontBuilder<'a>,
-        data: impl Into<Cow<'a, [u8]>>,
-        offsets: impl Into<Cow<'a, [u8]>>,
+        font_builder: &mut FontBuilder,
+        offsets: OffsetArrayAndData,
         new_offset_type: OffsetType,
     ) -> Result<(), PatchingError> {
         const GVAR_FLAGS_OFFSET: usize = 15;
@@ -892,13 +857,14 @@ impl GlyphDataOffsetArray for Gvar<'_> {
         // is used to recalculate offsets as needed.
         let orig_bytes = self.as_bytes();
         let orig_size = orig_bytes.len();
-        let part2_offsets = offsets.into();
-        let part4_data = data.into();
+        //let part2_offsets = offsets.offset_array.into();
+        //let part4_data = offsets.data.into();
 
         let original_offsets_range = self.shape().glyph_variation_data_offsets_byte_range();
 
         if new_offset_type == self.offset_type()
-            && part2_offsets.len() != original_offsets_range.end - original_offsets_range.start
+            && offsets.offset_array.len()
+                != original_offsets_range.end - original_offsets_range.start
         {
             // computed offsets array length should not have changed from the original offsets array length
             // if offset type is not changing.
@@ -923,7 +889,7 @@ impl GlyphDataOffsetArray for Gvar<'_> {
             flags &= 0b11111110;
         }
 
-        let max_new_size = orig_size + part4_data.len();
+        let max_new_size = orig_size + offsets.data.len();
 
         // part 1 and 2 - write gvar header and offsets
         let mut serializer = Serializer::new(max_new_size);
@@ -932,13 +898,13 @@ impl GlyphDataOffsetArray for Gvar<'_> {
             .and(serializer.embed_bytes(part1_header_pre_flag))
             .and(serializer.embed(flags))
             .and(serializer.embed_bytes(part1_header_post_flag))
-            .and(serializer.embed_bytes(&part2_offsets))
+            .and(serializer.embed_bytes(&offsets.offset_array))
             .map_err(PatchingError::from)?;
 
         // part 4 - write new glyph variation data
         serializer
             .push()
-            .and(serializer.embed_bytes(&part4_data))
+            .and(serializer.embed_bytes(&offsets.data))
             .map_err(PatchingError::from)?;
 
         let glyph_data_obj = serializer
@@ -1041,11 +1007,10 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
             .ok_or(PatchingError::FontParsingFailed(ReadError::OutOfBounds))
     }
 
-    fn add_to_font<'a>(
+    fn add_to_font(
         &self,
-        font_builder: &mut FontBuilder<'a>,
-        data: impl Into<Cow<'a, [u8]>>,
-        offsets: impl Into<Cow<'a, [u8]>>,
+        font_builder: &mut FontBuilder,
+        offsets: OffsetArrayAndData,
         offset_type: OffsetType,
     ) -> Result<(), PatchingError> {
         // The IFT specification requires that for IFT fonts CFF tables must have the charstrings data
@@ -1055,8 +1020,8 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
         // 1. Copy everything preceding charstrings unmodified into the new table.
         // 2. Synthesize a new charstrings to the requested offset size.
 
-        let offset_data: &[u8] = &offsets.into();
-        let outline_data: &[u8] = &data.into();
+        let offset_data: &[u8] = &offsets.offset_array;
+        let outline_data: &[u8] = &offsets.data;
         let max_new_size = self.charstrings_offset + // this is the size of everything other than charstrings
             outline_data.len() +
             offset_data.len() +
