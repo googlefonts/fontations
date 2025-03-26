@@ -94,10 +94,12 @@ impl BitPage {
 
     /// Marks `(val % page width)` a member of this set and returns `true` if it is newly added.
     pub(crate) fn insert(&mut self, val: u32) -> bool {
-        let ret = !self.contains(val);
-        *self.element_mut(val) |= elem_index_bit_mask(val);
-        self.length += ret as u32;
-        ret
+        let el_mut = self.element_mut(val);
+        let mask = elem_index_bit_mask(val);
+        let is_new = (*el_mut & mask) == 0;
+        *el_mut |= mask;
+        self.length += is_new as u32;
+        is_new
     }
 
     /// Marks all values `[first, last]` as members of this set.
