@@ -114,24 +114,24 @@ pub(crate) fn apply_glyph_keyed_patches(
             processed_tables.insert(Gvar::TAG);
         } else if table_tag == Cff::TAG {
             patch_offset_array(
-                Cff::TAG,
+                table_tag,
                 &glyph_patches,
                 CFFAndCharStrings::from_cff_font(font, max_glyph_id)
                     .map_err(PatchingError::from)?,
                 max_glyph_id,
                 &mut font_builder,
             )?;
-            processed_tables.insert(Cff::TAG);
+            processed_tables.insert(table_tag);
         } else if table_tag == Cff2::TAG {
             patch_offset_array(
-                Cff2::TAG,
+                table_tag,
                 &glyph_patches,
                 CFFAndCharStrings::from_cff2_font(font, max_glyph_id)
                     .map_err(PatchingError::from)?,
                 max_glyph_id,
                 &mut font_builder,
             )?;
-            processed_tables.insert(Cff::TAG);
+            processed_tables.insert(table_tag);
         } else {
             // All other table tags are ignored.
             continue;
@@ -1030,12 +1030,18 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
         // This allows us to significantly simplify the CFF table reconstruction in this method:
         // 1. Copy everything preceding charstrings unmodified into the new table.
         // 2. Synthesize a new charstrings to the requested offset size.
+        let (count_width, table_tag) = match &self.charstrings {
+            Index::Format1(_) => (2, Cff::TAG),
+            Index::Format2(_) => (4, Cff2::TAG),
+            Index::Empty => return Err(PatchingError::InternalError),
+        };
+
         let offset_data: &[u8] = &offsets.offset_array;
         let outline_data: &[u8] = &offsets.data;
         let max_new_size = self.charstrings_offset + // this is the size of everything other than charstrings
             outline_data.len() +
             offset_data.len() +
-            3; // fixed size of INDEX structures.
+            1 + count_width; // header size for INDEX
 
         let mut serializer = Serializer::new(max_new_size);
 
@@ -1066,7 +1072,8 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
         serializer.end_serialize();
         let new_cff = serializer.copy_bytes();
 
-        font_builder.add_raw(Cff::TAG, new_cff);
+        font_builder.add_raw(table_tag, new_cff);
+
         Ok(())
     }
 }
@@ -1082,6 +1089,7 @@ pub(crate) mod tests {
     use brotlic::CompressorWriter;
     use read_fonts::{
         tables::{
+            cff2::Cff2,
             glyf::Glyf,
             gvar::Gvar,
             ift::{CompatibilityId, GlyphKeyedPatch, IFTX_TAG, IFT_TAG},
@@ -1097,7 +1105,7 @@ pub(crate) mod tests {
             glyf_u16_glyph_patches_2, glyph_keyed_patch_header, long_gvar_with_shared_tuples,
             noop_glyf_glyph_patches, out_of_order_gvar_with_shared_tuples,
             short_gvar_near_maximum_offset_size, short_gvar_with_no_shared_tuples,
-            short_gvar_with_shared_tuples, CFF_FONT,
+            short_gvar_with_shared_tuples, CFF2_FONT, CFF_FONT,
         },
     };
     use skrifa::{FontRef, GlyphId, Tag};
@@ -2101,6 +2109,63 @@ pub(crate) mod tests {
             &new_cff.charstrings.get(59).unwrap()[0..5]
         );
         assert_eq!(70_002, new_cff.charstrings.get(59).unwrap().len());
+    }
+
+    #[test]
+    fn cff2_patching() {
+        let mut patches = cff_u16_glyph_patches();
+        patches.write_at("tag", Cff2::TAG);
+
+        let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), patches);
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(IFT_TAG, 0);
+
+        let cff2_font = FontRef::new(CFF2_FONT).unwrap();
+        let mut font_builder = FontBuilder::new();
+        font_builder.copy_missing_tables(cff2_font);
+        let ift_data = vec![0, 0, 0, 0];
+        font_builder.add_raw(Tag::new(b"IFT "), ift_data.as_slice());
+
+        let cff2_font_data = font_builder.build();
+        let cff2_font = FontRef::new(cff2_font_data.as_slice()).unwrap();
+
+        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &cff2_font).unwrap();
+        let patched = FontRef::new(&patched).unwrap();
+
+        let old_cff = CFFAndCharStrings::from_cff2_font(&cff2_font, GlyphId::new(59)).unwrap();
+        let new_cff = CFFAndCharStrings::from_cff2_font(&patched, GlyphId::new(59)).unwrap();
+
+        assert_eq!(new_cff.charstrings.off_size(), 2);
+        assert_eq!(old_cff.charstrings.count(), new_cff.charstrings.count());
+
+        // Unmodified glyphs
+        assert_eq!(
+            old_cff.charstrings.get(0).unwrap(),
+            new_cff.charstrings.get(0).unwrap()
+        );
+        assert_eq!(
+            old_cff.charstrings.get(2).unwrap(),
+            new_cff.charstrings.get(2).unwrap()
+        );
+        assert_eq!(
+            old_cff.charstrings.get(34).unwrap(),
+            new_cff.charstrings.get(34).unwrap()
+        );
+        assert_eq!(
+            old_cff.charstrings.get(37).unwrap(),
+            new_cff.charstrings.get(37).unwrap()
+        );
+        assert_eq!(
+            old_cff.charstrings.get(39).unwrap(),
+            new_cff.charstrings.get(39).unwrap()
+        );
+
+        // Inserted glyphs
+        assert_eq!(b"abc", new_cff.charstrings.get(1).unwrap());
+        assert_eq!(b"defg", new_cff.charstrings.get(38).unwrap());
+        assert_eq!(b"hijkl", new_cff.charstrings.get(47).unwrap());
+        assert_eq!(b"mn", new_cff.charstrings.get(59).unwrap());
     }
 
     // TODO test of invalid cases:
