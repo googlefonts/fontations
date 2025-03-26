@@ -693,9 +693,9 @@ impl CFFAndCharStrings<'_> {
         table_data: FontData,
         charstrings_offset: usize,
     ) -> Result<FontData, ReadError> {
-        Ok(table_data
+        table_data
             .split_off(charstrings_offset)
-            .ok_or(ReadError::OutOfBounds)?)
+            .ok_or(ReadError::OutOfBounds)
     }
 
     fn charstrings_offset(top_dict: &[u8]) -> Result<usize, ReadError> {
@@ -1000,8 +1000,7 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
     }
 
     fn all_offsets_are_ascending(&self) -> bool {
-        let it1 =
-            (0..self.charstrings.count()).map(|index| self.offset_for(GlyphId::new(index as u32)));
+        let it1 = (0..self.charstrings.count()).map(|index| self.offset_for(GlyphId::new(index)));
         let it2 = it1.clone().skip(1);
 
         !it1.zip(it2).any(|(start, end)| {
