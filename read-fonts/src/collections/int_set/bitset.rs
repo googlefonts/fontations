@@ -611,16 +611,13 @@ impl<'a> BitSetBuilder<'a> {
             self.last_major_value = major_value;
         };
         if let Some(page) = self.set.pages.get_mut(self.last_page_index) {
-            page.insert_no_return_and_promise_to_do_your_own_bookkeeping(val);
+            self.set.length += page.insert(val) as u64;
         }
     }
 
     pub(crate) fn finish(&mut self) {
-        self.set
-            .pages
-            .iter_mut()
-            .for_each(BitPage::recompute_length);
-        self.set.recompute_length()
+        // we used to do some finalization and bookkeeping here, and we will
+        // want to again if we optimize the impl more.
     }
 }
 

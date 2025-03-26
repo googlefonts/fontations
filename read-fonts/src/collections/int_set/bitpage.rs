@@ -100,21 +100,6 @@ impl BitPage {
         ret
     }
 
-    /// Blindly marks `(val % page width)` a member of this set.
-    ///
-    /// This is used to maximize performance in cases where the return value
-    /// on [`insert()`] is not needed (such as for batching).
-    ///
-    /// # WARNING:
-    /// After calling this method, the `length` value for this page is no longer
-    /// valid. The caller is responsible for ensuring that the
-    /// `recalculate_length` method is called when they're finished adding items.
-    ///
-    /// [`insert()`]: Self::insert
-    pub(crate) fn insert_no_return_and_promise_to_do_your_own_bookkeeping(&mut self, val: u32) {
-        *self.element_mut(val) |= elem_index_bit_mask(val);
-    }
-
     /// Marks all values `[first, last]` as members of this set.
     pub(crate) fn insert_range(&mut self, first: u32, last: u32) {
         let first = first & PAGE_MASK;
