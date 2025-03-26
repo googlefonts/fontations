@@ -56,19 +56,28 @@ jobs:
       # test all packages individually to ensure deterministic resolution
       # of dependencies for each package
 
-      - name: cargo test font-types
+      - name: cargo test font-types (default)
+        run: cargo test -p font-types
+
+      - name: cargo test font-types (all)
         run: cargo test -p font-types --all-targets --all-features
 
-      - name: cargo test read-fonts
+      - name: cargo test read-fonts (default)
+        run: cargo test -p read-fonts
+
+      - name: cargo test read-fonts (all)
         run: cargo test -p read-fonts --all-targets --all-features
 
-      - name: cargo test write-fonts
+      - name: cargo test write-fonts (default)
+        run: cargo test -p write-fonts
+
+      - name: cargo test write-fonts (all)
         run: cargo test -p write-fonts --all-targets --all-features
 
-      - name: cargo test write-fonts default features
-        run: cargo test -p write-fonts --all-targets
+      - name: cargo test skrifa (default)
+        run: cargo test -p skrifa
 
-      - name: cargo test skrifa
+      - name: cargo test skrifa (all)
         run: cargo test -p skrifa --all-targets --all-features
 
       - name: cargo test klippa
