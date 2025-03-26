@@ -284,7 +284,7 @@ struct OffsetArrayBuilder<'a, T: GlyphDataOffsetArray> {
 }
 
 impl<T: GlyphDataOffsetArray> OffsetArrayBuilder<'_, T> {
-    fn synthesize_offset_array<OffsetInfo: OffsetTypeInfo, OffsetType: Scalar + TryFrom<usize>>(
+    fn build<OffsetInfo: OffsetTypeInfo, OffsetType: Scalar + TryFrom<usize>>(
         self,
     ) -> Result<OffsetArrayAndData, PatchingError> {
         if !self.offset_array.all_offsets_are_ascending() {
@@ -302,8 +302,8 @@ impl<T: GlyphDataOffsetArray> OffsetArrayBuilder<'_, T> {
             .start_serialize()
             .map_err(PatchingError::SerializationError)?;
 
-        let divisor = OffsetInfo::divisor();
-        let bias = OffsetInfo::bias() as usize;
+        let divisor = OffsetInfo::DIVISOR;
+        let bias = OffsetInfo::BIAS as usize;
 
         let mut replace_it = self.gids.iter_ranges().peekable();
         let mut keep_it = retained_glyphs_in_font(self.gids, self.max_glyph_id).peekable();
@@ -460,19 +460,13 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
 
     let new_offsets = match new_offset_type {
         // Bias 1 offsets
-        OffsetType::CffOne => offset_array_builder.synthesize_offset_array::<CffOneInfo, u8>()?,
-        OffsetType::CffTwo => offset_array_builder.synthesize_offset_array::<CffTwoInfo, u16>()?,
-        OffsetType::CffThree => {
-            offset_array_builder.synthesize_offset_array::<CffThreeInfo, Uint24>()?
-        }
-        OffsetType::CffFour => {
-            offset_array_builder.synthesize_offset_array::<CffFourInfo, u32>()?
-        }
+        OffsetType::CffOne => offset_array_builder.build::<CffOneInfo, u8>()?,
+        OffsetType::CffTwo => offset_array_builder.build::<CffTwoInfo, u16>()?,
+        OffsetType::CffThree => offset_array_builder.build::<CffThreeInfo, Uint24>()?,
+        OffsetType::CffFour => offset_array_builder.build::<CffFourInfo, u32>()?,
         // Bias 0 offsets
-        OffsetType::ShortDivByTwo => {
-            offset_array_builder.synthesize_offset_array::<ShortDivByTwoInfo, u16>()?
-        }
-        OffsetType::Long => offset_array_builder.synthesize_offset_array::<LongInfo, u32>()?,
+        OffsetType::ShortDivByTwo => offset_array_builder.build::<ShortDivByTwoInfo, u16>()?,
+        OffsetType::Long => offset_array_builder.build::<LongInfo, u32>()?,
     };
 
     // Step 3: add new tables to the output builder
@@ -496,103 +490,55 @@ enum OffsetType {
 }
 
 trait OffsetTypeInfo {
-    fn width() -> usize;
-    fn divisor() -> usize;
-    fn bias() -> u32;
+    const WIDTH: usize;
+    const DIVISOR: usize;
+    const BIAS: u32;
 }
 
 struct CffOneInfo;
 
 impl OffsetTypeInfo for CffOneInfo {
-    fn width() -> usize {
-        1
-    }
-
-    fn divisor() -> usize {
-        1
-    }
-
-    fn bias() -> u32 {
-        1
-    }
+    const WIDTH: usize = 1;
+    const DIVISOR: usize = 1;
+    const BIAS: u32 = 1;
 }
 
 struct CffTwoInfo;
 
 impl OffsetTypeInfo for CffTwoInfo {
-    fn width() -> usize {
-        2
-    }
-
-    fn divisor() -> usize {
-        1
-    }
-
-    fn bias() -> u32 {
-        1
-    }
+    const WIDTH: usize = 2;
+    const DIVISOR: usize = 1;
+    const BIAS: u32 = 1;
 }
 
 struct CffThreeInfo;
 
 impl OffsetTypeInfo for CffThreeInfo {
-    fn width() -> usize {
-        3
-    }
-
-    fn divisor() -> usize {
-        1
-    }
-
-    fn bias() -> u32 {
-        1
-    }
+    const WIDTH: usize = 3;
+    const DIVISOR: usize = 1;
+    const BIAS: u32 = 1;
 }
 
 struct CffFourInfo;
 
 impl OffsetTypeInfo for CffFourInfo {
-    fn width() -> usize {
-        4
-    }
-
-    fn divisor() -> usize {
-        1
-    }
-
-    fn bias() -> u32 {
-        1
-    }
+    const WIDTH: usize = 4;
+    const DIVISOR: usize = 1;
+    const BIAS: u32 = 1;
 }
 
 struct ShortDivByTwoInfo;
 impl OffsetTypeInfo for ShortDivByTwoInfo {
-    fn width() -> usize {
-        2
-    }
-
-    fn divisor() -> usize {
-        2
-    }
-
-    fn bias() -> u32 {
-        0
-    }
+    const WIDTH: usize = 2;
+    const DIVISOR: usize = 2;
+    const BIAS: u32 = 0;
 }
 
 struct LongInfo;
 impl OffsetTypeInfo for LongInfo {
-    fn width() -> usize {
-        4
-    }
-
-    fn divisor() -> usize {
-        1
-    }
-
-    fn bias() -> u32 {
-        0
-    }
+    const WIDTH: usize = 4;
+    const DIVISOR: usize = 1;
+    const BIAS: u32 = 0;
 }
 
 impl OffsetType {
@@ -605,34 +551,34 @@ impl OffsetType {
 
     fn offset_width(&self) -> usize {
         match self {
-            Self::CffOne => CffOneInfo::width(),
-            Self::CffTwo => CffTwoInfo::width(),
-            Self::CffThree => CffThreeInfo::width(),
-            Self::CffFour => CffFourInfo::width(),
-            Self::ShortDivByTwo => ShortDivByTwoInfo::width(),
-            Self::Long => LongInfo::width(),
+            Self::CffOne => CffOneInfo::WIDTH,
+            Self::CffTwo => CffTwoInfo::WIDTH,
+            Self::CffThree => CffThreeInfo::WIDTH,
+            Self::CffFour => CffFourInfo::WIDTH,
+            Self::ShortDivByTwo => ShortDivByTwoInfo::WIDTH,
+            Self::Long => LongInfo::WIDTH,
         }
     }
 
     fn offset_divisor(&self) -> usize {
         match self {
-            Self::CffOne => CffOneInfo::divisor(),
-            Self::CffTwo => CffTwoInfo::divisor(),
-            Self::CffThree => CffThreeInfo::divisor(),
-            Self::CffFour => CffFourInfo::divisor(),
-            Self::ShortDivByTwo => ShortDivByTwoInfo::divisor(),
-            Self::Long => LongInfo::divisor(),
+            Self::CffOne => CffOneInfo::DIVISOR,
+            Self::CffTwo => CffTwoInfo::DIVISOR,
+            Self::CffThree => CffThreeInfo::DIVISOR,
+            Self::CffFour => CffFourInfo::DIVISOR,
+            Self::ShortDivByTwo => ShortDivByTwoInfo::DIVISOR,
+            Self::Long => LongInfo::DIVISOR,
         }
     }
 
     fn offset_bias(&self) -> u32 {
         match self {
-            Self::CffOne => CffOneInfo::bias(),
-            Self::CffTwo => CffTwoInfo::bias(),
-            Self::CffThree => CffThreeInfo::bias(),
-            Self::CffFour => CffFourInfo::bias(),
-            Self::ShortDivByTwo => ShortDivByTwoInfo::bias(),
-            Self::Long => LongInfo::bias(),
+            Self::CffOne => CffOneInfo::BIAS,
+            Self::CffTwo => CffTwoInfo::BIAS,
+            Self::CffThree => CffThreeInfo::BIAS,
+            Self::CffFour => CffFourInfo::BIAS,
+            Self::ShortDivByTwo => ShortDivByTwoInfo::BIAS,
+            Self::Long => LongInfo::BIAS,
         }
     }
 }
@@ -863,8 +809,6 @@ impl GlyphDataOffsetArray for Gvar<'_> {
         // is used to recalculate offsets as needed.
         let orig_bytes = self.as_bytes();
         let orig_size = orig_bytes.len();
-        //let part2_offsets = offsets.offset_array.into();
-        //let part4_data = offsets.data.into();
 
         let original_offsets_range = self.shape().glyph_variation_data_offsets_byte_range();
 
