@@ -12,6 +12,7 @@ use crate::{be_buffer, bebuffer::BeBuffer};
 pub static IFT_BASE: &[u8] = include_bytes!("../test_data/ttf/ift_base.ttf");
 
 pub static CFF_FONT: &[u8] = include_bytes!("../test_data/ttf/NotoSansJP-Regular.subset.otf");
+pub static CFF2_FONT: &[u8] = include_bytes!("../test_data/ttf/NotoSansJP-VF.subset.otf");
 
 // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-1
 pub fn simple_format1() -> BeBuffer {
@@ -826,7 +827,7 @@ pub fn cff_u16_glyph_patches() -> BeBuffer {
        47,
        59u16], // last gid
 
-      (Tag::new(b"CFF ")),   // tables * 1
+      {(Tag::new(b"CFF ")): "tag"},   // tables * 1
 
       // 5 glyph data offsets
       {0u32: "gid_1_offset"},
