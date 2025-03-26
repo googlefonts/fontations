@@ -274,7 +274,7 @@ struct OffsetArrayAndData {
     offset_array: Vec<u8>,
 }
 
-struct OffsetArrayBuilder<'a, T: GlyphDataOffsetArray> {
+struct OffsetArrayBuilder<'a, T> {
     gids: &'a IntSet<GlyphId>,
     max_glyph_id: GlyphId,
     replacement_data: &'a [&'a [u8]],
