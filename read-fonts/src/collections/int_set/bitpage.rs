@@ -1,6 +1,6 @@
 //! Stores a page of bits, used inside of bitset's.
 
-use std::{cell::Cell, hash::Hash, ops::RangeInclusive};
+use std::{hash::Hash, ops::RangeInclusive};
 
 // the integer type underlying our bit set
 type Element = u64;
@@ -23,7 +23,7 @@ const PAGE_MASK: u32 = PAGE_BITS - 1;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct BitPage {
     storage: [Element; PAGE_SIZE as usize],
-    len: Cell<u32>,
+    length: u32,
 }
 
 impl BitPage {
@@ -31,18 +31,17 @@ impl BitPage {
     pub(crate) fn new_zeroes() -> Self {
         Self {
             storage: [0; PAGE_SIZE as usize],
-            len: Cell::new(0),
+            length: 0,
         }
+    }
+
+    pub(crate) fn recompute_length(&mut self) {
+        self.length = self.storage.iter().copied().map(u64::count_ones).sum();
     }
 
     /// Returns the number of members in this page.
     pub(crate) fn len(&self) -> u32 {
-        if self.is_dirty() {
-            // this means we're stale and should recompute
-            let len = self.storage.iter().map(|val| val.count_ones()).sum();
-            self.len.set(len);
-        }
-        self.len.get()
+        self.length
     }
 
     /// Returns true if this page has no members.
@@ -97,18 +96,23 @@ impl BitPage {
     pub(crate) fn insert(&mut self, val: u32) -> bool {
         let ret = !self.contains(val);
         *self.element_mut(val) |= elem_index_bit_mask(val);
-        self.mark_dirty();
+        self.length += ret as u32;
         ret
     }
 
-    /// Marks `(val % page width)` a member of this set, but does not check if it was already a member.
+    /// Blindly marks `(val % page width)` a member of this set.
     ///
-    /// This is used to maximize performance in cases where the return value on [`insert()`] is not needed.
+    /// This is used to maximize performance in cases where the return value
+    /// on [`insert()`] is not needed (such as for batching).
+    ///
+    /// # WARNING:
+    /// After calling this method, the `length` value for this page is no longer
+    /// valid. The caller is responsible for ensuring that the
+    /// `recalculate_length` method is called when they're finished adding items.
     ///
     /// [`insert()`]: Self::insert
-    pub(crate) fn insert_no_return(&mut self, val: u32) {
+    pub(crate) fn insert_no_return_and_promise_to_do_your_own_bookkeeping(&mut self, val: u32) {
         *self.element_mut(val) |= elem_index_bit_mask(val);
-        self.mark_dirty();
     }
 
     /// Marks all values `[first, last]` as members of this set.
@@ -129,7 +133,7 @@ impl BitPage {
             self.storage[elem_idx as usize] |= mask;
         }
 
-        self.mark_dirty();
+        self.recompute_length();
     }
 
     /// Marks all values `[first, last]` as not members of this set.
@@ -150,21 +154,21 @@ impl BitPage {
             self.storage[elem_idx as usize] &= mask;
         }
 
-        self.mark_dirty();
+        self.recompute_length();
     }
 
     pub(crate) fn clear(&mut self) {
         for elem in self.storage.iter_mut() {
             *elem = 0;
         }
-        self.len.set(0);
+        self.length = 0;
     }
 
     /// Removes `(val % page width)` from this set.
     pub(crate) fn remove(&mut self, val: u32) -> bool {
         let ret = self.contains(val);
         *self.element_mut(val) &= !elem_index_bit_mask(val);
-        self.mark_dirty();
+        self.length -= ret as u32;
         ret
     }
 
@@ -190,19 +194,11 @@ impl BitPage {
         Op: Fn(Element, Element) -> Element,
     {
         let mut out = BitPage::new_zeroes();
-        out.mark_dirty();
         for i in 0usize..(PAGE_SIZE as usize) {
             out.storage[i] = op(self.storage[i], other.storage[i]);
         }
+        out.recompute_length();
         out
-    }
-
-    fn mark_dirty(&mut self) {
-        self.len.set(u32::MAX);
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.len.get() == u32::MAX
     }
 
     fn element(&self, value: u32) -> &Element {
@@ -391,7 +387,7 @@ mod test {
         fn new_ones() -> Self {
             Self {
                 storage: [Element::MAX; PAGE_SIZE as usize],
-                len: Cell::new(PAGE_SIZE * ELEM_BITS),
+                length: PAGE_SIZE * ELEM_BITS,
             }
         }
     }
