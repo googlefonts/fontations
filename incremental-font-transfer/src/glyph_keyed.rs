@@ -293,14 +293,17 @@ impl<T: GlyphDataOffsetArray> OffsetArrayBuilder<'_, T> {
             )));
         }
 
-        let mut new_data = vec![0u8; self.new_data_len];
+        let mut new_data = Serializer::new(self.new_data_len);
+        new_data
+            .start_serialize()
+            .map_err(PatchingError::SerializationError)?;
         let mut new_offsets = Serializer::new(self.new_offsets_len);
         new_offsets
             .start_serialize()
             .map_err(PatchingError::SerializationError)?;
 
         let divisor = OffsetInfo::divisor();
-        let bias: usize = OffsetInfo::bias() as usize;
+        let bias = OffsetInfo::bias() as usize;
 
         let mut replace_it = self.gids.iter_ranges().peekable();
         let mut keep_it = retained_glyphs_in_font(self.gids, self.max_glyph_id).peekable();
@@ -330,9 +333,8 @@ impl<T: GlyphDataOffsetArray> OffsetArrayBuilder<'_, T> {
                         .ok_or(PatchingError::InternalError)?;
 
                     new_data
-                        .get_mut(write_index..write_index + data.len())
-                        .ok_or(PatchingError::InternalError)?
-                        .copy_from_slice(data);
+                        .embed_bytes(data)
+                        .map_err(PatchingError::SerializationError)?;
 
                     let new_off: OffsetType = ((write_index / divisor) + bias)
                         .try_into()
@@ -345,7 +347,11 @@ impl<T: GlyphDataOffsetArray> OffsetArrayBuilder<'_, T> {
                     write_index += data.len();
                     // Add padding if the offset gets divided
                     if divisor > 1 {
-                        write_index += data.len() % divisor;
+                        let padding = data.len() % divisor;
+                        write_index += padding;
+                        new_data
+                            .pad(padding)
+                            .map_err(PatchingError::SerializationError)?;
                     }
                 }
             } else {
@@ -360,9 +366,8 @@ impl<T: GlyphDataOffsetArray> OffsetArrayBuilder<'_, T> {
                     .checked_sub(start_off)
                     .ok_or(PatchingError::InternalError)?;
                 new_data
-                    .get_mut(write_index..write_index + len)
-                    .ok_or(PatchingError::InternalError)?
-                    .copy_from_slice(self.offset_array.get(start_off..end_off)?);
+                    .embed_bytes(self.offset_array.get(start_off..end_off)?)
+                    .map_err(PatchingError::SerializationError)?;
 
                 for gid in start..=end {
                     let cur_off = self.offset_array.offset_for(gid.into())? as usize;
@@ -388,10 +393,11 @@ impl<T: GlyphDataOffsetArray> OffsetArrayBuilder<'_, T> {
             .embed(new_off)
             .map_err(PatchingError::SerializationError)?;
 
+        new_data.end_serialize();
         new_offsets.end_serialize();
 
         Ok(OffsetArrayAndData {
-            data: new_data,
+            data: new_data.copy_bytes(),
             offset_array: new_offsets.copy_bytes(),
         })
     }
