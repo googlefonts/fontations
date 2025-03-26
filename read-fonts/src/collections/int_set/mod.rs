@@ -24,15 +24,17 @@ mod output_bit_stream;
 pub mod sparse_bit_set;
 
 use bitset::BitSet;
-use core::{cmp::Ordering, fmt::Display};
-use font_types::{GlyphId, GlyphId16};
+use font_types::{GlyphId, GlyphId16, NameId, Tag};
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
-use types::{NameId, Tag};
+use std::{
+    cmp::Ordering,
+    fmt::{Debug, Display},
+};
 
 /// A fast & efficient invertible ordered set for small (up to 32-bit) unsigned integer types.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct IntSet<T>(Membership, PhantomData<T>);
 
 /// Defines the domain of `IntSet` member types.
@@ -609,6 +611,12 @@ impl<T: Domain> Eq for IntSet<T> {}
 impl<T: Domain, const N: usize> From<[T; N]> for IntSet<T> {
     fn from(value: [T; N]) -> Self {
         value.into_iter().collect()
+    }
+}
+
+impl<T: Domain + Debug> Debug for IntSet<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_set().entries(self.iter()).finish()
     }
 }
 
