@@ -459,14 +459,12 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
     };
 
     let new_offsets = match new_offset_type {
-        // Bias 1 offsets
-        OffsetType::CffOne => offset_array_builder.build::<CffOneInfo, u8>()?,
-        OffsetType::CffTwo => offset_array_builder.build::<CffTwoInfo, u16>()?,
-        OffsetType::CffThree => offset_array_builder.build::<CffThreeInfo, Uint24>()?,
-        OffsetType::CffFour => offset_array_builder.build::<CffFourInfo, u32>()?,
-        // Bias 0 offsets
-        OffsetType::ShortDivByTwo => offset_array_builder.build::<ShortDivByTwoInfo, u16>()?,
-        OffsetType::Long => offset_array_builder.build::<LongInfo, u32>()?,
+        OffsetType::CffOne(_) => offset_array_builder.build::<CffOneInfo, u8>()?,
+        OffsetType::CffTwo(_) => offset_array_builder.build::<CffTwoInfo, u16>()?,
+        OffsetType::CffThree(_) => offset_array_builder.build::<CffThreeInfo, Uint24>()?,
+        OffsetType::CffFour(_) => offset_array_builder.build::<CffFourInfo, u32>()?,
+        OffsetType::ShortDivByTwo(_) => offset_array_builder.build::<ShortDivByTwoInfo, u16>()?,
+        OffsetType::Long(_) => offset_array_builder.build::<LongInfo, u32>()?,
     };
 
     // Step 3: add new tables to the output builder
@@ -479,22 +477,35 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum OffsetType {
     // CFF needs it's own offset types since CFF offsets have a 1 byte bias.
-    CffOne,
-    CffTwo,
-    CffThree,
-    CffFour,
+    CffOne(CffOneInfo),
+    CffTwo(CffTwoInfo),
+    CffThree(CffThreeInfo),
+    CffFour(CffFourInfo),
 
     // For gvar, loca, glyf
-    ShortDivByTwo,
-    Long,
+    ShortDivByTwo(ShortDivByTwoInfo),
+    Long(LongInfo),
 }
 
 trait OffsetTypeInfo {
     const WIDTH: usize;
     const DIVISOR: usize;
     const BIAS: u32;
+
+    fn width(&self) -> usize {
+        Self::WIDTH
+    }
+
+    fn divisor(&self) -> usize {
+        Self::DIVISOR
+    }
+
+    fn bias(&self) -> u32 {
+        Self::BIAS
+    }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 struct CffOneInfo;
 
 impl OffsetTypeInfo for CffOneInfo {
@@ -503,6 +514,7 @@ impl OffsetTypeInfo for CffOneInfo {
     const BIAS: u32 = 1;
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 struct CffTwoInfo;
 
 impl OffsetTypeInfo for CffTwoInfo {
@@ -511,6 +523,7 @@ impl OffsetTypeInfo for CffTwoInfo {
     const BIAS: u32 = 1;
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 struct CffThreeInfo;
 
 impl OffsetTypeInfo for CffThreeInfo {
@@ -519,6 +532,7 @@ impl OffsetTypeInfo for CffThreeInfo {
     const BIAS: u32 = 1;
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 struct CffFourInfo;
 
 impl OffsetTypeInfo for CffFourInfo {
@@ -527,6 +541,7 @@ impl OffsetTypeInfo for CffFourInfo {
     const BIAS: u32 = 1;
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 struct ShortDivByTwoInfo;
 impl OffsetTypeInfo for ShortDivByTwoInfo {
     const WIDTH: usize = 2;
@@ -534,6 +549,7 @@ impl OffsetTypeInfo for ShortDivByTwoInfo {
     const BIAS: u32 = 0;
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 struct LongInfo;
 impl OffsetTypeInfo for LongInfo {
     const WIDTH: usize = 4;
@@ -544,41 +560,41 @@ impl OffsetTypeInfo for LongInfo {
 impl OffsetType {
     fn max_representable_size(self) -> usize {
         match self {
-            Self::ShortDivByTwo => ((1 << 16) - 1) * 2,
+            Self::ShortDivByTwo(_) => ((1 << 16) - 1) * 2,
             _ => (1 << (self.offset_width() * 8)) - 1 - self.offset_bias() as usize,
         }
     }
 
     fn offset_width(&self) -> usize {
         match self {
-            Self::CffOne => CffOneInfo::WIDTH,
-            Self::CffTwo => CffTwoInfo::WIDTH,
-            Self::CffThree => CffThreeInfo::WIDTH,
-            Self::CffFour => CffFourInfo::WIDTH,
-            Self::ShortDivByTwo => ShortDivByTwoInfo::WIDTH,
-            Self::Long => LongInfo::WIDTH,
+            Self::CffOne(info) => info.width(),
+            Self::CffTwo(info) => info.width(),
+            Self::CffThree(info) => info.width(),
+            Self::CffFour(info) => info.width(),
+            Self::ShortDivByTwo(info) => info.width(),
+            Self::Long(info) => info.width(),
         }
     }
 
     fn offset_divisor(&self) -> usize {
         match self {
-            Self::CffOne => CffOneInfo::DIVISOR,
-            Self::CffTwo => CffTwoInfo::DIVISOR,
-            Self::CffThree => CffThreeInfo::DIVISOR,
-            Self::CffFour => CffFourInfo::DIVISOR,
-            Self::ShortDivByTwo => ShortDivByTwoInfo::DIVISOR,
-            Self::Long => LongInfo::DIVISOR,
+            Self::CffOne(info) => info.divisor(),
+            Self::CffTwo(info) => info.divisor(),
+            Self::CffThree(info) => info.divisor(),
+            Self::CffFour(info) => info.divisor(),
+            Self::ShortDivByTwo(info) => info.divisor(),
+            Self::Long(info) => info.divisor(),
         }
     }
 
     fn offset_bias(&self) -> u32 {
         match self {
-            Self::CffOne => CffOneInfo::BIAS,
-            Self::CffTwo => CffTwoInfo::BIAS,
-            Self::CffThree => CffThreeInfo::BIAS,
-            Self::CffFour => CffFourInfo::BIAS,
-            Self::ShortDivByTwo => ShortDivByTwoInfo::BIAS,
-            Self::Long => LongInfo::BIAS,
+            Self::CffOne(info) => info.bias(),
+            Self::CffTwo(info) => info.bias(),
+            Self::CffThree(info) => info.bias(),
+            Self::CffFour(info) => info.bias(),
+            Self::ShortDivByTwo(info) => info.bias(),
+            Self::Long(info) => info.bias(),
         }
     }
 }
@@ -620,10 +636,10 @@ impl CFFAndCharStrings<'_> {
         let charstrings = Index1::read(charstrings_data)?;
 
         let offset_type = match charstrings.off_size() {
-            1 => OffsetType::CffOne,
-            2 => OffsetType::CffTwo,
-            3 => OffsetType::CffThree,
-            4 => OffsetType::CffFour,
+            1 => OffsetType::CffOne(Default::default()),
+            2 => OffsetType::CffTwo(Default::default()),
+            3 => OffsetType::CffThree(Default::default()),
+            4 => OffsetType::CffFour(Default::default()),
             _ => {
                 return Err(ReadError::MalformedData(
                     "Invalid charstrings offset size (is not 1, 2, 3, or 4).",
@@ -695,8 +711,8 @@ trait GlyphDataOffsetArray {
 impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
     fn offset_type(&self) -> OffsetType {
         match self.loca {
-            Loca::Short(_) => OffsetType::ShortDivByTwo,
-            Loca::Long(_) => OffsetType::Long,
+            Loca::Short(_) => OffsetType::ShortDivByTwo(Default::default()),
+            Loca::Long(_) => OffsetType::Long(Default::default()),
         }
     }
 
@@ -743,16 +759,19 @@ impl GlyphDataOffsetArray for GlyfAndLoca<'_> {
 impl GlyphDataOffsetArray for Gvar<'_> {
     fn offset_type(&self) -> OffsetType {
         if self.flags().contains(GvarFlags::LONG_OFFSETS) {
-            OffsetType::Long
+            OffsetType::Long(Default::default())
         } else {
-            OffsetType::ShortDivByTwo
+            OffsetType::ShortDivByTwo(Default::default())
         }
     }
 
     fn available_offset_types(&self) -> impl Iterator<Item = OffsetType> {
-        [OffsetType::ShortDivByTwo, OffsetType::Long]
-            .iter()
-            .copied()
+        [
+            OffsetType::ShortDivByTwo(ShortDivByTwoInfo),
+            OffsetType::Long(LongInfo),
+        ]
+        .iter()
+        .copied()
     }
 
     fn offset_for(&self, gid: GlyphId) -> Result<u32, PatchingError> {
@@ -922,10 +941,10 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
 
     fn available_offset_types(&self) -> impl Iterator<Item = OffsetType> {
         [
-            OffsetType::CffOne,
-            OffsetType::CffTwo,
-            OffsetType::CffThree,
-            OffsetType::CffFour,
+            OffsetType::CffOne(CffOneInfo),
+            OffsetType::CffTwo(CffTwoInfo),
+            OffsetType::CffThree(CffThreeInfo),
+            OffsetType::CffFour(CffFourInfo),
         ]
         .iter()
         .copied()
