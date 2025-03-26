@@ -224,6 +224,11 @@ impl Serializer {
         Ok(ret)
     }
 
+    /// Adds count bytes of padding into the serialization buffer.
+    pub fn pad(&mut self, count: usize) -> Result<usize, SerializeErrorFlags> {
+        self.allocate_size(count, false)
+    }
+
     /// get single Scalar value at certain position
     pub(crate) fn get_value_at<T: Scalar>(&self, pos: usize) -> Option<T> {
         let len = T::RAW_BYTE_LEN;
