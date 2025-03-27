@@ -508,7 +508,9 @@ mod tests {
                 Class1Record, Class2Record, PairPos, PairSet, PairValueRecord, PositionLookup,
                 ValueRecord,
             },
-            layout::{CoverageTableBuilder, Device, DeviceOrVariationIndex, VariationIndex},
+            layout::{
+                builders::CoverageTableBuilder, Device, DeviceOrVariationIndex, VariationIndex,
+            },
         },
         FontWrite, TableWriter,
     };

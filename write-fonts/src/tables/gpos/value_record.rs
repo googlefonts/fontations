@@ -231,7 +231,7 @@ mod tests {
 
     use crate::tables::{
         gpos::{SinglePos, SinglePosFormat1, SinglePosFormat2},
-        layout::{CoverageTableBuilder, VariationIndex},
+        layout::{builders::CoverageTableBuilder, VariationIndex},
     };
 
     use super::*;
