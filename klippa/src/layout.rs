@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 
 use crate::{
     serialize::{SerializeErrorFlags, Serializer},
-    CollectVariationIndices, NameIdClosure, Plan, SubsetTable,
+    CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetTable,
 };
 use fnv::FnvHashMap;
 use write_fonts::{

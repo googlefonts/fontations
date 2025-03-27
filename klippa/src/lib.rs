@@ -988,6 +988,16 @@ pub(crate) trait SubsetTable<'a> {
     ) -> Result<Self::Output, SerializeErrorFlags>;
 }
 
+// A helper trait providing a 'serialize' method
+trait Serialize<'a> {
+    type ArgsForSerialize: 'a;
+    /// Serialize this table
+    fn serialize(
+        s: &mut Serializer,
+        args: Self::ArgsForSerialize,
+    ) -> Result<(), SerializeErrorFlags>;
+}
+
 pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
     let mut builder = FontBuilder::default();
 
