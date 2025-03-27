@@ -7,12 +7,46 @@ use types::GlyphId16;
 
 use super::{
     ClassDef, ClassDefFormat1, ClassDefFormat2, ClassRangeRecord, CoverageFormat1, CoverageFormat2,
-    CoverageTable, Device, DeviceOrVariationIndex, PendingVariationIndex, RangeRecord,
+    CoverageTable, Device, DeviceOrVariationIndex, Lookup, LookupFlag, PendingVariationIndex,
+    RangeRecord,
 };
 use crate::tables::{
     gdef::CaretValue,
     variations::{ivs_builder::VariationStoreBuilder, VariationRegion},
 };
+
+/// A simple trait for building GPOS/GSUB lookups and subtables.
+///
+// This exists because we use it to implement `LookupBuilder<T>`
+pub trait Builder {
+    /// The type produced by this builder.
+    ///
+    /// In the case of lookups, this is always a `Vec<Subtable>`, because a single
+    /// builder may produce multiple subtables in some instances.
+    type Output;
+    /// Finalize the builder, producing the output.
+    ///
+    /// # Note:
+    ///
+    /// The var_store is only used in GPOS, but we pass it everywhere.
+    /// This is annoying but feels like the lesser of two evils. It's easy to
+    /// ignore this argument where it isn't used, and this makes the logic
+    /// in LookupBuilder simpler, since it is identical for GPOS/GSUB.
+    ///
+    /// It would be nice if this could then be Option<&mut T>, but that type is
+    /// annoying to work with, as Option<&mut _> doesn't impl Copy, so you need
+    /// to do a dance anytime you use it.
+    fn build(self, var_store: &mut VariationStoreBuilder) -> Self::Output;
+}
+
+pub(crate) type FilterSetId = u16;
+
+#[derive(Clone, Debug, Default)]
+pub struct LookupBuilder<T> {
+    pub flags: LookupFlag,
+    pub mark_set: Option<FilterSetId>,
+    pub subtables: Vec<T>,
+}
 
 /// An opinionated builder for `ClassDef`s.
 ///
@@ -54,6 +88,9 @@ pub struct CoverageTableBuilder {
 ///
 /// This is used in the API for types like [`ValueRecordBuilder`] and
 /// [`AnchorBuilder`].
+///
+/// [`ValueRecordBuilder`]: crate::tables::gpos::builders::ValueRecordBuilder
+/// [`AnchorBuilder`]: crate::tables::gpos::builders::AnchorBuilder
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Metric {
@@ -68,7 +105,7 @@ pub struct Metric {
 /// This stores deltas directly; during compilation, the deltas are bundled
 /// into some [`ItemVariationStore`], and referenced by a [`VariationIndex`].
 ///
-/// [`ItemVariationStore`]: crate::variations::ItemVariationStore
+/// [`ItemVariationStore`]: crate::tables::variations::ItemVariationStore
 /// [`VariationIndex`]: super::VariationIndex
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -265,6 +302,76 @@ impl CoverageTableBuilder {
                 glyph_array: self.glyphs,
             })
         }
+    }
+}
+
+impl<T: Default> LookupBuilder<T> {
+    pub fn new(flags: LookupFlag, mark_set: Option<FilterSetId>) -> Self {
+        LookupBuilder {
+            flags,
+            mark_set,
+            subtables: vec![Default::default()],
+        }
+    }
+
+    pub fn new_with_lookups(
+        flags: LookupFlag,
+        mark_set: Option<FilterSetId>,
+        subtables: Vec<T>,
+    ) -> Self {
+        Self {
+            flags,
+            mark_set,
+            subtables,
+        }
+    }
+
+    //TODO: if we keep this, make it unwrap and ensure we always have a subtable
+    pub fn last_mut(&mut self) -> Option<&mut T> {
+        self.subtables.last_mut()
+    }
+
+    pub fn force_subtable_break(&mut self) {
+        self.subtables.push(Default::default())
+    }
+
+    pub fn iter_subtables(&self) -> impl Iterator<Item = &T> + '_ {
+        self.subtables.iter()
+    }
+}
+
+impl<U> LookupBuilder<U> {
+    /// A helper method for converting from (say) ContextBuilder to PosContextBuilder
+    pub fn convert<T: From<U>>(self) -> LookupBuilder<T> {
+        let LookupBuilder {
+            flags,
+            mark_set,
+            subtables,
+        } = self;
+        LookupBuilder {
+            flags,
+            mark_set,
+            subtables: subtables.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl<U, T> Builder for LookupBuilder<T>
+where
+    T: Builder<Output = Vec<U>>,
+    U: Default,
+{
+    type Output = Lookup<U>;
+
+    fn build(self, var_store: &mut VariationStoreBuilder) -> Self::Output {
+        let subtables = self
+            .subtables
+            .into_iter()
+            .flat_map(|b| b.build(var_store).into_iter())
+            .collect();
+        let mut out = Lookup::new(self.flags, subtables);
+        out.mark_filtering_set = self.mark_set;
+        out
     }
 }
 
