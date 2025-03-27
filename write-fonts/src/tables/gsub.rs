@@ -9,6 +9,7 @@ use super::layout::{
     LookupSubtable, LookupType, ScriptList, SequenceContext,
 };
 
+pub mod builders;
 #[cfg(test)]
 mod spec_tests;
 
