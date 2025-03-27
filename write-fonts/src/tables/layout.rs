@@ -9,7 +9,6 @@ pub use read_fonts::tables::layout::LookupFlag;
 use read_fonts::FontRead;
 
 #[cfg(test)]
-#[path = "../tests/layout.rs"]
 mod spec_tests;
 
 include!("../../generated/generated_layout.rs");
