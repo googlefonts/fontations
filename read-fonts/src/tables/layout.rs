@@ -15,7 +15,6 @@ use super::variations::DeltaSetIndex;
 use crate::collections::IntSet;
 
 #[cfg(test)]
-#[path = "../tests/layout.rs"]
 mod spec_tests;
 
 include!("../../generated/generated_layout.rs");
