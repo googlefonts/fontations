@@ -19,6 +19,7 @@ use super::{
 #[cfg(test)]
 mod spec_tests;
 
+pub mod builders;
 mod value_record;
 pub use value_record::ValueRecord;
 

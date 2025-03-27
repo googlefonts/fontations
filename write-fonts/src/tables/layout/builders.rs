@@ -7,7 +7,11 @@ use types::GlyphId16;
 
 use super::{
     ClassDef, ClassDefFormat1, ClassDefFormat2, ClassRangeRecord, CoverageFormat1, CoverageFormat2,
-    CoverageTable, RangeRecord,
+    CoverageTable, Device, DeviceOrVariationIndex, PendingVariationIndex, RangeRecord,
+};
+use crate::tables::{
+    gdef::CaretValue,
+    variations::{ivs_builder::VariationStoreBuilder, VariationRegion},
 };
 
 /// An opinionated builder for `ClassDef`s.
@@ -44,6 +48,53 @@ pub struct ClassDefBuilder {
 pub struct CoverageTableBuilder {
     // invariant: is always sorted
     glyphs: Vec<GlyphId16>,
+}
+
+/// A value with a default position and optionally variations or a device table.
+///
+/// This is used in the API for types like [`ValueRecordBuilder`] and
+/// [`AnchorBuilder`].
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Metric {
+    /// The value at the default location
+    pub default: i16,
+    /// An optional device table or delta set
+    pub device_or_deltas: DeviceOrDeltas,
+}
+
+/// Either a `Device` table or a set of deltas.
+///
+/// This stores deltas directly; during compilation, the deltas are bundled
+/// into some [`ItemVariationStore`], and referenced by a [`VariationIndex`].
+///
+/// [`ItemVariationStore`]: crate::variations::ItemVariationStore
+/// [`VariationIndex`]: super::VariationIndex
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[allow(missing_docs)]
+pub enum DeviceOrDeltas {
+    Device(Device),
+    Deltas(Vec<(VariationRegion, i16)>),
+    #[default]
+    None,
+}
+
+/// A value in the GDEF ligature caret list
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum CaretValueBuilder {
+    /// An X or Y value (in design units) with optional deltas
+    Coordinate {
+        /// The value at the default location
+        default: i16,
+        /// An optional device table or delta set
+        deltas: DeviceOrDeltas,
+    },
+    /// The index of a contour point to be used as the caret location.
+    ///
+    /// This format is rarely used.
+    PointIndex(u16),
 }
 
 impl ClassDefBuilder {
@@ -217,6 +268,90 @@ impl CoverageTableBuilder {
     }
 }
 
+impl Metric {
+    /// Returns `true` if the default value is `0` and there is no device or deltas
+    pub fn is_zero(&self) -> bool {
+        self.default == 0 && !self.has_device_or_deltas()
+    }
+
+    /// `true` if this metric has either a device table or deltas
+    pub fn has_device_or_deltas(&self) -> bool {
+        !self.device_or_deltas.is_none()
+    }
+}
+
+impl DeviceOrDeltas {
+    /// Returns `true` if there is no device table or variation index
+    pub fn is_none(&self) -> bool {
+        *self == DeviceOrDeltas::None
+    }
+
+    /// Compile the device or deltas into their final form.
+    ///
+    /// In the case of a device, this generates a [`Device`] table; in the
+    /// case of deltas this adds them to the `VariationStoreBuilder`, and returns
+    /// a [`PendingVariationIndex`] that must be remapped after the builder is
+    /// finished, using the returned [`VariationIndexRemapping`].
+    ///
+    /// [`PendingVariationIndex`]: super::PendingVariationIndex
+    /// [`VariationIndexRemapping`]: crate::tables::variations::ivs_builder::VariationIndexRemapping
+    pub fn build(self, var_store: &mut VariationStoreBuilder) -> Option<DeviceOrVariationIndex> {
+        match self {
+            DeviceOrDeltas::Device(dev) => Some(DeviceOrVariationIndex::Device(dev)),
+            DeviceOrDeltas::Deltas(deltas) => {
+                let temp_id = var_store.add_deltas(deltas);
+                Some(DeviceOrVariationIndex::PendingVariationIndex(
+                    PendingVariationIndex::new(temp_id),
+                ))
+            }
+            DeviceOrDeltas::None => None,
+        }
+    }
+}
+
+impl CaretValueBuilder {
+    /// Build the final [`CaretValue`] table.
+    pub fn build(self, var_store: &mut VariationStoreBuilder) -> CaretValue {
+        match self {
+            Self::Coordinate { default, deltas } => match deltas.build(var_store) {
+                Some(deltas) => CaretValue::format_3(default, deltas),
+                None => CaretValue::format_1(default),
+            },
+            Self::PointIndex(index) => CaretValue::format_2(index),
+        }
+    }
+}
+
+impl From<i16> for Metric {
+    fn from(src: i16) -> Metric {
+        Metric {
+            default: src,
+            device_or_deltas: DeviceOrDeltas::None,
+        }
+    }
+}
+
+impl From<Option<Device>> for DeviceOrDeltas {
+    fn from(src: Option<Device>) -> DeviceOrDeltas {
+        src.map(DeviceOrDeltas::Device).unwrap_or_default()
+    }
+}
+
+impl From<Device> for DeviceOrDeltas {
+    fn from(value: Device) -> Self {
+        DeviceOrDeltas::Device(value)
+    }
+}
+
+impl From<Vec<(VariationRegion, i16)>> for DeviceOrDeltas {
+    fn from(src: Vec<(VariationRegion, i16)>) -> DeviceOrDeltas {
+        if src.is_empty() {
+            DeviceOrDeltas::None
+        } else {
+            DeviceOrDeltas::Deltas(src)
+        }
+    }
+}
 impl FromIterator<(GlyphId16, u16)> for ClassDefBuilderImpl {
     fn from_iter<T: IntoIterator<Item = (GlyphId16, u16)>>(iter: T) -> Self {
         Self {
