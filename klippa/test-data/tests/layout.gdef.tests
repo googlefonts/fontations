@@ -1,0 +1,14 @@
+FONTS:
+Roboto-Regular.ttf
+
+PROFILES:
+default.txt
+drop-hints.txt
+
+SUBSETS:
+U+1E00,U+303
+U+323
+U+303
+U+309,U+20,U+30F
+ABC
+

@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 
 use crate::{
     serialize::{SerializeErrorFlags, Serializer},
-    CollectVariationIndices, NameIdClosure, Plan, SubsetTable,
+    CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetTable,
 };
 use fnv::FnvHashMap;
 use write_fonts::{
@@ -367,12 +367,6 @@ fn classdef_remap_and_serialize(
     ClassDef::serialize(s, new_gid_classes).map(|()| Some(class_map))
 }
 
-trait Serialize<'a> {
-    type Args: 'a;
-    /// Serialize this table
-    fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags>;
-}
-
 impl<'a> Serialize<'a> for ClassDef<'a> {
     type Args = &'a [(u16, u16)];
     fn serialize(
@@ -572,6 +566,9 @@ impl<'a> SubsetTable<'a> for CoverageFormat1<'a> {
                     .collect()
             };
 
+        if retained_glyphs.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         CoverageTable::serialize(s, &retained_glyphs)
     }
 }
@@ -625,6 +622,11 @@ impl<'a> SubsetTable<'a> for CoverageFormat2<'a> {
                 })
                 .collect()
         };
+
+        if retained_glyphs.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+
         CoverageTable::serialize(s, &retained_glyphs)
     }
 }

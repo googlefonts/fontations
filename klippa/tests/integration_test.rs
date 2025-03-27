@@ -361,7 +361,7 @@ impl SubsetTestCase {
         Command::new("fonttools")
             .arg("subset")
             .arg(&org_font_file)
-            .arg("--drop-tables+=DSIG,GSUB,GPOS,GDEF,fpgm,prep,cvt,gasp,cvar,STAT")
+            .arg("--drop-tables+=DSIG,GSUB,GPOS,fpgm,prep,cvt,gasp,cvar,STAT")
             .arg("--drop-tables-=sbix")
             .arg("--no-harfbuzz-repacker")
             .arg("--no-prune-codepage-ranges")
@@ -413,7 +413,7 @@ fn gen_subset_font_file(
     let font = FontRef::new(&org_font_bytes).unwrap();
 
     let unicodes = parse_unicodes(subset).unwrap();
-    let drop_tables_str = "morx,mort,kerx,kern,JSTF,DSIG,EBDT,EBLC,EBSC,SVG,PCLT,LTSH,feat,Glat,Gloc,Silf,Sill,GSUB,GPOS,GDEF,fpgm,prep,cvt,gasp,cvar,STAT";
+    let drop_tables_str = "morx,mort,kerx,kern,JSTF,DSIG,EBDT,EBLC,EBSC,SVG,PCLT,LTSH,feat,Glat,Gloc,Silf,Sill,GSUB,GPOS,fpgm,prep,cvt,gasp,cvar,STAT";
     let mut drop_tables = IntSet::empty();
     for str in drop_tables_str.split(',') {
         let tag = Tag::new_checked(str.as_bytes()).unwrap();
