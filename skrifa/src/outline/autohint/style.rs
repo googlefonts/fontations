@@ -8,7 +8,7 @@ use raw::types::{GlyphId, Tag};
 /// Defines the script and style associated with a single glyph.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(transparent)]
-pub(super) struct GlyphStyle(pub(super) u16);
+pub(crate) struct GlyphStyle(pub(super) u16);
 
 impl GlyphStyle {
     // The following flags roughly correspond to those defined in FreeType
