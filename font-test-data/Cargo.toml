@@ -1,6 +1,6 @@
 [package]
 name = "font-test-data"
-version = "0.3.1"
+version = "0.3.2"
 description = "Test data for the fontations crates"
 readme = "README.md"
 
