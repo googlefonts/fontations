@@ -389,6 +389,12 @@ impl FromIterator<GlyphId16> for CoverageTable {
     }
 }
 
+impl From<Vec<GlyphId16>> for CoverageTable {
+    fn from(value: Vec<GlyphId16>) -> Self {
+        builders::CoverageTableBuilder::from_glyphs(value).build()
+    }
+}
+
 impl FromIterator<(GlyphId16, u16)> for ClassDef {
     fn from_iter<T: IntoIterator<Item = (GlyphId16, u16)>>(iter: T) -> Self {
         builders::ClassDefBuilderImpl::from_iter(iter).build()
