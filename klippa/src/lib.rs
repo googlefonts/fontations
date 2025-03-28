@@ -990,12 +990,9 @@ pub(crate) trait SubsetTable<'a> {
 
 // A helper trait providing a 'serialize' method
 trait Serialize<'a> {
-    type ArgsForSerialize: 'a;
+    type Args: 'a;
     /// Serialize this table
-    fn serialize(
-        s: &mut Serializer,
-        args: Self::ArgsForSerialize,
-    ) -> Result<(), SerializeErrorFlags>;
+    fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags>;
 }
 
 pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {

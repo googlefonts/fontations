@@ -367,12 +367,6 @@ fn classdef_remap_and_serialize(
     ClassDef::serialize(s, new_gid_classes).map(|()| Some(class_map))
 }
 
-trait Serialize<'a> {
-    type Args: 'a;
-    /// Serialize this table
-    fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags>;
-}
-
 impl<'a> Serialize<'a> for ClassDef<'a> {
     type Args = &'a [(u16, u16)];
     fn serialize(

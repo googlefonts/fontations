@@ -109,7 +109,7 @@ impl<O: Scalar> SerializeCopy for O {
 pub(crate) trait SerializeSerialize {
     fn serialize_serialize<'a, T: Serialize<'a>>(
         s: &mut Serializer,
-        args: T::ArgsForSerialize,
+        args: T::Args,
         pos: usize,
     ) -> Result<(), SerializeErrorFlags>;
 }
@@ -117,7 +117,7 @@ pub(crate) trait SerializeSerialize {
 impl<O: Scalar> SerializeSerialize for O {
     fn serialize_serialize<'a, T: Serialize<'a>>(
         s: &mut Serializer,
-        args: T::ArgsForSerialize,
+        args: T::Args,
         pos: usize,
     ) -> Result<(), SerializeErrorFlags> {
         s.push()?;
