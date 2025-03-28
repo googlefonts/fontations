@@ -129,6 +129,26 @@ jobs:
       - name: cargo build skrifa
         run: cargo build -p skrifa --target thumbv7em-none-eabihf --no-default-features --features=libm
 
+  check-msrv:
+    name: cargo check msrv (Rust 1.71)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install msrv toolchain (1.71)
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.71.0
+
+      - name: cargo build font-types
+        run: cargo build -p font-types --all-targets --all-features
+
+      - name: cargo build read-fonts
+        run: cargo build -p read-fonts --all-targets --all-features
+
+      - name: cargo build skrifa
+        run: cargo build -p skrifa --all-targets --all-features
+
   # We use `cargo build` here because `cargo check` doesn't pick up all
   # warnings / errors. Notably, it misses `arithmetic_overflow`.
   check-wasm:
