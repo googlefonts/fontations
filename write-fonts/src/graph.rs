@@ -403,9 +403,13 @@ impl Graph {
             parents.len(),
             children.len()
         );
+        for parent in &parents {
+            let lookup_type = self.objects.get(parent).unwrap().type_;
+            log::debug!("obj {parent:?}: type {lookup_type}");
+        }
 
         for overflow in overflows {
-            log::debug!(
+            log::trace!(
                 "{:?} -> {:?} type {} dist {}",
                 overflow.parent,
                 overflow.child,
