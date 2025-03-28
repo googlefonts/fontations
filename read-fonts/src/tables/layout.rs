@@ -207,6 +207,11 @@ impl CoverageFormat1<'_> {
                 .any(|g| glyphs.contains(GlyphId::from(g.get())))
         }
     }
+
+    /// Return the number of glyphs in this table
+    pub fn population(&self) -> usize {
+        self.glyph_count() as usize
+    }
 }
 
 impl CoverageFormat2<'_> {
@@ -243,10 +248,17 @@ impl CoverageFormat2<'_> {
                 .any(|record| record.intersects(glyphs))
         }
     }
+
+    /// Return the number of glyphs in this table
+    pub fn population(&self) -> usize {
+        self.range_records()
+            .iter()
+            .fold(0, |acc, record| acc + record.population())
+    }
 }
 
 impl RangeRecord {
-    fn iter(&self) -> impl Iterator<Item = GlyphId16> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + '_ {
         (self.start_glyph_id().to_u16()..=self.end_glyph_id().to_u16()).map(GlyphId16::new)
     }
 
@@ -256,6 +268,17 @@ impl RangeRecord {
         glyphs.intersects_range(
             GlyphId::from(self.start_glyph_id())..=GlyphId::from(self.end_glyph_id()),
         )
+    }
+
+    /// Return the number of glyphs in this record
+    pub fn population(&self) -> usize {
+        let start = self.start_glyph_id().to_u32() as usize;
+        let end = self.end_glyph_id().to_u32() as usize;
+        if start > end {
+            0
+        } else {
+            end - start + 1
+        }
     }
 }
 
