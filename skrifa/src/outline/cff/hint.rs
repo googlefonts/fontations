@@ -20,7 +20,7 @@ const MAX_HINTS: usize = 96;
 
 // One bit per stem hint
 // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.h#L80>
-const HINT_MASK_SIZE: usize = MAX_HINTS.div_ceil(8);
+const HINT_MASK_SIZE: usize = (MAX_HINTS + 7) / 8;
 
 // Constant for hint adjustment and em box hint placement.
 // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psblues.h#L114>

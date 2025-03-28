@@ -1271,7 +1271,7 @@ mod test {
         }
 
         fn count() -> u64 {
-            ((u32::MAX as u64) - (u32::MIN as u64)).div_ceil(2)
+            ((u32::MAX as u64) - (u32::MIN as u64) + 1) / 2
         }
     }
 
