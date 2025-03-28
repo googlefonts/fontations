@@ -4,6 +4,7 @@ version = "0.8.4"
 description = "Scalar types used in fonts."
 readme = "README.md"
 categories = ["text-processing"]
+rust-version = "1.71"
 
 edition.workspace = true
 license.workspace = true
