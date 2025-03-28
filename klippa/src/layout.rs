@@ -566,6 +566,9 @@ impl<'a> SubsetTable<'a> for CoverageFormat1<'a> {
                     .collect()
             };
 
+        if retained_glyphs.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         CoverageTable::serialize(s, &retained_glyphs)
     }
 }
@@ -619,6 +622,11 @@ impl<'a> SubsetTable<'a> for CoverageFormat2<'a> {
                 })
                 .collect()
         };
+
+        if retained_glyphs.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+
         CoverageTable::serialize(s, &retained_glyphs)
     }
 }

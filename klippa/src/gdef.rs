@@ -17,7 +17,7 @@ use write_fonts::{
             layout::CoverageTable,
         },
         types::GlyphId,
-        FontRef,
+        FontRef, TopLevelTable,
     },
     types::Offset16,
     FontBuilder,
@@ -33,7 +33,112 @@ impl Subset for Gdef<'_> {
         s: &mut Serializer,
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
+        subset_gdef(self, plan, s).map_err(|_| SubsetError::SubsetTableError(Gdef::TAG))
     }
+}
+
+fn subset_gdef(gdef: &Gdef, plan: &Plan, s: &mut Serializer) -> Result<(), SerializeErrorFlags> {
+    let version = gdef.version();
+    // major version
+    s.embed(version.major)?;
+
+    // minor version, might change after subset
+    let minor_version_pos = s.embed(version.minor)?;
+
+    // glyph classdef offset
+    let glyph_classdef_offset_pos = s.embed(0_u16)?;
+
+    // attach list offset
+    let attachlist_offset_pos = s.embed(0_u16)?;
+
+    // ligcaret list offset
+    let ligcaret_list_offset_pos = s.embed(0_u16)?;
+
+    //mark attach classdef offset
+    let markattach_classdef_offset_pos = s.embed(0_u16)?;
+
+    let snapshot_version0 = s.snapshot();
+
+    let mark_glyphsetsdef_offset_pos = if version.minor >= 2 {
+        s.embed(0_u16)?
+    } else {
+        0
+    };
+
+    let mut subset_varstore = false;
+    // TODO: make sure repacker will not move the target subtable before the other children
+    // ref: <https://github.com/harfbuzz/harfbuzz/blob/aad5780f5305f38ef128c61854c5d5a0c4ca3f4f/src/OT/Layout/GDEF/GDEF.hh#L665>
+    // Push var store first (if it's needed) so that it's last in the
+    // serialization order. Some font consumers assume that varstore runs to
+    // the end of the GDEF table.
+    // See: https://github.com/harfbuzz/harfbuzz/issues/4636
+
+    if version.minor >= 3 {
+        let snapshot_version2 = s.snapshot();
+        if let Some(var_store) = gdef
+            .item_var_store()
+            .transpose()
+            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+        {
+            let var_store_offset_pos = s.embed(0_u16)?;
+            match Offset16::serialize_subset(
+                &var_store,
+                s,
+                plan,
+                &plan.gdef_varstore_inner_maps,
+                var_store_offset_pos,
+            ) {
+                Ok(()) => {
+                    subset_varstore = true;
+                }
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+        }
+
+        if !subset_varstore {
+            s.revert_snapshot(snapshot_version2);
+        }
+    }
+
+    let mut subset_mark_glyphsets_def = false;
+    if version.minor >= 2 {
+        if let Some(mark_glyph_sets_def) = gdef
+            .mark_glyph_sets_def()
+            .transpose()
+            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+        {
+            match Offset16::serialize_subset(
+                &mark_glyph_sets_def,
+                s,
+                plan,
+                (),
+                mark_glyphsetsdef_offset_pos,
+            ) {
+                Ok(()) => {
+                    subset_mark_glyphsets_def = true;
+                }
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+        }
+    }
+
+    // Downgrade version if possible
+    if !subset_varstore {
+        if subset_mark_glyphsets_def {
+            s.copy_assign(minor_version_pos, 2_u16);
+        } else {
+            s.copy_assign(minor_version_pos, 0_u16);
+            s.revert_snapshot(snapshot_version0);
+        }
+    }
+
+    Ok(())
 }
 
 impl SubsetTable<'_> for AttachList<'_> {
@@ -46,6 +151,7 @@ impl SubsetTable<'_> for AttachList<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        let snap = s.snapshot();
         //coverage offset
         let coverage_offset_pos = s.embed(0_u16)?;
         //glyph_count
@@ -76,6 +182,7 @@ impl SubsetTable<'_> for AttachList<'_> {
         }
 
         if retained_glyphs.is_empty() {
+            s.revert_snapshot(snap);
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
@@ -106,6 +213,7 @@ impl SubsetTable<'_> for LigCaretList<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        let snap = s.snapshot();
         //coverage offset
         let coverage_offset_pos = s.embed(0_u16)?;
         //lig_glyph_count
@@ -136,6 +244,7 @@ impl SubsetTable<'_> for LigCaretList<'_> {
         }
 
         if retained_glyphs.is_empty() {
+            s.revert_snapshot(snap);
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
@@ -168,6 +277,43 @@ impl SubsetTable<'_> for LigGlyph<'_> {
         }
 
         s.copy_assign(caret_count_pos, count);
+        Ok(())
+    }
+}
+
+impl SubsetTable<'_> for MarkGlyphSets<'_> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        s.embed(self.format())?;
+
+        let count_pos = s.embed(0_u16)?;
+
+        let coverages = self.coverages();
+        let src_count = self.mark_glyph_set_count() as usize;
+        let mut count = 0_u16;
+
+        // skip empty coverage, don't error out
+        for idx in 0..src_count {
+            match coverages.subset_offset(idx, s, plan, ()) {
+                Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+            count += 1;
+        }
+
+        if count == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+
+        s.copy_assign(count_pos, count);
         Ok(())
     }
 }
