@@ -792,7 +792,7 @@ mod tests {
     #[test]
     fn visited_set() {
         let count = 2341u16;
-        let n_bytes = (count as usize).div_ceil(8);
+        let n_bytes = (count as usize + 7) / 8;
         let mut set_buf = vec![0u8; n_bytes];
         let mut set = VisitedLookupSet::new(&mut set_buf);
         for i in 0..count {

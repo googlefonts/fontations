@@ -4,6 +4,7 @@ version = "0.28.0"
 description = "Reading OpenType font files."
 readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
+rust-version = "1.71"
 
 edition.workspace = true
 license.workspace = true

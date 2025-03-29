@@ -199,7 +199,7 @@ pub(crate) fn bitmap_data<'a>(
         1 => {
             let metrics = read_small_metrics(&mut image_data)?;
             // The data for each row is padded to a byte boundary
-            let pitch = (metrics.width as usize * location.bit_depth as usize).div_ceil(8);
+            let pitch = (metrics.width as usize * location.bit_depth as usize + 7) / 8;
             let height = metrics.height as usize;
             let data = image_data.read_array::<u8>(pitch * height)?;
             Ok(BitmapData {
@@ -214,7 +214,7 @@ pub(crate) fn bitmap_data<'a>(
             let width = metrics.width as usize * location.bit_depth as usize;
             let height = metrics.height as usize;
             // The data is tightly packed
-            let data = image_data.read_array::<u8>((width * height).div_ceil(8))?;
+            let data = image_data.read_array::<u8>((width * height + 7) / 8)?;
             Ok(BitmapData {
                 metrics: BitmapMetrics::Small(metrics),
                 content: BitmapContent::Data(BitmapDataFormat::BitAligned, data),
@@ -234,7 +234,7 @@ pub(crate) fn bitmap_data<'a>(
             let width = metrics.width as usize * location.bit_depth as usize;
             let height = metrics.height as usize;
             // The data is tightly packed
-            let data = image_data.read_array::<u8>((width * height).div_ceil(8))?;
+            let data = image_data.read_array::<u8>((width * height + 7) / 8)?;
             Ok(BitmapData {
                 metrics: BitmapMetrics::Big(metrics),
                 content: BitmapContent::Data(BitmapDataFormat::BitAligned, data),
@@ -245,7 +245,7 @@ pub(crate) fn bitmap_data<'a>(
         6 => {
             let metrics = read_big_metrics(&mut image_data)?;
             // The data for each row is padded to a byte boundary
-            let pitch = (metrics.width as usize * location.bit_depth as usize).div_ceil(8);
+            let pitch = (metrics.width as usize * location.bit_depth as usize + 7) / 8;
             let height = metrics.height as usize;
             let data = image_data.read_array::<u8>(pitch * height)?;
             Ok(BitmapData {
@@ -260,7 +260,7 @@ pub(crate) fn bitmap_data<'a>(
             let width = metrics.width as usize * location.bit_depth as usize;
             let height = metrics.height as usize;
             // The data is tightly packed
-            let data = image_data.read_array::<u8>((width * height).div_ceil(8))?;
+            let data = image_data.read_array::<u8>((width * height + 7) / 8)?;
             Ok(BitmapData {
                 metrics: BitmapMetrics::Big(metrics),
                 content: BitmapContent::Data(BitmapDataFormat::BitAligned, data),
