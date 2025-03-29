@@ -54,6 +54,7 @@ pub struct IntSet<T>(Membership, PhantomData<T>);
 /// that are outside the domain of `T`.
 pub trait Domain: Sized {
     type OrderedValues: DoubleEndedIterator<Item = u32>;
+    type OrderedValuesRange: DoubleEndedIterator<Item = u32>;
 
     /// Converts this value of `T` to a value in u32.
     ///
@@ -81,7 +82,7 @@ pub trait Domain: Sized {
     ///
     /// Values should be converted to `u32`'s according to the mapping defined in
     /// `to_u32`/`from_u32`.
-    fn ordered_values_range(range: RangeInclusive<Self>) -> Self::OrderedValues;
+    fn ordered_values_range(range: RangeInclusive<Self>) -> Self::OrderedValuesRange;
 
     /// Returns the number of members in the domain.
     fn count() -> u64;
@@ -1005,6 +1006,7 @@ where
 
 impl Domain for u32 {
     type OrderedValues = RangeInclusive<u32>;
+    type OrderedValuesRange = Self::OrderedValues;
 
     fn to_u32(&self) -> u32 {
         *self
@@ -1026,7 +1028,7 @@ impl Domain for u32 {
         u32::MIN..=u32::MAX
     }
 
-    fn ordered_values_range(range: RangeInclusive<u32>) -> Self::OrderedValues {
+    fn ordered_values_range(range: RangeInclusive<u32>) -> Self::OrderedValuesRange {
         range
     }
 
@@ -1037,6 +1039,7 @@ impl Domain for u32 {
 
 impl Domain for u16 {
     type OrderedValues = RangeInclusive<u32>;
+    type OrderedValuesRange = Self::OrderedValues;
 
     fn to_u32(&self) -> u32 {
         *self as u32
@@ -1058,7 +1061,7 @@ impl Domain for u16 {
         (u16::MIN as u32)..=(u16::MAX as u32)
     }
 
-    fn ordered_values_range(range: RangeInclusive<u16>) -> Self::OrderedValues {
+    fn ordered_values_range(range: RangeInclusive<u16>) -> Self::OrderedValuesRange {
         (*range.start() as u32)..=(*range.end() as u32)
     }
 
@@ -1069,6 +1072,7 @@ impl Domain for u16 {
 
 impl Domain for u8 {
     type OrderedValues = RangeInclusive<u32>;
+    type OrderedValuesRange = Self::OrderedValues;
 
     fn to_u32(&self) -> u32 {
         *self as u32
@@ -1090,7 +1094,7 @@ impl Domain for u8 {
         (u8::MIN as u32)..=(u8::MAX as u32)
     }
 
-    fn ordered_values_range(range: RangeInclusive<u8>) -> Self::OrderedValues {
+    fn ordered_values_range(range: RangeInclusive<u8>) -> Self::OrderedValuesRange {
         (*range.start() as u32)..=(*range.end() as u32)
     }
 
@@ -1101,6 +1105,7 @@ impl Domain for u8 {
 
 impl Domain for GlyphId16 {
     type OrderedValues = RangeInclusive<u32>;
+    type OrderedValuesRange = Self::OrderedValues;
 
     fn to_u32(&self) -> u32 {
         self.to_u16() as u32
@@ -1122,7 +1127,7 @@ impl Domain for GlyphId16 {
         (u16::MIN as u32)..=(u16::MAX as u32)
     }
 
-    fn ordered_values_range(range: RangeInclusive<GlyphId16>) -> Self::OrderedValues {
+    fn ordered_values_range(range: RangeInclusive<GlyphId16>) -> Self::OrderedValuesRange {
         range.start().to_u32()..=range.end().to_u32()
     }
 
@@ -1133,6 +1138,7 @@ impl Domain for GlyphId16 {
 
 impl Domain for GlyphId {
     type OrderedValues = RangeInclusive<u32>;
+    type OrderedValuesRange = Self::OrderedValues;
 
     fn to_u32(&self) -> u32 {
         GlyphId::to_u32(*self)
@@ -1154,7 +1160,7 @@ impl Domain for GlyphId {
         u32::MIN..=u32::MAX
     }
 
-    fn ordered_values_range(range: RangeInclusive<GlyphId>) -> Self::OrderedValues {
+    fn ordered_values_range(range: RangeInclusive<GlyphId>) -> Self::OrderedValuesRange {
         range.start().to_u32()..=range.end().to_u32()
     }
 
@@ -1165,6 +1171,7 @@ impl Domain for GlyphId {
 
 impl Domain for Tag {
     type OrderedValues = RangeInclusive<u32>;
+    type OrderedValuesRange = Self::OrderedValues;
 
     fn to_u32(&self) -> u32 {
         u32::from_be_bytes(self.to_be_bytes())
@@ -1186,7 +1193,7 @@ impl Domain for Tag {
         u32::MIN..=u32::MAX
     }
 
-    fn ordered_values_range(range: RangeInclusive<Tag>) -> Self::OrderedValues {
+    fn ordered_values_range(range: RangeInclusive<Tag>) -> Self::OrderedValuesRange {
         range.start().to_u32()..=range.end().to_u32()
     }
 
@@ -1197,6 +1204,7 @@ impl Domain for Tag {
 
 impl Domain for NameId {
     type OrderedValues = RangeInclusive<u32>;
+    type OrderedValuesRange = Self::OrderedValues;
 
     fn to_u32(&self) -> u32 {
         self.to_u16() as u32
@@ -1218,7 +1226,7 @@ impl Domain for NameId {
         (u16::MIN as u32)..=(u16::MAX as u32)
     }
 
-    fn ordered_values_range(range: RangeInclusive<NameId>) -> Self::OrderedValues {
+    fn ordered_values_range(range: RangeInclusive<NameId>) -> Self::OrderedValuesRange {
         (range.start().to_u16() as u32)..=(range.end().to_u16() as u32)
     }
 
@@ -1229,7 +1237,10 @@ impl Domain for NameId {
 
 #[cfg(test)]
 mod test {
-    use core::cmp::Ordering;
+    use core::{
+        cmp::Ordering,
+        iter::{Chain, Filter},
+    };
     use std::{
         collections::HashSet,
         hash::{DefaultHasher, Hash, Hasher},
@@ -1241,6 +1252,9 @@ mod test {
     struct EvenInts(u16);
 
     impl Domain for EvenInts {
+        type OrderedValues = Filter<RangeInclusive<u32>, fn(&u32) -> bool>;
+        type OrderedValuesRange = Self::OrderedValues;
+
         fn to_u32(&self) -> u32 {
             self.0 as u32
         }
@@ -1257,17 +1271,12 @@ mod test {
             false
         }
 
-        fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
-            (u16::MIN..=u16::MAX)
-                .filter(|v| v % 2 == 0)
-                .map(|v| v as u32)
+        fn ordered_values() -> Self::OrderedValues {
+            (u16::MIN.to_u32()..=u16::MAX.to_u32()).filter(|v| v % 2 == 0)
         }
 
-        fn ordered_values_range(
-            range: RangeInclusive<EvenInts>,
-        ) -> impl DoubleEndedIterator<Item = u32> {
-            Self::ordered_values()
-                .filter(move |v| *v >= range.start().to_u32() && *v <= range.end().to_u32())
+        fn ordered_values_range(range: RangeInclusive<EvenInts>) -> Self::OrderedValuesRange {
+            (range.start().to_u32()..=range.end().to_u32()).filter(|v| v % 2 == 0)
         }
 
         fn count() -> u64 {
@@ -1275,10 +1284,45 @@ mod test {
         }
     }
 
+    struct RangeInclusiveFilter<T: Ord, Inner: Iterator<Item = T>> {
+        inner: Inner,
+        start: T,
+        end: T,
+    }
+
+    impl<T: Ord, Inner: Iterator<Item = T>> RangeInclusiveFilter<T, Inner> {
+        fn new(inner: Inner, start: T, end: T) -> Self {
+            Self { inner, start, end }
+        }
+    }
+
+    impl<T: Ord, Inner: Iterator<Item = T>> Iterator for RangeInclusiveFilter<T, Inner> {
+        type Item = T;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            self.inner
+                .next()
+                .filter(|v| *v >= self.start && *v <= self.end)
+        }
+    }
+
+    impl<T: Ord, Inner: DoubleEndedIterator<Item = T>> DoubleEndedIterator
+        for RangeInclusiveFilter<T, Inner>
+    {
+        fn next_back(&mut self) -> Option<Self::Item> {
+            self.inner
+                .next_back()
+                .filter(|v| *v >= self.start && *v <= self.end)
+        }
+    }
+
     #[derive(PartialEq, Eq, Debug, PartialOrd, Ord, Hash, Clone)]
     struct TwoParts(u16);
 
     impl Domain for TwoParts {
+        type OrderedValues = Chain<RangeInclusive<u32>, RangeInclusive<u32>>;
+        type OrderedValuesRange = RangeInclusiveFilter<u32, Self::OrderedValues>;
+
         fn to_u32(&self) -> u32 {
             self.0 as u32
         }
@@ -1295,15 +1339,16 @@ mod test {
             false
         }
 
-        fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
-            [2..=5, 8..=16].into_iter().flat_map(|it| it.into_iter())
+        fn ordered_values() -> Self::OrderedValues {
+            (2..=5).chain(8..=16)
         }
 
-        fn ordered_values_range(
-            range: RangeInclusive<TwoParts>,
-        ) -> impl DoubleEndedIterator<Item = u32> {
-            Self::ordered_values()
-                .filter(move |v| *v >= range.start().to_u32() && *v <= range.end().to_u32())
+        fn ordered_values_range(range: RangeInclusive<TwoParts>) -> Self::OrderedValuesRange {
+            RangeInclusiveFilter::new(
+                Self::ordered_values(),
+                range.start().to_u32(),
+                range.end().to_u32(),
+            )
         }
 
         fn count() -> u64 {
@@ -1315,6 +1360,9 @@ mod test {
     struct TwoPartsBounds(u32);
 
     impl Domain for TwoPartsBounds {
+        type OrderedValues = Chain<RangeInclusive<u32>, RangeInclusive<u32>>;
+        type OrderedValuesRange = RangeInclusiveFilter<u32, Self::OrderedValues>;
+
         fn to_u32(&self) -> u32 {
             self.0
         }
@@ -1331,17 +1379,16 @@ mod test {
             false
         }
 
-        fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
-            [0..=1, u32::MAX - 1..=u32::MAX]
-                .into_iter()
-                .flat_map(|it| it.into_iter())
+        fn ordered_values() -> Self::OrderedValues {
+            (0..=1).chain(u32::MAX - 1..=u32::MAX)
         }
 
-        fn ordered_values_range(
-            range: RangeInclusive<TwoPartsBounds>,
-        ) -> impl DoubleEndedIterator<Item = u32> {
-            Self::ordered_values()
-                .filter(move |v| *v >= range.start().to_u32() && *v <= range.end().to_u32())
+        fn ordered_values_range(range: RangeInclusive<TwoPartsBounds>) -> Self::OrderedValuesRange {
+            RangeInclusiveFilter::new(
+                Self::ordered_values(),
+                range.start().to_u32(),
+                range.end().to_u32(),
+            )
         }
 
         fn count() -> u64 {
