@@ -2,6 +2,38 @@
 
 include!("../../generated/generated_stat.rs");
 
+impl AxisValue<'_> {
+    /// Returns axis value for format 1, 2 and 3 axis value tables
+    ///
+    /// For axis value format 2, returns the nominal value.
+    pub fn value(&self) -> Option<Fixed> {
+        match self {
+            Self::Format1(item) => Some(item.value()),
+            Self::Format2(item) => Some(item.nominal_value()),
+            Self::Format3(item) => Some(item.value()),
+            Self::Format4(_) => None,
+        }
+    }
+
+    /// Returns linked value for format 3 axis value tables
+    pub fn linked_value(&self) -> Option<Fixed> {
+        match self {
+            Self::Format3(item) => Some(item.linked_value()),
+            _ => None,
+        }
+    }
+
+    /// Returns axis index for format 1, 2 and 3 axis value tables
+    pub fn axis_index(&self) -> Option<u16> {
+        match self {
+            Self::Format1(item) => Some(item.axis_index()),
+            Self::Format2(item) => Some(item.axis_index()),
+            Self::Format3(item) => Some(item.axis_index()),
+            Self::Format4(_) => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use types::{Fixed, NameId};
