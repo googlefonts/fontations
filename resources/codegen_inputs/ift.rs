@@ -137,6 +137,9 @@ table PatchMapFormat2 {
   uri_template_length: u16,
   #[count($uri_template_length)]
   uri_template: [u8],
+
+  #[count(..)]
+  optional_charstring_offsets: [u8],
 }
 
 table MappingEntries {

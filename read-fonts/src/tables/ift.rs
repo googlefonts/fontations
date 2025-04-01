@@ -242,6 +242,30 @@ impl PatchMapFormat2<'_> {
         str::from_utf8(self.uri_template())
             .map_err(|_| ReadError::MalformedData("Invalid UTF8 encoding for uri template."))
     }
+
+    pub fn get_charstring_offsets(
+        &self,
+        has_cff: bool,
+        has_cff2: bool,
+    ) -> (Option<u32>, Option<u32>) {
+        let (cff_offset, next_index) = if has_cff {
+            (self.read_charstrings_offset(0), 1)
+        } else {
+            (None, 0)
+        };
+
+        let cff2_offset = if has_cff2 {
+            self.read_charstrings_offset(next_index)
+        } else {
+            None
+        };
+
+        (cff_offset, cff2_offset)
+    }
+
+    fn read_charstrings_offset(&self, index: usize) -> Option<u32> {
+        u32::read(&self.optional_charstring_offsets()[index * 4..(index * 4) + 4])
+    }
 }
 
 impl FeatureMap<'_> {
@@ -461,6 +485,31 @@ mod tests {
         assert_eq!(fr1.feature_tag(), Tag::new(b"liga"));
         assert_eq!(*fr1.first_new_entry_index(), U8Or16(0x180));
         assert_eq!(*fr1.entry_map_count(), U8Or16(0x02));
+    }
+
+    #[test]
+    fn format_2_get_charstrings_offset() {
+        // One offset
+        let data = test_data::format2_with_one_charstrings_offset();
+        let table = Ift::read(FontData::new(&data)).unwrap();
+        let Ift::Format2(map) = table else {
+            panic!("Not format 2.");
+        };
+
+        assert_eq!(map.get_charstring_offsets(true, false), (Some(456), None));
+        assert_eq!(map.get_charstring_offsets(false, true), (None, Some(456)));
+
+        // Two offsets
+        let data = test_data::format2_with_two_charstrings_offset();
+        let table = Ift::read(FontData::new(&data)).unwrap();
+        let Ift::Format2(map) = table else {
+            panic!("Not format 2.");
+        };
+
+        assert_eq!(
+            map.get_charstring_offsets(true, true),
+            (Some(456), Some(789))
+        );
     }
 
     #[test]
