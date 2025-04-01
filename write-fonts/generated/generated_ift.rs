@@ -44,6 +44,7 @@ impl Ift {
     }
 
     /// Construct a new `PatchMapFormat2` subtable
+    #[allow(clippy::too_many_arguments)]
     pub fn format_2(
         compatibility_id: CompatibilityId,
         default_patch_format: u8,
@@ -52,6 +53,7 @@ impl Ift {
         entry_id_string_data: Option<IdStringData>,
         uri_template_length: u16,
         uri_template: Vec<u8>,
+        optional_charstring_offsets: Vec<u8>,
     ) -> Self {
         Self::Format2(PatchMapFormat2::new(
             compatibility_id,
@@ -61,6 +63,7 @@ impl Ift {
             entry_id_string_data,
             uri_template_length,
             uri_template,
+            optional_charstring_offsets,
         ))
     }
 }
@@ -405,10 +408,12 @@ pub struct PatchMapFormat2 {
     pub entry_id_string_data: NullableOffsetMarker<IdStringData, WIDTH_32>,
     pub uri_template_length: u16,
     pub uri_template: Vec<u8>,
+    pub optional_charstring_offsets: Vec<u8>,
 }
 
 impl PatchMapFormat2 {
     /// Construct a new `PatchMapFormat2`
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         compatibility_id: CompatibilityId,
         default_patch_format: u8,
@@ -417,6 +422,7 @@ impl PatchMapFormat2 {
         entry_id_string_data: Option<IdStringData>,
         uri_template_length: u16,
         uri_template: Vec<u8>,
+        optional_charstring_offsets: Vec<u8>,
     ) -> Self {
         Self {
             compatibility_id,
@@ -426,6 +432,7 @@ impl PatchMapFormat2 {
             entry_id_string_data: entry_id_string_data.into(),
             uri_template_length,
             uri_template,
+            optional_charstring_offsets,
         }
     }
 }
@@ -442,6 +449,7 @@ impl FontWrite for PatchMapFormat2 {
         self.entry_id_string_data.write_into(writer);
         self.uri_template_length.write_into(writer);
         self.uri_template.write_into(writer);
+        self.optional_charstring_offsets.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("PatchMapFormat2")
@@ -477,6 +485,9 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat2<'a>> for PatchMapFo
             entry_id_string_data: obj.entry_id_string_data().to_owned_table(),
             uri_template_length: obj.uri_template_length(),
             uri_template: obj.uri_template().to_owned_obj(offset_data),
+            optional_charstring_offsets: obj
+                .optional_charstring_offsets()
+                .to_owned_obj(offset_data),
         }
     }
 }

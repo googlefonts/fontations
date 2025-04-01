@@ -731,6 +731,7 @@ impl Format<u8> for PatchMapFormat2Marker {
 #[doc(hidden)]
 pub struct PatchMapFormat2Marker {
     uri_template_byte_len: usize,
+    optional_charstring_offsets_byte_len: usize,
 }
 
 impl PatchMapFormat2Marker {
@@ -778,11 +779,16 @@ impl PatchMapFormat2Marker {
         let start = self.uri_template_length_byte_range().end;
         start..start + self.uri_template_byte_len
     }
+
+    pub fn optional_charstring_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.uri_template_byte_range().end;
+        start..start + self.optional_charstring_offsets_byte_len
+    }
 }
 
 impl MinByteRange for PatchMapFormat2Marker {
     fn min_byte_range(&self) -> Range<usize> {
-        0..self.uri_template_byte_range().end
+        0..self.optional_charstring_offsets_byte_range().end
     }
 }
 
@@ -801,8 +807,12 @@ impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(uri_template_byte_len);
+        let optional_charstring_offsets_byte_len =
+            cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        cursor.advance_by(optional_charstring_offsets_byte_len);
         cursor.finish(PatchMapFormat2Marker {
             uri_template_byte_len,
+            optional_charstring_offsets_byte_len,
         })
     }
 }
@@ -866,6 +876,11 @@ impl<'a> PatchMapFormat2<'a> {
         let range = self.shape.uri_template_byte_range();
         self.data.read_array(range).unwrap()
     }
+
+    pub fn optional_charstring_offsets(&self) -> &'a [u8] {
+        let range = self.shape.optional_charstring_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -901,6 +916,10 @@ impl<'a> SomeTable<'a> for PatchMapFormat2<'a> {
                 self.uri_template_length(),
             )),
             7usize => Some(Field::new("uri_template", self.uri_template())),
+            8usize => Some(Field::new(
+                "optional_charstring_offsets",
+                self.optional_charstring_offsets(),
+            )),
             _ => None,
         }
     }

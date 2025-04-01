@@ -231,6 +231,73 @@ pub fn codepoints_only_format2() -> BeBuffer {
     buffer
 }
 
+pub fn format2_with_one_charstrings_offset() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      2u8,                // format
+
+      0u32,               // reserved
+
+      {1u32: "compat_id[0]"},
+      {2u32: "compat_id[1]"},
+      {3u32: "compat_id[2]"},
+      {4u32: "compat_id[3]"},
+
+      3u8,                // default patch encoding
+      (Uint24::new(1)),   // entry count
+      {0u32: "entries_offset"},
+      0u32,               // entry string data offset
+
+      8u16, // uriTemplateLength
+      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
+
+      456u32, // charstrings offset [0]
+
+      /* ### Entries Array ### */
+      // Entry id = 1
+      {0b00010000u8: "entries[0]"},           // format = CODEPOINT_BIT_1
+      [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [0..17]
+    };
+
+    let offset = buffer.offset_for("entries[0]") as u32;
+    buffer.write_at("entries_offset", offset);
+
+    buffer
+}
+
+pub fn format2_with_two_charstrings_offset() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      2u8,                // format
+
+      0u32,               // reserved
+
+      {1u32: "compat_id[0]"},
+      {2u32: "compat_id[1]"},
+      {3u32: "compat_id[2]"},
+      {4u32: "compat_id[3]"},
+
+      3u8,                // default patch encoding
+      (Uint24::new(1)),   // entry count
+      {0u32: "entries_offset"},
+      0u32,               // entry string data offset
+
+      8u16, // uriTemplateLength
+      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
+
+      456u32, // charstrings offset [0]
+      789u32, // charstrings offset [1]
+
+      /* ### Entries Array ### */
+      // Entry id = 1
+      {0b00010000u8: "entries[0]"},           // format = CODEPOINT_BIT_1
+      [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [0..17]
+    };
+
+    let offset = buffer.offset_for("entries[0]") as u32;
+    buffer.write_at("entries_offset", offset);
+
+    buffer
+}
+
 pub fn features_and_design_space_format2() -> BeBuffer {
     let mut buffer = be_buffer! {
       2u8, // format
