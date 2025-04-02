@@ -50,6 +50,75 @@ pub fn simple_format1() -> BeBuffer {
     buffer
 }
 
+pub fn simple_format1_with_one_charstrings_offset() -> BeBuffer {
+    let mut buffer = be_buffer! {
+        /* ### Header ### */
+        1u8,                    // format
+        0u32,                   // reserved
+        [1u32, 2, 3, 4],        // compat id
+        2u16,                   // max entry id
+        {2u16: "max_glyph_map_entry_id"},
+        (Uint24::new(7)),       // glyph count
+        {0u32: "glyph_map_offset"},
+        0u32,                   // feature map offset
+        0b00000010u8,           // applied entry bitmap (entry 1)
+
+        8u16,                   // uri template length
+        {b'A': "uri_template[0]"},
+        {b'B': "uri_template[1]"},
+        [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // uri_template[2..7]
+
+        {3u8: "patch_format"}, // = glyph keyed
+
+        456u32, // charstrings offset [0]
+
+        /* ### Glyph Map ### */
+        {1u16: "glyph_map"},     // first mapped glyph
+        {2u8: "entry_index[1]"},
+        [1u8, 0, 1, 0, 0]        // entry index[2..6]
+    };
+
+    let offset = buffer.offset_for("glyph_map") as u32;
+    buffer.write_at("glyph_map_offset", offset);
+
+    buffer
+}
+
+pub fn simple_format1_with_two_charstrings_offsets() -> BeBuffer {
+    let mut buffer = be_buffer! {
+        /* ### Header ### */
+        1u8,                    // format
+        0u32,                   // reserved
+        [1u32, 2, 3, 4],        // compat id
+        2u16,                   // max entry id
+        {2u16: "max_glyph_map_entry_id"},
+        (Uint24::new(7)),       // glyph count
+        {0u32: "glyph_map_offset"},
+        0u32,                   // feature map offset
+        0b00000010u8,           // applied entry bitmap (entry 1)
+
+        8u16,                   // uri template length
+        {b'A': "uri_template[0]"},
+        {b'B': "uri_template[1]"},
+        [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // uri_template[2..7]
+
+        {3u8: "patch_format"}, // = glyph keyed
+
+        456u32, // charstrings offset [0]
+        789u32, // charstrings offset [1]
+
+        /* ### Glyph Map ### */
+        {1u16: "glyph_map"},     // first mapped glyph
+        {2u8: "entry_index[1]"},
+        [1u8, 0, 1, 0, 0]        // entry index[2..6]
+    };
+
+    let offset = buffer.offset_for("glyph_map") as u32;
+    buffer.write_at("glyph_map_offset", offset);
+
+    buffer
+}
+
 pub fn u16_entries_format1() -> BeBuffer {
     let mut buffer = be_buffer! {
       1u8,              // format

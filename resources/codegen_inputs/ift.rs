@@ -52,6 +52,9 @@ table PatchMapFormat1 {
 
   /// Patch format number for patches referenced by this mapping.
   patch_format: u8,
+
+  #[count(..)]
+  optional_charstring_offsets: [u8],
 }
 
 #[read_args(glyph_count: Uint24, max_entry_index: u16)]

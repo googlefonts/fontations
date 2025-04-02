@@ -14,7 +14,7 @@ impl Ift<'_> {
         has_cff2: bool,
     ) -> (Option<u32>, Option<u32>) {
         match self {
-            Ift::Format1(_) => todo!(),
+            Ift::Format1(f1) => f1.get_charstring_offsets(has_cff, has_cff2),
             Ift::Format2(f2) => f2.get_charstring_offsets(has_cff, has_cff2),
         }
     }
@@ -250,6 +250,52 @@ impl<'a> PatchMapFormat1<'a> {
     }
 }
 
+trait OptionalCharstringOffsets {
+    fn read_charstrings_offset(&self, index: usize) -> Option<u32>;
+}
+
+impl OptionalCharstringOffsets for PatchMapFormat1<'_> {
+    fn read_charstrings_offset(&self, index: usize) -> Option<u32> {
+        u32::read(&self.optional_charstring_offsets()[index * 4..(index * 4) + 4])
+    }
+}
+
+impl OptionalCharstringOffsets for PatchMapFormat2<'_> {
+    fn read_charstrings_offset(&self, index: usize) -> Option<u32> {
+        u32::read(&self.optional_charstring_offsets()[index * 4..(index * 4) + 4])
+    }
+}
+
+fn get_charstring_offsets<T: OptionalCharstringOffsets>(
+    ift_table: &T,
+    has_cff: bool,
+    has_cff2: bool,
+) -> (Option<u32>, Option<u32>) {
+    let (cff_offset, next_index) = if has_cff {
+        (ift_table.read_charstrings_offset(0), 1)
+    } else {
+        (None, 0)
+    };
+
+    let cff2_offset = if has_cff2 {
+        ift_table.read_charstrings_offset(next_index)
+    } else {
+        None
+    };
+
+    (cff_offset, cff2_offset)
+}
+
+impl PatchMapFormat1<'_> {
+    pub fn get_charstring_offsets(
+        &self,
+        has_cff: bool,
+        has_cff2: bool,
+    ) -> (Option<u32>, Option<u32>) {
+        get_charstring_offsets(self, has_cff, has_cff2)
+    }
+}
+
 impl PatchMapFormat2<'_> {
     pub fn uri_template_as_string(&self) -> Result<&str, ReadError> {
         str::from_utf8(self.uri_template())
@@ -261,23 +307,7 @@ impl PatchMapFormat2<'_> {
         has_cff: bool,
         has_cff2: bool,
     ) -> (Option<u32>, Option<u32>) {
-        let (cff_offset, next_index) = if has_cff {
-            (self.read_charstrings_offset(0), 1)
-        } else {
-            (None, 0)
-        };
-
-        let cff2_offset = if has_cff2 {
-            self.read_charstrings_offset(next_index)
-        } else {
-            None
-        };
-
-        (cff_offset, cff2_offset)
-    }
-
-    fn read_charstrings_offset(&self, index: usize) -> Option<u32> {
-        u32::read(&self.optional_charstring_offsets()[index * 4..(index * 4) + 4])
+        get_charstring_offsets(self, has_cff, has_cff2)
     }
 }
 
@@ -501,7 +531,48 @@ mod tests {
     }
 
     #[test]
+    fn format_1_get_charstrings_offset() {
+        // No offsets
+        let data = test_data::simple_format1();
+        let table = Ift::read(FontData::new(&data)).unwrap();
+        let Ift::Format1(map) = table else {
+            panic!("Not format 1.");
+        };
+        assert_eq!(map.get_charstring_offsets(false, false), (None, None));
+
+        // One offset
+        let data = test_data::simple_format1_with_one_charstrings_offset();
+        let table = Ift::read(FontData::new(&data)).unwrap();
+        let Ift::Format1(map) = table else {
+            panic!("Not format 1.");
+        };
+
+        assert_eq!(map.get_charstring_offsets(true, false), (Some(456), None));
+        assert_eq!(map.get_charstring_offsets(false, true), (None, Some(456)));
+
+        // Two offsets
+        let data = test_data::simple_format1_with_two_charstrings_offsets();
+        let table = Ift::read(FontData::new(&data)).unwrap();
+        let Ift::Format1(map) = table else {
+            panic!("Not format 1.");
+        };
+
+        assert_eq!(
+            map.get_charstring_offsets(true, true),
+            (Some(456), Some(789))
+        );
+    }
+
+    #[test]
     fn format_2_get_charstrings_offset() {
+        // No offsets
+        let data = test_data::codepoints_only_format2();
+        let table = Ift::read(FontData::new(&data)).unwrap();
+        let Ift::Format2(map) = table else {
+            panic!("Not format 2.");
+        };
+        assert_eq!(map.get_charstring_offsets(false, false), (None, None));
+
         // One offset
         let data = test_data::format2_with_one_charstrings_offset();
         let table = Ift::read(FontData::new(&data)).unwrap();
@@ -704,7 +775,7 @@ mod tests {
     #[test]
     fn glyph_keyed_glyph_data_for_one_table_gids_truncated() {
         let builder = test_data::glyf_u16_glyph_patches();
-        let len = builder.offset_for("table_count") as usize;
+        let len = builder.offset_for("table_count");
         let data = &builder.as_slice()[..len];
 
         let Err(err) = GlyphPatches::read(FontData::new(data), GlyphKeyedFlags::NONE) else {
@@ -716,7 +787,7 @@ mod tests {
     #[test]
     fn glyph_keyed_glyph_data_for_one_table_data_truncated() {
         let builder = test_data::glyf_u16_glyph_patches();
-        let len = builder.offset_for("gid_8_and_9_data") as usize;
+        let len = builder.offset_for("gid_8_and_9_data");
         let data = &builder.as_slice()[..len];
 
         let table = GlyphPatches::read(FontData::new(data), GlyphKeyedFlags::NONE).unwrap();
@@ -737,7 +808,7 @@ mod tests {
     #[test]
     fn glyph_keyed_glyph_data_for_one_table_offset_array_truncated() {
         let builder = test_data::glyf_u16_glyph_patches();
-        let len = builder.offset_for("gid_9_offset") as usize;
+        let len = builder.offset_for("gid_9_offset");
         let data = &builder.as_slice()[..len];
 
         let Err(err) = GlyphPatches::read(FontData::new(data), GlyphKeyedFlags::NONE) else {

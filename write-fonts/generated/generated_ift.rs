@@ -28,6 +28,7 @@ impl Ift {
         uri_template_length: u16,
         uri_template: Vec<u8>,
         patch_format: u8,
+        optional_charstring_offsets: Vec<u8>,
     ) -> Self {
         Self::Format1(PatchMapFormat1::new(
             compatibility_id,
@@ -40,6 +41,7 @@ impl Ift {
             uri_template_length,
             uri_template,
             patch_format,
+            optional_charstring_offsets,
         ))
     }
 
@@ -148,6 +150,7 @@ pub struct PatchMapFormat1 {
     pub uri_template: Vec<u8>,
     /// Patch format number for patches referenced by this mapping.
     pub patch_format: u8,
+    pub optional_charstring_offsets: Vec<u8>,
 }
 
 impl PatchMapFormat1 {
@@ -164,6 +167,7 @@ impl PatchMapFormat1 {
         uri_template_length: u16,
         uri_template: Vec<u8>,
         patch_format: u8,
+        optional_charstring_offsets: Vec<u8>,
     ) -> Self {
         Self {
             compatibility_id,
@@ -176,6 +180,7 @@ impl PatchMapFormat1 {
             uri_template_length,
             uri_template,
             patch_format,
+            optional_charstring_offsets,
         }
     }
 }
@@ -195,6 +200,7 @@ impl FontWrite for PatchMapFormat1 {
         self.uri_template_length.write_into(writer);
         self.uri_template.write_into(writer);
         self.patch_format.write_into(writer);
+        self.optional_charstring_offsets.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("PatchMapFormat1")
@@ -233,6 +239,9 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat1<'a>> for PatchMapFo
             uri_template_length: obj.uri_template_length(),
             uri_template: obj.uri_template().to_owned_obj(offset_data),
             patch_format: obj.patch_format(),
+            optional_charstring_offsets: obj
+                .optional_charstring_offsets()
+                .to_owned_obj(offset_data),
         }
     }
 }
