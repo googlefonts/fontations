@@ -22,7 +22,7 @@ use read_fonts::{
         ift::{GlyphKeyedPatch, GlyphPatches},
         ift::{IFTX_TAG, IFT_TAG},
         loca::Loca,
-        postscript::{dict, Index1, Index2},
+        postscript::{Index1, Index2},
     },
     types::Tag,
     FontData, FontRead, FontRef, ReadError, TableProvider, TopLevelTable,
@@ -78,6 +78,18 @@ pub(crate) fn apply_glyph_keyed_patches(
     let mut processed_tables = BTreeSet::from([IFT_TAG, IFTX_TAG]);
     let mut font_builder = FontBuilder::new();
 
+    // When a font has CFF, CFF2 the IFT table stores offsets to the charstrings data
+    // to speed up patch application (we can skip parsing CFF to find charstrings).
+    // See: https://w3c.github.io/IFT/Overview.html#cff
+    let has_cff = font.table_data(Cff::TAG).is_some();
+    let has_cff2 = font.table_data(Cff2::TAG).is_some();
+    let (cff_charstrings_offset, cff2_charstrings_offset) = font
+        .ift()
+        .ok()
+        .as_ref()
+        .map(|t| t.get_charstring_offsets(has_cff, has_cff2))
+        .unwrap_or((None, None));
+
     for table_tag in table_tag_list(&glyph_patches)? {
         if table_tag == Glyf::TAG {
             let (Some(glyf), Ok(loca)) = (font.table_data(Glyf::TAG), font.loca(None)) else {
@@ -113,20 +125,30 @@ pub(crate) fn apply_glyph_keyed_patches(
             )?;
             processed_tables.insert(Gvar::TAG);
         } else if table_tag == Cff::TAG {
+            let Some(charstrings_offset) = cff_charstrings_offset else {
+                return Err(PatchingError::InvalidPatch(
+                    "Required CFF charstrings offset is missing from IFT table.",
+                ));
+            };
             patch_offset_array(
                 table_tag,
                 &glyph_patches,
-                CFFAndCharStrings::from_cff_font(font, max_glyph_id)
+                CFFAndCharStrings::from_cff_font(font, charstrings_offset, max_glyph_id)
                     .map_err(PatchingError::from)?,
                 max_glyph_id,
                 &mut font_builder,
             )?;
             processed_tables.insert(table_tag);
         } else if table_tag == Cff2::TAG {
+            let Some(charstrings_offset) = cff2_charstrings_offset else {
+                return Err(PatchingError::InvalidPatch(
+                    "Required CFF charstrings offset is missing from IFT table.",
+                ));
+            };
             patch_offset_array(
                 table_tag,
                 &glyph_patches,
-                CFFAndCharStrings::from_cff2_font(font, max_glyph_id)
+                CFFAndCharStrings::from_cff2_font(font, charstrings_offset, max_glyph_id)
                     .map_err(PatchingError::from)?,
                 max_glyph_id,
                 &mut font_builder,
@@ -622,17 +644,12 @@ struct CFFAndCharStrings<'a> {
 impl CFFAndCharStrings<'_> {
     fn from_cff_font<'a>(
         font: &FontRef<'a>,
+        charstrings_offset: u32,
         max_glyph_id: GlyphId,
     ) -> Result<CFFAndCharStrings<'a>, ReadError> {
         let cff = font.cff()?;
-        // CFF fonts have only one top dict entry:
-        // https://learn.microsoft.com/en-us/typography/opentype/spec/cff
-        let top_dict = cff
-            .top_dicts()
-            .get(0)
-            .map_err(|_| ReadError::MalformedData("CFF is missing top dict."))?;
-        let charstrings_offset = Self::charstrings_offset(top_dict)?;
-        let charstrings_data = Self::charstrings_data(cff.offset_data(), charstrings_offset)?;
+        let charstrings_data =
+            Self::charstrings_data(cff.offset_data(), charstrings_offset as usize)?;
         let charstrings = Index1::read(charstrings_data)?;
         let offset_type = Self::offset_type(charstrings.off_size())?;
 
@@ -648,18 +665,19 @@ impl CFFAndCharStrings<'_> {
             cff_data: cff.offset_data().as_bytes(),
             charstrings: Index::Format1(charstrings),
             charstrings_object_data,
-            charstrings_offset,
+            charstrings_offset: charstrings_offset as usize,
             offset_type,
         })
     }
 
     fn from_cff2_font<'a>(
         font: &FontRef<'a>,
+        charstrings_offset: u32,
         max_glyph_id: GlyphId,
     ) -> Result<CFFAndCharStrings<'a>, ReadError> {
         let cff2 = font.cff2()?;
-        let charstrings_offset = Self::charstrings_offset(cff2.top_dict_data())?;
-        let charstrings_data = Self::charstrings_data(cff2.offset_data(), charstrings_offset)?;
+        let charstrings_data =
+            Self::charstrings_data(cff2.offset_data(), charstrings_offset as usize)?;
         let charstrings = Index2::read(charstrings_data)?;
         let offset_type = Self::offset_type(charstrings.off_size())?;
 
@@ -675,7 +693,7 @@ impl CFFAndCharStrings<'_> {
             cff_data: cff2.offset_data().as_bytes(),
             charstrings: Index::Format2(charstrings),
             charstrings_object_data,
-            charstrings_offset,
+            charstrings_offset: charstrings_offset as usize,
             offset_type,
         })
     }
@@ -696,15 +714,6 @@ impl CFFAndCharStrings<'_> {
         table_data
             .split_off(charstrings_offset)
             .ok_or(ReadError::OutOfBounds)
-    }
-
-    fn charstrings_offset(top_dict: &[u8]) -> Result<usize, ReadError> {
-        for entry in dict::entries(top_dict, None).flatten() {
-            if let dict::Entry::CharstringsOffset(offset) = entry {
-                return Ok(offset);
-            }
-        }
-        Err(ReadError::MalformedData("Missing charstrings offset."))
     }
 
     fn offset_type(size: u8) -> Result<OffsetType, ReadError> {
@@ -1100,11 +1109,12 @@ pub(crate) mod tests {
     use font_test_data::{
         bebuffer::BeBuffer,
         ift::{
-            cff_u16_glyph_patches, glyf_and_gvar_u16_glyph_patches, glyf_u16_glyph_patches,
-            glyf_u16_glyph_patches_2, glyph_keyed_patch_header, long_gvar_with_shared_tuples,
-            noop_glyf_glyph_patches, out_of_order_gvar_with_shared_tuples,
-            short_gvar_near_maximum_offset_size, short_gvar_with_no_shared_tuples,
-            short_gvar_with_shared_tuples, CFF2_FONT, CFF_FONT,
+            cff_u16_glyph_patches, format2_with_one_charstrings_offset,
+            glyf_and_gvar_u16_glyph_patches, glyf_u16_glyph_patches, glyf_u16_glyph_patches_2,
+            glyph_keyed_patch_header, long_gvar_with_shared_tuples, noop_glyf_glyph_patches,
+            out_of_order_gvar_with_shared_tuples, short_gvar_near_maximum_offset_size,
+            short_gvar_with_no_shared_tuples, short_gvar_with_shared_tuples, CFF2_FONT,
+            CFF2_FONT_CHARSTRINGS_OFFSET, CFF_FONT, CFF_FONT_CHARSTRINGS_OFFSET,
         },
     };
     use skrifa::{FontRef, GlyphId, Tag};
@@ -2004,8 +2014,10 @@ pub(crate) mod tests {
         let cff_font = FontRef::new(CFF_FONT).unwrap();
         let mut font_builder = FontBuilder::new();
         font_builder.copy_missing_tables(cff_font);
-        let ift_data = vec![0, 0, 0, 0];
-        font_builder.add_raw(Tag::new(b"IFT "), ift_data.as_slice());
+
+        let mut ift_table = format2_with_one_charstrings_offset();
+        ift_table.write_at("charstrings_offset", CFF_FONT_CHARSTRINGS_OFFSET);
+        font_builder.add_raw(Tag::new(b"IFT "), ift_table.data());
 
         let cff_font_data = font_builder.build();
         let cff_font = FontRef::new(cff_font_data.as_slice()).unwrap();
@@ -2013,8 +2025,18 @@ pub(crate) mod tests {
         let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &cff_font).unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
-        let old_cff = CFFAndCharStrings::from_cff_font(&cff_font, GlyphId::new(59)).unwrap();
-        let new_cff = CFFAndCharStrings::from_cff_font(&patched, GlyphId::new(59)).unwrap();
+        let old_cff = CFFAndCharStrings::from_cff_font(
+            &cff_font,
+            CFF_FONT_CHARSTRINGS_OFFSET,
+            GlyphId::new(59),
+        )
+        .unwrap();
+        let new_cff = CFFAndCharStrings::from_cff_font(
+            &patched,
+            CFF_FONT_CHARSTRINGS_OFFSET,
+            GlyphId::new(59),
+        )
+        .unwrap();
 
         assert_eq!(new_cff.charstrings.off_size(), 2);
         assert_eq!(old_cff.charstrings.count(), new_cff.charstrings.count());
@@ -2062,8 +2084,10 @@ pub(crate) mod tests {
         let cff_font = FontRef::new(CFF_FONT).unwrap();
         let mut font_builder = FontBuilder::new();
         font_builder.copy_missing_tables(cff_font);
-        let ift_data = vec![0, 0, 0, 0];
-        font_builder.add_raw(Tag::new(b"IFT "), ift_data.as_slice());
+
+        let mut ift_table = format2_with_one_charstrings_offset();
+        ift_table.write_at("charstrings_offset", CFF_FONT_CHARSTRINGS_OFFSET);
+        font_builder.add_raw(Tag::new(b"IFT "), ift_table.data());
 
         let cff_font_data = font_builder.build();
         let cff_font = FontRef::new(cff_font_data.as_slice()).unwrap();
@@ -2071,8 +2095,18 @@ pub(crate) mod tests {
         let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &cff_font).unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
-        let old_cff = CFFAndCharStrings::from_cff_font(&cff_font, GlyphId::new(59)).unwrap();
-        let new_cff = CFFAndCharStrings::from_cff_font(&patched, GlyphId::new(59)).unwrap();
+        let old_cff = CFFAndCharStrings::from_cff_font(
+            &cff_font,
+            CFF_FONT_CHARSTRINGS_OFFSET,
+            GlyphId::new(59),
+        )
+        .unwrap();
+        let new_cff = CFFAndCharStrings::from_cff_font(
+            &patched,
+            CFF_FONT_CHARSTRINGS_OFFSET, // patching doesn't ever change the offsets location
+            GlyphId::new(59),
+        )
+        .unwrap();
 
         assert_eq!(new_cff.charstrings.off_size(), 3);
         assert_eq!(old_cff.charstrings.count(), new_cff.charstrings.count());
@@ -2123,8 +2157,10 @@ pub(crate) mod tests {
         let cff2_font = FontRef::new(CFF2_FONT).unwrap();
         let mut font_builder = FontBuilder::new();
         font_builder.copy_missing_tables(cff2_font);
-        let ift_data = vec![0, 0, 0, 0];
-        font_builder.add_raw(Tag::new(b"IFT "), ift_data.as_slice());
+
+        let mut ift_table = format2_with_one_charstrings_offset();
+        ift_table.write_at("charstrings_offset", CFF2_FONT_CHARSTRINGS_OFFSET);
+        font_builder.add_raw(Tag::new(b"IFT "), ift_table.data());
 
         let cff2_font_data = font_builder.build();
         let cff2_font = FontRef::new(cff2_font_data.as_slice()).unwrap();
@@ -2132,8 +2168,18 @@ pub(crate) mod tests {
         let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &cff2_font).unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
-        let old_cff = CFFAndCharStrings::from_cff2_font(&cff2_font, GlyphId::new(59)).unwrap();
-        let new_cff = CFFAndCharStrings::from_cff2_font(&patched, GlyphId::new(59)).unwrap();
+        let old_cff = CFFAndCharStrings::from_cff2_font(
+            &cff2_font,
+            CFF2_FONT_CHARSTRINGS_OFFSET,
+            GlyphId::new(59),
+        )
+        .unwrap();
+        let new_cff = CFFAndCharStrings::from_cff2_font(
+            &patched,
+            CFF2_FONT_CHARSTRINGS_OFFSET,
+            GlyphId::new(59),
+        )
+        .unwrap();
 
         assert_eq!(new_cff.charstrings.off_size(), 2);
         assert_eq!(old_cff.charstrings.count(), new_cff.charstrings.count());

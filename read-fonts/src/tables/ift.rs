@@ -7,6 +7,19 @@ use std::str;
 pub const IFT_TAG: types::Tag = Tag::new(b"IFT ");
 pub const IFTX_TAG: types::Tag = Tag::new(b"IFTX");
 
+impl Ift<'_> {
+    pub fn get_charstring_offsets(
+        &self,
+        has_cff: bool,
+        has_cff2: bool,
+    ) -> (Option<u32>, Option<u32>) {
+        match self {
+            Ift::Format1(_) => todo!(),
+            Ift::Format2(f2) => f2.get_charstring_offsets(has_cff, has_cff2),
+        }
+    }
+}
+
 /// Wrapper for the packed childEntryMatchModeAndCount field in IFT format 2 mapping table.
 ///
 /// Reference: <https://w3c.github.io/IFT/Overview.html#mapping-entry-childentrymatchmodeandcount>

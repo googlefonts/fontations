@@ -14,6 +14,9 @@ pub static IFT_BASE: &[u8] = include_bytes!("../test_data/ttf/ift_base.ttf");
 pub static CFF_FONT: &[u8] = include_bytes!("../test_data/ttf/NotoSansJP-Regular.subset.otf");
 pub static CFF2_FONT: &[u8] = include_bytes!("../test_data/ttf/NotoSansJP-VF.subset.otf");
 
+pub const CFF_FONT_CHARSTRINGS_OFFSET: u32 = 0x1b9;
+pub const CFF2_FONT_CHARSTRINGS_OFFSET: u32 = 0x8f;
+
 // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-1
 pub fn simple_format1() -> BeBuffer {
     let mut buffer = be_buffer! {
@@ -250,7 +253,7 @@ pub fn format2_with_one_charstrings_offset() -> BeBuffer {
       8u16, // uriTemplateLength
       [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
 
-      456u32, // charstrings offset [0]
+      {456u32: "charstrings_offset"}, // charstrings offset [0]
 
       /* ### Entries Array ### */
       // Entry id = 1
