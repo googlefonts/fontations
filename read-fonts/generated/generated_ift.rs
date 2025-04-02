@@ -49,6 +49,13 @@ impl<'a> Ift<'a> {
             Self::Format2(item) => item.uri_template(),
         }
     }
+
+    pub fn optional_charstring_offsets(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.optional_charstring_offsets(),
+            Self::Format2(item) => item.optional_charstring_offsets(),
+        }
+    }
 }
 
 impl<'a> FontRead<'a> for Ift<'a> {
@@ -108,6 +115,7 @@ impl Format<u8> for PatchMapFormat1Marker {
 pub struct PatchMapFormat1Marker {
     applied_entries_bitmap_byte_len: usize,
     uri_template_byte_len: usize,
+    optional_charstring_offsets_byte_len: usize,
 }
 
 impl PatchMapFormat1Marker {
@@ -170,11 +178,16 @@ impl PatchMapFormat1Marker {
         let start = self.uri_template_byte_range().end;
         start..start + u8::RAW_BYTE_LEN
     }
+
+    pub fn optional_charstring_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.patch_format_byte_range().end;
+        start..start + self.optional_charstring_offsets_byte_len
+    }
 }
 
 impl MinByteRange for PatchMapFormat1Marker {
     fn min_byte_range(&self) -> Range<usize> {
-        0..self.patch_format_byte_range().end
+        0..self.optional_charstring_offsets_byte_range().end
     }
 }
 
@@ -199,9 +212,13 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(uri_template_byte_len);
         cursor.advance::<u8>();
+        let optional_charstring_offsets_byte_len =
+            cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        cursor.advance_by(optional_charstring_offsets_byte_len);
         cursor.finish(PatchMapFormat1Marker {
             applied_entries_bitmap_byte_len,
             uri_template_byte_len,
+            optional_charstring_offsets_byte_len,
         })
     }
 }
@@ -286,6 +303,11 @@ impl<'a> PatchMapFormat1<'a> {
         let range = self.shape.patch_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
+
+    pub fn optional_charstring_offsets(&self) -> &'a [u8] {
+        let range = self.shape.optional_charstring_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -324,6 +346,10 @@ impl<'a> SomeTable<'a> for PatchMapFormat1<'a> {
             )),
             9usize => Some(Field::new("uri_template", self.uri_template())),
             10usize => Some(Field::new("patch_format", self.patch_format())),
+            11usize => Some(Field::new(
+                "optional_charstring_offsets",
+                self.optional_charstring_offsets(),
+            )),
             _ => None,
         }
     }
