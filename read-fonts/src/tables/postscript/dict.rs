@@ -501,24 +501,34 @@ pub(crate) fn parse_int(cursor: &mut Cursor, b0: u8) -> Result<i32, Error> {
 }
 
 /// Parse a binary coded decimal number.
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/82090e67c24259c343c83fd9cefe6ff0be7a7eca/src/cff/cffparse.c#L183>
 fn parse_bcd(cursor: &mut Cursor) -> Result<Fixed, Error> {
-    // fonttools says:
-    // "Note: 14 decimal digits seems to be the limitation for CFF real numbers
-    // in macOS. However, we use 8 here to match the implementation of AFDKO."
-    // <https://github.com/fonttools/fonttools/blob/84cebca6a1709085b920783400ceb1a147d51842/Lib/fontTools/misc/psCharStrings.py#L269>
-    // So, 32 should be big enough for anybody?
-    const MAX_LEN: usize = 32;
-    let mut buf = [0u8; MAX_LEN];
-    let mut n = 0;
-    let mut push = |byte| {
-        if n < MAX_LEN {
-            buf[n] = byte;
-            n += 1;
-            Ok(())
-        } else {
-            Err(Error::InvalidNumber)
-        }
-    };
+    // Value returned on overflow
+    const OVERFLOW: Fixed = Fixed::from_bits(0x7FFFFFFF);
+    // Value returned on underflow
+    const UNDERFLOW: Fixed = Fixed::ZERO;
+    // Limit at which we stop accumulating `number` and increase
+    // the exponent instead
+    const NUMBER_LIMIT: i32 = 0xCCCCCCC;
+    // Limit for the integral part of the result
+    const INTEGER_LIMIT: i32 = 0x7FFF;
+    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/82090e67c24259c343c83fd9cefe6ff0be7a7eca/src/cff/cffparse.c#L150>
+    const POWER_TENS: [i32; 10] = [
+        1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000,
+    ];
+    enum Phase {
+        Integer,
+        Fraction,
+        Exponent,
+    }
+    let mut phase = Phase::Integer;
+    let mut sign = 1i32;
+    let mut exponent_sign = 1i32;
+    let mut number = 0i32;
+    let mut exponent = 0i32;
+    let mut exponent_add = 0i32;
+    let mut integer_len = 0;
+    let mut fraction_len = 0;
     // Nibble value    Represents
     //----------------------------------
     // 0 to 9          0 to 9
@@ -532,24 +542,107 @@ fn parse_bcd(cursor: &mut Cursor) -> Result<Fixed, Error> {
     'outer: loop {
         let b = cursor.read::<u8>()?;
         for nibble in [(b >> 4) & 0xF, b & 0xF] {
-            match nibble {
-                0x0..=0x9 => push(b'0' + nibble)?,
-                0xA => push(b'.')?,
-                0xB => push(b'E')?,
-                0xC => {
-                    push(b'E')?;
-                    push(b'-')?;
+            match phase {
+                Phase::Integer => match nibble {
+                    0x0..=0x9 => {
+                        if number >= NUMBER_LIMIT {
+                            exponent_add += 1;
+                        } else if nibble != 0 || number != 0 {
+                            number = number * 10 + nibble as i32;
+                            integer_len += 1;
+                        }
+                    }
+                    0xE => sign = -1,
+                    0xA => {
+                        phase = Phase::Fraction;
+                    }
+                    0xB => {
+                        phase = Phase::Exponent;
+                    }
+                    0xC => {
+                        phase = Phase::Exponent;
+                        exponent_sign = -1;
+                    }
+                    _ => break 'outer,
+                },
+                Phase::Fraction => match nibble {
+                    0x0..=0x9 => {
+                        if nibble == 0 && number == 0 {
+                            exponent_add -= 1;
+                        } else if number < NUMBER_LIMIT && fraction_len < 9 {
+                            number = number * 10 + nibble as i32;
+                            fraction_len += 1;
+                        }
+                    }
+                    0xB => {
+                        phase = Phase::Exponent;
+                    }
+                    0xC => {
+                        phase = Phase::Exponent;
+                        exponent_sign = -1;
+                    }
+                    _ => break 'outer,
+                },
+                Phase::Exponent => {
+                    match nibble {
+                        0x0..=0x9 => {
+                            // Arbitrarily limit exponent
+                            if exponent > 1000 {
+                                return if exponent_sign == -1 {
+                                    Ok(UNDERFLOW)
+                                } else {
+                                    Ok(OVERFLOW)
+                                };
+                            } else {
+                                exponent = exponent * 10 + nibble as i32;
+                            }
+                        }
+                        _ => break 'outer,
+                    }
                 }
-                0xE => push(b'-')?,
-                0xF => break 'outer,
-                _ => return Err(Error::InvalidNumber),
             }
         }
     }
-    std::str::from_utf8(&buf[..n])
-        .map_or(None, |buf| buf.parse::<f64>().ok())
-        .map(Fixed::from_f64)
-        .ok_or(Error::InvalidNumber)
+    if number == 0 {
+        return Ok(Fixed::ZERO);
+    }
+    exponent *= exponent_sign;
+    exponent += exponent_add;
+    integer_len += exponent;
+    fraction_len -= exponent;
+    if integer_len > 5 {
+        return Ok(OVERFLOW);
+    }
+    if integer_len < -5 {
+        return Ok(UNDERFLOW);
+    }
+    // Remove non-significant digits
+    if integer_len < 0 {
+        number /= POWER_TENS[(-integer_len) as usize];
+        fraction_len += integer_len;
+    }
+    // Can only happen if exponent was non-zero
+    if fraction_len == 10 {
+        number /= 10;
+        fraction_len -= 1;
+    }
+    // Convert to fixed
+    let result = if fraction_len > 0 {
+        let b = POWER_TENS[fraction_len as usize];
+        if number / b > INTEGER_LIMIT {
+            0
+        } else {
+            (Fixed::from_bits(number) / Fixed::from_bits(b)).to_bits()
+        }
+    } else {
+        number = number.wrapping_mul(-fraction_len);
+        if number > INTEGER_LIMIT {
+            return Ok(OVERFLOW);
+        } else {
+            number << 16
+        }
+    };
+    Ok(Fixed::from_bits(result * sign))
 }
 
 #[cfg(test)]
@@ -598,6 +691,14 @@ mod tests {
         assert_eq!(
             parse_bcd(&mut bytes.cursor()).unwrap(),
             Fixed::from_f64(0.140541E-3)
+        );
+        // Check that we match FreeType for 375e-4.
+        // Note: we used to parse 0.0375... but the new FT matching code
+        // has less precision
+        let bytes = FontData::new(&[0x37, 0x5c, 0x4f]);
+        assert_eq!(
+            parse_bcd(&mut bytes.cursor()).unwrap(),
+            Fixed::from_f64(0.0370025634765625)
         );
     }
 
@@ -658,7 +759,7 @@ mod tests {
                 -20.0, 0.0, 473.0, 491.0, 525.0, 540.0, 644.0, 659.0, 669.0, 689.0, 729.0, 749.0,
             ])),
             FamilyOtherBlues(make_blues(&[-249.0, -239.0])),
-            BlueScale(Fixed::from_f64(0.037506103515625)),
+            BlueScale(Fixed::from_f64(0.0370025634765625)),
             BlueFuzz(Fixed::ZERO),
             StdHw(Fixed::from_f64(55.0)),
             StdVw(Fixed::from_f64(80.0)),
