@@ -5,7 +5,9 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-pub use read_fonts::tables::ift::{EntryFormatFlags, GlyphKeyedFlags, TablePatchFlags};
+pub use read_fonts::tables::ift::{
+    EntryFormatFlags, GlyphKeyedFlags, PatchMapFieldPresenceFlags, TablePatchFlags,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -18,6 +20,7 @@ impl Ift {
     /// Construct a new `PatchMapFormat1` subtable
     #[allow(clippy::too_many_arguments)]
     pub fn format_1(
+        field_flags: PatchMapFieldPresenceFlags,
         compatibility_id: CompatibilityId,
         max_entry_index: u16,
         max_glyph_map_entry_index: u16,
@@ -28,9 +31,9 @@ impl Ift {
         uri_template_length: u16,
         uri_template: Vec<u8>,
         patch_format: u8,
-        optional_charstring_offsets: Vec<u8>,
     ) -> Self {
         Self::Format1(PatchMapFormat1::new(
+            field_flags,
             compatibility_id,
             max_entry_index,
             max_glyph_map_entry_index,
@@ -41,13 +44,13 @@ impl Ift {
             uri_template_length,
             uri_template,
             patch_format,
-            optional_charstring_offsets,
         ))
     }
 
     /// Construct a new `PatchMapFormat2` subtable
     #[allow(clippy::too_many_arguments)]
     pub fn format_2(
+        field_flags: PatchMapFieldPresenceFlags,
         compatibility_id: CompatibilityId,
         default_patch_format: u8,
         entry_count: Uint24,
@@ -55,9 +58,9 @@ impl Ift {
         entry_id_string_data: Option<IdStringData>,
         uri_template_length: u16,
         uri_template: Vec<u8>,
-        optional_charstring_offsets: Vec<u8>,
     ) -> Self {
         Self::Format2(PatchMapFormat2::new(
+            field_flags,
             compatibility_id,
             default_patch_format,
             entry_count,
@@ -65,7 +68,6 @@ impl Ift {
             entry_id_string_data,
             uri_template_length,
             uri_template,
-            optional_charstring_offsets,
         ))
     }
 }
@@ -130,10 +132,17 @@ impl From<PatchMapFormat2> for Ift {
     }
 }
 
+impl FontWrite for PatchMapFieldPresenceFlags {
+    fn write_into(&self, writer: &mut TableWriter) {
+        writer.write_slice(&self.bits().to_be_bytes())
+    }
+}
+
 /// [Patch Map Format Format 1](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PatchMapFormat1 {
+    pub field_flags: PatchMapFieldPresenceFlags,
     /// Unique ID that identifies compatible patches.
     pub compatibility_id: CompatibilityId,
     /// Largest entry index which appears in either the glyph map or feature map.
@@ -150,13 +159,15 @@ pub struct PatchMapFormat1 {
     pub uri_template: Vec<u8>,
     /// Patch format number for patches referenced by this mapping.
     pub patch_format: u8,
-    pub optional_charstring_offsets: Vec<u8>,
+    pub cff_charstrings_offset: Option<u32>,
+    pub cff2_charstrings_offset: Option<u32>,
 }
 
 impl PatchMapFormat1 {
     /// Construct a new `PatchMapFormat1`
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        field_flags: PatchMapFieldPresenceFlags,
         compatibility_id: CompatibilityId,
         max_entry_index: u16,
         max_glyph_map_entry_index: u16,
@@ -167,9 +178,9 @@ impl PatchMapFormat1 {
         uri_template_length: u16,
         uri_template: Vec<u8>,
         patch_format: u8,
-        optional_charstring_offsets: Vec<u8>,
     ) -> Self {
         Self {
+            field_flags,
             compatibility_id,
             max_entry_index,
             max_glyph_map_entry_index,
@@ -180,7 +191,7 @@ impl PatchMapFormat1 {
             uri_template_length,
             uri_template,
             patch_format,
-            optional_charstring_offsets,
+            ..Default::default()
         }
     }
 }
@@ -189,7 +200,10 @@ impl FontWrite for PatchMapFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u8).write_into(writer);
-        (0 as u32).write_into(writer);
+        (0 as u8).write_into(writer);
+        (0 as u8).write_into(writer);
+        (0 as u8).write_into(writer);
+        self.field_flags.write_into(writer);
         self.compatibility_id.write_into(writer);
         self.max_entry_index.write_into(writer);
         self.max_glyph_map_entry_index.write_into(writer);
@@ -200,7 +214,22 @@ impl FontWrite for PatchMapFormat1 {
         self.uri_template_length.write_into(writer);
         self.uri_template.write_into(writer);
         self.patch_format.write_into(writer);
-        self.optional_charstring_offsets.write_into(writer);
+        self.field_flags
+            .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
+            .then(|| {
+                self.cff_charstrings_offset
+                    .as_ref()
+                    .expect("missing conditional field should have failed validation")
+                    .write_into(writer)
+            });
+        self.field_flags
+            .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)
+            .then(|| {
+                self.cff2_charstrings_offset
+                    .as_ref()
+                    .expect("missing conditional field should have failed validation")
+                    .write_into(writer)
+            });
     }
     fn table_type(&self) -> TableType {
         TableType::Named("PatchMapFormat1")
@@ -210,6 +239,7 @@ impl FontWrite for PatchMapFormat1 {
 impl Validate for PatchMapFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PatchMapFormat1", |ctx| {
+            let field_flags = self.field_flags;
             ctx.in_field("glyph_map", |ctx| {
                 self.glyph_map.validate_impl(ctx);
             });
@@ -221,6 +251,36 @@ impl Validate for PatchMapFormat1 {
                     ctx.report("array exceeds max length");
                 }
             });
+            ctx.in_field("cff_charstrings_offset", |ctx| {
+                if !(field_flags.contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
+                    && self.cff_charstrings_offset.is_some()
+                {
+                    ctx.report(
+                        "'cff_charstrings_offset' is present but CFF_CHARSTRINGS_OFFSET not set",
+                    )
+                }
+                if (field_flags.contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
+                    && self.cff_charstrings_offset.is_none()
+                {
+                    ctx.report("CFF_CHARSTRINGS_OFFSET is set but 'cff_charstrings_offset' is None")
+                }
+            });
+            ctx.in_field("cff2_charstrings_offset", |ctx| {
+                if !(field_flags.contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
+                    && self.cff2_charstrings_offset.is_some()
+                {
+                    ctx.report(
+                        "'cff2_charstrings_offset' is present but CFF2_CHARSTRINGS_OFFSET not set",
+                    )
+                }
+                if (field_flags.contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
+                    && self.cff2_charstrings_offset.is_none()
+                {
+                    ctx.report(
+                        "CFF2_CHARSTRINGS_OFFSET is set but 'cff2_charstrings_offset' is None",
+                    )
+                }
+            });
         })
     }
 }
@@ -229,6 +289,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat1<'a>> for PatchMapFo
     fn from_obj_ref(obj: &read_fonts::tables::ift::PatchMapFormat1<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         PatchMapFormat1 {
+            field_flags: obj.field_flags(),
             compatibility_id: obj.compatibility_id(),
             max_entry_index: obj.max_entry_index(),
             max_glyph_map_entry_index: obj.max_glyph_map_entry_index(),
@@ -239,9 +300,8 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat1<'a>> for PatchMapFo
             uri_template_length: obj.uri_template_length(),
             uri_template: obj.uri_template().to_owned_obj(offset_data),
             patch_format: obj.patch_format(),
-            optional_charstring_offsets: obj
-                .optional_charstring_offsets()
-                .to_owned_obj(offset_data),
+            cff_charstrings_offset: obj.cff_charstrings_offset(),
+            cff2_charstrings_offset: obj.cff2_charstrings_offset(),
         }
     }
 }
@@ -408,6 +468,7 @@ impl FromObjRef<read_fonts::tables::ift::EntryMapRecord> for EntryMapRecord {
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PatchMapFormat2 {
+    pub field_flags: PatchMapFieldPresenceFlags,
     /// Unique ID that identifies compatible patches.
     pub compatibility_id: CompatibilityId,
     /// Patch format number for patches referenced by this mapping.
@@ -417,13 +478,15 @@ pub struct PatchMapFormat2 {
     pub entry_id_string_data: NullableOffsetMarker<IdStringData, WIDTH_32>,
     pub uri_template_length: u16,
     pub uri_template: Vec<u8>,
-    pub optional_charstring_offsets: Vec<u8>,
+    pub cff_charstrings_offset: Option<u32>,
+    pub cff2_charstrings_offset: Option<u32>,
 }
 
 impl PatchMapFormat2 {
     /// Construct a new `PatchMapFormat2`
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        field_flags: PatchMapFieldPresenceFlags,
         compatibility_id: CompatibilityId,
         default_patch_format: u8,
         entry_count: Uint24,
@@ -431,9 +494,9 @@ impl PatchMapFormat2 {
         entry_id_string_data: Option<IdStringData>,
         uri_template_length: u16,
         uri_template: Vec<u8>,
-        optional_charstring_offsets: Vec<u8>,
     ) -> Self {
         Self {
+            field_flags,
             compatibility_id,
             default_patch_format,
             entry_count,
@@ -441,7 +504,7 @@ impl PatchMapFormat2 {
             entry_id_string_data: entry_id_string_data.into(),
             uri_template_length,
             uri_template,
-            optional_charstring_offsets,
+            ..Default::default()
         }
     }
 }
@@ -450,7 +513,10 @@ impl FontWrite for PatchMapFormat2 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u8).write_into(writer);
-        (0 as u32).write_into(writer);
+        (0 as u8).write_into(writer);
+        (0 as u8).write_into(writer);
+        (0 as u8).write_into(writer);
+        self.field_flags.write_into(writer);
         self.compatibility_id.write_into(writer);
         self.default_patch_format.write_into(writer);
         self.entry_count.write_into(writer);
@@ -458,7 +524,22 @@ impl FontWrite for PatchMapFormat2 {
         self.entry_id_string_data.write_into(writer);
         self.uri_template_length.write_into(writer);
         self.uri_template.write_into(writer);
-        self.optional_charstring_offsets.write_into(writer);
+        self.field_flags
+            .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
+            .then(|| {
+                self.cff_charstrings_offset
+                    .as_ref()
+                    .expect("missing conditional field should have failed validation")
+                    .write_into(writer)
+            });
+        self.field_flags
+            .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)
+            .then(|| {
+                self.cff2_charstrings_offset
+                    .as_ref()
+                    .expect("missing conditional field should have failed validation")
+                    .write_into(writer)
+            });
     }
     fn table_type(&self) -> TableType {
         TableType::Named("PatchMapFormat2")
@@ -468,6 +549,7 @@ impl FontWrite for PatchMapFormat2 {
 impl Validate for PatchMapFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PatchMapFormat2", |ctx| {
+            let field_flags = self.field_flags;
             ctx.in_field("entries", |ctx| {
                 self.entries.validate_impl(ctx);
             });
@@ -479,6 +561,36 @@ impl Validate for PatchMapFormat2 {
                     ctx.report("array exceeds max length");
                 }
             });
+            ctx.in_field("cff_charstrings_offset", |ctx| {
+                if !(field_flags.contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
+                    && self.cff_charstrings_offset.is_some()
+                {
+                    ctx.report(
+                        "'cff_charstrings_offset' is present but CFF_CHARSTRINGS_OFFSET not set",
+                    )
+                }
+                if (field_flags.contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
+                    && self.cff_charstrings_offset.is_none()
+                {
+                    ctx.report("CFF_CHARSTRINGS_OFFSET is set but 'cff_charstrings_offset' is None")
+                }
+            });
+            ctx.in_field("cff2_charstrings_offset", |ctx| {
+                if !(field_flags.contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
+                    && self.cff2_charstrings_offset.is_some()
+                {
+                    ctx.report(
+                        "'cff2_charstrings_offset' is present but CFF2_CHARSTRINGS_OFFSET not set",
+                    )
+                }
+                if (field_flags.contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
+                    && self.cff2_charstrings_offset.is_none()
+                {
+                    ctx.report(
+                        "CFF2_CHARSTRINGS_OFFSET is set but 'cff2_charstrings_offset' is None",
+                    )
+                }
+            });
         })
     }
 }
@@ -487,6 +599,7 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat2<'a>> for PatchMapFo
     fn from_obj_ref(obj: &read_fonts::tables::ift::PatchMapFormat2<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         PatchMapFormat2 {
+            field_flags: obj.field_flags(),
             compatibility_id: obj.compatibility_id(),
             default_patch_format: obj.default_patch_format(),
             entry_count: obj.entry_count(),
@@ -494,9 +607,8 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat2<'a>> for PatchMapFo
             entry_id_string_data: obj.entry_id_string_data().to_owned_table(),
             uri_template_length: obj.uri_template_length(),
             uri_template: obj.uri_template().to_owned_obj(offset_data),
-            optional_charstring_offsets: obj
-                .optional_charstring_offsets()
-                .to_owned_obj(offset_data),
+            cff_charstrings_offset: obj.cff_charstrings_offset(),
+            cff2_charstrings_offset: obj.cff2_charstrings_offset(),
         }
     }
 }

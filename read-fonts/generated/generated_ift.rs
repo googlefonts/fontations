@@ -28,6 +28,13 @@ impl<'a> Ift<'a> {
         }
     }
 
+    pub fn field_flags(&self) -> PatchMapFieldPresenceFlags {
+        match self {
+            Self::Format1(item) => item.field_flags(),
+            Self::Format2(item) => item.field_flags(),
+        }
+    }
+
     /// Unique ID that identifies compatible patches.
     pub fn compatibility_id(&self) -> CompatibilityId {
         match self {
@@ -50,10 +57,17 @@ impl<'a> Ift<'a> {
         }
     }
 
-    pub fn optional_charstring_offsets(&self) -> &'a [u8] {
+    pub fn cff_charstrings_offset(&self) -> Option<u32> {
         match self {
-            Self::Format1(item) => item.optional_charstring_offsets(),
-            Self::Format2(item) => item.optional_charstring_offsets(),
+            Self::Format1(item) => item.cff_charstrings_offset(),
+            Self::Format2(item) => item.cff_charstrings_offset(),
+        }
+    }
+
+    pub fn cff2_charstrings_offset(&self) -> Option<u32> {
+        match self {
+            Self::Format1(item) => item.cff2_charstrings_offset(),
+            Self::Format2(item) => item.cff2_charstrings_offset(),
         }
     }
 }
@@ -105,6 +119,311 @@ impl<'a> SomeTable<'a> for Ift<'a> {
     }
 }
 
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
+pub struct PatchMapFieldPresenceFlags {
+    bits: u8,
+}
+
+impl PatchMapFieldPresenceFlags {
+    pub const CFF_CHARSTRINGS_OFFSET: Self = Self { bits: 0b00000001 };
+
+    pub const CFF2_CHARSTRINGS_OFFSET: Self = Self { bits: 0b00000010 };
+}
+
+impl PatchMapFieldPresenceFlags {
+    ///  Returns an empty set of flags.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self { bits: 0 }
+    }
+
+    /// Returns the set containing all flags.
+    #[inline]
+    pub const fn all() -> Self {
+        Self {
+            bits: Self::CFF_CHARSTRINGS_OFFSET.bits | Self::CFF2_CHARSTRINGS_OFFSET.bits,
+        }
+    }
+
+    /// Returns the raw value of the flags currently stored.
+    #[inline]
+    pub const fn bits(&self) -> u8 {
+        self.bits
+    }
+
+    /// Convert from underlying bit representation, unless that
+    /// representation contains bits that do not correspond to a flag.
+    #[inline]
+    pub const fn from_bits(bits: u8) -> Option<Self> {
+        if (bits & !Self::all().bits()) == 0 {
+            Some(Self { bits })
+        } else {
+            None
+        }
+    }
+
+    /// Convert from underlying bit representation, dropping any bits
+    /// that do not correspond to flags.
+    #[inline]
+    pub const fn from_bits_truncate(bits: u8) -> Self {
+        Self {
+            bits: bits & Self::all().bits,
+        }
+    }
+
+    /// Returns `true` if no flags are currently stored.
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.bits() == Self::empty().bits()
+    }
+
+    /// Returns `true` if there are flags common to both `self` and `other`.
+    #[inline]
+    pub const fn intersects(&self, other: Self) -> bool {
+        !(Self {
+            bits: self.bits & other.bits,
+        })
+        .is_empty()
+    }
+
+    /// Returns `true` if all of the flags in `other` are contained within `self`.
+    #[inline]
+    pub const fn contains(&self, other: Self) -> bool {
+        (self.bits & other.bits) == other.bits
+    }
+
+    /// Inserts the specified flags in-place.
+    #[inline]
+    pub fn insert(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+
+    /// Removes the specified flags in-place.
+    #[inline]
+    pub fn remove(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+
+    /// Toggles the specified flags in-place.
+    #[inline]
+    pub fn toggle(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+
+    /// Returns the intersection between the flags in `self` and
+    /// `other`.
+    ///
+    /// Specifically, the returned set contains only the flags which are
+    /// present in *both* `self` *and* `other`.
+    ///
+    /// This is equivalent to using the `&` operator (e.g.
+    /// [`ops::BitAnd`]), as in `flags & other`.
+    ///
+    /// [`ops::BitAnd`]: https://doc.rust-lang.org/std/ops/trait.BitAnd.html
+    #[inline]
+    #[must_use]
+    pub const fn intersection(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+
+    /// Returns the union of between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags which are
+    /// present in *either* `self` *or* `other`, including any which are
+    /// present in both.
+    ///
+    /// This is equivalent to using the `|` operator (e.g.
+    /// [`ops::BitOr`]), as in `flags | other`.
+    ///
+    /// [`ops::BitOr`]: https://doc.rust-lang.org/std/ops/trait.BitOr.html
+    #[inline]
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+
+    /// Returns the difference between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags present in
+    /// `self`, except for the ones present in `other`.
+    ///
+    /// It is also conceptually equivalent to the "bit-clear" operation:
+    /// `flags & !other` (and this syntax is also supported).
+    ///
+    /// This is equivalent to using the `-` operator (e.g.
+    /// [`ops::Sub`]), as in `flags - other`.
+    ///
+    /// [`ops::Sub`]: https://doc.rust-lang.org/std/ops/trait.Sub.html
+    #[inline]
+    #[must_use]
+    pub const fn difference(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOr for PatchMapFieldPresenceFlags {
+    type Output = Self;
+
+    /// Returns the union of the two sets of flags.
+    #[inline]
+    fn bitor(self, other: PatchMapFieldPresenceFlags) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOrAssign for PatchMapFieldPresenceFlags {
+    /// Adds the set of flags.
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+}
+
+impl std::ops::BitXor for PatchMapFieldPresenceFlags {
+    type Output = Self;
+
+    /// Returns the left flags, but with all the right flags toggled.
+    #[inline]
+    fn bitxor(self, other: Self) -> Self {
+        Self {
+            bits: self.bits ^ other.bits,
+        }
+    }
+}
+
+impl std::ops::BitXorAssign for PatchMapFieldPresenceFlags {
+    /// Toggles the set of flags.
+    #[inline]
+    fn bitxor_assign(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+}
+
+impl std::ops::BitAnd for PatchMapFieldPresenceFlags {
+    type Output = Self;
+
+    /// Returns the intersection between the two sets of flags.
+    #[inline]
+    fn bitand(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+}
+
+impl std::ops::BitAndAssign for PatchMapFieldPresenceFlags {
+    /// Disables all flags disabled in the set.
+    #[inline]
+    fn bitand_assign(&mut self, other: Self) {
+        self.bits &= other.bits;
+    }
+}
+
+impl std::ops::Sub for PatchMapFieldPresenceFlags {
+    type Output = Self;
+
+    /// Returns the set difference of the two sets of flags.
+    #[inline]
+    fn sub(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::SubAssign for PatchMapFieldPresenceFlags {
+    /// Disables all flags enabled in the set.
+    #[inline]
+    fn sub_assign(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+}
+
+impl std::ops::Not for PatchMapFieldPresenceFlags {
+    type Output = Self;
+
+    /// Returns the complement of this set of flags.
+    #[inline]
+    fn not(self) -> Self {
+        Self { bits: !self.bits } & Self::all()
+    }
+}
+
+impl std::fmt::Debug for PatchMapFieldPresenceFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let members: &[(&str, Self)] = &[
+            ("CFF_CHARSTRINGS_OFFSET", Self::CFF_CHARSTRINGS_OFFSET),
+            ("CFF2_CHARSTRINGS_OFFSET", Self::CFF2_CHARSTRINGS_OFFSET),
+        ];
+        let mut first = true;
+        for (name, value) in members {
+            if self.contains(*value) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str(name)?;
+            }
+        }
+        if first {
+            f.write_str("(empty)")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Binary for PatchMapFieldPresenceFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Binary::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::Octal for PatchMapFieldPresenceFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Octal::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::LowerHex for PatchMapFieldPresenceFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::LowerHex::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::UpperHex for PatchMapFieldPresenceFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::UpperHex::fmt(&self.bits, f)
+    }
+}
+
+impl font_types::Scalar for PatchMapFieldPresenceFlags {
+    type Raw = <u8 as font_types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        self.bits().to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u8>::from_raw(raw);
+        Self::from_bits_truncate(t)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> From<PatchMapFieldPresenceFlags> for FieldType<'a> {
+    fn from(src: PatchMapFieldPresenceFlags) -> FieldType<'a> {
+        src.bits().into()
+    }
+}
+
 impl Format<u8> for PatchMapFormat1Marker {
     const FORMAT: u8 = 1;
 }
@@ -115,7 +434,8 @@ impl Format<u8> for PatchMapFormat1Marker {
 pub struct PatchMapFormat1Marker {
     applied_entries_bitmap_byte_len: usize,
     uri_template_byte_len: usize,
-    optional_charstring_offsets_byte_len: usize,
+    cff_charstrings_offset_byte_start: Option<usize>,
+    cff2_charstrings_offset_byte_start: Option<usize>,
 }
 
 impl PatchMapFormat1Marker {
@@ -124,13 +444,28 @@ impl PatchMapFormat1Marker {
         start..start + u8::RAW_BYTE_LEN
     }
 
-    pub fn _reserved_byte_range(&self) -> Range<usize> {
+    pub fn _reserved_0_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn _reserved_1_byte_range(&self) -> Range<usize> {
+        let start = self._reserved_0_byte_range().end;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn _reserved_2_byte_range(&self) -> Range<usize> {
+        let start = self._reserved_1_byte_range().end;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn field_flags_byte_range(&self) -> Range<usize> {
+        let start = self._reserved_2_byte_range().end;
+        start..start + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
     }
 
     pub fn compatibility_id_byte_range(&self) -> Range<usize> {
-        let start = self._reserved_byte_range().end;
+        let start = self.field_flags_byte_range().end;
         start..start + CompatibilityId::RAW_BYTE_LEN
     }
 
@@ -179,15 +514,20 @@ impl PatchMapFormat1Marker {
         start..start + u8::RAW_BYTE_LEN
     }
 
-    pub fn optional_charstring_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.patch_format_byte_range().end;
-        start..start + self.optional_charstring_offsets_byte_len
+    pub fn cff_charstrings_offset_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.cff_charstrings_offset_byte_start?;
+        Some(start..start + u32::RAW_BYTE_LEN)
+    }
+
+    pub fn cff2_charstrings_offset_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.cff2_charstrings_offset_byte_start?;
+        Some(start..start + u32::RAW_BYTE_LEN)
     }
 }
 
 impl MinByteRange for PatchMapFormat1Marker {
     fn min_byte_range(&self) -> Range<usize> {
-        0..self.optional_charstring_offsets_byte_range().end
+        0..self.patch_format_byte_range().end
     }
 }
 
@@ -195,7 +535,10 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
-        cursor.advance::<u32>();
+        cursor.advance::<u8>();
+        cursor.advance::<u8>();
+        cursor.advance::<u8>();
+        let field_flags: PatchMapFieldPresenceFlags = cursor.read()?;
         cursor.advance::<CompatibilityId>();
         let max_entry_index: u16 = cursor.read()?;
         cursor.advance::<u16>();
@@ -212,13 +555,25 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(uri_template_byte_len);
         cursor.advance::<u8>();
-        let optional_charstring_offsets_byte_len =
-            cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(optional_charstring_offsets_byte_len);
+        let cff_charstrings_offset_byte_start = field_flags
+            .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
+            .then(|| cursor.position())
+            .transpose()?;
+        field_flags
+            .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
+            .then(|| cursor.advance::<u32>());
+        let cff2_charstrings_offset_byte_start = field_flags
+            .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)
+            .then(|| cursor.position())
+            .transpose()?;
+        field_flags
+            .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)
+            .then(|| cursor.advance::<u32>());
         cursor.finish(PatchMapFormat1Marker {
             applied_entries_bitmap_byte_len,
             uri_template_byte_len,
-            optional_charstring_offsets_byte_len,
+            cff_charstrings_offset_byte_start,
+            cff2_charstrings_offset_byte_start,
         })
     }
 }
@@ -231,6 +586,11 @@ impl<'a> PatchMapFormat1<'a> {
     /// Format identifier: format = 1
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn field_flags(&self) -> PatchMapFieldPresenceFlags {
+        let range = self.shape.field_flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -304,9 +664,14 @@ impl<'a> PatchMapFormat1<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    pub fn optional_charstring_offsets(&self) -> &'a [u8] {
-        let range = self.shape.optional_charstring_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+    pub fn cff_charstrings_offset(&self) -> Option<u32> {
+        let range = self.shape.cff_charstrings_offset_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn cff2_charstrings_offset(&self) -> Option<u32> {
+        let range = self.shape.cff2_charstrings_offset_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
     }
 }
 
@@ -316,40 +681,52 @@ impl<'a> SomeTable<'a> for PatchMapFormat1<'a> {
         "PatchMapFormat1"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let field_flags = self.field_flags();
         match idx {
             0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
+            1usize => Some(Field::new("field_flags", self.field_flags())),
+            2usize => Some(Field::new(
                 "compatibility_id",
                 traversal::FieldType::Unknown,
             )),
-            2usize => Some(Field::new("max_entry_index", self.max_entry_index())),
-            3usize => Some(Field::new(
+            3usize => Some(Field::new("max_entry_index", self.max_entry_index())),
+            4usize => Some(Field::new(
                 "max_glyph_map_entry_index",
                 self.max_glyph_map_entry_index(),
             )),
-            4usize => Some(Field::new("glyph_count", self.glyph_count())),
-            5usize => Some(Field::new(
+            5usize => Some(Field::new("glyph_count", self.glyph_count())),
+            6usize => Some(Field::new(
                 "glyph_map_offset",
                 FieldType::offset(self.glyph_map_offset(), self.glyph_map()),
             )),
-            6usize => Some(Field::new(
+            7usize => Some(Field::new(
                 "feature_map_offset",
                 FieldType::offset(self.feature_map_offset(), self.feature_map()),
             )),
-            7usize => Some(Field::new(
+            8usize => Some(Field::new(
                 "applied_entries_bitmap",
                 self.applied_entries_bitmap(),
             )),
-            8usize => Some(Field::new(
+            9usize => Some(Field::new(
                 "uri_template_length",
                 self.uri_template_length(),
             )),
-            9usize => Some(Field::new("uri_template", self.uri_template())),
-            10usize => Some(Field::new("patch_format", self.patch_format())),
-            11usize => Some(Field::new(
-                "optional_charstring_offsets",
-                self.optional_charstring_offsets(),
-            )),
+            10usize => Some(Field::new("uri_template", self.uri_template())),
+            11usize => Some(Field::new("patch_format", self.patch_format())),
+            12usize if field_flags.contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET) => {
+                Some(Field::new(
+                    "cff_charstrings_offset",
+                    self.cff_charstrings_offset().unwrap(),
+                ))
+            }
+            13usize
+                if field_flags.contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET) =>
+            {
+                Some(Field::new(
+                    "cff2_charstrings_offset",
+                    self.cff2_charstrings_offset().unwrap(),
+                ))
+            }
             _ => None,
         }
     }
@@ -757,7 +1134,8 @@ impl Format<u8> for PatchMapFormat2Marker {
 #[doc(hidden)]
 pub struct PatchMapFormat2Marker {
     uri_template_byte_len: usize,
-    optional_charstring_offsets_byte_len: usize,
+    cff_charstrings_offset_byte_start: Option<usize>,
+    cff2_charstrings_offset_byte_start: Option<usize>,
 }
 
 impl PatchMapFormat2Marker {
@@ -766,13 +1144,28 @@ impl PatchMapFormat2Marker {
         start..start + u8::RAW_BYTE_LEN
     }
 
-    pub fn _reserved_byte_range(&self) -> Range<usize> {
+    pub fn _reserved_0_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn _reserved_1_byte_range(&self) -> Range<usize> {
+        let start = self._reserved_0_byte_range().end;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn _reserved_2_byte_range(&self) -> Range<usize> {
+        let start = self._reserved_1_byte_range().end;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn field_flags_byte_range(&self) -> Range<usize> {
+        let start = self._reserved_2_byte_range().end;
+        start..start + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
     }
 
     pub fn compatibility_id_byte_range(&self) -> Range<usize> {
-        let start = self._reserved_byte_range().end;
+        let start = self.field_flags_byte_range().end;
         start..start + CompatibilityId::RAW_BYTE_LEN
     }
 
@@ -806,15 +1199,20 @@ impl PatchMapFormat2Marker {
         start..start + self.uri_template_byte_len
     }
 
-    pub fn optional_charstring_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.uri_template_byte_range().end;
-        start..start + self.optional_charstring_offsets_byte_len
+    pub fn cff_charstrings_offset_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.cff_charstrings_offset_byte_start?;
+        Some(start..start + u32::RAW_BYTE_LEN)
+    }
+
+    pub fn cff2_charstrings_offset_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.cff2_charstrings_offset_byte_start?;
+        Some(start..start + u32::RAW_BYTE_LEN)
     }
 }
 
 impl MinByteRange for PatchMapFormat2Marker {
     fn min_byte_range(&self) -> Range<usize> {
-        0..self.optional_charstring_offsets_byte_range().end
+        0..self.uri_template_byte_range().end
     }
 }
 
@@ -822,7 +1220,10 @@ impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
-        cursor.advance::<u32>();
+        cursor.advance::<u8>();
+        cursor.advance::<u8>();
+        cursor.advance::<u8>();
+        let field_flags: PatchMapFieldPresenceFlags = cursor.read()?;
         cursor.advance::<CompatibilityId>();
         cursor.advance::<u8>();
         cursor.advance::<Uint24>();
@@ -833,12 +1234,24 @@ impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(uri_template_byte_len);
-        let optional_charstring_offsets_byte_len =
-            cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(optional_charstring_offsets_byte_len);
+        let cff_charstrings_offset_byte_start = field_flags
+            .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
+            .then(|| cursor.position())
+            .transpose()?;
+        field_flags
+            .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
+            .then(|| cursor.advance::<u32>());
+        let cff2_charstrings_offset_byte_start = field_flags
+            .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)
+            .then(|| cursor.position())
+            .transpose()?;
+        field_flags
+            .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)
+            .then(|| cursor.advance::<u32>());
         cursor.finish(PatchMapFormat2Marker {
             uri_template_byte_len,
-            optional_charstring_offsets_byte_len,
+            cff_charstrings_offset_byte_start,
+            cff2_charstrings_offset_byte_start,
         })
     }
 }
@@ -851,6 +1264,11 @@ impl<'a> PatchMapFormat2<'a> {
     /// Format identifier: format = 2
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn field_flags(&self) -> PatchMapFieldPresenceFlags {
+        let range = self.shape.field_flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -903,9 +1321,14 @@ impl<'a> PatchMapFormat2<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    pub fn optional_charstring_offsets(&self) -> &'a [u8] {
-        let range = self.shape.optional_charstring_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+    pub fn cff_charstrings_offset(&self) -> Option<u32> {
+        let range = self.shape.cff_charstrings_offset_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn cff2_charstrings_offset(&self) -> Option<u32> {
+        let range = self.shape.cff2_charstrings_offset_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
     }
 }
 
@@ -915,37 +1338,49 @@ impl<'a> SomeTable<'a> for PatchMapFormat2<'a> {
         "PatchMapFormat2"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let field_flags = self.field_flags();
         match idx {
             0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
+            1usize => Some(Field::new("field_flags", self.field_flags())),
+            2usize => Some(Field::new(
                 "compatibility_id",
                 traversal::FieldType::Unknown,
             )),
-            2usize => Some(Field::new(
+            3usize => Some(Field::new(
                 "default_patch_format",
                 self.default_patch_format(),
             )),
-            3usize => Some(Field::new("entry_count", self.entry_count())),
-            4usize => Some(Field::new(
+            4usize => Some(Field::new("entry_count", self.entry_count())),
+            5usize => Some(Field::new(
                 "entries_offset",
                 FieldType::offset(self.entries_offset(), self.entries()),
             )),
-            5usize => Some(Field::new(
+            6usize => Some(Field::new(
                 "entry_id_string_data_offset",
                 FieldType::offset(
                     self.entry_id_string_data_offset(),
                     self.entry_id_string_data(),
                 ),
             )),
-            6usize => Some(Field::new(
+            7usize => Some(Field::new(
                 "uri_template_length",
                 self.uri_template_length(),
             )),
-            7usize => Some(Field::new("uri_template", self.uri_template())),
-            8usize => Some(Field::new(
-                "optional_charstring_offsets",
-                self.optional_charstring_offsets(),
-            )),
+            8usize => Some(Field::new("uri_template", self.uri_template())),
+            9usize if field_flags.contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET) => {
+                Some(Field::new(
+                    "cff_charstrings_offset",
+                    self.cff_charstrings_offset().unwrap(),
+                ))
+            }
+            10usize
+                if field_flags.contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET) =>
+            {
+                Some(Field::new(
+                    "cff2_charstrings_offset",
+                    self.cff2_charstrings_offset().unwrap(),
+                ))
+            }
             _ => None,
         }
     }
