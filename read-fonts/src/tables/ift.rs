@@ -7,19 +7,6 @@ use std::str;
 pub const IFT_TAG: types::Tag = Tag::new(b"IFT ");
 pub const IFTX_TAG: types::Tag = Tag::new(b"IFTX");
 
-impl Ift<'_> {
-    pub fn get_charstring_offsets(
-        &self,
-        has_cff: bool,
-        has_cff2: bool,
-    ) -> (Option<u32>, Option<u32>) {
-        match self {
-            Ift::Format1(f1) => f1.get_charstring_offsets(has_cff, has_cff2),
-            Ift::Format2(f2) => f2.get_charstring_offsets(has_cff, has_cff2),
-        }
-    }
-}
-
 /// Wrapper for the packed childEntryMatchModeAndCount field in IFT format 2 mapping table.
 ///
 /// Reference: <https://w3c.github.io/IFT/Overview.html#mapping-entry-childentrymatchmodeandcount>
@@ -250,64 +237,10 @@ impl<'a> PatchMapFormat1<'a> {
     }
 }
 
-trait OptionalCharstringOffsets {
-    fn read_charstrings_offset(&self, index: usize) -> Option<u32>;
-}
-
-impl OptionalCharstringOffsets for PatchMapFormat1<'_> {
-    fn read_charstrings_offset(&self, index: usize) -> Option<u32> {
-        u32::read(&self.optional_charstring_offsets()[index * 4..(index * 4) + 4])
-    }
-}
-
-impl OptionalCharstringOffsets for PatchMapFormat2<'_> {
-    fn read_charstrings_offset(&self, index: usize) -> Option<u32> {
-        u32::read(&self.optional_charstring_offsets()[index * 4..(index * 4) + 4])
-    }
-}
-
-fn get_charstring_offsets<T: OptionalCharstringOffsets>(
-    ift_table: &T,
-    has_cff: bool,
-    has_cff2: bool,
-) -> (Option<u32>, Option<u32>) {
-    let (cff_offset, next_index) = if has_cff {
-        (ift_table.read_charstrings_offset(0), 1)
-    } else {
-        (None, 0)
-    };
-
-    let cff2_offset = if has_cff2 {
-        ift_table.read_charstrings_offset(next_index)
-    } else {
-        None
-    };
-
-    (cff_offset, cff2_offset)
-}
-
-impl PatchMapFormat1<'_> {
-    pub fn get_charstring_offsets(
-        &self,
-        has_cff: bool,
-        has_cff2: bool,
-    ) -> (Option<u32>, Option<u32>) {
-        get_charstring_offsets(self, has_cff, has_cff2)
-    }
-}
-
 impl PatchMapFormat2<'_> {
     pub fn uri_template_as_string(&self) -> Result<&str, ReadError> {
         str::from_utf8(self.uri_template())
             .map_err(|_| ReadError::MalformedData("Invalid UTF8 encoding for uri template."))
-    }
-
-    pub fn get_charstring_offsets(
-        &self,
-        has_cff: bool,
-        has_cff2: bool,
-    ) -> (Option<u32>, Option<u32>) {
-        get_charstring_offsets(self, has_cff, has_cff2)
     }
 }
 
@@ -538,7 +471,9 @@ mod tests {
         let Ift::Format1(map) = table else {
             panic!("Not format 1.");
         };
-        assert_eq!(map.get_charstring_offsets(false, false), (None, None));
+
+        assert_eq!(map.cff_charstrings_offset(), None);
+        assert_eq!(map.cff2_charstrings_offset(), None);
 
         // One offset
         let data = test_data::simple_format1_with_one_charstrings_offset();
@@ -547,8 +482,8 @@ mod tests {
             panic!("Not format 1.");
         };
 
-        assert_eq!(map.get_charstring_offsets(true, false), (Some(456), None));
-        assert_eq!(map.get_charstring_offsets(false, true), (None, Some(456)));
+        assert_eq!(map.cff_charstrings_offset(), Some(456));
+        assert_eq!(map.cff2_charstrings_offset(), None);
 
         // Two offsets
         let data = test_data::simple_format1_with_two_charstrings_offsets();
@@ -557,10 +492,8 @@ mod tests {
             panic!("Not format 1.");
         };
 
-        assert_eq!(
-            map.get_charstring_offsets(true, true),
-            (Some(456), Some(789))
-        );
+        assert_eq!(map.cff_charstrings_offset(), Some(456));
+        assert_eq!(map.cff2_charstrings_offset(), Some(789));
     }
 
     #[test]
@@ -571,7 +504,8 @@ mod tests {
         let Ift::Format2(map) = table else {
             panic!("Not format 2.");
         };
-        assert_eq!(map.get_charstring_offsets(false, false), (None, None));
+        assert_eq!(map.cff_charstrings_offset(), None);
+        assert_eq!(map.cff2_charstrings_offset(), None);
 
         // One offset
         let data = test_data::format2_with_one_charstrings_offset();
@@ -580,8 +514,8 @@ mod tests {
             panic!("Not format 2.");
         };
 
-        assert_eq!(map.get_charstring_offsets(true, false), (Some(456), None));
-        assert_eq!(map.get_charstring_offsets(false, true), (None, Some(456)));
+        assert_eq!(map.cff_charstrings_offset(), Some(456));
+        assert_eq!(map.cff2_charstrings_offset(), None);
 
         // Two offsets
         let data = test_data::format2_with_two_charstrings_offset();
@@ -590,10 +524,8 @@ mod tests {
             panic!("Not format 2.");
         };
 
-        assert_eq!(
-            map.get_charstring_offsets(true, true),
-            (Some(456), Some(789))
-        );
+        assert_eq!(map.cff_charstrings_offset(), Some(456));
+        assert_eq!(map.cff2_charstrings_offset(), Some(789));
     }
 
     #[test]

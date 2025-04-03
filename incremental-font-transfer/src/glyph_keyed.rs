@@ -78,18 +78,6 @@ pub(crate) fn apply_glyph_keyed_patches(
     let mut processed_tables = BTreeSet::from([IFT_TAG, IFTX_TAG]);
     let mut font_builder = FontBuilder::new();
 
-    // When a font has CFF, CFF2 the IFT table stores offsets to the charstrings data
-    // to speed up patch application (we can skip parsing CFF to find charstrings).
-    // See: https://w3c.github.io/IFT/Overview.html#cff
-    let has_cff = font.table_data(Cff::TAG).is_some();
-    let has_cff2 = font.table_data(Cff2::TAG).is_some();
-    let (cff_charstrings_offset, cff2_charstrings_offset) = font
-        .ift()
-        .ok()
-        .as_ref()
-        .map(|t| t.get_charstring_offsets(has_cff, has_cff2))
-        .unwrap_or((None, None));
-
     for table_tag in table_tag_list(&glyph_patches)? {
         if table_tag == Glyf::TAG {
             let (Some(glyf), Ok(loca)) = (font.table_data(Glyf::TAG), font.loca(None)) else {
@@ -125,7 +113,12 @@ pub(crate) fn apply_glyph_keyed_patches(
             )?;
             processed_tables.insert(Gvar::TAG);
         } else if table_tag == Cff::TAG {
-            let Some(charstrings_offset) = cff_charstrings_offset else {
+            let Some(charstrings_offset) = font
+                .ift()
+                .ok()
+                .as_ref()
+                .and_then(|t| t.cff_charstrings_offset())
+            else {
                 return Err(PatchingError::InvalidPatch(
                     "Required CFF charstrings offset is missing from IFT table.",
                 ));
@@ -140,9 +133,14 @@ pub(crate) fn apply_glyph_keyed_patches(
             )?;
             processed_tables.insert(table_tag);
         } else if table_tag == Cff2::TAG {
-            let Some(charstrings_offset) = cff2_charstrings_offset else {
+            let Some(charstrings_offset) = font
+                .ift()
+                .ok()
+                .as_ref()
+                .and_then(|t| t.cff2_charstrings_offset())
+            else {
                 return Err(PatchingError::InvalidPatch(
-                    "Required CFF charstrings offset is missing from IFT table.",
+                    "Required CFF2 charstrings offset is missing from IFT table.",
                 ));
             };
             patch_offset_array(
@@ -2159,6 +2157,7 @@ pub(crate) mod tests {
         font_builder.copy_missing_tables(cff2_font);
 
         let mut ift_table = format2_with_one_charstrings_offset();
+        ift_table.write_at("field_flags", 0b00000010u8);
         ift_table.write_at("charstrings_offset", CFF2_FONT_CHARSTRINGS_OFFSET);
         font_builder.add_raw(Tag::new(b"IFT "), ift_table.data());
 

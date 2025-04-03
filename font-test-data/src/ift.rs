@@ -54,7 +54,8 @@ pub fn simple_format1_with_one_charstrings_offset() -> BeBuffer {
     let mut buffer = be_buffer! {
         /* ### Header ### */
         1u8,                    // format
-        0u32,                   // reserved
+        0u8, 0u8, 0u8,          // reserved
+        0b00000001u8,           // has charstrings offset
         [1u32, 2, 3, 4],        // compat id
         2u16,                   // max entry id
         {2u16: "max_glyph_map_entry_id"},
@@ -88,7 +89,8 @@ pub fn simple_format1_with_two_charstrings_offsets() -> BeBuffer {
     let mut buffer = be_buffer! {
         /* ### Header ### */
         1u8,                    // format
-        0u32,                   // reserved
+        0u8, 0u8, 0u8,          // reserved
+        0b00000011u8,           // has cff and cff2 charstrings offset
         [1u32, 2, 3, 4],        // compat id
         2u16,                   // max entry id
         {2u16: "max_glyph_map_entry_id"},
@@ -307,7 +309,8 @@ pub fn format2_with_one_charstrings_offset() -> BeBuffer {
     let mut buffer = be_buffer! {
       2u8,                // format
 
-      0u32,               // reserved
+      0u8, 0u8, 0u8,                 // reserved
+      {0b00000001u8: "field_flags"}, // has charstrings offset
 
       {1u32: "compat_id[0]"},
       {2u32: "compat_id[1]"},
@@ -340,7 +343,8 @@ pub fn format2_with_two_charstrings_offset() -> BeBuffer {
     let mut buffer = be_buffer! {
       2u8,                // format
 
-      0u32,               // reserved
+      0u8, 0u8, 0u8,          // reserved
+      0b00000011u8,           // has cff and cff2 charstrings offset
 
       {1u32: "compat_id[0]"},
       {2u32: "compat_id[1]"},

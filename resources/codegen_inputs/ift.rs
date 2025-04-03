@@ -11,6 +11,11 @@ format u8 Ift {
   Format2(PatchMapFormat2),
 }
 
+flags u8 PatchMapFieldPresenceFlags {
+  CFF_CHARSTRINGS_OFFSET = 0b00000001,
+  CFF2_CHARSTRINGS_OFFSET = 0b00000010,
+}
+
 /// [Patch Map Format Format 1](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
 table PatchMapFormat1 {
   /// Format identifier: format = 1
@@ -19,7 +24,15 @@ table PatchMapFormat1 {
 
   #[skip_getter]
   #[compile(0)]
-  _reserved: u32,
+  _reserved_0: u8,
+  #[skip_getter]
+  #[compile(0)]
+  _reserved_1: u8,
+  #[skip_getter]
+  #[compile(0)]
+  _reserved_2: u8,
+
+  field_flags: PatchMapFieldPresenceFlags,
 
   /// Unique ID that identifies compatible patches.
   #[traverse_with(skip)]
@@ -53,8 +66,11 @@ table PatchMapFormat1 {
   /// Patch format number for patches referenced by this mapping.
   patch_format: u8,
 
-  #[count(..)]
-  optional_charstring_offsets: [u8],
+  #[if_flag($field_flags, PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)]
+  cff_charstrings_offset: u32,
+
+  #[if_flag($field_flags, PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)]
+  cff2_charstrings_offset: u32,
 }
 
 #[read_args(glyph_count: Uint24, max_entry_index: u16)]
@@ -120,7 +136,15 @@ table PatchMapFormat2 {
 
   #[skip_getter]
   #[compile(0)]
-  _reserved: u32,
+  _reserved_0: u8,
+  #[skip_getter]
+  #[compile(0)]
+  _reserved_1: u8,
+  #[skip_getter]
+  #[compile(0)]
+  _reserved_2: u8,
+
+  field_flags: PatchMapFieldPresenceFlags,
 
   /// Unique ID that identifies compatible patches.
   #[traverse_with(skip)]
@@ -141,8 +165,11 @@ table PatchMapFormat2 {
   #[count($uri_template_length)]
   uri_template: [u8],
 
-  #[count(..)]
-  optional_charstring_offsets: [u8],
+  #[if_flag($field_flags, PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)]
+  cff_charstrings_offset: u32,
+
+  #[if_flag($field_flags, PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)]
+  cff2_charstrings_offset: u32,
 }
 
 table MappingEntries {
