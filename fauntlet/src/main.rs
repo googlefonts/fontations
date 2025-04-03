@@ -61,7 +61,7 @@ fn main() {
                                 let mut coords = vec![];
                                 for coord in &var_locations {
                                     coords.clear();
-                                    coords.extend(std::iter::repeat(*coord).take(axis_count));
+                                    coords.extend(std::iter::repeat_n(*coord, axis_count));
                                     let options = fauntlet::InstanceOptions::new(
                                         font_ix, *ppem, &coords, hinting,
                                     );

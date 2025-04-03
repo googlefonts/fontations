@@ -2051,7 +2051,7 @@ pub(crate) mod tests {
     #[test]
     fn cff_patching_changes_offset_size() {
         let patch_buffer = cff_u16_glyph_patches();
-        let mut patch_buffer = patch_buffer.extend(iter::repeat(42u8).take(70_000));
+        let mut patch_buffer = patch_buffer.extend(iter::repeat_n(42u8, 70_000));
         patch_buffer.write_at("end_offset", patch_buffer.len() as u32);
 
         let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), patch_buffer);
