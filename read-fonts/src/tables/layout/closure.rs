@@ -3,18 +3,21 @@
 use types::{BigEndian, GlyphId16};
 
 use super::{
-    ArrayOfOffsets, ChainedClassSequenceRule, ChainedClassSequenceRuleSet,
+    ArrayOfOffsets, ChainedClassSequenceRule, ChainedClassSequenceRuleSet, ChainedSequenceContext,
     ChainedSequenceContextFormat1, ChainedSequenceContextFormat2, ChainedSequenceContextFormat3,
-    ChainedSequenceRule, ChainedSequenceRuleSet, ClassDef, ClassSequenceRule, ClassSequenceRuleSet,
-    CoverageTable, FeatureList, GlyphId, LangSys, ReadError, Script, ScriptList,
-    SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord,
-    SequenceRule, SequenceRuleSet, Tag,
+    ChainedSequenceRule, ChainedSequenceRuleSet, ClassDef, ClassDefFormat1, ClassDefFormat2,
+    ClassSequenceRule, ClassSequenceRuleSet, CoverageTable, ExtensionLookup, FeatureList, FontRead,
+    GlyphId, LangSys, ReadError, Script, ScriptList, SequenceContext, SequenceContextFormat1,
+    SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord, SequenceRule,
+    SequenceRuleSet, Subtables, Tag,
 };
 use crate::collections::IntSet;
 
 const MAX_SCRIPTS: u16 = 500;
 const MAX_LANGSYS: u16 = 2000;
 const MAX_FEATURE_INDICES: u16 = 1500;
+const MAX_NESTING_LEVEL: u8 = 64;
+const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;
 
 struct CollectFeaturesContext<'a> {
     script_count: u16,
@@ -194,6 +197,145 @@ impl LangSys<'_> {
     }
 }
 
+#[allow(dead_code)]
+pub(crate) struct LookupClosureCtx<'a> {
+    visited_lookups: IntSet<u16>,
+    inactive_lookups: IntSet<u16>,
+    glyph_set: &'a IntSet<GlyphId>,
+    lookup_count: u16,
+    nesting_level_left: u8,
+}
+
+impl<'a> LookupClosureCtx<'a> {
+    pub(crate) fn new(glyph_set: &'a IntSet<GlyphId>) -> Self {
+        Self {
+            visited_lookups: IntSet::empty(),
+            inactive_lookups: IntSet::empty(),
+            glyph_set,
+            lookup_count: 0,
+            nesting_level_left: MAX_NESTING_LEVEL,
+        }
+    }
+
+    pub(crate) fn visited_lookups(&self) -> &IntSet<u16> {
+        &self.visited_lookups
+    }
+
+    pub(crate) fn inactive_lookups(&self) -> &IntSet<u16> {
+        &self.inactive_lookups
+    }
+
+    pub(crate) fn glyphs(&self) -> &IntSet<GlyphId> {
+        self.glyph_set
+    }
+
+    pub(crate) fn set_lookup_inactive(&mut self, lookup_index: u16) {
+        self.inactive_lookups.insert(lookup_index);
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn lookup_limit_exceed(&self) -> bool {
+        self.lookup_count > MAX_LOOKUP_VISIT_COUNT
+    }
+
+    // return false if lookup limit exceeded or lookup visited,and visited set is not modified
+    // Otherwise return true and insert lookup index into the visited set
+    pub(crate) fn should_visit_lookup(&mut self, lookup_index: u16) -> bool {
+        if self.lookup_count > MAX_LOOKUP_VISIT_COUNT {
+            return false;
+        }
+        self.lookup_count += 1;
+        self.visited_lookups.insert(lookup_index)
+    }
+}
+
+/// Compute the transitive closure of lookups
+pub(crate) trait LookupClosure {
+    fn closure_lookups(&self, _c: &mut LookupClosureCtx, _arg: u16) -> Result<(), ReadError> {
+        Ok(())
+    }
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError>;
+}
+
+impl LookupClosure for ClassDef<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            ClassDef::Format1(table) => table.intersects(glyph_set),
+            ClassDef::Format2(table) => table.intersects(glyph_set),
+        }
+    }
+}
+
+impl LookupClosure for ClassDefFormat1<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        let glyph_count = self.glyph_count();
+        if glyph_count == 0 {
+            return Ok(false);
+        }
+
+        let start = self.start_glyph_id().to_u32();
+        let end = start + glyph_count as u32;
+
+        let start_glyph = GlyphId::from(start);
+        let class_values = self.class_value_array();
+        if glyph_set.contains(start_glyph) && class_values[0] != 0 {
+            return Ok(true);
+        }
+
+        while let Some(g) = glyph_set.iter_after(start_glyph).next() {
+            let g = g.to_u32();
+            if g >= end {
+                break;
+            }
+            let Some(class) = class_values.get((g - start) as usize) else {
+                break;
+            };
+            if class.get() != 0 {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
+impl LookupClosure for ClassDefFormat2<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        let num_ranges = self.class_range_count();
+        let num_bits = 16 - num_ranges.leading_zeros();
+        if num_ranges as u64 > glyph_set.len() * num_bits as u64 {
+            for g in glyph_set.iter().map(|g| GlyphId16::from(g.to_u32() as u16)) {
+                if self.get(g) != 0 {
+                    return Ok(true);
+                }
+            }
+        } else {
+            for record in self.class_range_records() {
+                let first = GlyphId::from(record.start_glyph_id());
+                let last = GlyphId::from(record.end_glyph_id());
+                if glyph_set.intersects_range(first..=last) && record.class() != 0 {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+}
+
+impl<'a, T, Ext> LookupClosure for Subtables<'a, T, Ext>
+where
+    T: LookupClosure + FontRead<'a> + 'a,
+    Ext: ExtensionLookup<'a, T> + 'a,
+{
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        for sub in self.iter() {
+            if sub?.intersects(glyph_set)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
 // these are basically the same; but we need to jump through some hoops
 // to get the fields to line up
 pub(crate) enum ContextFormat1<'a> {
@@ -303,6 +445,25 @@ impl Format1Rule<'_> {
         match self {
             Self::Plain(table) => table.seq_lookup_records(),
             Self::Chain(table) => table.seq_lookup_records(),
+        }
+    }
+}
+
+impl LookupClosure for &[BigEndian<GlyphId16>] {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        Ok(self
+            .iter()
+            .all(|g| glyph_set.contains(GlyphId::from(g.get()))))
+    }
+}
+
+impl LookupClosure for Format1Rule<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            Self::Plain(table) => table.input_sequence().intersects(glyph_set),
+            Self::Chain(table) => Ok(table.backtrack_sequence().intersects(glyph_set)?
+                && table.input_sequence().intersects(glyph_set)?
+                && table.lookahead_sequence().intersects(glyph_set)?),
         }
     }
 }
@@ -465,5 +626,43 @@ impl ContextFormat3<'_> {
             }
         }
         Ok(true)
+    }
+}
+
+impl LookupClosure for ContextFormat1<'_> {
+    fn intersects(&self, _glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        Ok(false)
+    }
+}
+
+impl LookupClosure for ContextFormat2<'_> {
+    fn intersects(&self, _glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        Ok(false)
+    }
+}
+
+impl LookupClosure for ContextFormat3<'_> {
+    fn intersects(&self, _glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        Ok(false)
+    }
+}
+
+impl LookupClosure for SequenceContext<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            Self::Format1(table) => ContextFormat1::Plain(table.clone()).intersects(glyph_set),
+            Self::Format2(table) => ContextFormat2::Plain(table.clone()).intersects(glyph_set),
+            Self::Format3(table) => ContextFormat3::Plain(table.clone()).intersects(glyph_set),
+        }
+    }
+}
+
+impl LookupClosure for ChainedSequenceContext<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            Self::Format1(table) => ContextFormat1::Chain(table.clone()).intersects(glyph_set),
+            Self::Format2(table) => ContextFormat2::Chain(table.clone()).intersects(glyph_set),
+            Self::Format3(table) => ContextFormat3::Chain(table.clone()).intersects(glyph_set),
+        }
     }
 }
