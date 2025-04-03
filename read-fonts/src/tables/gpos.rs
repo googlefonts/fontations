@@ -5,6 +5,9 @@
 #[path = "./value_record.rs"]
 mod value_record;
 
+#[cfg(feature = "std")]
+mod closure;
+
 use crate::array::ComputedArray;
 
 /// reexport stuff from layout that we use
