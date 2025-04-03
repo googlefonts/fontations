@@ -193,3 +193,12 @@ impl LangSys<'_> {
         }
     }
 }
+
+pub(crate) struct LookupClosureCtx {
+    visited_lookups: IntSet<u16>,
+    inactive_lookups: IntSet<u16>,
+}
+pub(crate) trait LookupClosure {
+    /// Compute the transitive closure of lookups
+    fn closure_lookups(&self, c: &mut LookupClosureCtx) -> Result<(), ReadError>;
+}

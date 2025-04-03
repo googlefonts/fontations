@@ -24,6 +24,9 @@ use super::{
     SingleSubst, SingleSubstFormat1, SingleSubstFormat2, SubstitutionLookup, SubstitutionSubtables,
 };
 
+#[cfg(feature = "std")]
+use crate::tables::layout::{LookupClosure, LookupClosureCtx};
+
 // we put ClosureCtx in its own module to enforce visibility rules;
 // specifically we don't want cur_glyphs to be reachable directly
 mod ctx {
@@ -852,6 +855,16 @@ fn intersect_coverage(
         .filter(|gid| glyphs.contains(*gid))
         .collect::<IntSet<_>>();
     Some(r).filter(|set| !set.is_empty())
+}
+
+impl LookupClosure for SubstitutionSubtables<'_> {
+    fn closure_lookups(&self, c: &mut LookupClosureCtx) -> Result<(), ReadError> {
+        match self {
+            SubstitutionSubtables::Contextual(tables) => tables.add_reachable_glyphs(glyphs),
+            SubstitutionSubtables::ChainContextual(tables) => tables.add_reachable_glyphs(glyphs),
+            _ => Ok(()),
+        }
+    }
 }
 
 #[cfg(test)]

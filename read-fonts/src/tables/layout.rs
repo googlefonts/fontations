@@ -17,6 +17,9 @@ use super::variations::DeltaSetIndex;
 #[cfg(feature = "std")]
 use crate::collections::IntSet;
 
+#[cfg(feature = "std")]
+pub(crate) use closure::{LookupClosure, LookupClosureCtx};
+
 #[cfg(test)]
 mod spec_tests;
 
