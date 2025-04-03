@@ -26,11 +26,14 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
         s: &mut Serializer,
         inner_maps: &[IncBiMap],
     ) -> Result<(), SerializeErrorFlags> {
+        if inner_maps.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         s.embed(self.format())?;
 
         let regions = self
             .variation_region_list()
-            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
+            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
 
         let var_data_array = self.item_variation_data();
         let mut region_indices = IntSet::empty();
@@ -41,7 +44,7 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
                 }
                 None => continue,
                 Some(Err(_e)) => {
-                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
                 }
             }
         }
@@ -49,13 +52,17 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
         let max_region_count = regions.region_count();
         region_indices.remove_range(max_region_count..=u16::MAX);
 
-        let mut region_map = IncBiMap::with_capacity(region_indices.len().try_into().unwrap());
+        if region_indices.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+
+        let mut region_map = IncBiMap::with_capacity(region_indices.len() as usize);
         for region in region_indices.iter() {
             region_map.add(region as u32);
         }
 
         let Ok(var_region_list) = self.variation_region_list() else {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };
 
         // var_region_list
@@ -97,7 +104,7 @@ impl<'a> SubsetTable<'a> for VariationRegionList<'a> {
             .as_bytes()
             .get(self.shape().variation_regions_byte_range())
         else {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };
 
         for r in 0..region_count {
@@ -152,7 +159,7 @@ fn serialize_var_data_offset_array(
         }
     }
     if vardata_count == 0 {
-        return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+        return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
     }
     s.copy_assign(count_pos, vardata_count);
     Ok(())
@@ -168,8 +175,7 @@ impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
         s: &mut Serializer,
         args: (&IncBiMap, &IncBiMap),
     ) -> Result<(), SerializeErrorFlags> {
-        let inner_map = &args.0;
-        let region_map = &args.1;
+        let (inner_map, region_map) = args;
         let new_item_count = inner_map.len() as u16;
         s.embed(new_item_count)?;
 
