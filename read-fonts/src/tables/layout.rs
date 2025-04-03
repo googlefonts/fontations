@@ -1,5 +1,8 @@
 //! OpenType Layout common table formats
 
+#[cfg(feature = "std")]
+mod closure;
+
 mod feature;
 mod lookup_flag;
 mod script;
