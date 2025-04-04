@@ -143,12 +143,7 @@ impl HintState {
         let mut zone_ix = 0usize;
         // Copy blues and other blues to a combined array of top and bottom zones.
         for blue in params.blues.values().iter().take(MAX_BLUES) {
-            // FreeType loads blues as integers and then expands to 16.16
-            // at initialization. We load them as 16.16 so floor them here
-            // to ensure we match.
-            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psblues.c#L190>
-            let bottom = blue.0.floor();
-            let top = blue.1.floor();
+            let (bottom, top) = *blue;
             let zone_height = top - bottom;
             if zone_height < Fixed::ZERO {
                 // Reject zones with negative height
@@ -173,8 +168,7 @@ impl HintState {
             zone_ix += 1;
         }
         for blue in params.other_blues.values().iter().take(MAX_OTHER_BLUES) {
-            let bottom = blue.0.floor();
-            let top = blue.1.floor();
+            let (bottom, top) = *blue;
             let zone_height = top - bottom;
             if zone_height < Fixed::ZERO {
                 // Reject zones with negative height

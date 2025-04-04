@@ -216,14 +216,7 @@ impl Stack {
                 .zip(&mut self.value_is_fixed)
             {
                 let fixed_value = if *is_fixed {
-                    // FreeType reads delta values using cff_parse_num which
-                    // which truncates the fractional parts of 16.16 values
-                    // See delta parsing:
-                    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/cff/cffparse.c#L1427>
-                    // See cff_parse_num "binary-coded decimal is truncated to
-                    // integer":
-                    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/cff/cffparse.c#L463>
-                    Fixed::from_bits(*value).floor()
+                    Fixed::from_bits(*value)
                 } else {
                     Fixed::from_i32(*value)
                 };
@@ -431,9 +424,9 @@ mod tests {
         assert!(stack.len_is_odd());
         let values: Vec<_> = stack.fixed_values().collect();
         let expected = &[
-            Fixed::from_f64(1.0),
-            Fixed::from_f64(43.0),
-            Fixed::from_f64(47.0),
+            Fixed::from_f64(1.5),
+            Fixed::from_f64(43.5),
+            Fixed::from_f64(47.69999694824219),
         ];
         assert_eq!(&values, expected);
     }
