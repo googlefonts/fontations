@@ -73,7 +73,7 @@ impl<'a> FontRead<'a> for ScriptLangTag<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         std::str::from_utf8(data.as_bytes())
             .map_err(|_| ReadError::MalformedData("LangScriptTag must be utf8"))
-            .map(|s| ScriptLangTag(s.trim_matches([' ', ','])))
+            .map(|s| ScriptLangTag(s.trim_matches(|c| c == ' ' || c == ',')))
     }
 }
 

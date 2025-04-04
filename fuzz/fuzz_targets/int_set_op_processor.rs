@@ -5,6 +5,7 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::io::Cursor;
 use std::io::Read;
+use std::iter::Map;
 use std::ops::Bound::Excluded;
 use std::ops::Bound::Included;
 use std::ops::RangeInclusive;
@@ -132,6 +133,8 @@ impl SetMember for SmallInt {
 }
 
 impl Domain for SmallInt {
+    type OrderedValues = RangeInclusive<u32>;
+
     fn to_u32(&self) -> u32 {
         self.0
     }
@@ -148,13 +151,11 @@ impl Domain for SmallInt {
         true
     }
 
-    fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
+    fn ordered_values() -> Self::OrderedValues {
         0..=Self::MAX_VALUE
     }
 
-    fn ordered_values_range(
-        range: RangeInclusive<SmallInt>,
-    ) -> impl DoubleEndedIterator<Item = u32> {
+    fn ordered_values_range(range: RangeInclusive<SmallInt>) -> Self::OrderedValues {
         assert!(
             range.start().0 <= Self::MAX_VALUE && range.end().0 <= Self::MAX_VALUE,
             "Invalid range of the SmallInt set."
@@ -206,6 +207,8 @@ impl SetMember for SmallEvenInt {
 }
 
 impl Domain for SmallEvenInt {
+    type OrderedValues = Map<RangeInclusive<u32>, fn(u32) -> u32>;
+
     fn to_u32(&self) -> u32 {
         self.0
     }
@@ -222,13 +225,14 @@ impl Domain for SmallEvenInt {
         false
     }
 
-    fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
-        (0..=(Self::MAX_VALUE / 2)).map(|ord| ord * 2)
+    fn ordered_values() -> Self::OrderedValues {
+        fn double(input: u32) -> u32 {
+            input * 2
+        }
+        (0..=(Self::MAX_VALUE / 2)).map(double)
     }
 
-    fn ordered_values_range(
-        range: RangeInclusive<SmallEvenInt>,
-    ) -> impl DoubleEndedIterator<Item = u32> {
+    fn ordered_values_range(range: RangeInclusive<SmallEvenInt>) -> Self::OrderedValues {
         assert!(
             range.start().0 <= Self::MAX_VALUE && range.end().0 <= Self::MAX_VALUE,
             "Invalid range of the SmallInt set."
