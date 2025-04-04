@@ -1347,13 +1347,17 @@ impl VariationRegion<'_> {
         const ZERO: Fixed = Fixed::ZERO;
         let mut scalar = Fixed::ONE;
         for (i, axis_coords) in self.region_axes().iter().enumerate() {
-            let coord = coords.get(i).map(|coord| coord.to_fixed()).unwrap_or(ZERO);
+            let peak = axis_coords.peak_coord.get().to_fixed();
+            if peak == ZERO {
+                continue;
+            }
             let start = axis_coords.start_coord.get().to_fixed();
             let end = axis_coords.end_coord.get().to_fixed();
-            let peak = axis_coords.peak_coord.get().to_fixed();
-            if start > peak || peak > end || peak == ZERO || start < ZERO && end > ZERO {
+            if start > peak || peak > end || start < ZERO && end > ZERO {
                 continue;
-            } else if coord < start || coord > end {
+            }
+            let coord = coords.get(i).map(|coord| coord.to_fixed()).unwrap_or(ZERO);
+            if coord < start || coord > end {
                 return ZERO;
             } else if coord == peak {
                 continue;
@@ -1371,13 +1375,17 @@ impl VariationRegion<'_> {
     pub fn compute_scalar_f32(&self, coords: &[F2Dot14]) -> f32 {
         let mut scalar = 1.0;
         for (i, axis_coords) in self.region_axes().iter().enumerate() {
-            let coord = coords.get(i).map(|coord| coord.to_f32()).unwrap_or(0.0);
+            let peak = axis_coords.peak_coord.get().to_f32();
+            if peak == 0.0 {
+                continue;
+            }
             let start = axis_coords.start_coord.get().to_f32();
             let end = axis_coords.end_coord.get().to_f32();
-            let peak = axis_coords.peak_coord.get().to_f32();
-            if start > peak || peak > end || peak == 0.0 || start < 0.0 && end > 0.0 {
+            if start > peak || peak > end || start < 0.0 && end > 0.0 {
                 continue;
-            } else if coord < start || coord > end {
+            }
+            let coord = coords.get(i).map(|coord| coord.to_f32()).unwrap_or(0.0);
+            if coord < start || coord > end {
                 return 0.0;
             } else if coord == peak {
                 continue;
