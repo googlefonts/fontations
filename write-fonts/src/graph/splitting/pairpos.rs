@@ -482,9 +482,11 @@ fn size_of_value_record_children(
         .map(|_| {
             let obj = offsets[*next_offset_idx].object;
             *next_offset_idx += 1;
-            seen.insert(obj)
-                .then(|| graph.objects[&obj].bytes.len())
-                .unwrap_or(0)
+            if seen.insert(obj) {
+                graph.objects[&obj].bytes.len()
+            } else {
+                0
+            }
         })
         .sum()
 }

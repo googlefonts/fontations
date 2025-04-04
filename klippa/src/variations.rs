@@ -451,7 +451,7 @@ impl<'a> DeltaSetIndexMapSerializePlan<'a> {
     }
 
     pub(crate) fn width(&self) -> u8 {
-        (self.outer_bit_count + self.inner_bit_count + 7) / 8
+        (self.outer_bit_count + self.inner_bit_count).div_ceil(8)
     }
 
     pub(crate) fn inner_bit_count(&self) -> u8 {
