@@ -66,9 +66,11 @@ table PatchMapFormat1 {
   /// Patch format number for patches referenced by this mapping.
   patch_format: u8,
 
+  // Offset to the cff charstrings INDEX from the start of the CFF table.
   #[if_flag($field_flags, PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)]
   cff_charstrings_offset: u32,
 
+  // Offset to the cff charstrings INDEX from the start of the CFF2 table.
   #[if_flag($field_flags, PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)]
   cff2_charstrings_offset: u32,
 }
@@ -165,9 +167,11 @@ table PatchMapFormat2 {
   #[count($uri_template_length)]
   uri_template: [u8],
 
+  // Offset to the cff charstrings INDEX from the start of the CFF table.
   #[if_flag($field_flags, PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)]
   cff_charstrings_offset: u32,
 
+  // Offset to the cff charstrings INDEX from the start of the CFF2 table.
   #[if_flag($field_flags, PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)]
   cff2_charstrings_offset: u32,
 }
