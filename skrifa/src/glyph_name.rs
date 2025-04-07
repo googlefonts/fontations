@@ -94,7 +94,11 @@ impl<'a> GlyphNames<'a> {
             _ => None,
         };
         // If name is empty string, synthesize it
-        if name.as_ref().is_none_or(|s| s.is_empty()) {
+        let no_name: bool = match name {
+           None => true,
+           Some(ref x) => x.is_empty(),
+        };
+        if no_name {
             return Some(GlyphName::synthesize(glyph_id));
         }
         Some(name.unwrap_or_else(|| GlyphName::synthesize(glyph_id)))
