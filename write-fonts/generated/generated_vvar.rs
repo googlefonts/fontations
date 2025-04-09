@@ -9,9 +9,6 @@ use crate::codegen_prelude::*;
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Vvar {
-    /// Major version number of the horizontal metrics variations table — set to 1.
-    /// Minor version number of the horizontal metrics variations table — set to 0.
-    pub version: MajorMinor,
     /// Offset in bytes from the start of this table to the item variation store table.
     pub item_variation_store: OffsetMarker<ItemVariationStore, WIDTH_32>,
     /// Offset in bytes from the start of this table to the delta-set index mapping for advance heights (may be NULL).
@@ -27,7 +24,6 @@ pub struct Vvar {
 impl Vvar {
     /// Construct a new `Vvar`
     pub fn new(
-        version: MajorMinor,
         item_variation_store: ItemVariationStore,
         advance_height_mapping: Option<DeltaSetIndexMap>,
         tsb_mapping: Option<DeltaSetIndexMap>,
@@ -35,7 +31,6 @@ impl Vvar {
         v_org_mapping: Option<DeltaSetIndexMap>,
     ) -> Self {
         Self {
-            version,
             item_variation_store: item_variation_store.into(),
             advance_height_mapping: advance_height_mapping.into(),
             tsb_mapping: tsb_mapping.into(),
@@ -46,8 +41,9 @@ impl Vvar {
 }
 
 impl FontWrite for Vvar {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        self.version.write_into(writer);
+        (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
         self.item_variation_store.write_into(writer);
         self.advance_height_mapping.write_into(writer);
         self.tsb_mapping.write_into(writer);
@@ -88,7 +84,6 @@ impl TopLevelTable for Vvar {
 impl<'a> FromObjRef<read_fonts::tables::vvar::Vvar<'a>> for Vvar {
     fn from_obj_ref(obj: &read_fonts::tables::vvar::Vvar<'a>, _: FontData) -> Self {
         Vvar {
-            version: obj.version(),
             item_variation_store: obj.item_variation_store().to_owned_table(),
             advance_height_mapping: obj.advance_height_mapping().to_owned_table(),
             tsb_mapping: obj.tsb_mapping().to_owned_table(),
