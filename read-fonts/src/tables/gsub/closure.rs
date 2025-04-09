@@ -3,7 +3,7 @@
 //! This means taking a set of glyphs and updating it to include any other glyphs
 //! reachable from those glyphs via substitution, recursively.
 
-use font_types::GlyphId16;
+use font_types::{GlyphId, GlyphId16};
 use types::BigEndian;
 
 use crate::{
@@ -865,6 +865,8 @@ impl LookupClosure for SubstitutionSubtables<'_> {
             _ => Ok(()),
         }
     }
+
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {}
 }
 
 #[cfg(test)]

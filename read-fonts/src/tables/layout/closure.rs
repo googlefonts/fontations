@@ -1,11 +1,13 @@
 //! Support Layout Closure
 
-use super::{FeatureList, LangSys, ReadError, Script, ScriptList, Tag};
+use super::{FeatureList, GlyphId, LangSys, ReadError, Script, ScriptList, Tag};
 use crate::collections::IntSet;
 
 const MAX_SCRIPTS: u16 = 500;
 const MAX_LANGSYS: u16 = 2000;
 const MAX_FEATURE_INDICES: u16 = 1500;
+const MAX_NESTING_LEVEL: u8 = 64;
+const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;
 
 struct CollectFeaturesContext<'a> {
     script_count: u16,
@@ -194,11 +196,42 @@ impl LangSys<'_> {
     }
 }
 
-pub(crate) struct LookupClosureCtx {
+pub(crate) struct LookupClosureCtx<'a> {
     visited_lookups: IntSet<u16>,
     inactive_lookups: IntSet<u16>,
+    glyph_set: &'a IntSet<GlyphId>,
+    lookup_count: u16,
+    nesting_level_left: u8,
 }
+
+impl<'a> LookupClosureCtx<'a> {
+    pub(crate) fn new(glyph_set: &'a IntSet<GlyphId>) -> Self {
+        Self {
+            visited_lookups: IntSet::empty(),
+            inactive_lookups: IntSet::empty(),
+            glyph_set,
+            lookup_count: 0,
+            nesting_level_left: MAX_NESTING_LEVEL,
+        }
+    }
+
+    pub(crate) fn set_lookup_visited(&mut self, lookup_index: u16) {
+        self.visited_lookups.insert(lookup_index);
+    }
+
+    pub(crate) fn set_lookup_inactive(&mut self, lookup_index: u16) {
+        self.inactive_lookups.insert(lookup_index);
+    }
+
+    pub(crate) fn lookup_limit_exceed(&self) -> bool {
+        self.lookup_count > MAX_LOOKUP_VISIT_COUNT
+    }
+
+    pub(crate) fn should_visit_lookup() -> bool {}
+}
+
+/// Compute the transitive closure of lookups
 pub(crate) trait LookupClosure {
-    /// Compute the transitive closure of lookups
     fn closure_lookups(&self, c: &mut LookupClosureCtx) -> Result<(), ReadError>;
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError>;
 }
