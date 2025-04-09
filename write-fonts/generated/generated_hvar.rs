@@ -9,9 +9,6 @@ use crate::codegen_prelude::*;
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Hvar {
-    /// Major version number of the horizontal metrics variations table — set to 1.
-    /// Minor version number of the horizontal metrics variations table — set to 0.
-    pub version: MajorMinor,
     /// Offset in bytes from the start of this table to the item variation store table.
     pub item_variation_store: OffsetMarker<ItemVariationStore, WIDTH_32>,
     /// Offset in bytes from the start of this table to the delta-set index mapping for advance widths (may be NULL).
@@ -25,14 +22,12 @@ pub struct Hvar {
 impl Hvar {
     /// Construct a new `Hvar`
     pub fn new(
-        version: MajorMinor,
         item_variation_store: ItemVariationStore,
         advance_width_mapping: Option<DeltaSetIndexMap>,
         lsb_mapping: Option<DeltaSetIndexMap>,
         rsb_mapping: Option<DeltaSetIndexMap>,
     ) -> Self {
         Self {
-            version,
             item_variation_store: item_variation_store.into(),
             advance_width_mapping: advance_width_mapping.into(),
             lsb_mapping: lsb_mapping.into(),
@@ -42,8 +37,9 @@ impl Hvar {
 }
 
 impl FontWrite for Hvar {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        self.version.write_into(writer);
+        (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
         self.item_variation_store.write_into(writer);
         self.advance_width_mapping.write_into(writer);
         self.lsb_mapping.write_into(writer);
@@ -80,7 +76,6 @@ impl TopLevelTable for Hvar {
 impl<'a> FromObjRef<read_fonts::tables::hvar::Hvar<'a>> for Hvar {
     fn from_obj_ref(obj: &read_fonts::tables::hvar::Hvar<'a>, _: FontData) -> Self {
         Hvar {
-            version: obj.version(),
             item_variation_store: obj.item_variation_store().to_owned_table(),
             advance_width_mapping: obj.advance_width_mapping().to_owned_table(),
             lsb_mapping: obj.lsb_mapping().to_owned_table(),
