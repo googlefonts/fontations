@@ -5,6 +5,7 @@
 table Hvar {
     /// Major version number of the horizontal metrics variations table — set to 1.
     /// Minor version number of the horizontal metrics variations table — set to 0.
+    #[compile(MajorMinor::VERSION_1_0)]
     version: MajorMinor,
     /// Offset in bytes from the start of this table to the item variation store table.
     item_variation_store_offset: Offset32<ItemVariationStore>,
