@@ -15,7 +15,7 @@ use crate::{
         SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3,
         SequenceLookupRecord, SequenceRule, SequenceRuleSet, Subtables,
     },
-    ArrayOfOffsets, FontRead, ReadError,
+    ArrayOfOffsets, FontRead, ReadError, Tag,
 };
 
 use super::{
@@ -236,6 +236,19 @@ impl Gsub<'_> {
             lookup_ids.extend(feature?.lookup_list_indices().iter().map(|idx| idx.get()));
         }
         Ok(lookup_ids)
+    }
+
+    /// Return a set of all feature indices underneath the specified scripts, languages and features
+    pub fn collect_features(
+        &self,
+        scripts: &IntSet<Tag>,
+        languages: &IntSet<Tag>,
+        features: &IntSet<Tag>,
+    ) -> Result<IntSet<u16>, ReadError> {
+        let feature_list = self.feature_list()?;
+        let script_list = self.script_list()?;
+        let head_ptr = self.offset_data().as_bytes().as_ptr() as usize;
+        script_list.collect_features(head_ptr, &feature_list, scripts, languages, features)
     }
 }
 
@@ -1032,5 +1045,46 @@ mod tests {
         // we mostly care that this terminates
         let nop = compute_closure(&gsub, &glyph_map, &["a", "b", "c"]);
         assert_closure_result!(glyph_map, nop, &["a", "b", "c"]);
+    }
+
+    #[test]
+    fn collect_all_features() {
+        let font = FontRef::new(font_test_data::closure::CONTEXTUAL).unwrap();
+        let gsub = font.gsub().unwrap();
+        let ret = gsub
+            .collect_features(&IntSet::all(), &IntSet::all(), &IntSet::all())
+            .unwrap();
+        assert_eq!(ret.len(), 2);
+        assert!(ret.contains(0));
+        assert!(ret.contains(1));
+    }
+
+    #[test]
+    fn collect_all_features_with_feature_filter() {
+        let font = FontRef::new(font_test_data::closure::CONTEXTUAL).unwrap();
+        let gsub = font.gsub().unwrap();
+
+        let mut feature_tags = IntSet::empty();
+        feature_tags.insert(Tag::new(b"SUB5"));
+
+        let ret = gsub
+            .collect_features(&IntSet::all(), &IntSet::all(), &feature_tags)
+            .unwrap();
+        assert_eq!(ret.len(), 1);
+        assert!(ret.contains(0));
+    }
+
+    #[test]
+    fn collect_all_features_with_script_filter() {
+        let font = FontRef::new(font_test_data::closure::CONTEXTUAL).unwrap();
+        let gsub = font.gsub().unwrap();
+
+        let mut script_tags = IntSet::empty();
+        script_tags.insert(Tag::new(b"LATN"));
+
+        let ret = gsub
+            .collect_features(&script_tags, &IntSet::all(), &IntSet::all())
+            .unwrap();
+        assert!(ret.is_empty());
     }
 }
