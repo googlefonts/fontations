@@ -34,6 +34,7 @@ impl Cmap<'_> {
                 if let Some(gid) = match subtable {
                     CmapSubtable::Format4(format4) => format4.map_codepoint(codepoint),
                     CmapSubtable::Format12(format12) => format12.map_codepoint(codepoint),
+                    CmapSubtable::Format13(format13) => format13.map_codepoint(codepoint),
                     _ => None,
                 } {
                     return Some(gid);
@@ -352,6 +353,174 @@ impl Iterator for Cmap12Iter<'_> {
                     group.start_code,
                     group.start_glyph_id,
                 );
+                return Some((codepoint, glyph_id));
+            } else {
+                self.cur_group_ix += 1;
+                let mut next_group = self.subtable.group(self.cur_group_ix, &self.limits)?;
+                // Groups should be in order and non-overlapping so make sure
+                // that the start code of next group is at least
+                // current_end.
+                if next_group.range.start < group.range.end {
+                    next_group.range = group.range.end..next_group.range.end;
+                }
+                self.cur_group = Some(next_group);
+            }
+        }
+    }
+}
+
+impl<'a> Cmap13<'a> {
+    /// Maps a codepoint to a nominal glyph identifier.
+    pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
+        let codepoint = codepoint.into();
+        let groups = self.groups();
+        let mut lo = 0;
+        let mut hi = groups.len();
+        while lo < hi {
+            let i = (lo + hi) / 2;
+            let group = groups.get(i)?;
+            if codepoint < group.start_char_code() {
+                hi = i;
+            } else if codepoint > group.end_char_code() {
+                lo = i + 1;
+            } else {
+                return Some(self.lookup_glyph_id(
+                    codepoint,
+                    group.start_char_code(),
+                    group.glyph_id(),
+                ));
+            }
+        }
+        None
+    }
+
+    /// Returns an iterator over all (codepoint, glyph identifier) pairs
+    /// in the subtable.
+    ///
+    /// Malicious and malformed fonts can produce a large number of invalid
+    /// pairs. Use [`Self::iter_with_limits`] to generate a pruned sequence
+    /// that is limited to reasonable values.
+    pub fn iter(&self) -> Cmap13Iter<'a> {
+        Cmap13Iter::new(self.clone(), None)
+    }
+
+    /// Returns an iterator over all (codepoint, glyph identifier) pairs
+    /// in the subtable within the given limits.
+    pub fn iter_with_limits(&self, limits: Cmap13IterLimits) -> Cmap13Iter<'a> {
+        Cmap13Iter::new(self.clone(), Some(limits))
+    }
+
+    /// Does the final phase of glyph id lookup.
+    ///
+    /// Shared between Self::map and Cmap13Iter.
+    fn lookup_glyph_id(&self, _codepoint: u32, _start_char_code: u32, glyph_id: u32) -> GlyphId {
+        GlyphId::new(glyph_id)
+    }
+
+    /// Returns the codepoint range and start glyph id for the group
+    /// at the given index.
+    fn group(&self, index: usize, limits: &Option<Cmap13IterLimits>) -> Option<Cmap13Group> {
+        let group = self.groups().get(index)?;
+        let start_code = group.start_char_code();
+        // Change to exclusive range. This can never overflow since the source
+        // is a 32-bit value
+        let end_code = group.end_char_code() as u64 + 1;
+        let glyph_id = group.glyph_id();
+        let end_code = if let Some(limits) = limits {
+            // Set our end code to the minimum of glyph count limit
+            (limits.glyph_count as u64)
+                .saturating_add(start_code as u64)
+                .min(end_code as u64)
+        } else {
+            end_code
+        };
+        Some(Cmap13Group {
+            range: start_code as u64..end_code,
+            start_code,
+            glyph_id,
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
+struct Cmap13Group {
+    range: Range<u64>,
+    start_code: u32,
+    glyph_id: u32,
+}
+
+/// Character and glyph limits for iterating format 13 subtables.
+#[derive(Copy, Clone, Debug)]
+pub struct Cmap13IterLimits {
+    /// The maximum valid character.
+    pub max_char: u32,
+    /// The number of glyphs in the font.
+    pub glyph_count: u32,
+}
+
+impl Cmap13IterLimits {
+    /// Returns the default limits for the given font.
+    ///
+    /// This will limit pairs to `char::MAX` and the number of glyphs contained
+    /// in the font. If the font is missing a `maxp` table, the number of
+    /// glyphs will be limited to `u16::MAX`.
+    pub fn default_for_font(font: &FontRef) -> Self {
+        let glyph_count = font
+            .maxp()
+            .map(|maxp| maxp.num_glyphs())
+            .unwrap_or(u16::MAX) as u32;
+        Self {
+            // Limit to the valid range of Unicode characters
+            // per https://github.com/googlefonts/fontations/issues/952#issuecomment-2161510184
+            max_char: char::MAX as u32,
+            glyph_count,
+        }
+    }
+}
+
+impl Default for Cmap13IterLimits {
+    fn default() -> Self {
+        Self {
+            max_char: char::MAX as u32,
+            // Revisit this when we actually support big glyph ids
+            glyph_count: u16::MAX as u32,
+        }
+    }
+}
+
+/// Iterator over all (codepoint, glyph identifier) pairs in
+/// the subtable.
+#[derive(Clone)]
+pub struct Cmap13Iter<'a> {
+    subtable: Cmap13<'a>,
+    cur_group: Option<Cmap13Group>,
+    cur_group_ix: usize,
+    limits: Option<Cmap13IterLimits>,
+}
+
+impl<'a> Cmap13Iter<'a> {
+    fn new(subtable: Cmap13<'a>, limits: Option<Cmap13IterLimits>) -> Self {
+        let cur_group = subtable.group(0, &limits);
+        Self {
+            subtable,
+            cur_group,
+            cur_group_ix: 0,
+            limits,
+        }
+    }
+}
+
+impl Iterator for Cmap13Iter<'_> {
+    type Item = (u32, GlyphId);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let group = self.cur_group.as_mut()?;
+            if let Some(codepoint) = group.range.next() {
+                let codepoint = codepoint as u32;
+                let glyph_id =
+                    self.subtable
+                        .lookup_glyph_id(codepoint, group.start_code, group.glyph_id);
                 return Some((codepoint, glyph_id));
             } else {
                 self.cur_group_ix += 1;
@@ -694,7 +863,7 @@ mod tests {
             // format, length, lang
             4, 0, 0,
             // segCountX2
-            4, 
+            4,
             // bin search data
             0, 0, 0,
             // end code
@@ -893,6 +1062,16 @@ mod tests {
             .filter_map(|record| record.subtable(cmap.offset_data()).ok())
             .find_map(|subtable| match subtable {
                 CmapSubtable::Format12(cmap12) => Some(cmap12),
+                _ => None,
+            })
+    }
+
+    fn find_cmap13<'a>(cmap: &Cmap<'a>) -> Option<Cmap13<'a>> {
+        cmap.encoding_records()
+            .iter()
+            .filter_map(|record| record.subtable(cmap.offset_data()).ok())
+            .find_map(|subtable| match subtable {
+                CmapSubtable::Format13(cmap13) => Some(cmap13),
                 _ => None,
             })
     }
