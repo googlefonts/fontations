@@ -129,7 +129,7 @@ mod ctx {
                 return false;
             }
             covered
-                .get_or_insert_default()
+                .get_or_insert_with(Default::default)
                 .extend(current_glyphs.unwrap_or(self.glyphs).iter());
             true
         }
