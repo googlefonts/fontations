@@ -122,6 +122,42 @@ mod tests {
     }
 
     #[test]
+    fn brotli_decode_rust_brotli_regression_case() {
+        // Tests a case that triggered a bug in the rust brotli decompressor library,
+        // see: https://github.com/dropbox/rust-brotli-decompressor/issues/36
+        let patch: &[u8] = &[
+            27, 103, 0, 96, 47, 14, 120, 211, 142, 228, 22, 15, 167, 193, 55, 28, 228, 226, 254,
+            54, 10, 36, 226, 192, 19, 76, 50, 8, 169, 92, 9, 197, 47, 12, 211, 114, 34, 175, 18,
+            241, 122, 134, 170, 32, 189, 4, 112, 153, 119, 12, 237, 23, 120, 130, 2,
+        ];
+
+        let dict: Vec<u8> = vec![
+            2, 0, 0, 0, 0, 213, 195, 31, 121, 231, 225, 250, 238, 34, 174, 158, 246, 208, 145, 187,
+            92, 2, 0, 0, 4, 0, 0, 0, 46, 0, 0, 0, 0, 0, 11, 123, 105, 100, 125, 46, 105, 102, 116,
+            95, 116, 107, 20, 0, 0, 52, 40, 103, 221, 215, 223, 255, 95, 54, 15, 13, 85, 53, 206,
+            115, 249, 165, 159, 159, 16, 29, 37, 17, 114, 1, 163, 2, 16, 33, 51, 4, 32, 0, 226, 29,
+            19, 88, 254, 195, 129, 23, 25, 22, 8, 19, 21, 41, 130, 136, 51, 8, 67, 209, 52, 204,
+            204, 70, 199, 130, 252, 47, 16, 40, 186, 251, 62, 63, 19, 236, 147, 240, 211, 215, 59,
+        ];
+
+        let decompressed = BuiltInBrotliDecoder.decode(patch, Some(&dict), 500);
+
+        assert_eq!(
+            decompressed,
+            Ok(vec![
+                0x02, 0x00, 0x00, 0x00, 0x00, 0x8c, 0x16, 0xa6, 0x25, 0x18, 0xf8, 0x68, 0x63, 0x4e,
+                0xe4, 0x09, 0x2b, 0xa1, 0xe2, 0x4b, 0xba, 0x02, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00,
+                0x2e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0b, 0x7b, 0x69, 0x64, 0x7d, 0x2e, 0x69, 0x66,
+                0x74, 0x5f, 0x74, 0x6b, 0x14, 0x00, 0x00, 0x38, 0x1d, 0x25, 0x11, 0x72, 0x01, 0xa3,
+                0x02, 0x10, 0x21, 0x33, 0x04, 0x20, 0x00, 0xe2, 0x1d, 0x13, 0x58, 0xfe, 0xc3, 0x81,
+                0x17, 0x19, 0x16, 0x08, 0x13, 0x15, 0x29, 0x82, 0x88, 0x33, 0x08, 0x43, 0xd1, 0x34,
+                0xcc, 0xcc, 0x46, 0xc7, 0x82, 0xfc, 0x2f, 0x10, 0x28, 0xba, 0xfb, 0x3e, 0x3f, 0x13,
+                0xec, 0x93, 0xf0, 0xd3, 0xd7, 0x3b,
+            ])
+        );
+    }
+
+    #[test]
     fn brotli_decode_without_shared_dict() {
         let base = "".as_bytes();
 
@@ -181,18 +217,18 @@ mod tests {
     fn brotli_decode_input_missing() {
         // Check what happens if input stream is missing some trailing bytes
         let patch: Vec<u8> = NO_DICT_PATCH[..NO_DICT_PATCH.len() - 1].to_vec();
-        assert_eq!(
-            Err(DecodeError::InvalidStream),
-            BuiltInBrotliDecoder.decode(&patch, None, TARGET.len())
-        );
+        assert!(matches!(
+            BuiltInBrotliDecoder.decode(&patch, None, TARGET.len()),
+            Err(DecodeError::InvalidStream(_))
+        ));
     }
 
     #[test]
     fn brotli_decode_invalid() {
         let patch = [0xFF, 0xFF, 0xFFu8];
-        assert_eq!(
-            Err(DecodeError::InvalidStream),
-            BuiltInBrotliDecoder.decode(&patch, None, 10)
-        );
+        assert!(matches!(
+            BuiltInBrotliDecoder.decode(&patch, None, 10),
+            Err(DecodeError::InvalidStream(_))
+        ));
     }
 }
