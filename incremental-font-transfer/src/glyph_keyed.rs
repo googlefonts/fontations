@@ -29,16 +29,17 @@ use read_fonts::{
 };
 
 use klippa::serialize::{OffsetWhence, SerializeErrorFlags, Serializer};
-use shared_brotli_patch_decoder::shared_brotli_decode;
+use shared_brotli_patch_decoder::SharedBrotliDecoder;
 use skrifa::GlyphId;
 use std::collections::{BTreeSet, HashMap};
 use std::ops::{Range, RangeInclusive};
 
 use write_fonts::FontBuilder;
 
-pub(crate) fn apply_glyph_keyed_patches(
+pub(crate) fn apply_glyph_keyed_patches<D: SharedBrotliDecoder>(
     patches: &[(&PatchInfo, GlyphKeyedPatch<'_>)],
     font: &FontRef,
+    brotli_decoder: &D,
 ) -> Result<Vec<u8>, PatchingError> {
     let mut decompression_buffer: Vec<Vec<u8>> = Vec::with_capacity(patches.len());
 
@@ -48,12 +49,13 @@ pub(crate) fn apply_glyph_keyed_patches(
         }
 
         decompression_buffer.push(
-            shared_brotli_decode(
-                patch.brotli_stream(),
-                None,
-                patch.max_uncompressed_length() as usize,
-            )
-            .map_err(PatchingError::from)?,
+            brotli_decoder
+                .decode(
+                    patch.brotli_stream(),
+                    None,
+                    patch.max_uncompressed_length() as usize,
+                )
+                .map_err(PatchingError::from)?,
         );
     }
 
@@ -1103,6 +1105,7 @@ pub(crate) mod tests {
         },
         FontData, FontRead, ReadError, TableProvider, TopLevelTable,
     };
+    use shared_brotli_patch_decoder::BuiltInBrotliDecoder;
 
     use font_test_data::{
         bebuffer::BeBuffer,
@@ -1195,7 +1198,9 @@ pub(crate) mod tests {
 
         let patch_info = patch_info(IFT_TAG, 4);
 
-        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched =
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder)
+                .unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         // Application bit will be set in the patched font.
@@ -1219,7 +1224,9 @@ pub(crate) mod tests {
         let font = FontRef::new(&font).unwrap();
 
         let patch_info = patch_info(IFT_TAG, 28);
-        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched =
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder)
+                .unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let new_ift: &[u8] = patched.table_data(IFT_TAG).unwrap().as_bytes();
@@ -1281,7 +1288,9 @@ pub(crate) mod tests {
         let font = FontRef::new(&font).unwrap();
 
         let patch_info = patch_info(IFT_TAG, 28);
-        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched =
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder)
+                .unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let new_ift: &[u8] = patched.table_data(IFT_TAG).unwrap().as_bytes();
@@ -1349,9 +1358,12 @@ pub(crate) mod tests {
         );
         let font = FontRef::new(&font).unwrap();
 
-        let patched =
-            apply_glyph_keyed_patches(&[(&patch_info_2, patch2), (&patch_info_1, patch1)], &font)
-                .unwrap();
+        let patched = apply_glyph_keyed_patches(
+            &[(&patch_info_2, patch2), (&patch_info_1, patch1)],
+            &font,
+            &BuiltInBrotliDecoder,
+        )
+        .unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let new_ift: &[u8] = patched.table_data(IFTX_TAG).unwrap().as_bytes();
@@ -1422,7 +1434,9 @@ pub(crate) mod tests {
         );
         let font = FontRef::new(&font).unwrap();
 
-        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched =
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder)
+                .unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let new_gvar: &[u8] = patched.table_data(Gvar::TAG).unwrap().as_bytes();
@@ -1482,7 +1496,9 @@ pub(crate) mod tests {
         );
         let font = FontRef::new(&font).unwrap();
 
-        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched =
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder)
+                .unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let new_gvar: &[u8] = patched.table_data(Gvar::TAG).unwrap().as_bytes();
@@ -1542,7 +1558,9 @@ pub(crate) mod tests {
         );
         let font = FontRef::new(&font).unwrap();
 
-        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched =
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder)
+                .unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let new_gvar: &[u8] = patched.table_data(Gvar::TAG).unwrap().as_bytes();
@@ -1601,7 +1619,9 @@ pub(crate) mod tests {
         );
         let font = FontRef::new(&font).unwrap();
 
-        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched =
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder)
+                .unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let new_gvar: &[u8] = patched.table_data(Gvar::TAG).unwrap().as_bytes();
@@ -1665,7 +1685,9 @@ pub(crate) mod tests {
         );
         let font = FontRef::new(&font).unwrap();
 
-        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched =
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder)
+                .unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let new_gvar: &[u8] = patched.table_data(Gvar::TAG).unwrap().as_bytes();
@@ -1728,7 +1750,9 @@ pub(crate) mod tests {
         );
         let font = FontRef::new(&font).unwrap();
 
-        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched =
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder)
+                .unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let new_gvar: &[u8] = patched.table_data(Gvar::TAG).unwrap().as_bytes();
@@ -1792,7 +1816,7 @@ pub(crate) mod tests {
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder),
             Err(PatchingError::InvalidPatch("Patch file tag is not 'ifgk'"))
         );
     }
@@ -1810,7 +1834,9 @@ pub(crate) mod tests {
         let font = test_font_for_patching();
         let font = FontRef::new(&font).unwrap();
 
-        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &font).unwrap();
+        let patched =
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder)
+                .unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let new_glyf: &[u8] = patched.table_data(Glyf::TAG).unwrap().as_bytes();
@@ -1866,7 +1892,7 @@ pub(crate) mod tests {
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder),
             Err(PatchingError::InvalidPatch(
                 "Duplicate or unsorted table tag."
             ))
@@ -1886,7 +1912,7 @@ pub(crate) mod tests {
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder),
             Err(PatchingError::InvalidPatch(
                 "Duplicate or unsorted table tag."
             ))
@@ -1906,7 +1932,7 @@ pub(crate) mod tests {
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder),
             Err(PatchingError::PatchParsingFailed(ReadError::MalformedData(
                 "Glyph IDs are unsorted or duplicated."
             ))),
@@ -1926,7 +1952,7 @@ pub(crate) mod tests {
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder),
             Err(PatchingError::PatchParsingFailed(ReadError::MalformedData(
                 "Glyph IDs are unsorted or duplicated."
             ))),
@@ -1947,7 +1973,7 @@ pub(crate) mod tests {
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder),
             Err(PatchingError::InvalidPatch("Max size exceeded.")),
         );
     }
@@ -1965,7 +1991,7 @@ pub(crate) mod tests {
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder),
             Err(PatchingError::InvalidPatch(
                 "Patch would add a glyph beyond this fonts maximum."
             )),
@@ -1995,7 +2021,7 @@ pub(crate) mod tests {
         let font = FontRef::new(&font).unwrap();
 
         assert_eq!(
-            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font),
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder),
             Err(PatchingError::FontParsingFailed(ReadError::MalformedData(
                 "offset array contains unordered offsets."
             ))),
@@ -2020,7 +2046,9 @@ pub(crate) mod tests {
         let cff_font_data = font_builder.build();
         let cff_font = FontRef::new(cff_font_data.as_slice()).unwrap();
 
-        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &cff_font).unwrap();
+        let patched =
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &cff_font, &BuiltInBrotliDecoder)
+                .unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let old_cff = CFFAndCharStrings::from_cff_font(
@@ -2090,7 +2118,9 @@ pub(crate) mod tests {
         let cff_font_data = font_builder.build();
         let cff_font = FontRef::new(cff_font_data.as_slice()).unwrap();
 
-        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &cff_font).unwrap();
+        let patched =
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &cff_font, &BuiltInBrotliDecoder)
+                .unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let old_cff = CFFAndCharStrings::from_cff_font(
@@ -2164,7 +2194,9 @@ pub(crate) mod tests {
         let cff2_font_data = font_builder.build();
         let cff2_font = FontRef::new(cff2_font_data.as_slice()).unwrap();
 
-        let patched = apply_glyph_keyed_patches(&[(&patch_info, patch)], &cff2_font).unwrap();
+        let patched =
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &cff2_font, &BuiltInBrotliDecoder)
+                .unwrap();
         let patched = FontRef::new(&patched).unwrap();
 
         let old_cff = CFFAndCharStrings::from_cff2_font(

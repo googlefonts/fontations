@@ -14,12 +14,13 @@ use read_fonts::{
     types::Tag,
     FontRef, ReadError,
 };
-use shared_brotli_patch_decoder::shared_brotli_decode;
+use shared_brotli_patch_decoder::SharedBrotliDecoder;
 use write_fonts::FontBuilder;
 
-pub(crate) fn apply_table_keyed_patch(
+pub(crate) fn apply_table_keyed_patch<D: SharedBrotliDecoder>(
     patch: &TableKeyedPatch<'_>,
     font: &FontRef,
+    brotli_decoder: &D,
 ) -> Result<Vec<u8>, PatchingError> {
     if patch.format() != Tag::new(b"iftk") {
         return Err(PatchingError::InvalidPatch("Patch file tag is not 'iftk'"));
@@ -73,7 +74,13 @@ pub(crate) fn apply_table_keyed_patch(
         }
 
         let replacement = table_patch.flags().contains(TablePatchFlags::REPLACE_TABLE);
-        let new_table = apply_table_patch(font, table_patch, stream_length, replacement)?;
+        let new_table = apply_table_patch(
+            font,
+            table_patch,
+            stream_length,
+            replacement,
+            brotli_decoder,
+        )?;
         font_builder.add_raw(tag, new_table);
     }
 
@@ -82,11 +89,12 @@ pub(crate) fn apply_table_keyed_patch(
     Ok(font_builder.build())
 }
 
-fn apply_table_patch(
+fn apply_table_patch<D: SharedBrotliDecoder>(
     font: &FontRef,
     table_patch: TablePatch,
     stream_length: u32,
     replacement: bool,
+    brotli_decoder: &D,
 ) -> Result<Vec<u8>, PatchingError> {
     let stream_length = stream_length as usize;
     let base_data = font.table_data(table_patch.tag());
@@ -98,7 +106,7 @@ fn apply_table_patch(
         ));
     };
     let r = match (base_data, replacement) {
-        (Some(base_data), false) => shared_brotli_decode(
+        (Some(base_data), false) => brotli_decoder.decode(
             stream,
             Some(base_data.as_bytes()),
             table_patch.max_uncompressed_length() as usize,
@@ -108,7 +116,7 @@ fn apply_table_patch(
                 "Trying to patch a base table that doesn't exist.",
             ))
         }
-        _ => shared_brotli_decode(stream, None, table_patch.max_uncompressed_length() as usize),
+        _ => brotli_decoder.decode(stream, None, table_patch.max_uncompressed_length() as usize),
     };
 
     r.map_err(PatchingError::from)
@@ -139,6 +147,7 @@ mod tests {
     use read_fonts::FontRead;
     use read_fonts::FontRef;
     use read_fonts::ReadError;
+    use shared_brotli_patch_decoder::BuiltInBrotliDecoder;
     use write_fonts::FontBuilder;
 
     const IFT_TABLE: &[u8] = b"IFT PATCH MAP";
@@ -163,7 +172,7 @@ mod tests {
         let patch = TableKeyedPatch::read(FontData::new(&patch_data)).unwrap();
         let font = test_font();
         let font = FontRef::new(font.as_slice()).unwrap();
-        let r = apply_table_keyed_patch(&patch, &font);
+        let r = apply_table_keyed_patch(&patch, &font, &BuiltInBrotliDecoder);
 
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
@@ -191,7 +200,7 @@ mod tests {
         let patch = TableKeyedPatch::read(FontData::new(&patch_data)).unwrap();
         let font = test_font();
         let font = FontRef::new(font.as_slice()).unwrap();
-        let r = apply_table_keyed_patch(&patch, &font);
+        let r = apply_table_keyed_patch(&patch, &font, &BuiltInBrotliDecoder);
 
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
@@ -220,7 +229,7 @@ mod tests {
 
         assert_eq!(
             Err(PatchingError::InvalidPatch("Patch file tag is not 'iftk'")),
-            apply_table_keyed_patch(&patch, &font)
+            apply_table_keyed_patch(&patch, &font, &BuiltInBrotliDecoder),
         );
     }
 
@@ -233,7 +242,7 @@ mod tests {
         let patch = TableKeyedPatch::read(FontData::new(&patch_data)).unwrap();
         let font = test_font();
         let font = FontRef::new(font.as_slice()).unwrap();
-        let r = apply_table_keyed_patch(&patch, &font);
+        let r = apply_table_keyed_patch(&patch, &font, &BuiltInBrotliDecoder);
 
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
@@ -278,7 +287,7 @@ mod tests {
             Err(PatchingError::InvalidPatch(
                 "Patch offsets are not in sorted order."
             )),
-            apply_table_keyed_patch(&patch, &font)
+            apply_table_keyed_patch(&patch, &font, &BuiltInBrotliDecoder)
         );
     }
 
@@ -295,7 +304,7 @@ mod tests {
 
         assert_eq!(
             Err(PatchingError::PatchParsingFailed(ReadError::OutOfBounds)),
-            apply_table_keyed_patch(&patch, &font)
+            apply_table_keyed_patch(&patch, &font, &BuiltInBrotliDecoder)
         );
     }
 
@@ -309,7 +318,7 @@ mod tests {
         let font = FontRef::new(font.as_slice()).unwrap();
 
         // When DROP and REPLACE are both set DROP takes priority.
-        let r = apply_table_keyed_patch(&patch, &font);
+        let r = apply_table_keyed_patch(&patch, &font, &BuiltInBrotliDecoder);
 
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
@@ -345,7 +354,7 @@ mod tests {
             Err(PatchingError::InvalidPatch(
                 "Trying to patch a base table that doesn't exist."
             )),
-            apply_table_keyed_patch(&patch, &font)
+            apply_table_keyed_patch(&patch, &font, &BuiltInBrotliDecoder)
         );
     }
 
@@ -358,7 +367,7 @@ mod tests {
         let font = test_font();
         let font = FontRef::new(font.as_slice()).unwrap();
 
-        let r = apply_table_keyed_patch(&patch, &font);
+        let r = apply_table_keyed_patch(&patch, &font, &BuiltInBrotliDecoder);
 
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
@@ -393,7 +402,7 @@ mod tests {
         let font = test_font();
         let font = FontRef::new(font.as_slice()).unwrap();
 
-        let r = apply_table_keyed_patch(&patch, &font);
+        let r = apply_table_keyed_patch(&patch, &font, &BuiltInBrotliDecoder);
 
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
@@ -430,7 +439,7 @@ mod tests {
 
         assert_eq!(
             Err(PatchingError::InvalidPatch("Max size exceeded.")),
-            apply_table_keyed_patch(&patch, &font)
+            apply_table_keyed_patch(&patch, &font, &BuiltInBrotliDecoder)
         );
     }
 }

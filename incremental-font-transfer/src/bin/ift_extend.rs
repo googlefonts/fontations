@@ -110,7 +110,7 @@ fn main() {
 
         println!("  Applying patches");
         font_bytes = next_patches
-            .apply_next_patches(&mut patch_data)
+            .apply_next_patches(&mut patch_data, None)
             .expect("Patch application failed.");
     }
 
