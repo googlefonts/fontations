@@ -317,7 +317,7 @@ impl PrivateDict {
                 BlueValues(values) => dict.hint_params.blues = values,
                 FamilyBlues(values) => dict.hint_params.family_blues = values,
                 OtherBlues(values) => dict.hint_params.other_blues = values,
-                FamilyOtherBlues(values) => dict.hint_params.family_blues = values,
+                FamilyOtherBlues(values) => dict.hint_params.family_other_blues = values,
                 BlueScale(value) => dict.hint_params.blue_scale = value,
                 BlueShift(value) => dict.hint_params.blue_shift = value,
                 BlueFuzz(value) => dict.hint_params.blue_fuzz = value,
@@ -621,6 +621,7 @@ mod tests {
         prelude::{LocationRef, Size},
         MetadataProvider,
     };
+    use dict::Blues;
     use font_test_data::bebuffer::BeBuffer;
     use raw::tables::cff2::Cff2;
     use read_fonts::FontRef;
@@ -849,5 +850,25 @@ mod tests {
                 );
             }
         }
+    }
+
+    // We were overwriting family_other_blues with family_blues.
+    #[test]
+    fn capture_family_other_blues() {
+        let private_dict_data = &font_test_data::cff2::EXAMPLE[0x4f..=0xc0];
+        let store =
+            ItemVariationStore::read(FontData::new(&font_test_data::cff2::EXAMPLE[18..])).unwrap();
+        let coords = &[F2Dot14::from_f32(0.0)];
+        let blend_state = BlendState::new(store, coords, 0).unwrap();
+        let private_dict = PrivateDict::new(
+            FontData::new(private_dict_data),
+            0..private_dict_data.len(),
+            Some(blend_state),
+        )
+        .unwrap();
+        assert_eq!(
+            private_dict.hint_params.family_other_blues,
+            Blues::new([-249.0, -239.0].map(Fixed::from_f64).into_iter())
+        )
     }
 }
