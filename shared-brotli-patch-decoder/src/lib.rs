@@ -9,14 +9,17 @@ pub mod decode_error;
 #[cfg(fuzzing)]
 use decode_error::DecodeError;
 
-/// A shared brotli decoder.
+/// A Shared Brotli Decoder.
+///
+/// Shared brotli (<https://datatracker.ietf.org/doc/draft-vandevenne-shared-brotli-format/>) is an
+/// extension of brotli to allow the decompression to include a shared dictionary.
 pub trait SharedBrotliDecoder {
     /// Decodes shared brotli encoded data using the optional shared dictionary.
     ///
     /// The shared dictionary is a raw LZ77 style dictionary, see:
-    /// <https://datatracker.ietf.org/doc/html/draft-vandevenne-shared-brotli-format-11#section-3.2>
+    /// <https://datatracker.ietf.org/doc/html/draft-vandevenne-shared-brotli-format#section-3.2>
     ///
-    /// Will fail if the decoded result will be greater then max_uncompressed_length. Any excess data
+    /// Will fail if the decoded result will be greater than max_uncompressed_length. Any excess data
     /// in encoded after the encoded stream finishes is also considered an error.
     fn decode(
         &self,
@@ -26,21 +29,24 @@ pub trait SharedBrotliDecoder {
     ) -> Result<Vec<u8>, decode_error::DecodeError>;
 }
 
+/// The brotli decoder provided by this crate.
+///
+/// By default a rust wrapper around the c brotli decoder implementation is used.
 pub struct BuiltInBrotliDecoder;
 
-pub struct ExternalBrotliDecoder(pub Box<dyn SharedBrotliDecoder>);
-
-/// Just passes through the input data, primarily intended for use in fuzzers.
+/// An implementation that just passes through the input data.
+///
+/// Useful in fuzzers and unit testing.
 pub struct NoopBrotliDecoder;
 
-impl SharedBrotliDecoder for ExternalBrotliDecoder {
+impl SharedBrotliDecoder for Box<dyn SharedBrotliDecoder> {
     fn decode(
         &self,
         encoded: &[u8],
         shared_dictionary: Option<&[u8]>,
         max_uncompressed_length: usize,
     ) -> Result<Vec<u8>, decode_error::DecodeError> {
-        self.0
+        self.as_ref()
             .decode(encoded, shared_dictionary, max_uncompressed_length)
     }
 }
