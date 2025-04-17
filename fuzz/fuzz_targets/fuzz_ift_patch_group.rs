@@ -110,5 +110,5 @@ fuzz_target!(|input: FuzzInput| {
     // This allows the fuzzer to more effectively explore code gated behind brotli decoding.
     //
     // TODO(garretrieger): In addition to the noop decoder, also have one that can return all of the possible errors.
-    let _ = black_box(group.apply_next_patches(&mut uri_map, Some(Box::new(NoopBrotliDecoder))));
+    let _ = black_box(group.apply_next_patches_with_decoder(&mut uri_map, &NoopBrotliDecoder));
 });
