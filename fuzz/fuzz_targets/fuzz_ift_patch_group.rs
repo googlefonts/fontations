@@ -13,6 +13,7 @@ use read_fonts::{
     collections::{IntSet, RangeSet},
     types::Tag,
 };
+use shared_brotli_patch_decoder::NoopBrotliDecoder;
 use skrifa::FontRef;
 use write_fonts::FontBuilder;
 
@@ -105,5 +106,9 @@ fuzz_target!(|input: FuzzInput| {
         uri_map.insert(uri.to_string(), UriStatus::Applied);
     }
 
-    let _ = black_box(group.apply_next_patches(&mut uri_map));
+    // When running under a fuzzer disable brotli decoding and instead just pass through the input data.
+    // This allows the fuzzer to more effectively explore code gated behind brotli decoding.
+    //
+    // TODO(garretrieger): In addition to the noop decoder, also have one that can return all of the possible errors.
+    let _ = black_box(group.apply_next_patches(&mut uri_map, Some(Box::new(NoopBrotliDecoder))));
 });

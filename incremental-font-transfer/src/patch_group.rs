@@ -4,6 +4,9 @@
 //! additionally methods for applying that group of patches.
 
 use read_fonts::{tables::ift::CompatibilityId, FontRef, ReadError, TableProvider};
+use shared_brotli_patch_decoder::{
+    BuiltInBrotliDecoder, ExternalBrotliDecoder, SharedBrotliDecoder,
+};
 use std::collections::{BTreeMap, HashMap};
 
 use crate::{
@@ -244,6 +247,23 @@ impl PatchGroup<'_> {
     pub fn apply_next_patches(
         self,
         patch_data: &mut HashMap<String, UriStatus>,
+        override_brotli_decoder: Option<Box<dyn SharedBrotliDecoder>>,
+    ) -> Result<Vec<u8>, PatchingError> {
+        match override_brotli_decoder {
+            None => self.apply_next_patches_with_decoder(patch_data, &BuiltInBrotliDecoder),
+            Some(decoder) => {
+                self.apply_next_patches_with_decoder(patch_data, &ExternalBrotliDecoder(decoder))
+            }
+        }
+    }
+
+    /// Attempt to apply the next patch (or patches if non-invalidating) listed in this group.
+    ///
+    /// Returns the bytes of the updated font.
+    fn apply_next_patches_with_decoder<D: SharedBrotliDecoder>(
+        self,
+        patch_data: &mut HashMap<String, UriStatus>,
+        brotli_decoder: &D,
     ) -> Result<Vec<u8>, PatchingError> {
         if let Some(patch) = self.next_invalidating_patch() {
             let entry = patch_data
@@ -252,7 +272,9 @@ impl PatchGroup<'_> {
 
             match entry {
                 UriStatus::Pending(patch_data) => {
-                    let r = self.font.apply_table_keyed_patch(patch, patch_data)?;
+                    let r = self
+                        .font
+                        .apply_table_keyed_patch(patch, patch_data, brotli_decoder)?;
                     *entry = UriStatus::Applied;
                     return Ok(r);
                 }
@@ -280,7 +302,7 @@ impl PatchGroup<'_> {
             }
 
             self.font
-                .apply_glyph_keyed_patches(accumulated_info.into_iter())?
+                .apply_glyph_keyed_patches(accumulated_info.into_iter(), brotli_decoder)?
         };
 
         for info in self.non_invalidating_patch_iter() {
@@ -1130,7 +1152,7 @@ mod tests {
         assert_eq!(g.uris().collect::<Vec<&str>>(), Vec::<&str>::default());
 
         assert_eq!(
-            g.apply_next_patches(&mut Default::default()),
+            g.apply_next_patches(&mut Default::default(), None),
             Err(PatchingError::EmptyPatchList)
         );
     }
@@ -1155,7 +1177,7 @@ mod tests {
             ),
         ]);
 
-        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
+        let new_font = g.apply_next_patches(&mut patch_data, None).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         assert_eq!(
@@ -1196,7 +1218,7 @@ mod tests {
             UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
         )]);
 
-        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
+        let new_font = g.apply_next_patches(&mut patch_data, None).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         assert_eq!(
@@ -1225,7 +1247,7 @@ mod tests {
             UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
         )]);
 
-        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
+        let new_font = g.apply_next_patches(&mut patch_data, None).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         assert_eq!(
@@ -1275,7 +1297,7 @@ mod tests {
             ),
         ]);
 
-        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
+        let new_font = g.apply_next_patches(&mut patch_data, None).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         assert_eq!(
@@ -1340,7 +1362,7 @@ mod tests {
             ),
         ]);
 
-        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
+        let new_font = g.apply_next_patches(&mut patch_data, None).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         assert_eq!(
@@ -1406,7 +1428,7 @@ mod tests {
             ),
         ]);
 
-        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
+        let new_font = g.apply_next_patches(&mut patch_data, None).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         let new_glyf: &[u8] = new_font.table_data(Tag::new(b"glyf")).unwrap().as_bytes();

@@ -9,42 +9,77 @@ pub mod decode_error;
 #[cfg(fuzzing)]
 use decode_error::DecodeError;
 
-/// Decodes shared brotli encoded data using the optional shared dictionary.
-///
-/// The shared dictionary is a raw LZ77 style dictionary, see:
-/// <https://datatracker.ietf.org/doc/html/draft-vandevenne-shared-brotli-format-11#section-3.2>
-///
-/// Will fail if the decoded result will be greater then max_uncompressed_length. Any excess data
-/// in encoded after the encoded stream finishes is also considered an error.
-pub fn shared_brotli_decode(
-    encoded: &[u8],
-    shared_dictionary: Option<&[u8]>,
-    max_uncompressed_length: usize,
-) -> Result<Vec<u8>, decode_error::DecodeError> {
-    cfg_if::cfg_if! {
-        if #[cfg(fuzzing)]
-        {
-            // When running under a fuzzer disable brotli decoding and instead just pass through the input data.
-            // This allows the fuzzer to more effectively explore code gated behind brotli decoding.
-            // TODO(garretrieger): instead consider modifying the top level IFT apis to allow a custom brotli decoder
-            //   implementation to be provided. This would allow fuzzing to sub in a custom impl that could return all
-            //   of the possible errors that the standard impl here can generate.
-            return if encoded.len() <= max_uncompressed_length {
-                Ok(encoded.to_vec())
+/// A shared brotli decoder.
+pub trait SharedBrotliDecoder {
+    /// Decodes shared brotli encoded data using the optional shared dictionary.
+    ///
+    /// The shared dictionary is a raw LZ77 style dictionary, see:
+    /// <https://datatracker.ietf.org/doc/html/draft-vandevenne-shared-brotli-format-11#section-3.2>
+    ///
+    /// Will fail if the decoded result will be greater then max_uncompressed_length. Any excess data
+    /// in encoded after the encoded stream finishes is also considered an error.
+    fn decode(
+        &self,
+        encoded: &[u8],
+        shared_dictionary: Option<&[u8]>,
+        max_uncompressed_length: usize,
+    ) -> Result<Vec<u8>, decode_error::DecodeError>;
+}
+
+pub struct BuiltInBrotliDecoder;
+
+pub struct ExternalBrotliDecoder(pub Box<dyn SharedBrotliDecoder>);
+
+/// Just passes through the input data, primarily intended for use in fuzzers.
+pub struct NoopBrotliDecoder;
+
+impl SharedBrotliDecoder for ExternalBrotliDecoder {
+    fn decode(
+        &self,
+        encoded: &[u8],
+        shared_dictionary: Option<&[u8]>,
+        max_uncompressed_length: usize,
+    ) -> Result<Vec<u8>, decode_error::DecodeError> {
+        self.0
+            .decode(encoded, shared_dictionary, max_uncompressed_length)
+    }
+}
+
+impl SharedBrotliDecoder for BuiltInBrotliDecoder {
+    fn decode(
+        &self,
+        encoded: &[u8],
+        shared_dictionary: Option<&[u8]>,
+        max_uncompressed_length: usize,
+    ) -> Result<Vec<u8>, decode_error::DecodeError> {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "c-brotli")] {
+                #[allow(clippy::needless_return)]
+                return c_brotli::shared_brotli_decode_c(
+                    encoded,
+                    shared_dictionary,
+                    max_uncompressed_length,
+                );
+            } else if #[cfg(feature = "rust-brotli")] {
+                return rust_brotli::shared_brotli_decode_rust(encoded, shared_dictionary, max_uncompressed_length);
             } else {
-                Err(DecodeError::MaxSizeExceeded)
-            };
-        } else if #[cfg(feature = "c-brotli")] {
-            #[allow(clippy::needless_return)]
-            return c_brotli::shared_brotli_decode_c(
-                encoded,
-                shared_dictionary,
-                max_uncompressed_length,
-            );
-        } else if #[cfg(feature = "rust-brotli")] {
-            return rust_brotli::shared_brotli_decode_rust(encoded, shared_dictionary, max_uncompressed_length);
+                compile_error!("At least one of 'c-brotli' or 'rust-brotli' must be enabled.");
+            }
+        }
+    }
+}
+
+impl SharedBrotliDecoder for NoopBrotliDecoder {
+    fn decode(
+        &self,
+        encoded: &[u8],
+        _shared_dictionary: Option<&[u8]>,
+        max_uncompressed_length: usize,
+    ) -> Result<Vec<u8>, decode_error::DecodeError> {
+        if encoded.len() <= max_uncompressed_length {
+            Ok(encoded.to_vec())
         } else {
-            compile_error!("At least one of 'c-brotli' or 'rust-brotli' must be enabled.");
+            Err(decode_error::DecodeError::MaxSizeExceeded)
         }
     }
 }
@@ -76,7 +111,7 @@ mod tests {
     fn brotli_decode_with_shared_dict() {
         assert_eq!(
             Ok(TARGET.to_vec()),
-            shared_brotli_decode(&SHARED_DICT_PATCH, Some(BASE.as_bytes()), TARGET.len(),)
+            BuiltInBrotliDecoder.decode(&SHARED_DICT_PATCH, Some(BASE.as_bytes()), TARGET.len(),)
         );
     }
 
@@ -86,13 +121,13 @@ mod tests {
 
         assert_eq!(
             Ok(TARGET.to_vec()),
-            shared_brotli_decode(&NO_DICT_PATCH, None, TARGET.len())
+            BuiltInBrotliDecoder.decode(&NO_DICT_PATCH, None, TARGET.len())
         );
 
         // Check that empty base is handled the same as no base.
         assert_eq!(
             Ok(TARGET.to_vec()),
-            shared_brotli_decode(&NO_DICT_PATCH, Some(base), TARGET.len())
+            BuiltInBrotliDecoder.decode(&NO_DICT_PATCH, Some(base), TARGET.len())
         );
     }
 
@@ -100,7 +135,11 @@ mod tests {
     fn brotli_decode_too_little_output() {
         assert_eq!(
             Err(DecodeError::MaxSizeExceeded),
-            shared_brotli_decode(&SHARED_DICT_PATCH, Some(BASE.as_bytes()), TARGET.len() - 1)
+            BuiltInBrotliDecoder.decode(
+                &SHARED_DICT_PATCH,
+                Some(BASE.as_bytes()),
+                TARGET.len() - 1
+            )
         );
     }
 
@@ -108,7 +147,11 @@ mod tests {
     fn brotli_decode_excess_output() {
         assert_eq!(
             Ok(TARGET.to_vec()),
-            shared_brotli_decode(&SHARED_DICT_PATCH, Some(BASE.as_bytes()), TARGET.len() + 1,)
+            BuiltInBrotliDecoder.decode(
+                &SHARED_DICT_PATCH,
+                Some(BASE.as_bytes()),
+                TARGET.len() + 1,
+            )
         );
     }
 
@@ -124,7 +167,7 @@ mod tests {
 
         assert_eq!(
             Err(DecodeError::ExcessInputData),
-            shared_brotli_decode(&patch, None, TARGET.len())
+            BuiltInBrotliDecoder.decode(&patch, None, TARGET.len())
         );
     }
 
@@ -134,7 +177,7 @@ mod tests {
         let patch: Vec<u8> = NO_DICT_PATCH[..NO_DICT_PATCH.len() - 1].to_vec();
         assert_eq!(
             Err(DecodeError::InvalidStream),
-            shared_brotli_decode(&patch, None, TARGET.len())
+            BuiltInBrotliDecoder.decode(&patch, None, TARGET.len())
         );
     }
 
@@ -143,7 +186,7 @@ mod tests {
         let patch = [0xFF, 0xFF, 0xFFu8];
         assert_eq!(
             Err(DecodeError::InvalidStream),
-            shared_brotli_decode(&patch, None, 10)
+            BuiltInBrotliDecoder.decode(&patch, None, 10)
         );
     }
 }

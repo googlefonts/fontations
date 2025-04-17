@@ -16,6 +16,7 @@ use incremental_font_transfer::{
     uri_templates::UriTemplateError,
 };
 use read_fonts::{ReadError, TableProvider};
+use shared_brotli_patch_decoder::BuiltInBrotliDecoder;
 use skrifa::{FontRef, MetadataProvider};
 
 #[derive(Parser, Debug)]
@@ -200,7 +201,7 @@ fn to_next_font(
     let patch_info: PatchInfo = patch_uri.try_into()?;
 
     Ok(font
-        .apply_table_keyed_patch(&patch_info, &patch_bytes)
+        .apply_table_keyed_patch(&patch_info, &patch_bytes, &BuiltInBrotliDecoder)
         .expect("Patch application failed."))
 }
 
