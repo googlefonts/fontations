@@ -266,7 +266,7 @@ where
                     i += 2;
                 }
                 self.stem_count += len / 2;
-                let count = self.stem_count.div_ceil(8);
+                let count = (self.stem_count + 7) / 8;
                 let mask = cursor.read_array::<u8>(count)?;
                 if operator == HintMask {
                     self.sink.hint_mask(mask);
