@@ -3,19 +3,12 @@
 //! This means taking a set of glyphs and updating it to include any other glyphs
 //! reachable from those glyphs via substitution, recursively.
 
-use font_types::GlyphId16;
-use types::BigEndian;
+use font_types::{GlyphId, GlyphId16};
 
 use crate::{
     collections::IntSet,
-    tables::layout::{
-        ChainedClassSequenceRule, ChainedClassSequenceRuleSet, ChainedSequenceContextFormat1,
-        ChainedSequenceContextFormat2, ChainedSequenceContextFormat3, ChainedSequenceRule,
-        ChainedSequenceRuleSet, ClassSequenceRule, ClassSequenceRuleSet, ExtensionLookup,
-        SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3,
-        SequenceLookupRecord, SequenceRule, SequenceRuleSet, Subtables,
-    },
-    ArrayOfOffsets, FontRead, ReadError, Tag,
+    tables::layout::{ExtensionLookup, Subtables},
+    FontRead, ReadError, Tag,
 };
 
 use super::{
@@ -23,6 +16,9 @@ use super::{
     LigatureSubstFormat1, MultipleSubstFormat1, ReverseChainSingleSubstFormat1, SequenceContext,
     SingleSubst, SingleSubstFormat1, SingleSubstFormat2, SubstitutionLookup, SubstitutionSubtables,
 };
+
+#[cfg(feature = "std")]
+use crate::tables::layout::{ContextFormat1, ContextFormat2, ContextFormat3};
 
 // we put ClosureCtx in its own module to enforce visibility rules;
 // specifically we don't want cur_glyphs to be reachable directly
@@ -422,117 +418,6 @@ impl GlyphClosure for ChainedSequenceContext<'_> {
     }
 }
 
-// these are basically the same; but we need to jump through some hoops
-// to get the fields to line up
-enum ContextFormat1<'a> {
-    Plain(SequenceContextFormat1<'a>),
-    Chain(ChainedSequenceContextFormat1<'a>),
-}
-
-enum Format1RuleSet<'a> {
-    Plain(SequenceRuleSet<'a>),
-    Chain(ChainedSequenceRuleSet<'a>),
-}
-
-enum Format1Rule<'a> {
-    Plain(SequenceRule<'a>),
-    Chain(ChainedSequenceRule<'a>),
-}
-
-impl ContextFormat1<'_> {
-    fn coverage(&self) -> Result<CoverageTable, ReadError> {
-        match self {
-            ContextFormat1::Plain(table) => table.coverage(),
-            ContextFormat1::Chain(table) => table.coverage(),
-        }
-    }
-
-    fn rule_sets(&self) -> impl Iterator<Item = Option<Result<Format1RuleSet, ReadError>>> {
-        let (left, right) = match self {
-            ContextFormat1::Plain(table) => (
-                Some(
-                    table
-                        .seq_rule_sets()
-                        .iter()
-                        .map(|rs| rs.map(|rs| rs.map(Format1RuleSet::Plain))),
-                ),
-                None,
-            ),
-            ContextFormat1::Chain(table) => (
-                None,
-                Some(
-                    table
-                        .chained_seq_rule_sets()
-                        .iter()
-                        .map(|rs| rs.map(|rs| rs.map(Format1RuleSet::Chain))),
-                ),
-            ),
-        };
-        left.into_iter()
-            .flatten()
-            .chain(right.into_iter().flatten())
-    }
-}
-
-impl Format1RuleSet<'_> {
-    fn rules(&self) -> impl Iterator<Item = Result<Format1Rule, ReadError>> {
-        let (left, right) = match self {
-            Self::Plain(table) => (
-                Some(
-                    table
-                        .seq_rules()
-                        .iter()
-                        .map(|rule| rule.map(Format1Rule::Plain)),
-                ),
-                None,
-            ),
-            Self::Chain(table) => (
-                None,
-                Some(
-                    table
-                        .chained_seq_rules()
-                        .iter()
-                        .map(|rule| rule.map(Format1Rule::Chain)),
-                ),
-            ),
-        };
-        left.into_iter()
-            .flatten()
-            .chain(right.into_iter().flatten())
-    }
-}
-
-impl Format1Rule<'_> {
-    fn input_sequence(&self) -> &[BigEndian<GlyphId16>] {
-        match self {
-            Self::Plain(table) => table.input_sequence(),
-            Self::Chain(table) => table.input_sequence(),
-        }
-    }
-
-    fn matches_glyphs(&self, glyphs: &IntSet<GlyphId16>) -> bool {
-        let (backtrack, lookahead) = match self {
-            Format1Rule::Plain(_) => (None, None),
-            Format1Rule::Chain(table) => (
-                Some(table.backtrack_sequence()),
-                Some(table.lookahead_sequence()),
-            ),
-        };
-        self.input_sequence()
-            .iter()
-            .chain(backtrack.into_iter().flatten())
-            .chain(lookahead.into_iter().flatten())
-            .all(|gid| glyphs.contains(gid.get()))
-    }
-
-    fn lookup_records(&self) -> &[SequenceLookupRecord] {
-        match self {
-            Self::Plain(table) => table.seq_lookup_records(),
-            Self::Chain(table) => table.seq_lookup_records(),
-        }
-    }
-}
-
 //https://github.com/fonttools/fonttools/blob/a6f59a4f8/Lib/fontTools/subset/__init__.py#L1182
 impl GlyphClosure for ContextFormat1<'_> {
     fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx<'_>) -> Result<(), ReadError> {
@@ -584,122 +469,6 @@ impl GlyphClosure for ContextFormat1<'_> {
     }
 }
 
-enum ContextFormat2<'a> {
-    Plain(SequenceContextFormat2<'a>),
-    Chain(ChainedSequenceContextFormat2<'a>),
-}
-
-enum Format2RuleSet<'a> {
-    Plain(ClassSequenceRuleSet<'a>),
-    Chain(ChainedClassSequenceRuleSet<'a>),
-}
-
-enum Format2Rule<'a> {
-    Plain(ClassSequenceRule<'a>),
-    Chain(ChainedClassSequenceRule<'a>),
-}
-
-impl Format2Rule<'_> {
-    fn input_sequence(&self) -> &[BigEndian<u16>] {
-        match self {
-            Self::Plain(table) => table.input_sequence(),
-            Self::Chain(table) => table.input_sequence(),
-        }
-    }
-
-    fn lookup_records(&self) -> &[SequenceLookupRecord] {
-        match self {
-            Self::Plain(table) => table.seq_lookup_records(),
-            Self::Chain(table) => table.seq_lookup_records(),
-        }
-    }
-
-    fn matches_classes(&self, classes: &IntSet<u16>) -> bool {
-        let (backtrack, lookahead) = match self {
-            Self::Plain(_) => (None, None),
-            Self::Chain(table) => (
-                Some(table.backtrack_sequence()),
-                Some(table.lookahead_sequence()),
-            ),
-        };
-        self.input_sequence()
-            .iter()
-            .chain(backtrack.into_iter().flatten())
-            .chain(lookahead.into_iter().flatten())
-            .all(|gid| classes.contains(gid.get()))
-    }
-}
-
-impl ContextFormat2<'_> {
-    fn coverage(&self) -> Result<CoverageTable<'_>, ReadError> {
-        match self {
-            ContextFormat2::Plain(table) => table.coverage(),
-            ContextFormat2::Chain(table) => table.coverage(),
-        }
-    }
-
-    fn input_class_def(&self) -> Result<ClassDef<'_>, ReadError> {
-        match self {
-            ContextFormat2::Plain(table_ref) => table_ref.class_def(),
-            ContextFormat2::Chain(table_ref) => table_ref.input_class_def(),
-        }
-    }
-
-    fn rule_sets(&self) -> impl Iterator<Item = Option<Result<Format2RuleSet, ReadError>>> {
-        let (left, right) = match self {
-            ContextFormat2::Plain(table) => (
-                Some(
-                    table
-                        .class_seq_rule_sets()
-                        .iter()
-                        .map(|rs| rs.map(|rs| rs.map(Format2RuleSet::Plain))),
-                ),
-                None,
-            ),
-            ContextFormat2::Chain(table) => (
-                None,
-                Some(
-                    table
-                        .chained_class_seq_rule_sets()
-                        .iter()
-                        .map(|rs| rs.map(|rs| rs.map(Format2RuleSet::Chain))),
-                ),
-            ),
-        };
-        left.into_iter()
-            .flatten()
-            .chain(right.into_iter().flatten())
-    }
-}
-
-impl Format2RuleSet<'_> {
-    fn rules(&self) -> impl Iterator<Item = Result<Format2Rule, ReadError>> {
-        let (left, right) = match self {
-            Format2RuleSet::Plain(table) => (
-                Some(
-                    table
-                        .class_seq_rules()
-                        .iter()
-                        .map(|rule| rule.map(Format2Rule::Plain)),
-                ),
-                None,
-            ),
-            Format2RuleSet::Chain(table) => (
-                None,
-                Some(
-                    table
-                        .chained_class_seq_rules()
-                        .iter()
-                        .map(|rule| rule.map(Format2Rule::Chain)),
-                ),
-            ),
-        };
-        left.into_iter()
-            .flatten()
-            .chain(right.into_iter().flatten())
-    }
-}
-
 //https://github.com/fonttools/fonttools/blob/a6f59a4f87a0111/Lib/fontTools/subset/__init__.py#L1215
 impl GlyphClosure for ContextFormat2<'_> {
     fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx) -> Result<(), ReadError> {
@@ -746,55 +515,15 @@ impl GlyphClosure for ContextFormat2<'_> {
     }
 }
 
-// these are basically the same; but we need to jump through some hoops
-// to get the fields to line up
-enum ContextFormat3<'a> {
-    Plain(SequenceContextFormat3<'a>),
-    Chain(ChainedSequenceContextFormat3<'a>),
-}
-
-impl ContextFormat3<'_> {
-    fn coverages(&self) -> ArrayOfOffsets<CoverageTable> {
-        match self {
-            ContextFormat3::Plain(table) => table.coverages(),
-            ContextFormat3::Chain(table) => table.input_coverages(),
-        }
-    }
-
-    fn lookup_records(&self) -> &[SequenceLookupRecord] {
-        match self {
-            ContextFormat3::Plain(table) => table.seq_lookup_records(),
-            ContextFormat3::Chain(table) => table.seq_lookup_records(),
-        }
-    }
-
-    fn matches_glyphs(&self, glyphs: &IntSet<GlyphId16>) -> bool {
-        let (backtrack, lookahead) = match self {
-            Self::Plain(_) => (None, None),
-            Self::Chain(table) => (
-                Some(table.backtrack_coverages()),
-                Some(table.lookahead_coverages()),
-            ),
-        };
-        self.coverages()
-            .iter()
-            .chain(backtrack.into_iter().flat_map(|x| x.iter()))
-            .chain(lookahead.into_iter().flat_map(|x| x.iter()))
-            .all(|cov| {
-                cov.map(|cov| cov.iter().any(|gid| glyphs.contains(gid)))
-                    // if there is an error reading a coverage table, return false
-                    .unwrap_or(false)
-            })
-    }
-}
-
 impl GlyphClosure for ContextFormat3<'_> {
     fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx) -> Result<(), ReadError> {
         let cov0 = self.coverages().get(0)?;
         let Some(cur_glyphs) = intersect_coverage(&cov0, ctx.current_glyphs()) else {
             return Ok(());
         };
-        if !self.matches_glyphs(ctx.glyphs()) {
+
+        let glyphs = ctx.glyphs().iter().map(GlyphId::from).collect();
+        if !self.matches_glyphs(&glyphs)? {
             return Ok(());
         }
         for record in self.lookup_records() {
