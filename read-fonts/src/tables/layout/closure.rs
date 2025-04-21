@@ -1,6 +1,15 @@
 //! Support Layout Closure
 
-use super::{FeatureList, LangSys, ReadError, Script, ScriptList, Tag};
+use types::{BigEndian, GlyphId16};
+
+use super::{
+    ArrayOfOffsets, ChainedClassSequenceRule, ChainedClassSequenceRuleSet,
+    ChainedSequenceContextFormat1, ChainedSequenceContextFormat2, ChainedSequenceContextFormat3,
+    ChainedSequenceRule, ChainedSequenceRuleSet, ClassDef, ClassSequenceRule, ClassSequenceRuleSet,
+    CoverageTable, FeatureList, GlyphId, LangSys, ReadError, Script, ScriptList,
+    SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord,
+    SequenceRule, SequenceRuleSet, Tag,
+};
 use crate::collections::IntSet;
 
 const MAX_SCRIPTS: u16 = 500;
@@ -182,5 +191,279 @@ impl LangSys<'_> {
             c.feature_indices.insert(idx);
             c.feature_indices_filter.remove(idx);
         }
+    }
+}
+
+// these are basically the same; but we need to jump through some hoops
+// to get the fields to line up
+pub(crate) enum ContextFormat1<'a> {
+    Plain(SequenceContextFormat1<'a>),
+    Chain(ChainedSequenceContextFormat1<'a>),
+}
+
+pub(crate) enum Format1RuleSet<'a> {
+    Plain(SequenceRuleSet<'a>),
+    Chain(ChainedSequenceRuleSet<'a>),
+}
+
+pub(crate) enum Format1Rule<'a> {
+    Plain(SequenceRule<'a>),
+    Chain(ChainedSequenceRule<'a>),
+}
+
+impl ContextFormat1<'_> {
+    pub(crate) fn coverage(&self) -> Result<CoverageTable, ReadError> {
+        match self {
+            ContextFormat1::Plain(table) => table.coverage(),
+            ContextFormat1::Chain(table) => table.coverage(),
+        }
+    }
+
+    pub(crate) fn rule_sets(
+        &self,
+    ) -> impl Iterator<Item = Option<Result<Format1RuleSet, ReadError>>> {
+        let (left, right) = match self {
+            ContextFormat1::Plain(table) => (
+                Some(
+                    table
+                        .seq_rule_sets()
+                        .iter()
+                        .map(|rs| rs.map(|rs| rs.map(Format1RuleSet::Plain))),
+                ),
+                None,
+            ),
+            ContextFormat1::Chain(table) => (
+                None,
+                Some(
+                    table
+                        .chained_seq_rule_sets()
+                        .iter()
+                        .map(|rs| rs.map(|rs| rs.map(Format1RuleSet::Chain))),
+                ),
+            ),
+        };
+        left.into_iter()
+            .flatten()
+            .chain(right.into_iter().flatten())
+    }
+}
+
+impl Format1RuleSet<'_> {
+    pub(crate) fn rules(&self) -> impl Iterator<Item = Result<Format1Rule, ReadError>> {
+        let (left, right) = match self {
+            Self::Plain(table) => (
+                Some(
+                    table
+                        .seq_rules()
+                        .iter()
+                        .map(|rule| rule.map(Format1Rule::Plain)),
+                ),
+                None,
+            ),
+            Self::Chain(table) => (
+                None,
+                Some(
+                    table
+                        .chained_seq_rules()
+                        .iter()
+                        .map(|rule| rule.map(Format1Rule::Chain)),
+                ),
+            ),
+        };
+        left.into_iter()
+            .flatten()
+            .chain(right.into_iter().flatten())
+    }
+}
+
+impl Format1Rule<'_> {
+    pub(crate) fn input_sequence(&self) -> &[BigEndian<GlyphId16>] {
+        match self {
+            Self::Plain(table) => table.input_sequence(),
+            Self::Chain(table) => table.input_sequence(),
+        }
+    }
+
+    pub(crate) fn matches_glyphs(&self, glyphs: &IntSet<GlyphId16>) -> bool {
+        let (backtrack, lookahead) = match self {
+            Format1Rule::Plain(_) => (None, None),
+            Format1Rule::Chain(table) => (
+                Some(table.backtrack_sequence()),
+                Some(table.lookahead_sequence()),
+            ),
+        };
+        self.input_sequence()
+            .iter()
+            .chain(backtrack.into_iter().flatten())
+            .chain(lookahead.into_iter().flatten())
+            .all(|gid| glyphs.contains(gid.get()))
+    }
+
+    pub(crate) fn lookup_records(&self) -> &[SequenceLookupRecord] {
+        match self {
+            Self::Plain(table) => table.seq_lookup_records(),
+            Self::Chain(table) => table.seq_lookup_records(),
+        }
+    }
+}
+
+pub(crate) enum ContextFormat2<'a> {
+    Plain(SequenceContextFormat2<'a>),
+    Chain(ChainedSequenceContextFormat2<'a>),
+}
+
+pub(crate) enum Format2RuleSet<'a> {
+    Plain(ClassSequenceRuleSet<'a>),
+    Chain(ChainedClassSequenceRuleSet<'a>),
+}
+
+pub(crate) enum Format2Rule<'a> {
+    Plain(ClassSequenceRule<'a>),
+    Chain(ChainedClassSequenceRule<'a>),
+}
+
+impl ContextFormat2<'_> {
+    pub(crate) fn coverage(&self) -> Result<CoverageTable<'_>, ReadError> {
+        match self {
+            ContextFormat2::Plain(table) => table.coverage(),
+            ContextFormat2::Chain(table) => table.coverage(),
+        }
+    }
+
+    pub(crate) fn input_class_def(&self) -> Result<ClassDef<'_>, ReadError> {
+        match self {
+            ContextFormat2::Plain(table_ref) => table_ref.class_def(),
+            ContextFormat2::Chain(table_ref) => table_ref.input_class_def(),
+        }
+    }
+
+    pub(crate) fn rule_sets(
+        &self,
+    ) -> impl Iterator<Item = Option<Result<Format2RuleSet, ReadError>>> {
+        let (left, right) = match self {
+            ContextFormat2::Plain(table) => (
+                Some(
+                    table
+                        .class_seq_rule_sets()
+                        .iter()
+                        .map(|rs| rs.map(|rs| rs.map(Format2RuleSet::Plain))),
+                ),
+                None,
+            ),
+            ContextFormat2::Chain(table) => (
+                None,
+                Some(
+                    table
+                        .chained_class_seq_rule_sets()
+                        .iter()
+                        .map(|rs| rs.map(|rs| rs.map(Format2RuleSet::Chain))),
+                ),
+            ),
+        };
+        left.into_iter()
+            .flatten()
+            .chain(right.into_iter().flatten())
+    }
+}
+
+impl Format2RuleSet<'_> {
+    pub(crate) fn rules(&self) -> impl Iterator<Item = Result<Format2Rule, ReadError>> {
+        let (left, right) = match self {
+            Format2RuleSet::Plain(table) => (
+                Some(
+                    table
+                        .class_seq_rules()
+                        .iter()
+                        .map(|rule| rule.map(Format2Rule::Plain)),
+                ),
+                None,
+            ),
+            Format2RuleSet::Chain(table) => (
+                None,
+                Some(
+                    table
+                        .chained_class_seq_rules()
+                        .iter()
+                        .map(|rule| rule.map(Format2Rule::Chain)),
+                ),
+            ),
+        };
+        left.into_iter()
+            .flatten()
+            .chain(right.into_iter().flatten())
+    }
+}
+
+impl Format2Rule<'_> {
+    pub(crate) fn input_sequence(&self) -> &[BigEndian<u16>] {
+        match self {
+            Self::Plain(table) => table.input_sequence(),
+            Self::Chain(table) => table.input_sequence(),
+        }
+    }
+
+    pub(crate) fn lookup_records(&self) -> &[SequenceLookupRecord] {
+        match self {
+            Self::Plain(table) => table.seq_lookup_records(),
+            Self::Chain(table) => table.seq_lookup_records(),
+        }
+    }
+
+    pub(crate) fn matches_classes(&self, classes: &IntSet<u16>) -> bool {
+        let (backtrack, lookahead) = match self {
+            Self::Plain(_) => (None, None),
+            Self::Chain(table) => (
+                Some(table.backtrack_sequence()),
+                Some(table.lookahead_sequence()),
+            ),
+        };
+        self.input_sequence()
+            .iter()
+            .chain(backtrack.into_iter().flatten())
+            .chain(lookahead.into_iter().flatten())
+            .all(|gid| classes.contains(gid.get()))
+    }
+}
+
+pub(crate) enum ContextFormat3<'a> {
+    Plain(SequenceContextFormat3<'a>),
+    Chain(ChainedSequenceContextFormat3<'a>),
+}
+
+impl ContextFormat3<'_> {
+    pub(crate) fn coverages(&self) -> ArrayOfOffsets<CoverageTable> {
+        match self {
+            ContextFormat3::Plain(table) => table.coverages(),
+            ContextFormat3::Chain(table) => table.input_coverages(),
+        }
+    }
+
+    pub(crate) fn lookup_records(&self) -> &[SequenceLookupRecord] {
+        match self {
+            ContextFormat3::Plain(table) => table.seq_lookup_records(),
+            ContextFormat3::Chain(table) => table.seq_lookup_records(),
+        }
+    }
+
+    pub(crate) fn matches_glyphs(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        let (backtrack, lookahead) = match self {
+            Self::Plain(_) => (None, None),
+            Self::Chain(table) => (
+                Some(table.backtrack_coverages()),
+                Some(table.lookahead_coverages()),
+            ),
+        };
+
+        for coverage in self
+            .coverages()
+            .iter()
+            .chain(backtrack.into_iter().flat_map(|x| x.iter()))
+            .chain(lookahead.into_iter().flat_map(|x| x.iter()))
+        {
+            if !coverage?.intersects(glyphs) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 }
