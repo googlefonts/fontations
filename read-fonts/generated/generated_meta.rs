@@ -126,6 +126,12 @@ impl<'a> std::fmt::Debug for Meta<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Meta<'a>> for &Meta<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 ///  <https://learn.microsoft.com/en-us/typography/opentype/spec/meta#table-formats>
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -154,7 +160,11 @@ impl DataMapRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn data<'a>(&self, data: FontData<'a>) -> Result<Metadata<'a>, ReadError> {
+    pub fn data<'a>(
+        &self,
+        data: impl OffsetSource<'a, Meta<'a>>,
+    ) -> Result<Metadata<'a>, ReadError> {
+        let data = data.offset_source();
         let args = (self.tag(), self.data_length());
         self.data_offset().resolve_with_args(data, &args)
     }

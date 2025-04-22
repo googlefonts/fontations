@@ -122,6 +122,12 @@ impl<'a> std::fmt::Debug for Ltag<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Ltag<'a>> for &Ltag<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Offset and length of string in `ltag` table.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]

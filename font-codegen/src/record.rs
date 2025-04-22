@@ -377,7 +377,7 @@ fn generate_from_obj_impl(item: &Record, parse_module: &syn::Path) -> syn::Resul
 
 impl Record {
     pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
-        self.fields.sanity_check(phase)?;
+        self.fields.sanity_check(phase, true)?;
         let field_needs_lifetime = self
             .fields
             .iter()

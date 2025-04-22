@@ -120,6 +120,12 @@ impl<'a> std::fmt::Debug for MajorMinorVersion<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, MajorMinorVersion<'a>> for &MajorMinorVersion<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
@@ -558,6 +564,12 @@ impl<'a> std::fmt::Debug for FlagDay<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, FlagDay<'a>> for &FlagDay<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct FieldsAfterConditionalsMarker {
@@ -720,5 +732,11 @@ impl<'a> SomeTable<'a> for FieldsAfterConditionals<'a> {
 impl<'a> std::fmt::Debug for FieldsAfterConditionals<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, FieldsAfterConditionals<'a>> for &FieldsAfterConditionals<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }

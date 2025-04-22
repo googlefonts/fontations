@@ -89,6 +89,12 @@ impl<'a> std::fmt::Debug for Table1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Table1<'a>> for &Table1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for Table2Marker {
     const FORMAT: u16 = 2;
 }
@@ -178,6 +184,12 @@ impl<'a> std::fmt::Debug for Table2<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Table2<'a>> for &Table2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for Table3Marker {
     const FORMAT: u16 = 3;
 }
@@ -247,6 +259,12 @@ impl<'a> SomeTable<'a> for Table3<'a> {
 impl<'a> std::fmt::Debug for Table3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, Table3<'a>> for &Table3<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 

@@ -130,6 +130,12 @@ impl<'a> std::fmt::Debug for Vorg<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Vorg<'a>> for &Vorg<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Vertical origin Y metrics record.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]

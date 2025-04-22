@@ -109,6 +109,12 @@ impl<'a> std::fmt::Debug for Gasp<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Gasp<'a>> for &Gasp<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]

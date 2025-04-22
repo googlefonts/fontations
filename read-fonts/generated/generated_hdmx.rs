@@ -148,3 +148,9 @@ impl<'a> std::fmt::Debug for Hdmx<'a> {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
+
+impl<'a> OffsetSource<'a, Hdmx<'a>> for &Hdmx<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}

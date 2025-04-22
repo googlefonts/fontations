@@ -828,6 +828,12 @@ impl<'a> std::fmt::Debug for IndexSubtableList<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, IndexSubtableList<'a>> for &IndexSubtableList<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -860,7 +866,11 @@ impl IndexSubtableRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn index_subtable<'a>(&self, data: FontData<'a>) -> Result<IndexSubtable<'a>, ReadError> {
+    pub fn index_subtable<'a>(
+        &self,
+        data: impl OffsetSource<'a, IndexSubtableList<'a>>,
+    ) -> Result<IndexSubtable<'a>, ReadError> {
+        let data = data.offset_source();
         let args = (self.last_glyph_index(), self.first_glyph_index());
         self.index_subtable_offset().resolve_with_args(data, &args)
     }
@@ -1022,6 +1032,12 @@ impl<'a> std::fmt::Debug for IndexSubtable1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, IndexSubtable1<'a>> for &IndexSubtable1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for IndexSubtable2Marker {
     const FORMAT: u16 = 2;
 }
@@ -1146,6 +1162,12 @@ impl<'a> SomeTable<'a> for IndexSubtable2<'a> {
 impl<'a> std::fmt::Debug for IndexSubtable2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, IndexSubtable2<'a>> for &IndexSubtable2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1281,6 +1303,12 @@ impl<'a> std::fmt::Debug for IndexSubtable3<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, IndexSubtable3<'a>> for &IndexSubtable3<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for IndexSubtable4Marker {
     const FORMAT: u16 = 4;
 }
@@ -1407,6 +1435,12 @@ impl<'a> SomeTable<'a> for IndexSubtable4<'a> {
 impl<'a> std::fmt::Debug for IndexSubtable4<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, IndexSubtable4<'a>> for &IndexSubtable4<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1607,6 +1641,12 @@ impl<'a> SomeTable<'a> for IndexSubtable5<'a> {
 impl<'a> std::fmt::Debug for IndexSubtable5<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, IndexSubtable5<'a>> for &IndexSubtable5<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 

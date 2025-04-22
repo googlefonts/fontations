@@ -185,6 +185,12 @@ impl<'a> std::fmt::Debug for Lookup0<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Lookup0<'a>> for &Lookup0<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for Lookup2Marker {
     const FORMAT: u16 = 2;
 }
@@ -334,6 +340,12 @@ impl<'a> SomeTable<'a> for Lookup2<'a> {
 impl<'a> std::fmt::Debug for Lookup2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, Lookup2<'a>> for &Lookup2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -491,6 +503,12 @@ impl<'a> SomeTable<'a> for Lookup4<'a> {
 impl<'a> std::fmt::Debug for Lookup4<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, Lookup4<'a>> for &Lookup4<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -694,6 +712,12 @@ impl<'a> std::fmt::Debug for Lookup6<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Lookup6<'a>> for &Lookup6<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for Lookup8Marker {
     const FORMAT: u16 = 8;
 }
@@ -802,6 +826,12 @@ impl<'a> SomeTable<'a> for Lookup8<'a> {
 impl<'a> std::fmt::Debug for Lookup8<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, Lookup8<'a>> for &Lookup8<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -927,6 +957,12 @@ impl<'a> SomeTable<'a> for Lookup10<'a> {
 impl<'a> std::fmt::Debug for Lookup10<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, Lookup10<'a>> for &Lookup10<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1056,6 +1092,12 @@ impl<'a> std::fmt::Debug for StateHeader<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, StateHeader<'a>> for &StateHeader<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Maps the glyph indexes of your font into classes.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1149,6 +1191,12 @@ impl<'a> std::fmt::Debug for ClassSubtable<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, ClassSubtable<'a>> for &ClassSubtable<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Used for the `state_array` and `entry_table` fields in [`StateHeader`].
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1207,6 +1255,12 @@ impl<'a> SomeTable<'a> for RawBytes<'a> {
 impl<'a> std::fmt::Debug for RawBytes<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, RawBytes<'a>> for &RawBytes<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1335,6 +1389,12 @@ impl<'a> std::fmt::Debug for StxHeader<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, StxHeader<'a>> for &StxHeader<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Used for the `state_array` in [`StxHeader`].
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1393,5 +1453,11 @@ impl<'a> SomeTable<'a> for RawWords<'a> {
 impl<'a> std::fmt::Debug for RawWords<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, RawWords<'a>> for &RawWords<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }

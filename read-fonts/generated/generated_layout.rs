@@ -91,6 +91,12 @@ impl<'a> std::fmt::Debug for ScriptList<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, ScriptList<'a>> for &ScriptList<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [Script Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -117,7 +123,11 @@ impl ScriptRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn script<'a>(&self, data: FontData<'a>) -> Result<Script<'a>, ReadError> {
+    pub fn script<'a>(
+        &self,
+        data: impl OffsetSource<'a, ScriptList<'a>>,
+    ) -> Result<Script<'a>, ReadError> {
+        let data = data.offset_source();
         self.script_offset().resolve(data)
     }
 }
@@ -254,6 +264,12 @@ impl<'a> std::fmt::Debug for Script<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Script<'a>> for &Script<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -279,7 +295,11 @@ impl LangSysRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn lang_sys<'a>(&self, data: FontData<'a>) -> Result<LangSys<'a>, ReadError> {
+    pub fn lang_sys<'a>(
+        &self,
+        data: impl OffsetSource<'a, Script<'a>>,
+    ) -> Result<LangSys<'a>, ReadError> {
+        let data = data.offset_source();
         self.lang_sys_offset().resolve(data)
     }
 }
@@ -412,6 +432,12 @@ impl<'a> std::fmt::Debug for LangSys<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, LangSys<'a>> for &LangSys<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -499,6 +525,12 @@ impl<'a> std::fmt::Debug for FeatureList<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, FeatureList<'a>> for &FeatureList<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [FeatureList]
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -525,7 +557,11 @@ impl FeatureRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn feature<'a>(&self, data: FontData<'a>) -> Result<Feature<'a>, ReadError> {
+    pub fn feature<'a>(
+        &self,
+        data: impl OffsetSource<'a, FeatureList<'a>>,
+    ) -> Result<Feature<'a>, ReadError> {
+        let data = data.offset_source();
         let args = self.feature_tag();
         self.feature_offset().resolve_with_args(data, &args)
     }
@@ -681,6 +717,12 @@ impl<'a> std::fmt::Debug for Feature<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Feature<'a>> for &Feature<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
 #[derive(Debug)]
 #[doc(hidden)]
@@ -820,6 +862,12 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for LookupList<'a, 
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for LookupList<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a, T> OffsetSource<'a, LookupList<'a, T>> for &LookupList<'a, T> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1020,6 +1068,12 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for Lookup<'a, T>
     }
 }
 
+impl<'a, T> OffsetSource<'a, Lookup<'a, T>> for &Lookup<'a, T> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for CoverageFormat1Marker {
     const FORMAT: u16 = 1;
 }
@@ -1113,6 +1167,12 @@ impl<'a> SomeTable<'a> for CoverageFormat1<'a> {
 impl<'a> std::fmt::Debug for CoverageFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, CoverageFormat1<'a>> for &CoverageFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1216,6 +1276,12 @@ impl<'a> SomeTable<'a> for CoverageFormat2<'a> {
 impl<'a> std::fmt::Debug for CoverageFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, CoverageFormat2<'a>> for &CoverageFormat2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1454,6 +1520,12 @@ impl<'a> std::fmt::Debug for ClassDefFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, ClassDefFormat1<'a>> for &ClassDefFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for ClassDefFormat2Marker {
     const FORMAT: u16 = 2;
 }
@@ -1554,6 +1626,12 @@ impl<'a> SomeTable<'a> for ClassDefFormat2<'a> {
 impl<'a> std::fmt::Debug for ClassDefFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, ClassDefFormat2<'a>> for &ClassDefFormat2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1862,6 +1940,12 @@ impl<'a> std::fmt::Debug for SequenceContextFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, SequenceContextFormat1<'a>> for &SequenceContextFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [SequenceContextFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1959,6 +2043,12 @@ impl<'a> SomeTable<'a> for SequenceRuleSet<'a> {
 impl<'a> std::fmt::Debug for SequenceRuleSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, SequenceRuleSet<'a>> for &SequenceRuleSet<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -2076,6 +2166,12 @@ impl<'a> SomeTable<'a> for SequenceRule<'a> {
 impl<'a> std::fmt::Debug for SequenceRule<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, SequenceRule<'a>> for &SequenceRule<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -2247,6 +2343,12 @@ impl<'a> std::fmt::Debug for SequenceContextFormat2<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, SequenceContextFormat2<'a>> for &SequenceContextFormat2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [SequenceContextFormat2]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -2347,6 +2449,12 @@ impl<'a> SomeTable<'a> for ClassSequenceRuleSet<'a> {
 impl<'a> std::fmt::Debug for ClassSequenceRuleSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, ClassSequenceRuleSet<'a>> for &ClassSequenceRuleSet<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -2465,6 +2573,12 @@ impl<'a> SomeTable<'a> for ClassSequenceRule<'a> {
 impl<'a> std::fmt::Debug for ClassSequenceRule<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, ClassSequenceRule<'a>> for &ClassSequenceRule<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -2620,6 +2734,12 @@ impl<'a> SomeTable<'a> for SequenceContextFormat3<'a> {
 impl<'a> std::fmt::Debug for SequenceContextFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, SequenceContextFormat3<'a>> for &SequenceContextFormat3<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -2845,6 +2965,14 @@ impl<'a> std::fmt::Debug for ChainedSequenceContextFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, ChainedSequenceContextFormat1<'a>>
+    for &ChainedSequenceContextFormat1<'a>
+{
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [ChainedSequenceContextFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -2945,6 +3073,12 @@ impl<'a> SomeTable<'a> for ChainedSequenceRuleSet<'a> {
 impl<'a> std::fmt::Debug for ChainedSequenceRuleSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, ChainedSequenceRuleSet<'a>> for &ChainedSequenceRuleSet<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -3130,6 +3264,12 @@ impl<'a> SomeTable<'a> for ChainedSequenceRule<'a> {
 impl<'a> std::fmt::Debug for ChainedSequenceRule<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, ChainedSequenceRule<'a>> for &ChainedSequenceRule<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -3354,6 +3494,14 @@ impl<'a> std::fmt::Debug for ChainedSequenceContextFormat2<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, ChainedSequenceContextFormat2<'a>>
+    for &ChainedSequenceContextFormat2<'a>
+{
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [ChainedSequenceContextFormat2]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -3456,6 +3604,12 @@ impl<'a> SomeTable<'a> for ChainedClassSequenceRuleSet<'a> {
 impl<'a> std::fmt::Debug for ChainedClassSequenceRuleSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, ChainedClassSequenceRuleSet<'a>> for &ChainedClassSequenceRuleSet<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -3642,6 +3796,12 @@ impl<'a> SomeTable<'a> for ChainedClassSequenceRule<'a> {
 impl<'a> std::fmt::Debug for ChainedClassSequenceRule<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, ChainedClassSequenceRule<'a>> for &ChainedClassSequenceRule<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -3907,6 +4067,14 @@ impl<'a> std::fmt::Debug for ChainedSequenceContextFormat3<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, ChainedSequenceContextFormat3<'a>>
+    for &ChainedSequenceContextFormat3<'a>
+{
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Clone)]
 pub enum ChainedSequenceContext<'a> {
     Format1(ChainedSequenceContextFormat1<'a>),
@@ -4143,6 +4311,12 @@ impl<'a> std::fmt::Debug for Device<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Device<'a>> for &Device<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Variation index table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -4233,6 +4407,12 @@ impl<'a> SomeTable<'a> for VariationIndex<'a> {
 impl<'a> std::fmt::Debug for VariationIndex<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, VariationIndex<'a>> for &VariationIndex<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -4407,6 +4587,12 @@ impl<'a> std::fmt::Debug for FeatureVariations<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, FeatureVariations<'a>> for &FeatureVariations<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [FeatureVariations]
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -4434,8 +4620,9 @@ impl FeatureVariationRecord {
     /// By calling its `offset_data` method.
     pub fn condition_set<'a>(
         &self,
-        data: FontData<'a>,
+        data: impl OffsetSource<'a, FeatureVariations<'a>>,
     ) -> Option<Result<ConditionSet<'a>, ReadError>> {
+        let data = data.offset_source();
         self.condition_set_offset().resolve(data)
     }
 
@@ -4452,8 +4639,9 @@ impl FeatureVariationRecord {
     /// By calling its `offset_data` method.
     pub fn feature_table_substitution<'a>(
         &self,
-        data: FontData<'a>,
+        data: impl OffsetSource<'a, FeatureVariations<'a>>,
     ) -> Option<Result<FeatureTableSubstitution<'a>, ReadError>> {
+        let data = data.offset_source();
         self.feature_table_substitution_offset().resolve(data)
     }
 }
@@ -4583,6 +4771,12 @@ impl<'a> SomeTable<'a> for ConditionSet<'a> {
 impl<'a> std::fmt::Debug for ConditionSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, ConditionSet<'a>> for &ConditionSet<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -4790,6 +4984,12 @@ impl<'a> std::fmt::Debug for ConditionFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, ConditionFormat1<'a>> for &ConditionFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for ConditionFormat2Marker {
     const FORMAT: u16 = 2;
 }
@@ -4876,6 +5076,12 @@ impl<'a> SomeTable<'a> for ConditionFormat2<'a> {
 impl<'a> std::fmt::Debug for ConditionFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, ConditionFormat2<'a>> for &ConditionFormat2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -4995,6 +5201,12 @@ impl<'a> std::fmt::Debug for ConditionFormat3<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, ConditionFormat3<'a>> for &ConditionFormat3<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for ConditionFormat4Marker {
     const FORMAT: u16 = 4;
 }
@@ -5111,6 +5323,12 @@ impl<'a> std::fmt::Debug for ConditionFormat4<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, ConditionFormat4<'a>> for &ConditionFormat4<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for ConditionFormat5Marker {
     const FORMAT: u16 = 5;
 }
@@ -5193,6 +5411,12 @@ impl<'a> SomeTable<'a> for ConditionFormat5<'a> {
 impl<'a> std::fmt::Debug for ConditionFormat5<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, ConditionFormat5<'a>> for &ConditionFormat5<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -5292,6 +5516,12 @@ impl<'a> SomeTable<'a> for FeatureTableSubstitution<'a> {
 impl<'a> std::fmt::Debug for FeatureTableSubstitution<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, FeatureTableSubstitution<'a>> for &FeatureTableSubstitution<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -5474,6 +5704,12 @@ impl<'a> std::fmt::Debug for SizeParams<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, SizeParams<'a>> for &SizeParams<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct StylisticSetParamsMarker {}
@@ -5548,6 +5784,12 @@ impl<'a> SomeTable<'a> for StylisticSetParams<'a> {
 impl<'a> std::fmt::Debug for StylisticSetParams<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, StylisticSetParams<'a>> for &StylisticSetParams<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -5731,5 +5973,11 @@ impl<'a> SomeTable<'a> for CharacterVariantParams<'a> {
 impl<'a> std::fmt::Debug for CharacterVariantParams<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, CharacterVariantParams<'a>> for &CharacterVariantParams<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }

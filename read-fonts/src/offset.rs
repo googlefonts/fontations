@@ -16,6 +16,41 @@ pub trait Offset: Copy {
     }
 }
 
+/// A trait for tables that are used as the base for resolving offsets.
+///
+/// By convention, when an offset exists in a table, the offset is resolved
+/// relative to the start of that table. When offsets exist in records, however,
+/// they are _generally_ resolved relative to the start of the parent table.
+///
+/// In this case, we can't generate a typed getter for the offset, since we do
+/// not (from the record) have access to the parent table. Instead we generate
+/// a getter that requires the user to pass in the data explicitly.
+///
+/// This can be confusing, so in these cases we use this trait to encode the
+/// expected type of the offset data. Thus we can do,
+///
+/// ```no_run
+///  use read_fonts::{OffsetSource, tables::gpos::Gpos};
+///  # fn get_gpos() -> read_fonts::tables::gpos::Gpos<'static> { todo!() }
+///
+///  let gpos: Gpos = get_gpos();
+///  let script_list = gpos.script_list().unwrap();
+///  let first_record = script_list.script_records()[0];
+///  // the argument type is `impl OffsetSource<ScriptList>`, so we pass in a
+///  // reference to the `ScriptList` table.
+///  let script = first_record.script(&script_list).unwrap();
+/// ```
+pub trait OffsetSource<'a, T> {
+    fn offset_source(&self) -> FontData<'a>;
+}
+
+/// so that old code still works, implement this for `FontData` itself.
+impl<'a, T> OffsetSource<'a, T> for FontData<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        *self
+    }
+}
+
 macro_rules! impl_offset {
     ($name:ident, $width:literal) => {
         impl Offset for $name {

@@ -172,6 +172,12 @@ impl<'a> std::fmt::Debug for Gpos<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Gpos<'a>> for &Gpos<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// A [GPOS Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#gsubLookupTypeEnum) subtable.
 pub enum PositionLookup<'a> {
     Single(Lookup<'a, SinglePos<'a>>),
@@ -786,6 +792,12 @@ impl<'a> std::fmt::Debug for AnchorFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, AnchorFormat1<'a>> for &AnchorFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for AnchorFormat2Marker {
     const FORMAT: u16 = 2;
 }
@@ -885,6 +897,12 @@ impl<'a> SomeTable<'a> for AnchorFormat2<'a> {
 impl<'a> std::fmt::Debug for AnchorFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, AnchorFormat2<'a>> for &AnchorFormat2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1025,6 +1043,12 @@ impl<'a> std::fmt::Debug for AnchorFormat3<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, AnchorFormat3<'a>> for &AnchorFormat3<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1112,6 +1136,12 @@ impl<'a> std::fmt::Debug for MarkArray<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, MarkArray<'a>> for &MarkArray<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [MarkArray]
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1138,7 +1168,11 @@ impl MarkRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn mark_anchor<'a>(&self, data: FontData<'a>) -> Result<AnchorTable<'a>, ReadError> {
+    pub fn mark_anchor<'a>(
+        &self,
+        data: impl OffsetSource<'a, MarkArray<'a>>,
+    ) -> Result<AnchorTable<'a>, ReadError> {
+        let data = data.offset_source();
         self.mark_anchor_offset().resolve(data)
     }
 }
@@ -1375,6 +1409,12 @@ impl<'a> std::fmt::Debug for SinglePosFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, SinglePosFormat1<'a>> for &SinglePosFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for SinglePosFormat2Marker {
     const FORMAT: u16 = 2;
 }
@@ -1513,6 +1553,12 @@ impl<'a> SomeTable<'a> for SinglePosFormat2<'a> {
 impl<'a> std::fmt::Debug for SinglePosFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, SinglePosFormat2<'a>> for &SinglePosFormat2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1783,6 +1829,12 @@ impl<'a> std::fmt::Debug for PairPosFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, PairPosFormat1<'a>> for &PairPosFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [PairPosFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1907,6 +1959,12 @@ impl<'a> SomeTable<'a> for PairSet<'a> {
 impl<'a> std::fmt::Debug for PairSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PairSet<'a>> for &PairSet<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -2240,6 +2298,12 @@ impl<'a> std::fmt::Debug for PairPosFormat2<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, PairPosFormat2<'a>> for &PairPosFormat2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [PairPosFormat2]
 #[derive(Clone, Debug)]
 pub struct Class1Record<'a> {
@@ -2539,6 +2603,12 @@ impl<'a> std::fmt::Debug for CursivePosFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, CursivePosFormat1<'a>> for &CursivePosFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [CursivePosFormat1]
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -2566,8 +2636,9 @@ impl EntryExitRecord {
     /// By calling its `offset_data` method.
     pub fn entry_anchor<'a>(
         &self,
-        data: FontData<'a>,
+        data: impl OffsetSource<'a, CursivePosFormat1<'a>>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
+        let data = data.offset_source();
         self.entry_anchor_offset().resolve(data)
     }
 
@@ -2584,8 +2655,9 @@ impl EntryExitRecord {
     /// By calling its `offset_data` method.
     pub fn exit_anchor<'a>(
         &self,
-        data: FontData<'a>,
+        data: impl OffsetSource<'a, CursivePosFormat1<'a>>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
+        let data = data.offset_source();
         self.exit_anchor_offset().resolve(data)
     }
 }
@@ -2784,6 +2856,12 @@ impl<'a> std::fmt::Debug for MarkBasePosFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, MarkBasePosFormat1<'a>> for &MarkBasePosFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [MarkBasePosFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -2896,6 +2974,12 @@ impl<'a> std::fmt::Debug for BaseArray<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, BaseArray<'a>> for &BaseArray<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [BaseArray]
 #[derive(Clone, Debug)]
 pub struct BaseRecord<'a> {
@@ -2921,8 +3005,9 @@ impl<'a> BaseRecord<'a> {
     /// By calling its `offset_data` method.
     pub fn base_anchors(
         &self,
-        data: FontData<'a>,
+        data: impl OffsetSource<'a, BaseArray<'a>>,
     ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset16> {
+        let data = data.offset_source();
         let offsets = self.base_anchor_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -3159,6 +3244,12 @@ impl<'a> std::fmt::Debug for MarkLigPosFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, MarkLigPosFormat1<'a>> for &MarkLigPosFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [MarkLigPosFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -3284,6 +3375,12 @@ impl<'a> std::fmt::Debug for LigatureArray<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, LigatureArray<'a>> for &LigatureArray<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [MarkLigPosFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -3396,6 +3493,12 @@ impl<'a> std::fmt::Debug for LigatureAttach<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, LigatureAttach<'a>> for &LigatureAttach<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [MarkLigPosFormat1]
 #[derive(Clone, Debug)]
 pub struct ComponentRecord<'a> {
@@ -3421,8 +3524,9 @@ impl<'a> ComponentRecord<'a> {
     /// By calling its `offset_data` method.
     pub fn ligature_anchors(
         &self,
-        data: FontData<'a>,
+        data: impl OffsetSource<'a, LigatureAttach<'a>>,
     ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset16> {
+        let data = data.offset_source();
         let offsets = self.ligature_anchor_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -3659,6 +3763,12 @@ impl<'a> std::fmt::Debug for MarkMarkPosFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, MarkMarkPosFormat1<'a>> for &MarkMarkPosFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [MarkMarkPosFormat1]Class2Record
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -3771,6 +3881,12 @@ impl<'a> std::fmt::Debug for Mark2Array<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Mark2Array<'a>> for &Mark2Array<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [MarkMarkPosFormat1]
 #[derive(Clone, Debug)]
 pub struct Mark2Record<'a> {
@@ -3796,8 +3912,9 @@ impl<'a> Mark2Record<'a> {
     /// By calling its `offset_data` method.
     pub fn mark2_anchors(
         &self,
-        data: FontData<'a>,
+        data: impl OffsetSource<'a, Mark2Array<'a>>,
     ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset16> {
+        let data = data.offset_source();
         let offsets = self.mark2_anchor_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -4008,6 +4125,12 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionPosFor
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for ExtensionPosFormat1<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a, T> OffsetSource<'a, ExtensionPosFormat1<'a, T>> for &ExtensionPosFormat1<'a, T> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 

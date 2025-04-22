@@ -76,6 +76,12 @@ impl<'a> std::fmt::Debug for CountAll16<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, CountAll16<'a>> for &CountAll16<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct CountAll32Marker {
@@ -144,5 +150,11 @@ impl<'a> SomeTable<'a> for CountAll32<'a> {
 impl<'a> std::fmt::Debug for CountAll32<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, CountAll32<'a>> for &CountAll32<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }

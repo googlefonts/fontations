@@ -396,3 +396,9 @@ impl<'a> std::fmt::Debug for Maxp<'a> {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
+
+impl<'a> OffsetSource<'a, Maxp<'a>> for &Maxp<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}

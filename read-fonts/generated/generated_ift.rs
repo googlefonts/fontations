@@ -740,6 +740,12 @@ impl<'a> std::fmt::Debug for PatchMapFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, PatchMapFormat1<'a>> for &PatchMapFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct GlyphMapMarker {
@@ -840,6 +846,12 @@ impl<'a> SomeTable<'a> for GlyphMap<'a> {
 impl<'a> std::fmt::Debug for GlyphMap<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, GlyphMap<'a>> for &GlyphMap<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -957,6 +969,12 @@ impl<'a> SomeTable<'a> for FeatureMap<'a> {
 impl<'a> std::fmt::Debug for FeatureMap<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, FeatureMap<'a>> for &FeatureMap<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1394,6 +1412,12 @@ impl<'a> std::fmt::Debug for PatchMapFormat2<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, PatchMapFormat2<'a>> for &PatchMapFormat2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct MappingEntriesMarker {
@@ -1452,6 +1476,12 @@ impl<'a> SomeTable<'a> for MappingEntries<'a> {
 impl<'a> std::fmt::Debug for MappingEntries<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, MappingEntries<'a>> for &MappingEntries<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1780,6 +1810,12 @@ impl<'a> SomeTable<'a> for EntryData<'a> {
 impl<'a> std::fmt::Debug for EntryData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, EntryData<'a>> for &EntryData<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -2215,6 +2251,12 @@ impl<'a> std::fmt::Debug for IdStringData<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, IdStringData<'a>> for &IdStringData<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [Table Keyed Patch](https://w3c.github.io/IFT/Overview.html#table-keyed)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -2346,6 +2388,12 @@ impl<'a> std::fmt::Debug for TableKeyedPatch<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, TableKeyedPatch<'a>> for &TableKeyedPatch<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [TablePatch](https://w3c.github.io/IFT/Overview.html#tablepatch)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -2445,6 +2493,12 @@ impl<'a> SomeTable<'a> for TablePatch<'a> {
 impl<'a> std::fmt::Debug for TablePatch<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, TablePatch<'a>> for &TablePatch<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -2873,6 +2927,12 @@ impl<'a> SomeTable<'a> for GlyphKeyedPatch<'a> {
 impl<'a> std::fmt::Debug for GlyphKeyedPatch<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, GlyphKeyedPatch<'a>> for &GlyphKeyedPatch<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -3347,6 +3407,12 @@ impl<'a> std::fmt::Debug for GlyphPatches<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, GlyphPatches<'a>> for &GlyphPatches<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct GlyphDataMarker {
@@ -3403,5 +3469,11 @@ impl<'a> SomeTable<'a> for GlyphData<'a> {
 impl<'a> std::fmt::Debug for GlyphData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, GlyphData<'a>> for &GlyphData<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }

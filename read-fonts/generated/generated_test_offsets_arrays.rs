@@ -278,6 +278,12 @@ impl<'a> std::fmt::Debug for KindsOfOffsets<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, KindsOfOffsets<'a>> for &KindsOfOffsets<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct KindsOfArraysOfOffsetsMarker {
@@ -523,6 +529,12 @@ impl<'a> std::fmt::Debug for KindsOfArraysOfOffsets<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, KindsOfArraysOfOffsets<'a>> for &KindsOfArraysOfOffsets<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct KindsOfArraysMarker {
@@ -704,6 +716,12 @@ impl<'a> std::fmt::Debug for KindsOfArrays<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, KindsOfArrays<'a>> for &KindsOfArrays<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct VarLenHaverMarker {
@@ -790,6 +808,12 @@ impl<'a> std::fmt::Debug for VarLenHaver<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, VarLenHaver<'a>> for &VarLenHaver<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct DummyMarker {}
@@ -849,6 +873,12 @@ impl<'a> SomeTable<'a> for Dummy<'a> {
 impl<'a> std::fmt::Debug for Dummy<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, Dummy<'a>> for &Dummy<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 

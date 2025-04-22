@@ -146,6 +146,12 @@ impl<'a> std::fmt::Debug for Base<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Base<'a>> for &Base<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [Axis Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#axis-tables-horizaxis-and-vertaxis)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -237,6 +243,12 @@ impl<'a> std::fmt::Debug for Axis<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Axis<'a>> for &Axis<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [BaseTagList Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basetaglist-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -315,6 +327,12 @@ impl<'a> SomeTable<'a> for BaseTagList<'a> {
 impl<'a> std::fmt::Debug for BaseTagList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, BaseTagList<'a>> for &BaseTagList<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -405,6 +423,12 @@ impl<'a> std::fmt::Debug for BaseScriptList<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, BaseScriptList<'a>> for &BaseScriptList<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [BaseScriptRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescriptrecord)
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -431,7 +455,11 @@ impl BaseScriptRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn base_script<'a>(&self, data: FontData<'a>) -> Result<BaseScript<'a>, ReadError> {
+    pub fn base_script<'a>(
+        &self,
+        data: impl OffsetSource<'a, BaseScriptList<'a>>,
+    ) -> Result<BaseScript<'a>, ReadError> {
+        let data = data.offset_source();
         self.base_script_offset().resolve(data)
     }
 }
@@ -592,6 +620,12 @@ impl<'a> std::fmt::Debug for BaseScript<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, BaseScript<'a>> for &BaseScript<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [BaseLangSysRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#baselangsysrecord)
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -618,7 +652,11 @@ impl BaseLangSysRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn min_max<'a>(&self, data: FontData<'a>) -> Result<MinMax<'a>, ReadError> {
+    pub fn min_max<'a>(
+        &self,
+        data: impl OffsetSource<'a, BaseScript<'a>>,
+    ) -> Result<MinMax<'a>, ReadError> {
+        let data = data.offset_source();
         self.min_max_offset().resolve(data)
     }
 }
@@ -765,6 +803,12 @@ impl<'a> std::fmt::Debug for BaseValues<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, BaseValues<'a>> for &BaseValues<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [MinMax](https://learn.microsoft.com/en-us/typography/opentype/spec/base#minmax-table) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -898,6 +942,12 @@ impl<'a> std::fmt::Debug for MinMax<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, MinMax<'a>> for &MinMax<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [FeatMinMaxRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#baselangsysrecord)
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -932,7 +982,11 @@ impl FeatMinMaxRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn min_coord<'a>(&self, data: FontData<'a>) -> Option<Result<MinMax<'a>, ReadError>> {
+    pub fn min_coord<'a>(
+        &self,
+        data: impl OffsetSource<'a, MinMax<'a>>,
+    ) -> Option<Result<MinMax<'a>, ReadError>> {
+        let data = data.offset_source();
         self.min_coord_offset().resolve(data)
     }
 
@@ -947,7 +1001,11 @@ impl FeatMinMaxRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn max_coord<'a>(&self, data: FontData<'a>) -> Option<Result<MinMax<'a>, ReadError>> {
+    pub fn max_coord<'a>(
+        &self,
+        data: impl OffsetSource<'a, MinMax<'a>>,
+    ) -> Option<Result<MinMax<'a>, ReadError>> {
+        let data = data.offset_source();
         self.max_coord_offset().resolve(data)
     }
 }
@@ -1140,6 +1198,12 @@ impl<'a> std::fmt::Debug for BaseCoordFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, BaseCoordFormat1<'a>> for &BaseCoordFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for BaseCoordFormat2Marker {
     const FORMAT: u16 = 2;
 }
@@ -1242,6 +1306,12 @@ impl<'a> std::fmt::Debug for BaseCoordFormat2<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, BaseCoordFormat2<'a>> for &BaseCoordFormat2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for BaseCoordFormat3Marker {
     const FORMAT: u16 = 3;
 }
@@ -1339,5 +1409,11 @@ impl<'a> SomeTable<'a> for BaseCoordFormat3<'a> {
 impl<'a> std::fmt::Debug for BaseCoordFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, BaseCoordFormat3<'a>> for &BaseCoordFormat3<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }

@@ -1064,3 +1064,9 @@ impl<'a> std::fmt::Debug for Os2<'a> {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
+
+impl<'a> OffsetSource<'a, Os2<'a>> for &Os2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}

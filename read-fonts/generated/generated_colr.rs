@@ -315,6 +315,12 @@ impl<'a> std::fmt::Debug for Colr<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Colr<'a>> for &Colr<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [BaseGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -494,6 +500,12 @@ impl<'a> std::fmt::Debug for BaseGlyphList<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, BaseGlyphList<'a>> for &BaseGlyphList<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [BaseGlyphPaint](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -520,7 +532,11 @@ impl BaseGlyphPaint {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn paint<'a>(&self, data: FontData<'a>) -> Result<Paint<'a>, ReadError> {
+    pub fn paint<'a>(
+        &self,
+        data: impl OffsetSource<'a, BaseGlyphList<'a>>,
+    ) -> Result<Paint<'a>, ReadError> {
+        let data = data.offset_source();
         self.paint_offset().resolve(data)
     }
 }
@@ -645,6 +661,12 @@ impl<'a> std::fmt::Debug for LayerList<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, LayerList<'a>> for &LayerList<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [ClipList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -742,6 +764,12 @@ impl<'a> std::fmt::Debug for ClipList<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, ClipList<'a>> for &ClipList<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [Clip](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -775,7 +803,11 @@ impl Clip {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn clip_box<'a>(&self, data: FontData<'a>) -> Result<ClipBox<'a>, ReadError> {
+    pub fn clip_box<'a>(
+        &self,
+        data: impl OffsetSource<'a, ClipList<'a>>,
+    ) -> Result<ClipBox<'a>, ReadError> {
+        let data = data.offset_source();
         self.clip_box_offset().resolve(data)
     }
 }
@@ -1023,6 +1055,12 @@ impl<'a> std::fmt::Debug for ClipBoxFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, ClipBoxFormat1<'a>> for &ClipBoxFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u8> for ClipBoxFormat2Marker {
     const FORMAT: u8 = 2;
 }
@@ -1148,6 +1186,12 @@ impl<'a> SomeTable<'a> for ClipBoxFormat2<'a> {
 impl<'a> std::fmt::Debug for ClipBoxFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, ClipBoxFormat2<'a>> for &ClipBoxFormat2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1450,6 +1494,12 @@ impl<'a> std::fmt::Debug for ColorLine<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, ColorLine<'a>> for &ColorLine<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [VarColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1546,6 +1596,12 @@ impl<'a> SomeTable<'a> for VarColorLine<'a> {
 impl<'a> std::fmt::Debug for VarColorLine<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, VarColorLine<'a>> for &VarColorLine<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1959,6 +2015,12 @@ impl<'a> std::fmt::Debug for PaintColrLayers<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, PaintColrLayers<'a>> for &PaintColrLayers<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u8> for PaintSolidMarker {
     const FORMAT: u8 = 2;
 }
@@ -2045,6 +2107,12 @@ impl<'a> SomeTable<'a> for PaintSolid<'a> {
 impl<'a> std::fmt::Debug for PaintSolid<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintSolid<'a>> for &PaintSolid<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -2147,6 +2215,12 @@ impl<'a> SomeTable<'a> for PaintVarSolid<'a> {
 impl<'a> std::fmt::Debug for PaintVarSolid<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintVarSolid<'a>> for &PaintVarSolid<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -2310,6 +2384,12 @@ impl<'a> SomeTable<'a> for PaintLinearGradient<'a> {
 impl<'a> std::fmt::Debug for PaintLinearGradient<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintLinearGradient<'a>> for &PaintLinearGradient<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -2495,6 +2575,12 @@ impl<'a> std::fmt::Debug for PaintVarLinearGradient<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, PaintVarLinearGradient<'a>> for &PaintVarLinearGradient<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u8> for PaintRadialGradientMarker {
     const FORMAT: u8 = 6;
 }
@@ -2655,6 +2741,12 @@ impl<'a> SomeTable<'a> for PaintRadialGradient<'a> {
 impl<'a> std::fmt::Debug for PaintRadialGradient<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintRadialGradient<'a>> for &PaintRadialGradient<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -2838,6 +2930,12 @@ impl<'a> std::fmt::Debug for PaintVarRadialGradient<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, PaintVarRadialGradient<'a>> for &PaintVarRadialGradient<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u8> for PaintSweepGradientMarker {
     const FORMAT: u8 = 8;
 }
@@ -2974,6 +3072,12 @@ impl<'a> SomeTable<'a> for PaintSweepGradient<'a> {
 impl<'a> std::fmt::Debug for PaintSweepGradient<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintSweepGradient<'a>> for &PaintSweepGradient<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -3131,6 +3235,12 @@ impl<'a> std::fmt::Debug for PaintVarSweepGradient<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, PaintVarSweepGradient<'a>> for &PaintVarSweepGradient<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u8> for PaintGlyphMarker {
     const FORMAT: u8 = 10;
 }
@@ -3229,6 +3339,12 @@ impl<'a> std::fmt::Debug for PaintGlyph<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, PaintGlyph<'a>> for &PaintGlyph<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u8> for PaintColrGlyphMarker {
     const FORMAT: u8 = 11;
 }
@@ -3302,6 +3418,12 @@ impl<'a> SomeTable<'a> for PaintColrGlyph<'a> {
 impl<'a> std::fmt::Debug for PaintColrGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintColrGlyph<'a>> for &PaintColrGlyph<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -3412,6 +3534,12 @@ impl<'a> std::fmt::Debug for PaintTransform<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, PaintTransform<'a>> for &PaintTransform<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u8> for PaintVarTransformMarker {
     const FORMAT: u8 = 13;
 }
@@ -3516,6 +3644,12 @@ impl<'a> SomeTable<'a> for PaintVarTransform<'a> {
 impl<'a> std::fmt::Debug for PaintVarTransform<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintVarTransform<'a>> for &PaintVarTransform<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -3640,6 +3774,12 @@ impl<'a> SomeTable<'a> for Affine2x3<'a> {
 impl<'a> std::fmt::Debug for Affine2x3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, Affine2x3<'a>> for &Affine2x3<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -3784,6 +3924,12 @@ impl<'a> std::fmt::Debug for VarAffine2x3<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, VarAffine2x3<'a>> for &VarAffine2x3<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u8> for PaintTranslateMarker {
     const FORMAT: u8 = 14;
 }
@@ -3892,6 +4038,12 @@ impl<'a> SomeTable<'a> for PaintTranslate<'a> {
 impl<'a> std::fmt::Debug for PaintTranslate<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintTranslate<'a>> for &PaintTranslate<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -4019,6 +4171,12 @@ impl<'a> std::fmt::Debug for PaintVarTranslate<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, PaintVarTranslate<'a>> for &PaintVarTranslate<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u8> for PaintScaleMarker {
     const FORMAT: u8 = 16;
 }
@@ -4127,6 +4285,12 @@ impl<'a> SomeTable<'a> for PaintScale<'a> {
 impl<'a> std::fmt::Debug for PaintScale<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintScale<'a>> for &PaintScale<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -4253,6 +4417,12 @@ impl<'a> SomeTable<'a> for PaintVarScale<'a> {
 impl<'a> std::fmt::Debug for PaintVarScale<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintVarScale<'a>> for &PaintVarScale<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -4390,6 +4560,12 @@ impl<'a> SomeTable<'a> for PaintScaleAroundCenter<'a> {
 impl<'a> std::fmt::Debug for PaintScaleAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintScaleAroundCenter<'a>> for &PaintScaleAroundCenter<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -4547,6 +4723,12 @@ impl<'a> std::fmt::Debug for PaintVarScaleAroundCenter<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, PaintVarScaleAroundCenter<'a>> for &PaintVarScaleAroundCenter<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u8> for PaintScaleUniformMarker {
     const FORMAT: u8 = 20;
 }
@@ -4642,6 +4824,12 @@ impl<'a> SomeTable<'a> for PaintScaleUniform<'a> {
 impl<'a> std::fmt::Debug for PaintScaleUniform<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintScaleUniform<'a>> for &PaintScaleUniform<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -4754,6 +4942,12 @@ impl<'a> SomeTable<'a> for PaintVarScaleUniform<'a> {
 impl<'a> std::fmt::Debug for PaintVarScaleUniform<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintVarScaleUniform<'a>> for &PaintVarScaleUniform<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -4878,6 +5072,14 @@ impl<'a> SomeTable<'a> for PaintScaleUniformAroundCenter<'a> {
 impl<'a> std::fmt::Debug for PaintScaleUniformAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintScaleUniformAroundCenter<'a>>
+    for &PaintScaleUniformAroundCenter<'a>
+{
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -5022,6 +5224,14 @@ impl<'a> std::fmt::Debug for PaintVarScaleUniformAroundCenter<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, PaintVarScaleUniformAroundCenter<'a>>
+    for &PaintVarScaleUniformAroundCenter<'a>
+{
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u8> for PaintRotateMarker {
     const FORMAT: u8 = 24;
 }
@@ -5118,6 +5328,12 @@ impl<'a> SomeTable<'a> for PaintRotate<'a> {
 impl<'a> std::fmt::Debug for PaintRotate<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintRotate<'a>> for &PaintRotate<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -5230,6 +5446,12 @@ impl<'a> SomeTable<'a> for PaintVarRotate<'a> {
 impl<'a> std::fmt::Debug for PaintVarRotate<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintVarRotate<'a>> for &PaintVarRotate<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -5355,6 +5577,12 @@ impl<'a> SomeTable<'a> for PaintRotateAroundCenter<'a> {
 impl<'a> std::fmt::Debug for PaintRotateAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintRotateAroundCenter<'a>> for &PaintRotateAroundCenter<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -5498,6 +5726,12 @@ impl<'a> std::fmt::Debug for PaintVarRotateAroundCenter<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, PaintVarRotateAroundCenter<'a>> for &PaintVarRotateAroundCenter<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u8> for PaintSkewMarker {
     const FORMAT: u8 = 28;
 }
@@ -5608,6 +5842,12 @@ impl<'a> SomeTable<'a> for PaintSkew<'a> {
 impl<'a> std::fmt::Debug for PaintSkew<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintSkew<'a>> for &PaintSkew<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -5736,6 +5976,12 @@ impl<'a> SomeTable<'a> for PaintVarSkew<'a> {
 impl<'a> std::fmt::Debug for PaintVarSkew<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintVarSkew<'a>> for &PaintVarSkew<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -5875,6 +6121,12 @@ impl<'a> SomeTable<'a> for PaintSkewAroundCenter<'a> {
 impl<'a> std::fmt::Debug for PaintSkewAroundCenter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintSkewAroundCenter<'a>> for &PaintSkewAroundCenter<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -6034,6 +6286,12 @@ impl<'a> std::fmt::Debug for PaintVarSkewAroundCenter<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, PaintVarSkewAroundCenter<'a>> for &PaintVarSkewAroundCenter<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u8> for PaintCompositeMarker {
     const FORMAT: u8 = 32;
 }
@@ -6151,6 +6409,12 @@ impl<'a> SomeTable<'a> for PaintComposite<'a> {
 impl<'a> std::fmt::Debug for PaintComposite<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, PaintComposite<'a>> for &PaintComposite<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 

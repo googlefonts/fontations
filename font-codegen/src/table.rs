@@ -138,6 +138,13 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         }
 
         #debug
+
+        impl<'a, #generic> OffsetSource<'a, #raw_name<'a, #generic>> for &#raw_name<'a, #generic> {
+            fn offset_source(&self) -> FontData<'a> {
+                self.offset_data()
+            }
+
+        }
     })
 }
 
@@ -907,7 +914,7 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
 
 impl Table {
     pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
-        self.fields.sanity_check(phase)
+        self.fields.sanity_check(phase, false)
     }
 
     fn marker_name(&self) -> syn::Ident {

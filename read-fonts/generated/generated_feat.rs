@@ -120,6 +120,12 @@ impl<'a> std::fmt::Debug for Feat<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Feat<'a>> for &Feat<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Type, flags and names for a feature.
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -163,7 +169,11 @@ impl FeatureName {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn setting_table<'a>(&self, data: FontData<'a>) -> Result<SettingNameArray<'a>, ReadError> {
+    pub fn setting_table<'a>(
+        &self,
+        data: impl OffsetSource<'a, Feat<'a>>,
+    ) -> Result<SettingNameArray<'a>, ReadError> {
+        let data = data.offset_source();
         let args = self.n_settings();
         self.setting_table_offset().resolve_with_args(data, &args)
     }
@@ -290,6 +300,12 @@ impl<'a> SomeTable<'a> for SettingNameArray<'a> {
 impl<'a> std::fmt::Debug for SettingNameArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, SettingNameArray<'a>> for &SettingNameArray<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
