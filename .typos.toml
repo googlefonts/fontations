@@ -32,6 +32,8 @@ typ = "typ"
 typs = "typs"
 typ_str = "typ_str"
 Vai = "Vai"
+Trak = "Trak"
+trak = "trak"
 
 # Match Inside a Word - Case Insensitive
 [default.extend-words]
