@@ -181,6 +181,12 @@ impl<'a> std::fmt::Debug for Varc<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Varc<'a>> for &Varc<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for MultiItemVariationStoreMarker {
     const FORMAT: u16 = 1;
 }
@@ -320,6 +326,12 @@ impl<'a> std::fmt::Debug for MultiItemVariationStore<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, MultiItemVariationStore<'a>> for &MultiItemVariationStore<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct SparseVariationRegionListMarker {
@@ -415,6 +427,12 @@ impl<'a> std::fmt::Debug for SparseVariationRegionList<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, SparseVariationRegionList<'a>> for &SparseVariationRegionList<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct SparseVariationRegionMarker {
@@ -494,6 +512,12 @@ impl<'a> SomeTable<'a> for SparseVariationRegion<'a> {
 impl<'a> std::fmt::Debug for SparseVariationRegion<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, SparseVariationRegion<'a>> for &SparseVariationRegion<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -654,6 +678,12 @@ impl<'a> std::fmt::Debug for MultiItemVariationData<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, MultiItemVariationData<'a>> for &MultiItemVariationData<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct ConditionListMarker {
@@ -746,6 +776,12 @@ impl<'a> SomeTable<'a> for ConditionList<'a> {
 impl<'a> std::fmt::Debug for ConditionList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, ConditionList<'a>> for &ConditionList<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 

@@ -469,6 +469,12 @@ impl<'a> std::fmt::Debug for Sbix<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Sbix<'a>> for &Sbix<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [Strike](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#strikes) header table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -577,6 +583,12 @@ impl<'a> std::fmt::Debug for Strike<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Strike<'a>> for &Strike<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [Glyph data](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#glyph-data) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -675,5 +687,11 @@ impl<'a> SomeTable<'a> for GlyphData<'a> {
 impl<'a> std::fmt::Debug for GlyphData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, GlyphData<'a>> for &GlyphData<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }

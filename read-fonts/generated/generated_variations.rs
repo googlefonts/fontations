@@ -135,6 +135,12 @@ impl<'a> std::fmt::Debug for TupleVariationHeader<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, TupleVariationHeader<'a>> for &TupleVariationHeader<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// A [Tuple Record](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuple-records)
 ///
 /// The tuple variation store formats reference regions within the font’s
@@ -317,6 +323,12 @@ impl<'a> std::fmt::Debug for DeltaSetIndexMapFormat0<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, DeltaSetIndexMapFormat0<'a>> for &DeltaSetIndexMapFormat0<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u8> for DeltaSetIndexMapFormat1Marker {
     const FORMAT: u8 = 1;
 }
@@ -422,6 +434,12 @@ impl<'a> SomeTable<'a> for DeltaSetIndexMapFormat1<'a> {
 impl<'a> std::fmt::Debug for DeltaSetIndexMapFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, DeltaSetIndexMapFormat1<'a>> for &DeltaSetIndexMapFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -926,6 +944,12 @@ impl<'a> std::fmt::Debug for VariationRegionList<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, VariationRegionList<'a>> for &VariationRegionList<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// The [VariationRegion](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VariationRegion<'a> {
@@ -1194,6 +1218,12 @@ impl<'a> std::fmt::Debug for ItemVariationStore<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, ItemVariationStore<'a>> for &ItemVariationStore<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// The [ItemVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#item-variation-store-header-and-item-variation-data-subtables) subtable
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1316,5 +1346,11 @@ impl<'a> SomeTable<'a> for ItemVariationData<'a> {
 impl<'a> std::fmt::Debug for ItemVariationData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, ItemVariationData<'a>> for &ItemVariationData<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }

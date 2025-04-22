@@ -138,3 +138,9 @@ impl<'a> std::fmt::Debug for CffHeader<'a> {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
+
+impl<'a> OffsetSource<'a, CffHeader<'a>> for &CffHeader<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}

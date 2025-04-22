@@ -172,6 +172,12 @@ impl<'a> std::fmt::Debug for Gsub<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Gsub<'a>> for &Gsub<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// A [GSUB Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsubLookupTypeEnum) subtable.
 pub enum SubstitutionLookup<'a> {
     Single(Lookup<'a, SingleSubst<'a>>),
@@ -433,6 +439,12 @@ impl<'a> std::fmt::Debug for SingleSubstFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, SingleSubstFormat1<'a>> for &SingleSubstFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for SingleSubstFormat2Marker {
     const FORMAT: u16 = 2;
 }
@@ -552,6 +564,12 @@ impl<'a> SomeTable<'a> for SingleSubstFormat2<'a> {
 impl<'a> std::fmt::Debug for SingleSubstFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, SingleSubstFormat2<'a>> for &SingleSubstFormat2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -695,6 +713,12 @@ impl<'a> std::fmt::Debug for MultipleSubstFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, MultipleSubstFormat1<'a>> for &MultipleSubstFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [MultipleSubstFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -775,6 +799,12 @@ impl<'a> SomeTable<'a> for Sequence<'a> {
 impl<'a> std::fmt::Debug for Sequence<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, Sequence<'a>> for &Sequence<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -921,6 +951,12 @@ impl<'a> std::fmt::Debug for AlternateSubstFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, AlternateSubstFormat1<'a>> for &AlternateSubstFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [AlternateSubstFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1000,6 +1036,12 @@ impl<'a> SomeTable<'a> for AlternateSet<'a> {
 impl<'a> std::fmt::Debug for AlternateSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, AlternateSet<'a>> for &AlternateSet<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1143,6 +1185,12 @@ impl<'a> std::fmt::Debug for LigatureSubstFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, LigatureSubstFormat1<'a>> for &LigatureSubstFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [LigatureSubstFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1243,6 +1291,12 @@ impl<'a> std::fmt::Debug for LigatureSet<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, LigatureSet<'a>> for &LigatureSet<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [LigatureSubstFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1336,6 +1390,12 @@ impl<'a> SomeTable<'a> for Ligature<'a> {
 impl<'a> std::fmt::Debug for Ligature<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, Ligature<'a>> for &Ligature<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1482,6 +1542,12 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionSubstF
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for ExtensionSubstFormat1<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a, T> OffsetSource<'a, ExtensionSubstFormat1<'a, T>> for &ExtensionSubstFormat1<'a, T> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1791,5 +1857,13 @@ impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
 impl<'a> std::fmt::Debug for ReverseChainSingleSubstFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, ReverseChainSingleSubstFormat1<'a>>
+    for &ReverseChainSingleSubstFormat1<'a>
+{
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }

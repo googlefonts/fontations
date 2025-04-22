@@ -108,6 +108,12 @@ impl<'a> std::fmt::Debug for Cmap<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Cmap<'a>> for &Cmap<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -144,7 +150,11 @@ impl EncodingRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn subtable<'a>(&self, data: FontData<'a>) -> Result<CmapSubtable<'a>, ReadError> {
+    pub fn subtable<'a>(
+        &self,
+        data: impl OffsetSource<'a, Cmap<'a>>,
+    ) -> Result<CmapSubtable<'a>, ReadError> {
+        let data = data.offset_source();
         self.subtable_offset().resolve(data)
     }
 }
@@ -448,6 +458,12 @@ impl<'a> std::fmt::Debug for Cmap0<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Cmap0<'a>> for &Cmap0<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for Cmap2Marker {
     const FORMAT: u16 = 2;
 }
@@ -556,6 +572,12 @@ impl<'a> SomeTable<'a> for Cmap2<'a> {
 impl<'a> std::fmt::Debug for Cmap2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, Cmap2<'a>> for &Cmap2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -861,6 +883,12 @@ impl<'a> std::fmt::Debug for Cmap4<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Cmap4<'a>> for &Cmap4<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for Cmap6Marker {
     const FORMAT: u16 = 6;
 }
@@ -994,6 +1022,12 @@ impl<'a> SomeTable<'a> for Cmap6<'a> {
 impl<'a> std::fmt::Debug for Cmap6<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, Cmap6<'a>> for &Cmap6<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1150,6 +1184,12 @@ impl<'a> SomeTable<'a> for Cmap8<'a> {
 impl<'a> std::fmt::Debug for Cmap8<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, Cmap8<'a>> for &Cmap8<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1352,6 +1392,12 @@ impl<'a> std::fmt::Debug for Cmap10<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Cmap10<'a>> for &Cmap10<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for Cmap12Marker {
     const FORMAT: u16 = 12;
 }
@@ -1486,6 +1532,12 @@ impl<'a> std::fmt::Debug for Cmap12<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Cmap12<'a>> for &Cmap12<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for Cmap13Marker {
     const FORMAT: u16 = 13;
 }
@@ -1617,6 +1669,12 @@ impl<'a> SomeTable<'a> for Cmap13<'a> {
 impl<'a> std::fmt::Debug for Cmap13<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, Cmap13<'a>> for &Cmap13<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1791,6 +1849,12 @@ impl<'a> std::fmt::Debug for Cmap14<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Cmap14<'a>> for &Cmap14<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [Cmap14]
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1823,7 +1887,11 @@ impl VariationSelector {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn default_uvs<'a>(&self, data: FontData<'a>) -> Option<Result<DefaultUvs<'a>, ReadError>> {
+    pub fn default_uvs<'a>(
+        &self,
+        data: impl OffsetSource<'a, Cmap14<'a>>,
+    ) -> Option<Result<DefaultUvs<'a>, ReadError>> {
+        let data = data.offset_source();
         self.default_uvs_offset().resolve(data)
     }
 
@@ -1840,8 +1908,9 @@ impl VariationSelector {
     /// By calling its `offset_data` method.
     pub fn non_default_uvs<'a>(
         &self,
-        data: FontData<'a>,
+        data: impl OffsetSource<'a, Cmap14<'a>>,
     ) -> Option<Result<NonDefaultUvs<'a>, ReadError>> {
+        let data = data.offset_source();
         self.non_default_uvs_offset().resolve(data)
     }
 }
@@ -1960,6 +2029,12 @@ impl<'a> std::fmt::Debug for DefaultUvs<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, DefaultUvs<'a>> for &DefaultUvs<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [Non-Default UVS table](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#non-default-uvs-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -2041,6 +2116,12 @@ impl<'a> SomeTable<'a> for NonDefaultUvs<'a> {
 impl<'a> std::fmt::Debug for NonDefaultUvs<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, NonDefaultUvs<'a>> for &NonDefaultUvs<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 

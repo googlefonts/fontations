@@ -122,6 +122,12 @@ impl<'a> std::fmt::Debug for Ankr<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Ankr<'a>> for &Ankr<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct GlyphDataEntryMarker {
@@ -203,6 +209,12 @@ impl<'a> SomeTable<'a> for GlyphDataEntry<'a> {
 impl<'a> std::fmt::Debug for GlyphDataEntry<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, GlyphDataEntry<'a>> for &GlyphDataEntry<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 

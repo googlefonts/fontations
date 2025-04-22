@@ -192,6 +192,12 @@ impl<'a> std::fmt::Debug for Gvar<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Gvar<'a>> for &Gvar<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
@@ -587,6 +593,12 @@ impl<'a> std::fmt::Debug for SharedTuples<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, SharedTuples<'a>> for &SharedTuples<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// The [GlyphVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#the-glyphvariationdata-table-array) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -693,5 +705,11 @@ impl<'a> SomeTable<'a> for GlyphVariationDataHeader<'a> {
 impl<'a> std::fmt::Debug for GlyphVariationDataHeader<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, GlyphVariationDataHeader<'a>> for &GlyphVariationDataHeader<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }

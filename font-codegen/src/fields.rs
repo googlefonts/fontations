@@ -31,10 +31,24 @@ impl Fields {
         })
     }
 
-    pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
+    pub(crate) fn sanity_check(&self, phase: Phase, in_record: bool) -> syn::Result<()> {
         let mut custom_offset_data_fld: Option<&Field> = None;
         let mut normal_offset_data_fld = None;
         for (i, fld) in self.fields.iter().enumerate() {
+            // offsets in records should have #[offset_from] or #[offset_getter]
+            if in_record
+                && fld.is_offset_or_array_of_offsets()
+                && fld.attrs.offset_from.is_none()
+                && fld.attrs.offset_getter.is_none()
+            {
+                // currently no records have multiple parent types; if they do you might need to
+                // use a custom getter `(#[offset_getter(_)])` or else add a custom marker type
+                // and `impl OffsetSource<NewMarkerType>` for both tables.
+                return Err(logged_syn_error(
+                    fld.name.span(),
+                    "offset fields in records require #[offset_from(_]l) annotations",
+                ));
+            }
             if let Some(attr) = fld.attrs.offset_data.as_ref() {
                 if let Some(prev_field) = custom_offset_data_fld.replace(fld) {
                     if prev_field.attrs.offset_data.as_ref().unwrap().attr != attr.attr {
@@ -934,12 +948,17 @@ impl Field {
             matches!(target, OffsetTarget::Table(ident) if Some(ident) == generic);
         let where_read_clause = target_is_generic.then(|| quote!(where T: FontRead<'a>));
         // if a record, data is passed in
-        let input_data_if_needed = record.is_some().then(|| quote!(, data: FontData<'a>));
+        let input_data_if_needed = record.is_some().then(|| self.getter_input_data());
         let decl_lifetime_if_needed =
             record.and_then(|x| x.lifetime.is_none().then(|| quote!(<'a>)));
 
-        // if a table, data is self.data, else it is passed as an argument
-        let data_alias_if_needed = record.is_none().then(|| quote!(let data = self.data;));
+        let bind_data = if record.is_none() {
+            // if a table, data is self.data, else it is passed as an argument
+            quote!(let data = self.data;)
+        } else {
+            // otherwise get the actual font data from the OffsetSource
+            quote!(let data = data.offset_source();)
+        };
 
         let args_if_needed = self.attrs.read_offset_args.as_ref().map(|args| {
             let args = args.to_tokens_for_table_getter();
@@ -977,7 +996,7 @@ impl Field {
             Some(quote! {
                 #docs
                 pub fn #getter_name (&self #input_data_if_needed) -> #return_type #where_read_clause  {
-                    #data_alias_if_needed
+                    #bind_data
                     #bind_offsets
                     #args_if_needed
                     #body
@@ -1003,12 +1022,23 @@ impl Field {
             Some(quote! {
                 #docs
                 pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type #where_read_clause {
-                    #data_alias_if_needed
+                    #bind_data
                     #args_if_needed
                     #getter_impl
                 }
             })
         }
+    }
+
+    /// For the getter for an offset in a record, the argument for passing in data
+    fn getter_input_data(&self) -> TokenStream {
+        assert!(self.is_offset_or_array_of_offsets());
+        let source = self
+            .attrs
+            .offset_from
+            .as_ref()
+            .expect("validated in sanity check");
+        quote!(, data: impl OffsetSource<'a, #source<'a>>)
     }
 
     fn is_count(&self) -> bool {

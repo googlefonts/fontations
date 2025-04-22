@@ -140,6 +140,12 @@ impl<'a> std::fmt::Debug for TableDirectory<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, TableDirectory<'a>> for &TableDirectory<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Record for a table in a font.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -374,5 +380,11 @@ impl<'a> SomeTable<'a> for TTCHeader<'a> {
 impl<'a> std::fmt::Debug for TTCHeader<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, TTCHeader<'a>> for &TTCHeader<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }

@@ -263,3 +263,9 @@ impl<'a> std::fmt::Debug for Hhea<'a> {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
+
+impl<'a> OffsetSource<'a, Hhea<'a>> for &Hhea<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}

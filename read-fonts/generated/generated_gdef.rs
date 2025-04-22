@@ -232,6 +232,12 @@ impl<'a> std::fmt::Debug for Gdef<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Gdef<'a>> for &Gdef<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Used in the [Glyph Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#glyph-class-definition-table)
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -403,6 +409,12 @@ impl<'a> std::fmt::Debug for AttachList<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, AttachList<'a>> for &AttachList<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [AttachList]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -479,6 +491,12 @@ impl<'a> SomeTable<'a> for AttachPoint<'a> {
 impl<'a> std::fmt::Debug for AttachPoint<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, AttachPoint<'a>> for &AttachPoint<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -604,6 +622,12 @@ impl<'a> std::fmt::Debug for LigCaretList<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, LigCaretList<'a>> for &LigCaretList<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [Ligature Glyph Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-glyph-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -701,6 +725,12 @@ impl<'a> SomeTable<'a> for LigGlyph<'a> {
 impl<'a> std::fmt::Debug for LigGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, LigGlyph<'a>> for &LigGlyph<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -858,6 +888,12 @@ impl<'a> std::fmt::Debug for CaretValueFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, CaretValueFormat1<'a>> for &CaretValueFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for CaretValueFormat2Marker {
     const FORMAT: u16 = 2;
 }
@@ -934,6 +970,12 @@ impl<'a> SomeTable<'a> for CaretValueFormat2<'a> {
 impl<'a> std::fmt::Debug for CaretValueFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, CaretValueFormat2<'a>> for &CaretValueFormat2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1034,6 +1076,12 @@ impl<'a> SomeTable<'a> for CaretValueFormat3<'a> {
 impl<'a> std::fmt::Debug for CaretValueFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, CaretValueFormat3<'a>> for &CaretValueFormat3<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -1154,5 +1202,11 @@ impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
 impl<'a> std::fmt::Debug for MarkGlyphSets<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, MarkGlyphSets<'a>> for &MarkGlyphSets<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }

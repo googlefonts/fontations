@@ -185,3 +185,9 @@ impl<'a> std::fmt::Debug for Vvar<'a> {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
+
+impl<'a> OffsetSource<'a, Vvar<'a>> for &Vvar<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}

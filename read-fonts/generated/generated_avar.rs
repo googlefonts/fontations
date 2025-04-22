@@ -178,6 +178,12 @@ impl<'a> std::fmt::Debug for Avar<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Avar<'a>> for &Avar<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [SegmentMaps](https://learn.microsoft.com/en-us/typography/opentype/spec/avar#table-formats) record
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SegmentMaps<'a> {

@@ -183,6 +183,12 @@ impl<'a> std::fmt::Debug for Name<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Name<'a>> for &Name<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// Part of [Name]
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]

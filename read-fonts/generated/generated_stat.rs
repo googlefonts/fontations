@@ -201,6 +201,12 @@ impl<'a> std::fmt::Debug for Stat<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, Stat<'a>> for &Stat<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 /// [Axis Records](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-records)
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -357,6 +363,12 @@ impl<'a> SomeTable<'a> for AxisValueArray<'a> {
 impl<'a> std::fmt::Debug for AxisValueArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, AxisValueArray<'a>> for &AxisValueArray<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -583,6 +595,12 @@ impl<'a> std::fmt::Debug for AxisValueFormat1<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, AxisValueFormat1<'a>> for &AxisValueFormat1<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for AxisValueFormat2Marker {
     const FORMAT: u16 = 2;
 }
@@ -729,6 +747,12 @@ impl<'a> std::fmt::Debug for AxisValueFormat2<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, AxisValueFormat2<'a>> for &AxisValueFormat2<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 impl Format<u16> for AxisValueFormat3Marker {
     const FORMAT: u16 = 3;
 }
@@ -857,6 +881,12 @@ impl<'a> SomeTable<'a> for AxisValueFormat3<'a> {
 impl<'a> std::fmt::Debug for AxisValueFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, AxisValueFormat3<'a>> for &AxisValueFormat3<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 
@@ -989,6 +1019,12 @@ impl<'a> SomeTable<'a> for AxisValueFormat4<'a> {
 impl<'a> std::fmt::Debug for AxisValueFormat4<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> OffsetSource<'a, AxisValueFormat4<'a>> for &AxisValueFormat4<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
     }
 }
 

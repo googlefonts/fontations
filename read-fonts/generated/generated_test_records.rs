@@ -142,6 +142,12 @@ impl<'a> std::fmt::Debug for BasicTable<'a> {
     }
 }
 
+impl<'a> OffsetSource<'a, BasicTable<'a>> for &BasicTable<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -288,7 +294,11 @@ impl ContainsOffsets {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn array<'a>(&self, data: FontData<'a>) -> Result<&'a [SimpleRecord], ReadError> {
+    pub fn array<'a>(
+        &self,
+        data: impl OffsetSource<'a, BasicTable<'a>>,
+    ) -> Result<&'a [SimpleRecord], ReadError> {
+        let data = data.offset_source();
         let args = self.off_array_count();
         self.array_offset().resolve_with_args(data, &args)
     }
@@ -300,7 +310,11 @@ impl ContainsOffsets {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn other<'a>(&self, data: FontData<'a>) -> Result<BasicTable<'a>, ReadError> {
+    pub fn other<'a>(
+        &self,
+        data: impl OffsetSource<'a, BasicTable<'a>>,
+    ) -> Result<BasicTable<'a>, ReadError> {
+        let data = data.offset_source();
         self.other_offset().resolve(data)
     }
 }

@@ -122,3 +122,9 @@ impl<'a> std::fmt::Debug for Vmtx<'a> {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
+
+impl<'a> OffsetSource<'a, Vmtx<'a>> for &Vmtx<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}

@@ -121,3 +121,9 @@ impl<'a> std::fmt::Debug for Cblc<'a> {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
+
+impl<'a> OffsetSource<'a, Cblc<'a>> for &Cblc<'a> {
+    fn offset_source(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
