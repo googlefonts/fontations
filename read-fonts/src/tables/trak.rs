@@ -10,7 +10,6 @@ impl<'a> TrackData<'a> {
             .split_off(self.size_table_offset() as usize)
             .ok_or(ReadError::OutOfBounds)?
             .cursor();
-        println!("{:?}", cursor.remaining().unwrap().as_bytes());
         cursor.read_array(self.n_sizes() as usize)
     }
 }
