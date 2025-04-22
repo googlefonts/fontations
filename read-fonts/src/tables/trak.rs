@@ -4,9 +4,13 @@ include!("../../generated/generated_trak.rs");
 
 impl<'a> TrackData<'a> {
     /// Returns the size table for this set of tracking data.
-    pub fn size_table(&self, trak: &Trak<'a>) -> Result<&'a [BigEndian<Fixed>], ReadError> {
-        let mut cursor = trak
-            .offset_data()
+    ///
+    /// The `offset_data` parameter comes from the [`Trak`] table.
+    pub fn size_table(
+        &self,
+        offset_data: FontData<'a>,
+    ) -> Result<&'a [BigEndian<Fixed>], ReadError> {
+        let mut cursor = offset_data
             .split_off(self.size_table_offset() as usize)
             .ok_or(ReadError::OutOfBounds)?
             .cursor();
@@ -17,14 +21,14 @@ impl<'a> TrackData<'a> {
 impl TrackTableEntry {
     /// Returns the list of per-size tracking values for this entry.
     ///
-    /// The `n_sizes` parameter comes from the parent [`TrackData`] table.
+    /// The `offset_data` parameter comes from the [`Trak`] table and `n_sizes`
+    /// parameter comes from the parent [`TrackData`] table.
     pub fn per_size_values<'a>(
         &self,
-        trak: &Trak<'a>,
+        offset_data: FontData<'a>,
         n_sizes: u16,
     ) -> Result<&'a [BigEndian<i16>], ReadError> {
-        let mut cursor = trak
-            .offset_data()
+        let mut cursor = offset_data
             .split_off(self.offset() as usize)
             .ok_or(ReadError::OutOfBounds)?
             .cursor();
@@ -65,7 +69,7 @@ mod tests {
         let expected_per_size_tracking_values = [[-15i16, -7], [0, 0], [50, 20]];
         for (track, expected_values) in track_table.iter().zip(expected_per_size_tracking_values) {
             let values = track
-                .per_size_values(&trak, horiz.n_sizes())
+                .per_size_values(trak.offset_data(), horiz.n_sizes())
                 .unwrap()
                 .iter()
                 .map(|v| v.get())
@@ -83,7 +87,7 @@ mod tests {
         let expected_per_size_tracking_values = [[-15i16, -7], [0, 0], [50, 20]];
         for (track, expected_values) in track_table.iter().zip(expected_per_size_tracking_values) {
             let values = track
-                .per_size_values(&trak, horiz.n_sizes())
+                .per_size_values(trak.offset_data(), horiz.n_sizes())
                 .unwrap()
                 .iter()
                 .map(|v| v.get())
@@ -98,13 +102,49 @@ mod tests {
         let trak = Trak::read(FontData::new(&table_data)).unwrap();
         let horiz = trak.horiz().unwrap().unwrap();
         let size_table = horiz
-            .size_table(&trak)
+            .size_table(trak.offset_data())
             .unwrap()
             .iter()
             .map(|v| v.get())
             .collect::<Vec<_>>();
         let expected_sizes = [Fixed::from_i32(12), Fixed::from_i32(24)];
         assert_eq!(size_table, expected_sizes);
+    }
+
+    #[test]
+    fn insufficient_data() {
+        let mut table_data = example_track_table();
+        // drop the last byte from the final per size value entry
+        table_data.pop();
+        let trak = Trak::read(FontData::new(&table_data)).unwrap();
+        let horiz = trak.horiz().unwrap().unwrap();
+        let track_table = horiz.track_table();
+        // The values for the second track will fail to parse
+        let expected_per_size_tracking_values = [Some([-15i16, -7]), None, Some([50, 20])];
+        for (track, expected_values) in track_table.iter().zip(expected_per_size_tracking_values) {
+            let values = track
+                .per_size_values(trak.offset_data(), horiz.n_sizes())
+                .ok()
+                .map(|values| values.iter().map(|v| v.get()).collect::<Vec<_>>());
+            assert_eq!(
+                values,
+                expected_values.map(|value| value.into_iter().collect())
+            );
+        }
+    }
+
+    #[test]
+    fn bad_offset() {
+        let mut table_data = example_track_table();
+        // modify offset of first track table entry to be OOB
+        table_data[26] = 255;
+        let trak = Trak::read(FontData::new(&table_data)).unwrap();
+        let horiz = trak.horiz().unwrap().unwrap();
+        let track_table = horiz.track_table();
+        assert!(matches!(
+            track_table[0].per_size_values(trak.offset_data(), horiz.n_sizes()),
+            Err(ReadError::OutOfBounds)
+        ));
     }
 
     /// From <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6trak.html>
