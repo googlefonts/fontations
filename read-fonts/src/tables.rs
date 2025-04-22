@@ -41,6 +41,7 @@ pub mod postscript;
 pub mod sbix;
 pub mod stat;
 pub mod svg;
+pub mod trak;
 pub mod varc;
 pub mod variations;
 pub mod vhea;
