@@ -4,8 +4,10 @@
 #[tag = "trak"]
 table Trak {
     /// Version number of the tracking table (0x00010000 for the current version).
+    #[compile(MajorMinor::VERSION_1_0)]
     version: MajorMinor,
     /// Format of the tracking table (set to 0).
+    #[compile(0)]
     format: u16,
     /// Offset from start of tracking table to TrackData for horizontal text (or 0 if none).
     #[nullable]
