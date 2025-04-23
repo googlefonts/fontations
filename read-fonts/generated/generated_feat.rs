@@ -163,7 +163,24 @@ impl FeatureName {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_setting_table`][Self::read_setting_table],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn setting_table<'a>(&self, data: FontData<'a>) -> Result<SettingNameArray<'a>, ReadError> {
+        let args = self.n_settings();
+        self.setting_table_offset().resolve_with_args(data, &args)
+    }
+
+    /// Offset in bytes from the beginning of this table to this feature's
+    /// setting name array. The actual type of record this offset refers
+    /// to will depend on the exclusivity value, as described below.
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_setting_table<'a>(
+        &self,
+        source: &Feat<'a>,
+    ) -> Result<SettingNameArray<'a>, ReadError> {
+        let data = source.offset_data();
         let args = self.n_settings();
         self.setting_table_offset().resolve_with_args(data, &args)
     }

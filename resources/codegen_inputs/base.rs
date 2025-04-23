@@ -57,6 +57,7 @@ record BaseScriptRecord {
     /// 4-byte script identification tag
     base_script_tag: Tag,
     /// Offset to BaseScript table, from beginning of BaseScriptList
+    #[offset_from(BaseScriptList)]
     base_script_offset: Offset16<BaseScript>,
 }
 
@@ -82,6 +83,7 @@ record BaseLangSysRecord {
     /// 4-byte language system identification tag
     base_lang_sys_tag: Tag,
     /// Offset to MinMax table, from beginning of BaseScript table
+    #[offset_from(BaseScript)]
     min_max_offset: Offset16<MinMax>,
 }
 
@@ -129,10 +131,12 @@ record FeatMinMaxRecord {
     /// Offset to BaseCoord table that defines the minimum extent
     /// value, from beginning of MinMax table (may be NULL)
     #[nullable]
+    #[offset_from(MinMax)]
     min_coord_offset: Offset16<BaseCoord>,
     /// Offset to BaseCoord table that defines the maximum extent
     /// value, from beginning of MinMax table (may be NULL)
     #[nullable]
+    #[offset_from(MinMax)]
     max_coord_offset: Offset16<BaseCoord>,
 }
 

@@ -907,7 +907,7 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
 
 impl Table {
     pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
-        self.fields.sanity_check(phase)
+        self.fields.sanity_check(phase, false)
     }
 
     fn marker_name(&self) -> syn::Ident {

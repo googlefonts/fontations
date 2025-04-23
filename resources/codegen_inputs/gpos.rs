@@ -128,6 +128,7 @@ record MarkRecord {
     /// Class defined for the associated mark.
     mark_class: u16,
     /// Offset to Anchor table, from beginning of MarkArray table.
+    #[offset_from(MarkArray)]
     mark_anchor_offset: Offset16<AnchorTable>,
 }
 
@@ -312,10 +313,12 @@ record EntryExitRecord {
     /// Offset to entryAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
     #[nullable]
+    #[offset_from(CursivePosFormat1)]
     entry_anchor_offset: Offset16<AnchorTable>,
     /// Offset to exitAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
     #[nullable]
+    #[offset_from(CursivePosFormat1)]
     exit_anchor_offset: Offset16<AnchorTable>,
 }
 
@@ -368,6 +371,7 @@ record BaseRecord<'a> {
     /// (offsets may be NULL).
     #[nullable]
     #[count($mark_class_count)]
+    #[offset_from(BaseArray)]
     base_anchor_offsets: [Offset16<AnchorTable>],
 }
 
@@ -428,6 +432,7 @@ record ComponentRecord<'a> {
     /// (offsets may be NULL).
     #[nullable]
     #[count($mark_class_count)]
+    #[offset_from(LigatureAttach)]
     ligature_anchor_offsets: [Offset16<AnchorTable>],
 }
 
@@ -474,6 +479,7 @@ record Mark2Record<'a> {
     /// be NULL).
     #[count($mark_class_count)]
     #[nullable]
+    #[offset_from(Mark2Array)]
     mark2_anchor_offsets: [Offset16<AnchorTable>],
 }
 

@@ -860,7 +860,22 @@ impl IndexSubtableRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_index_subtable`][Self::read_index_subtable],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn index_subtable<'a>(&self, data: FontData<'a>) -> Result<IndexSubtable<'a>, ReadError> {
+        let args = (self.last_glyph_index(), self.first_glyph_index());
+        self.index_subtable_offset().resolve_with_args(data, &args)
+    }
+
+    /// Offset to an IndexSubtable from the start of the IndexSubtableList.
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_index_subtable<'a>(
+        &self,
+        source: &IndexSubtableList<'a>,
+    ) -> Result<IndexSubtable<'a>, ReadError> {
+        let data = source.offset_data();
         let args = (self.last_glyph_index(), self.first_glyph_index());
         self.index_subtable_offset().resolve_with_args(data, &args)
     }
