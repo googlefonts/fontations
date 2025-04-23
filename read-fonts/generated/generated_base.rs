@@ -932,7 +932,7 @@ impl FeatMinMaxRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn min_coord<'a>(&self, data: FontData<'a>) -> Option<Result<MinMax<'a>, ReadError>> {
+    pub fn min_coord<'a>(&self, data: FontData<'a>) -> Option<Result<BaseCoord<'a>, ReadError>> {
         self.min_coord_offset().resolve(data)
     }
 
@@ -947,7 +947,7 @@ impl FeatMinMaxRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn max_coord<'a>(&self, data: FontData<'a>) -> Option<Result<MinMax<'a>, ReadError>> {
+    pub fn max_coord<'a>(&self, data: FontData<'a>) -> Option<Result<BaseCoord<'a>, ReadError>> {
         self.max_coord_offset().resolve(data)
     }
 }
