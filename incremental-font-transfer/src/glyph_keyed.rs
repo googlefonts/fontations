@@ -590,7 +590,7 @@ impl OffsetType {
     fn max_representable_size(self) -> usize {
         match self {
             Self::ShortDivByTwo(_) => ((1 << 16) - 1) * 2,
-            _ => (1 << (self.offset_width() * 8)) - 1 - self.offset_bias() as usize,
+            _ => ((1 << (self.offset_width() as u64 * 8)) - 1 - self.offset_bias() as u64) as usize,
         }
     }
 
@@ -1123,12 +1123,12 @@ pub(crate) mod tests {
 
     use crate::{
         font_patch::PatchingError,
-        glyph_keyed::apply_glyph_keyed_patches,
+        glyph_keyed::{apply_glyph_keyed_patches, CffFourInfo, ShortDivByTwoInfo},
         patchmap::{PatchFormat, PatchUri},
         testdata::{test_font_for_patching, test_font_for_patching_with_loca_mod},
     };
 
-    use super::{CFFAndCharStrings, IftTableTag, PatchInfo};
+    use super::{CFFAndCharStrings, IftTableTag, LongInfo, OffsetType, PatchInfo};
 
     pub(crate) fn assemble_glyph_keyed_patch(mut header: BeBuffer, payload: BeBuffer) -> BeBuffer {
         let payload_data: &[u8] = &payload;
@@ -2242,6 +2242,22 @@ pub(crate) mod tests {
         assert_eq!(b"defg", new_cff.charstrings.get(38).unwrap());
         assert_eq!(b"hijkl", new_cff.charstrings.get(47).unwrap());
         assert_eq!(b"mn", new_cff.charstrings.get(59).unwrap());
+    }
+
+    #[test]
+    fn max_representable_size() {
+        assert_eq!(
+            OffsetType::ShortDivByTwo(ShortDivByTwoInfo).max_representable_size(),
+            131070
+        );
+        assert_eq!(
+            OffsetType::Long(LongInfo).max_representable_size(),
+            4_294_967_295
+        );
+        assert_eq!(
+            OffsetType::CffFour(CffFourInfo).max_representable_size(),
+            4_294_967_294
+        );
     }
 
     // TODO test of invalid cases:

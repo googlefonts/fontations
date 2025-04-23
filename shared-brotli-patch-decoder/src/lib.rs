@@ -219,7 +219,7 @@ mod tests {
         let patch: Vec<u8> = NO_DICT_PATCH[..NO_DICT_PATCH.len() - 1].to_vec();
         assert!(matches!(
             BuiltInBrotliDecoder.decode(&patch, None, TARGET.len()),
-            Err(DecodeError::InvalidStream(_))
+            Err(DecodeError::InvalidStream)
         ));
     }
 
@@ -228,7 +228,7 @@ mod tests {
         let patch = [0xFF, 0xFF, 0xFFu8];
         assert!(matches!(
             BuiltInBrotliDecoder.decode(&patch, None, 10),
-            Err(DecodeError::InvalidStream(_))
+            Err(DecodeError::InvalidStream)
         ));
     }
 }
