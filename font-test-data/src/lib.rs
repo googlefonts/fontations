@@ -93,6 +93,9 @@ pub static MATERIAL_ICONS_SUBSET: &[u8] =
 
 pub static TINOS_SUBSET: &[u8] = include_bytes!("../test_data/ttf/tinos_subset.ttf");
 
+pub static NOTO_HANDWRITING_SBIX: &[u8] =
+    include_bytes!("../test_data/ttf/noto_handwriting-sbix.ttf");
+
 pub mod varc {
     pub static CJK_6868: &[u8] = include_bytes!("../test_data/ttf/varc-6868.ttf");
     pub static CONDITIONALS: &[u8] = include_bytes!("../test_data/ttf/varc-ac01-conditional.ttf");
