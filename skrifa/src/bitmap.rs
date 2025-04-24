@@ -396,7 +396,7 @@ mod tests {
         assert!(matches!(strikes.0, StrikesKind::Cbdt(_)));
         assert!(matches!(strikes.len(), 3));
 
-        // Note that this is only `ppem_x`.
+        // Note that this is only `ppem_y`.
         assert!(matches!(strikes.get(0).unwrap().ppem(), 16.0));
         assert!(matches!(strikes.get(1).unwrap().ppem(), 64.0));
         assert!(matches!(strikes.get(2).unwrap().ppem(), 128.0));
