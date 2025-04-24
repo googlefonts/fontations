@@ -103,7 +103,7 @@ pub mod morx {
     pub static FOUR: &[u8] = include_bytes!("../test_data/ttf/TestMORXFour.ttf");
     pub static EIGHTEEN: &[u8] = include_bytes!("../test_data/ttf/TestMORXEighteen.ttf");
     pub static THIRTY_FOUR: &[u8] = include_bytes!("../test_data/ttf/TestMORXThirtyfour.ttf");
-    pub static FOURTY_ONE: &[u8] = include_bytes!("../test_data/ttf/TestMORXFourtyone.ttf");
+    pub static FORTY_ONE: &[u8] = include_bytes!("../test_data/ttf/TestMORXFourtyone.ttf");
 }
 
 pub mod varc {

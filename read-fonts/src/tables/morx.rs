@@ -244,7 +244,7 @@ mod tests {
         let chain = morx.chains().iter().next().unwrap().unwrap();
         let subtable = chain.subtables().iter().next().unwrap().unwrap();
         assert_eq!(subtable.coverage(), 0x20_0000_00);
-        // Rearrangment is just a state table
+        // Rearrangement is just a state table
         let SubtableKind::Rearrangement(_kind) = subtable.kind().unwrap() else {
             panic!("expected rearrangement subtable!");
         };
@@ -268,7 +268,7 @@ mod tests {
 
     #[test]
     fn parse_ligature() {
-        let font = FontRef::new(font_test_data::morx::FOURTY_ONE).unwrap();
+        let font = FontRef::new(font_test_data::morx::FORTY_ONE).unwrap();
         let morx = font.morx().unwrap();
         let chain = morx.chains().iter().next().unwrap().unwrap();
         let subtable = chain.subtables().iter().next().unwrap().unwrap();
