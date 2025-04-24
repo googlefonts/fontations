@@ -129,11 +129,11 @@ record FeatMinMaxRecord {
     /// Offset to BaseCoord table that defines the minimum extent
     /// value, from beginning of MinMax table (may be NULL)
     #[nullable]
-    min_coord_offset: Offset16<MinMax>,
+    min_coord_offset: Offset16<BaseCoord>,
     /// Offset to BaseCoord table that defines the maximum extent
     /// value, from beginning of MinMax table (may be NULL)
     #[nullable]
-    max_coord_offset: Offset16<MinMax>,
+    max_coord_offset: Offset16<BaseCoord>,
 }
 
 format u16 BaseCoord {

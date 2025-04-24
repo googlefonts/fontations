@@ -12,13 +12,16 @@ use crate::{
 };
 
 use super::{
-    AlternateSubstFormat1, ChainedSequenceContext, ClassDef, CoverageTable, Gsub,
-    LigatureSubstFormat1, MultipleSubstFormat1, ReverseChainSingleSubstFormat1, SequenceContext,
-    SingleSubst, SingleSubstFormat1, SingleSubstFormat2, SubstitutionLookup, SubstitutionSubtables,
+    AlternateSubstFormat1, ChainedSequenceContext, ClassDef, CoverageTable, Gsub, Ligature,
+    LigatureSet, LigatureSubstFormat1, MultipleSubstFormat1, ReverseChainSingleSubstFormat1,
+    SequenceContext, SingleSubst, SingleSubstFormat1, SingleSubstFormat2, SubstitutionLookup,
+    SubstitutionLookupList, SubstitutionSubtables,
 };
 
 #[cfg(feature = "std")]
-use crate::tables::layout::{ContextFormat1, ContextFormat2, ContextFormat3};
+use crate::tables::layout::{
+    ContextFormat1, ContextFormat2, ContextFormat3, LookupClosure, LookupClosureCtx,
+};
 
 // we put ClosureCtx in its own module to enforce visibility rules;
 // specifically we don't want cur_glyphs to be reachable directly
@@ -577,6 +580,161 @@ fn intersect_coverage(
         .filter(|gid| glyphs.contains(*gid))
         .collect::<IntSet<_>>();
     Some(r).filter(|set| !set.is_empty())
+}
+
+impl SubstitutionLookupList<'_> {
+    pub fn closure_lookups(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        lookup_indices: &mut IntSet<u16>,
+    ) -> Result<(), ReadError> {
+        let mut c = LookupClosureCtx::new(glyph_set);
+
+        let lookups = self.lookups();
+        for idx in lookup_indices.iter() {
+            let lookup = lookups.get(idx as usize)?;
+            lookup.closure_lookups(&mut c, idx)?;
+        }
+
+        lookup_indices.union(c.visited_lookups());
+        lookup_indices.subtract(c.inactive_lookups());
+        Ok(())
+    }
+}
+
+impl LookupClosure for SubstitutionLookup<'_> {
+    fn closure_lookups(
+        &self,
+        c: &mut LookupClosureCtx,
+        lookup_index: u16,
+    ) -> Result<(), ReadError> {
+        if !c.should_visit_lookup(lookup_index) {
+            return Ok(());
+        }
+
+        if !self.intersects(c.glyphs())? {
+            c.set_lookup_inactive(lookup_index);
+            return Ok(());
+        }
+
+        let lookup_type = self.lookup_type();
+        self.subtables()?.closure_lookups(c, lookup_type)
+    }
+
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        self.subtables()?.intersects(glyph_set)
+    }
+}
+
+impl LookupClosure for SubstitutionSubtables<'_> {
+    fn closure_lookups(&self, _c: &mut LookupClosureCtx, _arg: u16) -> Result<(), ReadError> {
+        Ok(())
+    }
+
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            SubstitutionSubtables::Single(subtables) => subtables.intersects(glyph_set),
+            SubstitutionSubtables::Multiple(subtables) => subtables.intersects(glyph_set),
+            SubstitutionSubtables::Alternate(subtables) => subtables.intersects(glyph_set),
+            SubstitutionSubtables::Ligature(subtables) => subtables.intersects(glyph_set),
+            SubstitutionSubtables::Contextual(subtables) => subtables.intersects(glyph_set),
+            SubstitutionSubtables::ChainContextual(subtables) => subtables.intersects(glyph_set),
+            SubstitutionSubtables::Reverse(subtables) => subtables.intersects(glyph_set),
+        }
+    }
+}
+
+impl LookupClosure for SingleSubst<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            Self::Format1(item) => item.intersects(glyph_set),
+            Self::Format2(item) => item.intersects(glyph_set),
+        }
+    }
+}
+
+impl LookupClosure for SingleSubstFormat1<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        Ok(self.coverage()?.intersects(glyph_set))
+    }
+}
+
+impl LookupClosure for SingleSubstFormat2<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        Ok(self.coverage()?.intersects(glyph_set))
+    }
+}
+
+impl LookupClosure for MultipleSubstFormat1<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        Ok(self.coverage()?.intersects(glyph_set))
+    }
+}
+
+impl LookupClosure for AlternateSubstFormat1<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        Ok(self.coverage()?.intersects(glyph_set))
+    }
+}
+
+impl LookupClosure for LigatureSubstFormat1<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        let coverage = self.coverage()?;
+        let lig_sets = self.ligature_sets();
+        for lig_set in coverage
+            .iter()
+            .zip(lig_sets.iter())
+            .filter_map(|(g, lig_set)| glyph_set.contains(GlyphId::from(g)).then_some(lig_set))
+        {
+            if lig_set?.intersects(glyph_set)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
+impl LookupClosure for LigatureSet<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        let ligs = self.ligatures();
+        for lig in ligs.iter() {
+            if lig?.intersects(glyph_set)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
+impl LookupClosure for Ligature<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        let ret = self
+            .component_glyph_ids()
+            .iter()
+            .all(|g| glyph_set.contains(GlyphId::from(g.get())));
+        Ok(ret)
+    }
+}
+
+impl LookupClosure for ReverseChainSingleSubstFormat1<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        if !self.coverage()?.intersects(glyph_set) {
+            return Ok(false);
+        }
+
+        for coverage in self.backtrack_coverages().iter() {
+            if !coverage?.intersects(glyph_set) {
+                return Ok(false);
+            }
+        }
+
+        for coverage in self.lookahead_coverages().iter() {
+            if !coverage?.intersects(glyph_set) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
 }
 
 #[cfg(test)]

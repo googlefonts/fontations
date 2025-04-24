@@ -30,6 +30,7 @@ Currently, this repo contains four main library crates: [`font-types`][], [`read
 - [`skrifa`][] is a mid level library that provides access to various types of
   metadata contained in a font as well as support for loading glyph outlines.
     - It's primary purpose is to replace FreeType in Google applications.
+    - See https://developer.chrome.com/blog/memory-safety-fonts
     - It is also used for tasks such as produce assets for https://fonts.google.com/icons
 
 ## depgraph
@@ -156,6 +157,17 @@ Releasing involves the following steps:
    # To do the thing
    ./resources/scripts/release.sh read-fonts write-fonts
    ```
+
+## What version is running where?
+
+### Chrome
+
+Given a Chrome version:
+
+* Find the tag at https://chromium.googlesource.com/chromium/src/
+* Look at the version in `third_party/rust/chromium_crates_io/Cargo.lock`
+
+OR look through commit history for the latest Fontations roll.
 
 ## Skia and Chromium builds
 

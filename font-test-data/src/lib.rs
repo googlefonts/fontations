@@ -93,6 +93,9 @@ pub static MATERIAL_ICONS_SUBSET: &[u8] =
 
 pub static TINOS_SUBSET: &[u8] = include_bytes!("../test_data/ttf/tinos_subset.ttf");
 
+pub static NOTO_HANDWRITING_SBIX: &[u8] =
+    include_bytes!("../test_data/ttf/noto_handwriting-sbix.ttf");
+
 pub mod morx {
     // The following taken from the Unicode text rendering test fonts:
     // <https://github.com/unicode-org/text-rendering-tests/tree/main/fonts>

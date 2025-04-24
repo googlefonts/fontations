@@ -11,6 +11,7 @@ use super::{
     variation::{AxisCollection, NamedInstanceCollection},
     FontRef,
 };
+use crate::bitmap::BitmapStrikes;
 
 /// Interface for types that can provide font metadata.
 pub trait MetadataProvider<'a>: Sized {
@@ -51,6 +52,9 @@ pub trait MetadataProvider<'a>: Sized {
 
     // Returns a collection of paintable color glyphs.
     fn color_glyphs(&self) -> ColorGlyphCollection<'a>;
+
+    /// Returns a collection of bitmap strikes.
+    fn bitmap_strikes(&self) -> BitmapStrikes<'a>;
 }
 
 impl<'a> MetadataProvider<'a> for FontRef<'a> {
@@ -110,5 +114,10 @@ impl<'a> MetadataProvider<'a> for FontRef<'a> {
     // Returns a collection of paintable color glyphs.
     fn color_glyphs(&self) -> ColorGlyphCollection<'a> {
         ColorGlyphCollection::new(self)
+    }
+
+    /// Returns a collection of bitmap strikes.
+    fn bitmap_strikes(&self) -> BitmapStrikes<'a> {
+        BitmapStrikes::new(self)
     }
 }
