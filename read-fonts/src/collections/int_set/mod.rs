@@ -52,7 +52,7 @@ pub struct IntSet<T>(Membership, PhantomData<T>);
 /// `from_u32`() will only ever be called with u32 values that are part of the domain of T as defined
 /// by an implementation of this trait. So it doesn't need to correctly handle values
 /// that are outside the domain of `T`.
-pub trait Domain: Sized {
+pub trait Domain: Sized + Copy {
     /// Converts this value of `T` to a value in u32.
     ///
     /// The mapped value must maintain the same ordering as `T`.
@@ -135,37 +135,61 @@ impl<T: Domain> IntSet<T> {
         }
     }
 
-    /// Returns an iterator over the members of this set that come after `value` in ascending order.
+    /// Returns an iterator over the members of this set starting from `value` in ascending order.
     ///
     /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
     /// care should be taken when using `.iter()` in combination with an inverted set.
-    pub fn iter_after(&self, value: T) -> impl Iterator<Item = T> + '_ {
-        let u32_iter = match &self.0 {
-            Membership::Inclusive(s) => Iter::new(s.iter_after(value.to_u32()), None),
+    pub fn iter_from(&self, value: T) -> impl Iterator<Item = T> + '_ {
+        let u32_iter = self.iter_from_u32(value);
+        u32_iter.map(|v| T::from_u32(InDomain(v)))
+    }
+
+    fn iter_from_u32(&self, value: T) -> impl Iterator<Item = u32> + '_ {
+        match &self.0 {
+            Membership::Inclusive(s) => Iter::new(s.iter_from(value.to_u32()), None),
             Membership::Exclusive(s) => {
                 let value_u32 = value.to_u32();
                 let max = T::ordered_values().next_back();
-                let it = max.map(|max| {
-                    let mut it = T::ordered_values_range(value..=T::from_u32(InDomain(max)));
-                    it.next(); // skip ahead one value.
-                    it
-                });
+                let it = max.map(|max| T::ordered_values_range(value..=T::from_u32(InDomain(max))));
                 let min = it.and_then(|mut it| it.next());
 
                 if let (Some(min), Some(max)) = (min, max) {
                     Iter::new(
-                        s.iter_after(value_u32),
+                        s.iter_from(value_u32),
                         Some(T::ordered_values_range(
                             T::from_u32(InDomain(min))..=T::from_u32(InDomain(max)),
                         )),
                     )
                 } else {
                     // either min or max doesn't exist, so just return an iterator that has no values.
-                    Iter::new(s.iter_after(u32::MAX), None)
+                    let mut it = Iter::new(s.iter_from(u32::MAX), None);
+                    it.next();
+                    it
                 }
             }
-        };
+        }
+    }
+
+    /// Returns an iterator over the members of this set that are after `value` in ascending order.
+    ///
+    /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
+    /// care should be taken when using `.iter()` in combination with an inverted set.
+    pub fn iter_after(&self, value: T) -> impl Iterator<Item = T> + '_ {
+        let u32_value = value.to_u32();
+        let mut u32_iter = self.iter_from_u32(value).peekable();
+        if let Some(next) = u32_iter.peek() {
+            if *next == u32_value {
+                u32_iter.next();
+            }
+        }
         u32_iter.map(|v| T::from_u32(InDomain(v)))
+    }
+
+    /// Returns an iterator over members of this set that are in `range`.
+    pub fn range(&self, range: RangeInclusive<T>) -> impl Iterator<Item = T> + '_ {
+        let end = range.end().to_u32();
+        self.iter_from(*range.start())
+            .take_while(move |v| v.to_u32() <= end)
     }
 
     /// Returns an iterator over all disjoint ranges of values within the set in sorted ascending order.
@@ -1225,7 +1249,7 @@ mod test {
 
     use super::*;
 
-    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord, Clone)]
+    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord, Clone, Copy)]
     struct EvenInts(u16);
 
     impl Domain for EvenInts {
@@ -1263,7 +1287,7 @@ mod test {
         }
     }
 
-    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord, Hash, Clone)]
+    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord, Hash, Clone, Copy)]
     struct TwoParts(u16);
 
     impl Domain for TwoParts {
@@ -1299,7 +1323,7 @@ mod test {
         }
     }
 
-    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord)]
+    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord, Clone, Copy)]
     struct TwoPartsBounds(u32);
 
     impl Domain for TwoPartsBounds {
@@ -1790,7 +1814,7 @@ mod test {
     }
 
     #[test]
-    fn iter_after() {
+    fn iter_after_from() {
         let mut set = IntSet::<u32>::empty();
         assert_eq!(set.iter_after(0).count(), 0);
 
@@ -1800,19 +1824,32 @@ mod test {
             set.iter_after(0).collect::<Vec<u32>>(),
             vec![5, 7, 10, 1250, 1300, 3001]
         );
+        assert_eq!(
+            set.iter_from(0).collect::<Vec<u32>>(),
+            vec![5, 7, 10, 1250, 1300, 3001]
+        );
 
         assert_eq!(
             set.iter_after(5).collect::<Vec<u32>>(),
             vec![7, 10, 1250, 1300, 3001]
         );
         assert_eq!(
+            set.iter_from(5).collect::<Vec<u32>>(),
+            vec![5, 7, 10, 1250, 1300, 3001]
+        );
+
+        assert_eq!(
             set.iter_after(700).collect::<Vec<u32>>(),
+            vec![1250, 1300, 3001]
+        );
+        assert_eq!(
+            set.iter_from(700).collect::<Vec<u32>>(),
             vec![1250, 1300, 3001]
         );
     }
 
     #[test]
-    fn iter_after_exclusive() {
+    fn iter_after_from_exclusive() {
         let mut set = IntSet::<u32>::empty();
         set.extend([5, 7, 10, 1250, 1300, 3001]);
         set.invert();
@@ -1821,18 +1858,32 @@ mod test {
             set.iter_after(3).take(5).collect::<Vec<u32>>(),
             vec![4, 6, 8, 9, 11]
         );
+        assert_eq!(
+            set.iter_from(3).take(5).collect::<Vec<u32>>(),
+            vec![3, 4, 6, 8, 9]
+        );
 
         assert_eq!(
             set.iter_after(0).take(5).collect::<Vec<u32>>(),
             vec![1, 2, 3, 4, 6]
+        );
+        assert_eq!(
+            set.iter_from(0).take(5).collect::<Vec<u32>>(),
+            vec![0, 1, 2, 3, 4]
         );
 
         assert_eq!(
             set.iter_after(u32::MAX - 1).take(1).collect::<Vec<u32>>(),
             vec![u32::MAX]
         );
+        assert_eq!(
+            set.iter_from(u32::MAX - 1).take(2).collect::<Vec<u32>>(),
+            vec![u32::MAX - 1, u32::MAX]
+        );
+
         assert_eq!(set.iter_after(u32::MAX).take(1).count(), 0);
         set.remove(u32::MAX);
+        assert_eq!(set.iter_from(u32::MAX).take(1).count(), 0);
         assert_eq!(set.iter_after(u32::MAX - 1).take(1).count(), 0);
     }
 
@@ -1854,6 +1905,18 @@ mod test {
                 EvenInts(16)
             ]
         );
+        assert_eq!(
+            set.iter_from(EvenInts(2))
+                .take(5)
+                .collect::<Vec<EvenInts>>(),
+            vec![
+                EvenInts(2),
+                EvenInts(4),
+                EvenInts(8),
+                EvenInts(12),
+                EvenInts(14)
+            ]
+        );
 
         assert_eq!(
             set.iter_after(EvenInts(4))
@@ -1873,6 +1936,11 @@ mod test {
                 .collect::<Vec<EvenInts>>(),
             vec![]
         );
+        assert_eq!(
+            set.iter_from(EvenInts(u16::MAX - 1))
+                .collect::<Vec<EvenInts>>(),
+            vec![EvenInts(u16::MAX - 1)]
+        );
 
         assert_eq!(
             set.iter_after(EvenInts(u16::MAX - 5))
@@ -1886,6 +1954,26 @@ mod test {
                 .collect::<Vec<EvenInts>>(),
             vec![EvenInts(u16::MAX - 3),]
         );
+        assert_eq!(
+            set.iter_from(EvenInts(u16::MAX - 5))
+                .collect::<Vec<EvenInts>>(),
+            vec![EvenInts(u16::MAX - 5), EvenInts(u16::MAX - 3),]
+        );
+    }
+
+    #[test]
+    #[allow(clippy::reversed_empty_ranges)]
+    fn range() {
+        let mut set = IntSet::<u32>::empty();
+        assert_eq!(set.range(0..=5).count(), 0);
+
+        set.extend([5, 7, 10, 1250, 1300, 3001]);
+
+        assert_eq!(set.range(0..=5).collect::<Vec<u32>>(), vec![5]);
+        assert_eq!(set.range(5..=11).collect::<Vec<u32>>(), vec![5, 7, 10]);
+        assert_eq!(set.range(6..=11).collect::<Vec<u32>>(), vec![7, 10]);
+
+        assert!(set.range(5..=0).collect::<Vec<u32>>().is_empty());
     }
 
     #[test]
