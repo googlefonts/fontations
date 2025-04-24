@@ -187,7 +187,39 @@ fn safe_read_array_to_end<'a, T: bytemuck::AnyBitPattern + FixedSize>(
     data.read_array(offset..end)
 }
 
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for Chain<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "Chain",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("default_flags", self.default_flags())),
+                _ => None,
+            }),
+            data,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for Subtable<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "Subtable",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("coverage", self.coverage())),
+                1usize => Some(Field::new("sub_feature_flags", self.sub_feature_flags())),
+                _ => None,
+            }),
+            data,
+        }
+    }
+}
+
 #[cfg(test)]
+// Literal bytes are grouped according to layout in the spec
+// for readabiity
+#[allow(clippy::unusual_byte_groupings)]
 mod tests {
     use super::*;
     use crate::{FontRef, TableProvider};
