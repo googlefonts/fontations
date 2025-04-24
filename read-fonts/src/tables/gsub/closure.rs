@@ -20,7 +20,8 @@ use super::{
 
 #[cfg(feature = "std")]
 use crate::tables::layout::{
-    ContextFormat1, ContextFormat2, ContextFormat3, LookupClosure, LookupClosureCtx,
+    ContextFormat1, ContextFormat2, ContextFormat3, LayoutLookupList, LookupClosure,
+    LookupClosureCtx,
 };
 
 // we put ClosureCtx in its own module to enforce visibility rules;
@@ -588,7 +589,8 @@ impl SubstitutionLookupList<'_> {
         glyph_set: &IntSet<GlyphId>,
         lookup_indices: &mut IntSet<u16>,
     ) -> Result<(), ReadError> {
-        let mut c = LookupClosureCtx::new(glyph_set);
+        let lookup_list = LayoutLookupList::Gsub(self);
+        let mut c = LookupClosureCtx::new(glyph_set, &lookup_list);
 
         let lookups = self.lookups();
         for idx in lookup_indices.iter() {
@@ -617,8 +619,7 @@ impl LookupClosure for SubstitutionLookup<'_> {
             return Ok(());
         }
 
-        let lookup_type = self.lookup_type();
-        self.subtables()?.closure_lookups(c, lookup_type)
+        self.subtables()?.closure_lookups(c, lookup_index)
     }
 
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
@@ -627,8 +628,12 @@ impl LookupClosure for SubstitutionLookup<'_> {
 }
 
 impl LookupClosure for SubstitutionSubtables<'_> {
-    fn closure_lookups(&self, _c: &mut LookupClosureCtx, _arg: u16) -> Result<(), ReadError> {
-        Ok(())
+    fn closure_lookups(&self, c: &mut LookupClosureCtx, arg: u16) -> Result<(), ReadError> {
+        match self {
+            SubstitutionSubtables::ChainContextual(subtables) => subtables.closure_lookups(c, arg),
+            SubstitutionSubtables::Contextual(subtables) => subtables.closure_lookups(c, arg),
+            _ => Ok(()),
+        }
     }
 
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {

@@ -19,7 +19,8 @@ use crate::collections::IntSet;
 
 #[cfg(feature = "std")]
 pub(crate) use closure::{
-    ContextFormat1, ContextFormat2, ContextFormat3, LookupClosure, LookupClosureCtx,
+    ContextFormat1, ContextFormat2, ContextFormat3, LayoutLookupList, LookupClosure,
+    LookupClosureCtx,
 };
 
 #[cfg(test)]
