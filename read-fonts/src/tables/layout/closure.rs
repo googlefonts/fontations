@@ -570,6 +570,7 @@ impl Format2Rule<'_> {
         }
     }
 
+    //TODO: Fix glyph closure: this one is incorrect in case of ChainedContext, replace it with intersects()
     pub(crate) fn matches_classes(&self, classes: &IntSet<u16>) -> bool {
         let (backtrack, lookahead) = match self {
             Self::Plain(_) => (None, None),
@@ -583,6 +584,49 @@ impl Format2Rule<'_> {
             .chain(backtrack.into_iter().flatten())
             .chain(lookahead.into_iter().flatten())
             .all(|gid| classes.contains(gid.get()))
+    }
+
+    pub(crate) fn intersects(
+        &self,
+        input_classes: &IntSet<u16>,
+        backtrack_classes: &IntSet<u16>,
+        lookahead_classes: &IntSet<u16>,
+    ) -> bool {
+        match self {
+            Self::Plain(table) => table.intersects(input_classes),
+            Self::Chain(table) => {
+                table.intersects(input_classes, backtrack_classes, lookahead_classes)
+            }
+        }
+    }
+}
+
+impl ClassSequenceRule<'_> {
+    fn intersects(&self, input_classes: &IntSet<u16>) -> bool {
+        self.input_sequence()
+            .iter()
+            .all(|c| input_classes.contains(c.get()))
+    }
+}
+
+impl ChainedClassSequenceRule<'_> {
+    fn intersects(
+        &self,
+        input_classes: &IntSet<u16>,
+        backtrack_classes: &IntSet<u16>,
+        lookahead_classes: &IntSet<u16>,
+    ) -> bool {
+        self.input_sequence()
+            .iter()
+            .all(|c| input_classes.contains(c.get()))
+            && self
+                .backtrack_sequence()
+                .iter()
+                .all(|c| backtrack_classes.contains(c.get()))
+            && self
+                .lookahead_sequence()
+                .iter()
+                .all(|c| lookahead_classes.contains(c.get()))
     }
 }
 
@@ -630,20 +674,64 @@ impl ContextFormat3<'_> {
 }
 
 impl LookupClosure for ContextFormat1<'_> {
-    fn intersects(&self, _glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        let coverage = self.coverage()?;
+        for rule_set in coverage
+            .iter()
+            .zip(self.rule_sets())
+            .filter_map(|(g, rule_set)| rule_set.filter(|_| glyph_set.contains(GlyphId::from(g))))
+        {
+            for rule in rule_set?.rules() {
+                if rule?.intersects(glyph_set)? {
+                    return Ok(true);
+                }
+            }
+        }
         Ok(false)
     }
 }
 
 impl LookupClosure for ContextFormat2<'_> {
-    fn intersects(&self, _glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        let coverage = self.coverage()?;
+        let retained_coverage_glyphs = coverage.intersect_set(glyph_set);
+        if retained_coverage_glyphs.is_empty() {
+            return Ok(false);
+        }
+
+        let input_class_def = self.input_class_def()?;
+        let coverage_glyph_classes = input_class_def.intersect_classes(&retained_coverage_glyphs);
+        let input_glyph_classes = input_class_def.intersect_classes(glyph_set);
+
+        let backtrack_classes = match self {
+            Self::Plain(_) => IntSet::empty(),
+            Self::Chain(table) => table.backtrack_class_def()?.intersect_classes(glyph_set),
+        };
+
+        let lookahead_classes = match self {
+            Self::Plain(_) => IntSet::empty(),
+            Self::Chain(table) => table.lookahead_class_def()?.intersect_classes(glyph_set),
+        };
+
+        for rule_set in self.rule_sets().enumerate().filter_map(|(c, rule_set)| {
+            coverage_glyph_classes
+                .contains(c as u16)
+                .then_some(rule_set)
+                .flatten()
+        }) {
+            for rule in rule_set?.rules() {
+                if rule?.intersects(&input_glyph_classes, &backtrack_classes, &lookahead_classes) {
+                    return Ok(true);
+                }
+            }
+        }
         Ok(false)
     }
 }
 
 impl LookupClosure for ContextFormat3<'_> {
-    fn intersects(&self, _glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
-        Ok(false)
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        self.matches_glyphs(glyph_set)
     }
 }
 
