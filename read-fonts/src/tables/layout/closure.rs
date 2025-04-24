@@ -11,7 +11,10 @@ use super::{
     SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord, SequenceRule,
     SequenceRuleSet, Subtables, Tag,
 };
-use crate::collections::IntSet;
+use crate::{
+    collections::IntSet,
+    tables::{gpos::PositionLookupList, gsub::SubstitutionLookupList},
+};
 
 const MAX_SCRIPTS: u16 = 500;
 const MAX_LANGSYS: u16 = 2000;
@@ -197,23 +200,29 @@ impl LangSys<'_> {
     }
 }
 
-#[allow(dead_code)]
+pub(crate) enum LayoutLookupList<'a> {
+    Gsub(&'a SubstitutionLookupList<'a>),
+    Gpos(&'a PositionLookupList<'a>),
+}
+
 pub(crate) struct LookupClosureCtx<'a> {
     visited_lookups: IntSet<u16>,
     inactive_lookups: IntSet<u16>,
     glyph_set: &'a IntSet<GlyphId>,
     lookup_count: u16,
     nesting_level_left: u8,
+    lookup_list: &'a LayoutLookupList<'a>,
 }
 
 impl<'a> LookupClosureCtx<'a> {
-    pub(crate) fn new(glyph_set: &'a IntSet<GlyphId>) -> Self {
+    pub(crate) fn new(glyph_set: &'a IntSet<GlyphId>, lookup_list: &'a LayoutLookupList) -> Self {
         Self {
             visited_lookups: IntSet::empty(),
             inactive_lookups: IntSet::empty(),
             glyph_set,
             lookup_count: 0,
             nesting_level_left: MAX_NESTING_LEVEL,
+            lookup_list,
         }
     }
 
@@ -233,7 +242,6 @@ impl<'a> LookupClosureCtx<'a> {
         self.inactive_lookups.insert(lookup_index);
     }
 
-    #[allow(dead_code)]
     pub(crate) fn lookup_limit_exceed(&self) -> bool {
         self.lookup_count > MAX_LOOKUP_VISIT_COUNT
     }
@@ -246,6 +254,34 @@ impl<'a> LookupClosureCtx<'a> {
         }
         self.lookup_count += 1;
         self.visited_lookups.insert(lookup_index)
+    }
+
+    pub(crate) fn recurse(&mut self, lookup_index: u16) -> Result<(), ReadError> {
+        if self.nesting_level_left == 0 {
+            return Ok(());
+        }
+
+        if self.lookup_limit_exceed() || self.visited_lookups.contains(lookup_index) {
+            return Ok(());
+        }
+
+        self.nesting_level_left -= 1;
+        match self.lookup_list {
+            LayoutLookupList::Gpos(lookuplist) => {
+                lookuplist
+                    .lookups()
+                    .get(lookup_index as usize)?
+                    .closure_lookups(self, lookup_index)?;
+            }
+            LayoutLookupList::Gsub(lookuplist) => {
+                lookuplist
+                    .lookups()
+                    .get(lookup_index as usize)?
+                    .closure_lookups(self, lookup_index)?;
+            }
+        }
+        self.nesting_level_left += 1;
+        Ok(())
     }
 }
 
@@ -333,6 +369,13 @@ where
             }
         }
         Ok(false)
+    }
+
+    fn closure_lookups(&self, c: &mut LookupClosureCtx, arg: u16) -> Result<(), ReadError> {
+        for sub in self.iter() {
+            sub?.closure_lookups(c, arg)?;
+        }
+        Ok(())
     }
 }
 
@@ -465,6 +508,18 @@ impl LookupClosure for Format1Rule<'_> {
                 && table.input_sequence().intersects(glyph_set)?
                 && table.lookahead_sequence().intersects(glyph_set)?),
         }
+    }
+
+    fn closure_lookups(&self, c: &mut LookupClosureCtx, _arg: u16) -> Result<(), ReadError> {
+        if c.lookup_limit_exceed() || !self.intersects(c.glyphs())? {
+            return Ok(());
+        }
+
+        for lookup_record in self.lookup_records() {
+            let index = lookup_record.lookup_list_index();
+            c.recurse(index)?;
+        }
+        Ok(())
     }
 }
 
@@ -689,6 +744,31 @@ impl LookupClosure for ContextFormat1<'_> {
         }
         Ok(false)
     }
+
+    fn closure_lookups(&self, c: &mut LookupClosureCtx, arg: u16) -> Result<(), ReadError> {
+        let coverage = self.coverage()?;
+        let glyph_set = c.glyphs();
+
+        let intersected_idxes: IntSet<u16> = coverage
+            .iter()
+            .enumerate()
+            .filter(|&(_, g)| glyph_set.contains(GlyphId::from(g)))
+            .map(|(idx, _)| idx as u16)
+            .collect();
+
+        for rule_set in self.rule_sets().enumerate().filter_map(|(idx, rule_set)| {
+            rule_set.filter(|_| intersected_idxes.contains(idx as u16))
+        }) {
+            if c.lookup_limit_exceed() {
+                return Ok(());
+            }
+            for rule in rule_set?.rules() {
+                rule?.closure_lookups(c, arg)?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl LookupClosure for ContextFormat2<'_> {
@@ -727,11 +807,77 @@ impl LookupClosure for ContextFormat2<'_> {
         }
         Ok(false)
     }
+
+    fn closure_lookups(&self, c: &mut LookupClosureCtx, _arg: u16) -> Result<(), ReadError> {
+        let glyph_set = c.glyphs();
+        let coverage = self.coverage()?;
+        let retained_coverage_glyphs = coverage.intersect_set(glyph_set);
+        if retained_coverage_glyphs.is_empty() {
+            return Ok(());
+        }
+
+        let input_class_def = self.input_class_def()?;
+        let coverage_glyph_classes = input_class_def.intersect_classes(&retained_coverage_glyphs);
+        let input_glyph_classes = input_class_def.intersect_classes(glyph_set);
+
+        let backtrack_classes = match self {
+            Self::Plain(_) => IntSet::empty(),
+            Self::Chain(table) => table.backtrack_class_def()?.intersect_classes(glyph_set),
+        };
+
+        let lookahead_classes = match self {
+            Self::Plain(_) => IntSet::empty(),
+            Self::Chain(table) => table.lookahead_class_def()?.intersect_classes(glyph_set),
+        };
+
+        for rule_set in self.rule_sets().enumerate().filter_map(|(c, rule_set)| {
+            coverage_glyph_classes
+                .contains(c as u16)
+                .then_some(rule_set)
+                .flatten()
+        }) {
+            if c.lookup_limit_exceed() {
+                return Ok(());
+            }
+
+            for rule in rule_set?.rules() {
+                let rule = rule?;
+                if c.lookup_limit_exceed()
+                    || !rule.intersects(
+                        &input_glyph_classes,
+                        &backtrack_classes,
+                        &lookahead_classes,
+                    )
+                {
+                    return Ok(());
+                }
+
+                for lookup_record in rule.lookup_records() {
+                    let index = lookup_record.lookup_list_index();
+                    c.recurse(index)?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 impl LookupClosure for ContextFormat3<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         self.matches_glyphs(glyph_set)
+    }
+
+    fn closure_lookups(&self, c: &mut LookupClosureCtx, _arg: u16) -> Result<(), ReadError> {
+        if !self.intersects(c.glyphs())? {
+            return Ok(());
+        }
+
+        for lookup_record in self.lookup_records() {
+            let index = lookup_record.lookup_list_index();
+            c.recurse(index)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -743,6 +889,14 @@ impl LookupClosure for SequenceContext<'_> {
             Self::Format3(table) => ContextFormat3::Plain(table.clone()).intersects(glyph_set),
         }
     }
+
+    fn closure_lookups(&self, c: &mut LookupClosureCtx, arg: u16) -> Result<(), ReadError> {
+        match self {
+            Self::Format1(table) => ContextFormat1::Plain(table.clone()).closure_lookups(c, arg),
+            Self::Format2(table) => ContextFormat2::Plain(table.clone()).closure_lookups(c, arg),
+            Self::Format3(table) => ContextFormat3::Plain(table.clone()).closure_lookups(c, arg),
+        }
+    }
 }
 
 impl LookupClosure for ChainedSequenceContext<'_> {
@@ -751,6 +905,14 @@ impl LookupClosure for ChainedSequenceContext<'_> {
             Self::Format1(table) => ContextFormat1::Chain(table.clone()).intersects(glyph_set),
             Self::Format2(table) => ContextFormat2::Chain(table.clone()).intersects(glyph_set),
             Self::Format3(table) => ContextFormat3::Chain(table.clone()).intersects(glyph_set),
+        }
+    }
+
+    fn closure_lookups(&self, c: &mut LookupClosureCtx, arg: u16) -> Result<(), ReadError> {
+        match self {
+            Self::Format1(table) => ContextFormat1::Chain(table.clone()).closure_lookups(c, arg),
+            Self::Format2(table) => ContextFormat2::Chain(table.clone()).closure_lookups(c, arg),
+            Self::Format3(table) => ContextFormat3::Chain(table.clone()).closure_lookups(c, arg),
         }
     }
 }
