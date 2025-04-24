@@ -99,6 +99,10 @@ Describes the provenance, usage and generation procedures for font data used for
     ```shell
     pyftsubset tinos-regular.ttf --text=aAbB --gids=3,5
     ```
+* _TestMORX*_
+  * source: https://github.com/unicode-org/text-rendering-tests/tree/main/fonts
+  * license: [UNICODE LICENSE V3](Unicode3)
+  * usage: testing morx table parsing
 
 ## rebuilding
 To update the binaries and extracted data, run script located at `resources/test_fonts/rebuild.sh`
@@ -112,3 +116,4 @@ somewhere/fontations $ ./font-test-data/test_data/rebuild.sh
 
 [OFL]: https://scripts.sil.org/cms/scripts/page.php?site_id=nrsi&id=OFL
 [Apache2]: https://www.apache.org/licenses/LICENSE-2.0
+[Unicode3]: https://github.com/unicode-org/text-rendering-tests/blob/main/LICENSE
