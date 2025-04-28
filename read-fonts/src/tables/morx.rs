@@ -19,6 +19,9 @@ impl VarSize for Subtable<'_> {
     type Size = u32;
 
     fn read_len_at(data: FontData, pos: usize) -> Option<usize> {
+        // The default implementation assumes that the length field itself
+        // is not included in the total size which is not true of this
+        // table.
         data.read_at::<u32>(pos).ok().map(|size| size as usize)
     }
 }
@@ -26,18 +29,21 @@ impl VarSize for Subtable<'_> {
 impl<'a> Subtable<'a> {
     /// If true, this subtable will process glyphs in logical order (or reverse
     /// logical order, depending on the value of bit 0x80000000).
+    #[inline]
     pub fn is_logical(&self) -> bool {
         self.coverage() & 0x10000000 != 0
     }
 
     /// If true, this subtable will be applied to both horizontal and vertical
     /// text (i.e. the state of bit 0x80000000 is ignored).
+    #[inline]
     pub fn is_all_directions(&self) -> bool {
         self.coverage() & 0x20000000 != 0
     }
 
     /// If true, this subtable will process glyphs in descending order.
     /// Otherwise, it will process the glyphs in ascending order.
+    #[inline]
     pub fn is_backwards(&self) -> bool {
         self.coverage() & 0x40000000 != 0
     }
@@ -45,10 +51,12 @@ impl<'a> Subtable<'a> {
     /// If true, this subtable will only be applied to vertical text.
     /// Otherwise, this subtable will only be applied to horizontal
     /// text.
+    #[inline]
     pub fn is_vertical(&self) -> bool {
         self.coverage() & 0x80000000 != 0
     }
 
+    /// Returns an enum representing the actual subtable data.
     pub fn kind(&self) -> Result<SubtableKind<'a>, ReadError> {
         SubtableKind::read_with_args(FontData::new(self.data()), &self.coverage())
     }

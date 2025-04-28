@@ -297,6 +297,16 @@ where
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + T::RAW_BYTE_LEN;
 }
 
+/// Table for driving a finite state machine for layout.
+///
+/// The input to the state machine consists of the current state
+/// and a glyph class. The output is an [entry](StateEntry) containing
+/// the next state and a payload that is dependent on the type of
+/// layout action being performed.
+///
+/// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6Tables.html#StateHeader>
+/// for more detail.
+#[derive(Clone)]
 pub struct StateTable<'a> {
     header: StateHeader<'a>,
 }
@@ -388,6 +398,15 @@ impl<T> ExtendedStateTable<'_, T> {
     pub const HEADER_LEN: usize = u32::RAW_BYTE_LEN * 4;
 }
 
+/// Table for driving a finite state machine for layout.
+///
+/// The input to the state machine consists of the current state
+/// and a glyph class. The output is an [entry](StateEntry) containing
+/// the next state and a payload that is dependent on the type of
+/// layout action being performed.
+///
+/// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6Tables.html#StateHeader>
+/// for more detail.
 impl<T> ExtendedStateTable<'_, T>
 where
     T: FixedSize + bytemuck::AnyBitPattern,

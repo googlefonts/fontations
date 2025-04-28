@@ -10,6 +10,7 @@ table Morx {
     #[compile(0)]
     unused: u16,
     /// Number of metamorphosis chains contained in this table.
+    #[compile(array_len($chains))]
     n_chains: u32,
     #[count($n_chains)]
     chains: VarLenArray<Chain<'a>>,
@@ -20,8 +21,10 @@ table Chain {
     /// The default specification for subtables.
     default_flags: u32,
     /// Total byte count, including this header; must be a multiple of 4.
+    #[compile(self.compute_chain_length())]
     chain_length: u32,
     /// Number of feature subtable entries.
+    #[compile(array_len($features))]
     n_feature_entries: u32,
     /// The number of subtables in the chain.
     n_subtables: u32,

@@ -142,13 +142,6 @@ impl<'a, T: FontRead<'a> + VarSize> VarLenArray<'a, T> {
             }
 
             let item_len = T::read_len_at(data, 0)?;
-            // If the length is 0 then then it's not useful to continue
-            // iteration. The subsequent read will probably fail but if
-            // the user is skipping malformed elements (which is common)
-            // this this iterator will continue forever.
-            if item_len == 0 {
-                return None;
-            }
             let item_data = data.slice(..item_len)?;
             let next = T::read(item_data);
             data = data.split_off(item_len)?;
