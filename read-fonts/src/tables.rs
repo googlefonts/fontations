@@ -33,6 +33,7 @@ pub mod loca;
 pub mod ltag;
 pub mod maxp;
 pub mod meta;
+pub mod morx;
 pub mod mvar;
 pub mod name;
 pub mod os2;

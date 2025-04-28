@@ -96,6 +96,16 @@ pub static TINOS_SUBSET: &[u8] = include_bytes!("../test_data/ttf/tinos_subset.t
 pub static NOTO_HANDWRITING_SBIX: &[u8] =
     include_bytes!("../test_data/ttf/noto_handwriting-sbix.ttf");
 
+pub mod morx {
+    // The following taken from the Unicode text rendering test fonts:
+    // <https://github.com/unicode-org/text-rendering-tests/tree/main/fonts>
+    pub static ONE: &[u8] = include_bytes!("../test_data/ttf/TestMORXOne.ttf");
+    pub static FOUR: &[u8] = include_bytes!("../test_data/ttf/TestMORXFour.ttf");
+    pub static EIGHTEEN: &[u8] = include_bytes!("../test_data/ttf/TestMORXEighteen.ttf");
+    pub static THIRTY_FOUR: &[u8] = include_bytes!("../test_data/ttf/TestMORXThirtyfour.ttf");
+    pub static FORTY_ONE: &[u8] = include_bytes!("../test_data/ttf/TestMORXFourtyone.ttf");
+}
+
 pub mod varc {
     pub static CJK_6868: &[u8] = include_bytes!("../test_data/ttf/varc-6868.ttf");
     pub static CONDITIONALS: &[u8] = include_bytes!("../test_data/ttf/varc-ac01-conditional.ttf");

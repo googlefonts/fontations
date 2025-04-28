@@ -110,7 +110,7 @@ table Lookup8 {
     glyph_count: u16,
     /// The lookup values (indexed by the glyph index minus the value of
     /// firstGlyph). Entries in the value array must be two bytes.
-    #[count(..)]
+    #[count($glyph_count)]
     value_array: [u16],
 }
 
@@ -130,7 +130,7 @@ table Lookup10 {
     glyph_count: u16,
     /// The lookup values (indexed by the glyph index minus the value of
     /// firstGlyph).
-    #[count(..)]
+    #[count(add_multiply($glyph_count, 0, $unit_size))]
     values_data: [u8],
 }
 
