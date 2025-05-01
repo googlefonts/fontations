@@ -224,3 +224,44 @@ impl FromObjRef<read_fonts::codegen_test::records::ContainsOffsets> for Contains
         }
     }
 }
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct VarLenItem {
+    pub length: u32,
+    pub data: Vec<u8>,
+}
+
+impl FontWrite for VarLenItem {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.length.write_into(writer);
+        self.data.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("VarLenItem")
+    }
+}
+
+impl Validate for VarLenItem {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl<'a> FromObjRef<read_fonts::codegen_test::records::VarLenItem<'a>> for VarLenItem {
+    fn from_obj_ref(obj: &read_fonts::codegen_test::records::VarLenItem<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        VarLenItem {
+            length: obj.length(),
+            data: obj.data().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::codegen_test::records::VarLenItem<'a>> for VarLenItem {}
+
+impl<'a> FontRead<'a> for VarLenItem {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::codegen_test::records::VarLenItem as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
