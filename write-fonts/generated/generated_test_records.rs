@@ -232,13 +232,6 @@ pub struct VarLenItem {
     pub data: Vec<u8>,
 }
 
-impl VarLenItem {
-    /// Construct a new `VarLenItem`
-    pub fn new(length: u32, data: Vec<u8>) -> Self {
-        Self { length, data }
-    }
-}
-
 impl FontWrite for VarLenItem {
     fn write_into(&self, writer: &mut TableWriter) {
         self.length.write_into(writer);

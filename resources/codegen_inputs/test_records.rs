@@ -43,6 +43,7 @@ record ContainsOffsets {
     other_offset: Offset32<BasicTable>,
 }
 
+#[skip_constructor]
 table VarLenItem {
     length: u32,
     #[count(..)]
