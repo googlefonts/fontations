@@ -142,6 +142,13 @@ impl<'a, T: FontRead<'a> + VarSize> VarLenArray<'a, T> {
             }
 
             let item_len = T::read_len_at(data, 0)?;
+            // If the length is 0 then then it's not useful to continue
+            // iteration. The subsequent read will probably fail but if
+            // the user is skipping malformed elements (which is common)
+            // this this iterator will continue forever.
+            if item_len == 0 {
+                return None;
+            }
             let item_data = data.slice(..item_len)?;
             let next = T::read(item_data);
             data = data.split_off(item_len)?;
@@ -169,5 +176,38 @@ impl<'a, T: AnyBitPattern + FixedSize> FontReadWithArgs<'a> for &'a [T] {
             .checked_mul(T::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         data.read_array(0..len)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::codegen_test::records::VarLenItem;
+    use font_test_data::bebuffer::BeBuffer;
+
+    impl VarSize for VarLenItem<'_> {
+        type Size = u32;
+
+        fn read_len_at(data: FontData, pos: usize) -> Option<usize> {
+            data.read_at::<u32>(pos).ok().map(|len| len as usize)
+        }
+    }
+
+    /// HB/HarfRuzz test "shlana_9_006" has a morx table containing a chain
+    /// with a length of 0. This caused the VarLenArray iterator to loop
+    /// indefinitely.
+    #[test]
+    fn var_len_iter_with_zero_length_item() {
+        // Create a buffer containing three elements where the last
+        // has zero length
+        let mut buf = BeBuffer::new();
+        buf = buf.push(8u32).extend([0u8; 4]);
+        buf = buf.push(18u32).extend([0u8; 14]);
+        buf = buf.push(0u32);
+        let arr: VarLenArray<VarLenItem> = VarLenArray::read(FontData::new(buf.data())).unwrap();
+        // Ensure we don't iterate forever and only read two elements (the
+        // take() exists so that the test fails rather than hanging if the
+        // code regresses in the future)
+        assert_eq!(arr.iter().take(10).count(), 2);
     }
 }

@@ -335,3 +335,74 @@ impl<'a> SomeRecord<'a> for ContainsOffsets {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct VarLenItemMarker {
+    data_byte_len: usize,
+}
+
+impl VarLenItemMarker {
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn data_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + self.data_byte_len
+    }
+}
+
+impl MinByteRange for VarLenItemMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.data_byte_range().end
+    }
+}
+
+impl<'a> FontRead<'a> for VarLenItem<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u32>();
+        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        cursor.advance_by(data_byte_len);
+        cursor.finish(VarLenItemMarker { data_byte_len })
+    }
+}
+
+pub type VarLenItem<'a> = TableRef<'a, VarLenItemMarker>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> VarLenItem<'a> {
+    pub fn length(&self) -> u32 {
+        let range = self.shape.length_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn data(&self) -> &'a [u8] {
+        let range = self.shape.data_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for VarLenItem<'a> {
+    fn type_name(&self) -> &str {
+        "VarLenItem"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("length", self.length())),
+            1usize => Some(Field::new("data", self.data())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
+impl<'a> std::fmt::Debug for VarLenItem<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
