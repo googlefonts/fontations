@@ -473,6 +473,25 @@ impl<'a, T> SomeTable<'a> for ExtendedStateTable<'a, T> {
     }
 }
 
+/// Reads an array of T from the given FontData, ensuring that the byte length
+/// is a multiple of the size of T.
+///
+/// Many of the `morx` subtables have arrays without associated lengths so we
+/// simply read to the end of the available data. The `FontData::read_array`
+/// method will fail if the byte range provided is not exact so this helper
+/// allows us to force the lengths to an acceptable value.
+pub(crate) fn safe_read_array_to_end<'a, T: bytemuck::AnyBitPattern + FixedSize>(
+    data: &FontData<'a>,
+    offset: usize,
+) -> Result<&'a [T], ReadError> {
+    let len = data
+        .len()
+        .checked_sub(offset)
+        .ok_or(ReadError::OutOfBounds)?;
+    let end = offset + len / T::RAW_BYTE_LEN * T::RAW_BYTE_LEN;
+    data.read_array(offset..end)
+}
+
 #[cfg(test)]
 mod tests {
     use font_test_data::bebuffer::BeBuffer;

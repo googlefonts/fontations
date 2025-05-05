@@ -175,6 +175,10 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    fn kerx(&self) -> Result<tables::kerx::Kerx<'a>, ReadError> {
+        self.expect_table()
+    }
+
     fn colr(&self) -> Result<tables::colr::Colr<'a>, ReadError> {
         self.expect_table()
     }
