@@ -40,7 +40,7 @@ bytemuck = { workspace = true }
 
 [dev-dependencies]
 font-test-data = { workspace = true }
-criterion = "0.5.1"
+criterion = "0.3.0"
 rand = "0.8.5"
 serde_json = { workspace = true }
 

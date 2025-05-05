@@ -1222,10 +1222,7 @@ impl Domain for NameId {
 #[cfg(test)]
 mod test {
     use core::cmp::Ordering;
-    use std::{
-        collections::HashSet,
-        hash::{DefaultHasher, Hash, Hasher},
-    };
+    use std::{collections::HashSet, hash::Hash};
 
     use super::*;
 
@@ -1479,11 +1476,13 @@ mod test {
         assert!(set_inverted.is_empty());
     }
 
+    #[allow(deprecated)] // SipHasher required because of MSRV
     fn hash<T>(set: &IntSet<T>) -> u64
     where
         T: Domain,
     {
-        let mut h = DefaultHasher::new();
+        use std::hash::Hasher;
+        let mut h = std::hash::SipHasher::new();
         set.hash(&mut h);
         h.finish()
     }
