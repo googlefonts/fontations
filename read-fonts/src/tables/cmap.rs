@@ -78,7 +78,7 @@ impl CmapSubtable<'_> {
     }
 }
 
-impl<'a> Cmap0<'a> {
+impl Cmap0<'_> {
     pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
         let codepoint = codepoint.into();
 
@@ -203,7 +203,7 @@ impl Iterator for Cmap4Iter<'_> {
     }
 }
 
-impl<'a> Cmap6<'a> {
+impl Cmap6<'_> {
     pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
         let codepoint = codepoint.into();
 
