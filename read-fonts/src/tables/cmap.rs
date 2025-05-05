@@ -671,8 +671,6 @@ mod tests {
             [10u16, 15, 7, 20, 4]
         };
 
-        eprintln!("{:?}", cmap6_data.len());
-
         let cmap = Cmap::read(FontData::new(cmap6_data.data())).unwrap();
 
         assert_eq!(cmap.map_codepoint(0u8), None);
