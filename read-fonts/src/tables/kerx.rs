@@ -72,6 +72,7 @@ pub enum SubtableKind<'a> {
     Format0(Subtable0<'a>),
     Format1(Subtable1<'a>),
     Format2(Subtable2<'a>),
+    Format4(Subtable4<'a>),
 }
 
 impl ReadArgs for SubtableKind<'_> {
@@ -86,6 +87,9 @@ impl<'a> FontReadWithArgs<'a> for SubtableKind<'a> {
             0 => Ok(Self::Format0(Subtable0::read(data)?)),
             1 => Ok(Self::Format1(Subtable1::read(data)?)),
             2 => Ok(Self::Format2(Subtable2::read(data)?)),
+            // No format 3
+            4 => Ok(Self::Format4(Subtable4::read(data)?)),
+            // No format 5
             _ => Err(ReadError::InvalidFormat(format as _)),
         }
     }
@@ -185,6 +189,27 @@ impl<'a> Subtable2<'a> {
             .checked_add(self.array_offset)?
             .checked_sub(SUBTABLE_HEADER_SIZE)?;
         self.data.read_at(value_offset).ok()
+    }
+}
+
+/// The type 4 `kerx` subtable.
+#[derive(Clone)]
+pub struct Subtable4<'a> {
+    pub state_table: ExtendedStateTable<'a, BigEndian<u16>>,
+    /// Flags for control point positioning.
+    pub flags: u32,
+}
+
+impl<'a> FontRead<'a> for Subtable4<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let state_table = ExtendedStateTable::read(data)?;
+        let mut cursor = data.cursor();
+        cursor.advance_by(ExtendedStateTable::<()>::HEADER_LEN);
+        let flags = cursor.read::<u32>()?;
+        Ok(Self {
+            state_table,
+            flags,
+        })
     }
 }
 
