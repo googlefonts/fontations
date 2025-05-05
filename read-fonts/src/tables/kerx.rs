@@ -149,6 +149,8 @@ impl<'a> FontRead<'a> for Subtable2<'a> {
         // from the "data" section, so we need to hand parse and subtract
         // the header size.
         let mut cursor = data.cursor();
+        // Skip rowWidth field
+        cursor.advance_by(u32::RAW_BYTE_LEN);
         let left_offset = (cursor.read::<u32>()? as usize)
             .checked_sub(SUBTABLE_HEADER_SIZE)
             .ok_or(ReadError::OutOfBounds)?;
@@ -178,11 +180,9 @@ impl<'a> Subtable2<'a> {
         let right: u16 = right.to_u32().try_into().ok()?;
         let left_class = self.left_offset_table.value(left).unwrap_or(0) as usize;
         let right_class = self.right_offset_table.value(right).unwrap_or(0) as usize;
-        if left_class < self.array_offset {
-            return None;
-        }
-        let value_offset = left_class
-            .checked_add(right_class)?
+        // left and right are u16 converted to usize so can never overflow
+        let value_offset = (left_class + right_class)
+            .checked_add(self.array_offset)?
             .checked_sub(SUBTABLE_HEADER_SIZE)?;
         self.data.read_at(value_offset).ok()
     }
