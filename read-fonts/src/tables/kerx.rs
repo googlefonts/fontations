@@ -187,3 +187,18 @@ impl<'a> Subtable2<'a> {
         self.data.read_at(value_offset).ok()
     }
 }
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for Subtable<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "Subtable",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("coverage", self.coverage())),
+                1usize => Some(Field::new("tuple_count", self.tuple_count())),
+                _ => None,
+            }),
+            data,
+        }
+    }
+}
