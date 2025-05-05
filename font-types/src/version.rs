@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn minor_version_out_of_range_test(){
-        Version16Dot16::new(1,10);
+    fn minor_version_out_of_range_test() {
+        Version16Dot16::new(1, 10);
     }
 }
