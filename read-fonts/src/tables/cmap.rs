@@ -34,6 +34,7 @@ impl Cmap<'_> {
                 if let Some(gid) = match subtable {
                     CmapSubtable::Format0(format0) => format0.map_codepoint(codepoint),
                     CmapSubtable::Format4(format4) => format4.map_codepoint(codepoint),
+                    CmapSubtable::Format6(format6) => format6.map_codepoint(codepoint),
                     CmapSubtable::Format12(format12) => format12.map_codepoint(codepoint),
                     _ => None,
                 } {
@@ -199,6 +200,18 @@ impl Iterator for Cmap4Iter<'_> {
                 self.cur_start_code = self.cur_range.start as u16;
             }
         }
+    }
+}
+
+impl<'a> Cmap6<'a> {
+    pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
+        let codepoint = codepoint.into();
+
+        let first = self.first_code() as u32;
+        let idx = codepoint.checked_sub(first)?;
+        self.glyph_id_array()
+            .get(idx as usize)
+            .map(|g| GlyphId::new(g.get() as u32))
     }
 }
 
@@ -627,11 +640,47 @@ mod tests {
         let cmap0_data = cmap0_data();
         let cmap = Cmap::read(FontData::new(cmap0_data.data())).unwrap();
 
-        assert_eq!(cmap.map_codepoint(0x00u8), Some(GlyphId::new(0)));
+        assert_eq!(cmap.map_codepoint(0u8), Some(GlyphId::new(0)));
         assert_eq!(cmap.map_codepoint(b' '), Some(GlyphId::new(178)));
         assert_eq!(cmap.map_codepoint(b'r'), Some(GlyphId::new(193)));
         assert_eq!(cmap.map_codepoint(b'X'), Some(GlyphId::new(13)));
-        assert_eq!(cmap.map_codepoint(0xFFu8), Some(GlyphId::new(3)));
+        assert_eq!(cmap.map_codepoint(255u8), Some(GlyphId::new(3)));
+
+        let cmap6_data = be_buffer! {
+            // version
+            0u16,
+            // numTables
+            1u16,
+            // platformID
+            1u16,
+            // encodingID
+            0u16,
+            // subtableOffset
+            12u32,
+            // format
+            6u16,
+            // length
+            32u16,
+            // language
+            0u16,
+            // firstCode
+            32u16,
+            // entryCount
+            5u16,
+            // glyphIDArray
+            [10u16, 15, 7, 20, 4]
+        };
+
+        eprintln!("{:?}", cmap6_data.len());
+
+        let cmap = Cmap::read(FontData::new(cmap6_data.data())).unwrap();
+
+        assert_eq!(cmap.map_codepoint(0u8), None);
+        assert_eq!(cmap.map_codepoint(31u8), None);
+        assert_eq!(cmap.map_codepoint(33u8), Some(GlyphId::new(15)));
+        assert_eq!(cmap.map_codepoint(35u8), Some(GlyphId::new(20)));
+        assert_eq!(cmap.map_codepoint(36u8), Some(GlyphId::new(4)));
+        assert_eq!(cmap.map_codepoint(50u8), None);
     }
 
     #[test]
