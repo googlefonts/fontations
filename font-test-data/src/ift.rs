@@ -552,18 +552,18 @@ pub fn custom_ids_format2() -> BeBuffer {
       // Entries Array
       // Entry id = 0
       {0b00010100u8: "entries[0]"},           // format = CODEPOINT_BIT_1 | ID_DELTA
-      (Int24::new(-1)),                       // id delta
+      (Int24::new(-2)),                       // id delta = -1
       [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [0..17]
 
       // Entry id = 6
       {0b00100100u8: "entries[1]"},            // format = CODEPOINT_BIT_2 | ID_DELTA
-      {(Int24::new(5)): "id delta"},           // id delta
+      {(Int24::new(10)): "id delta"},           // id delta = 5
       5u16,                                   // bias
       [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [5..22]
 
       // Entry id = 14
       {0b01000100u8: "entries[2]"},                  // format = ID_DELTA | IGNORED
-      {(Int24::new(7)): "id delta - ignored entry"}, // id delta
+      {(Int24::new(14)): "id delta - ignored entry"}, // id delta = 7
 
       // Entry id = 15
       {0b00101000u8: "entries[3]"},           // format = CODEPOINT_BIT_2 | PATCH_FORMAT
@@ -602,22 +602,22 @@ pub fn string_ids_format2() -> BeBuffer {
 
       // Entry id = abc
       0b00000100u8,                           // format = ID_DELTA
-      3u16,                                   // id length
+      (Uint24::new(3)),                       // id length
 
       // Entry id = defg
       0b00000100u8,                           // format = ID_DELTA
-      4u16,                                   // id length
+      (Uint24::new(4)),                       // id length
 
       // Entry id = defg
       0b00000000u8,                           // format = {}
 
       // Entry id = hij
       0b00000100u8,                           // format = ID_DELTA
-      {3u16: "entry[4] id length"},           // id length
+      {(Uint24::new(3)): "entry[4] id length"},           // id length
 
       // Entry id = ""
       0b00000100u8,                           // format = ID_DELTA
-      0u16,                                   // id length
+      (Uint24::new(0)),                                   // id length
 
       /* ### String Data ### */
       {b'a': "string_data"},

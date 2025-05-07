@@ -21,9 +21,16 @@ use crate::{
 /// This is a group which can be applied simultaneously to that font. Patches are
 /// initially missing data which must be fetched and supplied to patch application
 /// method.
+///
+/// Also optionally includes a list of patches which are not compatible but have been
+/// requested to be preloaded.
 pub struct PatchGroup<'a> {
     font: FontRef<'a>,
     patches: Option<CompatibleGroup>,
+
+    // These patches aren't compatible, but have been requested as preloads by the
+    // patch mapping.
+    preload_patches: Vec<PatchInfo>,
 }
 
 impl PatchGroup<'_> {
@@ -39,6 +46,7 @@ impl PatchGroup<'_> {
             return Ok(PatchGroup {
                 font: ift_font,
                 patches: None,
+                preload_patches: vec![],
             });
         }
 
@@ -56,11 +64,13 @@ impl PatchGroup<'_> {
         Ok(PatchGroup {
             font: ift_font,
             patches: Some(compat_group),
+            preload_patches: vec![], // TODO XXXX extract and add preload patches here.
         })
     }
 
     /// Returns an iterator over URIs in this group.
     pub fn uris(&self) -> impl Iterator<Item = &str> {
+        // TODO XXXX add preloads
         self.invalidating_patch_iter()
             .chain(self.non_invalidating_patch_iter())
             .map(|info| info.uri.as_str())
@@ -68,6 +78,7 @@ impl PatchGroup<'_> {
 
     /// Returns true if there is at least one uri associated with this group.
     pub fn has_uris(&self) -> bool {
+        // TODO XXXX check preloads as well
         let Some(patches) = &self.patches else {
             return false;
         };
@@ -131,6 +142,7 @@ impl PatchGroup<'_> {
         ift_compat_id: Option<CompatibilityId>,
         iftx_compat_id: Option<CompatibilityId>,
     ) -> Result<CompatibleGroup, ReadError> {
+        // TODO XXXX for this selection ignore preload only patches
         // Some notes about this implementation:
         // - From candidates we need to form the largest possible group of patches which follow the selection criteria
         //   from: https://w3c.github.io/IFT/Overview.html#extend-font-subset and won't invalidate each other.
@@ -1071,6 +1083,7 @@ mod tests {
         PatchGroup {
             font: data,
             patches: Some(group),
+            preload_patches: vec![],
         }
     }
 
@@ -1079,6 +1092,7 @@ mod tests {
         PatchGroup {
             font: data,
             patches: None,
+            preload_patches: vec![],
         }
     }
 
@@ -1324,7 +1338,7 @@ mod tests {
         let mut iftx_buffer = table_keyed_format2();
         iftx_buffer.write_at("compat_id[0]", 2u32);
         iftx_buffer.write_at("encoding", 2u8);
-        iftx_buffer.write_at("id_delta", Int24::new(1));
+        iftx_buffer.write_at("id_delta", Int24::new(2)); // delta = +1
 
         let font = base_font(Some(ift_buffer), Some(iftx_buffer));
         let font = FontRef::new(&font).unwrap();
@@ -1382,7 +1396,7 @@ mod tests {
         iftx_builder.write_at("compat_id[1]", 7u32);
         iftx_builder.write_at("compat_id[2]", 8u32);
         iftx_builder.write_at("compat_id[3]", 9u32);
-        iftx_builder.write_at("id_delta", Int24::new(1));
+        iftx_builder.write_at("id_delta", Int24::new(2)); // delta = +1
 
         let font = test_font_for_patching_with_loca_mod(
             true,
@@ -1443,7 +1457,7 @@ mod tests {
         iftx_builder.write_at("compat_id[1]", 7u32);
         iftx_builder.write_at("compat_id[2]", 8u32);
         iftx_builder.write_at("compat_id[3]", 9u32);
-        iftx_builder.write_at("id_delta", Int24::new(1));
+        iftx_builder.write_at("id_delta", Int24::new(2)); // delta = 1
 
         let font = test_font_for_patching_with_loca_mod(
             true,

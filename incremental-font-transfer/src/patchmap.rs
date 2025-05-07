@@ -12,6 +12,7 @@ use std::io::Read;
 use std::ops::RangeInclusive;
 
 use font_types::Fixed;
+use font_types::Int24;
 use font_types::Tag;
 
 use read_fonts::{
@@ -20,7 +21,7 @@ use read_fonts::{
         CompatibilityId, EntryData, EntryFormatFlags, EntryMapRecord, Ift, PatchMapFormat1,
         PatchMapFormat2, IFTX_TAG, IFT_TAG,
     },
-    types::{Offset32, Uint24},
+    types::Uint24,
     FontData, FontRead, FontRef, ReadError, TableProvider,
 };
 
@@ -509,10 +510,7 @@ fn decode_format2_entry<'a>(
     id_string_data: &mut Option<Cursor<&[u8]>>,
     entries: &mut Vec<Entry>,
 ) -> Result<(FontData<'a>, usize), ReadError> {
-    let entry_data = EntryData::read(
-        data,
-        Offset32::new(if id_string_data.is_none() { 0 } else { 1 }),
-    )?;
+    let entry_data = EntryData::read(data)?;
 
     // Record the index of the bit which when set causes this entry to be ignored.
     // See: https://w3c.github.io/IFT/Overview.html#mapping-entry-formatflags
@@ -570,15 +568,29 @@ fn decode_format2_entry<'a>(
     }
 
     // Entry ID
-    entry.uri.id = format2_new_entry_id(&entry_data, entries.last(), id_string_data)?;
+    let (entry_deltas, trailing_data) = if id_string_data.is_some() {
+        decode_format2_entry_deltas::<true>(entry_data.format_flags(), entry_data.trailing_data())?
+    } else {
+        decode_format2_entry_deltas::<false>(entry_data.format_flags(), entry_data.trailing_data())?
+    };
+
+    // TODO XXXX handle multiple entry ids
+    entry.uri.id = format2_new_entry_id(
+        entry_deltas.first().copied(),
+        entries.last(),
+        id_string_data,
+    )?;
 
     // Encoding
-    if let Some(patch_format) = entry_data.patch_format() {
-        entry.uri.encoding = PatchFormat::from_format_number(patch_format)?;
+    let (patch_format, trailing_data) =
+        decode_format2_patch_format(entry_data.format_flags(), trailing_data)?;
+    if let Some(patch_format) = patch_format {
+        entry.uri.encoding = patch_format;
     }
 
     // Codepoints
-    let (codepoints, remaining_data) = decode_format2_codepoints(&entry_data)?;
+    let (codepoints, trailing_data) =
+        decode_format2_codepoints(entry_data.format_flags(), trailing_data)?;
     if entry.subset_definition.codepoints.is_empty() {
         // as an optimization move the existing set instead of copying it in if possible.
         entry.subset_definition.codepoints = codepoints;
@@ -593,12 +605,12 @@ fn decode_format2_entry<'a>(
 
     entries.push(entry);
 
-    let consumed_bytes = entry_data.shape().codepoint_data_byte_range().end - remaining_data.len();
-    Ok((FontData::new(remaining_data), consumed_bytes))
+    let consumed_bytes = entry_data.shape().trailing_data_byte_range().end - trailing_data.len();
+    Ok((FontData::new(trailing_data), consumed_bytes))
 }
 
 fn format2_new_entry_id(
-    entry_data: &EntryData,
+    delta_or_length: Option<i32>,
     last_entry: Option<&Entry>,
     id_string_data: &mut Option<Cursor<&[u8]>>,
 ) -> Result<PatchId, ReadError> {
@@ -610,12 +622,15 @@ fn format2_new_entry_id(
             })
             .unwrap_or(0);
         return Ok(PatchId::Numeric(compute_format2_new_entry_index(
-            entry_data,
+            delta_or_length.unwrap_or_default(),
             last_entry_index,
         )?));
     };
 
-    let Some(id_string_length) = entry_data.entry_id_delta().map(|v| v.into_inner()) else {
+    let Some(length) = delta_or_length else {
+        // If no length was provided the spec says to copy the previous entries
+        // id string.
+        // TODO XXXXXX update for handling multiple ids per entry.
         let last_id_string = last_entry
             .and_then(|e| match &e.uri.id {
                 PatchId::String(id_string) => Some(id_string.clone()),
@@ -625,23 +640,21 @@ fn format2_new_entry_id(
         return Ok(PatchId::String(last_id_string));
     };
 
-    let mut id_string: Vec<u8> = vec![0; id_string_length as usize];
+    match length.cmp(&0) {
+        Ordering::Equal => return Ok(PatchId::String(Default::default())),
+        Ordering::Less => return Err(ReadError::MalformedData("Negative string length.")),
+        Ordering::Greater => {}
+    };
+
+    let mut id_string: Vec<u8> = vec![0; length as usize];
     id_string_data
         .read_exact(id_string.as_mut_slice())
         .map_err(|_| ReadError::MalformedData("ID string is out of bounds."))?;
     Ok(PatchId::String(id_string))
 }
 
-fn compute_format2_new_entry_index(
-    entry_data: &EntryData,
-    last_entry_index: u32,
-) -> Result<u32, ReadError> {
-    let new_index = (last_entry_index as i64)
-        + 1
-        + entry_data
-            .entry_id_delta()
-            .map(|v| v.into_inner() as i64)
-            .unwrap_or(0);
+fn compute_format2_new_entry_index(delta: i32, last_entry_index: u32) -> Result<u32, ReadError> {
+    let new_index = (last_entry_index as i64) + 1 + (delta as i64);
 
     if new_index.is_negative() {
         return Err(ReadError::MalformedData("Negative entry id encountered."));
@@ -652,14 +665,77 @@ fn compute_format2_new_entry_index(
     })
 }
 
-fn decode_format2_codepoints<'a>(
-    entry_data: &EntryData<'a>,
-) -> Result<(IntSet<u32>, &'a [u8]), ReadError> {
-    let format = entry_data
-        .format_flags()
-        .intersection(EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2);
+fn decode_format2_patch_format(
+    flags: EntryFormatFlags,
+    format_data: &[u8],
+) -> Result<(Option<PatchFormat>, &[u8]), ReadError> {
+    if !flags.contains(EntryFormatFlags::PATCH_FORMAT) {
+        return Ok((None, format_data));
+    }
 
-    let codepoint_data = entry_data.codepoint_data();
+    let Some(format_byte) = format_data.first() else {
+        return Err(ReadError::OutOfBounds);
+    };
+
+    let patch_format = PatchFormat::from_format_number(*format_byte)?;
+
+    Ok((Some(patch_format), &format_data[1..]))
+}
+
+fn decode_format2_entry_deltas<const HAS_STRING_DATA: bool>(
+    flags: EntryFormatFlags,
+    delta_data: &[u8],
+) -> Result<(Vec<i32>, &[u8]), ReadError> {
+    if !flags.contains(EntryFormatFlags::ENTRY_ID_DELTA) {
+        return Ok((vec![], delta_data));
+    }
+
+    let mut result: Vec<i32> = vec![];
+    const WIDTH: usize = 3;
+    let mut index = 0usize;
+    loop {
+        let (value, has_more) =
+            decode_format2_entry_delta::<HAS_STRING_DATA>(&delta_data[index * WIDTH..])?;
+        result.push(value);
+        index += 1;
+
+        if !has_more {
+            break;
+        }
+    }
+
+    Ok((result, &delta_data[index * WIDTH..]))
+}
+
+fn decode_format2_entry_delta<const HAS_STRING_DATA: bool>(
+    delta_data: &[u8],
+) -> Result<(i32, bool), ReadError> {
+    if HAS_STRING_DATA {
+        // For length values the most significant bit signals the presence of
+        // another value. The remaining bits are the length value (unsigned).
+        let val: Uint24 = FontData::new(delta_data).read_at(0)?;
+        let val = val.to_u32();
+        let has_more = (val & (1 << 23)) > 0;
+        let val = val & !(1 << 23);
+        Ok((val as i32, has_more))
+    } else {
+        // For delta values the least significant bit signals the presence of
+        // another value. The delta is computed by dividing the entire value (signed)
+        // by 2
+        let val: Int24 = FontData::new(delta_data).read_at(0)?;
+        let val: i32 = val.to_i32();
+        let has_more = (val & 1) > 0;
+        let val = val / 2;
+        Ok((val, has_more))
+    }
+}
+
+fn decode_format2_codepoints(
+    flags: EntryFormatFlags,
+    codepoint_data: &[u8],
+) -> Result<(IntSet<u32>, &[u8]), ReadError> {
+    let format =
+        flags.intersection(EntryFormatFlags::CODEPOINTS_BIT_1 | EntryFormatFlags::CODEPOINTS_BIT_2);
 
     if format.bits() == 0 {
         return Ok((IntSet::<u32>::empty(), codepoint_data));
@@ -802,6 +878,8 @@ pub(crate) struct IntersectionInfo {
     intersecting_layout_tags: usize,
     intersecting_design_space: BTreeMap<Tag, Fixed>,
     entry_order: usize,
+    // indicates this patch won't be applied next and is only included for preloading.
+    preload_only: bool,
 }
 
 impl PartialOrd for IntersectionInfo {
@@ -893,6 +971,7 @@ impl IntersectionInfo {
             intersecting_layout_tags: value.feature_tags.len(),
             intersecting_design_space: Self::design_space_size(value.design_space),
             entry_order: order,
+            preload_only: false, // TODO XXXXXX
         }
     }
 
@@ -1205,6 +1284,7 @@ mod tests {
                 intersecting_layout_tags: features,
                 intersecting_design_space: Default::default(),
                 entry_order: order,
+                preload_only: false, // TODO XXXX
             }
         }
 
@@ -1219,6 +1299,7 @@ mod tests {
                 intersecting_layout_tags: features,
                 intersecting_design_space: BTreeMap::from(design_space),
                 entry_order: order,
+                preload_only: false, // TODO XXXX
             }
         }
     }
@@ -2449,6 +2530,9 @@ mod tests {
         );
     }
 
+    // TODO XXXXX multiple id deltas.
+    // TODO XXXXX multiple id strings, including a "repeat" case.
+
     #[test]
     fn format_2_patch_map_id_strings() {
         let font_bytes = create_ift_font(
@@ -2478,7 +2562,7 @@ mod tests {
     #[test]
     fn format_2_patch_map_id_strings_too_short() {
         let mut data = string_ids_format2();
-        data.write_at("entry[4] id length", 4u16);
+        data.write_at("entry[4] id length", Uint24::new(4));
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -2533,7 +2617,7 @@ mod tests {
     #[test]
     fn format_2_patch_map_negative_entry_id() {
         let mut data = custom_ids_format2();
-        data.write_at("id delta", Int24::new(-2));
+        data.write_at("id delta", Int24::new(-4));
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
@@ -2570,29 +2654,30 @@ mod tests {
 
     #[test]
     fn format_2_patch_map_entry_id_overflow() {
-        let count = 511;
+        let count = 1023;
         let mut data = custom_ids_format2();
         data.write_at("entry_count", Uint24::new(count + 5));
 
         for _ in 0..count {
             data = data
                 .push(0b01000100u8) // format = ID_DELTA | IGNORED
-                .push(Int24::new(0x7FFFFF)); // delta = max(i24)
+                .push(Int24::new(0x7FFFFE)); // delta = max(i24) / 2
         }
 
         // at this point the second last entry id is:
         // 15 +                   # last entry id from the first 4 entries
-        // count * (0x7FFFFF + 1) # sum of added deltas
+        // count * (7FFFFE/2 + 1) # sum of added deltas
         //
         // So the max delta without overflow on the last entry is:
         //
         // u32::MAX - second last entry id - 1
         //
         // The -1 is needed because the last entry implicitly includes a + 1
-        let max_delta_without_overflow = (u32::MAX - ((15 + count * (0x7FFFFF + 1)) + 1)) as i32;
+        let max_delta_without_overflow =
+            (u32::MAX - ((15 + count * ((0x7FFFFE / 2) + 1)) + 1)) as i32;
         data = data
             .push(0b01000100u8) // format = ID_DELTA | IGNORED
-            .push_with_tag(Int24::new(max_delta_without_overflow), "last delta"); // delta
+            .push_with_tag(Int24::new(max_delta_without_overflow * 2), "last delta"); // delta
 
         // Check one less than max doesn't overflow
         let font_bytes = create_ift_font(
@@ -2609,7 +2694,7 @@ mod tests {
         .is_ok());
 
         // Check one more does overflow
-        data.write_at("last delta", Int24::new(max_delta_without_overflow + 1));
+        data.write_at("last delta", Int24::new(max_delta_without_overflow + 2));
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
