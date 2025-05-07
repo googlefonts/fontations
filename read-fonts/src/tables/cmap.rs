@@ -32,7 +32,9 @@ impl Cmap<'_> {
         for record in self.encoding_records() {
             if let Ok(subtable) = record.subtable(self.offset_data()) {
                 if let Some(gid) = match subtable {
+                    CmapSubtable::Format0(format0) => format0.map_codepoint(codepoint),
                     CmapSubtable::Format4(format4) => format4.map_codepoint(codepoint),
+                    CmapSubtable::Format6(format6) => format6.map_codepoint(codepoint),
                     CmapSubtable::Format12(format12) => format12.map_codepoint(codepoint),
                     _ => None,
                 } {
@@ -73,6 +75,16 @@ impl CmapSubtable<'_> {
             Self::Format13(item) => item.language(),
             _ => 0,
         }
+    }
+}
+
+impl Cmap0<'_> {
+    pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
+        let codepoint = codepoint.into();
+
+        self.glyph_id_array()
+            .get(codepoint as usize)
+            .map(|g| GlyphId::new(*g as u32))
     }
 }
 
@@ -188,6 +200,18 @@ impl Iterator for Cmap4Iter<'_> {
                 self.cur_start_code = self.cur_range.start as u16;
             }
         }
+    }
+}
+
+impl Cmap6<'_> {
+    pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
+        let codepoint = codepoint.into();
+
+        let first = self.first_code() as u32;
+        let idx = codepoint.checked_sub(first)?;
+        self.glyph_id_array()
+            .get(idx as usize)
+            .map(|g| GlyphId::new(g.get() as u32))
     }
 }
 
@@ -612,6 +636,49 @@ mod tests {
         assert_eq!(cmap.map_codepoint(' '), Some(GlyphId::new(1)));
         assert_eq!(cmap.map_codepoint(0xE_u32), Some(GlyphId::new(2)));
         assert_eq!(cmap.map_codepoint('B'), None);
+
+        let cmap0_data = cmap0_data();
+        let cmap = Cmap::read(FontData::new(cmap0_data.data())).unwrap();
+
+        assert_eq!(cmap.map_codepoint(0u8), Some(GlyphId::new(0)));
+        assert_eq!(cmap.map_codepoint(b' '), Some(GlyphId::new(178)));
+        assert_eq!(cmap.map_codepoint(b'r'), Some(GlyphId::new(193)));
+        assert_eq!(cmap.map_codepoint(b'X'), Some(GlyphId::new(13)));
+        assert_eq!(cmap.map_codepoint(255u8), Some(GlyphId::new(3)));
+
+        let cmap6_data = be_buffer! {
+            // version
+            0u16,
+            // numTables
+            1u16,
+            // platformID
+            1u16,
+            // encodingID
+            0u16,
+            // subtableOffset
+            12u32,
+            // format
+            6u16,
+            // length
+            32u16,
+            // language
+            0u16,
+            // firstCode
+            32u16,
+            // entryCount
+            5u16,
+            // glyphIDArray
+            [10u16, 15, 7, 20, 4]
+        };
+
+        let cmap = Cmap::read(FontData::new(cmap6_data.data())).unwrap();
+
+        assert_eq!(cmap.map_codepoint(0u8), None);
+        assert_eq!(cmap.map_codepoint(31u8), None);
+        assert_eq!(cmap.map_codepoint(33u8), Some(GlyphId::new(15)));
+        assert_eq!(cmap.map_codepoint(35u8), Some(GlyphId::new(20)));
+        assert_eq!(cmap.map_codepoint(36u8), Some(GlyphId::new(4)));
+        assert_eq!(cmap.map_codepoint(50u8), None);
     }
 
     #[test]
@@ -921,5 +988,53 @@ mod tests {
             (6..=64).collect::<Vec<_>>(),
             cmap4.iter().map(|(cp, _)| cp).collect::<Vec<_>>()
         );
+    }
+
+    fn cmap0_data() -> BeBuffer {
+        be_buffer! {
+            // version
+            0u16,
+            // numTables
+            1u16,
+            // platformID
+            1u16,
+            // encodingID
+            0u16,
+            // subtableOffset
+            12u32,
+            // format
+            0u16,
+            // length
+            274u16,
+            // language
+            0u16,
+            // glyphIDArray
+            [0u8, 249, 32, 2, 198, 23, 1, 4, 26, 36,
+            171, 168, 69, 151, 208, 238, 226, 153, 161, 138,
+            160, 130, 169, 223, 162, 207, 146, 227, 111, 248,
+            163, 79, 178, 27, 50, 234, 213, 57, 45, 63,
+            103, 186, 30, 105, 131, 118, 35, 140, 51, 211,
+            75, 172, 56, 71, 137, 99, 22, 76, 61, 125,
+            39, 8, 177, 117, 108, 97, 202, 92, 49, 134,
+            93, 43, 80, 66, 84, 54, 180, 113, 11, 176,
+            229, 48, 47, 17, 124, 40, 119, 21, 13, 133,
+            181, 224, 33, 128, 44, 46, 38, 24, 65, 152,
+            197, 225, 102, 251, 157, 126, 182, 242, 28, 184,
+            90, 170, 201, 144, 193, 189, 250, 142, 77, 221,
+            81, 164, 154, 60, 37, 200, 12, 53, 219, 89,
+            31, 209, 188, 179, 253, 220, 127, 18, 19, 64,
+            20, 141, 98, 173, 55, 194, 70, 107, 228, 104,
+            10, 9, 15, 217, 255, 222, 196, 236, 67, 165,
+            5, 143, 149, 100, 91, 95, 135, 235, 145, 204,
+            72, 114, 246, 82, 245, 233, 106, 158, 185, 212,
+            86, 243, 16, 195, 123, 190, 120, 187, 132, 139,
+            192, 239, 110, 183, 240, 214, 166, 41, 59, 231,
+            42, 94, 244, 83, 121, 25, 215, 96, 73, 87,
+            174, 136, 62, 206, 156, 175, 230, 150, 116, 147,
+            68, 122, 78, 112, 6, 167, 232, 254, 52, 34,
+            191, 85, 241, 14, 216, 155, 29, 101, 115, 210,
+            252, 218, 129, 247, 203, 159, 109, 74, 7, 58,
+            237, 199, 88, 205, 148, 3]
+        }
     }
 }
