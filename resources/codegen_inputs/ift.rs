@@ -3,7 +3,6 @@
 extern scalar MatchModeAndCount;
 extern record U8Or16;
 extern record U16Or24;
-extern record IdDeltaOrLength;
 extern scalar CompatibilityId;
 
 format u8 Ift {
@@ -181,7 +180,6 @@ table MappingEntries {
   entry_data: [u8],
 }
 
-#[read_args(entry_id_string_data_offset: Offset32)]
 table EntryData {
   format_flags: EntryFormatFlags,
 
@@ -208,20 +206,13 @@ table EntryData {
   child_indices: [Uint24],
 
   // ENTRY_ID_DELTA
-  #[read_with($entry_id_string_data_offset)]
-  #[if_flag($format_flags, EntryFormatFlags::ENTRY_ID_DELTA)]
-  #[traverse_with(skip)]
-  #[compile(skip)]
-  entry_id_delta: IdDeltaOrLength,
-
   // PATCH_FORMAT
-  #[if_flag($format_flags, EntryFormatFlags::PATCH_FORMAT)]
-  patch_format: u8,
-
   // CODEPOINT_BIT_1 or CODEPOINT_BIT_2
-  // Non-conditional since we also use this to find the end of the entry.
+  //
+  // These remaining fields don't have well defined widths and are handling with
+  // custom parsing.
   #[count(..)]
-  codepoint_data: [u8],
+  trailing_data: [u8],
 }
 
 // See <https://w3c.github.io/IFT/Overview.html#mapping-entry-formatflags>

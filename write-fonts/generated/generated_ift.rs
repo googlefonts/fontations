@@ -677,16 +677,15 @@ pub struct EntryData {
     pub design_space_count: Option<u16>,
     pub design_space_segments: Option<Vec<DesignSpaceSegment>>,
     pub child_indices: Option<Vec<Uint24>>,
-    pub patch_format: Option<u8>,
-    pub codepoint_data: Vec<u8>,
+    pub trailing_data: Vec<u8>,
 }
 
 impl EntryData {
     /// Construct a new `EntryData`
-    pub fn new(format_flags: EntryFormatFlags, codepoint_data: Vec<u8>) -> Self {
+    pub fn new(format_flags: EntryFormatFlags, trailing_data: Vec<u8>) -> Self {
         Self {
             format_flags,
-            codepoint_data,
+            trailing_data,
             ..Default::default()
         }
     }
@@ -736,15 +735,7 @@ impl FontWrite for EntryData {
                     .expect("missing conditional field should have failed validation")
                     .write_into(writer)
             });
-        self.format_flags
-            .contains(EntryFormatFlags::PATCH_FORMAT)
-            .then(|| {
-                self.patch_format
-                    .as_ref()
-                    .expect("missing conditional field should have failed validation")
-                    .write_into(writer)
-            });
-        self.codepoint_data.write_into(writer);
+        self.trailing_data.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("EntryData")
@@ -832,18 +823,6 @@ impl Validate for EntryData {
                     ctx.report("CHILD_INDICES is set but 'child_indices' is None")
                 }
             });
-            ctx.in_field("patch_format", |ctx| {
-                if !(format_flags.contains(EntryFormatFlags::PATCH_FORMAT))
-                    && self.patch_format.is_some()
-                {
-                    ctx.report("'patch_format' is present but PATCH_FORMAT not set")
-                }
-                if (format_flags.contains(EntryFormatFlags::PATCH_FORMAT))
-                    && self.patch_format.is_none()
-                {
-                    ctx.report("PATCH_FORMAT is set but 'patch_format' is None")
-                }
-            });
         })
     }
 }
@@ -858,14 +837,19 @@ impl<'a> FromObjRef<read_fonts::tables::ift::EntryData<'a>> for EntryData {
             design_space_count: obj.design_space_count(),
             design_space_segments: obj.design_space_segments().to_owned_obj(offset_data),
             child_indices: obj.child_indices().to_owned_obj(offset_data),
-            patch_format: obj.patch_format(),
-            codepoint_data: obj.codepoint_data().to_owned_obj(offset_data),
+            trailing_data: obj.trailing_data().to_owned_obj(offset_data),
         }
     }
 }
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::EntryData<'a>> for EntryData {}
+
+impl<'a> FontRead<'a> for EntryData {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::ift::EntryData as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
 
 impl FontWrite for EntryFormatFlags {
     fn write_into(&self, writer: &mut TableWriter) {

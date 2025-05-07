@@ -1458,7 +1458,6 @@ impl<'a> std::fmt::Debug for MappingEntries<'a> {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct EntryDataMarker {
-    entry_id_string_data_offset: Offset32,
     feature_count_byte_start: Option<usize>,
     feature_tags_byte_start: Option<usize>,
     feature_tags_byte_len: Option<usize>,
@@ -1468,10 +1467,7 @@ pub struct EntryDataMarker {
     match_mode_and_count_byte_start: Option<usize>,
     child_indices_byte_start: Option<usize>,
     child_indices_byte_len: Option<usize>,
-    entry_id_delta_byte_start: Option<usize>,
-    entry_id_delta_byte_len: Option<usize>,
-    patch_format_byte_start: Option<usize>,
-    codepoint_data_byte_len: usize,
+    trailing_data_byte_len: usize,
 }
 
 impl EntryDataMarker {
@@ -1510,35 +1506,45 @@ impl EntryDataMarker {
         Some(start..start + self.child_indices_byte_len?)
     }
 
-    pub fn entry_id_delta_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.entry_id_delta_byte_start?;
-        Some(start..start + self.entry_id_delta_byte_len?)
-    }
-
-    pub fn patch_format_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.patch_format_byte_start?;
-        Some(start..start + u8::RAW_BYTE_LEN)
-    }
-
-    pub fn codepoint_data_byte_range(&self) -> Range<usize> {
-        let start = self . patch_format_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . entry_id_delta_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . child_indices_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . match_mode_and_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_segments_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . design_space_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_tags_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . feature_count_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . format_flags_byte_range () . end)))))))) ;
-        start..start + self.codepoint_data_byte_len
+    pub fn trailing_data_byte_range(&self) -> Range<usize> {
+        let start = self
+            .child_indices_byte_range()
+            .map(|range| range.end)
+            .unwrap_or_else(|| {
+                self.match_mode_and_count_byte_range()
+                    .map(|range| range.end)
+                    .unwrap_or_else(|| {
+                        self.design_space_segments_byte_range()
+                            .map(|range| range.end)
+                            .unwrap_or_else(|| {
+                                self.design_space_count_byte_range()
+                                    .map(|range| range.end)
+                                    .unwrap_or_else(|| {
+                                        self.feature_tags_byte_range()
+                                            .map(|range| range.end)
+                                            .unwrap_or_else(|| {
+                                                self.feature_count_byte_range()
+                                                    .map(|range| range.end)
+                                                    .unwrap_or_else(|| {
+                                                        self.format_flags_byte_range().end
+                                                    })
+                                            })
+                                    })
+                            })
+                    })
+            });
+        start..start + self.trailing_data_byte_len
     }
 }
 
 impl MinByteRange for EntryDataMarker {
     fn min_byte_range(&self) -> Range<usize> {
-        0..self.codepoint_data_byte_range().end
+        0..self.trailing_data_byte_range().end
     }
 }
 
-impl ReadArgs for EntryData<'_> {
-    type Args = Offset32;
-}
-
-impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
-    fn read_with_args(data: FontData<'a>, args: &Offset32) -> Result<Self, ReadError> {
-        let entry_id_string_data_offset = *args;
+impl<'a> FontRead<'a> for EntryData<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let format_flags: EntryFormatFlags = cursor.read()?;
         let feature_count_byte_start = format_flags
@@ -1610,30 +1616,9 @@ impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
         if let Some(value) = child_indices_byte_len {
             cursor.advance_by(value);
         }
-        let entry_id_delta_byte_start = format_flags
-            .contains(EntryFormatFlags::ENTRY_ID_DELTA)
-            .then(|| cursor.position())
-            .transpose()?;
-        let entry_id_delta_byte_len = format_flags
-            .contains(EntryFormatFlags::ENTRY_ID_DELTA)
-            .then_some(<IdDeltaOrLength as ComputeSize>::compute_size(
-                &entry_id_string_data_offset,
-            )?);
-        if let Some(value) = entry_id_delta_byte_len {
-            cursor.advance_by(value);
-        }
-        let patch_format_byte_start = format_flags
-            .contains(EntryFormatFlags::PATCH_FORMAT)
-            .then(|| cursor.position())
-            .transpose()?;
-        format_flags
-            .contains(EntryFormatFlags::PATCH_FORMAT)
-            .then(|| cursor.advance::<u8>());
-        let codepoint_data_byte_len =
-            cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(codepoint_data_byte_len);
+        let trailing_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        cursor.advance_by(trailing_data_byte_len);
         cursor.finish(EntryDataMarker {
-            entry_id_string_data_offset,
             feature_count_byte_start,
             feature_tags_byte_start,
             feature_tags_byte_len,
@@ -1643,25 +1628,8 @@ impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
             match_mode_and_count_byte_start,
             child_indices_byte_start,
             child_indices_byte_len,
-            entry_id_delta_byte_start,
-            entry_id_delta_byte_len,
-            patch_format_byte_start,
-            codepoint_data_byte_len,
+            trailing_data_byte_len,
         })
-    }
-}
-
-impl<'a> EntryData<'a> {
-    /// A constructor that requires additional arguments.
-    ///
-    /// This type requires some external state in order to be
-    /// parsed.
-    pub fn read(
-        data: FontData<'a>,
-        entry_id_string_data_offset: Offset32,
-    ) -> Result<Self, ReadError> {
-        let args = entry_id_string_data_offset;
-        Self::read_with_args(data, &args)
     }
 }
 
@@ -1704,27 +1672,9 @@ impl<'a> EntryData<'a> {
         Some(self.data.read_array(range).unwrap())
     }
 
-    pub fn entry_id_delta(&self) -> Option<IdDeltaOrLength> {
-        let range = self.shape.entry_id_delta_byte_range()?;
-        Some(
-            self.data
-                .read_with_args(range, &self.entry_id_string_data_offset())
-                .unwrap(),
-        )
-    }
-
-    pub fn patch_format(&self) -> Option<u8> {
-        let range = self.shape.patch_format_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
-    }
-
-    pub fn codepoint_data(&self) -> &'a [u8] {
-        let range = self.shape.codepoint_data_byte_range();
+    pub fn trailing_data(&self) -> &'a [u8] {
+        let range = self.shape.trailing_data_byte_range();
         self.data.read_array(range).unwrap()
-    }
-
-    pub(crate) fn entry_id_string_data_offset(&self) -> Offset32 {
-        self.shape.entry_id_string_data_offset
     }
 }
 
@@ -1763,13 +1713,7 @@ impl<'a> SomeTable<'a> for EntryData<'a> {
             6usize if format_flags.contains(EntryFormatFlags::CHILD_INDICES) => {
                 Some(Field::new("child_indices", self.child_indices().unwrap()))
             }
-            7usize if format_flags.contains(EntryFormatFlags::ENTRY_ID_DELTA) => {
-                Some(Field::new("entry_id_delta", traversal::FieldType::Unknown))
-            }
-            8usize if format_flags.contains(EntryFormatFlags::PATCH_FORMAT) => {
-                Some(Field::new("patch_format", self.patch_format().unwrap()))
-            }
-            9usize => Some(Field::new("codepoint_data", self.codepoint_data())),
+            7usize => Some(Field::new("trailing_data", self.trailing_data())),
             _ => None,
         }
     }
