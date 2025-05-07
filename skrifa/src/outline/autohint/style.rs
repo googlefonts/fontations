@@ -8,7 +8,7 @@ use raw::types::{GlyphId, Tag};
 /// Defines the script and style associated with a single glyph.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(transparent)]
-pub(super) struct GlyphStyle(pub(super) u16);
+pub(crate) struct GlyphStyle(pub(super) u16);
 
 impl GlyphStyle {
     // The following flags roughly correspond to those defined in FreeType
@@ -126,7 +126,7 @@ impl GlyphStyleMap {
         if lookup_count > 0 {
             // If we're processing lookups, allocate some temporary memory to
             // store the visited set
-            let lookup_set_byte_size = (lookup_count + 7) / 8;
+            let lookup_set_byte_size = lookup_count.div_ceil(8);
             super::super::memory::with_temporary_memory(lookup_set_byte_size, |bytes| {
                 Self::new_inner(glyph_count, shaper, VisitedLookupSet::new(bytes))
             })

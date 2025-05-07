@@ -24,15 +24,18 @@ mod output_bit_stream;
 pub mod sparse_bit_set;
 
 use bitset::BitSet;
-use core::{cmp::Ordering, fmt::Display};
-use font_types::{GlyphId, GlyphId16};
+use core::ops::{Bound, RangeBounds};
+use font_types::{GlyphId, GlyphId16, NameId, Tag};
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
-use types::{NameId, Tag};
+use std::{
+    cmp::Ordering,
+    fmt::{Debug, Display},
+};
 
 /// A fast & efficient invertible ordered set for small (up to 32-bit) unsigned integer types.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct IntSet<T>(Membership, PhantomData<T>);
 
 /// Defines the domain of `IntSet` member types.
@@ -50,11 +53,14 @@ pub struct IntSet<T>(Membership, PhantomData<T>);
 /// `from_u32`() will only ever be called with u32 values that are part of the domain of T as defined
 /// by an implementation of this trait. So it doesn't need to correctly handle values
 /// that are outside the domain of `T`.
-pub trait Domain: Sized {
+pub trait Domain: Sized + Copy {
     /// Converts this value of `T` to a value in u32.
     ///
     /// The mapped value must maintain the same ordering as `T`.
     fn to_u32(&self) -> u32;
+
+    /// Returns `true` if the value is part of this domain.
+    fn contains(value: u32) -> bool;
 
     /// Converts a mapped u32 value back to T.
     ///
@@ -86,6 +92,7 @@ pub trait Domain: Sized {
 pub struct InDomain(u32);
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum Membership {
     /// Records a set of integers which are members of the set.
     Inclusive(BitSet),
@@ -129,37 +136,63 @@ impl<T: Domain> IntSet<T> {
         }
     }
 
-    /// Returns an iterator over the members of this set that come after `value` in ascending order.
-    ///
-    /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
-    /// care should be taken when using `.iter()` in combination with an inverted set.
-    pub fn iter_after(&self, value: T) -> impl Iterator<Item = T> + '_ {
-        let u32_iter = match &self.0 {
-            Membership::Inclusive(s) => Iter::new(s.iter_after(value.to_u32()), None),
+    fn iter_from_u32(&self, value: T) -> impl Iterator<Item = u32> + '_ {
+        match &self.0 {
+            Membership::Inclusive(s) => Iter::new(s.iter_from(value.to_u32()), None),
             Membership::Exclusive(s) => {
                 let value_u32 = value.to_u32();
                 let max = T::ordered_values().next_back();
-                let it = max.map(|max| {
-                    let mut it = T::ordered_values_range(value..=T::from_u32(InDomain(max)));
-                    it.next(); // skip ahead one value.
-                    it
-                });
+                let it = max.map(|max| T::ordered_values_range(value..=T::from_u32(InDomain(max))));
                 let min = it.and_then(|mut it| it.next());
 
                 if let (Some(min), Some(max)) = (min, max) {
                     Iter::new(
-                        s.iter_after(value_u32),
+                        s.iter_from(value_u32),
                         Some(T::ordered_values_range(
                             T::from_u32(InDomain(min))..=T::from_u32(InDomain(max)),
                         )),
                     )
                 } else {
                     // either min or max doesn't exist, so just return an iterator that has no values.
-                    Iter::new(s.iter_after(u32::MAX), None)
+                    let mut it = Iter::new(s.iter_from(u32::MAX), None);
+                    it.next();
+                    it
                 }
             }
+        }
+    }
+
+    /// Returns an iterator over the members of this set that are after `value` in ascending order.
+    ///
+    /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
+    /// care should be taken when using `.iter()` in combination with an inverted set.
+    pub fn iter_after(&self, value: T) -> impl Iterator<Item = T> + '_ {
+        self.range((Bound::Excluded(value), Bound::Unbounded))
+    }
+
+    /// Returns an iterator over members of this set that are in `range`.
+    pub fn range<R: RangeBounds<T>>(&self, range: R) -> impl Iterator<Item = T> + '_ {
+        let mut it = match range.start_bound() {
+            Bound::Included(start) | Bound::Excluded(start) => {
+                self.iter_from_u32(*start).peekable()
+            }
+            Bound::Unbounded => {
+                let min = T::from_u32(InDomain(T::ordered_values().next().unwrap()));
+                self.iter_from_u32(min).peekable()
+            }
         };
-        u32_iter.map(|v| T::from_u32(InDomain(v)))
+
+        if let Bound::Excluded(start) = range.start_bound() {
+            it.next_if_eq(&start.to_u32());
+        }
+
+        let range_end = range.end_bound().cloned();
+        it.take_while(move |v| match range_end {
+            Bound::Included(end) => *v <= end.to_u32(),
+            Bound::Excluded(end) => *v < end.to_u32(),
+            Bound::Unbounded => true,
+        })
+        .map(move |v| T::from_u32(InDomain(v)))
     }
 
     /// Returns an iterator over all disjoint ranges of values within the set in sorted ascending order.
@@ -328,30 +361,7 @@ impl<T: Domain> IntSet<T> {
 
     /// Returns true if this set contains at least one element in 'range'.
     pub fn intersects_range(&self, range: RangeInclusive<T>) -> bool {
-        let domain_min = T::ordered_values()
-            .next()
-            .map(|v_u32| T::from_u32(InDomain(v_u32)));
-        let Some(domain_min) = domain_min else {
-            return false;
-        };
-
-        let start_u32 = range.start().to_u32();
-        let mut it = T::ordered_values_range(domain_min..=T::from_u32(InDomain(start_u32)));
-        it.next_back();
-        let before_start = it.next_back();
-
-        let next = if let Some(before_start) = before_start {
-            self.iter_after(T::from_u32(InDomain(before_start))).next()
-        } else {
-            self.iter().next()
-        };
-
-        let Some(next) = next else {
-            return false;
-        };
-
-        // If next is <= end then there is at least one value in the input range.
-        next.to_u32() <= range.end().to_u32()
+        self.range(range).next().is_some()
     }
 
     /// Returns true if this set contains at least one element in 'other'.
@@ -419,13 +429,20 @@ impl IntSet<u32> {
 }
 
 impl<T> IntSet<T> {
+    /// Create a new, (empty) `IntSet`.
+    ///
+    /// You can create a new full set with [`IntSet::all`].
+    pub const fn new() -> Self {
+        Self::empty()
+    }
+
     /// Create a new empty set (inclusive).
-    pub fn empty() -> IntSet<T> {
+    pub const fn empty() -> Self {
         IntSet(Membership::Inclusive(BitSet::empty()), PhantomData::<T>)
     }
 
     /// Create a new set which contains all integers (exclusive).
-    pub fn all() -> IntSet<T> {
+    pub const fn all() -> Self {
         IntSet(Membership::Exclusive(BitSet::empty()), PhantomData::<T>)
     }
 
@@ -603,6 +620,12 @@ impl<T: Domain, const N: usize> From<[T; N]> for IntSet<T> {
     }
 }
 
+impl<T: Domain + Debug> Debug for IntSet<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_set().entries(self.iter()).finish()
+    }
+}
+
 impl<T> Display for IntSet<T>
 where
     T: Domain + Display,
@@ -617,6 +640,35 @@ where
             }
         }
         write!(f, "}}")
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<T: Domain> serde::Serialize for IntSet<T> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, T: Domain> serde::Deserialize<'de> for IntSet<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let members = Membership::deserialize(deserializer)?;
+        let bits = match &members {
+            Membership::Inclusive(bit_set) => bit_set,
+            Membership::Exclusive(bit_set) => bit_set,
+        };
+
+        if let Some(bad) = bits.iter().find(|val| !T::contains(*val)) {
+            return Err(serde::de::Error::custom(format!(
+                "value '{bad}' out of range for domain {}",
+                std::any::type_name::<T>(),
+            )));
+        }
+        Ok(IntSet(members, PhantomData))
     }
 }
 
@@ -962,6 +1014,10 @@ impl Domain for u32 {
         member.value()
     }
 
+    fn contains(_value: u32) -> bool {
+        true
+    }
+
     fn is_continuous() -> bool {
         true
     }
@@ -986,6 +1042,10 @@ impl Domain for u16 {
 
     fn from_u32(member: InDomain) -> u16 {
         member.value() as u16
+    }
+
+    fn contains(value: u32) -> bool {
+        (u16::MIN as u32..=u16::MAX as _).contains(&value)
     }
 
     fn is_continuous() -> bool {
@@ -1014,6 +1074,10 @@ impl Domain for u8 {
         member.value() as u8
     }
 
+    fn contains(value: u32) -> bool {
+        (u8::MIN as u32..=u8::MAX as _).contains(&value)
+    }
+
     fn is_continuous() -> bool {
         true
     }
@@ -1038,6 +1102,10 @@ impl Domain for GlyphId16 {
 
     fn from_u32(member: InDomain) -> GlyphId16 {
         GlyphId16::new(member.value() as u16)
+    }
+
+    fn contains(value: u32) -> bool {
+        (u16::MIN as u32..=u16::MAX as _).contains(&value)
     }
 
     fn is_continuous() -> bool {
@@ -1068,6 +1136,10 @@ impl Domain for GlyphId {
         GlyphId::from(member.value())
     }
 
+    fn contains(_value: u32) -> bool {
+        true
+    }
+
     fn is_continuous() -> bool {
         true
     }
@@ -1096,6 +1168,10 @@ impl Domain for Tag {
         Tag::from_u32(member.value())
     }
 
+    fn contains(_value: u32) -> bool {
+        true
+    }
+
     fn is_continuous() -> bool {
         true
     }
@@ -1122,6 +1198,10 @@ impl Domain for NameId {
         NameId::new(member.value() as u16)
     }
 
+    fn contains(value: u32) -> bool {
+        (u16::MIN as u32..=u16::MAX as u32).contains(&value)
+    }
+
     fn is_continuous() -> bool {
         true
     }
@@ -1142,19 +1222,20 @@ impl Domain for NameId {
 #[cfg(test)]
 mod test {
     use core::cmp::Ordering;
-    use std::{
-        collections::HashSet,
-        hash::{DefaultHasher, Hash, Hasher},
-    };
+    use std::{collections::HashSet, hash::Hash};
 
     use super::*;
 
-    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord, Clone)]
+    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord, Clone, Copy)]
     struct EvenInts(u16);
 
     impl Domain for EvenInts {
         fn to_u32(&self) -> u32 {
             self.0 as u32
+        }
+
+        fn contains(value: u32) -> bool {
+            (value % 2) == 0
         }
 
         fn from_u32(member: InDomain) -> EvenInts {
@@ -1179,16 +1260,20 @@ mod test {
         }
 
         fn count() -> u64 {
-            ((u32::MAX as u64) - (u32::MIN as u64) + 1) / 2
+            ((u32::MAX as u64) - (u32::MIN as u64)).div_ceil(2)
         }
     }
 
-    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord, Hash, Clone)]
+    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord, Hash, Clone, Copy)]
     struct TwoParts(u16);
 
     impl Domain for TwoParts {
         fn to_u32(&self) -> u32 {
             self.0 as u32
+        }
+
+        fn contains(value: u32) -> bool {
+            (2..=5).contains(&value) || (8..=16).contains(&value)
         }
 
         fn from_u32(member: InDomain) -> TwoParts {
@@ -1215,12 +1300,16 @@ mod test {
         }
     }
 
-    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord)]
+    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord, Clone, Copy)]
     struct TwoPartsBounds(u32);
 
     impl Domain for TwoPartsBounds {
         fn to_u32(&self) -> u32 {
             self.0
+        }
+
+        fn contains(value: u32) -> bool {
+            (0..=1).contains(&value) || (u32::MAX - 1..=u32::MAX).contains(&value)
         }
 
         fn from_u32(member: InDomain) -> TwoPartsBounds {
@@ -1387,11 +1476,13 @@ mod test {
         assert!(set_inverted.is_empty());
     }
 
+    #[allow(deprecated)] // SipHasher required because of MSRV
     fn hash<T>(set: &IntSet<T>) -> u64
     where
         T: Domain,
     {
-        let mut h = DefaultHasher::new();
+        use std::hash::Hasher;
+        let mut h = std::hash::SipHasher::new();
         set.hash(&mut h);
         h.finish()
     }
@@ -1702,14 +1793,18 @@ mod test {
     }
 
     #[test]
-    fn iter_after() {
+    fn iter_range() {
         let mut set = IntSet::<u32>::empty();
-        assert_eq!(set.iter_after(0).collect::<Vec<u32>>(), vec![]);
+        assert_eq!(set.iter_after(0).count(), 0);
 
         set.extend([5, 7, 10, 1250, 1300, 3001]);
 
         assert_eq!(
             set.iter_after(0).collect::<Vec<u32>>(),
+            vec![5, 7, 10, 1250, 1300, 3001]
+        );
+        assert_eq!(
+            set.range(0..).collect::<Vec<u32>>(),
             vec![5, 7, 10, 1250, 1300, 3001]
         );
 
@@ -1718,13 +1813,22 @@ mod test {
             vec![7, 10, 1250, 1300, 3001]
         );
         assert_eq!(
+            set.range(5..).collect::<Vec<u32>>(),
+            vec![5, 7, 10, 1250, 1300, 3001]
+        );
+
+        assert_eq!(
             set.iter_after(700).collect::<Vec<u32>>(),
+            vec![1250, 1300, 3001]
+        );
+        assert_eq!(
+            set.range(700..).collect::<Vec<u32>>(),
             vec![1250, 1300, 3001]
         );
     }
 
     #[test]
-    fn iter_after_exclusive() {
+    fn iter_after_from_exclusive() {
         let mut set = IntSet::<u32>::empty();
         set.extend([5, 7, 10, 1250, 1300, 3001]);
         set.invert();
@@ -1733,10 +1837,18 @@ mod test {
             set.iter_after(3).take(5).collect::<Vec<u32>>(),
             vec![4, 6, 8, 9, 11]
         );
+        assert_eq!(
+            set.range(3..).take(5).collect::<Vec<u32>>(),
+            vec![3, 4, 6, 8, 9]
+        );
 
         assert_eq!(
             set.iter_after(0).take(5).collect::<Vec<u32>>(),
             vec![1, 2, 3, 4, 6]
+        );
+        assert_eq!(
+            set.range(0..).take(5).collect::<Vec<u32>>(),
+            vec![0, 1, 2, 3, 4]
         );
 
         assert_eq!(
@@ -1744,14 +1856,14 @@ mod test {
             vec![u32::MAX]
         );
         assert_eq!(
-            set.iter_after(u32::MAX).take(1).collect::<Vec<u32>>(),
-            vec![]
+            set.range(u32::MAX - 1..).take(2).collect::<Vec<u32>>(),
+            vec![u32::MAX - 1, u32::MAX]
         );
+
+        assert_eq!(set.iter_after(u32::MAX).take(1).count(), 0);
         set.remove(u32::MAX);
-        assert_eq!(
-            set.iter_after(u32::MAX - 1).take(1).collect::<Vec<u32>>(),
-            vec![]
-        );
+        assert_eq!(set.range(u32::MAX..).take(1).count(), 0);
+        assert_eq!(set.iter_after(u32::MAX - 1).take(1).count(), 0);
     }
 
     #[test]
@@ -1770,6 +1882,16 @@ mod test {
                 EvenInts(12),
                 EvenInts(14),
                 EvenInts(16)
+            ]
+        );
+        assert_eq!(
+            set.range(EvenInts(2)..).take(5).collect::<Vec<EvenInts>>(),
+            vec![
+                EvenInts(2),
+                EvenInts(4),
+                EvenInts(8),
+                EvenInts(12),
+                EvenInts(14)
             ]
         );
 
@@ -1791,6 +1913,11 @@ mod test {
                 .collect::<Vec<EvenInts>>(),
             vec![]
         );
+        assert_eq!(
+            set.range(EvenInts(u16::MAX - 1)..)
+                .collect::<Vec<EvenInts>>(),
+            vec![EvenInts(u16::MAX - 1)]
+        );
 
         assert_eq!(
             set.iter_after(EvenInts(u16::MAX - 5))
@@ -1804,6 +1931,33 @@ mod test {
                 .collect::<Vec<EvenInts>>(),
             vec![EvenInts(u16::MAX - 3),]
         );
+        assert_eq!(
+            set.range(EvenInts(u16::MAX - 5)..)
+                .collect::<Vec<EvenInts>>(),
+            vec![EvenInts(u16::MAX - 5), EvenInts(u16::MAX - 3),]
+        );
+    }
+
+    #[test]
+    #[allow(clippy::reversed_empty_ranges)]
+    fn range() {
+        let mut set = IntSet::<u32>::empty();
+        assert_eq!(set.range(0..=5).count(), 0);
+
+        set.extend([5, 7, 10, 1250, 1300, 3001]);
+
+        assert_eq!(set.range(0..=5).collect::<Vec<u32>>(), vec![5]);
+        assert_eq!(set.range(5..=11).collect::<Vec<u32>>(), vec![5, 7, 10]);
+        assert_eq!(set.range(5..10).collect::<Vec<u32>>(), vec![5, 7]);
+        assert_eq!(set.range(..10).collect::<Vec<u32>>(), vec![5, 7]);
+        assert_eq!(set.range(..=10).collect::<Vec<u32>>(), vec![5, 7, 10]);
+        assert_eq!(set.range(6..=11).collect::<Vec<u32>>(), vec![7, 10]);
+
+        assert!(set.range(7..6).collect::<Vec<u32>>().is_empty());
+        assert!(set.range(7..7).collect::<Vec<u32>>().is_empty());
+        assert_eq!(set.range(7..=7).collect::<Vec<u32>>(), vec![7]);
+
+        assert!(set.range(5..=0).collect::<Vec<u32>>().is_empty());
     }
 
     #[test]
@@ -2535,5 +2689,86 @@ mod test {
         b.insert_range(0..=259);
 
         assert_eq!(a.cmp(&b), Ordering::Less);
+    }
+
+    #[cfg(feature = "serde")]
+    fn roundtrip_json<T: Domain>(set: &IntSet<T>) -> Result<IntSet<T>, serde_json::Error> {
+        let json = serde_json::to_vec(&set).unwrap();
+        serde_json::from_slice(&json)
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn simple_serde() {
+        let mut set = IntSet::empty();
+        set.insert(0u32);
+        set.insert(u32::MAX);
+        assert_eq!(roundtrip_json(&set).unwrap(), set);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn serde_non_contiguous() {
+        fn ev(val: u16) -> EvenInts {
+            assert!(val % 2 == 0);
+            EvenInts(val)
+        }
+        let set = IntSet::<EvenInts>::from([ev(2), ev(166), ev(u16::MAX - 1)]);
+        assert_eq!(roundtrip_json(&set).unwrap(), set);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    #[should_panic(expected = "out of range for domain")]
+    fn serde_non_contiguous_out_of_domain() {
+        let set = IntSet::from([1u16, 2, 3, 4, 5, 6, 7]);
+        let bytes = serde_json::to_vec(&set).unwrap();
+        serde_json::from_slice::<IntSet<EvenInts>>(&bytes).unwrap();
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn non_contiguous_inverted() {
+        let all = IntSet::<u16>::all();
+        let bytes = serde_json::to_vec(&all).unwrap();
+        let readback: IntSet<EvenInts> = serde_json::from_slice(&bytes).unwrap();
+        let mut iter = readback.iter().map(|v| v.0);
+        let mut values = (&mut iter).take(5).collect::<Vec<_>>();
+        values.extend(iter.rev().take(5));
+
+        assert_eq!(values, [0, 2, 4, 6, 8, 65534, 65532, 65530, 65528, 65526])
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn serde_inverted() {
+        let mut set = IntSet::all();
+        set.remove_range(0u16..=420);
+        let bytes = serde_json::to_string(&set).unwrap();
+        assert!(bytes.len() < 5000, "sanity check serialization");
+        assert_eq!(roundtrip_json(&set).unwrap(), set)
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn serde_inverted_out_of_domain() {
+        let mut set = IntSet::all();
+        set.remove_range(0u16..=250);
+        let bytes = serde_json::to_string(&set).unwrap();
+        let readback: IntSet<u8> = serde_json::from_str(&bytes).unwrap();
+        assert_eq!(readback.len(), 5);
+        assert_eq!(
+            readback.iter().collect::<Vec<_>>(),
+            [251, 252, 253, 254, 255]
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    #[should_panic(expected = "out of range for domain")]
+    fn serde_out_of_domain() {
+        let set = IntSet::from([u32::MAX]);
+        let json = serde_json::to_vec(&set).unwrap();
+        serde_json::from_slice::<IntSet<GlyphId16>>(&json).unwrap();
     }
 }

@@ -167,6 +167,14 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    fn trak(&self) -> Result<tables::trak::Trak<'a>, ReadError> {
+        self.expect_table()
+    }
+
+    fn morx(&self) -> Result<tables::morx::Morx<'a>, ReadError> {
+        self.expect_table()
+    }
+
     fn colr(&self) -> Result<tables::colr::Colr<'a>, ReadError> {
         self.expect_table()
     }

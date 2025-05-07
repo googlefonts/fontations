@@ -3,11 +3,19 @@
 //! Used for incremental font transfer. Specification:
 //! <https://w3c.github.io/IFT/Overview.html>
 
+use std::iter;
+
 use font_types::{Int24, Tag, Uint24};
 
 use crate::{be_buffer, bebuffer::BeBuffer};
 
 pub static IFT_BASE: &[u8] = include_bytes!("../test_data/ttf/ift_base.ttf");
+
+pub static CFF_FONT: &[u8] = include_bytes!("../test_data/ttf/NotoSansJP-Regular.subset.otf");
+pub static CFF2_FONT: &[u8] = include_bytes!("../test_data/ttf/NotoSansJP-VF.subset.otf");
+
+pub const CFF_FONT_CHARSTRINGS_OFFSET: u32 = 0x1b9;
+pub const CFF2_FONT_CHARSTRINGS_OFFSET: u32 = 0x8f;
 
 // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-1
 pub fn simple_format1() -> BeBuffer {
@@ -29,6 +37,77 @@ pub fn simple_format1() -> BeBuffer {
         [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // uri_template[2..7]
 
         {3u8: "patch_format"}, // = glyph keyed
+
+        /* ### Glyph Map ### */
+        {1u16: "glyph_map"},     // first mapped glyph
+        {2u8: "entry_index[1]"},
+        [1u8, 0, 1, 0, 0]        // entry index[2..6]
+    };
+
+    let offset = buffer.offset_for("glyph_map") as u32;
+    buffer.write_at("glyph_map_offset", offset);
+
+    buffer
+}
+
+pub fn simple_format1_with_one_charstrings_offset() -> BeBuffer {
+    let mut buffer = be_buffer! {
+        /* ### Header ### */
+        1u8,                    // format
+        0u8, 0u8, 0u8,          // reserved
+        0b00000001u8,           // has charstrings offset
+        [1u32, 2, 3, 4],        // compat id
+        2u16,                   // max entry id
+        {2u16: "max_glyph_map_entry_id"},
+        (Uint24::new(7)),       // glyph count
+        {0u32: "glyph_map_offset"},
+        0u32,                   // feature map offset
+        0b00000010u8,           // applied entry bitmap (entry 1)
+
+        8u16,                   // uri template length
+        {b'A': "uri_template[0]"},
+        {b'B': "uri_template[1]"},
+        [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // uri_template[2..7]
+
+        {3u8: "patch_format"}, // = glyph keyed
+
+        456u32, // charstrings offset [0]
+
+        /* ### Glyph Map ### */
+        {1u16: "glyph_map"},     // first mapped glyph
+        {2u8: "entry_index[1]"},
+        [1u8, 0, 1, 0, 0]        // entry index[2..6]
+    };
+
+    let offset = buffer.offset_for("glyph_map") as u32;
+    buffer.write_at("glyph_map_offset", offset);
+
+    buffer
+}
+
+pub fn simple_format1_with_two_charstrings_offsets() -> BeBuffer {
+    let mut buffer = be_buffer! {
+        /* ### Header ### */
+        1u8,                    // format
+        0u8, 0u8, 0u8,          // reserved
+        0b00000011u8,           // has cff and cff2 charstrings offset
+        [1u32, 2, 3, 4],        // compat id
+        2u16,                   // max entry id
+        {2u16: "max_glyph_map_entry_id"},
+        (Uint24::new(7)),       // glyph count
+        {0u32: "glyph_map_offset"},
+        0u32,                   // feature map offset
+        0b00000010u8,           // applied entry bitmap (entry 1)
+
+        8u16,                   // uri template length
+        {b'A': "uri_template[0]"},
+        {b'B': "uri_template[1]"},
+        [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // uri_template[2..7]
+
+        {3u8: "patch_format"}, // = glyph keyed
+
+        456u32, // charstrings offset [0]
+        789u32, // charstrings offset [1]
 
         /* ### Glyph Map ### */
         {1u16: "glyph_map"},     // first mapped glyph
@@ -218,6 +297,75 @@ pub fn codepoints_only_format2() -> BeBuffer {
       {0b00110000u8: "entries[3]"},            // format = CODEPOINT_BIT_1 | CODEPOINT_BIT_2
       (Uint24::new(80_000)),                   // bias
       [0b00001101, 0b00000011, 0b00110001u8]   // codepoints = [80_005..80_022]
+    };
+
+    let offset = buffer.offset_for("entries[0]") as u32;
+    buffer.write_at("entries_offset", offset);
+
+    buffer
+}
+
+pub fn format2_with_one_charstrings_offset() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      2u8,                // format
+
+      0u8, 0u8, 0u8,                 // reserved
+      {0b00000001u8: "field_flags"}, // has charstrings offset
+
+      {1u32: "compat_id[0]"},
+      {2u32: "compat_id[1]"},
+      {3u32: "compat_id[2]"},
+      {4u32: "compat_id[3]"},
+
+      3u8,                // default patch encoding
+      (Uint24::new(1)),   // entry count
+      {0u32: "entries_offset"},
+      0u32,               // entry string data offset
+
+      8u16, // uriTemplateLength
+      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
+
+      {456u32: "charstrings_offset"}, // charstrings offset [0]
+
+      /* ### Entries Array ### */
+      // Entry id = 1
+      {0b00010000u8: "entries[0]"},           // format = CODEPOINT_BIT_1
+      [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [0..17]
+    };
+
+    let offset = buffer.offset_for("entries[0]") as u32;
+    buffer.write_at("entries_offset", offset);
+
+    buffer
+}
+
+pub fn format2_with_two_charstrings_offset() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      2u8,                // format
+
+      0u8, 0u8, 0u8,          // reserved
+      0b00000011u8,           // has cff and cff2 charstrings offset
+
+      {1u32: "compat_id[0]"},
+      {2u32: "compat_id[1]"},
+      {3u32: "compat_id[2]"},
+      {4u32: "compat_id[3]"},
+
+      3u8,                // default patch encoding
+      (Uint24::new(1)),   // entry count
+      {0u32: "entries_offset"},
+      0u32,               // entry string data offset
+
+      8u16, // uriTemplateLength
+      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
+
+      456u32, // charstrings offset [0]
+      789u32, // charstrings offset [1]
+
+      /* ### Entries Array ### */
+      // Entry id = 1
+      {0b00010000u8: "entries[0]"},           // format = CODEPOINT_BIT_1
+      [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [0..17]
     };
 
     let offset = buffer.offset_for("entries[0]") as u32;
@@ -811,6 +959,56 @@ pub fn glyf_and_gvar_u16_glyph_patches() -> BeBuffer {
     buffer
 }
 
+pub fn cff_u16_glyph_patches() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      4u32,       // glyph count
+      {1u8: "table_count"},        // table count
+
+      // 4 glyph ids
+      [1,      // first gid
+       38,
+       47,
+       59u16], // last gid
+
+      {(Tag::new(b"CFF ")): "tag"},   // tables * 1
+
+      // 5 glyph data offsets
+      {0u32: "gid_1_offset"},
+      {0u32: "gid_38_offset"},
+      {0u32: "gid_47_offset"},
+      {0u32: "gid_59_offset"},
+      {0u32: "end_offset"},
+
+      // data blocks
+      {b'a': "gid_1_data"},
+      [b'b', b'c'],
+
+      {b'd': "gid_38_data"},
+      [b'e', b'f', b'g'],
+
+      {b'h': "gid_47_data"},
+      [b'i', b'j', b'k', b'l'],
+
+      {b'm': "gid_59_data"},
+      [b'n']
+    };
+
+    let offset = buffer.offset_for("gid_1_data") as u32;
+    buffer.write_at("gid_1_offset", offset);
+
+    let offset = buffer.offset_for("gid_38_data") as u32;
+    buffer.write_at("gid_38_offset", offset);
+
+    let offset = buffer.offset_for("gid_47_data") as u32;
+    buffer.write_at("gid_47_offset", offset);
+
+    let offset = buffer.offset_for("gid_59_data") as u32;
+    buffer.write_at("gid_59_offset", offset);
+    buffer.write_at("end_offset", offset + 2);
+
+    buffer
+}
+
 /// <https://learn.microsoft.com/en-us/typography/opentype/spec/gvar>
 pub fn short_gvar_with_shared_tuples() -> BeBuffer {
     // This gvar has the correct header and tuple structure but the per glyph variation data is not valid.
@@ -1018,6 +1216,71 @@ pub fn short_gvar_with_no_shared_tuples() -> BeBuffer {
     buffer.write_at("glyph_offset[13]", end_offset);
     buffer.write_at("glyph_offset[14]", end_offset);
     buffer.write_at("glyph_offset[15]", end_offset);
+
+    buffer
+}
+
+pub fn short_gvar_near_maximum_offset_size() -> BeBuffer {
+    // This is a short offset gvar table whose glyph data is at the maximum representable size with short offsets
+
+    // This gvar has the correct header and tuple structure but the per glyph variation data is not valid.
+    // Meant for testing with IFT glyph keyed patching which treats the per glyph data as opaque blobs.
+    let buffer = be_buffer! {
+      // HEADER
+      1u16,  // major version
+      0u16,  // minor version
+      1u16,  // axis count
+      {0u16: "shared_tuple_count"},
+      {0u32: "shared_tuples_offset"},
+      15u16, // glyph count
+      0u16,  // flags
+      {0u32: "glyph_variation_data_offset"},
+
+      // OFFSETS
+      {0u16: "glyph_offset[0]"},
+      {0u16: "glyph_offset[1]"},
+      {0u16: "glyph_offset[2]"},
+      {0u16: "glyph_offset[3]"},
+      {0u16: "glyph_offset[4]"},
+      {0u16: "glyph_offset[5]"},
+      {0u16: "glyph_offset[6]"},
+      {0u16: "glyph_offset[7]"},
+      {0u16: "glyph_offset[8]"},
+      {0u16: "glyph_offset[9]"},
+      {0u16: "glyph_offset[10]"},
+      {0u16: "glyph_offset[11]"},
+      {0u16: "glyph_offset[12]"},
+      {0u16: "glyph_offset[13]"},
+      {0u16: "glyph_offset[14]"},
+      {0u16: "glyph_offset[15]"},
+
+      // GLYPH VARIATION DATA
+      {1u8: "glyph_0"}
+    };
+
+    // Glyph 0
+    let mut buffer = buffer.extend(iter::repeat(1u8).take(131065));
+
+    let data_offset = buffer.offset_for("glyph_0");
+    buffer.write_at("shared_tuples_offset", data_offset as u32);
+    buffer.write_at("glyph_variation_data_offset", data_offset as u32);
+
+    buffer.write_at("glyph_offset[0]", 0u16);
+    buffer.write_at("glyph_offset[1]", 65533u16);
+    buffer.write_at("glyph_offset[2]", 65533u16);
+    buffer.write_at("glyph_offset[3]", 65533u16);
+    buffer.write_at("glyph_offset[4]", 65533u16);
+    buffer.write_at("glyph_offset[5]", 65533u16);
+    buffer.write_at("glyph_offset[6]", 65533u16);
+    buffer.write_at("glyph_offset[7]", 65533u16);
+    buffer.write_at("glyph_offset[8]", 65533u16);
+    buffer.write_at("glyph_offset[9]", 65533u16);
+    buffer.write_at("glyph_offset[10]", 65533u16);
+    buffer.write_at("glyph_offset[11]", 65533u16);
+    buffer.write_at("glyph_offset[12]", 65533u16);
+    buffer.write_at("glyph_offset[13]", 65533u16);
+    buffer.write_at("glyph_offset[14]", 65533u16);
+    buffer.write_at("glyph_offset[15]", 65533u16);
 
     buffer
 }

@@ -27,7 +27,7 @@ pub type Dimension = usize;
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.h#L309>
 #[derive(Clone, Default, Debug)]
-pub struct Axis {
+pub(crate) struct Axis {
     /// Either horizontal or vertical.
     pub dim: Dimension,
     /// Depends on dimension and outline orientation.

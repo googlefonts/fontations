@@ -739,8 +739,10 @@ impl<'a> FontRead<'a> for Lookup8<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let value_array_byte_len = cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
+        let glyph_count: u16 = cursor.read()?;
+        let value_array_byte_len = (glyph_count as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(value_array_byte_len);
         cursor.finish(Lookup8Marker {
             value_array_byte_len,
@@ -854,10 +856,12 @@ impl<'a> FontRead<'a> for Lookup10<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
+        let unit_size: u16 = cursor.read()?;
         cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let values_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let glyph_count: u16 = cursor.read()?;
+        let values_data_byte_len = (transforms::add_multiply(glyph_count, 0_usize, unit_size))
+            .checked_mul(u8::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(values_data_byte_len);
         cursor.finish(Lookup10Marker {
             values_data_byte_len,

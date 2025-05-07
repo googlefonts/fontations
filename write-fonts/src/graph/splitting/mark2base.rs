@@ -229,10 +229,11 @@ fn compute_subgraph_size(
                 .map(|id| {
                     // the mark2pos subgraph is only ever two layers deep
                     debug_assert!(graph.objects[&id.object].offsets.is_empty());
-                    visited
-                        .insert(id.object)
-                        .then(|| graph.objects[&id.object].bytes.len())
-                        .unwrap_or(0)
+                    if visited.insert(id.object) {
+                        graph.objects[&id.object].bytes.len()
+                    } else {
+                        0
+                    }
                 })
                 .sum::<usize>();
             base_size + children_size

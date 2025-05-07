@@ -11,20 +11,25 @@
 use data_encoding::BASE64URL;
 use data_encoding_macro::new_encoding;
 use std::fmt::Write;
-use std::sync::OnceLock;
 
 use crate::patchmap::PatchId;
 
+/// Tracks what part of the URI template is currently being parsed.
 enum ParseState {
-    // Literal parsing
+    /// Currently parsing literal values (<https://datatracker.ietf.org/doc/html/rfc6570#section-3.1>)
     Literal,
+
+    /// Currently validating a percent encoding (%XX) instance present in literals.
     LiteralPercentEncoded(Digit),
 
-    // Expression parsing,
+    /// Currently parsing the variable name of an expression (<https://datatracker.ietf.org/doc/html/rfc6570#section-3.2>)
+    ///
+    /// Variable tracks the state of variable name matching.
     Expression(Variable),
 }
 
 /// Represents the process of matching one of the predefined variable names: id, id64, d1, d2, d3, d4
+#[derive(Copy, Clone)]
 enum Variable {
     Begin,
     I,
@@ -36,6 +41,7 @@ enum Variable {
 }
 
 /// Which digit of a percent encoding we're on
+#[derive(Copy, Clone)]
 enum Digit {
     One,
     Two,
@@ -43,6 +49,13 @@ enum Digit {
 
 #[derive(Default)]
 struct OutputBuffer(String);
+
+struct ParseStateMachine<'a> {
+    output: OutputBuffer,
+    id_value: &'a str,
+    id64_value: &'a str,
+    state: ParseState,
+}
 
 /// Indicates a malformed URI template was encountered.
 ///
@@ -80,10 +93,9 @@ pub(crate) fn expand_template(
 
     // id64 might contain characters outside of the unreserved set which require percent encoding.
     // scan it and replace characters as needed. (ref: https://datatracker.ietf.org/doc/html/rfc6570#section-3.2.1)
-    let byte_info_map = byte_info_map();
     let mut id64_string_encoded: OutputBuffer = Default::default();
     for byte in id64_string.as_bytes() {
-        let byte_info = &byte_info_map[*byte as usize];
+        let byte_info = BYTE_INFO_MAP[*byte as usize];
         match byte_info {
             ByteInfo::CopiedLiteralUnreserved | ByteInfo::CopiedLiteralHexDigit => {
                 id64_string_encoded.append(*byte)
@@ -109,34 +121,63 @@ fn expand_template_inner(
     id_value: &str,
     id64_value: &str,
 ) -> Result<String, UriTemplateError> {
-    let mut output: OutputBuffer = Default::default();
-
-    let mut state = ParseState::Literal;
-    let byte_info_map = byte_info_map();
-
+    let mut state_machine = ParseStateMachine::begin(id_value, id64_value);
     for byte in template_string.as_bytes() {
-        let byte_info = byte_info_map[*byte as usize];
-        state = match state {
-            ParseState::Literal => output.handle_literal(byte_info, *byte)?,
+        state_machine.take_input(*byte)?;
+    }
+    state_machine.finish()
+}
+
+impl<'a> ParseStateMachine<'a> {
+    fn begin(id_value: &'a str, id64_value: &'a str) -> Self {
+        ParseStateMachine {
+            state: ParseState::Literal,
+            output: Default::default(),
+            id_value,
+            id64_value,
+        }
+    }
+}
+
+impl ParseStateMachine<'_> {
+    /// Apply the next input 'value' to the state machine.
+    ///
+    /// If a syntax error is encountered returns UriTemplateError.
+    fn take_input(&mut self, value: u8) -> Result<(), UriTemplateError> {
+        // Parsing and expansion is implemented using a state machine (with states ParseState).
+        // Each byte in the input template is first classified by BYTE_INFO_MAP and
+        // then the classification is used as an input to the state machine transitions.
+        //
+        // At a high level expansion works like this
+        // - Literals are checked if they are allowed and then either copied directly to
+        //   the output or percent encoded if required.
+        // - Otherwise if we are in an expression it attempts to match the variable name
+        //   to one of the predefined variables. If a match is found the variables value
+        //   is substituted.
+        //
+        // see: https://datatracker.ietf.org/doc/html/rfc6570#section-3 for more details.
+
+        self.state = match &self.state {
+            ParseState::Literal => self.handle_literal(value)?,
             ParseState::LiteralPercentEncoded(digit) => {
-                output.handle_percent_encoding(byte_info, digit, *byte)?
+                self.handle_percent_encoding(*digit, value)?
             }
-            ParseState::Expression(variable) => {
-                output.handle_expression(variable, *byte, id_value, id64_value)?
-            }
+            ParseState::Expression(variable) => self.handle_expression(*variable, value)?,
+        };
+        Ok(())
+    }
+
+    /// Signal no more bytes are left, returns the expanded string.
+    fn finish(self) -> Result<String, UriTemplateError> {
+        match self.state {
+            ParseState::Literal => Ok(self.output.0),
+
+            // Should always end back in the literal state otherwise we're in an incomplete expression
+            // or percent encoding.
+            _ => Err(UriTemplateError),
         }
     }
 
-    if !matches!(state, ParseState::Literal) {
-        // Should always end back in the literal state otherwise we're in an incomplete expression
-        // or percent encoding.
-        return Err(UriTemplateError);
-    }
-
-    Ok(output.0)
-}
-
-impl OutputBuffer {
     /// Handles the next literal character.
     ///
     /// Either:
@@ -144,25 +185,22 @@ impl OutputBuffer {
     /// - Percent encodes the character
     /// - Substitution expression begins.
     /// - Something invalid encountered.
-    fn handle_literal(
-        &mut self,
-        byte_info: ByteInfo,
-        value: u8,
-    ) -> Result<ParseState, UriTemplateError> {
-        match byte_info {
+    fn handle_literal(&mut self, value: u8) -> Result<ParseState, UriTemplateError> {
+        match BYTE_INFO_MAP[value as usize] {
             ByteInfo::Invalid => Err(UriTemplateError),
             ByteInfo::Percent => {
-                self.append(value);
+                self.output.append(value);
                 Ok(ParseState::LiteralPercentEncoded(Digit::One))
             }
             ByteInfo::StartExpression => Ok(ParseState::Expression(Variable::Begin)),
             ByteInfo::CopiedLiteral
             | ByteInfo::CopiedLiteralHexDigit
             | ByteInfo::CopiedLiteralUnreserved => {
-                self.append(value);
+                self.output.append(value);
                 Ok(ParseState::Literal)
             }
             ByteInfo::PercentEncodedLiteral => self
+                .output
                 .append_percent_encoded(value)
                 .map(|_| ParseState::Literal),
         }
@@ -173,13 +211,12 @@ impl OutputBuffer {
     /// Copies to the output if it is.
     fn handle_percent_encoding(
         &mut self,
-        byte_info: ByteInfo,
         digit: Digit,
         value: u8,
     ) -> Result<ParseState, UriTemplateError> {
-        match byte_info {
+        match BYTE_INFO_MAP[value as usize] {
             ByteInfo::CopiedLiteralHexDigit => {
-                self.append(value);
+                self.output.append(value);
                 match digit {
                     Digit::One => Ok(ParseState::LiteralPercentEncoded(Digit::Two)),
                     Digit::Two => Ok(ParseState::Literal),
@@ -192,15 +229,11 @@ impl OutputBuffer {
     /// Decode the variable name in the expression and substitute a value if needed.
     ///
     /// - Value is substituted if one of the defined variable names are encountered.
-    /// - Otherwise the variable name is undefined and the expression is replaced with an empty string.
-    /// - Also validates the variable name follows level 1 expression grammar (<https://datatracker.ietf.org/doc/html/rfc6570#section-2.2>)
-    ///   and returns an error if it doesn't.
+    /// - Otherwise returns an error, the IFT spec disallows undefined variable names.
     fn handle_expression(
         &mut self,
         variable: Variable,
         value: u8,
-        id_value: &str,
-        id64_value: &str,
     ) -> Result<ParseState, UriTemplateError> {
         match (variable, value) {
             // ### Variable matching ###
@@ -216,15 +249,15 @@ impl OutputBuffer {
 
             // ### termination states ###
             (Variable::ID, b'}') => {
-                self.append_str(id_value);
+                self.output.append_str(self.id_value);
                 Ok(ParseState::Literal)
             }
             (Variable::ID64, b'}') => {
-                self.append_str(id64_value);
+                self.output.append_str(self.id64_value);
                 Ok(ParseState::Literal)
             }
             (Variable::DX(digit), b'}') => {
-                self.append_id_digit(id_value, digit);
+                self.output.append_id_digit(self.id_value, digit);
                 Ok(ParseState::Literal)
             }
 
@@ -232,7 +265,9 @@ impl OutputBuffer {
             _ => Err(UriTemplateError),
         }
     }
+}
 
+impl OutputBuffer {
     /// Appends the expanded value of d1, d2, d3, or d4.
     ///
     /// See: <https://w3c.github.io/IFT/Overview.html#uri-templates>
@@ -276,7 +311,7 @@ enum ByteInfo {
 }
 
 impl ByteInfo {
-    fn new(value: u8) -> Self {
+    const fn new(value: u8) -> Self {
         match value {
             b'{' => ByteInfo::StartExpression,
             b'%' => ByteInfo::Percent,
@@ -298,7 +333,7 @@ impl ByteInfo {
         }
     }
 
-    fn ascii_allowed_as_literal(value: u8) -> bool {
+    const fn ascii_allowed_as_literal(value: u8) -> bool {
         // See: https://datatracker.ietf.org/doc/html/rfc6570#section-2.1
         match value {
             0x21
@@ -315,12 +350,12 @@ impl ByteInfo {
         }
     }
 
-    fn ascii_url_unreserved(value: u8) -> bool {
+    const fn ascii_url_unreserved(value: u8) -> bool {
         // See: https://datatracker.ietf.org/doc/html/rfc6570#section-1.5
         value.is_ascii_alphanumeric() || matches!(value, b'-' | b'.' | b'_' | b'~')
     }
 
-    fn ascii_url_reserved_or_unreserved(value: u8) -> bool {
+    const fn ascii_url_reserved_or_unreserved(value: u8) -> bool {
         // See: https://datatracker.ietf.org/doc/html/rfc6570#section-1.5
         Self::ascii_url_unreserved(value)
             || matches!(value, |b':'| b'/'
@@ -343,25 +378,19 @@ impl ByteInfo {
     }
 }
 
+// This macro generates the byte info array at compile time.
 const NUM_U8S: usize = u8::MAX as usize + 1;
 
-static BYTE_INFO_MAP: OnceLock<[ByteInfo; NUM_U8S]> = OnceLock::new();
-
-/// Returns a map of information about each possible u8 byte value.
-///
-/// See ByteInfo for more details.
-fn byte_info_map() -> &'static [ByteInfo; NUM_U8S] {
-    // TODO(garretrieger): populate a static array using a macro instead of runtime initialization.
-    // TODO(garretrieger): map only byte values 0 to 7F, everything after defaults to the same value.
-    // See: https://datatracker.ietf.org/doc/html/rfc6570#section-2.1
-    BYTE_INFO_MAP.get_or_init(|| {
-        let mut info: [ByteInfo; NUM_U8S] = [ByteInfo::default(); NUM_U8S];
-        for value in 0..=u8::MAX {
-            info[value as usize] = ByteInfo::new(value);
-        }
-        info
-    })
-}
+/// This maps each possiblue byte (u8) value to an enum which classifies how that value is handled during expansion.
+static BYTE_INFO_MAP: [ByteInfo; NUM_U8S] = {
+    let mut info = [ByteInfo::Invalid; NUM_U8S];
+    let mut i = 0;
+    while i < NUM_U8S {
+        info[i] = ByteInfo::new(i as u8);
+        i += 1;
+    }
+    info
+};
 
 #[cfg(test)]
 pub(crate) mod tests {

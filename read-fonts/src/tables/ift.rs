@@ -464,6 +464,71 @@ mod tests {
     }
 
     #[test]
+    fn format_1_get_charstrings_offset() {
+        // No offsets
+        let data = test_data::simple_format1();
+        let table = Ift::read(FontData::new(&data)).unwrap();
+        let Ift::Format1(map) = table else {
+            panic!("Not format 1.");
+        };
+
+        assert_eq!(map.cff_charstrings_offset(), None);
+        assert_eq!(map.cff2_charstrings_offset(), None);
+
+        // One offset
+        let data = test_data::simple_format1_with_one_charstrings_offset();
+        let table = Ift::read(FontData::new(&data)).unwrap();
+        let Ift::Format1(map) = table else {
+            panic!("Not format 1.");
+        };
+
+        assert_eq!(map.cff_charstrings_offset(), Some(456));
+        assert_eq!(map.cff2_charstrings_offset(), None);
+
+        // Two offsets
+        let data = test_data::simple_format1_with_two_charstrings_offsets();
+        let table = Ift::read(FontData::new(&data)).unwrap();
+        let Ift::Format1(map) = table else {
+            panic!("Not format 1.");
+        };
+
+        assert_eq!(map.cff_charstrings_offset(), Some(456));
+        assert_eq!(map.cff2_charstrings_offset(), Some(789));
+    }
+
+    #[test]
+    fn format_2_get_charstrings_offset() {
+        // No offsets
+        let data = test_data::codepoints_only_format2();
+        let table = Ift::read(FontData::new(&data)).unwrap();
+        let Ift::Format2(map) = table else {
+            panic!("Not format 2.");
+        };
+        assert_eq!(map.cff_charstrings_offset(), None);
+        assert_eq!(map.cff2_charstrings_offset(), None);
+
+        // One offset
+        let data = test_data::format2_with_one_charstrings_offset();
+        let table = Ift::read(FontData::new(&data)).unwrap();
+        let Ift::Format2(map) = table else {
+            panic!("Not format 2.");
+        };
+
+        assert_eq!(map.cff_charstrings_offset(), Some(456));
+        assert_eq!(map.cff2_charstrings_offset(), None);
+
+        // Two offsets
+        let data = test_data::format2_with_two_charstrings_offset();
+        let table = Ift::read(FontData::new(&data)).unwrap();
+        let Ift::Format2(map) = table else {
+            panic!("Not format 2.");
+        };
+
+        assert_eq!(map.cff_charstrings_offset(), Some(456));
+        assert_eq!(map.cff2_charstrings_offset(), Some(789));
+    }
+
+    #[test]
     fn compatibility_id() {
         let data = test_data::simple_format1();
         let table = Ift::read(FontData::new(&data)).unwrap();
@@ -642,7 +707,7 @@ mod tests {
     #[test]
     fn glyph_keyed_glyph_data_for_one_table_gids_truncated() {
         let builder = test_data::glyf_u16_glyph_patches();
-        let len = builder.offset_for("table_count") as usize;
+        let len = builder.offset_for("table_count");
         let data = &builder.as_slice()[..len];
 
         let Err(err) = GlyphPatches::read(FontData::new(data), GlyphKeyedFlags::NONE) else {
@@ -654,7 +719,7 @@ mod tests {
     #[test]
     fn glyph_keyed_glyph_data_for_one_table_data_truncated() {
         let builder = test_data::glyf_u16_glyph_patches();
-        let len = builder.offset_for("gid_8_and_9_data") as usize;
+        let len = builder.offset_for("gid_8_and_9_data");
         let data = &builder.as_slice()[..len];
 
         let table = GlyphPatches::read(FontData::new(data), GlyphKeyedFlags::NONE).unwrap();
@@ -675,7 +740,7 @@ mod tests {
     #[test]
     fn glyph_keyed_glyph_data_for_one_table_offset_array_truncated() {
         let builder = test_data::glyf_u16_glyph_patches();
-        let len = builder.offset_for("gid_9_offset") as usize;
+        let len = builder.offset_for("gid_9_offset");
         let data = &builder.as_slice()[..len];
 
         let Err(err) = GlyphPatches::read(FontData::new(data), GlyphKeyedFlags::NONE) else {

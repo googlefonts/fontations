@@ -605,18 +605,18 @@ pub struct FeatMinMaxRecord {
     pub feature_table_tag: Tag,
     /// Offset to BaseCoord table that defines the minimum extent
     /// value, from beginning of MinMax table (may be NULL)
-    pub min_coord: NullableOffsetMarker<MinMax>,
+    pub min_coord: NullableOffsetMarker<BaseCoord>,
     /// Offset to BaseCoord table that defines the maximum extent
     /// value, from beginning of MinMax table (may be NULL)
-    pub max_coord: NullableOffsetMarker<MinMax>,
+    pub max_coord: NullableOffsetMarker<BaseCoord>,
 }
 
 impl FeatMinMaxRecord {
     /// Construct a new `FeatMinMaxRecord`
     pub fn new(
         feature_table_tag: Tag,
-        min_coord: Option<MinMax>,
-        max_coord: Option<MinMax>,
+        min_coord: Option<BaseCoord>,
+        max_coord: Option<BaseCoord>,
     ) -> Self {
         Self {
             feature_table_tag,

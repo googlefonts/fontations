@@ -3,7 +3,6 @@
 use super::bitpage::BitPage;
 use super::bitpage::RangeIter;
 use super::bitpage::PAGE_BITS;
-use std::cell::Cell;
 use std::cmp::Ordering;
 use std::hash::Hash;
 
@@ -13,20 +12,23 @@ use std::ops::RangeInclusive;
 const PAGE_BITS_LOG_2: u32 = PAGE_BITS.ilog2();
 
 /// An ordered integer (u32) set.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct BitSet {
     // TODO(garretrieger): consider a "small array" type instead of Vec.
     pages: Vec<BitPage>,
     page_map: Vec<PageInfo>,
-    len: Cell<u64>, // TODO(garretrieger): use an option instead of a sentinel.
+    length: u64,
 }
 
 impl BitSet {
     /// Add val as a member of this set.
+    ///
+    /// If the set did not previously contain this value, returns `true`.
     pub(crate) fn insert(&mut self, val: u32) -> bool {
         let page = self.ensure_page_for_mut(val);
         let ret = page.insert(val);
-        self.mark_dirty();
+        self.length += ret as u64;
         ret
     }
 
@@ -41,13 +43,18 @@ impl BitSet {
         let major_start = Self::get_major_value(start);
         let major_end = Self::get_major_value(end);
 
+        let mut total_added = 0;
+
         for major in major_start..=major_end {
             let page_start = start.max(Self::major_start(major));
             let page_end = end.min(Self::major_start(major) + (PAGE_BITS - 1));
             let page = self.ensure_page_for_major_mut(major);
+            let pre_len = page.len();
             page.insert_range(page_start, page_end);
+            let delta_len = page.len() - pre_len;
+            total_added += delta_len as u64;
         }
-        self.mark_dirty();
+        self.length += total_added;
     }
 
     /// An alternate version of [`extend()`] which is optimized for inserting an unsorted
@@ -55,20 +62,24 @@ impl BitSet {
     ///
     /// [`extend()`]: Self::extend
     pub(crate) fn extend_unsorted<U: IntoIterator<Item = u32>>(&mut self, iter: U) {
-        for val in iter {
-            let major_value = Self::get_major_value(val);
-            let page = self.ensure_page_for_major_mut(major_value);
-            page.insert_no_return(val);
-        }
-        self.mark_dirty();
+        self.length += iter
+            .into_iter()
+            .map(|val| {
+                let major_value = Self::get_major_value(val);
+                let page = self.ensure_page_for_major_mut(major_value);
+                page.insert(val) as u64
+            })
+            .sum::<u64>();
     }
 
     /// Remove val from this set.
+    ///
+    /// Returns `true` if the value was present.
     pub(crate) fn remove(&mut self, val: u32) -> bool {
         let maybe_page = self.page_for_mut(val);
         if let Some(page) = maybe_page {
             let ret = page.remove(val);
-            self.mark_dirty();
+            self.length -= ret as u64;
             ret
         } else {
             false
@@ -79,6 +90,7 @@ impl BitSet {
     pub(crate) fn remove_all<U: IntoIterator<Item = u32>>(&mut self, iter: U) {
         let mut last_page_index: Option<usize> = None;
         let mut last_major_value = u32::MAX;
+        let mut total_removed = 0;
         for val in iter {
             let major_value = Self::get_major_value(val);
             if major_value != last_major_value {
@@ -91,10 +103,10 @@ impl BitSet {
             };
 
             if let Some(page) = self.pages.get_mut(page_index) {
-                page.remove(val);
+                total_removed += page.remove(val) as u64;
             }
         }
-        self.mark_dirty();
+        self.length -= total_removed;
     }
 
     /// Removes all values in range as members of this set.
@@ -136,7 +148,7 @@ impl BitSet {
             info_index += 1;
         }
 
-        self.mark_dirty();
+        self.recompute_length();
     }
 
     /// Returns true if val is a member of this set.
@@ -146,11 +158,11 @@ impl BitSet {
             .unwrap_or(false)
     }
 
-    pub(crate) fn empty() -> BitSet {
+    pub(crate) const fn empty() -> BitSet {
         BitSet {
-            pages: vec![],
-            page_map: vec![],
-            len: Default::default(),
+            pages: Vec::new(),
+            page_map: Vec::new(),
+            length: 0,
         }
     }
 
@@ -158,7 +170,7 @@ impl BitSet {
     pub(crate) fn clear(&mut self) {
         self.pages.clear();
         self.page_map.clear();
-        self.mark_dirty();
+        self.length = 0;
     }
 
     /// Return true if there are no members in this set.
@@ -167,16 +179,13 @@ impl BitSet {
         self.len() == 0
     }
 
+    fn recompute_length(&mut self) {
+        self.length = self.pages.iter().map(|page| page.len() as u64).sum();
+    }
+
     /// Returns the number of members in this set.
     pub(crate) fn len(&self) -> u64 {
-        // TODO(garretrieger): keep track of len on the fly, rather than computing it. Leave a computation method
-        //                     for complex cases if needed.
-        if self.is_dirty() {
-            // this means we're stale and should recompute
-            let len = self.pages.iter().map(|val| val.len() as u64).sum();
-            self.len.set(len);
-        }
-        self.len.get()
+        self.length
     }
 
     pub(crate) fn num_pages(&self) -> usize {
@@ -210,8 +219,10 @@ impl BitSet {
         })
     }
 
-    /// Iterator over the members of this set that come after `value`.
-    pub(crate) fn iter_after(&self, value: u32) -> impl Iterator<Item = u32> + '_ {
+    /// Iterator over the members of this set starting from value.
+    ///
+    /// So value is included in the iterator if it's in the set.
+    pub(crate) fn iter_from(&self, value: u32) -> impl Iterator<Item = u32> + '_ {
         let major_value = Self::get_major_value(value);
         let result = self
             .page_map
@@ -236,7 +247,7 @@ impl BitSet {
                 .into_iter()
                 .flat_map(move |(page, major)| {
                     let base = Self::major_start(major);
-                    page.iter_after(value).map(move |v| base + v)
+                    page.iter_from(value).map(move |v| base + v)
                 });
 
         let follow_on_page_map_index = if partial_first_page {
@@ -301,8 +312,6 @@ impl BitSet {
         Op: Fn(&BitPage, &BitPage) -> BitPage,
     {
         let (passthrough_left, passthrough_right) = BitSet::passthrough_behavior(&op);
-
-        self.mark_dirty();
 
         let mut len_a = self.pages.len();
         let len_b = other.pages.len();
@@ -432,6 +441,7 @@ impl BitSet {
         }
 
         self.resize(new_count);
+        self.recompute_length();
     }
 
     fn compact(&mut self, new_len: usize) {
@@ -474,14 +484,6 @@ impl BitSet {
             },
         );
         self.pages.resize(new_len, BitPage::new_zeroes());
-    }
-
-    fn mark_dirty(&mut self) {
-        self.len.set(u64::MAX);
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.len.get() == u64::MAX
     }
 
     /// Return the major value (top 23 bits) of the page associated with value.
@@ -615,16 +617,18 @@ impl<'a> BitSetBuilder<'a> {
             self.last_major_value = major_value;
         };
         if let Some(page) = self.set.pages.get_mut(self.last_page_index) {
-            page.insert_no_return(val);
+            self.set.length += page.insert(val) as u64;
         }
     }
 
     pub(crate) fn finish(&mut self) {
-        self.set.mark_dirty();
+        // we used to do some finalization and bookkeeping here, and we will
+        // want to again if we optimize the impl more.
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct PageInfo {
     // index into pages vector of this page
     index: u32,
@@ -880,58 +884,77 @@ mod test {
     }
 
     #[test]
-    fn iter_after() {
+    fn iter_from() {
         let mut bitset = BitSet::empty();
         bitset.extend([5, 7, 10, 1250, 1300, 3001]);
 
         assert_eq!(
-            bitset.iter_after(0).collect::<Vec<u32>>(),
+            bitset.iter_from(0).collect::<Vec<u32>>(),
             vec![5, 7, 10, 1250, 1300, 3001]
         );
 
         assert_eq!(
-            bitset.iter_after(5).collect::<Vec<u32>>(),
-            vec![7, 10, 1250, 1300, 3001]
+            bitset.iter_from(4).collect::<Vec<u32>>(),
+            vec![5, 7, 10, 1250, 1300, 3001]
         );
         assert_eq!(
-            bitset.iter_after(6).collect::<Vec<u32>>(),
+            bitset.iter_from(5).collect::<Vec<u32>>(),
+            vec![5, 7, 10, 1250, 1300, 3001]
+        );
+        assert_eq!(
+            bitset.iter_from(6).collect::<Vec<u32>>(),
             vec![7, 10, 1250, 1300, 3001]
         );
 
         assert_eq!(
-            bitset.iter_after(10).collect::<Vec<u32>>(),
+            bitset.iter_from(10).collect::<Vec<u32>>(),
+            vec![10, 1250, 1300, 3001]
+        );
+
+        assert_eq!(
+            bitset.iter_from(700).collect::<Vec<u32>>(),
             vec![1250, 1300, 3001]
         );
 
         assert_eq!(
-            bitset.iter_after(700).collect::<Vec<u32>>(),
+            bitset.iter_from(1250).collect::<Vec<u32>>(),
             vec![1250, 1300, 3001]
         );
-
         assert_eq!(
-            bitset.iter_after(1250).collect::<Vec<u32>>(),
+            bitset.iter_from(1251).collect::<Vec<u32>>(),
             vec![1300, 3001]
         );
 
-        assert_eq!(bitset.iter_after(3000).collect::<Vec<u32>>(), vec![3001]);
-        assert_eq!(bitset.iter_after(3001).collect::<Vec<u32>>(), vec![]);
-        assert_eq!(bitset.iter_after(3002).collect::<Vec<u32>>(), vec![]);
-        assert_eq!(bitset.iter_after(5000).collect::<Vec<u32>>(), vec![]);
-        assert_eq!(bitset.iter_after(u32::MAX).collect::<Vec<u32>>(), vec![]);
+        assert_eq!(bitset.iter_from(3000).collect::<Vec<u32>>(), vec![3001]);
+        assert_eq!(bitset.iter_from(3001).collect::<Vec<u32>>(), vec![3001]);
+        assert_eq!(bitset.iter_from(3002).count(), 0);
+        assert_eq!(bitset.iter_from(5000).count(), 0);
+        assert_eq!(bitset.iter_from(u32::MAX).count(), 0);
 
         bitset.insert(u32::MAX);
-        assert_eq!(bitset.iter_after(u32::MAX).collect::<Vec<u32>>(), vec![]);
         assert_eq!(
-            bitset.iter_after(u32::MAX - 1).collect::<Vec<u32>>(),
+            bitset.iter_from(u32::MAX).collect::<Vec<u32>>(),
+            vec![u32::MAX]
+        );
+        assert_eq!(
+            bitset.iter_from(u32::MAX - 1).collect::<Vec<u32>>(),
             vec![u32::MAX]
         );
 
         let mut bitset = BitSet::empty();
         bitset.extend([510, 511, 512]);
 
-        assert_eq!(bitset.iter_after(510).collect::<Vec<u32>>(), vec![511, 512]);
-        assert_eq!(bitset.iter_after(511).collect::<Vec<u32>>(), vec![512]);
-        assert_eq!(bitset.iter_after(512).collect::<Vec<u32>>(), vec![]);
+        assert_eq!(
+            bitset.iter_from(509).collect::<Vec<u32>>(),
+            vec![510, 511, 512]
+        );
+        assert_eq!(
+            bitset.iter_from(510).collect::<Vec<u32>>(),
+            vec![510, 511, 512]
+        );
+        assert_eq!(bitset.iter_from(511).collect::<Vec<u32>>(), vec![511, 512]);
+        assert_eq!(bitset.iter_from(512).collect::<Vec<u32>>(), vec![512]);
+        assert!(bitset.iter_from(513).collect::<Vec<u32>>().is_empty());
     }
 
     #[test]

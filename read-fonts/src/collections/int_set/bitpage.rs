@@ -1,6 +1,6 @@
 //! Stores a page of bits, used inside of bitset's.
 
-use std::{cell::Cell, hash::Hash, ops::RangeInclusive};
+use std::{hash::Hash, ops::RangeInclusive};
 
 // the integer type underlying our bit set
 type Element = u64;
@@ -20,9 +20,10 @@ const PAGE_MASK: u32 = PAGE_BITS - 1;
 
 /// A fixed size (512 bits wide) page of bits that records integer set membership from `[0, 511]`.
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct BitPage {
     storage: [Element; PAGE_SIZE as usize],
-    len: Cell<u32>,
+    length: u32,
 }
 
 impl BitPage {
@@ -30,18 +31,17 @@ impl BitPage {
     pub(crate) fn new_zeroes() -> Self {
         Self {
             storage: [0; PAGE_SIZE as usize],
-            len: Cell::new(0),
+            length: 0,
         }
+    }
+
+    pub(crate) fn recompute_length(&mut self) {
+        self.length = self.storage.iter().copied().map(u64::count_ones).sum();
     }
 
     /// Returns the number of members in this page.
     pub(crate) fn len(&self) -> u32 {
-        if self.is_dirty() {
-            // this means we're stale and should recompute
-            let len = self.storage.iter().map(|val| val.count_ones()).sum();
-            self.len.set(len);
-        }
-        self.len.get()
+        self.length
     }
 
     /// Returns true if this page has no members.
@@ -64,8 +64,10 @@ impl BitPage {
             })
     }
 
-    /// Iterator over the members of this page that come after `value`.
-    pub(crate) fn iter_after(&self, value: u32) -> impl DoubleEndedIterator<Item = u32> + '_ {
+    /// Iterator over the members of this page starting from value.
+    ///
+    /// So value is included in the iterator if it's in the page.
+    pub(crate) fn iter_from(&self, value: u32) -> impl DoubleEndedIterator<Item = u32> + '_ {
         let start_index = Self::element_index(value);
         self.storage[start_index..]
             .iter()
@@ -74,9 +76,9 @@ impl BitPage {
             .flat_map(move |(i, elem)| {
                 let i = i + start_index;
                 let base = i as u32 * ELEM_BITS;
-                let index_in_elem = value & ELEM_MASK;
                 let it = if start_index == i {
-                    Iter::from(*elem, index_in_elem + 1)
+                    let index_in_elem = value & ELEM_MASK;
+                    Iter::from(*elem, index_in_elem)
                 } else {
                     Iter::new(*elem)
                 };
@@ -94,20 +96,12 @@ impl BitPage {
 
     /// Marks `(val % page width)` a member of this set and returns `true` if it is newly added.
     pub(crate) fn insert(&mut self, val: u32) -> bool {
-        let ret = !self.contains(val);
-        *self.element_mut(val) |= elem_index_bit_mask(val);
-        self.mark_dirty();
-        ret
-    }
-
-    /// Marks `(val % page width)` a member of this set, but does not check if it was already a member.
-    ///
-    /// This is used to maximize performance in cases where the return value on [`insert()`] is not needed.
-    ///
-    /// [`insert()`]: Self::insert
-    pub(crate) fn insert_no_return(&mut self, val: u32) {
-        *self.element_mut(val) |= elem_index_bit_mask(val);
-        self.mark_dirty();
+        let el_mut = self.element_mut(val);
+        let mask = elem_index_bit_mask(val);
+        let is_new = (*el_mut & mask) == 0;
+        *el_mut |= mask;
+        self.length += is_new as u32;
+        is_new
     }
 
     /// Marks all values `[first, last]` as members of this set.
@@ -128,7 +122,7 @@ impl BitPage {
             self.storage[elem_idx as usize] |= mask;
         }
 
-        self.mark_dirty();
+        self.recompute_length();
     }
 
     /// Marks all values `[first, last]` as not members of this set.
@@ -149,21 +143,21 @@ impl BitPage {
             self.storage[elem_idx as usize] &= mask;
         }
 
-        self.mark_dirty();
+        self.recompute_length();
     }
 
     pub(crate) fn clear(&mut self) {
         for elem in self.storage.iter_mut() {
             *elem = 0;
         }
-        self.len.set(0);
+        self.length = 0;
     }
 
     /// Removes `(val % page width)` from this set.
     pub(crate) fn remove(&mut self, val: u32) -> bool {
         let ret = self.contains(val);
         *self.element_mut(val) &= !elem_index_bit_mask(val);
-        self.mark_dirty();
+        self.length -= ret as u32;
         ret
     }
 
@@ -189,19 +183,11 @@ impl BitPage {
         Op: Fn(Element, Element) -> Element,
     {
         let mut out = BitPage::new_zeroes();
-        out.mark_dirty();
         for i in 0usize..(PAGE_SIZE as usize) {
             out.storage[i] = op(self.storage[i], other.storage[i]);
         }
+        out.recompute_length();
         out
-    }
-
-    fn mark_dirty(&mut self) {
-        self.len.set(u32::MAX);
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.len.get() == u32::MAX
     }
 
     fn element(&self, value: u32) -> &Element {
@@ -390,7 +376,7 @@ mod test {
         fn new_ones() -> Self {
             Self {
                 storage: [Element::MAX; PAGE_SIZE as usize],
-                len: Cell::new(PAGE_SIZE * ELEM_BITS),
+                length: PAGE_SIZE * ELEM_BITS,
             }
         }
     }
@@ -408,7 +394,7 @@ mod test {
     #[test]
     fn test_iter_bit_indices() {
         let items: Vec<_> = Iter::new(0).collect();
-        assert_eq!(items, vec![]);
+        assert_eq!(items.len(), 0);
 
         let items: Vec<_> = Iter::new(1).collect();
         assert_eq!(items, vec![0]);
@@ -639,12 +625,12 @@ mod test {
     }
 
     #[test]
-    fn page_iter_after() {
+    fn page_iter_from() {
         let mut page = BitPage::new_zeroes();
-        let items: Vec<_> = page.iter_after(0).collect();
-        assert_eq!(items, vec![]);
-        let items: Vec<_> = page.iter_after(256).collect();
-        assert_eq!(items, vec![]);
+        let items: Vec<_> = page.iter_from(0).collect();
+        assert!(items.is_empty());
+        let items: Vec<_> = page.iter_from(256).collect();
+        assert!(items.is_empty());
 
         page.insert(1);
         page.insert(12);
@@ -656,39 +642,51 @@ mod test {
         page.insert(400);
         page.insert(78);
 
-        let items: Vec<_> = page.iter_after(0).collect();
+        let items: Vec<_> = page.iter_from(0).collect();
         assert_eq!(items, vec![1, 12, 13, 23, 63, 64, 78, 400, 511,]);
 
         page.insert(0);
-        let items: Vec<_> = page.iter_after(0).collect();
+        let items: Vec<_> = page.iter_from(0).collect();
+        assert_eq!(items, vec![0, 1, 12, 13, 23, 63, 64, 78, 400, 511,]);
+
+        let items: Vec<_> = page.iter_from(1).collect();
         assert_eq!(items, vec![1, 12, 13, 23, 63, 64, 78, 400, 511,]);
 
-        let items: Vec<_> = page.iter_after(1).collect();
+        let items: Vec<_> = page.iter_from(2).collect();
         assert_eq!(items, vec![12, 13, 23, 63, 64, 78, 400, 511,]);
 
-        let items: Vec<_> = page.iter_after(63).collect();
-        assert_eq!(items, vec![64, 78, 400, 511,]);
+        let items: Vec<_> = page.iter_from(63).collect();
+        assert_eq!(items, vec![63, 64, 78, 400, 511,]);
 
-        let items: Vec<_> = page.iter_after(256).collect();
+        let items: Vec<_> = page.iter_from(256).collect();
         assert_eq!(items, vec![400, 511]);
 
-        let items: Vec<_> = page.iter_after(511).collect();
-        assert_eq!(items, vec![]);
+        let items: Vec<_> = page.iter_from(511).collect();
+        assert_eq!(items, vec![511]);
 
-        let items: Vec<_> = page.iter_after(390).collect();
+        let items: Vec<_> = page.iter_from(512).collect(); // page has 511 values, so 512 wraps around and acts like '0'
+        assert_eq!(items, vec![0, 1, 12, 13, 23, 63, 64, 78, 400, 511,]);
+
+        let items: Vec<_> = page.iter_from(515).collect(); // page has 511 values, so 515 wraps around and acts like '3'
+        assert_eq!(items, vec![12, 13, 23, 63, 64, 78, 400, 511,]);
+
+        let items: Vec<_> = page.iter_from(390).collect();
         assert_eq!(items, vec![400, 511]);
 
-        let items: Vec<_> = page.iter_after(400).collect();
+        let items: Vec<_> = page.iter_from(400).collect();
+        assert_eq!(items, vec![400, 511]);
+
+        let items: Vec<_> = page.iter_from(401).collect();
         assert_eq!(items, vec![511]);
     }
 
     #[test]
     fn page_iter_after_rev() {
         let mut page = BitPage::new_zeroes();
-        let items: Vec<_> = page.iter_after(0).collect();
-        assert_eq!(items, vec![]);
-        let items: Vec<_> = page.iter_after(256).collect();
-        assert_eq!(items, vec![]);
+        let items: Vec<_> = page.iter_from(0).collect();
+        assert!(items.is_empty());
+        let items: Vec<_> = page.iter_from(256).collect();
+        assert!(items.is_empty());
 
         page.insert(1);
         page.insert(12);
@@ -700,29 +698,32 @@ mod test {
         page.insert(400);
         page.insert(78);
 
-        let items: Vec<_> = page.iter_after(0).rev().collect();
+        let items: Vec<_> = page.iter_from(0).rev().collect();
         assert_eq!(items, vec![511, 400, 78, 64, 63, 23, 13, 12, 1]);
 
         page.insert(0);
-        let items: Vec<_> = page.iter_after(0).rev().collect();
+        let items: Vec<_> = page.iter_from(0).rev().collect();
+        assert_eq!(items, vec![511, 400, 78, 64, 63, 23, 13, 12, 1, 0]);
+
+        let items: Vec<_> = page.iter_from(1).rev().collect();
         assert_eq!(items, vec![511, 400, 78, 64, 63, 23, 13, 12, 1]);
 
-        let items: Vec<_> = page.iter_after(1).rev().collect();
-        assert_eq!(items, vec![511, 400, 78, 64, 63, 23, 13, 12,]);
+        let items: Vec<_> = page.iter_from(63).rev().collect();
+        assert_eq!(items, vec![511, 400, 78, 64, 63]);
 
-        let items: Vec<_> = page.iter_after(63).rev().collect();
-        assert_eq!(items, vec![511, 400, 78, 64,]);
-
-        let items: Vec<_> = page.iter_after(256).rev().collect();
+        let items: Vec<_> = page.iter_from(256).rev().collect();
         assert_eq!(items, vec![511, 400]);
 
-        let items: Vec<_> = page.iter_after(511).rev().collect();
-        assert_eq!(items, vec![]);
+        let items: Vec<_> = page.iter_from(512).rev().collect();
+        assert_eq!(items, vec![511, 400, 78, 64, 63, 23, 13, 12, 1, 0]);
 
-        let items: Vec<_> = page.iter_after(390).rev().collect();
+        let items: Vec<_> = page.iter_from(390).rev().collect();
         assert_eq!(items, vec![511, 400]);
 
-        let items: Vec<_> = page.iter_after(400).rev().collect();
+        let items: Vec<_> = page.iter_from(400).rev().collect();
+        assert_eq!(items, vec![511, 400]);
+
+        let items: Vec<_> = page.iter_from(401).rev().collect();
         assert_eq!(items, vec![511]);
     }
 
