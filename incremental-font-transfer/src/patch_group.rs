@@ -4,6 +4,7 @@
 //! additionally methods for applying that group of patches.
 
 use read_fonts::{tables::ift::CompatibilityId, FontRef, ReadError, TableProvider};
+use shared_brotli_patch_decoder::{BuiltInBrotliDecoder, SharedBrotliDecoder};
 use std::collections::{BTreeMap, HashMap};
 
 use crate::{
@@ -245,6 +246,17 @@ impl PatchGroup<'_> {
         self,
         patch_data: &mut HashMap<String, UriStatus>,
     ) -> Result<Vec<u8>, PatchingError> {
+        self.apply_next_patches_with_decoder(patch_data, &BuiltInBrotliDecoder)
+    }
+
+    /// Attempt to apply the next patch (or patches if non-invalidating) listed in this group.
+    ///
+    /// Returns the bytes of the updated font.
+    pub fn apply_next_patches_with_decoder<D: SharedBrotliDecoder>(
+        self,
+        patch_data: &mut HashMap<String, UriStatus>,
+        brotli_decoder: &D,
+    ) -> Result<Vec<u8>, PatchingError> {
         if let Some(patch) = self.next_invalidating_patch() {
             let entry = patch_data
                 .get_mut(&patch.uri)
@@ -252,7 +264,9 @@ impl PatchGroup<'_> {
 
             match entry {
                 UriStatus::Pending(patch_data) => {
-                    let r = self.font.apply_table_keyed_patch(patch, patch_data)?;
+                    let r = self
+                        .font
+                        .apply_table_keyed_patch(patch, patch_data, brotli_decoder)?;
                     *entry = UriStatus::Applied;
                     return Ok(r);
                 }
@@ -280,7 +294,7 @@ impl PatchGroup<'_> {
             }
 
             self.font
-                .apply_glyph_keyed_patches(accumulated_info.into_iter())?
+                .apply_glyph_keyed_patches(accumulated_info.into_iter(), brotli_decoder)?
         };
 
         for info in self.non_invalidating_patch_iter() {
@@ -1165,6 +1179,65 @@ mod tests {
         assert_eq!(
             new_font.table_data(Tag::new(b"tab2")).unwrap().as_bytes(),
             TABLE_2_FINAL_STATE,
+        );
+
+        assert_eq!(
+            patch_data,
+            HashMap::from([
+                ("foo/04".to_string(), UriStatus::Applied,),
+                (
+                    "foo/bar".to_string(),
+                    UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+                ),
+            ])
+        )
+    }
+
+    struct CustomBrotliDecoder;
+
+    impl SharedBrotliDecoder for CustomBrotliDecoder {
+        fn decode(
+            &self,
+            _encoded: &[u8],
+            _shared_dictionary: Option<&[u8]>,
+            _max_uncompressed_length: usize,
+        ) -> Result<Vec<u8>, shared_brotli_patch_decoder::decode_error::DecodeError> {
+            Ok(vec![1, 2, 3, 4, 5])
+        }
+    }
+
+    #[test]
+    fn apply_patches_full_invalidation_with_custom_brotli() {
+        let font = base_font(Some(table_keyed_format2()), None);
+        let font = FontRef::new(&font).unwrap();
+
+        let s = SubsetDefinition::codepoints([5].into_iter().collect());
+        let g = PatchGroup::select_next_patches(font, &s).unwrap();
+
+        assert!(g.has_uris());
+        let mut patch_data = HashMap::from([
+            (
+                "foo/04".to_string(),
+                UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+            ),
+            (
+                "foo/bar".to_string(),
+                UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+            ),
+        ]);
+
+        let new_font = g
+            .apply_next_patches_with_decoder(&mut patch_data, &CustomBrotliDecoder)
+            .unwrap();
+        let new_font = FontRef::new(&new_font).unwrap();
+
+        assert_eq!(
+            new_font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
+            vec![1, 2, 3, 4, 5]
+        );
+        assert_eq!(
+            new_font.table_data(Tag::new(b"tab2")).unwrap().as_bytes(),
+            vec![1, 2, 3, 4, 5]
         );
 
         assert_eq!(

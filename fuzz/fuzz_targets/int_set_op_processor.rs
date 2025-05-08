@@ -5,6 +5,7 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::io::Cursor;
 use std::io::Read;
+use std::ops::Bound;
 use std::ops::Bound::Excluded;
 use std::ops::Bound::Included;
 use std::ops::RangeInclusive;
@@ -815,6 +816,66 @@ where
     }
 }
 
+/* ### Range ### */
+
+struct RangeOp<T>(u8, T, u8, T);
+
+impl<T> RangeOp<T>
+where
+    T: SetMember + 'static,
+{
+    fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
+        Some(Box::new(RangeOp::<T>(
+            read_u8(data)?,
+            read_u32(data)?,
+            read_u8(data)?,
+            read_u32(data)?,
+        )))
+    }
+}
+
+impl<T> RangeOp<T>
+where
+    T: SetMember,
+{
+    fn to_bound(bound_type: u8, value: T) -> Bound<T> {
+        match bound_type {
+            0 => Bound::Included(value),
+            1 => Bound::Excluded(value),
+            _ => Bound::Unbounded,
+        }
+    }
+}
+
+impl<T> Operation<T> for RangeOp<T>
+where
+    T: SetMember,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
+        let range = (
+            Self::to_bound(self.0, self.1),
+            Self::to_bound(self.2, self.3),
+        );
+
+        let mut it = input.int_set.range(range);
+
+        if (self.0 == 1 && self.2 == 1 && self.1.to_u32() == self.3.to_u32()) // both bounds excluded
+            || (self.0 < 2 && self.2 < 2 && self.1.to_u32() > self.3.to_u32())
+        {
+            // Btree range panics on start > end while IntSet just returns empty iterator
+            assert_eq!(it.next(), None);
+            return;
+        }
+
+        let btree_it = input.btree_set.range(range);
+        assert!(it.eq(btree_it.copied()));
+    }
+
+    fn size(&self, length: u64) -> u64 {
+        length
+    }
+}
+
 /* ### Remove All ### */
 
 struct RemoveAllOp<T>(Vec<T>);
@@ -1179,6 +1240,7 @@ where
         25 if is_standard => CmpOp::parse_args(),
         26 if is_standard => IntersectsSetOp::parse_args(),
         27 if is_standard && T::can_be_inverted() => IterExcludedRangesOp::parse_args(),
+        28 if is_standard => RangeOp::parse_args(data),
 
         _ => None,
     };

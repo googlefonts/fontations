@@ -14,6 +14,9 @@ pub static IFT_BASE: &[u8] = include_bytes!("../test_data/ttf/ift_base.ttf");
 pub static CFF_FONT: &[u8] = include_bytes!("../test_data/ttf/NotoSansJP-Regular.subset.otf");
 pub static CFF2_FONT: &[u8] = include_bytes!("../test_data/ttf/NotoSansJP-VF.subset.otf");
 
+pub const CFF_FONT_CHARSTRINGS_OFFSET: u32 = 0x1b9;
+pub const CFF2_FONT_CHARSTRINGS_OFFSET: u32 = 0x8f;
+
 // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-1
 pub fn simple_format1() -> BeBuffer {
     let mut buffer = be_buffer! {
@@ -34,6 +37,77 @@ pub fn simple_format1() -> BeBuffer {
         [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // uri_template[2..7]
 
         {3u8: "patch_format"}, // = glyph keyed
+
+        /* ### Glyph Map ### */
+        {1u16: "glyph_map"},     // first mapped glyph
+        {2u8: "entry_index[1]"},
+        [1u8, 0, 1, 0, 0]        // entry index[2..6]
+    };
+
+    let offset = buffer.offset_for("glyph_map") as u32;
+    buffer.write_at("glyph_map_offset", offset);
+
+    buffer
+}
+
+pub fn simple_format1_with_one_charstrings_offset() -> BeBuffer {
+    let mut buffer = be_buffer! {
+        /* ### Header ### */
+        1u8,                    // format
+        0u8, 0u8, 0u8,          // reserved
+        0b00000001u8,           // has charstrings offset
+        [1u32, 2, 3, 4],        // compat id
+        2u16,                   // max entry id
+        {2u16: "max_glyph_map_entry_id"},
+        (Uint24::new(7)),       // glyph count
+        {0u32: "glyph_map_offset"},
+        0u32,                   // feature map offset
+        0b00000010u8,           // applied entry bitmap (entry 1)
+
+        8u16,                   // uri template length
+        {b'A': "uri_template[0]"},
+        {b'B': "uri_template[1]"},
+        [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // uri_template[2..7]
+
+        {3u8: "patch_format"}, // = glyph keyed
+
+        456u32, // charstrings offset [0]
+
+        /* ### Glyph Map ### */
+        {1u16: "glyph_map"},     // first mapped glyph
+        {2u8: "entry_index[1]"},
+        [1u8, 0, 1, 0, 0]        // entry index[2..6]
+    };
+
+    let offset = buffer.offset_for("glyph_map") as u32;
+    buffer.write_at("glyph_map_offset", offset);
+
+    buffer
+}
+
+pub fn simple_format1_with_two_charstrings_offsets() -> BeBuffer {
+    let mut buffer = be_buffer! {
+        /* ### Header ### */
+        1u8,                    // format
+        0u8, 0u8, 0u8,          // reserved
+        0b00000011u8,           // has cff and cff2 charstrings offset
+        [1u32, 2, 3, 4],        // compat id
+        2u16,                   // max entry id
+        {2u16: "max_glyph_map_entry_id"},
+        (Uint24::new(7)),       // glyph count
+        {0u32: "glyph_map_offset"},
+        0u32,                   // feature map offset
+        0b00000010u8,           // applied entry bitmap (entry 1)
+
+        8u16,                   // uri template length
+        {b'A': "uri_template[0]"},
+        {b'B': "uri_template[1]"},
+        [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // uri_template[2..7]
+
+        {3u8: "patch_format"}, // = glyph keyed
+
+        456u32, // charstrings offset [0]
+        789u32, // charstrings offset [1]
 
         /* ### Glyph Map ### */
         {1u16: "glyph_map"},     // first mapped glyph
@@ -223,6 +297,75 @@ pub fn codepoints_only_format2() -> BeBuffer {
       {0b00110000u8: "entries[3]"},            // format = CODEPOINT_BIT_1 | CODEPOINT_BIT_2
       (Uint24::new(80_000)),                   // bias
       [0b00001101, 0b00000011, 0b00110001u8]   // codepoints = [80_005..80_022]
+    };
+
+    let offset = buffer.offset_for("entries[0]") as u32;
+    buffer.write_at("entries_offset", offset);
+
+    buffer
+}
+
+pub fn format2_with_one_charstrings_offset() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      2u8,                // format
+
+      0u8, 0u8, 0u8,                 // reserved
+      {0b00000001u8: "field_flags"}, // has charstrings offset
+
+      {1u32: "compat_id[0]"},
+      {2u32: "compat_id[1]"},
+      {3u32: "compat_id[2]"},
+      {4u32: "compat_id[3]"},
+
+      3u8,                // default patch encoding
+      (Uint24::new(1)),   // entry count
+      {0u32: "entries_offset"},
+      0u32,               // entry string data offset
+
+      8u16, // uriTemplateLength
+      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
+
+      {456u32: "charstrings_offset"}, // charstrings offset [0]
+
+      /* ### Entries Array ### */
+      // Entry id = 1
+      {0b00010000u8: "entries[0]"},           // format = CODEPOINT_BIT_1
+      [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [0..17]
+    };
+
+    let offset = buffer.offset_for("entries[0]") as u32;
+    buffer.write_at("entries_offset", offset);
+
+    buffer
+}
+
+pub fn format2_with_two_charstrings_offset() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      2u8,                // format
+
+      0u8, 0u8, 0u8,          // reserved
+      0b00000011u8,           // has cff and cff2 charstrings offset
+
+      {1u32: "compat_id[0]"},
+      {2u32: "compat_id[1]"},
+      {3u32: "compat_id[2]"},
+      {4u32: "compat_id[3]"},
+
+      3u8,                // default patch encoding
+      (Uint24::new(1)),   // entry count
+      {0u32: "entries_offset"},
+      0u32,               // entry string data offset
+
+      8u16, // uriTemplateLength
+      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
+
+      456u32, // charstrings offset [0]
+      789u32, // charstrings offset [1]
+
+      /* ### Entries Array ### */
+      // Entry id = 1
+      {0b00010000u8: "entries[0]"},           // format = CODEPOINT_BIT_1
+      [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [0..17]
     };
 
     let offset = buffer.offset_for("entries[0]") as u32;

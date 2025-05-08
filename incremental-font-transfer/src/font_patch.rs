@@ -24,6 +24,7 @@ use read_fonts::tables::ift::{CompatibilityId, GlyphKeyedPatch, TableKeyedPatch}
 use read_fonts::{FontData, FontRead, FontRef, ReadError};
 
 use shared_brotli_patch_decoder::decode_error::DecodeError;
+use shared_brotli_patch_decoder::SharedBrotliDecoder;
 
 /// A trait for types to which an incremental font transfer patch can be applied.
 ///
@@ -34,10 +35,11 @@ pub trait IncrementalFontPatchBase {
     /// Applies the patches to this base.
     ///
     /// Returns the byte data for the new font produced as a result of the patch applications.
-    fn apply_table_keyed_patch(
+    fn apply_table_keyed_patch<D: SharedBrotliDecoder>(
         &self,
         patch: &PatchInfo,
         patch_data: &[u8],
+        brotli_decoder: &D,
     ) -> Result<Vec<u8>, PatchingError>;
 
     /// Apply a set of glyph keyed incremental font patches (<https://w3c.github.io/IFT/Overview.html#font-patch-formats>)
@@ -45,9 +47,10 @@ pub trait IncrementalFontPatchBase {
     /// Applies the patches to this base.
     ///
     /// Returns the byte data for the new font produced as a result of the patch applications.
-    fn apply_glyph_keyed_patches<'a>(
+    fn apply_glyph_keyed_patches<'a, D: SharedBrotliDecoder>(
         &self,
         patches: impl Iterator<Item = (&'a PatchInfo, &'a [u8])>,
+        brotli_decoder: &D,
     ) -> Result<Vec<u8>, PatchingError>;
 }
 
@@ -132,10 +135,11 @@ impl std::fmt::Display for PatchingError {
 impl std::error::Error for PatchingError {}
 
 impl IncrementalFontPatchBase for FontRef<'_> {
-    fn apply_table_keyed_patch(
+    fn apply_table_keyed_patch<D: SharedBrotliDecoder>(
         &self,
         patch: &PatchInfo,
         patch_data: &[u8],
+        brotli_decoder: &D,
     ) -> Result<Vec<u8>, PatchingError> {
         let font_compat_id = patch
             .tag()
@@ -152,12 +156,13 @@ impl IncrementalFontPatchBase for FontRef<'_> {
             return Err(PatchingError::IncompatiblePatch);
         }
 
-        apply_table_keyed_patch(&patch, self)
+        apply_table_keyed_patch(&patch, self, brotli_decoder)
     }
 
-    fn apply_glyph_keyed_patches<'a>(
+    fn apply_glyph_keyed_patches<'a, D: SharedBrotliDecoder>(
         &self,
         patches: impl Iterator<Item = (&'a PatchInfo, &'a [u8])>,
+        brotli_decoder: &D,
     ) -> Result<Vec<u8>, PatchingError> {
         let mut cached_compat_ids: HashMap<Tag, Result<CompatibilityId, PatchingError>> =
             Default::default();
@@ -187,28 +192,30 @@ impl IncrementalFontPatchBase for FontRef<'_> {
             raw_patches.push((patch_info, patch));
         }
 
-        apply_glyph_keyed_patches(&raw_patches, self)
+        apply_glyph_keyed_patches(&raw_patches, self, brotli_decoder)
     }
 }
 
 impl IncrementalFontPatchBase for &[u8] {
-    fn apply_table_keyed_patch(
+    fn apply_table_keyed_patch<D: SharedBrotliDecoder>(
         &self,
         patch: &PatchInfo,
         patch_data: &[u8],
+        brotli_decoder: &D,
     ) -> Result<Vec<u8>, PatchingError> {
         FontRef::new(self)
             .map_err(PatchingError::FontParsingFailed)?
-            .apply_table_keyed_patch(patch, patch_data)
+            .apply_table_keyed_patch(patch, patch_data, brotli_decoder)
     }
 
-    fn apply_glyph_keyed_patches<'a>(
+    fn apply_glyph_keyed_patches<'a, D: SharedBrotliDecoder>(
         &self,
         patches: impl Iterator<Item = (&'a PatchInfo, &'a [u8])>,
+        brotli_decoder: &D,
     ) -> Result<Vec<u8>, PatchingError> {
         FontRef::new(self)
             .map_err(PatchingError::FontParsingFailed)?
-            .apply_glyph_keyed_patches(patches)
+            .apply_glyph_keyed_patches(patches, brotli_decoder)
     }
 }
 
@@ -222,6 +229,7 @@ mod tests {
         table_keyed_patch,
     };
     use read_fonts::tables::ift::{CompatibilityId, IFTX_TAG, IFT_TAG};
+    use shared_brotli_patch_decoder::BuiltInBrotliDecoder;
 
     use crate::{
         font_patch::PatchingError,
@@ -269,7 +277,8 @@ mod tests {
         let mut patch = table_keyed_patch();
         patch.write_at("compat_id", 2);
         assert_eq!(
-            font.as_slice().apply_table_keyed_patch(&info, &patch),
+            font.as_slice()
+                .apply_table_keyed_patch(&info, &patch, &BuiltInBrotliDecoder),
             Err(PatchingError::IncompatiblePatch)
         );
     }
@@ -298,7 +307,8 @@ mod tests {
 
         let patch = table_keyed_patch();
         assert_eq!(
-            font.as_slice().apply_table_keyed_patch(&info, &patch),
+            font.as_slice()
+                .apply_table_keyed_patch(&info, &patch, &BuiltInBrotliDecoder),
             Err(PatchingError::IncompatiblePatch)
         );
     }
@@ -328,7 +338,8 @@ mod tests {
 
         let input = vec![(&info, patch.as_slice())];
         assert_eq!(
-            font.as_slice().apply_glyph_keyed_patches(input.into_iter()),
+            font.as_slice()
+                .apply_glyph_keyed_patches(input.into_iter(), &BuiltInBrotliDecoder),
             Err(PatchingError::IncompatiblePatch)
         );
     }
@@ -363,7 +374,8 @@ mod tests {
 
         let input = vec![(&info, patch.as_slice())];
         assert_eq!(
-            font.as_slice().apply_glyph_keyed_patches(input.into_iter()),
+            font.as_slice()
+                .apply_glyph_keyed_patches(input.into_iter(), &BuiltInBrotliDecoder),
             Err(PatchingError::IncompatiblePatch)
         );
     }

@@ -84,6 +84,11 @@ source = "resources/codegen_inputs/vvar.rs"
 target = "read-fonts/generated/generated_vvar.rs"
 
 [[generate]]
+mode = "compile"
+source = "resources/codegen_inputs/vvar.rs"
+target = "write-fonts/generated/generated_vvar.rs"
+
+[[generate]]
 mode = "parse"
 source = "resources/codegen_inputs/mvar.rs"
 target = "read-fonts/generated/generated_mvar.rs"
@@ -405,8 +410,19 @@ target = "read-fonts/generated/generated_ankr.rs"
 
 [[generate]]
 mode = "parse"
+source = "resources/codegen_inputs/morx.rs"
+target = "read-fonts/generated/generated_morx.rs"
+
+
+[[generate]]
+mode = "parse"
 source = "resources/codegen_inputs/ltag.rs"
 target = "read-fonts/generated/generated_ltag.rs"
+
+[[generate]]
+mode = "parse"
+source = "resources/codegen_inputs/trak.rs"
+target = "read-fonts/generated/generated_trak.rs"
 
 [[generate]]
 mode = "parse"

@@ -4,6 +4,7 @@ version = "0.3.2"
 description = "Test data for the fontations crates"
 readme = "README.md"
 
+rust-version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

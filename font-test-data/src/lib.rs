@@ -93,6 +93,19 @@ pub static MATERIAL_ICONS_SUBSET: &[u8] =
 
 pub static TINOS_SUBSET: &[u8] = include_bytes!("../test_data/ttf/tinos_subset.ttf");
 
+pub static NOTO_HANDWRITING_SBIX: &[u8] =
+    include_bytes!("../test_data/ttf/noto_handwriting-sbix.ttf");
+
+pub mod morx {
+    // The following taken from the Unicode text rendering test fonts:
+    // <https://github.com/unicode-org/text-rendering-tests/tree/main/fonts>
+    pub static ONE: &[u8] = include_bytes!("../test_data/ttf/TestMORXOne.ttf");
+    pub static FOUR: &[u8] = include_bytes!("../test_data/ttf/TestMORXFour.ttf");
+    pub static EIGHTEEN: &[u8] = include_bytes!("../test_data/ttf/TestMORXEighteen.ttf");
+    pub static THIRTY_FOUR: &[u8] = include_bytes!("../test_data/ttf/TestMORXThirtyfour.ttf");
+    pub static FORTY_ONE: &[u8] = include_bytes!("../test_data/ttf/TestMORXFourtyone.ttf");
+}
+
 pub mod varc {
     pub static CJK_6868: &[u8] = include_bytes!("../test_data/ttf/varc-6868.ttf");
     pub static CONDITIONALS: &[u8] = include_bytes!("../test_data/ttf/varc-ac01-conditional.ttf");
@@ -111,6 +124,13 @@ pub mod closure {
         include_bytes!("../test_data/ttf/recursive_context_closure.ttf");
     pub static RECURSIVE_CONTEXTUAL_GLYPHS: &str =
         include_str!("../test_data/fea/recursive_context_closure_glyphs.txt");
+    // reuses glyph set from above
+    pub static CYCLIC_CONTEXTUAL: &[u8] =
+        include_bytes!("../test_data/ttf/cyclic_context_closure.ttf");
+    pub static CONTEXT_WITH_UNREACHABLE_BITS: &[u8] =
+        include_bytes!("../test_data/ttf/context_closure_unreachable_rule.ttf");
+    pub static CONTEXT_WITH_UNREACHABLE_BITS_GLYPHS: &str =
+        include_str!("../test_data/fea/context_closure_unreachable_rule_glyphs.txt");
     pub static VARIATIONS_CLOSURE: &[u8] =
         include_bytes!("../test_data/ttf/variations_closure.ttf");
     pub static VARIATIONS_GLYPHS: &str =

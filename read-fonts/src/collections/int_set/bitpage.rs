@@ -64,8 +64,10 @@ impl BitPage {
             })
     }
 
-    /// Iterator over the members of this page that come after `value`.
-    pub(crate) fn iter_after(&self, value: u32) -> impl DoubleEndedIterator<Item = u32> + '_ {
+    /// Iterator over the members of this page starting from value.
+    ///
+    /// So value is included in the iterator if it's in the page.
+    pub(crate) fn iter_from(&self, value: u32) -> impl DoubleEndedIterator<Item = u32> + '_ {
         let start_index = Self::element_index(value);
         self.storage[start_index..]
             .iter()
@@ -74,9 +76,9 @@ impl BitPage {
             .flat_map(move |(i, elem)| {
                 let i = i + start_index;
                 let base = i as u32 * ELEM_BITS;
-                let index_in_elem = value & ELEM_MASK;
                 let it = if start_index == i {
-                    Iter::from(*elem, index_in_elem + 1)
+                    let index_in_elem = value & ELEM_MASK;
+                    Iter::from(*elem, index_in_elem)
                 } else {
                     Iter::new(*elem)
                 };
@@ -623,11 +625,11 @@ mod test {
     }
 
     #[test]
-    fn page_iter_after() {
+    fn page_iter_from() {
         let mut page = BitPage::new_zeroes();
-        let items: Vec<_> = page.iter_after(0).collect();
+        let items: Vec<_> = page.iter_from(0).collect();
         assert!(items.is_empty());
-        let items: Vec<_> = page.iter_after(256).collect();
+        let items: Vec<_> = page.iter_from(256).collect();
         assert!(items.is_empty());
 
         page.insert(1);
@@ -640,38 +642,50 @@ mod test {
         page.insert(400);
         page.insert(78);
 
-        let items: Vec<_> = page.iter_after(0).collect();
+        let items: Vec<_> = page.iter_from(0).collect();
         assert_eq!(items, vec![1, 12, 13, 23, 63, 64, 78, 400, 511,]);
 
         page.insert(0);
-        let items: Vec<_> = page.iter_after(0).collect();
+        let items: Vec<_> = page.iter_from(0).collect();
+        assert_eq!(items, vec![0, 1, 12, 13, 23, 63, 64, 78, 400, 511,]);
+
+        let items: Vec<_> = page.iter_from(1).collect();
         assert_eq!(items, vec![1, 12, 13, 23, 63, 64, 78, 400, 511,]);
 
-        let items: Vec<_> = page.iter_after(1).collect();
+        let items: Vec<_> = page.iter_from(2).collect();
         assert_eq!(items, vec![12, 13, 23, 63, 64, 78, 400, 511,]);
 
-        let items: Vec<_> = page.iter_after(63).collect();
-        assert_eq!(items, vec![64, 78, 400, 511,]);
+        let items: Vec<_> = page.iter_from(63).collect();
+        assert_eq!(items, vec![63, 64, 78, 400, 511,]);
 
-        let items: Vec<_> = page.iter_after(256).collect();
+        let items: Vec<_> = page.iter_from(256).collect();
         assert_eq!(items, vec![400, 511]);
 
-        let items: Vec<_> = page.iter_after(511).collect();
-        assert!(items.is_empty());
+        let items: Vec<_> = page.iter_from(511).collect();
+        assert_eq!(items, vec![511]);
 
-        let items: Vec<_> = page.iter_after(390).collect();
+        let items: Vec<_> = page.iter_from(512).collect(); // page has 511 values, so 512 wraps around and acts like '0'
+        assert_eq!(items, vec![0, 1, 12, 13, 23, 63, 64, 78, 400, 511,]);
+
+        let items: Vec<_> = page.iter_from(515).collect(); // page has 511 values, so 515 wraps around and acts like '3'
+        assert_eq!(items, vec![12, 13, 23, 63, 64, 78, 400, 511,]);
+
+        let items: Vec<_> = page.iter_from(390).collect();
         assert_eq!(items, vec![400, 511]);
 
-        let items: Vec<_> = page.iter_after(400).collect();
+        let items: Vec<_> = page.iter_from(400).collect();
+        assert_eq!(items, vec![400, 511]);
+
+        let items: Vec<_> = page.iter_from(401).collect();
         assert_eq!(items, vec![511]);
     }
 
     #[test]
     fn page_iter_after_rev() {
         let mut page = BitPage::new_zeroes();
-        let items: Vec<_> = page.iter_after(0).collect();
+        let items: Vec<_> = page.iter_from(0).collect();
         assert!(items.is_empty());
-        let items: Vec<_> = page.iter_after(256).collect();
+        let items: Vec<_> = page.iter_from(256).collect();
         assert!(items.is_empty());
 
         page.insert(1);
@@ -684,29 +698,32 @@ mod test {
         page.insert(400);
         page.insert(78);
 
-        let items: Vec<_> = page.iter_after(0).rev().collect();
+        let items: Vec<_> = page.iter_from(0).rev().collect();
         assert_eq!(items, vec![511, 400, 78, 64, 63, 23, 13, 12, 1]);
 
         page.insert(0);
-        let items: Vec<_> = page.iter_after(0).rev().collect();
+        let items: Vec<_> = page.iter_from(0).rev().collect();
+        assert_eq!(items, vec![511, 400, 78, 64, 63, 23, 13, 12, 1, 0]);
+
+        let items: Vec<_> = page.iter_from(1).rev().collect();
         assert_eq!(items, vec![511, 400, 78, 64, 63, 23, 13, 12, 1]);
 
-        let items: Vec<_> = page.iter_after(1).rev().collect();
-        assert_eq!(items, vec![511, 400, 78, 64, 63, 23, 13, 12,]);
+        let items: Vec<_> = page.iter_from(63).rev().collect();
+        assert_eq!(items, vec![511, 400, 78, 64, 63]);
 
-        let items: Vec<_> = page.iter_after(63).rev().collect();
-        assert_eq!(items, vec![511, 400, 78, 64,]);
-
-        let items: Vec<_> = page.iter_after(256).rev().collect();
+        let items: Vec<_> = page.iter_from(256).rev().collect();
         assert_eq!(items, vec![511, 400]);
 
-        let items: Vec<_> = page.iter_after(511).rev().collect();
-        assert!(items.is_empty());
+        let items: Vec<_> = page.iter_from(512).rev().collect();
+        assert_eq!(items, vec![511, 400, 78, 64, 63, 23, 13, 12, 1, 0]);
 
-        let items: Vec<_> = page.iter_after(390).rev().collect();
+        let items: Vec<_> = page.iter_from(390).rev().collect();
         assert_eq!(items, vec![511, 400]);
 
-        let items: Vec<_> = page.iter_after(400).rev().collect();
+        let items: Vec<_> = page.iter_from(400).rev().collect();
+        assert_eq!(items, vec![511, 400]);
+
+        let items: Vec<_> = page.iter_from(401).rev().collect();
         assert_eq!(items, vec![511]);
     }
 

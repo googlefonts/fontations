@@ -219,8 +219,10 @@ impl BitSet {
         })
     }
 
-    /// Iterator over the members of this set that come after `value`.
-    pub(crate) fn iter_after(&self, value: u32) -> impl Iterator<Item = u32> + '_ {
+    /// Iterator over the members of this set starting from value.
+    ///
+    /// So value is included in the iterator if it's in the set.
+    pub(crate) fn iter_from(&self, value: u32) -> impl Iterator<Item = u32> + '_ {
         let major_value = Self::get_major_value(value);
         let result = self
             .page_map
@@ -245,7 +247,7 @@ impl BitSet {
                 .into_iter()
                 .flat_map(move |(page, major)| {
                     let base = Self::major_start(major);
-                    page.iter_after(value).map(move |v| base + v)
+                    page.iter_from(value).map(move |v| base + v)
                 });
 
         let follow_on_page_map_index = if partial_first_page {
@@ -882,58 +884,77 @@ mod test {
     }
 
     #[test]
-    fn iter_after() {
+    fn iter_from() {
         let mut bitset = BitSet::empty();
         bitset.extend([5, 7, 10, 1250, 1300, 3001]);
 
         assert_eq!(
-            bitset.iter_after(0).collect::<Vec<u32>>(),
+            bitset.iter_from(0).collect::<Vec<u32>>(),
             vec![5, 7, 10, 1250, 1300, 3001]
         );
 
         assert_eq!(
-            bitset.iter_after(5).collect::<Vec<u32>>(),
-            vec![7, 10, 1250, 1300, 3001]
+            bitset.iter_from(4).collect::<Vec<u32>>(),
+            vec![5, 7, 10, 1250, 1300, 3001]
         );
         assert_eq!(
-            bitset.iter_after(6).collect::<Vec<u32>>(),
+            bitset.iter_from(5).collect::<Vec<u32>>(),
+            vec![5, 7, 10, 1250, 1300, 3001]
+        );
+        assert_eq!(
+            bitset.iter_from(6).collect::<Vec<u32>>(),
             vec![7, 10, 1250, 1300, 3001]
         );
 
         assert_eq!(
-            bitset.iter_after(10).collect::<Vec<u32>>(),
+            bitset.iter_from(10).collect::<Vec<u32>>(),
+            vec![10, 1250, 1300, 3001]
+        );
+
+        assert_eq!(
+            bitset.iter_from(700).collect::<Vec<u32>>(),
             vec![1250, 1300, 3001]
         );
 
         assert_eq!(
-            bitset.iter_after(700).collect::<Vec<u32>>(),
+            bitset.iter_from(1250).collect::<Vec<u32>>(),
             vec![1250, 1300, 3001]
         );
-
         assert_eq!(
-            bitset.iter_after(1250).collect::<Vec<u32>>(),
+            bitset.iter_from(1251).collect::<Vec<u32>>(),
             vec![1300, 3001]
         );
 
-        assert_eq!(bitset.iter_after(3000).collect::<Vec<u32>>(), vec![3001]);
-        assert_eq!(bitset.iter_after(3001).count(), 0);
-        assert_eq!(bitset.iter_after(3002).count(), 0);
-        assert_eq!(bitset.iter_after(5000).count(), 0);
-        assert_eq!(bitset.iter_after(u32::MAX).count(), 0);
+        assert_eq!(bitset.iter_from(3000).collect::<Vec<u32>>(), vec![3001]);
+        assert_eq!(bitset.iter_from(3001).collect::<Vec<u32>>(), vec![3001]);
+        assert_eq!(bitset.iter_from(3002).count(), 0);
+        assert_eq!(bitset.iter_from(5000).count(), 0);
+        assert_eq!(bitset.iter_from(u32::MAX).count(), 0);
 
         bitset.insert(u32::MAX);
-        assert_eq!(bitset.iter_after(u32::MAX).count(), 0);
         assert_eq!(
-            bitset.iter_after(u32::MAX - 1).collect::<Vec<u32>>(),
+            bitset.iter_from(u32::MAX).collect::<Vec<u32>>(),
+            vec![u32::MAX]
+        );
+        assert_eq!(
+            bitset.iter_from(u32::MAX - 1).collect::<Vec<u32>>(),
             vec![u32::MAX]
         );
 
         let mut bitset = BitSet::empty();
         bitset.extend([510, 511, 512]);
 
-        assert_eq!(bitset.iter_after(510).collect::<Vec<u32>>(), vec![511, 512]);
-        assert_eq!(bitset.iter_after(511).collect::<Vec<u32>>(), vec![512]);
-        assert!(bitset.iter_after(512).collect::<Vec<u32>>().is_empty());
+        assert_eq!(
+            bitset.iter_from(509).collect::<Vec<u32>>(),
+            vec![510, 511, 512]
+        );
+        assert_eq!(
+            bitset.iter_from(510).collect::<Vec<u32>>(),
+            vec![510, 511, 512]
+        );
+        assert_eq!(bitset.iter_from(511).collect::<Vec<u32>>(), vec![511, 512]);
+        assert_eq!(bitset.iter_from(512).collect::<Vec<u32>>(), vec![512]);
+        assert!(bitset.iter_from(513).collect::<Vec<u32>>().is_empty());
     }
 
     #[test]

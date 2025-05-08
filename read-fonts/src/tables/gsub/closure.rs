@@ -3,28 +3,153 @@
 //! This means taking a set of glyphs and updating it to include any other glyphs
 //! reachable from those glyphs via substitution, recursively.
 
-use font_types::GlyphId16;
+use font_types::{GlyphId, GlyphId16};
 
 use crate::{
     collections::IntSet,
-    tables::layout::{
-        ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
-        ChainedSequenceContextFormat3, ExtensionLookup, SequenceContextFormat1,
-        SequenceContextFormat2, SequenceContextFormat3, Subtables,
-    },
-    FontRead, ReadError,
+    tables::layout::{ExtensionLookup, Subtables},
+    FontRead, ReadError, Tag,
 };
 
 use super::{
-    AlternateSubstFormat1, ChainedSequenceContext, ClassDef, Gsub, LigatureSubstFormat1,
-    MultipleSubstFormat1, ReverseChainSingleSubstFormat1, SequenceContext, SingleSubst,
-    SingleSubstFormat1, SingleSubstFormat2, SubstitutionSubtables,
+    AlternateSubstFormat1, ChainedSequenceContext, ClassDef, CoverageTable, Gsub, Ligature,
+    LigatureSet, LigatureSubstFormat1, MultipleSubstFormat1, ReverseChainSingleSubstFormat1,
+    SequenceContext, SingleSubst, SingleSubstFormat1, SingleSubstFormat2, SubstitutionLookup,
+    SubstitutionLookupList, SubstitutionSubtables,
 };
 
+#[cfg(feature = "std")]
+use crate::tables::layout::{
+    ContextFormat1, ContextFormat2, ContextFormat3, LookupClosure, LookupClosureCtx,
+};
+
+// we put ClosureCtx in its own module to enforce visibility rules;
+// specifically we don't want cur_glyphs to be reachable directly
+mod ctx {
+    use std::collections::HashMap;
+
+    use types::GlyphId16;
+
+    use crate::{collections::IntSet, tables::gsub::SubstitutionLookup};
+
+    use super::GlyphClosure as _;
+
+    pub(super) struct ClosureCtx<'a> {
+        /// the current closure glyphs. This is updated as we go.
+        glyphs: &'a mut IntSet<GlyphId16>,
+        // in certain situations (like when recursing into contextual lookups) we
+        // consider a smaller subset of glyphs to be 'active'.
+        cur_glyphs: Option<IntSet<GlyphId16>>,
+        finished_lookups: HashMap<u16, (u64, Option<IntSet<GlyphId16>>)>,
+        // when we encounter contextual lookups we want to visit the lookups
+        // they reference, but only with the glyphs that would trigger those
+        // subtable lookups.
+        //
+        // here we store tuples of (LookupId, relevant glyphs); these todos can
+        // be done at the end of each pass.
+        contextual_lookup_todos: Vec<super::ContextualLookupRef>,
+    }
+
+    impl<'a> ClosureCtx<'a> {
+        pub(super) fn new(glyphs: &'a mut IntSet<GlyphId16>) -> Self {
+            Self {
+                glyphs,
+                cur_glyphs: Default::default(),
+                contextual_lookup_todos: Default::default(),
+                finished_lookups: Default::default(),
+            }
+        }
+
+        pub(super) fn current_glyphs(&self) -> &IntSet<GlyphId16> {
+            self.cur_glyphs.as_ref().unwrap_or(self.glyphs)
+        }
+
+        pub(super) fn glyphs(&self) -> &IntSet<GlyphId16> {
+            self.glyphs
+        }
+
+        pub(super) fn add_glyph(&mut self, gid: GlyphId16) {
+            self.glyphs.insert(gid);
+        }
+
+        pub(super) fn extend_glyphs(&mut self, iter: impl IntoIterator<Item = GlyphId16>) {
+            self.glyphs.extend(iter)
+        }
+
+        pub(super) fn add_todo(
+            &mut self,
+            lookup_id: u16,
+            active_glyphs: Option<IntSet<GlyphId16>>,
+        ) {
+            self.contextual_lookup_todos
+                .push(super::ContextualLookupRef {
+                    lookup_id,
+                    active_glyphs,
+                })
+        }
+
+        pub(super) fn pop_a_todo(&mut self) -> Option<super::ContextualLookupRef> {
+            self.contextual_lookup_todos.pop()
+        }
+
+        pub(super) fn closure_glyphs(
+            &mut self,
+            lookup: SubstitutionLookup,
+            lookup_id: u16,
+            current_glyphs: Option<IntSet<GlyphId16>>,
+        ) -> Result<(), crate::ReadError> {
+            if self.needs_to_do_lookup(lookup_id, current_glyphs.as_ref()) {
+                self.cur_glyphs = current_glyphs;
+                lookup.add_reachable_glyphs(self)?;
+                self.cur_glyphs = None;
+            }
+            Ok(())
+        }
+
+        /// skip lookups if we've already seen them with our current state
+        /// <https://github.com/fonttools/fonttools/blob/a6f59a4f87a0111060/Lib/fontTools/subset/__init__.py#L1510>
+        fn needs_to_do_lookup(
+            &mut self,
+            id: u16,
+            current_glyphs: Option<&IntSet<GlyphId16>>,
+        ) -> bool {
+            let (count, covered) = self.finished_lookups.entry(id).or_insert((0, None));
+            if *count != self.glyphs.len() {
+                *count = self.glyphs.len();
+                *covered = Some(IntSet::new());
+            }
+            //TODO: would be nice to have IntSet::is_subset
+            if current_glyphs.unwrap_or(self.glyphs).iter().all(|gid| {
+                covered
+                    .as_ref()
+                    .map(|cov| cov.contains(gid))
+                    // only true if self.glyphs is empty, which means it's a noop anyway?
+                    .unwrap_or(false)
+            }) {
+                return false;
+            }
+            covered
+                .get_or_insert_with(Default::default)
+                .extend(current_glyphs.unwrap_or(self.glyphs).iter());
+            true
+        }
+    }
+}
+
+use ctx::ClosureCtx;
+
+/// a lookup referenced by a contextual lookup
+#[derive(Debug)]
+struct ContextualLookupRef {
+    lookup_id: u16,
+    // 'none' means the graph is too complex, assume all glyphs are active
+    active_glyphs: Option<IntSet<GlyphId16>>,
+}
+
 /// A trait for tables which participate in closure
-pub(crate) trait GlyphClosure {
+trait GlyphClosure {
     /// Update the set of glyphs with any glyphs reachable via substitution.
-    fn add_reachable_glyphs(&self, glyphs: &mut IntSet<GlyphId16>) -> Result<(), ReadError>;
+    fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx) -> Result<(), ReadError>;
 }
 
 impl Gsub<'_> {
@@ -36,40 +161,50 @@ impl Gsub<'_> {
         // we need to do this iteratively, since any glyph found in one pass
         // over the lookups could also be the target of substitutions.
 
-        // we always call this once, and then keep calling if it produces
-        // additional glyphs
-        let mut prev_glyph_count = glyphs.len();
-        self.closure_glyphs_once(&mut glyphs)?;
-        let mut new_glyph_count = glyphs.len();
+        let mut ctx = ClosureCtx::new(&mut glyphs);
 
-        while prev_glyph_count != new_glyph_count {
-            prev_glyph_count = new_glyph_count;
-            self.closure_glyphs_once(&mut glyphs)?;
-            new_glyph_count = glyphs.len();
+        let reachable_lookups = self.find_reachable_lookups()?;
+        let mut prev_lookup_count = 0;
+        let mut prev_glyph_count = 0;
+        let mut new_glyph_count = ctx.glyphs().len();
+        let mut new_lookup_count = reachable_lookups.len();
+
+        while (prev_glyph_count, prev_lookup_count) != (new_glyph_count, new_lookup_count) {
+            (prev_glyph_count, prev_lookup_count) = (new_glyph_count, new_lookup_count);
+
+            // we always call this once, and then keep calling if it produces
+            // additional glyphs
+            self.closure_glyphs_once(&mut ctx, &reachable_lookups)?;
+
+            new_lookup_count = reachable_lookups.len();
+            new_glyph_count = ctx.glyphs().len();
         }
 
         Ok(glyphs)
     }
 
-    fn closure_glyphs_once(&self, glyphs: &mut IntSet<GlyphId16>) -> Result<(), ReadError> {
-        let lookups_to_use = self.find_reachable_lookups(glyphs)?;
+    fn closure_glyphs_once(
+        &self,
+        ctx: &mut ClosureCtx,
+        lookups_to_use: &IntSet<u16>,
+    ) -> Result<(), ReadError> {
         let lookup_list = self.lookup_list()?;
-        for (i, lookup) in lookup_list.lookups().iter().enumerate() {
-            if !lookups_to_use.contains(i as u16) {
-                continue;
-            }
-            let subtables = lookup?.subtables()?;
-            subtables.add_reachable_glyphs(glyphs)?;
+        for idx in lookups_to_use.iter() {
+            let lookup = lookup_list.lookups().get(idx as usize)?;
+            ctx.closure_glyphs(lookup, idx, None)?;
+        }
+        // then do any lookups referenced by contextual lookups
+        while let Some(todo) = ctx.pop_a_todo() {
+            let lookup = lookup_list.lookups().get(todo.lookup_id as _)?;
+            ctx.closure_glyphs(lookup, todo.lookup_id, todo.active_glyphs)?;
         }
         Ok(())
     }
 
-    fn find_reachable_lookups(&self, glyphs: &IntSet<GlyphId16>) -> Result<IntSet<u16>, ReadError> {
+    fn find_reachable_lookups(&self) -> Result<IntSet<u16>, ReadError> {
         let feature_list = self.feature_list()?;
-        let lookup_list = self.lookup_list()?;
-        // first we want to get the lookups that are directly referenced by a feature
-        // (including in a feature variation table)
         let mut lookup_ids = IntSet::new();
+
         let feature_variations = self
             .feature_variations()
             .transpose()?
@@ -99,34 +234,39 @@ impl Gsub<'_> {
         {
             lookup_ids.extend(feature?.lookup_list_indices().iter().map(|idx| idx.get()));
         }
-
-        // and now we need to add lookups referenced by contextual lookups,
-        // IFF they are reachable via the current set of glyphs:
-        for lookup in lookup_list.lookups().iter() {
-            let subtables = lookup?.subtables()?;
-            match subtables {
-                SubstitutionSubtables::Contextual(tables) => tables
-                    .iter()
-                    .try_for_each(|t| t?.add_reachable_lookups(glyphs, &mut lookup_ids)),
-                SubstitutionSubtables::ChainContextual(tables) => tables
-                    .iter()
-                    .try_for_each(|t| t?.add_reachable_lookups(glyphs, &mut lookup_ids)),
-                _ => Ok(()),
-            }?;
-        }
         Ok(lookup_ids)
+    }
+
+    /// Return a set of all feature indices underneath the specified scripts, languages and features
+    pub fn collect_features(
+        &self,
+        scripts: &IntSet<Tag>,
+        languages: &IntSet<Tag>,
+        features: &IntSet<Tag>,
+    ) -> Result<IntSet<u16>, ReadError> {
+        let feature_list = self.feature_list()?;
+        let script_list = self.script_list()?;
+        let head_ptr = self.offset_data().as_bytes().as_ptr() as usize;
+        script_list.collect_features(head_ptr, &feature_list, scripts, languages, features)
+    }
+}
+
+impl GlyphClosure for SubstitutionLookup<'_> {
+    fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx) -> Result<(), ReadError> {
+        self.subtables()?.add_reachable_glyphs(ctx)
     }
 }
 
 impl GlyphClosure for SubstitutionSubtables<'_> {
-    fn add_reachable_glyphs(&self, glyphs: &mut IntSet<GlyphId16>) -> Result<(), ReadError> {
+    fn add_reachable_glyphs(&self, glyphs: &mut ClosureCtx<'_>) -> Result<(), ReadError> {
         match self {
             SubstitutionSubtables::Single(tables) => tables.add_reachable_glyphs(glyphs),
             SubstitutionSubtables::Multiple(tables) => tables.add_reachable_glyphs(glyphs),
             SubstitutionSubtables::Alternate(tables) => tables.add_reachable_glyphs(glyphs),
             SubstitutionSubtables::Ligature(tables) => tables.add_reachable_glyphs(glyphs),
             SubstitutionSubtables::Reverse(tables) => tables.add_reachable_glyphs(glyphs),
-            _ => Ok(()),
+            SubstitutionSubtables::Contextual(tables) => tables.add_reachable_glyphs(glyphs),
+            SubstitutionSubtables::ChainContextual(tables) => tables.add_reachable_glyphs(glyphs),
         }
     }
 }
@@ -134,17 +274,16 @@ impl GlyphClosure for SubstitutionSubtables<'_> {
 impl<'a, T: FontRead<'a> + GlyphClosure + 'a, Ext: ExtensionLookup<'a, T> + 'a> GlyphClosure
     for Subtables<'a, T, Ext>
 {
-    fn add_reachable_glyphs(&self, glyphs: &mut IntSet<GlyphId16>) -> Result<(), ReadError> {
-        self.iter()
-            .try_for_each(|t| t?.add_reachable_glyphs(glyphs))
+    fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx<'_>) -> Result<(), ReadError> {
+        self.iter().try_for_each(|t| t?.add_reachable_glyphs(ctx))
     }
 }
 
 impl GlyphClosure for SingleSubst<'_> {
-    fn add_reachable_glyphs(&self, glyphs: &mut IntSet<GlyphId16>) -> Result<(), ReadError> {
+    fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx<'_>) -> Result<(), ReadError> {
         for (target, replacement) in self.iter_subs()? {
-            if glyphs.contains(target) {
-                glyphs.insert(replacement);
+            if ctx.current_glyphs().contains(target) {
+                ctx.add_glyph(replacement);
             }
         }
         Ok(())
@@ -185,13 +324,13 @@ impl SingleSubstFormat2<'_> {
 }
 
 impl GlyphClosure for MultipleSubstFormat1<'_> {
-    fn add_reachable_glyphs(&self, glyphs: &mut IntSet<GlyphId16>) -> Result<(), ReadError> {
+    fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx<'_>) -> Result<(), ReadError> {
         let coverage = self.coverage()?;
         let sequences = self.sequences();
         for (gid, replacements) in coverage.iter().zip(sequences.iter()) {
             let replacements = replacements?;
-            if glyphs.contains(gid) {
-                glyphs.extend(
+            if ctx.current_glyphs().contains(gid) {
+                ctx.extend_glyphs(
                     replacements
                         .substitute_glyph_ids()
                         .iter()
@@ -204,13 +343,13 @@ impl GlyphClosure for MultipleSubstFormat1<'_> {
 }
 
 impl GlyphClosure for AlternateSubstFormat1<'_> {
-    fn add_reachable_glyphs(&self, glyphs: &mut IntSet<GlyphId16>) -> Result<(), ReadError> {
+    fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx<'_>) -> Result<(), ReadError> {
         let coverage = self.coverage()?;
         let alts = self.alternate_sets();
         for (gid, alts) in coverage.iter().zip(alts.iter()) {
             let alts = alts?;
-            if glyphs.contains(gid) {
-                glyphs.extend(alts.alternate_glyph_ids().iter().map(|gid| gid.get()));
+            if ctx.current_glyphs().contains(gid) {
+                ctx.extend_glyphs(alts.alternate_glyph_ids().iter().map(|gid| gid.get()));
             }
         }
         Ok(())
@@ -218,20 +357,20 @@ impl GlyphClosure for AlternateSubstFormat1<'_> {
 }
 
 impl GlyphClosure for LigatureSubstFormat1<'_> {
-    fn add_reachable_glyphs(&self, glyphs: &mut IntSet<GlyphId16>) -> Result<(), ReadError> {
+    fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx<'_>) -> Result<(), ReadError> {
         let coverage = self.coverage()?;
         let ligs = self.ligature_sets();
         for (gid, lig_set) in coverage.iter().zip(ligs.iter()) {
             let lig_set = lig_set?;
-            if glyphs.contains(gid) {
+            if ctx.current_glyphs().contains(gid) {
                 for lig in lig_set.ligatures().iter() {
                     let lig = lig?;
                     if lig
                         .component_glyph_ids()
                         .iter()
-                        .all(|gid| glyphs.contains(gid.get()))
+                        .all(|gid| ctx.glyphs().contains(gid.get()))
                     {
-                        glyphs.insert(lig.ligature_glyph());
+                        ctx.add_glyph(lig.ligature_glyph());
                     }
                 }
             }
@@ -241,20 +380,20 @@ impl GlyphClosure for LigatureSubstFormat1<'_> {
 }
 
 impl GlyphClosure for ReverseChainSingleSubstFormat1<'_> {
-    fn add_reachable_glyphs(&self, glyphs: &mut IntSet<GlyphId16>) -> Result<(), ReadError> {
+    fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx<'_>) -> Result<(), ReadError> {
         for coverage in self
             .backtrack_coverages()
             .iter()
             .chain(self.lookahead_coverages().iter())
         {
-            if !coverage?.iter().any(|gid| glyphs.contains(gid)) {
+            if !coverage?.iter().any(|gid| ctx.glyphs().contains(gid)) {
                 return Ok(());
             }
         }
 
         for (gid, sub) in self.coverage()?.iter().zip(self.substitute_glyph_ids()) {
-            if glyphs.contains(gid) {
-                glyphs.insert(sub.get());
+            if ctx.current_glyphs().contains(gid) {
+                ctx.add_glyph(sub.get());
             }
         }
 
@@ -262,190 +401,70 @@ impl GlyphClosure for ReverseChainSingleSubstFormat1<'_> {
     }
 }
 
-impl SequenceContext<'_> {
-    fn add_reachable_lookups(
-        &self,
-        glyphs: &IntSet<GlyphId16>,
-        lookups: &mut IntSet<u16>,
-    ) -> Result<(), ReadError> {
+impl GlyphClosure for SequenceContext<'_> {
+    fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx) -> Result<(), ReadError> {
         match self {
-            SequenceContext::Format1(table) => table.add_reachable_lookups(glyphs, lookups),
-            SequenceContext::Format2(table) => table.add_reachable_lookups(glyphs, lookups),
-            SequenceContext::Format3(table) => table.add_reachable_lookups(glyphs, lookups),
+            Self::Format1(table) => ContextFormat1::Plain(table.clone()).add_reachable_glyphs(ctx),
+            Self::Format2(table) => ContextFormat2::Plain(table.clone()).add_reachable_glyphs(ctx),
+            Self::Format3(table) => ContextFormat3::Plain(table.clone()).add_reachable_glyphs(ctx),
         }
     }
 }
 
-impl SequenceContextFormat1<'_> {
-    fn add_reachable_lookups(
-        &self,
-        glyphs: &IntSet<GlyphId16>,
-        lookups: &mut IntSet<u16>,
-    ) -> Result<(), ReadError> {
-        let coverage = self.coverage()?;
-        for seq in coverage
-            .iter()
-            .zip(self.seq_rule_sets().iter())
-            .filter_map(|(gid, seq)| seq.filter(|_| glyphs.contains(gid)))
-        {
-            for rule in seq?.seq_rules().iter() {
-                let rule = rule?;
-                if rule
-                    .input_sequence()
-                    .iter()
-                    .all(|gid| glyphs.contains(gid.get()))
-                {
-                    lookups.extend(
-                        rule.seq_lookup_records()
-                            .iter()
-                            .map(|rec| rec.lookup_list_index()),
-                    );
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
-impl SequenceContextFormat2<'_> {
-    fn add_reachable_lookups(
-        &self,
-        glyphs: &IntSet<GlyphId16>,
-        lookups: &mut IntSet<u16>,
-    ) -> Result<(), ReadError> {
-        let classdef = self.class_def()?;
-        let our_classes = make_class_set(glyphs, &classdef);
-        for seq in self
-            .class_seq_rule_sets()
-            .iter()
-            .enumerate()
-            .filter_map(|(i, seq)| seq.filter(|_| our_classes.contains(i as u16)))
-        {
-            for rule in seq?.class_seq_rules().iter() {
-                let rule = rule?;
-                if rule
-                    .input_sequence()
-                    .iter()
-                    .all(|class_id| our_classes.contains(class_id.get()))
-                {
-                    lookups.extend(
-                        rule.seq_lookup_records()
-                            .iter()
-                            .map(|rec| rec.lookup_list_index()),
-                    )
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
-impl SequenceContextFormat3<'_> {
-    fn add_reachable_lookups(
-        &self,
-        glyphs: &IntSet<GlyphId16>,
-        lookups: &mut IntSet<u16>,
-    ) -> Result<(), ReadError> {
-        for coverage in self.coverages().iter() {
-            if !coverage?.iter().any(|gid| glyphs.contains(gid)) {
-                return Ok(());
-            }
-        }
-        lookups.extend(
-            self.seq_lookup_records()
-                .iter()
-                .map(|rec| rec.lookup_list_index()),
-        );
-        Ok(())
-    }
-}
-
-impl ChainedSequenceContext<'_> {
-    fn add_reachable_lookups(
-        &self,
-        glyphs: &IntSet<GlyphId16>,
-        lookups: &mut IntSet<u16>,
-    ) -> Result<(), ReadError> {
+impl GlyphClosure for ChainedSequenceContext<'_> {
+    fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx) -> Result<(), ReadError> {
         match self {
-            ChainedSequenceContext::Format1(table) => table.add_reachable_lookups(glyphs, lookups),
-            ChainedSequenceContext::Format2(table) => table.add_reachable_lookups(glyphs, lookups),
-            ChainedSequenceContext::Format3(table) => table.add_reachable_lookups(glyphs, lookups),
+            Self::Format1(table) => ContextFormat1::Chain(table.clone()).add_reachable_glyphs(ctx),
+            Self::Format2(table) => ContextFormat2::Chain(table.clone()).add_reachable_glyphs(ctx),
+            Self::Format3(table) => ContextFormat3::Chain(table.clone()).add_reachable_glyphs(ctx),
         }
     }
 }
 
-impl ChainedSequenceContextFormat1<'_> {
-    fn add_reachable_lookups(
-        &self,
-        glyphs: &IntSet<GlyphId16>,
-        lookups: &mut IntSet<u16>,
-    ) -> Result<(), ReadError> {
+//https://github.com/fonttools/fonttools/blob/a6f59a4f8/Lib/fontTools/subset/__init__.py#L1182
+impl GlyphClosure for ContextFormat1<'_> {
+    fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx<'_>) -> Result<(), ReadError> {
         let coverage = self.coverage()?;
-        for seq in coverage
-            .iter()
-            .zip(self.chained_seq_rule_sets().iter())
-            .filter_map(|(gid, seq)| seq.filter(|_| glyphs.contains(gid)))
-        {
-            for rule in seq?.chained_seq_rules().iter() {
-                let rule = rule?;
-                if rule
-                    .input_sequence()
-                    .iter()
-                    .chain(rule.backtrack_sequence())
-                    .chain(rule.lookahead_sequence())
-                    .all(|gid| glyphs.contains(gid.get()))
-                {
-                    lookups.extend(
-                        rule.seq_lookup_records()
-                            .iter()
-                            .map(|rec| rec.lookup_list_index()),
-                    );
-                }
-            }
-        }
-        Ok(())
-    }
-}
+        let Some(cur_glyphs) = intersect_coverage(&coverage, ctx.current_glyphs()) else {
+            return Ok(());
+        };
 
-impl ChainedSequenceContextFormat2<'_> {
-    fn add_reachable_lookups(
-        &self,
-        glyphs: &IntSet<GlyphId16>,
-        lookups: &mut IntSet<u16>,
-    ) -> Result<(), ReadError> {
-        let input = self.input_class_def()?;
-        let backtrack = self.backtrack_class_def()?;
-        let lookahead = self.lookahead_class_def()?;
-
-        let input_classes = make_class_set(glyphs, &input);
-        let backtrack_classes = make_class_set(glyphs, &backtrack);
-        let lookahead_classes = make_class_set(glyphs, &lookahead);
-        for seq in self
-            .chained_class_seq_rule_sets()
+        // now for each rule set that applies to a current glyph:
+        for (i, seq) in coverage
             .iter()
+            .zip(self.rule_sets())
             .enumerate()
-            .filter_map(|(i, seq)| seq.filter(|_| input_classes.contains(i as u16)))
+            .filter_map(|(i, (gid, seq))| {
+                seq.filter(|_| cur_glyphs.contains(gid)).map(|seq| (i, seq))
+            })
         {
-            for rule in seq?.chained_class_seq_rules().iter() {
+            for rule in seq?.rules() {
                 let rule = rule?;
-                if rule
-                    .input_sequence()
-                    .iter()
-                    .all(|cls| input_classes.contains(cls.get()))
-                    && rule
-                        .backtrack_sequence()
-                        .iter()
-                        .all(|cls| backtrack_classes.contains(cls.get()))
-                    && rule
-                        .lookahead_sequence()
-                        .iter()
-                        .all(|cls| lookahead_classes.contains(cls.get()))
-                {
-                    lookups.extend(
-                        rule.seq_lookup_records()
-                            .iter()
-                            .map(|rec| rec.lookup_list_index()),
-                    )
+                // skip rules if the whole input sequence isn't in our glyphset
+                if !rule.matches_glyphs(ctx.glyphs()) {
+                    continue;
+                }
+                // python calls this 'chaos'. Basically: if there are multiple
+                // lookups applied at a single position they can interact, and
+                // we can no longer trivially determine the state of the context
+                // at that point. In this case we give up, and assume that the
+                // second lookup is reachable by all glyphs.
+                let mut seen_sequence_indices = IntSet::new();
+                for lookup_record in rule.lookup_records() {
+                    let lookup_id = lookup_record.lookup_list_index();
+                    let sequence_idx = lookup_record.sequence_index();
+                    let active_glyphs = if !seen_sequence_indices.insert(sequence_idx) {
+                        // During processing, when we see an empty set we will replace
+                        // it with the full current glyph set
+                        None
+                    } else if sequence_idx == 0 {
+                        Some(IntSet::from([coverage.iter().nth(i).unwrap()]))
+                    } else {
+                        Some(IntSet::from([rule.input_sequence()
+                            [sequence_idx as usize - 1]
+                            .get()]))
+                    };
+                    ctx.add_todo(lookup_id, active_glyphs);
                 }
             }
         }
@@ -453,33 +472,269 @@ impl ChainedSequenceContextFormat2<'_> {
     }
 }
 
-impl ChainedSequenceContextFormat3<'_> {
-    fn add_reachable_lookups(
-        &self,
-        glyphs: &IntSet<GlyphId16>,
-        lookups: &mut IntSet<u16>,
-    ) -> Result<(), ReadError> {
-        for coverage in self
-            .backtrack_coverages()
-            .iter()
-            .chain(self.input_coverages().iter())
-            .chain(self.lookahead_coverages().iter())
+//https://github.com/fonttools/fonttools/blob/a6f59a4f87a0111/Lib/fontTools/subset/__init__.py#L1215
+impl GlyphClosure for ContextFormat2<'_> {
+    fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx) -> Result<(), ReadError> {
+        let coverage = self.coverage()?;
+        let Some(cur_glyphs) = intersect_coverage(&coverage, ctx.current_glyphs()) else {
+            return Ok(());
+        };
+
+        let classdef = self.input_class_def()?;
+        let our_classes = make_class_set(ctx.glyphs(), &classdef);
+        for (class_i, seq) in self
+            .rule_sets()
+            .enumerate()
+            .filter_map(|(i, seq)| seq.map(|seq| (i as u16, seq)))
+            .filter(|x| our_classes.contains(x.0))
         {
-            if !coverage?.iter().any(|gid| glyphs.contains(gid)) {
-                return Ok(());
+            for rule in seq?.rules() {
+                let rule = rule?;
+                if !rule.matches_classes(&our_classes) {
+                    continue;
+                }
+
+                let mut seen_sequence_indices = IntSet::new();
+                for lookup_record in rule.lookup_records() {
+                    let lookup_id = lookup_record.lookup_list_index();
+                    let seq_idx = lookup_record.sequence_index();
+                    let active_glyphs = if !seen_sequence_indices.insert(seq_idx) {
+                        None
+                    } else if seq_idx == 0 {
+                        Some(intersect_class(&classdef, &cur_glyphs, class_i))
+                    } else {
+                        Some(intersect_class(
+                            &classdef,
+                            ctx.glyphs(),
+                            rule.input_sequence()[seq_idx as usize - 1].get(),
+                        ))
+                    };
+
+                    ctx.add_todo(lookup_id, active_glyphs);
+                }
             }
         }
-        lookups.extend(
-            self.seq_lookup_records()
-                .iter()
-                .map(|rec| rec.lookup_list_index()),
-        );
         Ok(())
     }
 }
 
+impl GlyphClosure for ContextFormat3<'_> {
+    fn add_reachable_glyphs(&self, ctx: &mut ClosureCtx) -> Result<(), ReadError> {
+        let cov0 = self.coverages().get(0)?;
+        let Some(cur_glyphs) = intersect_coverage(&cov0, ctx.current_glyphs()) else {
+            return Ok(());
+        };
+
+        let glyphs = ctx.glyphs().iter().map(GlyphId::from).collect();
+        if !self.matches_glyphs(&glyphs)? {
+            return Ok(());
+        }
+        for record in self.lookup_records() {
+            let mut seen_sequence_indices = IntSet::new();
+            let seq_idx = record.sequence_index();
+            let lookup_id = record.lookup_list_index();
+            let active_glyphs = if !seen_sequence_indices.insert(seq_idx) {
+                None
+            } else if seq_idx == 0 {
+                Some(cur_glyphs.clone())
+            } else {
+                Some(
+                    self.coverages()
+                        .get(seq_idx as _)?
+                        .iter()
+                        .filter(|gid| ctx.glyphs().contains(*gid))
+                        .collect(),
+                )
+            };
+
+            ctx.add_todo(lookup_id, active_glyphs);
+        }
+        Ok(())
+    }
+}
+
+/// The set of classes for this set of glyphs
 fn make_class_set(glyphs: &IntSet<GlyphId16>, classdef: &ClassDef) -> IntSet<u16> {
     glyphs.iter().map(|gid| classdef.get(gid)).collect()
+}
+
+/// Return the subset of `glyphs` that has the given class in this classdef
+// https://github.com/fonttools/fonttools/blob/a6f59a4f87a01110/Lib/fontTools/subset/__init__.py#L516
+fn intersect_class(
+    classdef: &ClassDef,
+    glyphs: &IntSet<GlyphId16>,
+    class: u16,
+) -> IntSet<GlyphId16> {
+    glyphs
+        .iter()
+        .filter(|gid| classdef.get(*gid) == class)
+        .collect()
+}
+
+fn intersect_coverage(
+    coverage: &CoverageTable,
+    glyphs: &IntSet<GlyphId16>,
+) -> Option<IntSet<GlyphId16>> {
+    let r = coverage
+        .iter()
+        .filter(|gid| glyphs.contains(*gid))
+        .collect::<IntSet<_>>();
+    Some(r).filter(|set| !set.is_empty())
+}
+
+impl SubstitutionLookupList<'_> {
+    pub fn closure_lookups(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        lookup_indices: &mut IntSet<u16>,
+    ) -> Result<(), ReadError> {
+        let mut c = LookupClosureCtx::new(glyph_set);
+
+        let lookups = self.lookups();
+        for idx in lookup_indices.iter() {
+            let lookup = lookups.get(idx as usize)?;
+            lookup.closure_lookups(&mut c, idx)?;
+        }
+
+        lookup_indices.union(c.visited_lookups());
+        lookup_indices.subtract(c.inactive_lookups());
+        Ok(())
+    }
+}
+
+impl LookupClosure for SubstitutionLookup<'_> {
+    fn closure_lookups(
+        &self,
+        c: &mut LookupClosureCtx,
+        lookup_index: u16,
+    ) -> Result<(), ReadError> {
+        if !c.should_visit_lookup(lookup_index) {
+            return Ok(());
+        }
+
+        if !self.intersects(c.glyphs())? {
+            c.set_lookup_inactive(lookup_index);
+            return Ok(());
+        }
+
+        let lookup_type = self.lookup_type();
+        self.subtables()?.closure_lookups(c, lookup_type)
+    }
+
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        self.subtables()?.intersects(glyph_set)
+    }
+}
+
+impl LookupClosure for SubstitutionSubtables<'_> {
+    fn closure_lookups(&self, _c: &mut LookupClosureCtx, _arg: u16) -> Result<(), ReadError> {
+        Ok(())
+    }
+
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            SubstitutionSubtables::Single(subtables) => subtables.intersects(glyph_set),
+            SubstitutionSubtables::Multiple(subtables) => subtables.intersects(glyph_set),
+            SubstitutionSubtables::Alternate(subtables) => subtables.intersects(glyph_set),
+            SubstitutionSubtables::Ligature(subtables) => subtables.intersects(glyph_set),
+            SubstitutionSubtables::Contextual(subtables) => subtables.intersects(glyph_set),
+            SubstitutionSubtables::ChainContextual(subtables) => subtables.intersects(glyph_set),
+            SubstitutionSubtables::Reverse(subtables) => subtables.intersects(glyph_set),
+        }
+    }
+}
+
+impl LookupClosure for SingleSubst<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            Self::Format1(item) => item.intersects(glyph_set),
+            Self::Format2(item) => item.intersects(glyph_set),
+        }
+    }
+}
+
+impl LookupClosure for SingleSubstFormat1<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        Ok(self.coverage()?.intersects(glyph_set))
+    }
+}
+
+impl LookupClosure for SingleSubstFormat2<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        Ok(self.coverage()?.intersects(glyph_set))
+    }
+}
+
+impl LookupClosure for MultipleSubstFormat1<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        Ok(self.coverage()?.intersects(glyph_set))
+    }
+}
+
+impl LookupClosure for AlternateSubstFormat1<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        Ok(self.coverage()?.intersects(glyph_set))
+    }
+}
+
+impl LookupClosure for LigatureSubstFormat1<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        let coverage = self.coverage()?;
+        let lig_sets = self.ligature_sets();
+        for lig_set in coverage
+            .iter()
+            .zip(lig_sets.iter())
+            .filter_map(|(g, lig_set)| glyph_set.contains(GlyphId::from(g)).then_some(lig_set))
+        {
+            if lig_set?.intersects(glyph_set)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
+impl LookupClosure for LigatureSet<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        let ligs = self.ligatures();
+        for lig in ligs.iter() {
+            if lig?.intersects(glyph_set)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
+impl LookupClosure for Ligature<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        let ret = self
+            .component_glyph_ids()
+            .iter()
+            .all(|g| glyph_set.contains(GlyphId::from(g.get())));
+        Ok(ret)
+    }
+}
+
+impl LookupClosure for ReverseChainSingleSubstFormat1<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        if !self.coverage()?.intersects(glyph_set) {
+            return Ok(false);
+        }
+
+        for coverage in self.backtrack_coverages().iter() {
+            if !coverage?.intersects(glyph_set) {
+                return Ok(false);
+            }
+        }
+
+        for coverage in self.lookahead_coverages().iter() {
+            if !coverage?.intersects(glyph_set) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
 }
 
 #[cfg(test)]
@@ -582,14 +837,19 @@ mod tests {
     }
 
     #[test]
-    fn contextual_lookups() {
+    fn contextual_lookups_nop() {
         let gsub = get_gsub(test_data::CONTEXTUAL);
         let glyph_map = GlyphMap::new(test_data::CONTEXTUAL_GLYPHS);
 
         // these match the lookups but not the context
         let nop = compute_closure(&gsub, &glyph_map, &["three", "four", "e", "f"]);
         assert_closure_result!(glyph_map, nop, &["three", "four", "e", "f"]);
+    }
 
+    #[test]
+    fn contextual_lookups_chained_f1() {
+        let gsub = get_gsub(test_data::CONTEXTUAL);
+        let glyph_map = GlyphMap::new(test_data::CONTEXTUAL_GLYPHS);
         let gsub6f1 = compute_closure(
             &gsub,
             &glyph_map,
@@ -600,10 +860,31 @@ mod tests {
             gsub6f1,
             &["one", "two", "three", "four", "five", "six", "seven", "X", "Y"]
         );
+    }
 
+    #[test]
+    fn contextual_lookups_chained_f3() {
+        let gsub = get_gsub(test_data::CONTEXTUAL);
+        let glyph_map = GlyphMap::new(test_data::CONTEXTUAL_GLYPHS);
         let gsub6f3 = compute_closure(&gsub, &glyph_map, &["space", "e"]);
         assert_closure_result!(glyph_map, gsub6f3, &["space", "e", "e.2"]);
 
+        let gsub5f3 = compute_closure(&gsub, &glyph_map, &["f", "g"]);
+        assert_closure_result!(glyph_map, gsub5f3, &["f", "g", "f.2"]);
+    }
+
+    #[test]
+    fn contextual_plain_f1() {
+        let gsub = get_gsub(test_data::CONTEXTUAL);
+        let glyph_map = GlyphMap::new(test_data::CONTEXTUAL_GLYPHS);
+        let gsub5f1 = compute_closure(&gsub, &glyph_map, &["a", "b"]);
+        assert_closure_result!(glyph_map, gsub5f1, &["a", "b", "a_b"]);
+    }
+
+    #[test]
+    fn contextual_plain_f3() {
+        let gsub = get_gsub(test_data::CONTEXTUAL);
+        let glyph_map = GlyphMap::new(test_data::CONTEXTUAL_GLYPHS);
         let gsub5f3 = compute_closure(&gsub, &glyph_map, &["f", "g"]);
         assert_closure_result!(glyph_map, gsub5f3, &["f", "g", "f.2"]);
     }
@@ -630,5 +911,67 @@ mod tests {
 
         let input = compute_closure(&gsub, &glyph_map, &["a"]);
         assert_closure_result!(glyph_map, input, &["a", "b", "c"]);
+    }
+
+    #[test]
+    fn context_with_unreachable_rules() {
+        let gsub = get_gsub(test_data::CONTEXT_WITH_UNREACHABLE_BITS);
+        let glyph_map = GlyphMap::new(test_data::CONTEXT_WITH_UNREACHABLE_BITS_GLYPHS);
+
+        let nop = compute_closure(&gsub, &glyph_map, &["c", "z"]);
+        assert_closure_result!(glyph_map, nop, &["c", "z"]);
+
+        let full = compute_closure(&gsub, &glyph_map, &["a", "b", "c", "z"]);
+        assert_closure_result!(glyph_map, full, &["a", "b", "c", "z", "A", "B"]);
+    }
+
+    #[test]
+    fn cyclical_context() {
+        let gsub = get_gsub(test_data::CYCLIC_CONTEXTUAL);
+        let glyph_map = GlyphMap::new(test_data::RECURSIVE_CONTEXTUAL_GLYPHS);
+        // we mostly care that this terminates
+        let nop = compute_closure(&gsub, &glyph_map, &["a", "b", "c"]);
+        assert_closure_result!(glyph_map, nop, &["a", "b", "c"]);
+    }
+
+    #[test]
+    fn collect_all_features() {
+        let font = FontRef::new(font_test_data::closure::CONTEXTUAL).unwrap();
+        let gsub = font.gsub().unwrap();
+        let ret = gsub
+            .collect_features(&IntSet::all(), &IntSet::all(), &IntSet::all())
+            .unwrap();
+        assert_eq!(ret.len(), 2);
+        assert!(ret.contains(0));
+        assert!(ret.contains(1));
+    }
+
+    #[test]
+    fn collect_all_features_with_feature_filter() {
+        let font = FontRef::new(font_test_data::closure::CONTEXTUAL).unwrap();
+        let gsub = font.gsub().unwrap();
+
+        let mut feature_tags = IntSet::empty();
+        feature_tags.insert(Tag::new(b"SUB5"));
+
+        let ret = gsub
+            .collect_features(&IntSet::all(), &IntSet::all(), &feature_tags)
+            .unwrap();
+        assert_eq!(ret.len(), 1);
+        assert!(ret.contains(0));
+    }
+
+    #[test]
+    fn collect_all_features_with_script_filter() {
+        let font = FontRef::new(font_test_data::closure::CONTEXTUAL).unwrap();
+        let gsub = font.gsub().unwrap();
+
+        let mut script_tags = IntSet::empty();
+        script_tags.insert(Tag::new(b"LATN"));
+
+        let ret = gsub
+            .collect_features(&script_tags, &IntSet::all(), &IntSet::all())
+            .unwrap();
+        assert!(ret.is_empty());
     }
 }

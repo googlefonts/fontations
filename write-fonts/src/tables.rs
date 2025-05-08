@@ -32,6 +32,7 @@ pub mod stat;
 pub mod variations;
 pub mod vhea;
 pub mod vmtx;
+pub mod vvar;
 
 #[cfg(feature = "ift")]
 pub mod ift;
@@ -67,6 +68,7 @@ fn do_we_even_serde() {
         stat: stat::Stat,
         vhea: vhea::Vhea,
         vmtx: vmtx::Vmtx,
+        vvar: vvar::Vvar,
         ift: ift::Ift,
     }
     let tables = AllTables::default();

@@ -21,6 +21,7 @@ read-fonts = { workspace = true, default-features = true, features = ["ift"] }
 write-fonts = { workspace = true, default-features = true, features = ["ift"] }
 skrifa = { workspace = true }
 incremental-font-transfer = { workspace = true }
+shared-brotli-patch-decoder = { workspace = true }
 
 [[bin]]
 name = "fuzz_skrifa_charmap"

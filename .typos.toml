@@ -40,6 +40,8 @@ wdth = "wdth"
 ot = "ot"
 vai = "vai"
 beng = "beng"
+trak = "trak"
+Trak = "Trak"
 
 # Possible typos that are more specific to this codebase.
 sftn = "sfnt"

@@ -176,6 +176,7 @@ impl Lookup<'_> {
     }
 }
 
+#[derive(Clone)]
 pub struct TypedLookup<'a, T> {
     lookup: Lookup<'a>,
     _marker: std::marker::PhantomData<fn() -> T>,
@@ -255,7 +256,7 @@ pub type LookupGlyphId<'a> = TypedLookup<'a, GlyphId16>;
 /// Note: this type is only intended for use as the type parameter for
 /// `StateEntry`. The inner field is private and this type cannot be
 /// constructed outside of this module.
-#[derive(Copy, Clone, bytemuck::AnyBitPattern)]
+#[derive(Copy, Clone, bytemuck::AnyBitPattern, Debug)]
 pub struct NoPayload(());
 
 impl FixedSize for NoPayload {
@@ -263,6 +264,7 @@ impl FixedSize for NoPayload {
 }
 
 /// Entry in an (extended) state table.
+#[derive(Clone, Debug)]
 pub struct StateEntry<T = NoPayload> {
     /// Index of the next state.
     pub new_state: u16,
@@ -295,6 +297,16 @@ where
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + T::RAW_BYTE_LEN;
 }
 
+/// Table for driving a finite state machine for layout.
+///
+/// The input to the state machine consists of the current state
+/// and a glyph class. The output is an [entry](StateEntry) containing
+/// the next state and a payload that is dependent on the type of
+/// layout action being performed.
+///
+/// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6Tables.html#StateHeader>
+/// for more detail.
+#[derive(Clone)]
 pub struct StateTable<'a> {
     header: StateHeader<'a>,
 }
@@ -373,40 +385,60 @@ impl<'a> SomeTable<'a> for StateTable<'a> {
     }
 }
 
-pub struct ExtendedStateTable<'a, T = ()> {
-    header: StxHeader<'a>,
+#[derive(Clone)]
+pub struct ExtendedStateTable<'a, T = NoPayload> {
+    n_classes: usize,
+    class_table: LookupU16<'a>,
+    state_array: &'a [BigEndian<u16>],
+    entry_table: &'a [u8],
     _marker: std::marker::PhantomData<fn() -> T>,
 }
 
-impl<T: bytemuck::AnyBitPattern + FixedSize> ExtendedStateTable<'_, T> {
+impl<T> ExtendedStateTable<'_, T> {
+    pub const HEADER_LEN: usize = u32::RAW_BYTE_LEN * 4;
+}
+
+/// Table for driving a finite state machine for layout.
+///
+/// The input to the state machine consists of the current state
+/// and a glyph class. The output is an [entry](StateEntry) containing
+/// the next state and a payload that is dependent on the type of
+/// layout action being performed.
+///
+/// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6Tables.html#StateHeader>
+/// for more detail.
+impl<T> ExtendedStateTable<'_, T>
+where
+    T: FixedSize + bytemuck::AnyBitPattern,
+{
     /// Returns the class table entry for the given glyph identifier.
-    pub fn class(&self, glyph_id: GlyphId16) -> Result<u16, ReadError> {
-        let glyph_id = glyph_id.to_u16();
+    pub fn class(&self, glyph_id: GlyphId) -> Result<u16, ReadError> {
+        let glyph_id: u16 = glyph_id
+            .to_u32()
+            .try_into()
+            .map_err(|_| ReadError::OutOfBounds)?;
         if glyph_id == 0xFFFF {
             return Ok(class::DELETED_GLYPH as u16);
         }
-        self.header.class_table()?.value(glyph_id)
+        self.class_table.value(glyph_id)
     }
 
     /// Returns the entry for the given state and class.
     pub fn entry(&self, state: u16, class: u16) -> Result<StateEntry<T>, ReadError> {
-        let n_classes = self.header.n_classes() as usize;
         let mut class = class as usize;
-        if class >= n_classes {
+        if class >= self.n_classes {
             class = class::OUT_OF_BOUNDS as usize;
         }
-        let state_array = self.header.state_array()?.data();
-        let state_ix = state as usize * n_classes + class;
-        let entry_ix = state_array
+        let state_ix = state as usize * self.n_classes + class;
+        let entry_ix = self
+            .state_array
             .get(state_ix)
             .copied()
             .ok_or(ReadError::OutOfBounds)?
             .get() as usize;
         let entry_offset = entry_ix * StateEntry::<T>::RAW_BYTE_LEN;
         let entry_data = self
-            .header
-            .entry_table()?
-            .data()
+            .entry_table
             .get(entry_offset..)
             .ok_or(ReadError::OutOfBounds)?;
         StateEntry::read(FontData::new(entry_data))
@@ -415,8 +447,16 @@ impl<T: bytemuck::AnyBitPattern + FixedSize> ExtendedStateTable<'_, T> {
 
 impl<'a, T> FontRead<'a> for ExtendedStateTable<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let header = StxHeader::read(data)?;
+        let n_classes = header.n_classes() as usize;
+        let class_table = header.class_table()?;
+        let state_array = header.state_array()?.data();
+        let entry_table = header.entry_table()?.data();
         Ok(Self {
-            header: StxHeader::read(data)?,
+            n_classes,
+            class_table,
+            state_array,
+            entry_table,
             _marker: std::marker::PhantomData,
         })
     }
@@ -428,12 +468,10 @@ impl<'a, T> SomeTable<'a> for ExtendedStateTable<'a, T> {
         "ExtendedStateTable"
     }
 
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.header.get_field(idx)
+    fn get_field(&self, _idx: usize) -> Option<Field<'a>> {
+        None
     }
 }
-
-pub type ExtendedStateTableU16<'a> = ExtendedStateTable<'a, u16>;
 
 #[cfg(test)]
 mod tests {
@@ -560,7 +598,7 @@ mod tests {
         let words = [
             8_u16, // format
             201,   // first glyph
-            8,     // glyph count
+            7,     // glyph count
             3, 8, 2, 9, 1, 200, 60, // glyphs 201..209 mapped to these values
         ];
         let mut buf = BeBuffer::new();
@@ -582,7 +620,7 @@ mod tests {
             10_u16, // format
             4,      // unit size, use 4 byte values
             201,   // first glyph
-            8,     // glyph count
+            7,     // glyph count
         ];
         // glyphs 201..209 mapped to these values
         let mapped = [3_u32, 8, 2902384, 9, 1, u32::MAX, 60];
@@ -642,7 +680,7 @@ mod tests {
         let table = ExtendedStateTable::<ContextualData>::read(buf.data().into()).unwrap();
         // check class lookups
         let [class_50, class_80, class_201] =
-            [50, 80, 201].map(|gid| table.class(GlyphId16::from(gid)).unwrap());
+            [50, 80, 201].map(|gid| table.class(GlyphId::new(gid)).unwrap());
         assert_eq!(class_50, 4);
         assert_eq!(class_80, 5);
         assert_eq!(class_201, 4);

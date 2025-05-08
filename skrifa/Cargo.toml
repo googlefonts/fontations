@@ -5,6 +5,7 @@ description = "Metadata reader and glyph scaler for OpenType fonts."
 readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
 
+rust-version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
