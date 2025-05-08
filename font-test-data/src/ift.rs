@@ -633,6 +633,59 @@ pub fn string_ids_format2() -> BeBuffer {
     buffer
 }
 
+pub fn string_ids_format2_with_preloads() -> BeBuffer {
+    const CONTINUE_MASK: u32 = 1 << 23;
+    let mut buffer = be_buffer! {
+      2u8,                      // format
+
+      0u32,                     // reserved
+
+      [1, 2, 3, 4u32],          // compat id
+
+      3u8,                      // default patch encoding = glyph keyed
+      (Uint24::new(5)),         // entry count
+      {0u32: "entries_offset"}, // entries offset
+      {0u32: "string_data_offset"},                     // entry id string data offset
+
+      8u16, // uriTemplateLength
+      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
+
+      /* ### Entry Data ### */
+
+      // Entry id = ""
+      {0b00000000u8: "entries"},              // format = {}
+
+      // Entry id = {abc, "", defg}
+      0b00000100u8,                           // format = ID_DELTA
+      (Uint24::new(CONTINUE_MASK | 3)),       // id length 3
+      (Uint24::new(CONTINUE_MASK | 0)),       // id length 0
+      (Uint24::new(4)),                       // id length 4
+
+      // Entry id = defg
+      0b00000000u8,                           // format = {}
+
+      // Entry id = hij
+      0b00000100u8,                           // format = ID_DELTA
+      {(Uint24::new(3)): "entry[4] id length"},           // id length
+
+      // Entry id = ""
+      0b00000100u8,                           // format = ID_DELTA
+      (Uint24::new(0)),                                   // id length
+
+      /* ### String Data ### */
+      {b'a': "string_data"},
+      [b'b', b'c', b'd', b'e', b'f', b'g', b'h', b'i', b'j']
+    };
+
+    let offset = buffer.offset_for("string_data") as u32;
+    buffer.write_at("string_data_offset", offset);
+
+    let offset = buffer.offset_for("entries") as u32;
+    buffer.write_at("entries_offset", offset);
+
+    buffer
+}
+
 // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-2
 pub fn table_keyed_format2() -> BeBuffer {
     let mut buffer = be_buffer! {
@@ -663,6 +716,55 @@ pub fn table_keyed_format2() -> BeBuffer {
     };
 
     let offset = buffer.offset_for("entries") as u32;
+    buffer.write_at("entries_offset", offset);
+
+    buffer
+}
+
+pub fn table_keyed_format2_with_preload_urls() -> BeBuffer {
+    let mut buffer = be_buffer! {
+      2u8,                // format
+
+      0u32,               // reserved
+
+      {1u32: "compat_id[0]"},
+      {2u32: "compat_id[1]"},
+      {3u32: "compat_id[2]"},
+      {4u32: "compat_id[3]"},
+
+      {3u8: "encoding"},  // default patch encoding = Glyph Keyed
+      (Uint24::new(4)),   // entry count
+      {0u32: "entries_offset"},
+      0u32,               // entry string data offset
+
+      8u16, // uriTemplateLength
+      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
+
+      /* ### Entries Array ### */
+
+      // Entry id = 1
+      {0b00010000u8: "entries[0]"},           // format = CODEPOINT_BIT_1
+      [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [0..17]
+
+      // Entry id = {9, 10, 6}
+      {0b00010100u8: "entries[1]"},           // format = CODEPOINT_BIT_1
+      (Int24::new(15)),                       // delta +7
+      (Int24::new(1)),                        // delta +0
+      (Int24::new(-10)),                      // delta -5
+      [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [0..17]
+
+      // Entry id = {2, 3}
+      {0b00010100u8: "entries[2]"},              // format = CODEPOINT_BIT_1
+      (Int24::new(-11)),                      // delta -5
+      (Int24::new(0)),                        // delta +0
+      [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [0..17]
+
+      // Entry id = 4
+      {0b00010000u8: "entries[3]"},           // format = CODEPOINT_BIT_1
+      [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [0..17]
+    };
+
+    let offset = buffer.offset_for("entries[0]") as u32;
     buffer.write_at("entries_offset", offset);
 
     buffer
