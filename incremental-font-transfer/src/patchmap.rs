@@ -641,7 +641,6 @@ fn format2_new_entry_id(
     let Some(length) = delta_or_length else {
         // If no length was provided the spec says to copy the previous entries
         // id string.
-        // TODO XXXXXX update for handling multiple ids per entry.
         let last_id_string = match last_id {
             Some(PatchId::String(id_string)) => Some(id_string.clone()),
             Some(PatchId::Numeric(_)) => {
@@ -1303,7 +1302,9 @@ mod tests {
     use font_test_data as test_data;
     use font_test_data::ift::{
         child_indices_format2, codepoints_only_format2, custom_ids_format2, feature_map_format1,
-        features_and_design_space_format2, simple_format1, string_ids_format2, u16_entries_format1,
+        features_and_design_space_format2, simple_format1, string_ids_format2,
+        string_ids_format2_with_preloads, table_keyed_format2_with_preload_urls,
+        u16_entries_format1,
     };
     use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
     use read_fonts::types::Int24;
@@ -1395,22 +1396,29 @@ mod tests {
     // TODO(garretrieger): test for design space union of SubsetDefinition.
     // TODO(garretrieger): fuzzer to check consistency vs intersecting "*" subset def.
 
-    #[derive(Copy, Clone)]
+    #[derive(Clone)]
     struct ExpectedEntry {
-        index: u32,
+        indices: Vec<u32>,
         application_bit_index: usize,
     }
 
     fn f1(index: u32) -> ExpectedEntry {
         ExpectedEntry {
-            index,
+            indices: vec![index],
             application_bit_index: (index as usize) + 36 * 8,
         }
     }
 
     fn f2(index: u32, entry_start: usize) -> ExpectedEntry {
         ExpectedEntry {
-            index,
+            indices: vec![index],
+            application_bit_index: entry_start * 8 + 6,
+        }
+    }
+
+    fn f2p(indices: Vec<u32>, entry_start: usize) -> ExpectedEntry {
+        ExpectedEntry {
+            indices,
             application_bit_index: entry_start * 8 + 6,
         }
     }
@@ -1447,20 +1455,24 @@ mod tests {
             .iter()
             .map(
                 |ExpectedEntry {
-                     index,
+                     indices,
                      application_bit_index,
                  }| {
-                    PatchUri::from_index(
-                        "ABCDEFɤ",
-                        *index,
-                        IftTableTag::Ift(compat_id()),
-                        *application_bit_index,
-                        PatchFormat::GlyphKeyed,
-                        Default::default(),
-                    )
+                    let mut it = indices.iter().map(|i| {
+                        PatchUri::from_index(
+                            "ABCDEFɤ",
+                            *i,
+                            IftTableTag::Ift(compat_id()),
+                            *application_bit_index,
+                            PatchFormat::GlyphKeyed,
+                            Default::default(),
+                        )
+                    });
+                    let mut e = PatchMapEntry::from_uri(it.next().unwrap());
+                    e.preload_uris = it.collect();
+                    e
                 },
             )
-            .map(PatchMapEntry::from_uri)
             .collect();
 
         assert_eq!(patches, expected);
@@ -1485,20 +1497,24 @@ mod tests {
             .iter()
             .map(
                 |ExpectedEntry {
-                     index,
+                     indices,
                      application_bit_index,
                  }| {
-                    PatchUri::from_index(
-                        "ABCDEFɤ",
-                        *index,
-                        IftTableTag::Ift(compat_id()),
-                        *application_bit_index,
-                        PatchFormat::GlyphKeyed,
-                        Default::default(),
-                    )
+                    let mut it = indices.iter().map(|i| {
+                        PatchUri::from_index(
+                            "ABCDEFɤ",
+                            *i,
+                            IftTableTag::Ift(compat_id()),
+                            *application_bit_index,
+                            PatchFormat::GlyphKeyed,
+                            Default::default(),
+                        )
+                    });
+                    let mut e = PatchMapEntry::from_uri(it.next().unwrap());
+                    e.preload_uris = it.collect();
+                    e
                 },
             )
-            .map(PatchMapEntry::from_uri)
             .collect();
 
         assert_eq!(expected, patches);
@@ -2137,12 +2153,12 @@ mod tests {
         let e3 = f2(3, codepoints_only_format2().offset_for("entries[2]"));
         let e4 = f2(4, codepoints_only_format2().offset_for("entries[3]"));
         test_intersection(&font, [], [], []);
-        test_intersection(&font, [0x02], [], [e1]);
-        test_intersection(&font, [0x15], [], [e3]);
-        test_intersection(&font, [0x07], [], [e1, e3]);
-        test_intersection(&font, [80_007], [], [e4]);
+        test_intersection(&font, [0x02], [], [e1.clone()]);
+        test_intersection(&font, [0x15], [], [e3.clone()]);
+        test_intersection(&font, [0x07], [], [e1.clone(), e3.clone()]);
+        test_intersection(&font, [80_007], [], [e4.clone()]);
 
-        test_intersection_with_all(&font, [], [e1, e3, e4]);
+        test_intersection_with_all(&font, [], [e1.clone(), e3.clone(), e4.clone()]);
     }
 
     #[test]
@@ -2170,7 +2186,7 @@ mod tests {
         test_intersection(&font, [], [], []);
         test_intersection(&font, [0x02], [], []);
         test_intersection(&font, [0x50], [Tag::new(b"rlig")], []);
-        test_intersection(&font, [0x02], [Tag::new(b"rlig")], [e2]);
+        test_intersection(&font, [0x02], [Tag::new(b"rlig")], [e2.clone()]);
 
         test_design_space_intersection(
             &font,
@@ -2195,7 +2211,7 @@ mod tests {
                     .into_iter()
                     .collect(),
             )]),
-            [e1],
+            [e1.clone()],
         );
         test_design_space_intersection(
             &font,
@@ -2207,7 +2223,7 @@ mod tests {
                     .into_iter()
                     .collect(),
             )]),
-            [e3],
+            [e3.clone()],
         );
         test_design_space_intersection(
             &font,
@@ -2247,7 +2263,7 @@ mod tests {
                 .into_iter()
                 .collect(),
             )]),
-            [e1, e3],
+            [e1.clone(), e3.clone()],
         );
         test_design_space_intersection(
             &font,
@@ -2259,7 +2275,7 @@ mod tests {
                     .into_iter()
                     .collect(),
             )]),
-            [e3],
+            [e3.clone()],
         );
         test_design_space_intersection(
             &font,
@@ -2341,7 +2357,7 @@ mod tests {
             [0x05],
             FeatureSet::from([Tag::new(b"smcp")]),
             DesignSpace::All,
-            [e1, e3],
+            [e1.clone(), e3.clone()],
         );
 
         test_design_space_intersection(
@@ -2460,9 +2476,14 @@ mod tests {
         let e8 = f2(8, child_indices_format2().offset_for("entries[7]"));
         let e9 = f2(9, child_indices_format2().offset_for("entries[8]"));
         test_intersection(&font, [], [], []);
-        test_intersection(&font, [0x05], [], [e5, e7, e8]);
+        test_intersection(&font, [0x05], [], [e5.clone(), e7.clone(), e8.clone()]);
         test_intersection(&font, [0x65], [], []);
-        test_intersection(&font, [0x05, 0x65], [], [e5, e7, e8, e9]);
+        test_intersection(
+            &font,
+            [0x05, 0x65],
+            [],
+            [e5.clone(), e7.clone(), e8.clone(), e9],
+        );
 
         test_design_space_intersection(
             &font,
@@ -2474,7 +2495,7 @@ mod tests {
                     .into_iter()
                     .collect(),
             )]),
-            [e3, e6, e7, e8],
+            [e3.clone(), e6.clone(), e7.clone(), e8.clone()],
         );
 
         test_design_space_intersection(
@@ -2510,7 +2531,7 @@ mod tests {
         let e6 = f2(6, child_indices_format2().offset_for("entries[5]"));
         let e7 = f2(7, child_indices_format2().offset_for("entries[6]"));
         let e8 = f2(8, child_indices_format2().offset_for("entries[7]"));
-        test_intersection(&font, [0x05], [], [e5, e8]);
+        test_intersection(&font, [0x05], [], [e5.clone(), e8.clone()]);
         test_design_space_intersection(
             &font,
             [0x05, 51],
@@ -2545,6 +2566,35 @@ mod tests {
     }
 
     #[test]
+    fn format_2_patch_map_custom_preload_ids() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&table_keyed_format2_with_preload_urls()),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let e0 = f2(
+            1,
+            table_keyed_format2_with_preload_urls().offset_for("entries[0]"),
+        );
+        let e1 = f2p(
+            vec![9, 10, 6],
+            table_keyed_format2_with_preload_urls().offset_for("entries[1]"),
+        );
+        let e2 = f2p(
+            vec![2, 3],
+            table_keyed_format2_with_preload_urls().offset_for("entries[2]"),
+        );
+        let e3 = f2(
+            4,
+            table_keyed_format2_with_preload_urls().offset_for("entries[3]"),
+        );
+
+        test_intersection_with_all(&font, [], [e0, e1, e2, e3]);
+    }
+
+    #[test]
     fn format_2_patch_map_custom_encoding() {
         let mut data = custom_ids_format2();
         data.write_at("entry[4] encoding", 1u8); // Tabled Keyed Full Invalidation.
@@ -2575,10 +2625,6 @@ mod tests {
         );
     }
 
-    // TODO XXXXX multiple id deltas.
-    // TODO XXXXX multiple id strings, including a "repeat" case.
-    // TODO XXXXX intersection with preload urls.
-
     #[test]
     fn format_2_patch_map_id_strings() {
         let font_bytes = create_ift_font(
@@ -2603,6 +2649,50 @@ mod tests {
                 .map(|s| PatchId::String(Vec::from(s)))
                 .collect::<Vec<PatchId>>()
         );
+    }
+
+    #[test]
+    fn format_2_patch_map_id_strings_with_preloads() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&string_ids_format2_with_preloads()),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let patches = intersecting_patches(
+            &font,
+            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
+        )
+        .unwrap();
+
+        let ids: Vec<Vec<PatchId>> = patches
+            .into_iter()
+            .map(|e| {
+                let mut ids = vec![e.uri.id];
+                ids.extend(e.preload_uris.iter().map(|uri| uri.id.clone()));
+                ids
+            })
+            .collect();
+
+        let expected_ids = vec![
+            vec![""],
+            vec!["abc", "", "defg"],
+            vec!["defg"],
+            vec!["hij"],
+            vec![""],
+        ];
+        let expected_ids = expected_ids
+            .into_iter()
+            .map(|group| {
+                group
+                    .into_iter()
+                    .map(|s| PatchId::String(Vec::from(s)))
+                    .collect::<Vec<PatchId>>()
+            })
+            .collect::<Vec<Vec<PatchId>>>();
+
+        assert_eq!(ids, expected_ids);
     }
 
     #[test]
