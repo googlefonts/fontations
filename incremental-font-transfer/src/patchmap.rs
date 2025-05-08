@@ -358,7 +358,7 @@ fn merge_intersecting_entries<const RECORD_INTERSECTION: bool>(
 }
 
 struct EntryIntersectionCache<'a> {
-    entries: &'a [Entry],
+    entries: &'a [Format2Entry],
     cache: HashMap<usize, bool>,
 }
 
@@ -379,7 +379,7 @@ impl EntryIntersectionCache<'_> {
 
     fn compute_intersection(
         &mut self,
-        entry: &Entry,
+        entry: &Format2Entry,
         subset_definition: &SubsetDefinition,
     ) -> bool {
         // See: https://w3c.github.io/IFT/Overview.html#abstract-opdef-check-entry-intersection
@@ -400,7 +400,7 @@ impl EntryIntersectionCache<'_> {
 
     fn all_children_intersect(
         &mut self,
-        entry: &Entry,
+        entry: &Format2Entry,
         subset_definition: &SubsetDefinition,
     ) -> bool {
         for child_index in entry.child_indices.iter() {
@@ -413,7 +413,7 @@ impl EntryIntersectionCache<'_> {
 
     fn some_children_intersect(
         &mut self,
-        entry: &Entry,
+        entry: &Format2Entry,
         subset_definition: &SubsetDefinition,
     ) -> bool {
         for child_index in entry.child_indices.iter() {
@@ -448,17 +448,25 @@ fn add_intersecting_format2_patches(
             continue;
         }
 
-        let mut uri = e.uri.clone();
-        if uri.encoding().is_invalidating() {
-            // for invalidating keyed patches we need to record information about intersection size to use later
-            // for patch selection.
-            uri.intersection_info = IntersectionInfo::from_subset(
+        let mut it = e.uris.iter();
+        let Some(first_uri) = it.next() else {
+            continue;
+        };
+
+        // for invalidating keyed patches we need to record information about
+        // intersection size to use later for patch selection. Only the first
+        // uri in an entry needs to be updated because only the first uri is
+        // used for selection.
+        let mut first_uri = first_uri.clone();
+        if first_uri.encoding().is_invalidating() {
+            first_uri.intersection_info = IntersectionInfo::from_subset(
                 e.subset_definition.intersection(subset_definition),
                 order,
             );
         }
+        patches.push(first_uri);
 
-        patches.push(uri)
+        // TODO XXXXXX attach preload URI's
     }
 
     Ok(())
@@ -467,14 +475,14 @@ fn add_intersecting_format2_patches(
 fn decode_format2_entries(
     source_table: &IftTableTag,
     map: &PatchMapFormat2,
-) -> Result<Vec<Entry>, ReadError> {
+) -> Result<Vec<Format2Entry>, ReadError> {
     let uri_template = map.uri_template_as_string()?;
     let entries_data = map.entries()?.entry_data();
     let default_encoding = PatchFormat::from_format_number(map.default_patch_format())?;
 
     let mut entry_count = map.entry_count().to_u32();
     let mut entries_data = FontData::new(entries_data);
-    let mut entries: Vec<Entry> = vec![];
+    let mut entries: Vec<Format2Entry> = vec![];
 
     let mut entry_start_byte = map.entries_offset().to_u32() as usize;
 
@@ -508,19 +516,14 @@ fn decode_format2_entry<'a>(
     uri_template: &str,
     default_encoding: &PatchFormat,
     id_string_data: &mut Option<Cursor<&[u8]>>,
-    entries: &mut Vec<Entry>,
+    entries: &mut Vec<Format2Entry>,
 ) -> Result<(FontData<'a>, usize), ReadError> {
     let entry_data = EntryData::read(data)?;
 
     // Record the index of the bit which when set causes this entry to be ignored.
     // See: https://w3c.github.io/IFT/Overview.html#mapping-entry-formatflags
     let ignored_bit_index = (data_start_index * 8) + 6;
-    let mut entry = Entry::new(
-        uri_template,
-        source_table,
-        ignored_bit_index,
-        default_encoding,
-    );
+    let mut entry: Format2Entry = Default::default();
 
     // Features
     if let Some(features) = entry_data.feature_tags() {
@@ -574,19 +577,22 @@ fn decode_format2_entry<'a>(
         decode_format2_entry_deltas::<false>(entry_data.format_flags(), entry_data.trailing_data())?
     };
 
-    // TODO XXXX handle multiple entry ids
-    entry.uri.id = format2_new_entry_id(
-        entry_deltas.first().copied(),
-        entries.last(),
-        id_string_data,
-    )?;
-
     // Encoding
     let (patch_format, trailing_data) =
         decode_format2_patch_format(entry_data.format_flags(), trailing_data)?;
-    if let Some(patch_format) = patch_format {
-        entry.uri.encoding = patch_format;
-    }
+    let patch_format = patch_format.unwrap_or(*default_encoding);
+
+    // We now have info information to generate the associated uris.
+    let last_id = entries
+        .last()
+        .and_then(|e| e.uris.last())
+        .map(|uri| uri.id.clone());
+    entry.populate_uris(
+        PatchUri::new(uri_template, source_table, ignored_bit_index, &patch_format),
+        entry_deltas,
+        last_id,
+        id_string_data,
+    )?;
 
     // Codepoints
     let (codepoints, trailing_data) =
@@ -611,16 +617,18 @@ fn decode_format2_entry<'a>(
 
 fn format2_new_entry_id(
     delta_or_length: Option<i32>,
-    last_entry: Option<&Entry>,
+    last_id: &Option<PatchId>,
     id_string_data: &mut Option<Cursor<&[u8]>>,
 ) -> Result<PatchId, ReadError> {
     let Some(id_string_data) = id_string_data else {
-        let last_entry_index = last_entry
-            .and_then(|e| match e.uri.id {
-                PatchId::Numeric(index) => Some(index),
-                _ => None,
-            })
-            .unwrap_or(0);
+        let last_entry_index = match last_id {
+            Some(PatchId::Numeric(index)) => Some(*index),
+            Some(PatchId::String(_)) => {
+                return Err(ReadError::MalformedData("Unexpected string id."))
+            }
+            None => None,
+        }
+        .unwrap_or(0);
         return Ok(PatchId::Numeric(compute_format2_new_entry_index(
             delta_or_length.unwrap_or_default(),
             last_entry_index,
@@ -631,12 +639,14 @@ fn format2_new_entry_id(
         // If no length was provided the spec says to copy the previous entries
         // id string.
         // TODO XXXXXX update for handling multiple ids per entry.
-        let last_id_string = last_entry
-            .and_then(|e| match &e.uri.id {
-                PatchId::String(id_string) => Some(id_string.clone()),
-                _ => None,
-            })
-            .unwrap_or_default();
+        let last_id_string = match last_id {
+            Some(PatchId::String(id_string)) => Some(id_string.clone()),
+            Some(PatchId::Numeric(_)) => {
+                return Err(ReadError::MalformedData("Unexpected numeric id."))
+            }
+            _ => None,
+        }
+        .unwrap_or_default();
         return Ok(PatchId::String(last_id_string));
     };
 
@@ -868,6 +878,24 @@ pub struct PatchUri {
     intersection_info: IntersectionInfo,
 }
 
+impl PatchUri {
+    fn new(
+        template: &str,
+        source_table: &IftTableTag,
+        application_flag_bit_index: usize,
+        default_encoding: &PatchFormat,
+    ) -> PatchUri {
+        PatchUri::from_index(
+            template,
+            0,
+            source_table.clone(),
+            application_flag_bit_index,
+            *default_encoding,
+            Default::default(),
+        )
+    }
+}
+
 /// Stores information on the intersection which lead to the selection of this patch.
 ///
 /// Intersection details are used later on to choose a specific patch to apply next.
@@ -878,8 +906,6 @@ pub(crate) struct IntersectionInfo {
     intersecting_layout_tags: usize,
     intersecting_design_space: BTreeMap<Tag, Fixed>,
     entry_order: usize,
-    // indicates this patch won't be applied next and is only included for preloading.
-    preload_only: bool,
 }
 
 impl PartialOrd for IntersectionInfo {
@@ -971,7 +997,6 @@ impl IntersectionInfo {
             intersecting_layout_tags: value.feature_tags.len(),
             intersecting_design_space: Self::design_space_size(value.design_space),
             entry_order: order,
-            preload_only: false, // TODO XXXXXX
         }
     }
 
@@ -1156,8 +1181,8 @@ impl SubsetDefinition {
 /// Stores a materialized version of an IFT patchmap entry.
 ///
 /// See: <https://w3c.github.io/IFT/Overview.html#patch-map-dfn>
-#[derive(Debug, Clone, PartialEq)]
-struct Entry {
+#[derive(Debug, Clone, PartialEq, Default)]
+struct Format2Entry {
     // Key
     subset_definition: SubsetDefinition,
     child_indices: Vec<usize>,
@@ -1165,38 +1190,10 @@ struct Entry {
     ignored: bool,
 
     // Value
-    uri: PatchUri,
+    uris: Vec<PatchUri>,
 }
 
-impl Entry {
-    fn new(
-        template: &str,
-        source_table: &IftTableTag,
-        application_flag_bit_index: usize,
-        default_encoding: &PatchFormat,
-    ) -> Entry {
-        Entry {
-            subset_definition: SubsetDefinition {
-                codepoints: IntSet::empty(),
-                feature_tags: Default::default(),
-                design_space: Default::default(),
-            },
-
-            child_indices: Default::default(),
-            conjunctive_child_match: false,
-            ignored: false,
-
-            uri: PatchUri::from_index(
-                template,
-                0,
-                source_table.clone(),
-                application_flag_bit_index,
-                *default_encoding,
-                Default::default(),
-            ),
-        }
-    }
-
+impl Format2Entry {
     fn intersects(&self, subset_definition: &SubsetDefinition) -> bool {
         // Intersection defined here: https://w3c.github.io/IFT/Overview.html#abstract-opdef-check-entry-intersection
         let codepoints_intersects = self.subset_definition.codepoints.is_empty()
@@ -1232,6 +1229,31 @@ impl Entry {
                 }
             },
         }
+    }
+
+    fn populate_uris(
+        &mut self,
+        prototype_uri: PatchUri,
+        deltas: Vec<i32>,
+        last_id: Option<PatchId>,
+        id_string_data: &mut Option<Cursor<&[u8]>>,
+    ) -> Result<(), ReadError> {
+        if deltas.is_empty() {
+            let mut uri = prototype_uri.clone();
+            uri.id = format2_new_entry_id(None, &last_id, id_string_data)?;
+            self.uris.push(uri);
+            return Ok(());
+        }
+
+        let mut last_id = last_id;
+        for delta in deltas {
+            let mut uri = prototype_uri.clone();
+            uri.id = format2_new_entry_id(Some(delta), &last_id, id_string_data)?;
+            last_id = Some(uri.id.clone());
+            self.uris.push(uri);
+        }
+
+        Ok(())
     }
 
     fn design_space_intersects(
@@ -1284,7 +1306,6 @@ mod tests {
                 intersecting_layout_tags: features,
                 intersecting_design_space: Default::default(),
                 entry_order: order,
-                preload_only: false, // TODO XXXX
             }
         }
 
@@ -1299,7 +1320,6 @@ mod tests {
                 intersecting_layout_tags: features,
                 intersecting_design_space: BTreeMap::from(design_space),
                 entry_order: order,
-                preload_only: false, // TODO XXXX
             }
         }
     }
@@ -2796,16 +2816,16 @@ mod tests {
         let s2 = SubsetDefinition::codepoints([13, 15, 17].into_iter().collect());
         let s3 = SubsetDefinition::codepoints([7, 13].into_iter().collect());
 
-        let e1 = Entry {
+        let e1 = Format2Entry {
             subset_definition: s1.clone(),
-            uri: uri.clone(),
+            uris: vec![uri.clone()],
             ignored: false,
             child_indices: Default::default(),
             conjunctive_child_match: Default::default(),
         };
-        let e2 = Entry {
+        let e2 = Format2Entry {
             subset_definition: Default::default(),
-            uri: uri.clone(),
+            uris: vec![uri.clone()],
             ignored: false,
             child_indices: Default::default(),
             conjunctive_child_match: Default::default(),
@@ -2912,16 +2932,16 @@ mod tests {
             )]),
         );
 
-        let e1 = Entry {
+        let e1 = Format2Entry {
             subset_definition: s1.clone(),
-            uri: uri.clone(),
+            uris: vec![uri.clone()],
             ignored: false,
             child_indices: Default::default(),
             conjunctive_child_match: Default::default(),
         };
-        let e2 = Entry {
+        let e2 = Format2Entry {
             subset_definition: Default::default(),
-            uri: uri.clone(),
+            uris: vec![uri.clone()],
             ignored: false,
             child_indices: Default::default(),
             conjunctive_child_match: Default::default(),
