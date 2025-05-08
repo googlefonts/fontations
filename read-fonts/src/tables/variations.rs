@@ -1340,17 +1340,14 @@ impl FloatItemDeltaTarget for F2Dot14 {
     }
 }
 
-impl VariationRegion<'_> {
+impl<'a> VariationRegion<'a> {
     /// Computes a scalar value for this region and the specified
     /// normalized variation coordinates.
     pub fn compute_scalar(&self, coords: &[F2Dot14]) -> Fixed {
         const ZERO: Fixed = Fixed::ZERO;
         let mut scalar = Fixed::ONE;
-        for (i, axis_coords) in self.region_axes().iter().enumerate() {
-            let peak = axis_coords.peak_coord.get().to_fixed();
-            if peak == ZERO {
-                continue;
-            }
+        for (i, peak, axis_coords) in self.active_region_axes() {
+            let peak = peak.to_fixed();
             let start = axis_coords.start_coord.get().to_fixed();
             let end = axis_coords.end_coord.get().to_fixed();
             if start > peak || peak > end || start < ZERO && end > ZERO {
@@ -1374,11 +1371,8 @@ impl VariationRegion<'_> {
     /// specified normalized variation coordinates.
     pub fn compute_scalar_f32(&self, coords: &[F2Dot14]) -> f32 {
         let mut scalar = 1.0;
-        for (i, axis_coords) in self.region_axes().iter().enumerate() {
-            let peak = axis_coords.peak_coord.get().to_f32();
-            if peak == 0.0 {
-                continue;
-            }
+        for (i, peak, axis_coords) in self.active_region_axes() {
+            let peak = peak.to_f32();
             let start = axis_coords.start_coord.get().to_f32();
             let end = axis_coords.end_coord.get().to_f32();
             if start > peak || peak > end || start < 0.0 && end > 0.0 {
@@ -1396,6 +1390,22 @@ impl VariationRegion<'_> {
             }
         }
         scalar
+    }
+
+    fn active_region_axes(
+        &self,
+    ) -> impl Iterator<Item = (usize, F2Dot14, &'a RegionAxisCoordinates)> {
+        self.region_axes()
+            .iter()
+            .enumerate()
+            .filter_map(|(i, axis_coords)| {
+                let peak = axis_coords.peak_coord();
+                if peak != F2Dot14::ZERO {
+                    Some((i, peak, axis_coords))
+                } else {
+                    None
+                }
+            })
     }
 }
 
