@@ -36,10 +36,10 @@ use crate::uri_templates::UriTemplateError;
 pub fn intersecting_patches(
     font: &FontRef,
     subset_definition: &SubsetDefinition,
-) -> Result<Vec<PatchUri>, ReadError> {
+) -> Result<Vec<PatchMapEntry>, ReadError> {
     // TODO(garretrieger): move this function to a struct so we can optionally store
     //  indexes or other data to accelerate intersection.
-    let mut result: Vec<PatchUri> = vec![];
+    let mut result: Vec<PatchMapEntry> = vec![];
 
     for (tag, table) in IftTableTag::tables_in(font) {
         add_intersecting_patches(font, tag, &table, subset_definition, &mut result)?;
@@ -53,7 +53,7 @@ fn add_intersecting_patches(
     source_table: IftTableTag,
     ift: &Ift,
     subset_definition: &SubsetDefinition,
-    patches: &mut Vec<PatchUri>,
+    patches: &mut Vec<PatchMapEntry>,
 ) -> Result<(), ReadError> {
     match ift {
         Ift::Format1(format_1) => add_intersecting_format1_patches(
@@ -76,7 +76,7 @@ fn add_intersecting_format1_patches(
     map: &PatchMapFormat1,
     codepoints: &IntSet<u32>,
     features: &FeatureSet,
-    patches: &mut Vec<PatchUri>,
+    patches: &mut Vec<PatchMapEntry>,
 ) -> Result<(), ReadError> {
     // Step 0: Top Level Field Validation
     let maxp = font.maxp()?;
@@ -136,7 +136,8 @@ fn add_intersecting_format1_patches(
                         Default::default()
                     },
                 )
-            }),
+            })
+            .map(PatchMapEntry::from_uri),
     );
     Ok(())
 }
@@ -429,7 +430,7 @@ fn add_intersecting_format2_patches(
     source_table: &IftTableTag,
     map: &PatchMapFormat2,
     subset_definition: &SubsetDefinition,
-    patches: &mut Vec<PatchUri>,
+    patches: &mut Vec<PatchMapEntry>,
 ) -> Result<(), ReadError> {
     let entries = decode_format2_entries(source_table, map)?;
 
@@ -464,9 +465,11 @@ fn add_intersecting_format2_patches(
                 order,
             );
         }
-        patches.push(first_uri);
-
-        // TODO XXXXXX attach preload URI's
+        let preload_uris: Vec<PatchUri> = it.map(|uri| uri.clone()).collect();
+        patches.push(PatchMapEntry {
+            uri: first_uri,
+            preload_uris,
+        });
     }
 
     Ok(())
@@ -857,6 +860,26 @@ impl IftTableTag {
     pub(crate) fn expected_compat_id(&self) -> &CompatibilityId {
         match self {
             Self::Ift(cid) | Self::Iftx(cid) => cid,
+        }
+    }
+}
+
+/// Stores a collection of URIs associated with each patch mapping entry.
+///
+/// Each entry has a primary URI which is what is loaded and applied when the entry is selected.
+/// Additionally each entry has an optional set of preload URI's which should be preloaded if the
+/// entry is selected
+#[derive(PartialEq, Eq, Debug)]
+pub struct PatchMapEntry {
+    pub uri: PatchUri,
+    pub preload_uris: Vec<PatchUri>,
+}
+
+impl PatchMapEntry {
+    pub fn from_uri(uri: PatchUri) -> Self {
+        PatchMapEntry {
+            uri,
+            preload_uris: vec![],
         }
     }
 }
@@ -1420,7 +1443,7 @@ mod tests {
         )
         .unwrap();
 
-        let expected: Vec<PatchUri> = expected_entries
+        let expected: Vec<_> = expected_entries
             .iter()
             .map(
                 |ExpectedEntry {
@@ -1437,6 +1460,7 @@ mod tests {
                     )
                 },
             )
+            .map(PatchMapEntry::from_uri)
             .collect();
 
         assert_eq!(patches, expected);
@@ -1457,7 +1481,7 @@ mod tests {
         )
         .unwrap();
 
-        let expected: Vec<PatchUri> = expected_entries
+        let expected: Vec<_> = expected_entries
             .iter()
             .map(
                 |ExpectedEntry {
@@ -1474,6 +1498,7 @@ mod tests {
                     )
                 },
             )
+            .map(PatchMapEntry::from_uri)
             .collect();
 
         assert_eq!(expected, patches);
@@ -1882,11 +1907,11 @@ mod tests {
         .unwrap();
         assert_eq!(
             patches,
-            vec![patch_with_intersection(
+            vec![PatchMapEntry::from_uri(patch_with_intersection(
                 applied_entries_start,
                 300,
                 IntersectionInfo::new(1, 0, 300),
-            ),]
+            )),]
         );
 
         // case 2 - only codepoints
@@ -1902,16 +1927,16 @@ mod tests {
         assert_eq!(
             patches,
             vec![
-                patch_with_intersection(
+                PatchMapEntry::from_uri(patch_with_intersection(
                     applied_entries_start,
                     299,
                     IntersectionInfo::new(1, 0, 299),
-                ),
-                patch_with_intersection(
+                )),
+                PatchMapEntry::from_uri(patch_with_intersection(
                     applied_entries_start,
                     300,
                     IntersectionInfo::new(2, 0, 300),
-                ),
+                )),
             ]
         );
 
@@ -1928,21 +1953,21 @@ mod tests {
         assert_eq!(
             patches,
             vec![
-                patch_with_intersection(
+                PatchMapEntry::from_uri(patch_with_intersection(
                     applied_entries_start,
                     299,
                     IntersectionInfo::new(1, 0, 299),
-                ),
-                patch_with_intersection(
+                )),
+                PatchMapEntry::from_uri(patch_with_intersection(
                     applied_entries_start,
                     300,
                     IntersectionInfo::new(2, 0, 300),
-                ),
-                patch_with_intersection(
+                )),
+                PatchMapEntry::from_uri(patch_with_intersection(
                     applied_entries_start,
                     385,
                     IntersectionInfo::new(3, 1, 385),
-                ),
+                )),
             ]
         );
 
@@ -1959,16 +1984,16 @@ mod tests {
         assert_eq!(
             patches,
             vec![
-                patch_with_intersection(
+                PatchMapEntry::from_uri(patch_with_intersection(
                     applied_entries_start,
                     299,
                     IntersectionInfo::new(1, 0, 299),
-                ),
-                patch_with_intersection(
+                )),
+                PatchMapEntry::from_uri(patch_with_intersection(
                     applied_entries_start,
                     300,
                     IntersectionInfo::new(2, 0, 300),
-                ),
+                )),
             ]
         );
     }
@@ -2352,11 +2377,11 @@ mod tests {
         .unwrap();
         assert_eq!(
             patches,
-            vec![patch_with_intersection(
+            vec![PatchMapEntry::from_uri(patch_with_intersection(
                 map.offset_for("entries[1]") * 8 + 4,
                 2,
                 IntersectionInfo::new(2, 1, 1),
-            ),]
+            )),]
         );
 
         // Case 2
@@ -2377,12 +2402,12 @@ mod tests {
         assert_eq!(
             patches,
             vec![
-                patch_with_intersection(
+                PatchMapEntry::from_uri(patch_with_intersection(
                     map.offset_for("entries[1]") * 8 + 4,
                     2,
                     IntersectionInfo::new(2, 1, 1),
-                ),
-                patch_with_intersection(
+                )),
+                PatchMapEntry::from_uri(patch_with_intersection(
                     map.offset_for("entries[2]") * 8 + 3,
                     3,
                     IntersectionInfo::from_design_space(
@@ -2391,7 +2416,7 @@ mod tests {
                         [(Tag::new(b"wght"), Fixed::from_i32(195))],
                         2
                     ),
-                ),
+                )),
             ]
         );
     }
@@ -2537,7 +2562,7 @@ mod tests {
         )
         .unwrap();
 
-        let encodings: Vec<PatchFormat> = patches.into_iter().map(|uri| uri.encoding).collect();
+        let encodings: Vec<PatchFormat> = patches.into_iter().map(|e| e.uri.encoding).collect();
         assert_eq!(
             encodings,
             vec![
@@ -2552,6 +2577,7 @@ mod tests {
 
     // TODO XXXXX multiple id deltas.
     // TODO XXXXX multiple id strings, including a "repeat" case.
+    // TODO XXXXX intersection with preload urls.
 
     #[test]
     fn format_2_patch_map_id_strings() {
@@ -2568,7 +2594,7 @@ mod tests {
         )
         .unwrap();
 
-        let ids: Vec<PatchId> = patches.into_iter().map(|uri| uri.id).collect();
+        let ids: Vec<PatchId> = patches.into_iter().map(|e| e.uri.id).collect();
         let expected_ids = vec!["", "abc", "defg", "defg", "hij", ""];
         assert_eq!(
             ids,

@@ -58,8 +58,13 @@ impl PatchGroup<'_> {
             return Err(ReadError::ValidationError);
         }
 
-        let compat_group =
-            Self::select_next_patches_from_candidates(candidates, ift_compat_id, iftx_compat_id)?;
+        // TODO XXXX collect up preload uris
+        let uri_candidates: Vec<_> = candidates.into_iter().map(|e| e.uri).collect();
+        let compat_group = Self::select_next_patches_from_candidates(
+            uri_candidates,
+            ift_compat_id,
+            iftx_compat_id,
+        )?;
 
         Ok(PatchGroup {
             font: ift_font,
