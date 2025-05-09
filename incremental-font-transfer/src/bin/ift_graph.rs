@@ -226,13 +226,13 @@ fn to_graph(
     graph.entry(node_name.clone()).or_default();
 
     for patch in patches {
-        if !matches!(patch.encoding(), PatchFormat::TableKeyed { .. }) {
+        if !matches!(patch.uri.encoding(), PatchFormat::TableKeyed { .. }) {
             // This graph only considers invalidating (that is table keyed patches), so skip all other types.
             continue;
         }
 
-        let uri_string = patch.uri_string()?;
-        let next_font = to_next_font(base_path, &font, patch)?;
+        let uri_string = patch.uri.uri_string()?;
+        let next_font = to_next_font(base_path, &font, patch.uri)?;
         let next_font = FontRef::new(&next_font).expect("Downstream font parsing failed");
 
         {
