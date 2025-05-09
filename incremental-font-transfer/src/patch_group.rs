@@ -5,7 +5,7 @@
 
 use read_fonts::{tables::ift::CompatibilityId, FontRef, ReadError, TableProvider};
 use shared_brotli_patch_decoder::{BuiltInBrotliDecoder, SharedBrotliDecoder};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::{
     font_patch::{IncrementalFontPatchBase, PatchingError},
@@ -30,7 +30,7 @@ pub struct PatchGroup<'a> {
 
     // These patches aren't compatible, but have been requested as preloads by the
     // patch mapping.
-    preload_uris: HashSet<String>, // TODO XXXX use this
+    preload_uris: BTreeSet<String>,
 }
 
 impl PatchGroup<'_> {
@@ -70,21 +70,22 @@ impl PatchGroup<'_> {
 
     /// Returns an iterator over URIs in this group.
     pub fn uris(&self) -> impl Iterator<Item = &str> {
-        // TODO XXXX add preloads
         self.invalidating_patch_iter()
             .chain(self.non_invalidating_patch_iter())
             .map(|info| info.uri.as_str())
+            .chain(self.preload_uris.iter().map(String::as_str))
     }
 
     /// Returns true if there is at least one uri associated with this group.
     pub fn has_uris(&self) -> bool {
-        // TODO XXXX check preloads as well
         let Some(patches) = &self.patches else {
-            return false;
+            return !self.preload_uris.is_empty();
         };
         match patches {
             CompatibleGroup::Full(FullInvalidationPatch(_)) => true,
-            CompatibleGroup::Mixed { ift, iftx } => ift.has_uris() || iftx.has_uris(),
+            CompatibleGroup::Mixed { ift, iftx } => {
+                ift.has_uris() || iftx.has_uris() || !self.preload_uris.is_empty()
+            }
         }
     }
 
@@ -141,7 +142,7 @@ impl PatchGroup<'_> {
         candidates: Vec<PatchMapEntry>,
         ift_compat_id: Option<CompatibilityId>,
         iftx_compat_id: Option<CompatibilityId>,
-    ) -> Result<(CompatibleGroup, HashSet<String>), ReadError> {
+    ) -> Result<(CompatibleGroup, BTreeSet<String>), ReadError> {
         // Some notes about this implementation:
         // - From candidates we need to form the largest possible group of patches which follow the selection criteria
         //   from: https://w3c.github.io/IFT/Overview.html#extend-font-subset and won't invalidate each other.
@@ -169,7 +170,7 @@ impl PatchGroup<'_> {
         } = GroupingByInvalidation::group_patches(candidates, ift_compat_id, iftx_compat_id)
             .map_err(|_| ReadError::MalformedData("Malformed URI templates."))?;
 
-        let mut combined_preload_uris: HashSet<String> = Default::default();
+        let mut combined_preload_uris: BTreeSet<String> = Default::default();
 
         // Step 2 - now make patch selections in priority order: first full invalidation, second partial, lastly none.
         if let Some(patch) = Self::select_invalidating_candidate(full_invalidation) {
@@ -260,7 +261,7 @@ impl PatchGroup<'_> {
 
     fn extract_preloads(
         candidates: BTreeMap<String, CandidateNoInvalidationPatch>,
-        preloads: &mut HashSet<String>,
+        preloads: &mut BTreeSet<String>,
     ) -> BTreeMap<String, NoInvalidationPatch> {
         preloads.extend(
             candidates
@@ -842,7 +843,7 @@ mod tests {
             group,
             CompatibleGroup::Full(FullInvalidationPatch(patch_info_ift("//foo.bar/04")))
         );
-        assert_eq!(preloads, HashSet::from(expected_preloads.clone()));
+        assert_eq!(preloads, BTreeSet::from(expected_preloads.clone()));
 
         let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![
@@ -861,7 +862,7 @@ mod tests {
             group,
             CompatibleGroup::Full(FullInvalidationPatch(patch_info_ift("//foo.bar/04"),))
         );
-        assert_eq!(preloads, HashSet::from(expected_preloads));
+        assert_eq!(preloads, BTreeSet::from(expected_preloads));
     }
 
     #[test]
@@ -990,7 +991,7 @@ mod tests {
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::default()),
             }
         );
-        assert_eq!(preloads, HashSet::from(expected_preloads_c1.clone()));
+        assert_eq!(preloads, BTreeSet::from(expected_preloads_c1.clone()));
 
         // Only IFTX
         let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
@@ -1010,7 +1011,7 @@ mod tests {
                 ),)),
             }
         );
-        assert_eq!(preloads, HashSet::from(expected_preloads_c2.clone()));
+        assert_eq!(preloads, BTreeSet::from(expected_preloads_c2.clone()));
 
         // Both
         let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
@@ -1033,7 +1034,7 @@ mod tests {
         );
         assert_eq!(
             preloads,
-            HashSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+            BTreeSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
         );
     }
 
@@ -1078,7 +1079,7 @@ mod tests {
         );
         assert_eq!(
             preloads,
-            HashSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+            BTreeSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
         );
 
         // (None, no inval)
@@ -1107,7 +1108,7 @@ mod tests {
         );
         assert_eq!(
             preloads,
-            HashSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+            BTreeSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
         );
     }
 
@@ -1240,7 +1241,7 @@ mod tests {
         );
         assert_eq!(
             preloads,
-            HashSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+            BTreeSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
         );
 
         // (no inval, partial)
@@ -1265,7 +1266,7 @@ mod tests {
         );
         assert_eq!(
             preloads,
-            HashSet::from([
+            BTreeSet::from([
                 "klm".to_string(),
                 "nop".to_string(),
                 "foo".to_string(),
@@ -1510,6 +1511,26 @@ mod tests {
         assert_eq!(
             g.uris().collect::<Vec<&str>>(),
             vec!["//foo.bar/0G", "//foo.bar/0K"],
+        );
+        assert!(g.has_uris());
+    }
+
+    #[test]
+    fn uris_with_preloads() {
+        let mut p2_partial_c1 = p2_partial_c1();
+        p2_partial_c1
+            .preload_uris
+            .extend(preload_list(&["abc".to_string(), "def".to_string()]));
+
+        let mut p3_partial_c2 = p3_partial_c2();
+        p3_partial_c2
+            .preload_uris
+            .extend(preload_list(&["foo".to_string(), "bar".to_string()]));
+
+        let g = create_group_for(vec![p2_partial_c1, p3_partial_c2]);
+        assert_eq!(
+            g.uris().collect::<Vec<&str>>(),
+            vec!["//foo.bar/08", "//foo.bar/0C", "abc", "bar", "def", "foo"]
         );
         assert!(g.has_uris());
     }
