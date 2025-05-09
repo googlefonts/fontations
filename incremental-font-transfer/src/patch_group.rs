@@ -5,12 +5,12 @@
 
 use read_fonts::{tables::ift::CompatibilityId, FontRef, ReadError, TableProvider};
 use shared_brotli_patch_decoder::{BuiltInBrotliDecoder, SharedBrotliDecoder};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::{
     font_patch::{IncrementalFontPatchBase, PatchingError},
     patchmap::{
-        intersecting_patches, IftTableTag, IntersectionInfo, PatchFormat, PatchUri,
+        intersecting_patches, IftTableTag, IntersectionInfo, PatchFormat, PatchMapEntry, PatchUri,
         SubsetDefinition,
     },
     uri_templates::UriTemplateError,
@@ -30,7 +30,7 @@ pub struct PatchGroup<'a> {
 
     // These patches aren't compatible, but have been requested as preloads by the
     // patch mapping.
-    preload_patches: Vec<PatchInfo>,
+    preload_uris: HashSet<String>, // TODO XXXX use this
 }
 
 impl PatchGroup<'_> {
@@ -46,7 +46,7 @@ impl PatchGroup<'_> {
             return Ok(PatchGroup {
                 font: ift_font,
                 patches: None,
-                preload_patches: vec![],
+                preload_uris: Default::default(),
             });
         }
 
@@ -58,18 +58,13 @@ impl PatchGroup<'_> {
             return Err(ReadError::ValidationError);
         }
 
-        // TODO XXXX collect up preload uris
-        let uri_candidates: Vec<_> = candidates.into_iter().map(|e| e.uri).collect();
-        let compat_group = Self::select_next_patches_from_candidates(
-            uri_candidates,
-            ift_compat_id,
-            iftx_compat_id,
-        )?;
+        let (compat_group, preload_uris) =
+            Self::select_next_patches_from_candidates(candidates, ift_compat_id, iftx_compat_id)?;
 
         Ok(PatchGroup {
             font: ift_font,
             patches: Some(compat_group),
-            preload_patches: vec![], // TODO XXXX extract and add preload patches here.
+            preload_uris,
         })
     }
 
@@ -143,11 +138,10 @@ impl PatchGroup<'_> {
     }
 
     fn select_next_patches_from_candidates(
-        candidates: Vec<PatchUri>,
+        candidates: Vec<PatchMapEntry>,
         ift_compat_id: Option<CompatibilityId>,
         iftx_compat_id: Option<CompatibilityId>,
-    ) -> Result<CompatibleGroup, ReadError> {
-        // TODO XXXX for this selection ignore preload only patches
+    ) -> Result<(CompatibleGroup, HashSet<String>), ReadError> {
         // Some notes about this implementation:
         // - From candidates we need to form the largest possible group of patches which follow the selection criteria
         //   from: https://w3c.github.io/IFT/Overview.html#extend-font-subset and won't invalidate each other.
@@ -175,15 +169,19 @@ impl PatchGroup<'_> {
         } = GroupingByInvalidation::group_patches(candidates, ift_compat_id, iftx_compat_id)
             .map_err(|_| ReadError::MalformedData("Malformed URI templates."))?;
 
+        let mut combined_preload_uris: HashSet<String> = Default::default();
+
         // Step 2 - now make patch selections in priority order: first full invalidation, second partial, lastly none.
         if let Some(patch) = Self::select_invalidating_candidate(full_invalidation) {
             // TODO(garretrieger): use a heuristic to select the best patch
-            return Ok(CompatibleGroup::Full(patch.into()));
+            combined_preload_uris = patch.preload_uris.iter().cloned().collect();
+            return Ok((CompatibleGroup::Full(patch.into()), combined_preload_uris));
         }
 
         let mut ift_selected_uri: Option<String> = None;
         let ift_scope =
             Self::select_invalidating_candidate(partial_invalidation_ift).map(|patch| {
+                combined_preload_uris.extend(patch.preload_uris.iter().cloned());
                 ift_selected_uri = Some(patch.patch_info.uri.clone());
                 ScopedGroup::PartialInvalidation(patch.into())
             });
@@ -199,6 +197,7 @@ impl PatchGroup<'_> {
             }),
         )
         .map(|patch| {
+            combined_preload_uris.extend(patch.preload_uris.iter().cloned());
             iftx_selected_uri = Some(patch.patch_info.uri.clone());
             ScopedGroup::PartialInvalidation(patch.into())
         });
@@ -207,34 +206,71 @@ impl PatchGroup<'_> {
         if let (Some(uri), None) = (&ift_selected_uri, &iftx_selected_uri) {
             no_invalidation_iftx.remove(uri);
         }
-        if let (None, Some(uri)) = (ift_selected_uri, iftx_selected_uri) {
-            no_invalidation_ift.remove(&uri);
+        if let (None, Some(uri)) = (&ift_selected_uri, &iftx_selected_uri) {
+            no_invalidation_ift.remove(uri);
         }
 
+        let no_invalidation_ift: BTreeMap<String, NoInvalidationPatch> = match ift_selected_uri {
+            None => Self::extract_preloads(no_invalidation_ift, &mut combined_preload_uris),
+            _ => Default::default(),
+        };
+        let mut no_invalidation_iftx: BTreeMap<String, NoInvalidationPatch> =
+            match iftx_selected_uri {
+                None => Self::extract_preloads(no_invalidation_iftx, &mut combined_preload_uris),
+                _ => Default::default(),
+            };
+
         match (ift_scope, iftx_scope) {
-            (Some(scope1), Some(scope2)) => Ok(CompatibleGroup::Mixed {
-                ift: scope1,
-                iftx: scope2,
-            }),
-            (Some(scope1), None) => Ok(CompatibleGroup::Mixed {
-                ift: scope1,
-                iftx: ScopedGroup::NoInvalidation(no_invalidation_iftx),
-            }),
-            (None, Some(scope2)) => Ok(CompatibleGroup::Mixed {
-                ift: ScopedGroup::NoInvalidation(no_invalidation_ift),
-                iftx: scope2,
-            }),
+            (Some(scope1), Some(scope2)) => Ok((
+                CompatibleGroup::Mixed {
+                    ift: scope1,
+                    iftx: scope2,
+                },
+                combined_preload_uris,
+            )),
+            (Some(scope1), None) => Ok((
+                CompatibleGroup::Mixed {
+                    ift: scope1,
+                    iftx: ScopedGroup::NoInvalidation(no_invalidation_iftx),
+                },
+                combined_preload_uris,
+            )),
+            (None, Some(scope2)) => Ok((
+                CompatibleGroup::Mixed {
+                    ift: ScopedGroup::NoInvalidation(no_invalidation_ift),
+                    iftx: scope2,
+                },
+                combined_preload_uris,
+            )),
             (None, None) => {
                 // The two groups can't contain any duplicate URIs so remove all URIs in ift from iftx.
                 for uri in no_invalidation_ift.keys() {
                     no_invalidation_iftx.remove(uri);
                 }
-                Ok(CompatibleGroup::Mixed {
-                    ift: ScopedGroup::NoInvalidation(no_invalidation_ift),
-                    iftx: ScopedGroup::NoInvalidation(no_invalidation_iftx),
-                })
+                Ok((
+                    CompatibleGroup::Mixed {
+                        ift: ScopedGroup::NoInvalidation(no_invalidation_ift),
+                        iftx: ScopedGroup::NoInvalidation(no_invalidation_iftx),
+                    },
+                    combined_preload_uris,
+                ))
             }
         }
+    }
+
+    fn extract_preloads(
+        candidates: BTreeMap<String, CandidateNoInvalidationPatch>,
+        preloads: &mut HashSet<String>,
+    ) -> BTreeMap<String, NoInvalidationPatch> {
+        preloads.extend(
+            candidates
+                .values()
+                .flat_map(|candidate| candidate.preload_uris.iter().cloned()),
+        );
+        candidates
+            .into_iter()
+            .map(|(k, v)| (k, NoInvalidationPatch(v.patch_info)))
+            .collect()
     }
 
     /// Select an entry from a list of candidate invalidating entries according to the specs selection criteria.
@@ -330,43 +366,45 @@ struct GroupingByInvalidation {
     partial_invalidation_ift: Vec<CandidatePatch>,
     partial_invalidation_iftx: Vec<CandidatePatch>,
     // TODO(garretrieger): do we need sorted order, use HashMap instead?
-    no_invalidation_ift: BTreeMap<String, NoInvalidationPatch>,
-    no_invalidation_iftx: BTreeMap<String, NoInvalidationPatch>,
+    no_invalidation_ift: BTreeMap<String, CandidateNoInvalidationPatch>,
+    no_invalidation_iftx: BTreeMap<String, CandidateNoInvalidationPatch>,
 }
 
 impl GroupingByInvalidation {
     fn group_patches(
-        candidates: Vec<PatchUri>,
+        candidates: Vec<PatchMapEntry>,
         ift_compat_id: Option<CompatibilityId>,
         iftx_compat_id: Option<CompatibilityId>,
     ) -> Result<GroupingByInvalidation, UriTemplateError> {
         let mut result: GroupingByInvalidation = Default::default();
 
-        for uri in candidates.into_iter() {
+        for entry in candidates.into_iter() {
             // TODO(garretrieger): for efficiency can we delay uri template resolution until we have actually selected patches?
             // TODO(garretrieger): for btree construction don't recompute the resolved uri, cache inside the patch uri object?
-            match uri.encoding() {
+            match entry.uri.encoding() {
                 PatchFormat::TableKeyed {
                     fully_invalidating: true,
-                } => result.full_invalidation.push(uri.try_into()?),
+                } => result.full_invalidation.push(entry.try_into()?),
                 PatchFormat::TableKeyed {
                     fully_invalidating: false,
                 } => {
-                    if Some(uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
-                        result.partial_invalidation_ift.push(uri.try_into()?)
-                    } else if Some(uri.expected_compatibility_id()) == iftx_compat_id.as_ref() {
-                        result.partial_invalidation_iftx.push(uri.try_into()?)
+                    if Some(entry.uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
+                        result.partial_invalidation_ift.push(entry.try_into()?)
+                    } else if Some(entry.uri.expected_compatibility_id()) == iftx_compat_id.as_ref()
+                    {
+                        result.partial_invalidation_iftx.push(entry.try_into()?)
                     }
                 }
                 PatchFormat::GlyphKeyed => {
-                    if Some(uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
+                    if Some(entry.uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
                         result
                             .no_invalidation_ift
-                            .insert(uri.uri_string()?, NoInvalidationPatch(uri.try_into()?));
-                    } else if Some(uri.expected_compatibility_id()) == iftx_compat_id.as_ref() {
+                            .insert(entry.uri.uri_string()?, entry.try_into()?);
+                    } else if Some(entry.uri.expected_compatibility_id()) == iftx_compat_id.as_ref()
+                    {
                         result
                             .no_invalidation_iftx
-                            .insert(uri.uri_string()?, NoInvalidationPatch(uri.try_into()?));
+                            .insert(entry.uri.uri_string()?, entry.try_into()?);
                     }
                 }
             }
@@ -417,15 +455,35 @@ impl TryFrom<PatchUri> for PatchInfo {
 struct CandidatePatch {
     intersection_info: IntersectionInfo,
     patch_info: PatchInfo,
+    preload_uris: Vec<String>,
 }
 
-impl TryFrom<PatchUri> for CandidatePatch {
+struct CandidateNoInvalidationPatch {
+    patch_info: PatchInfo,
+    preload_uris: Vec<String>,
+}
+
+impl TryFrom<PatchMapEntry> for CandidatePatch {
     type Error = UriTemplateError;
 
-    fn try_from(value: PatchUri) -> Result<Self, Self::Error> {
+    fn try_from(value: PatchMapEntry) -> Result<Self, Self::Error> {
+        let preload_uris = value.preload_uri_strings()?;
         Ok(Self {
-            intersection_info: value.intersection_info(),
-            patch_info: value.try_into()?,
+            intersection_info: value.uri.intersection_info(),
+            patch_info: value.uri.try_into()?,
+            preload_uris: preload_uris,
+        })
+    }
+}
+
+impl TryFrom<PatchMapEntry> for CandidateNoInvalidationPatch {
+    type Error = UriTemplateError;
+
+    fn try_from(value: PatchMapEntry) -> Result<Self, Self::Error> {
+        let preload_uris = value.preload_uri_strings()?;
+        Ok(Self {
+            patch_info: value.uri.try_into()?,
+            preload_uris: preload_uris,
         })
     }
 }
@@ -561,8 +619,8 @@ mod tests {
         CompatibilityId::from_u32s([0, 0, 0, 2])
     }
 
-    fn p1_full() -> PatchUri {
-        PatchUri::from_index(
+    fn p1_full() -> PatchMapEntry {
+        PatchMapEntry::from_uri(PatchUri::from_index(
             "//foo.bar/{id}",
             1,
             IftTableTag::Ift(cid_1()),
@@ -571,11 +629,11 @@ mod tests {
                 fully_invalidating: true,
             },
             Default::default(),
-        )
+        ))
     }
 
-    fn p2_partial_c1() -> PatchUri {
-        PatchUri::from_index(
+    fn p2_partial_c1() -> PatchMapEntry {
+        PatchMapEntry::from_uri(PatchUri::from_index(
             "//foo.bar/{id}",
             2,
             IftTableTag::Ift(cid_1()),
@@ -584,11 +642,11 @@ mod tests {
                 fully_invalidating: false,
             },
             Default::default(),
-        )
+        ))
     }
 
-    fn p2_partial_c2() -> PatchUri {
-        PatchUri::from_index(
+    fn p2_partial_c2() -> PatchMapEntry {
+        PatchMapEntry::from_uri(PatchUri::from_index(
             "//foo.bar/{id}",
             2,
             IftTableTag::Iftx(cid_2()),
@@ -597,22 +655,22 @@ mod tests {
                 fully_invalidating: false,
             },
             Default::default(),
-        )
+        ))
     }
 
-    fn p2_no_c2() -> PatchUri {
-        PatchUri::from_index(
+    fn p2_no_c2() -> PatchMapEntry {
+        PatchMapEntry::from_uri(PatchUri::from_index(
             "//foo.bar/{id}",
             2,
             IftTableTag::Iftx(cid_2()),
             42,
             PatchFormat::GlyphKeyed,
             Default::default(),
-        )
+        ))
     }
 
-    fn p3_partial_c2() -> PatchUri {
-        PatchUri::from_index(
+    fn p3_partial_c2() -> PatchMapEntry {
+        PatchMapEntry::from_uri(PatchUri::from_index(
             "//foo.bar/{id}",
             3,
             IftTableTag::Iftx(cid_2()),
@@ -621,55 +679,55 @@ mod tests {
                 fully_invalidating: false,
             },
             Default::default(),
-        )
+        ))
     }
 
-    fn p3_no_c1() -> PatchUri {
-        PatchUri::from_index(
+    fn p3_no_c1() -> PatchMapEntry {
+        PatchMapEntry::from_uri(PatchUri::from_index(
             "//foo.bar/{id}",
             3,
             IftTableTag::Ift(cid_1()),
             42,
             PatchFormat::GlyphKeyed,
             Default::default(),
-        )
+        ))
     }
 
-    fn p4_no_c1() -> PatchUri {
-        PatchUri::from_index(
+    fn p4_no_c1() -> PatchMapEntry {
+        PatchMapEntry::from_uri(PatchUri::from_index(
             "//foo.bar/{id}",
             4,
             IftTableTag::Ift(cid_1()),
             42,
             PatchFormat::GlyphKeyed,
             Default::default(),
-        )
+        ))
     }
 
-    fn p4_no_c2() -> PatchUri {
-        PatchUri::from_index(
+    fn p4_no_c2() -> PatchMapEntry {
+        PatchMapEntry::from_uri(PatchUri::from_index(
             "//foo.bar/{id}",
             4,
             IftTableTag::Iftx(cid_2()),
             42,
             PatchFormat::GlyphKeyed,
             Default::default(),
-        )
+        ))
     }
 
-    fn p5_no_c2() -> PatchUri {
-        PatchUri::from_index(
+    fn p5_no_c2() -> PatchMapEntry {
+        PatchMapEntry::from_uri(PatchUri::from_index(
             "//foo.bar/{id}",
             5,
             IftTableTag::Iftx(cid_2()),
             42,
             PatchFormat::GlyphKeyed,
             Default::default(),
-        )
+        ))
     }
 
-    fn full(index: u32, codepoints: u64) -> PatchUri {
-        PatchUri::from_index(
+    fn full(index: u32, codepoints: u64) -> PatchMapEntry {
+        PatchMapEntry::from_uri(PatchUri::from_index(
             "//foo.bar/{id}",
             index,
             IftTableTag::Ift(cid_1()),
@@ -678,16 +736,16 @@ mod tests {
                 fully_invalidating: true,
             },
             IntersectionInfo::new(codepoints, 0, 0),
-        )
+        ))
     }
 
-    fn partial(index: u32, compat_id: CompatibilityId, codepoints: u64) -> PatchUri {
+    fn partial(index: u32, compat_id: CompatibilityId, codepoints: u64) -> PatchMapEntry {
         let tag = if compat_id == cid_1() {
             IftTableTag::Ift(compat_id)
         } else {
             IftTableTag::Iftx(compat_id)
         };
-        PatchUri::from_index(
+        PatchMapEntry::from_uri(PatchUri::from_index(
             "//foo.bar/{id}",
             index,
             tag,
@@ -696,7 +754,7 @@ mod tests {
                 fully_invalidating: false,
             },
             IntersectionInfo::new(codepoints, 0, 0),
-        )
+        ))
     }
 
     fn patch_info_ift(uri: &str) -> PatchInfo {
@@ -717,7 +775,7 @@ mod tests {
 
     #[test]
     fn full_invalidation() {
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p1_full()],
             Some(cid_1()),
             Some(cid_2()),
@@ -728,8 +786,9 @@ mod tests {
             group,
             CompatibleGroup::Full(FullInvalidationPatch(patch_info_ift("//foo.bar/04")))
         );
+        assert!(preloads.is_empty());
 
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![
                 p1_full(),
                 p2_partial_c1(),
@@ -746,11 +805,68 @@ mod tests {
             group,
             CompatibleGroup::Full(FullInvalidationPatch(patch_info_ift("//foo.bar/04"),))
         );
+        assert!(preloads.is_empty());
+    }
+
+    fn preload_list(uris: &[String]) -> Vec<PatchUri> {
+        uris.into_iter()
+            .map(|uri| {
+                PatchUri::from_index(
+                    &uri,
+                    0,
+                    IftTableTag::Ift(CompatibilityId::from_u32s([0, 0, 0, 0])),
+                    0,
+                    PatchFormat::GlyphKeyed,
+                    Default::default(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn full_invalidation_with_preloads() {
+        let expected_preloads = ["abc".to_string(), "def".to_string()];
+        let mut p1_full = p1_full();
+        p1_full
+            .preload_uris
+            .extend(preload_list(&expected_preloads));
+
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+            vec![p1_full.clone()],
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Full(FullInvalidationPatch(patch_info_ift("//foo.bar/04")))
+        );
+        assert_eq!(preloads, HashSet::from(expected_preloads.clone()));
+
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+            vec![
+                p1_full,
+                p2_partial_c1(),
+                p3_partial_c2(),
+                p4_no_c1(),
+                p5_no_c2(),
+            ],
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Full(FullInvalidationPatch(patch_info_ift("//foo.bar/04"),))
+        );
+        assert_eq!(preloads, HashSet::from(expected_preloads));
     }
 
     #[test]
     fn full_invalidation_selection_order() {
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![full(3, 9), full(1, 7), full(2, 24)],
             Some(cid_1()),
             Some(cid_2()),
@@ -761,12 +877,13 @@ mod tests {
             group,
             CompatibleGroup::Full(FullInvalidationPatch(patch_info_ift("//foo.bar/08")))
         );
+        assert!(preloads.is_empty());
     }
 
     #[test]
     fn partial_invalidation_selection_order() {
         // Only IFT
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![
                 partial(3, cid_1(), 9),
                 partial(1, cid_1(), 23),
@@ -786,9 +903,10 @@ mod tests {
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::default()),
             }
         );
+        assert!(preloads.is_empty());
 
         // Only IFTX
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![
                 partial(4, cid_2(), 1),
                 partial(5, cid_2(), 22),
@@ -809,9 +927,10 @@ mod tests {
                 ),)),
             }
         );
+        assert!(preloads.is_empty());
 
         // Both
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![
                 partial(3, cid_1(), 9),
                 partial(1, cid_1(), 23),
@@ -836,12 +955,166 @@ mod tests {
                 ),)),
             }
         );
+        assert!(preloads.is_empty());
+    }
+
+    #[test]
+    fn partial_invalidation_with_preloads() {
+        let mut partial_c1 = partial(3, cid_1(), 9);
+        let mut partial_c2 = partial(4, cid_2(), 9);
+
+        let expected_preloads_c1 = ["abc".to_string(), "def".to_string()];
+        partial_c1
+            .preload_uris
+            .extend(preload_list(&expected_preloads_c1));
+
+        let expected_preloads_c2 = ["hij".to_string(), "def".to_string()];
+        partial_c2
+            .preload_uris
+            .extend(preload_list(&expected_preloads_c2));
+
+        // Only IFT
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+            vec![partial_c1.clone()],
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_ift(
+                    "//foo.bar/0C"
+                ),)),
+                iftx: ScopedGroup::NoInvalidation(BTreeMap::default()),
+            }
+        );
+        assert_eq!(preloads, HashSet::from(expected_preloads_c1.clone()));
+
+        // Only IFTX
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+            vec![partial_c2.clone()],
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::NoInvalidation(BTreeMap::default()),
+
+                iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
+                    "//foo.bar/0G"
+                ),)),
+            }
+        );
+        assert_eq!(preloads, HashSet::from(expected_preloads_c2.clone()));
+
+        // Both
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+            vec![partial_c1, partial_c2],
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_ift(
+                    "//foo.bar/0C"
+                ),)),
+                iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
+                    "//foo.bar/0G"
+                ),)),
+            }
+        );
+        assert_eq!(
+            preloads,
+            HashSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+        );
+    }
+
+    #[test]
+    fn no_invalidation_with_preloads() {
+        let expected_preloads_c1 = ["abc".to_string(), "def".to_string()];
+        let expected_preloads_c2 = ["hij".to_string(), "def".to_string()];
+        let mut p4_no_c1 = p4_no_c1();
+        p4_no_c1
+            .preload_uris
+            .extend(preload_list(&expected_preloads_c1));
+
+        let mut p4_no_c2 = p4_no_c2();
+        p4_no_c2
+            .preload_uris
+            .extend(preload_list(&expected_preloads_c1));
+        let mut p5_no_c2 = p5_no_c2();
+        p5_no_c2
+            .preload_uris
+            .extend(preload_list(&expected_preloads_c2));
+
+        // (no inval, no inval)
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+            vec![p4_no_c1, p5_no_c2.clone()],
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
+                    "//foo.bar/0G".to_string(),
+                    NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
+                )])),
+                iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
+                    "//foo.bar/0K".to_string(),
+                    NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
+                )]))
+            }
+        );
+        assert_eq!(
+            preloads,
+            HashSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+        );
+
+        // (None, no inval)
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+            vec![p4_no_c2, p5_no_c2],
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::NoInvalidation(Default::default()),
+                iftx: ScopedGroup::NoInvalidation(BTreeMap::from([
+                    (
+                        "//foo.bar/0K".to_string(),
+                        NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
+                    ),
+                    (
+                        "//foo.bar/0G".to_string(),
+                        NoInvalidationPatch(patch_info_iftx("//foo.bar/0G"))
+                    )
+                ]))
+            }
+        );
+        assert_eq!(
+            preloads,
+            HashSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+        );
     }
 
     #[test]
     fn mixed() {
         // (partial, no inval)
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p4_no_c1(), p5_no_c2()],
             Some(cid_1()),
             Some(cid_2()),
@@ -860,9 +1133,10 @@ mod tests {
                 )]))
             }
         );
+        assert!(preloads.is_empty());
 
         // (no inval, partial)
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p3_partial_c2(), p4_no_c1(), p5_no_c2()],
             Some(cid_1()),
             Some(cid_2()),
@@ -881,9 +1155,10 @@ mod tests {
                 ),))
             }
         );
+        assert!(preloads.is_empty());
 
         // (partial, empty)
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p4_no_c1()],
             Some(cid_1()),
             Some(cid_2()),
@@ -899,9 +1174,10 @@ mod tests {
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::default()),
             }
         );
+        assert!(preloads.is_empty());
 
         // (empty, partial)
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p3_partial_c2(), p5_no_c2()],
             Some(cid_1()),
             Some(cid_2()),
@@ -917,12 +1193,91 @@ mod tests {
                 ),)),
             }
         );
+        assert!(preloads.is_empty());
+    }
+
+    #[test]
+    fn mixed_with_preloads() {
+        let mut p2_partial_c1 = p2_partial_c1();
+        p2_partial_c1
+            .preload_uris
+            .extend(preload_list(&["abc".to_string(), "def".to_string()]));
+
+        let mut p3_partial_c2 = p3_partial_c2();
+        p3_partial_c2
+            .preload_uris
+            .extend(preload_list(&["klm".to_string(), "nop".to_string()]));
+
+        let mut p4_no_c1 = p4_no_c1();
+        p4_no_c1
+            .preload_uris
+            .extend(preload_list(&["foo".to_string(), "bar".to_string()]));
+
+        let mut p5_no_c2 = p5_no_c2();
+        p5_no_c2
+            .preload_uris
+            .extend(preload_list(&["hij".to_string(), "def".to_string()]));
+
+        // (partial, no inval)
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+            vec![p2_partial_c1, p4_no_c1.clone(), p5_no_c2.clone()],
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_ift(
+                    "//foo.bar/08"
+                ),)),
+                iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
+                    "//foo.bar/0K".to_string(),
+                    NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
+                )]))
+            }
+        );
+        assert_eq!(
+            preloads,
+            HashSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+        );
+
+        // (no inval, partial)
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+            vec![p3_partial_c2, p4_no_c1, p5_no_c2],
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
+                    "//foo.bar/0G".to_string(),
+                    NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
+                )])),
+                iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
+                    "//foo.bar/0C"
+                ),))
+            }
+        );
+        assert_eq!(
+            preloads,
+            HashSet::from([
+                "klm".to_string(),
+                "nop".to_string(),
+                "foo".to_string(),
+                "bar".to_string(),
+            ])
+        );
     }
 
     #[test]
     fn missing_compat_ids() {
         // (None, None)
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p4_no_c1(), p5_no_c2()],
             None,
             None,
@@ -936,9 +1291,10 @@ mod tests {
                 iftx: ScopedGroup::NoInvalidation(Default::default()),
             }
         );
+        assert!(preloads.is_empty());
 
         // (Some, None)
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p4_no_c1(), p5_no_c2()],
             Some(cid_1()),
             None,
@@ -954,9 +1310,10 @@ mod tests {
                 iftx: ScopedGroup::NoInvalidation(Default::default()),
             }
         );
+        assert!(preloads.is_empty());
 
         // (None, Some)
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p4_no_c1(), p5_no_c2()],
             None,
             Some(cid_1()),
@@ -972,12 +1329,13 @@ mod tests {
                 ),)),
             }
         );
+        assert!(preloads.is_empty());
     }
 
     #[test]
     fn dedups_uris() {
         // Duplicates inside a scope
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p4_no_c1(), p4_no_c1()],
             Some(cid_1()),
             Some(cid_2()),
@@ -994,9 +1352,10 @@ mod tests {
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::new()),
             }
         );
+        assert!(preloads.is_empty());
 
         // Duplicates across scopes (no invalidation + no invalidation)
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p4_no_c1(), p4_no_c2(), p5_no_c2()],
             Some(cid_1()),
             Some(cid_2()),
@@ -1016,9 +1375,10 @@ mod tests {
                 )])),
             }
         );
+        assert!(preloads.is_empty());
 
         // Duplicates across scopes (partial + partial)
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p2_partial_c2(), p3_partial_c2()],
             Some(cid_1()),
             Some(cid_2()),
@@ -1036,9 +1396,10 @@ mod tests {
                 ))),
             }
         );
+        assert!(preloads.is_empty());
 
         // Duplicates across scopes (partial + no invalidation)
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p2_no_c2(), p5_no_c2()],
             Some(cid_1()),
             Some(cid_2()),
@@ -1057,8 +1418,9 @@ mod tests {
                 )])),
             }
         );
+        assert!(preloads.is_empty());
 
-        let group = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p3_partial_c2(), p3_no_c1(), p4_no_c1()],
             Some(cid_1()),
             Some(cid_2()),
@@ -1077,18 +1439,19 @@ mod tests {
                 ))),
             }
         );
+        assert!(preloads.is_empty());
     }
 
-    fn create_group_for(uris: Vec<PatchUri>) -> PatchGroup<'static> {
+    fn create_group_for(uris: Vec<PatchMapEntry>) -> PatchGroup<'static> {
         let data = FontRef::new(font_test_data::CMAP12_FONT1).unwrap();
-        let group =
+        let (group, preloads) =
             PatchGroup::select_next_patches_from_candidates(uris, Some(cid_1()), Some(cid_2()))
                 .unwrap();
 
         PatchGroup {
             font: data,
             patches: Some(group),
-            preload_patches: vec![],
+            preload_uris: preloads,
         }
     }
 
@@ -1097,7 +1460,7 @@ mod tests {
         PatchGroup {
             font: data,
             patches: None,
-            preload_patches: vec![],
+            preload_uris: Default::default(),
         }
     }
 

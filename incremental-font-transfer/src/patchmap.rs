@@ -868,7 +868,7 @@ impl IftTableTag {
 /// Each entry has a primary URI which is what is loaded and applied when the entry is selected.
 /// Additionally each entry has an optional set of preload URI's which should be preloaded if the
 /// entry is selected
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct PatchMapEntry {
     pub uri: PatchUri,
     pub preload_uris: Vec<PatchUri>,
@@ -880,6 +880,15 @@ impl PatchMapEntry {
             uri,
             preload_uris: vec![],
         }
+    }
+
+    pub fn preload_uri_strings(&self) -> Result<Vec<String>, UriTemplateError> {
+        let mut result: Vec<String> = Default::default();
+        for uri in self.preload_uris.iter() {
+            let uri_string = uri.uri_string()?;
+            result.push(uri_string);
+        }
+        Ok(result)
     }
 }
 
