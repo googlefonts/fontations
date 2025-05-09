@@ -13,7 +13,7 @@ members = [
     "klippa",
     "fuzz",
     "shared-brotli-patch-decoder",
-    "incremental-font-transfer",
+    "incremental-font-transfer", "fontations",
 ]
 
 [workspace.package]
