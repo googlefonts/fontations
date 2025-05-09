@@ -1,0 +1,23 @@
+[package]
+name = "fontations"
+version = "0.1.0"
+description = "Working with font files."
+readme = "README.md"
+categories = ["text-processing", "parsing", "graphics"]
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["std"]
+std = ["read-fonts/std", "skrifa/std", "dep:write-fonts"]
+serde = ["read-fonts/serde", "write-fonts/serde", "font-types/serde"]
+
+[dependencies]
+font-types = { workspace = true, default-features = true }
+read-fonts = { workspace = true, default-features = true }
+skrifa = { workspace = true, default-features = true }
+write-fonts = { workspace = true, optional = true}
+
