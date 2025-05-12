@@ -472,7 +472,7 @@ impl TryFrom<PatchMapEntry> for CandidatePatch {
         Ok(Self {
             intersection_info: value.uri.intersection_info(),
             patch_info: value.uri.try_into()?,
-            preload_uris: preload_uris,
+            preload_uris,
         })
     }
 }
@@ -484,7 +484,7 @@ impl TryFrom<PatchMapEntry> for CandidateNoInvalidationPatch {
         let preload_uris = value.preload_uri_strings()?;
         Ok(Self {
             patch_info: value.uri.try_into()?,
-            preload_uris: preload_uris,
+            preload_uris,
         })
     }
 }
@@ -810,10 +810,10 @@ mod tests {
     }
 
     fn preload_list(uris: &[String]) -> Vec<PatchUri> {
-        uris.into_iter()
+        uris.iter()
             .map(|uri| {
                 PatchUri::from_index(
-                    &uri,
+                    uri,
                     0,
                     IftTableTag::Ift(CompatibilityId::from_u32s([0, 0, 0, 0])),
                     0,

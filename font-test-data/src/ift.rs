@@ -658,7 +658,7 @@ pub fn string_ids_format2_with_preloads() -> BeBuffer {
       // Entry id = {abc, "", defg}
       0b00000100u8,                           // format = ID_DELTA
       (Uint24::new(CONTINUE_MASK | 3)),       // id length 3
-      (Uint24::new(CONTINUE_MASK | 0)),       // id length 0
+      (Uint24::new(CONTINUE_MASK)),           // id length 0
       (Uint24::new(4)),                       // id length 4
 
       // Entry id = defg
