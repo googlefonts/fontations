@@ -86,7 +86,9 @@ fuzz_target!(|input: FuzzInput| {
 
     let subset_definition = input.to_subset_definition();
 
-    let Ok(group) = PatchGroup::select_next_patches(font, &subset_definition) else {
+    // TODO(garretrieger): generate a random patch data map.
+    let Ok(group) = PatchGroup::select_next_patches(font, &Default::default(), &subset_definition)
+    else {
         return;
     };
 
