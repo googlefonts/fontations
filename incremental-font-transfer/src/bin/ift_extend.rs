@@ -55,6 +55,18 @@ struct Args {
     /// --design_space="wght@300,wdth@50:100"
     #[arg(short, long, value_delimiter = ',', num_args = 1..)]
     design_space: Vec<String>,
+
+    /// The maximum number of simulated network round trips allowed during extension.
+    ///
+    /// If the count is exceeded this command will fail and return an error.
+    #[arg(long)]
+    max_round_trips: Option<u32>,
+
+    /// The maximum number of fetches trips allowed during extension.
+    ///
+    /// If the count is exceeded this command will fail and return an error.
+    #[arg(long)]
+    max_fetches: Option<u32>,
     // TODO(garretrieger): add feature tags arguments.
 }
 
@@ -82,33 +94,68 @@ fn main() {
 
     let mut patch_data: HashMap<String, UriStatus> = Default::default();
     let mut it_count = 0;
+
+    // For this a roundtrip is defined as an iteration of the below loop where at least
+    // one new patch URI is needed.
+    let mut round_trip_count = 0;
+    let mut fetch_count = 0;
     loop {
         it_count += 1;
         println!(">> Iteration {}", it_count);
         let font = FontRef::new(&font_bytes).expect("Input font parsing failed");
-        let next_patches = PatchGroup::select_next_patches(font, &subset_definition)
+        let next_patches = PatchGroup::select_next_patches(font, &patch_data, &subset_definition)
             .expect("Patch selection failed");
         if !next_patches.has_uris() {
-            println!("  No outstanding patches, all done.");
+            println!("    No outstanding patches, all done.");
             break;
         }
 
-        println!("  Selected URIs:");
+        let mut fetched = false;
         for uri in next_patches.uris() {
-            println!("    fetching {}", uri);
-            let uri_path = args.font.parent().unwrap().join(uri);
-            let patch_bytes = std::fs::read(uri_path.clone()).unwrap_or_else(|e| {
-                panic!(
-                    "Unable to read patch file ({}): {:?}",
-                    uri_path.display(),
-                    e
-                )
-            });
+            patch_data.entry(uri.to_string()).or_insert_with_key(|key| {
+                let uri_path = args.font.parent().unwrap().join(uri);
+                println!("    Fetching {}", key);
+                fetched = true;
+                fetch_count += 1;
+                if let Some(max_fetch_count) = args.max_fetches {
+                    if fetch_count > max_fetch_count {
+                        panic!(
+                            "Maximum number of fetches ({} > {}) exceeded.",
+                            fetch_count, max_fetch_count
+                        );
+                    }
+                }
 
-            patch_data.insert(uri.to_string(), UriStatus::Pending(patch_bytes));
+                let patch_bytes = std::fs::read(uri_path.clone()).unwrap_or_else(|e| {
+                    panic!(
+                        "Unable to read patch file ({}): {:?}",
+                        uri_path.display(),
+                        e
+                    )
+                });
+
+                UriStatus::Pending(patch_bytes)
+            });
         }
 
-        println!("  Applying patches");
+        if fetched {
+            round_trip_count += 1;
+            if let Some(max_round_trips) = args.max_round_trips {
+                if round_trip_count > max_round_trips {
+                    panic!(
+                        "Maximum number of round trips ({} > {}) exceeded.",
+                        round_trip_count, max_round_trips
+                    );
+                }
+            }
+        }
+
+        if let Some(info) = next_patches.next_invalidating_patch() {
+            println!("    Applying next invalidating patch {}", info.uri());
+        } else {
+            println!("    Applying non invalidating patches");
+        }
+
         font_bytes = next_patches
             .apply_next_patches(&mut patch_data)
             .expect("Patch application failed.");
@@ -116,7 +163,9 @@ fn main() {
 
     println!(">> Extension finished");
     std::fs::write(&args.output, font_bytes).expect("Writing output font failed.");
-    println!(">> Wrote patched font to {}", &args.output.display());
+    println!("    Wrote patched font to {}", &args.output.display());
+    println!("    Total network round trips = {round_trip_count}");
+    println!("    Total fetches = {fetch_count}");
 }
 
 fn parse_unicodes(args: Vec<String>, codepoints: &mut IntSet<u32>) -> Result<(), ParsingError> {
