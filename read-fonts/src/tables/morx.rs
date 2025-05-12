@@ -1,6 +1,6 @@
 //! The [morx (Extended Glyph Metamorphosis)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
 
-use super::aat::{ExtendedStateTable, LookupU16};
+use super::aat::{safe_read_array_to_end, ExtendedStateTable, LookupU16};
 
 include!("../../generated/generated_morx.rs");
 
@@ -174,25 +174,6 @@ impl<'a> FontRead<'a> for InsertionSubtable<'a> {
             glyphs,
         })
     }
-}
-
-/// Reads an array of T from the given FontData, ensuring that the byte length
-/// is a multiple of the size of T.
-///
-/// Many of the `morx` subtables have arrays without associated lengths so we
-/// simply read to the end of the available data. The `FontData::read_array`
-/// method will fail if the byte range provided is not exact so this helper
-/// allows us to force the lengths to an acceptable value.
-fn safe_read_array_to_end<'a, T: bytemuck::AnyBitPattern + FixedSize>(
-    data: &FontData<'a>,
-    offset: usize,
-) -> Result<&'a [T], ReadError> {
-    let len = data
-        .len()
-        .checked_sub(offset)
-        .ok_or(ReadError::OutOfBounds)?;
-    let end = offset + len / T::RAW_BYTE_LEN * T::RAW_BYTE_LEN;
-    data.read_array(offset..end)
 }
 
 #[cfg(feature = "experimental_traverse")]

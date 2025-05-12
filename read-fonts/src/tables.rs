@@ -28,6 +28,7 @@ pub mod head;
 pub mod hhea;
 pub mod hmtx;
 pub mod hvar;
+pub mod kerx;
 pub mod layout;
 pub mod loca;
 pub mod ltag;
