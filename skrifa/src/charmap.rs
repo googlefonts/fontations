@@ -16,7 +16,7 @@
 
 use read_fonts::{
     tables::cmap::{
-        self, Cmap, Cmap12, Cmap12Iter, Cmap12IterLimits, Cmap14, Cmap14Iter, Cmap4, Cmap4Iter,
+        self, Cmap, Cmap12, Cmap12Iter, Cmap14, Cmap14Iter, Cmap4, Cmap4Iter, CmapIterLimits,
         CmapSubtable, EncodingRecord, PlatformId,
     },
     types::GlyphId,
@@ -56,7 +56,7 @@ pub use read_fonts::tables::cmap::MapVariant;
 pub struct Charmap<'a> {
     codepoint_subtable: Option<CodepointSubtable<'a>>,
     variant_subtable: Option<Cmap14<'a>>,
-    cmap12_limits: Cmap12IterLimits,
+    cmap12_limits: CmapIterLimits,
 }
 
 impl<'a> Charmap<'a> {
@@ -149,7 +149,7 @@ pub struct MappingIndex {
     /// Index of Unicode variation selector subtable.
     variant_subtable: Option<u16>,
     /// Limits for iterating a cmap format 12 subtable.
-    cmap12_limits: Cmap12IterLimits,
+    cmap12_limits: CmapIterLimits,
 }
 
 impl MappingIndex {
@@ -188,7 +188,7 @@ impl MappingIndex {
                     CmapSubtable::Format14(cmap14) => Some(cmap14),
                     _ => None,
                 }),
-            cmap12_limits: Cmap12IterLimits::default_for_font(font),
+            cmap12_limits: CmapIterLimits::default_for_font(font),
         }
     }
 }
@@ -395,7 +395,7 @@ impl<'a> MappingSelection<'a> {
                 _ => {}
             }
         }
-        mapping_index.cmap12_limits = Cmap12IterLimits::default_for_font(font);
+        mapping_index.cmap12_limits = CmapIterLimits::default_for_font(font);
         Self {
             mapping_index,
             codepoint_subtable,

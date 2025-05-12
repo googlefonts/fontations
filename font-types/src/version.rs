@@ -61,7 +61,7 @@ impl Version16Dot16 {
     ///
     /// Panics if `minor > 9`.
     pub const fn new(major: u16, minor: u16) -> Self {
-        assert!(minor < 10, "minor version must be in the range [0, 9)");
+        assert!(minor < 10, "minor version must be in the range [0, 9]");
         let version = ((major as u32) << 16) | ((minor as u32) << 12);
         Version16Dot16(version)
     }
@@ -187,5 +187,11 @@ mod tests {
         assert_eq!(Version16Dot16(0x00011000).to_major_minor(), (1, 1));
         assert_eq!(Version16Dot16::new(0, 5).0, 0x00005000);
         assert_eq!(Version16Dot16::new(1, 1).0, 0x00011000);
+    }
+
+    #[test]
+    #[should_panic]
+    fn minor_version_out_of_range_test() {
+        Version16Dot16::new(1, 10);
     }
 }

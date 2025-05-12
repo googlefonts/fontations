@@ -1,5 +1,5 @@
 [![CI Status](https://github.com/googlefonts/fontations/actions/workflows/rust.yml/badge.svg)](https://github.com/googlefonts/fontations/actions/workflows/rust.yml)
-[![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/fontations.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:fontations)
+[![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/fontations.svg)](https://oss-fuzz-build-logs.storage.googleapis.com/index.html#fontations)
 
 
 

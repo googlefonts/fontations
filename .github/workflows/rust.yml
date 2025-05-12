@@ -37,12 +37,21 @@ jobs:
       - uses: actions/checkout@v4
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.75
+      - run: rustup component add clippy
 
-      - name: cargo clippy --all-features
-        run: cargo clippy --all-features --all-targets -- -D warnings
+      - name: cargo clippy font-types (1.75)
+        run: cargo clippy -p font-types --all-features --all-targets -- -D warnings
 
-      - name: cargo clippy --no-default-features
-        run: cargo clippy --all-targets --no-default-features -- -D warnings
+      - name: cargo clippy read-fonts (1.75)
+        run: cargo clippy -p read-fonts --all-features --all-targets -- -D warnings
+
+      - name: cargo clippy write-fonts (1.75)
+        run: cargo clippy -p write-fonts --all-features --all-targets -- -D warnings
+
+      - name: cargo clippy skrifa (1.75)
+        run: cargo clippy -p font-types --all-features --all-targets -- -D warnings
 
   test-stable:
     name: cargo test stable
@@ -117,6 +126,7 @@ jobs:
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: 1.75
           # Use a target without `std` to make sure we don't link to `std`
           target: thumbv7em-none-eabihf
 
@@ -141,6 +151,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           target: wasm32-unknown-unknown
+          toolchain: 1.75
 
       - name: cargo build font-types
         run: cargo build -p font-types --target wasm32-unknown-unknown

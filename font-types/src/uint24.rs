@@ -65,6 +65,7 @@ impl std::fmt::Display for TryFromUint24Error {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for TryFromUint24Error {}
 
 impl TryFrom<usize> for Uint24 {
