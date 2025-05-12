@@ -465,7 +465,7 @@ fn add_intersecting_format2_patches(
                 order,
             );
         }
-        let preload_uris: Vec<PatchUri> = it.map(|uri| uri.clone()).collect();
+        let preload_uris: Vec<PatchUri> = it.cloned().collect();
         patches.push(PatchMapEntry {
             uri: first_uri,
             preload_uris,
