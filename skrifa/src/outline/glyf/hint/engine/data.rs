@@ -8,6 +8,7 @@ use super::{
     super::{math, zone::ZonePointer},
     Engine, OpResult,
 };
+use crate::outline::InterpreterVersion;
 
 impl Engine<'_> {
     /// Get coordinate project in to the projection vector.
@@ -142,11 +143,15 @@ impl Engine<'_> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#measure-point-size>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2623>
     pub(super) fn op_mps(&mut self) -> OpResult {
-        // Note: FreeType computes this at
-        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttdriver.c#L392>
-        // which is mul_div(ppem, 64 * 72, resolution) where resolution
-        // is always 72 for our purposes (Skia), resulting in ppem * 64.
-        self.value_stack.push(self.graphics.ppem * 64)
+        if self.graphics.interpreter_version == InterpreterVersion::_35 {
+            self.value_stack.push(self.graphics.ppem)
+        } else {
+            // Note: FreeType computes this at
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttdriver.c#L392>
+            // which is mul_div(ppem, 64 * 72, resolution) where resolution
+            // is always 72 for our purposes (Skia), resulting in ppem * 64.
+            self.value_stack.push(self.graphics.ppem * 64)
+        }
     }
 }
 

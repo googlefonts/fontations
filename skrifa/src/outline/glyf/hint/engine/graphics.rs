@@ -8,6 +8,7 @@ use super::{
     super::{math, program::Program, round::RoundMode},
     Engine, F26Dot6, HintErrorKind, OpResult, Point,
 };
+use crate::outline::InterpreterVersion;
 
 impl Engine<'_> {
     /// Set vectors to coordinate axis.
@@ -586,7 +587,9 @@ impl Engine<'_> {
             // Allow an exception in the glyph program for selector 3 which can
             // temporarily disable backward compatibility mode.
             (Program::Glyph, 3) => {
-                self.graphics.backward_compatibility = value != 4;
+                if self.graphics.interpreter_version == InterpreterVersion::_40 {
+                    self.graphics.backward_compatibility = value != 4;
+                }
             }
             _ => {}
         }

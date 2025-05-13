@@ -87,6 +87,22 @@ impl From<Engine> for HintingOptions {
     }
 }
 
+/// The TrueType interpreter version.
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
+#[repr(i32)]
+pub enum InterpreterVersion {
+    /// Version 35 corresponds to MS rasterizer v.1.7 as used e.g. in Windows 98;
+    /// only grayscale and B/W rasterizing is supported.
+    _35 = 35,
+    /// Version 40 corresponds to MS rasterizer v.2.1; it is roughly equivalent to
+    /// the hinting provided by DirectWrite ClearType (as can be found, for example,
+    /// in Microsoft's Edge Browser on Windows 10).
+    ///
+    /// This is the value returned by `Default::default`.
+    #[default]
+    _40 = 40,
+}
+
 /// Defines the target settings for hinting.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Target {
@@ -281,23 +297,27 @@ pub struct HintingInstance {
     size: Size,
     coords: Vec<NormalizedCoord>,
     target: Target,
+    interpreter_version: InterpreterVersion,
     kind: HinterKind,
 }
 
 impl HintingInstance {
     /// Creates a new embedded hinting instance for the given outline
-    /// collection, size, location in variation space and hinting mode.
+    /// collection, size, location in variation space, hinting mode and
+    /// interpreter version.
     pub fn new<'a>(
         outline_glyphs: &OutlineGlyphCollection,
         size: Size,
         location: impl Into<LocationRef<'a>>,
         options: impl Into<HintingOptions>,
+        interpreter_version: InterpreterVersion,
     ) -> Result<Self, DrawError> {
         let options = options.into();
         let mut hinter = Self {
             size: Size::unscaled(),
             coords: vec![],
             target: options.target,
+            interpreter_version,
             kind: HinterKind::None,
         };
         hinter.reconfigure(outline_glyphs, size, location, options)?;
@@ -359,6 +379,7 @@ impl HintingInstance {
                         scale,
                         rounded_ppem,
                         self.target,
+                        self.interpreter_version,
                         &self.coords,
                     )?;
                     self.kind = HinterKind::Glyf(hint_instance);
@@ -563,6 +584,7 @@ mod tests {
             Size::new(font_size as f32),
             LocationRef::default(),
             HintingOptions::default(),
+            InterpreterVersion::default(),
         )
         .unwrap();
         let HinterKind::Glyf(tt_hinter) = &hinter.kind else {
@@ -593,8 +615,14 @@ mod tests {
         let gid = font.charmap().map('"').unwrap();
         let size = Size::new(16.0);
         let location = LocationRef::default();
-        let mut hinter =
-            HintingInstance::new(&outlines, size, location, HintingOptions::default()).unwrap();
+        let mut hinter = HintingInstance::new(
+            &outlines,
+            size,
+            location,
+            HintingOptions::default(),
+            InterpreterVersion::default(),
+        )
+        .unwrap();
         let HinterKind::Glyf(tt_hinter) = &mut hinter.kind else {
             panic!("this is definitely a TrueType hinter");
         };
@@ -620,8 +648,14 @@ mod tests {
         let gid = GlyphId::new(1); // was 85 in the original font
         let size = Size::new(24.8);
         let location = LocationRef::default();
-        let hinter =
-            HintingInstance::new(&outlines, size, location, HintingOptions::default()).unwrap();
+        let hinter = HintingInstance::new(
+            &outlines,
+            size,
+            location,
+            HintingOptions::default(),
+            InterpreterVersion::_40,
+        )
+        .unwrap();
         let outline = outlines.get(gid).unwrap();
         let mut pen = SvgPen::new();
         outline.draw(&hinter, &mut pen).unwrap();
