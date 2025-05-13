@@ -88,6 +88,9 @@ impl From<Engine> for HintingOptions {
 }
 
 /// The TrueType interpreter version.
+///
+/// If the `std` feature is enabled, this type should be instantiated with the
+/// [`InterpreterVersion::from_environment`] function.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
 #[repr(i32)]
 pub enum InterpreterVersion {
@@ -101,6 +104,45 @@ pub enum InterpreterVersion {
     /// This is the value returned by `Default::default`.
     #[default]
     _40 = 40,
+}
+
+impl InterpreterVersion {
+    /// Loads the interpreter version from the environment.
+    ///
+    /// The interpreter version is read from the `FREETYPE_PROPERTIES` environment
+    /// variable as described in the [freetype documentation].
+    ///
+    /// [freetype documentation]: https://freetype.org/freetype2/docs/reference/ft2-properties.html#interpreter-version
+    #[cfg(feature = "std")]
+    pub fn from_environment() -> Self {
+        const FREETYPE_PROPERTIES: &str = "FREETYPE_PROPERTIES";
+        const TRUETYPE: &str = "truetype";
+        const INTERPRETER_VERSION: &str = "interpreter-version";
+        let Ok(var) = std::env::var(FREETYPE_PROPERTIES) else {
+            return Self::default();
+        };
+        let mut iv = Self::default();
+        for setting in var.split_ascii_whitespace() {
+            let Some((module, module_setting)) = setting.split_once(':') else {
+                continue;
+            };
+            if module != TRUETYPE {
+                continue;
+            }
+            let Some((property, value)) = module_setting.split_once('=') else {
+                continue;
+            };
+            if property != INTERPRETER_VERSION {
+                continue;
+            }
+            match value {
+                "35" => iv = InterpreterVersion::_35,
+                "40" => iv = InterpreterVersion::_40,
+                _ => {}
+            }
+        }
+        iv
+    }
 }
 
 /// Defines the target settings for hinting.
