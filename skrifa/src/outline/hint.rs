@@ -385,10 +385,15 @@ impl HintingInstance {
     pub fn reconfigure<'a>(
         &mut self,
         outlines: &OutlineGlyphCollection,
-        size: Size,
+        mut size: Size,
         location: impl Into<LocationRef<'a>>,
         options: impl Into<HintingOptions>,
     ) -> Result<(), DrawError> {
+        if self.interpreter_version == InterpreterVersion::_35 {
+            if let Some(ppem) = size.ppem() {
+                size = Size::new(ppem.round());
+            }
+        }
         self.size = size;
         self.coords.clear();
         self.coords
