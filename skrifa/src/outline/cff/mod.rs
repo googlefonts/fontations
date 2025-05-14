@@ -616,6 +616,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{super::pen::SvgPen, *};
+    use crate::outline::InterpreterVersion;
     use crate::{
         outline::{HintingInstance, HintingOptions},
         prelude::{LocationRef, Size},
@@ -735,6 +736,7 @@ mod tests {
             Size::unscaled(),
             LocationRef::default(),
             HintingOptions::default(),
+            InterpreterVersion::default(),
         )
         .unwrap();
         let glyph = glyphs.get(GlyphId::new(1)).unwrap();
