@@ -126,13 +126,14 @@ fn main() {
                     }
                 }
 
-                let patch_bytes = std::fs::read(uri_path.clone()).unwrap_or_else(|e| {
-                    panic!(
+                let patch_bytes = match std::fs::read(uri_path.clone()) {
+                    Result::Ok(bytes) => bytes,
+                    Result::Err(e) => panic!(
                         "Unable to read patch file ({}): {:?}",
                         uri_path.display(),
                         e
-                    )
-                });
+                    ),
+                };
 
                 UriStatus::Pending(patch_bytes)
             });
