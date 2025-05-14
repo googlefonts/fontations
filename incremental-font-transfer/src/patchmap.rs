@@ -685,9 +685,7 @@ fn decode_format2_patch_format(
         return Ok((None, format_data));
     }
 
-    let Some(format_byte) = format_data.first() else {
-        return Err(ReadError::OutOfBounds);
-    };
+    let format_byte = format_data.first().ok_or(ReadError::OutOfBounds)?;
 
     let patch_format = PatchFormat::from_format_number(*format_byte)?;
 

@@ -221,22 +221,20 @@ impl PatchGroup<'_> {
         });
 
         // URI's which have been selected for use above should not show up in other selections.
-        if let (Some(uri), None) = (&ift_selected_uri, &iftx_selected_uri) {
-            no_invalidation_iftx.remove(uri);
-        }
-        if let (None, Some(uri)) = (&ift_selected_uri, &iftx_selected_uri) {
-            no_invalidation_ift.remove(uri);
-        }
+        match (&ift_selected_uri, &iftx_selected_uri) {
+            (Some(uri), None) => no_invalidation_iftx.remove(uri),
+            (None, Some(uri)) => no_invalidation_ift.remove(uri),
+            _ => None,
+        };
 
         let no_invalidation_ift: BTreeMap<String, NoInvalidationPatch> = match ift_selected_uri {
             None => Self::extract_preloads(no_invalidation_ift, &mut combined_preload_uris),
             _ => Default::default(),
         };
-        let mut no_invalidation_iftx: BTreeMap<String, NoInvalidationPatch> =
-            match iftx_selected_uri {
-                None => Self::extract_preloads(no_invalidation_iftx, &mut combined_preload_uris),
-                _ => Default::default(),
-            };
+        let mut no_invalidation_iftx = iftx_selected_uri
+            .is_none()
+            .then(|| Self::extract_preloads(no_invalidation_iftx, &mut combined_preload_uris))
+            .unwrap_or_default();
 
         match (ift_scope, iftx_scope) {
             (Some(scope1), Some(scope2)) => Ok((
