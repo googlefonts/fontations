@@ -1,5 +1,6 @@
 //! Runtime autohinting support.
 
+mod glyf;
 mod hint;
 mod instance;
 mod metrics;
