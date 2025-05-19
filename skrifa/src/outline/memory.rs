@@ -45,7 +45,7 @@ where
     // 1) Ensure we slice the buffer at a position that is properly aligned
     // for T.
     let base_ptr = buf.as_ptr() as usize;
-    let aligned_ptr = align_up(base_ptr, align_of::<T>());
+    let aligned_ptr = align_up(base_ptr, core::mem::align_of::<T>());
     let aligned_offset = aligned_ptr - base_ptr;
     let buf = buf.get_mut(aligned_offset..)?;
     // 2) Ensure we have enough space in the buffer to allocate our slice.

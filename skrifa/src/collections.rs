@@ -75,9 +75,7 @@ where
                 }
                 *len = new_len;
             }
-            Storage::Heap(vec) => {
-                vec.resize(new_len, T::default())
-            }
+            Storage::Heap(vec) => vec.resize(new_len, T::default()),
         }
     }
 
