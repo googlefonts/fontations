@@ -161,21 +161,8 @@ impl Outline {
     pub fn fill(&mut self, glyph: &OutlineGlyph, coords: &[F2Dot14]) -> Result<(), DrawError> {
         use super::super::OutlineKind;
         self.clear();
-        let advance = if let (true, OutlineKind::Glyf(outlines, outline)) = (coords.is_empty(), &glyph.kind) {
-            let advance = self.fill_from_glyf(outlines, outline)?;
-            // let mut new_points = vec![];
-            // for p in self.points.iter() {
-            //     new_points.push((p.fx, p.fy));
-            // }
-            // self.clear();
-            // let advance2 = glyph.draw_unscaled(LocationRef::new(coords), None, self)?;
-            // let mut points = vec![];
-            // for p in self.points.iter() {
-            //     points.push((p.fx, p.fy));
-            // }
-            // let is_same = points == new_points;
-            // println!("advance = {advance}, is_same = {is_same}");
-            advance
+        let advance = if let OutlineKind::Glyf(outlines, outline) = &glyph.kind {
+            self.fill_from_glyf(outlines, outline, coords)?
         } else {
             glyph.draw_unscaled(LocationRef::new(coords), None, self)?
         };
