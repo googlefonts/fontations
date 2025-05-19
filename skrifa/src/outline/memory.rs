@@ -49,7 +49,7 @@ where
     let aligned_offset = aligned_ptr - base_ptr;
     let buf = buf.get_mut(aligned_offset..)?;
     // 2) Ensure we have enough space in the buffer to allocate our slice.
-    let len_in_bytes = len * size_of::<T>();
+    let len_in_bytes = len * core::mem::size_of::<T>();
     if len_in_bytes > buf.len() {
         return None;
     }
