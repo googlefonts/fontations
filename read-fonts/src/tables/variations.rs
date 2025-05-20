@@ -610,6 +610,7 @@ impl<'a> TupleVariationHeaderIter<'a> {
 impl<'a> Iterator for TupleVariationHeaderIter<'a> {
     type Item = Result<TupleVariationHeader<'a>, ReadError>;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         if self.current == self.n_headers {
             return None;
@@ -688,7 +689,7 @@ impl<'a, T> TupleVariationIter<'a, T>
 where
     T: TupleDelta,
 {
-    #[inline(never)]
+    #[inline(always)]
     fn next_tuple(&mut self) -> Option<TupleVariation<'a, T>> {
         if self.parent.tuple_count() == self.current {
             return None;
@@ -717,6 +718,7 @@ where
 {
     type Item = TupleVariation<'a, T>;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         self.next_tuple()
     }
