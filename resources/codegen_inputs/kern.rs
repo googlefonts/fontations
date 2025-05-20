@@ -4,6 +4,8 @@
 #[tag = "kern"]
 table Kern {
     /// Table version number — set to 0.
+    // (Apparently there is also an Apple-specific version 1, which is
+    // completely different. We don't support that here.)
     #[compile(0)]
     version: u16,
     /// Number of subtables in the kerning table
@@ -14,11 +16,17 @@ table Kern {
     subtables: VarLenArray<Kern0>,
 }
 
+/*
+Although in the spec there are two subtable formats, 0 and 2, Windows
+only supports format 0; fontTools does not speak format 2. Format 2 is
+extremely difficult to parse and given that there is apparently no call
+for it, we don't support it as yet. So we don't need subtable switching
+at all.
+*/
 ///// The different kern subtable formats.
 //format u16 KernSubtable {
     //Format0(Kern0),
-    //// Nope.
-    //// Format2(Kern2),
+    // Format2(Kern2),
 //}
 
 /// The `macStyle` field for the head table.
