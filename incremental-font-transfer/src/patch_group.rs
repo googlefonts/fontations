@@ -236,6 +236,17 @@ impl PatchGroup<'_> {
             .then(|| Self::extract_preloads(no_invalidation_iftx, &mut combined_preload_uris))
             .unwrap_or_default();
 
+        // TODO XXXXX remove preloads that are already in a non-preload selection?
+        // TODO XXXXX if multiple entries have the same URI are we correctly marking all entries as applied?
+        //            see: https://w3c.github.io/IFT/Overview.html#remove-entries-format-2
+
+        // TODO XXXXX Have no_invalidation_ift/iftx key include entry order so uri listing order follows the spec
+        //            Since the initial versions of no_invalidation_ift/iftx already dedup uris this is fine.
+        // TODO XXXXX Ensure the lowest entry order version of a uri in the initial versions of no_invalidation_ift/iftx
+        //            is the one that's stored.
+
+        // TODO XXXXX tests of the above cases.
+
         match (ift_scope, iftx_scope) {
             (Some(scope1), Some(scope2)) => Ok((
                 CompatibleGroup::Mixed {

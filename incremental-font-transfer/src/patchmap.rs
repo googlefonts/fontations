@@ -133,7 +133,8 @@ fn add_intersecting_format1_patches(
                             index.into(),
                         )
                     } else {
-                        Default::default()
+                        // For non-invalidating entries we only need to know the order (index here).
+                        IntersectionInfo::from_order(index.into())
                     },
                 )
             })
@@ -464,6 +465,9 @@ fn add_intersecting_format2_patches(
                 e.subset_definition.intersection(subset_definition),
                 order,
             );
+        } else {
+            // non-invalidating entries still require information on entry order so just record that.
+            first_uri.intersection_info.entry_order = order;
         }
         let preload_uris: Vec<PatchUri> = it.cloned().collect();
         patches.push(PatchMapEntry {
@@ -1021,10 +1025,19 @@ impl PatchUri {
 
 impl IntersectionInfo {
     fn from_subset(value: SubsetDefinition, order: usize) -> Self {
-        IntersectionInfo {
+        Self {
             intersecting_codepoints: value.codepoints.len(),
             intersecting_layout_tags: value.feature_tags.len(),
             intersecting_design_space: Self::design_space_size(value.design_space),
+            entry_order: order,
+        }
+    }
+
+    fn from_order(order: usize) -> Self {
+        Self {
+            intersecting_codepoints: 0,
+            intersecting_layout_tags: 0,
+            intersecting_design_space: Default::default(),
             entry_order: order,
         }
     }
@@ -1407,26 +1420,30 @@ mod tests {
     struct ExpectedEntry {
         indices: Vec<u32>,
         application_bit_index: usize,
+        order: usize,
     }
 
     fn f1(index: u32) -> ExpectedEntry {
         ExpectedEntry {
             indices: vec![index],
             application_bit_index: (index as usize) + 36 * 8,
+            order: index as usize,
         }
     }
 
-    fn f2(index: u32, entry_start: usize) -> ExpectedEntry {
+    fn f2(index: u32, entry_start: usize, order: usize) -> ExpectedEntry {
         ExpectedEntry {
             indices: vec![index],
             application_bit_index: entry_start * 8 + 6,
+            order,
         }
     }
 
-    fn f2p(indices: Vec<u32>, entry_start: usize) -> ExpectedEntry {
+    fn f2p(indices: Vec<u32>, entry_start: usize, order: usize) -> ExpectedEntry {
         ExpectedEntry {
             indices,
             application_bit_index: entry_start * 8 + 6,
+            order,
         }
     }
 
@@ -1464,6 +1481,7 @@ mod tests {
                 |ExpectedEntry {
                      indices,
                      application_bit_index,
+                     order,
                  }| {
                     let mut it = indices.iter().map(|i| {
                         PatchUri::from_index(
@@ -1472,7 +1490,7 @@ mod tests {
                             IftTableTag::Ift(compat_id()),
                             *application_bit_index,
                             PatchFormat::GlyphKeyed,
-                            Default::default(),
+                            IntersectionInfo::from_order(*order),
                         )
                     });
                     let mut e = PatchMapEntry::from_uri(it.next().unwrap());
@@ -1506,15 +1524,18 @@ mod tests {
                 |ExpectedEntry {
                      indices,
                      application_bit_index,
+                     order,
                  }| {
-                    let mut it = indices.iter().map(|i| {
+                    let mut it = indices.iter().enumerate().map(|(count, i)| {
+                        // only the first (non preload) url has intersection info.
+                        let order = if count == 0 { *order } else { 0 };
                         PatchUri::from_index(
                             "ABCDEFɤ",
                             *i,
                             IftTableTag::Ift(compat_id()),
                             *application_bit_index,
                             PatchFormat::GlyphKeyed,
-                            Default::default(),
+                            IntersectionInfo::from_order(order),
                         )
                     });
                     let mut e = PatchMapEntry::from_uri(it.next().unwrap());
@@ -2156,9 +2177,9 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let e1 = f2(1, codepoints_only_format2().offset_for("entries[0]"));
-        let e3 = f2(3, codepoints_only_format2().offset_for("entries[2]"));
-        let e4 = f2(4, codepoints_only_format2().offset_for("entries[3]"));
+        let e1 = f2(1, codepoints_only_format2().offset_for("entries[0]"), 0);
+        let e3 = f2(3, codepoints_only_format2().offset_for("entries[2]"), 2);
+        let e4 = f2(4, codepoints_only_format2().offset_for("entries[3]"), 3);
         test_intersection(&font, [], [], []);
         test_intersection(&font, [0x02], [], [e1.clone()]);
         test_intersection(&font, [0x15], [], [e3.clone()]);
@@ -2180,14 +2201,17 @@ mod tests {
         let e1 = f2(
             1,
             features_and_design_space_format2().offset_for("entries[0]"),
+            0,
         );
         let e2 = f2(
             2,
             features_and_design_space_format2().offset_for("entries[1]"),
+            1,
         );
         let e3 = f2(
             3,
             features_and_design_space_format2().offset_for("entries[2]"),
+            2,
         );
 
         test_intersection(&font, [], [], []);
@@ -2313,14 +2337,17 @@ mod tests {
         let e1 = f2(
             1,
             features_and_design_space_format2().offset_for("entries[0]"),
+            0,
         );
         let e2 = f2(
             2,
             features_and_design_space_format2().offset_for("entries[1]"),
+            1,
         );
         let e3 = f2(
             3,
             features_and_design_space_format2().offset_for("entries[2]"),
+            2,
         );
 
         test_design_space_intersection(
@@ -2349,14 +2376,17 @@ mod tests {
         let e1 = f2(
             1,
             features_and_design_space_format2().offset_for("entries[0]"),
+            0,
         );
         let e2 = f2(
             2,
             features_and_design_space_format2().offset_for("entries[1]"),
+            1,
         );
         let e3 = f2(
             3,
             features_and_design_space_format2().offset_for("entries[2]"),
+            2,
         );
 
         test_design_space_intersection(
@@ -2476,12 +2506,12 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let e3 = f2(3, child_indices_format2().offset_for("entries[2]"));
-        let e5 = f2(5, child_indices_format2().offset_for("entries[4]"));
-        let e6 = f2(6, child_indices_format2().offset_for("entries[5]"));
-        let e7 = f2(7, child_indices_format2().offset_for("entries[6]"));
-        let e8 = f2(8, child_indices_format2().offset_for("entries[7]"));
-        let e9 = f2(9, child_indices_format2().offset_for("entries[8]"));
+        let e3 = f2(3, child_indices_format2().offset_for("entries[2]"), 2);
+        let e5 = f2(5, child_indices_format2().offset_for("entries[4]"), 4);
+        let e6 = f2(6, child_indices_format2().offset_for("entries[5]"), 5);
+        let e7 = f2(7, child_indices_format2().offset_for("entries[6]"), 6);
+        let e8 = f2(8, child_indices_format2().offset_for("entries[7]"), 7);
+        let e9 = f2(9, child_indices_format2().offset_for("entries[8]"), 8);
         test_intersection(&font, [], [], []);
         test_intersection(&font, [0x05], [], [e5.clone(), e7.clone(), e8.clone()]);
         test_intersection(&font, [0x65], [], []);
@@ -2531,13 +2561,13 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let e2 = f2(2, child_indices_format2().offset_for("entries[1]"));
-        let e3 = f2(3, child_indices_format2().offset_for("entries[2]"));
-        let e4 = f2(4, child_indices_format2().offset_for("entries[3]"));
-        let e5 = f2(5, child_indices_format2().offset_for("entries[4]"));
-        let e6 = f2(6, child_indices_format2().offset_for("entries[5]"));
-        let e7 = f2(7, child_indices_format2().offset_for("entries[6]"));
-        let e8 = f2(8, child_indices_format2().offset_for("entries[7]"));
+        let e2 = f2(2, child_indices_format2().offset_for("entries[1]"), 1);
+        let e3 = f2(3, child_indices_format2().offset_for("entries[2]"), 2);
+        let e4 = f2(4, child_indices_format2().offset_for("entries[3]"), 3);
+        let e5 = f2(5, child_indices_format2().offset_for("entries[4]"), 4);
+        let e6 = f2(6, child_indices_format2().offset_for("entries[5]"), 5);
+        let e7 = f2(7, child_indices_format2().offset_for("entries[6]"), 6);
+        let e8 = f2(8, child_indices_format2().offset_for("entries[7]"), 7);
         test_intersection(&font, [0x05], [], [e5.clone(), e8.clone()]);
         test_design_space_intersection(
             &font,
@@ -2565,9 +2595,9 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let e0 = f2(0, custom_ids_format2().offset_for("entries[0]"));
-        let e6 = f2(6, custom_ids_format2().offset_for("entries[1]"));
-        let e15 = f2(15, custom_ids_format2().offset_for("entries[3]"));
+        let e0 = f2(0, custom_ids_format2().offset_for("entries[0]"), 0);
+        let e6 = f2(6, custom_ids_format2().offset_for("entries[1]"), 1);
+        let e15 = f2(15, custom_ids_format2().offset_for("entries[3]"), 3);
 
         test_intersection_with_all(&font, [], [e0, e6, e15]);
     }
@@ -2584,18 +2614,22 @@ mod tests {
         let e0 = f2(
             1,
             table_keyed_format2_with_preload_urls().offset_for("entries[0]"),
+            0,
         );
         let e1 = f2p(
             vec![9, 10, 6],
             table_keyed_format2_with_preload_urls().offset_for("entries[1]"),
+            1,
         );
         let e2 = f2p(
             vec![2, 3],
             table_keyed_format2_with_preload_urls().offset_for("entries[2]"),
+            2,
         );
         let e3 = f2(
             4,
             table_keyed_format2_with_preload_urls().offset_for("entries[3]"),
+            3,
         );
 
         test_intersection_with_all(&font, [], [e0, e1, e2, e3]);
