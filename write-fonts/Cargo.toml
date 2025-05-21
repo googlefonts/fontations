@@ -1,6 +1,6 @@
 [package]
 name = "write-fonts"
-version = "0.38.0"
+version = "0.38.1"
 description = "Writing font files."
 readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
