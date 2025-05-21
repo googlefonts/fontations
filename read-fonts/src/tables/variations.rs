@@ -800,13 +800,14 @@ where
             .enumerate()
             .filter(|(_, peak)| peak.get() != F2Dot14::ZERO)
         {
+            let coord = coords.get(i).copied().unwrap_or_default();
+            if coord == F2Dot14::ZERO {
+                return None;
+            }
+            let coord = coord.to_fixed();
             let peak = peak.get().to_fixed();
-            let coord = coords.get(i).copied().unwrap_or_default().to_fixed();
             if peak == coord {
                 continue;
-            }
-            if coord == ZERO {
-                return None;
             }
             if let Some((inter_start, inter_end)) = &intermediate {
                 let start = inter_start.get(i).unwrap_or_default().to_fixed();
