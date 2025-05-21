@@ -139,6 +139,21 @@ impl SingleSubBuilder {
                 .collect(),
         }
     }
+
+    /// Convert this `SingleSubBuilder` into a `LigatureSubBuilder`.
+    ///
+    /// This is used by the fea compiler in some cases to reduce the number
+    /// of generated lookups.
+    pub fn promote_to_ligature_sub(self) -> LigatureSubBuilder {
+        let mut items = BTreeMap::new();
+        for (from, to) in self.items.into_iter() {
+            items
+                .entry(from)
+                .or_insert(Vec::new())
+                .push((Vec::new(), to));
+        }
+        LigatureSubBuilder { items }
+    }
 }
 
 impl Builder for SingleSubBuilder {
