@@ -193,6 +193,7 @@ impl PatchGroup<'_> {
         if let Some(patch) = Self::select_invalidating_candidate(full_invalidation) {
             // TODO(garretrieger): use a heuristic to select the best patch
             combined_preload_uris = patch.preload_uris.iter().cloned().collect();
+            combined_preload_uris.remove(patch.patch_info.uri());
             return Ok((CompatibleGroup::Full(patch.into()), combined_preload_uris));
         }
 
@@ -227,16 +228,32 @@ impl PatchGroup<'_> {
             _ => None,
         };
 
-        let no_invalidation_ift: BTreeMap<String, NoInvalidationPatch> = match ift_selected_uri {
-            None => Self::extract_preloads(no_invalidation_ift, &mut combined_preload_uris),
-            _ => Default::default(),
-        };
+        let no_invalidation_ift: BTreeMap<String, NoInvalidationPatch> = ift_selected_uri
+            .is_none()
+            .then(|| Self::extract_preloads(no_invalidation_ift, &mut combined_preload_uris))
+            .unwrap_or_default();
         let mut no_invalidation_iftx = iftx_selected_uri
             .is_none()
             .then(|| Self::extract_preloads(no_invalidation_iftx, &mut combined_preload_uris))
             .unwrap_or_default();
 
-        // TODO XXXXX remove preloads that are already in a non-preload selection?
+        // Remove any uri's selected above from the preloads
+        if let Some(uri) = ift_selected_uri {
+            combined_preload_uris.remove(&uri);
+        }
+        if let Some(uri) = iftx_selected_uri {
+            combined_preload_uris.remove(&uri);
+        }
+        for (uri, _) in no_invalidation_ift.iter() {
+            combined_preload_uris.remove(uri);
+        }
+        for (uri, _) in no_invalidation_iftx.iter() {
+            combined_preload_uris.remove(uri);
+        }
+
+        // TODO XXXXX refactor - have a helper that forms a single scoped group and then merge together in this method.
+        //            will avoid having to repeat essentially the same code for IFT and IFTX.
+
         // TODO XXXXX if multiple entries have the same URI are we correctly marking all entries as applied?
         //            see: https://w3c.github.io/IFT/Overview.html#remove-entries-format-2
 
@@ -933,6 +950,32 @@ mod tests {
     }
 
     #[test]
+    fn full_invalidation_with_preloads_removes_duplicate_uris() {
+        let expected_preloads = ["abc".to_string(), "def".to_string()];
+        let mut p1_full = p1_full();
+        p1_full
+            .preload_uris
+            .extend(preload_list(&expected_preloads));
+        p1_full
+            .preload_uris
+            .extend(preload_list(&vec!["//foo.bar/04".to_string()]));
+
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+            vec![p1_full.clone()],
+            &Default::default(),
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Full(FullInvalidationPatch(patch_info_ift("//foo.bar/04")))
+        );
+        assert_eq!(preloads, BTreeSet::from(expected_preloads.clone()));
+    }
+
+    #[test]
     fn full_invalidation_selection_order() {
         let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![full(3, 9), full(1, 7), full(2, 24)],
@@ -1173,6 +1216,50 @@ mod tests {
     }
 
     #[test]
+    fn partial_invalidation_with_preloads_removes_duplicates() {
+        let mut partial_c1 = partial(3, cid_1(), 9);
+        let mut partial_c2 = partial(4, cid_2(), 9);
+
+        let expected_preloads_c1 = ["abc".to_string(), "def".to_string()];
+        partial_c1
+            .preload_uris
+            .extend(preload_list(&expected_preloads_c1));
+        partial_c1.preload_uris.extend(preload_list(&vec![
+            "//foo.bar/0C".to_string(),
+            "//foo.bar/0G".to_string(),
+        ]));
+
+        let expected_preloads_c2 = ["hij".to_string(), "def".to_string()];
+        partial_c2
+            .preload_uris
+            .extend(preload_list(&expected_preloads_c2));
+
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+            vec![partial_c1, partial_c2],
+            &Default::default(),
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_ift(
+                    "//foo.bar/0C"
+                ),)),
+                iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
+                    "//foo.bar/0G"
+                ),)),
+            }
+        );
+        assert_eq!(
+            preloads,
+            BTreeSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+        );
+    }
+
+    #[test]
     fn no_invalidation_with_preloads() {
         let expected_preloads_c1 = ["abc".to_string(), "def".to_string()];
         let expected_preloads_c2 = ["hij".to_string(), "def".to_string()];
@@ -1240,6 +1327,52 @@ mod tests {
                         NoInvalidationPatch(patch_info_iftx("//foo.bar/0G"))
                     )
                 ]))
+            }
+        );
+        assert_eq!(
+            preloads,
+            BTreeSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+        );
+    }
+
+    #[test]
+    fn no_invalidation_with_preloads_removes_duplicates() {
+        let expected_preloads_c1 = ["abc".to_string(), "def".to_string()];
+        let expected_preloads_c2 = ["hij".to_string(), "def".to_string()];
+        let mut p4_no_c1 = p4_no_c1();
+        p4_no_c1
+            .preload_uris
+            .extend(preload_list(&expected_preloads_c1));
+
+        let mut p5_no_c2 = p5_no_c2();
+        p5_no_c2
+            .preload_uris
+            .extend(preload_list(&expected_preloads_c2));
+        p5_no_c2.preload_uris.extend(preload_list(&vec![
+            "//foo.bar/0G".to_string(),
+            "//foo.bar/0K".to_string(),
+        ]));
+
+        // (no inval, no inval)
+        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+            vec![p4_no_c1, p5_no_c2.clone()],
+            &Default::default(),
+            Some(cid_1()),
+            Some(cid_2()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            group,
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
+                    "//foo.bar/0G".to_string(),
+                    NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
+                )])),
+                iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
+                    "//foo.bar/0K".to_string(),
+                    NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
+                )]))
             }
         );
         assert_eq!(
