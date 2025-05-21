@@ -787,7 +787,6 @@ where
     /// Returns `None` if this tuple is not applicable at the provided
     /// coordinates (e.g. if the resulting scalar is zero).
     pub fn compute_scalar(&self, coords: &[F2Dot14]) -> Option<Fixed> {
-        const ZERO: Fixed = Fixed::ZERO;
         let mut scalar = Fixed::ONE;
         let peak = self.peak();
         if peak.len() != self.axis_count as usize {
@@ -804,26 +803,31 @@ where
             if coord == F2Dot14::ZERO {
                 return None;
             }
-            let coord = coord.to_fixed();
-            let peak = peak.get().to_fixed();
+            let peak = peak.get();
             if peak == coord {
                 continue;
             }
             if let Some((inter_start, inter_end)) = &intermediate {
-                let start = inter_start.get(i).unwrap_or_default().to_fixed();
-                let end = inter_end.get(i).unwrap_or_default().to_fixed();
+                let start = inter_start.get(i).unwrap_or_default();
+                let end = inter_end.get(i).unwrap_or_default();
                 if coord <= start || coord >= end {
                     return None;
                 }
+                let coord = coord.to_fixed();
+                let peak = peak.to_fixed();
                 if coord < peak {
+                    let start = start.to_fixed();
                     scalar = scalar.mul_div(coord - start, peak - start);
                 } else {
+                    let end = end.to_fixed();
                     scalar = scalar.mul_div(end - coord, end - peak);
                 }
             } else {
-                if coord < peak.min(ZERO) || coord > peak.max(ZERO) {
+                if coord < peak.min(F2Dot14::ZERO) || coord > peak.max(F2Dot14::ZERO) {
                     return None;
                 }
+                let coord = coord.to_fixed();
+                let peak = peak.to_fixed();
                 scalar = scalar.mul_div(coord, peak);
             }
         }
