@@ -36,6 +36,33 @@ pub struct PatchGroup<'a> {
     preload_uris: BTreeSet<String>,
 }
 
+enum Selection {
+    IftPartial,
+    IftxPartial,
+    IftNo,
+    IftxNo,
+    Done,
+}
+
+impl Selection {
+    fn tag_index(&self) -> usize {
+        match self {
+            Self::IftPartial | Self::IftNo => 0,
+            _ => 1,
+        }
+    }
+
+    fn next(self) -> Selection {
+        match self {
+            Self::IftPartial => Self::IftxPartial,
+            Self::IftxPartial => Self::IftNo,
+            Self::IftNo => Self::IftxNo,
+            Self::IftxNo => Self::Done,
+            Self::Done => Self::Done,
+        }
+    }
+}
+
 impl PatchGroup<'_> {
     /// Intersect the available and unapplied patches in ift_font against subset_definition
     ///
@@ -177,8 +204,8 @@ impl PatchGroup<'_> {
             full_invalidation,
             partial_invalidation_ift,
             partial_invalidation_iftx,
-            mut no_invalidation_ift,
-            mut no_invalidation_iftx,
+            no_invalidation_ift,
+            no_invalidation_iftx,
         } = GroupingByInvalidation::group_patches(
             candidates,
             patch_data,
@@ -189,7 +216,7 @@ impl PatchGroup<'_> {
 
         let mut combined_preload_uris: BTreeSet<String> = Default::default();
 
-        // Step 2 - now make patch selections in priority order: first full invalidation, second partial, lastly none.
+        // First check for a full invalidation patch, if one exists it's the only selection possible
         if let Some(patch) = Self::select_invalidating_candidate(full_invalidation) {
             // TODO(garretrieger): use a heuristic to select the best patch
             combined_preload_uris = patch.preload_uris.iter().cloned().collect();
@@ -197,62 +224,65 @@ impl PatchGroup<'_> {
             return Ok((CompatibleGroup::Full(patch.into()), combined_preload_uris));
         }
 
-        let mut ift_selected_uri: Option<String> = None;
-        let ift_scope =
-            Self::select_invalidating_candidate(partial_invalidation_ift).map(|patch| {
-                combined_preload_uris.extend(patch.preload_uris.iter().cloned());
-                ift_selected_uri = Some(patch.patch_info.uri.clone());
-                ScopedGroup::PartialInvalidation(patch.into())
-            });
+        // Otherwise fill in the two possible selections in priority order (as defined by `Selection`):
+        // 1. Partial Invalidating IFT
+        // 2. Partial Invalidating IFTX
+        // 3. Non Invalidating IFT
+        // 4. Non Invalidating IFT
+        // The selections are stored in scoped_groups
+        let mut selection_mode = Selection::IftPartial;
+        let mut scoped_groups: [Option<ScopedGroup>; 2] = [None, None];
 
-        let mut iftx_selected_uri: Option<String> = None;
-        let iftx_scope = Self::select_invalidating_candidate(
-            partial_invalidation_iftx.into_iter().filter(|patch| {
-                // TODO(garretrieger): use a heuristic to select the best patch
-                let Some(selected) = &ift_selected_uri else {
-                    return true;
-                };
-                selected != &patch.patch_info.uri
-            }),
-        )
-        .map(|patch| {
-            combined_preload_uris.extend(patch.preload_uris.iter().cloned());
-            iftx_selected_uri = Some(patch.patch_info.uri.clone());
-            ScopedGroup::PartialInvalidation(patch.into())
-        });
+        let mut partial_invalidation_candidates =
+            [partial_invalidation_ift, partial_invalidation_iftx];
+        let mut no_invalidation_candidates = [no_invalidation_ift, no_invalidation_iftx];
+        let mut selected_uris: BTreeSet<String> = Default::default();
 
-        // URI's which have been selected for use above should not show up in other selections.
-        match (&ift_selected_uri, &iftx_selected_uri) {
-            (Some(uri), None) => no_invalidation_iftx.remove(uri),
-            (None, Some(uri)) => no_invalidation_ift.remove(uri),
-            _ => None,
-        };
+        loop {
+            let tag_index = selection_mode.tag_index();
+            match selection_mode {
+                Selection::IftPartial | Selection::IftxPartial => {
+                    // Select a partial invalidating candidate if possible
+                    let mut candidates: Vec<CandidatePatch> = vec![];
+                    std::mem::swap(
+                        &mut candidates,
+                        &mut partial_invalidation_candidates[tag_index],
+                    );
 
-        let no_invalidation_ift: BTreeMap<String, NoInvalidationPatch> = ift_selected_uri
-            .is_none()
-            .then(|| Self::extract_preloads(no_invalidation_ift, &mut combined_preload_uris))
-            .unwrap_or_default();
-        let mut no_invalidation_iftx = iftx_selected_uri
-            .is_none()
-            .then(|| Self::extract_preloads(no_invalidation_iftx, &mut combined_preload_uris))
-            .unwrap_or_default();
+                    scoped_groups[tag_index] = Self::select_invalidating_candidate(
+                        candidates
+                            .into_iter()
+                            .filter(|c| !selected_uris.contains(c.patch_info.uri())),
+                    )
+                    .map(|patch| {
+                        combined_preload_uris.extend(patch.preload_uris.iter().cloned());
+                        selected_uris.insert(patch.patch_info.uri.clone());
+                        ScopedGroup::PartialInvalidation(patch.into())
+                    })
+                }
+                Selection::IftNo | Selection::IftxNo => {
+                    if scoped_groups[tag_index].is_none() {
+                        let mut candidates: BTreeMap<String, CandidateNoInvalidationPatch> =
+                            Default::default();
+                        std::mem::swap(&mut candidates, &mut no_invalidation_candidates[tag_index]);
+
+                        scoped_groups[tag_index] = Some(ScopedGroup::NoInvalidation(
+                            Self::filter_and_extract_preloads(
+                                candidates,
+                                &mut selected_uris,
+                                &mut combined_preload_uris,
+                            ),
+                        ))
+                    }
+                }
+                Selection::Done => break,
+            };
+
+            selection_mode = selection_mode.next();
+        }
 
         // Remove any uri's selected above from the preloads
-        if let Some(uri) = ift_selected_uri {
-            combined_preload_uris.remove(&uri);
-        }
-        if let Some(uri) = iftx_selected_uri {
-            combined_preload_uris.remove(&uri);
-        }
-        for (uri, _) in no_invalidation_ift.iter() {
-            combined_preload_uris.remove(uri);
-        }
-        for (uri, _) in no_invalidation_iftx.iter() {
-            combined_preload_uris.remove(uri);
-        }
-
-        // TODO XXXXX refactor - have a helper that forms a single scoped group and then merge together in this method.
-        //            will avoid having to repeat essentially the same code for IFT and IFTX.
+        combined_preload_uris.retain(|uri| !selected_uris.contains(uri));
 
         // TODO XXXXX if multiple entries have the same URI are we correctly marking all entries as applied?
         //            see: https://w3c.github.io/IFT/Overview.html#remove-entries-format-2
@@ -264,46 +294,18 @@ impl PatchGroup<'_> {
 
         // TODO XXXXX tests of the above cases.
 
-        match (ift_scope, iftx_scope) {
-            (Some(scope1), Some(scope2)) => Ok((
-                CompatibleGroup::Mixed {
-                    ift: scope1,
-                    iftx: scope2,
-                },
-                combined_preload_uris,
-            )),
-            (Some(scope1), None) => Ok((
-                CompatibleGroup::Mixed {
-                    ift: scope1,
-                    iftx: ScopedGroup::NoInvalidation(no_invalidation_iftx),
-                },
-                combined_preload_uris,
-            )),
-            (None, Some(scope2)) => Ok((
-                CompatibleGroup::Mixed {
-                    ift: ScopedGroup::NoInvalidation(no_invalidation_ift),
-                    iftx: scope2,
-                },
-                combined_preload_uris,
-            )),
-            (None, None) => {
-                // The two groups can't contain any duplicate URIs so remove all URIs in ift from iftx.
-                for uri in no_invalidation_ift.keys() {
-                    no_invalidation_iftx.remove(uri);
-                }
-                Ok((
-                    CompatibleGroup::Mixed {
-                        ift: ScopedGroup::NoInvalidation(no_invalidation_ift),
-                        iftx: ScopedGroup::NoInvalidation(no_invalidation_iftx),
-                    },
-                    combined_preload_uris,
-                ))
-            }
-        }
+        let [Some(ift), Some(iftx)] = scoped_groups else {
+            return Err(ReadError::MalformedData(
+                "Failed invariant. Both arms of the mixed compat group should always be filled.",
+            ));
+        };
+
+        Ok((CompatibleGroup::Mixed { ift, iftx }, combined_preload_uris))
     }
 
-    fn extract_preloads(
+    fn filter_and_extract_preloads(
         candidates: BTreeMap<String, CandidateNoInvalidationPatch>,
+        previously_selected_uris: &mut BTreeSet<String>,
         preloads: &mut BTreeSet<String>,
     ) -> BTreeMap<String, NoInvalidationPatch> {
         preloads.extend(
@@ -311,10 +313,17 @@ impl PatchGroup<'_> {
                 .values()
                 .flat_map(|candidate| candidate.preload_uris.iter().cloned()),
         );
-        candidates
+        let filtered: BTreeMap<String, NoInvalidationPatch> = candidates
             .into_iter()
+            .filter(|(k, _)| !previously_selected_uris.contains(k))
             .map(|(k, v)| (k, NoInvalidationPatch(v.patch_info)))
-            .collect()
+            .collect();
+
+        for (uri, _) in filtered.iter() {
+            previously_selected_uris.insert(uri.clone());
+        }
+
+        filtered
     }
 
     /// Select an entry from a list of candidate invalidating entries according to the specs selection criteria.
@@ -958,7 +967,7 @@ mod tests {
             .extend(preload_list(&expected_preloads));
         p1_full
             .preload_uris
-            .extend(preload_list(&vec!["//foo.bar/04".to_string()]));
+            .extend(preload_list(&["//foo.bar/04".to_string()]));
 
         let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p1_full.clone()],
@@ -1224,7 +1233,7 @@ mod tests {
         partial_c1
             .preload_uris
             .extend(preload_list(&expected_preloads_c1));
-        partial_c1.preload_uris.extend(preload_list(&vec![
+        partial_c1.preload_uris.extend(preload_list(&[
             "//foo.bar/0C".to_string(),
             "//foo.bar/0G".to_string(),
         ]));
@@ -1348,7 +1357,7 @@ mod tests {
         p5_no_c2
             .preload_uris
             .extend(preload_list(&expected_preloads_c2));
-        p5_no_c2.preload_uris.extend(preload_list(&vec![
+        p5_no_c2.preload_uris.extend(preload_list(&[
             "//foo.bar/0G".to_string(),
             "//foo.bar/0K".to_string(),
         ]));
