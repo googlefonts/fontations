@@ -228,7 +228,10 @@ mod tests {
         codepoints_only_format2, glyf_u16_glyph_patches, glyph_keyed_patch_header,
         table_keyed_patch,
     };
-    use read_fonts::tables::ift::{CompatibilityId, IFTX_TAG, IFT_TAG};
+    use read_fonts::{
+        collections::IntSet,
+        tables::ift::{CompatibilityId, IFTX_TAG, IFT_TAG},
+    };
     use shared_brotli_patch_decoder::BuiltInBrotliDecoder;
 
     use crate::{
@@ -248,17 +251,19 @@ mod tests {
 
     #[test]
     fn table_keyed_patch_and_font_compat_id_mismatch() {
-        let info: PatchInfo = PatchUri::from_index(
-            "foo.bar/{id}",
-            0,
-            IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
-            0,
-            TableKeyed {
-                fully_invalidating: false,
-            },
-            Default::default(),
+        let info: PatchInfo = PatchInfo::from_uri(
+            PatchUri::from_index(
+                "foo.bar/{id}",
+                0,
+                IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
+                0,
+                TableKeyed {
+                    fully_invalidating: false,
+                },
+                Default::default(),
+            ),
+            IntSet::<u32>::empty(),
         )
-        .try_into()
         .unwrap();
 
         let ift_table = codepoints_only_format2();
@@ -285,17 +290,19 @@ mod tests {
 
     #[test]
     fn table_keyed_patch_info_and_font_compat_id_mismatch() {
-        let info: PatchInfo = PatchUri::from_index(
-            "foo.bar/{id}",
-            0,
-            IftTableTag::Ift(CompatibilityId::from_u32s([2, 2, 3, 4])),
-            0,
-            TableKeyed {
-                fully_invalidating: false,
-            },
-            Default::default(),
+        let info: PatchInfo = PatchInfo::from_uri(
+            PatchUri::from_index(
+                "foo.bar/{id}",
+                0,
+                IftTableTag::Ift(CompatibilityId::from_u32s([2, 2, 3, 4])),
+                0,
+                TableKeyed {
+                    fully_invalidating: false,
+                },
+                Default::default(),
+            ),
+            IntSet::<u32>::empty(),
         )
-        .try_into()
         .unwrap();
 
         let ift_table = codepoints_only_format2();
@@ -315,15 +322,17 @@ mod tests {
 
     #[test]
     fn glyph_keyed_patch_and_font_compat_id_mismatch() {
-        let info: PatchInfo = PatchUri::from_index(
-            "foo.bar/{id}",
-            0,
-            IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
-            0,
-            GlyphKeyed,
-            Default::default(),
+        let info: PatchInfo = PatchInfo::from_uri(
+            PatchUri::from_index(
+                "foo.bar/{id}",
+                0,
+                IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
+                0,
+                GlyphKeyed,
+                Default::default(),
+            ),
+            IntSet::<u32>::empty(),
         )
-        .try_into()
         .unwrap();
 
         let ift_table = codepoints_only_format2();
@@ -346,15 +355,17 @@ mod tests {
 
     #[test]
     fn glyph_keyed_patch_info_and_font_compat_id_mismatch() {
-        let info: PatchInfo = PatchUri::from_index(
-            "foo.bar/{id}",
-            0,
-            IftTableTag::Ift(CompatibilityId::from_u32s([6, 7, 9, 9])),
-            0,
-            GlyphKeyed,
-            Default::default(),
+        let info: PatchInfo = PatchInfo::from_uri(
+            PatchUri::from_index(
+                "foo.bar/{id}",
+                0,
+                IftTableTag::Ift(CompatibilityId::from_u32s([6, 7, 9, 9])),
+                0,
+                GlyphKeyed,
+                Default::default(),
+            ),
+            IntSet::<u32>::empty(),
         )
-        .try_into()
         .unwrap();
 
         let mut ift_table = codepoints_only_format2();

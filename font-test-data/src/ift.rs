@@ -699,7 +699,7 @@ pub fn table_keyed_format2() -> BeBuffer {
       {4u32: "compat_id[3]"},
 
       {1u8: "encoding"},  // default patch encoding
-      (Uint24::new(1)),   // entry count
+      {(Uint24::new(1)): "entry_count"},   // entry count
       {0u32: "entries_offset"},
       0u32,               // entry string data offset
 
@@ -710,9 +710,10 @@ pub fn table_keyed_format2() -> BeBuffer {
 
       /* ### Entries Array ### */
       // Entry id = 1
-      {0b00010100u8: "entries"},              // format = CODEPOINT_BIT_1
+      {0b00100100u8: "entries"},              // format = CODEPOINT_BIT_2
       {(Int24::new(0)): "id_delta"},
-      [0b00001101, 0b00000011, 0b00110001u8] // codepoints = [0..17]
+      {0u16: "bias"},                         // bias = 0
+      [0b00001101, 0b00000011, 0b00110001u8]  // codepoints = [0..17]
     };
 
     let offset = buffer.offset_for("entries") as u32;

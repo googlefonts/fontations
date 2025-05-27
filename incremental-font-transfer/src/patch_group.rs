@@ -3,7 +3,9 @@
 //! This provides methods for selecting a maximal group of patches that are compatible with each other and
 //! additionally methods for applying that group of patches.
 
-use read_fonts::{tables::ift::CompatibilityId, FontRef, ReadError, TableProvider};
+use read_fonts::{
+    collections::IntSet, tables::ift::CompatibilityId, FontRef, ReadError, TableProvider,
+};
 use shared_brotli_patch_decoder::{BuiltInBrotliDecoder, SharedBrotliDecoder};
 use std::{
     cmp::Ordering,
@@ -484,7 +486,7 @@ pub enum UriStatus {
 pub struct PatchInfo {
     uri: String,
     source_table: IftTableTag,
-    application_flag_bit_index: usize,
+    application_flag_bit_indices: IntSet<u32>,
 }
 
 impl PatchInfo {
@@ -492,22 +494,21 @@ impl PatchInfo {
         &self.source_table
     }
 
-    pub(crate) fn application_flag_bit_index(&self) -> usize {
-        self.application_flag_bit_index
+    pub(crate) fn application_flag_bit_indices(&self) -> impl Iterator<Item = u32> + '_ {
+        self.application_flag_bit_indices.iter()
     }
 
     pub fn uri(&self) -> &str {
         &self.uri
     }
-}
 
-impl TryFrom<PatchUri> for PatchInfo {
-    type Error = UriTemplateError;
-
-    fn try_from(value: PatchUri) -> Result<Self, Self::Error> {
-        Ok(PatchInfo {
+    pub fn from_uri(
+        value: PatchUri,
+        application_flag_bit_indices: IntSet<u32>,
+    ) -> Result<Self, UriTemplateError> {
+        Ok(Self {
             uri: value.uri_string()?,
-            application_flag_bit_index: value.application_flag_bit_index(),
+            application_flag_bit_indices,
             source_table: value.source_table(),
         })
     }
@@ -534,7 +535,7 @@ impl CandidatePatch {
     ) -> Result<CandidatePatch, UriTemplateError> {
         let preload_uris = value.preload_uri_strings()?;
         let intersection_info = value.uri.intersection_info();
-        let patch_info: PatchInfo = value.uri.try_into()?;
+        let patch_info = PatchInfo::from_uri(value.uri, value.application_bit_indices)?;
         let already_loaded = patch_data.contains_key(patch_info.uri());
         Ok(Self {
             intersection_info,
@@ -572,7 +573,7 @@ impl TryFrom<PatchMapEntry> for CandidateNoInvalidationPatch {
     fn try_from(value: PatchMapEntry) -> Result<Self, Self::Error> {
         let preload_uris = value.preload_uri_strings()?;
         Ok(Self {
-            patch_info: value.uri.try_into()?,
+            patch_info: PatchInfo::from_uri(value.uri, value.application_bit_indices)?,
             preload_uris,
         })
     }
@@ -672,7 +673,7 @@ mod tests {
         },
     };
 
-    use font_types::{Int24, Tag};
+    use font_types::{Int24, Tag, Uint24};
 
     use read_fonts::{
         tables::ift::{IFTX_TAG, IFT_TAG},
@@ -848,17 +849,21 @@ mod tests {
     }
 
     fn patch_info_ift(uri: &str) -> PatchInfo {
+        let mut application_flag_bit_indices = IntSet::<u32>::empty();
+        application_flag_bit_indices.insert(42);
         PatchInfo {
             uri: uri.to_string(),
-            application_flag_bit_index: 42,
+            application_flag_bit_indices,
             source_table: IftTableTag::Ift(cid_1()),
         }
     }
 
     fn patch_info_iftx(uri: &str) -> PatchInfo {
+        let mut application_flag_bit_indices = IntSet::<u32>::empty();
+        application_flag_bit_indices.insert(42);
         PatchInfo {
             uri: uri.to_string(),
-            application_flag_bit_index: 42,
+            application_flag_bit_indices,
             source_table: IftTableTag::Iftx(cid_2()),
         }
     }
@@ -2206,6 +2211,102 @@ mod tests {
         // there should be no more applicable patches left now.
         let g = PatchGroup::select_next_patches(new_font, &Default::default(), &s).unwrap();
         assert!(!g.has_uris());
+    }
+
+    #[test]
+    fn apply_patches_no_invalidation_duplicate_uris() {
+        // Two types of duplicate uri situations
+        // 1. Same mapping table has duplicte uris. All should be marked applied.
+        // 2. Different mapping table has duplicate uris. These will not be marked as applied.
+        let mut ift_builder = table_keyed_format2();
+        ift_builder.write_at("encoding", 3u8);
+        ift_builder.write_at("compat_id[0]", 6u32);
+        ift_builder.write_at("compat_id[1]", 7u32);
+        ift_builder.write_at("compat_id[2]", 8u32);
+        ift_builder.write_at("compat_id[3]", 9u32);
+        ift_builder.write_at("entry_count", Uint24::new(2));
+
+        let ift_builder = ift_builder
+            .push(0b00100100u8) // format
+            .push(Int24::new(-2)) // id delta
+            .push(100u16) // bias
+            // codpeoints {100..117}
+            .extend([0b00001101, 0b00000011, 0b00110001u8]);
+
+        let mut iftx_builder = table_keyed_format2();
+        iftx_builder.write_at("encoding", 3u8);
+        iftx_builder.write_at("compat_id[0]", 0u32);
+        iftx_builder.write_at("compat_id[1]", 0u32);
+        iftx_builder.write_at("compat_id[2]", 0u32);
+        iftx_builder.write_at("compat_id[3]", 2u32);
+        iftx_builder.write_at("bias", 100u16);
+
+        // Total mapping is:
+        // IFT:
+        // {0..17} -> foo/04
+        // {100..117} -> foo/04
+        // IFTX:
+        // {100..117} -> foo/04
+
+        let font = test_font_for_patching_with_loca_mod(
+            true,
+            |_| {},
+            HashMap::from([
+                (IFT_TAG, ift_builder.as_slice()),
+                (IFTX_TAG, iftx_builder.as_slice()),
+            ]),
+        );
+
+        let font = FontRef::new(font.as_slice()).unwrap();
+
+        let s = SubsetDefinition::codepoints([5].into_iter().collect());
+        let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
+
+        let patch =
+            assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
+
+        let mut patch_data = HashMap::from([(
+            "foo/04".to_string(),
+            UriStatus::Pending(patch.as_slice().to_vec()),
+        )]);
+
+        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
+        let new_font = FontRef::new(&new_font).unwrap();
+
+        let new_glyf: &[u8] = new_font.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
+        assert_eq!(
+            &[
+                1, 2, 3, 4, 5, 0, // gid 0
+                6, 7, 8, 0, // gid 1
+                b'a', b'b', b'c', 0, // gid2
+                b'd', b'e', b'f', b'g', // gid 7
+                b'h', b'i', b'j', b'k', b'l', 0, // gid 8 + 9
+                b'm', b'n', // gid 13
+            ],
+            new_glyf
+        );
+
+        assert_eq!(
+            patch_data,
+            HashMap::from([("foo/04".to_string(), UriStatus::Applied,),])
+        );
+
+        // there should be one IFTX patch for foo/04 left now.
+        let all = SubsetDefinition::all();
+        let group = PatchGroup::select_next_patches(new_font, &Default::default(), &all).unwrap();
+        let mut info = patch_info_iftx("foo/04");
+        info.application_flag_bit_indices.clear();
+        info.application_flag_bit_indices.insert(350);
+        assert_eq!(
+            group.patches.unwrap(),
+            CompatibleGroup::Mixed {
+                ift: ScopedGroup::NoInvalidation(Default::default()),
+                iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
+                    "foo/04".to_string(),
+                    NoInvalidationPatch(info)
+                )])),
+            }
+        );
     }
 
     #[test]
