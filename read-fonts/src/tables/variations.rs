@@ -1133,6 +1133,7 @@ fn read_sparse_deltas(
 ///
 /// Returns `None` if this tuple is not applicable at the provided
 /// coordinates (e.g. if the resulting scalar is zero).
+#[inline(always)]
 fn compute_scalar<'a>(
     header: &TupleVariationHeader,
     axis_count: usize,
