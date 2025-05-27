@@ -131,7 +131,7 @@ pub struct LocalizedString<'a> {
 }
 
 impl<'a> LocalizedString<'a> {
-    fn new(name: &Name<'a>, record: &NameRecord) -> Self {
+    pub fn new(name: &Name<'a>, record: &NameRecord) -> Self {
         let language = Language::new(name, record);
         let value = record.string(name.string_data()).ok();
         Self { language, value }
