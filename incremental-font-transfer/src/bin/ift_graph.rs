@@ -198,7 +198,7 @@ fn to_next_font(
     let patch_bytes = std::fs::read(&path)
         .unwrap_or_else(|e| panic!("Unable to read patch file ({}): {:?}", path.display(), e));
 
-    let patch_info: PatchInfo = patch_uri.try_into()?;
+    let patch_info: PatchInfo = PatchInfo::from_uri(patch_uri, Default::default())?;
 
     Ok(font
         .apply_table_keyed_patch(&patch_info, &patch_bytes, &BuiltInBrotliDecoder)

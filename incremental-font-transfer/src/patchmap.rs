@@ -140,6 +140,7 @@ fn add_intersecting_format1_patches(
             })
             .map(PatchMapEntry::from_uri),
     );
+
     Ok(())
 }
 
@@ -441,6 +442,9 @@ fn add_intersecting_format2_patches(
         cache: Default::default(),
     };
 
+    let mut application_bit_indices: HashMap<PatchId, IntSet<u32>> = Default::default();
+    let new_patches_first_index = patches.len();
+
     for (order, e) in entries.iter().enumerate() {
         if e.ignored {
             continue;
@@ -470,10 +474,47 @@ fn add_intersecting_format2_patches(
             first_uri.intersection_info.entry_order = order;
         }
         let preload_uris: Vec<PatchUri> = it.cloned().collect();
+        let patch_id = first_uri.id.clone();
+        let application_bit_index = first_uri.application_flag_bit_index as u32;
         patches.push(PatchMapEntry {
             uri: first_uri,
             preload_uris,
+            application_bit_indices: IntSet::<u32>::empty(),
         });
+
+        application_bit_indices
+            .entry(patch_id)
+            .or_default()
+            .insert(application_bit_index);
+    }
+
+    // In format 2 there may be non intersected entries that have urls
+    // that are the same as other intersected entries. We need to record
+    // the application bit indices for these
+    //
+    // So reloop through all decoded entries and collect the indices for
+    // any which match an intersected entry.
+    for e in entries.iter().filter(|e| !e.ignored) {
+        let Some(first_uri) = e.uris.first() else {
+            continue;
+        };
+
+        let key = first_uri.id.clone();
+        application_bit_indices.entry(key).and_modify(|indices| {
+            indices.insert(first_uri.application_flag_bit_index as u32);
+        });
+    }
+
+    // Lastly copy the aggregated application bit indices back into
+    // the individual patch map entries.
+    if patches.len() > new_patches_first_index {
+        for p in patches[new_patches_first_index..].iter_mut() {
+            let id = p.uri.id.clone();
+            p.application_bit_indices = application_bit_indices
+                .get(&id)
+                .cloned()
+                .unwrap_or_default();
+        }
     }
 
     Ok(())
@@ -874,13 +915,17 @@ impl IftTableTag {
 pub struct PatchMapEntry {
     pub uri: PatchUri,
     pub preload_uris: Vec<PatchUri>,
+    pub application_bit_indices: IntSet<u32>,
 }
 
 impl PatchMapEntry {
-    pub fn from_uri(uri: PatchUri) -> Self {
+    pub(crate) fn from_uri(uri: PatchUri) -> Self {
+        let mut indices = IntSet::<u32>::empty();
+        indices.insert(uri.application_flag_bit_index as u32);
         PatchMapEntry {
             uri,
             preload_uris: vec![],
+            application_bit_indices: indices,
         }
     }
 
@@ -988,12 +1033,8 @@ impl PatchUri {
         self.intersection_info.clone()
     }
 
-    pub(crate) fn source_table(self) -> IftTableTag {
-        self.source_table
-    }
-
-    pub(crate) fn application_flag_bit_index(&self) -> usize {
-        self.application_flag_bit_index
+    pub(crate) fn source_table(&self) -> IftTableTag {
+        self.source_table.clone()
     }
 
     pub fn encoding(&self) -> PatchFormat {
@@ -2406,6 +2447,9 @@ mod tests {
         );
     }
 
+    // TODO XXXXXXX format 2 test which has duplicated uris and verifies the
+    // application bits are correctly aggreegated
+
     #[test]
     fn format_2_patch_map_intersection_info() {
         let mut map = features_and_design_space_format2();
@@ -2490,10 +2534,9 @@ mod tests {
             intersecting_patches(
                 &font,
                 &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
-            ),
-            Err(ReadError::MalformedData(
-                "Child index must refer to only prior entries."
-            ))
+            )
+            .unwrap_err(),
+            ReadError::MalformedData("Child index must refer to only prior entries.")
         );
     }
 

@@ -172,12 +172,15 @@ pub(crate) fn apply_glyph_keyed_patches<D: SharedBrotliDecoder>(
             IftTableTag::Ift(_) => new_itf_data.as_mut().ok_or(PatchingError::InternalError)?,
             IftTableTag::Iftx(_) => new_itfx_data.as_mut().ok_or(PatchingError::InternalError)?,
         };
-        let byte_index = info.application_flag_bit_index() / 8;
-        let bit_index = (info.application_flag_bit_index() % 8) as u8;
-        let byte = data
-            .get_mut(byte_index)
-            .ok_or(PatchingError::InternalError)?;
-        *byte |= 1 << bit_index;
+
+        for bit_index in info.application_flag_bit_indices() {
+            let byte_index = (bit_index as usize) / 8;
+            let bit_index = (bit_index as usize % 8) as u8;
+            let byte = data
+                .get_mut(byte_index)
+                .ok_or(PatchingError::InternalError)?;
+            *byte |= 1 << bit_index;
+        }
     }
 
     if let Some(data) = new_itf_data {
@@ -1096,6 +1099,7 @@ pub(crate) mod tests {
 
     use brotlic::CompressorWriter;
     use read_fonts::{
+        collections::IntSet,
         tables::{
             cff2::Cff2,
             glyf::Glyf,
@@ -1174,15 +1178,19 @@ pub(crate) mod tests {
             b"IFTX" => IftTableTag::Iftx(CompatibilityId::from_u32s([0, 0, 0, 0])),
             _ => panic!("Unexpected tag value."),
         };
-        PatchUri::from_index(
-            "",
-            0,
-            source,
-            bit_index,
-            PatchFormat::GlyphKeyed,
-            Default::default(),
+        let mut indices = IntSet::<u32>::empty();
+        indices.insert(bit_index as u32);
+        PatchInfo::from_uri(
+            PatchUri::from_index(
+                "",
+                0,
+                source,
+                bit_index,
+                PatchFormat::GlyphKeyed,
+                Default::default(),
+            ),
+            indices,
         )
-        .try_into()
         .unwrap()
     }
 
