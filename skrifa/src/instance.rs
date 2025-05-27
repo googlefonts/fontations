@@ -119,13 +119,11 @@ impl<'a> LocationRef<'a> {
     /// This allows internal routines to bypass expensive variation code
     /// paths by just checking for an empty slice.
     pub(crate) fn effective_coords(&self) -> &'a [NormalizedCoord] {
-        // TODO: return an empty slice if Self::is_default() is
-        // true.
-        // Substantial performance optimization for variable fonts
-        // at the default location but currently breaks FreeType
-        // compatibility.
-        // See <https://github.com/googlefonts/fontations/issues/1500>
-        self.0
+        if self.is_default() {
+            &[]
+        } else {
+            self.0
+        }
     }
 }
 
@@ -239,8 +237,6 @@ mod tests {
     }
 
     #[test]
-    // Ignore this test until we restore the optimization
-    #[ignore]
     fn effective_coords_for_default() {
         let font = FontRef::new(font_test_data::AVAR2_CHECKER).unwrap();
         let location = font.axes().location([("AVAR", 0.0), ("AVWK", 0.0)]);
