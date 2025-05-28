@@ -18,7 +18,6 @@ use crate::{
         intersecting_patches, IftTableTag, IntersectionInfo, PatchFormat, PatchMapEntry, PatchUri,
         SubsetDefinition,
     },
-    uri_templates::UriTemplateError,
 };
 
 /// A group of patches derived from a single IFT font.
@@ -65,8 +64,6 @@ impl Selection {
     }
 }
 
-// TODO XXXX should be able to remove all uri template errors from here now.
-
 impl PatchGroup<'_> {
     /// Intersect the available and unapplied patches in ift_font against subset_definition
     ///
@@ -111,11 +108,11 @@ impl PatchGroup<'_> {
     }
 
     /// Returns an iterator over URIs in this group.
-    pub fn uris(&self) -> impl Iterator<Item = &str> {
+    pub fn uris(&self) -> impl Iterator<Item = &PatchUri> {
         self.invalidating_patch_iter()
             .chain(self.non_invalidating_patch_iter())
-            .map(|info| info.uri().as_ref())
-            .chain(self.preload_uris.iter().map(PatchUri::as_ref))
+            .map(|info| &info.uri)
+            .chain(self.preload_uris.iter())
     }
 
     /// Returns true if there is at least one uri associated with this group.
@@ -483,9 +480,9 @@ pub enum UriStatus {
 /// Tracks information related to a patch necessary to apply that patch.
 #[derive(PartialEq, Eq, Debug)]
 pub struct PatchInfo {
-    uri: PatchUri,
-    source_table: IftTableTag,
-    application_flag_bit_indices: IntSet<u32>,
+    pub(crate) uri: PatchUri,
+    pub(crate) source_table: IftTableTag,
+    pub(crate) application_flag_bit_indices: IntSet<u32>,
 }
 
 impl From<PatchMapEntry> for PatchInfo {
@@ -661,7 +658,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        glyph_keyed::tests::assemble_glyph_keyed_patch,
+        glyph_keyed::tests::assemble_glyph_keyed_patch, patchmap::PatchId,
         testdata::test_font_for_patching_with_loca_mod,
     };
     use font_test_data::{
@@ -683,6 +680,12 @@ mod tests {
 
     const TABLE_1_FINAL_STATE: &[u8] = "hijkabcdeflmnohijkabcdeflmno\n".as_bytes();
     const TABLE_2_FINAL_STATE: &[u8] = "foobarbaz foobarbaz foobarbaz\n".as_bytes();
+
+    impl PatchUri {
+        fn new(uri: &str) -> Self {
+            Self(uri.to_string())
+        }
+    }
 
     fn base_font(ift: Option<BeBuffer>, iftx: Option<BeBuffer>) -> Vec<u8> {
         let mut font_builder = FontBuilder::new();
@@ -709,124 +712,84 @@ mod tests {
         CompatibilityId::from_u32s([0, 0, 0, 2])
     }
 
+    fn p(index: u32, table: IftTableTag, format: PatchFormat) -> PatchMapEntry {
+        let uri = PatchUri::expand_template("//foo.bar/{id}", &PatchId::Numeric(index)).unwrap();
+        let mut e = uri.into_format_1_entry(table, format, Default::default());
+        e.application_bit_indices.insert(42);
+        e
+    }
+
     fn p1_full() -> PatchMapEntry {
-        PatchMapEntry::from_uri(PatchUri::from_index(
-            "//foo.bar/{id}",
+        p(
             1,
             IftTableTag::Ift(cid_1()),
-            42,
             PatchFormat::TableKeyed {
                 fully_invalidating: true,
             },
-            Default::default(),
-        ))
+        )
     }
 
     fn p2_partial_c1() -> PatchMapEntry {
-        PatchMapEntry::from_uri(PatchUri::from_index(
-            "//foo.bar/{id}",
+        p(
             2,
             IftTableTag::Ift(cid_1()),
-            42,
             PatchFormat::TableKeyed {
                 fully_invalidating: false,
             },
-            Default::default(),
-        ))
+        )
     }
 
     fn p2_partial_c2() -> PatchMapEntry {
-        PatchMapEntry::from_uri(PatchUri::from_index(
-            "//foo.bar/{id}",
+        p(
             2,
             IftTableTag::Iftx(cid_2()),
-            42,
             PatchFormat::TableKeyed {
                 fully_invalidating: false,
             },
-            Default::default(),
-        ))
+        )
     }
 
     fn p2_no_c2() -> PatchMapEntry {
-        PatchMapEntry::from_uri(PatchUri::from_index(
-            "//foo.bar/{id}",
-            2,
-            IftTableTag::Iftx(cid_2()),
-            42,
-            PatchFormat::GlyphKeyed,
-            Default::default(),
-        ))
+        p(2, IftTableTag::Iftx(cid_2()), PatchFormat::GlyphKeyed)
     }
 
     fn p3_partial_c2() -> PatchMapEntry {
-        PatchMapEntry::from_uri(PatchUri::from_index(
-            "//foo.bar/{id}",
+        p(
             3,
             IftTableTag::Iftx(cid_2()),
-            42,
             PatchFormat::TableKeyed {
                 fully_invalidating: false,
             },
-            Default::default(),
-        ))
+        )
     }
 
     fn p3_no_c1() -> PatchMapEntry {
-        PatchMapEntry::from_uri(PatchUri::from_index(
-            "//foo.bar/{id}",
-            3,
-            IftTableTag::Ift(cid_1()),
-            42,
-            PatchFormat::GlyphKeyed,
-            Default::default(),
-        ))
+        p(3, IftTableTag::Ift(cid_1()), PatchFormat::GlyphKeyed)
     }
 
     fn p4_no_c1() -> PatchMapEntry {
-        PatchMapEntry::from_uri(PatchUri::from_index(
-            "//foo.bar/{id}",
-            4,
-            IftTableTag::Ift(cid_1()),
-            42,
-            PatchFormat::GlyphKeyed,
-            Default::default(),
-        ))
+        p(4, IftTableTag::Ift(cid_1()), PatchFormat::GlyphKeyed)
     }
 
     fn p4_no_c2() -> PatchMapEntry {
-        PatchMapEntry::from_uri(PatchUri::from_index(
-            "//foo.bar/{id}",
-            4,
-            IftTableTag::Iftx(cid_2()),
-            42,
-            PatchFormat::GlyphKeyed,
-            Default::default(),
-        ))
+        p(4, IftTableTag::Iftx(cid_2()), PatchFormat::GlyphKeyed)
     }
 
     fn p5_no_c2() -> PatchMapEntry {
-        PatchMapEntry::from_uri(PatchUri::from_index(
-            "//foo.bar/{id}",
-            5,
-            IftTableTag::Iftx(cid_2()),
-            42,
-            PatchFormat::GlyphKeyed,
-            Default::default(),
-        ))
+        p(5, IftTableTag::Iftx(cid_2()), PatchFormat::GlyphKeyed)
     }
 
     fn full(index: u32, codepoints: u64) -> PatchMapEntry {
-        PatchMapEntry::from_uri(PatchUri::from_index(
-            "//foo.bar/{id}",
-            index,
+        let uri = PatchUri::expand_template("//foo.bar/{id}", &PatchId::Numeric(index)).unwrap();
+        let mut e = uri.into_format_1_entry(
             IftTableTag::Ift(cid_1()),
-            42,
             PatchFormat::TableKeyed {
                 fully_invalidating: true,
             },
             IntersectionInfo::new(codepoints, 0, 0),
-        ))
+        );
+        e.application_bit_indices.insert(42);
+        e
     }
 
     fn partial(index: u32, compat_id: CompatibilityId, codepoints: u64) -> PatchMapEntry {
@@ -835,23 +798,23 @@ mod tests {
         } else {
             IftTableTag::Iftx(compat_id)
         };
-        PatchMapEntry::from_uri(PatchUri::from_index(
-            "//foo.bar/{id}",
-            index,
+        let uri = PatchUri::expand_template("//foo.bar/{id}", &PatchId::Numeric(index)).unwrap();
+        let mut e = uri.into_format_1_entry(
             tag,
-            42,
             PatchFormat::TableKeyed {
                 fully_invalidating: false,
             },
             IntersectionInfo::new(codepoints, 0, 0),
-        ))
+        );
+        e.application_bit_indices.insert(42);
+        e
     }
 
     fn patch_info_ift(uri: &str) -> PatchInfo {
         let mut application_flag_bit_indices = IntSet::<u32>::empty();
         application_flag_bit_indices.insert(42);
         PatchInfo {
-            uri: uri.to_string(),
+            uri: PatchUri::new(uri),
             application_flag_bit_indices,
             source_table: IftTableTag::Ift(cid_1()),
         }
@@ -861,7 +824,7 @@ mod tests {
         let mut application_flag_bit_indices = IntSet::<u32>::empty();
         application_flag_bit_indices.insert(42);
         PatchInfo {
-            uri: uri.to_string(),
+            uri: PatchUri::new(uri),
             application_flag_bit_indices,
             source_table: IftTableTag::Iftx(cid_2()),
         }
@@ -905,27 +868,14 @@ mod tests {
     }
 
     fn preload_list(uris: &[String]) -> Vec<PatchUri> {
-        uris.iter()
-            .map(|uri| {
-                PatchUri::from_index(
-                    uri,
-                    0,
-                    IftTableTag::Ift(CompatibilityId::from_u32s([0, 0, 0, 0])),
-                    0,
-                    PatchFormat::GlyphKeyed,
-                    Default::default(),
-                )
-            })
-            .collect()
+        uris.iter().map(|uri| PatchUri::new(uri)).collect()
     }
 
     #[test]
     fn full_invalidation_with_preloads() {
-        let expected_preloads = ["abc".to_string(), "def".to_string()];
+        let expected_preloads = [PatchUri::new("abc"), PatchUri::new("def")];
         let mut p1_full = p1_full();
-        p1_full
-            .preload_uris
-            .extend(preload_list(&expected_preloads));
+        p1_full.preload_uris.extend(expected_preloads.clone());
 
         let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p1_full.clone()],
@@ -964,11 +914,9 @@ mod tests {
 
     #[test]
     fn full_invalidation_with_preloads_removes_duplicate_uris() {
-        let expected_preloads = ["abc".to_string(), "def".to_string()];
+        let expected_preloads = [PatchUri::new("abc"), PatchUri::new("def")];
         let mut p1_full = p1_full();
-        p1_full
-            .preload_uris
-            .extend(preload_list(&expected_preloads));
+        p1_full.preload_uris.extend(expected_preloads.clone());
         p1_full
             .preload_uris
             .extend(preload_list(&["//foo.bar/04".to_string()]));
@@ -1100,7 +1048,7 @@ mod tests {
                 partial(2, cid_1(), 24),
             ],
             // Entry 3 is marked as already loaded which gives it priority
-            &HashMap::from([("//foo.bar/0C".to_string(), UriStatus::Pending(vec![]))]),
+            &HashMap::from([(PatchUri::new("//foo.bar/0C"), UriStatus::Pending(vec![]))]),
             Some(cid_1()),
             Some(cid_2()),
         )
@@ -1126,8 +1074,8 @@ mod tests {
             ],
             // Entry 1 and 3 are marked as already loaded which gives it priority
             &HashMap::from([
-                ("//foo.bar/04".to_string(), UriStatus::Pending(vec![])),
-                ("//foo.bar/0C".to_string(), UriStatus::Pending(vec![])),
+                (PatchUri::new("//foo.bar/04"), UriStatus::Pending(vec![])),
+                (PatchUri::new("//foo.bar/0C"), UriStatus::Pending(vec![])),
             ]),
             Some(cid_1()),
             Some(cid_2()),
@@ -1151,15 +1099,11 @@ mod tests {
         let mut partial_c1 = partial(3, cid_1(), 9);
         let mut partial_c2 = partial(4, cid_2(), 9);
 
-        let expected_preloads_c1 = ["abc".to_string(), "def".to_string()];
-        partial_c1
-            .preload_uris
-            .extend(preload_list(&expected_preloads_c1));
+        let expected_preloads_c1 = [PatchUri::new("abc"), PatchUri::new("def")];
+        partial_c1.preload_uris.extend(expected_preloads_c1.clone());
 
-        let expected_preloads_c2 = ["hij".to_string(), "def".to_string()];
-        partial_c2
-            .preload_uris
-            .extend(preload_list(&expected_preloads_c2));
+        let expected_preloads_c2 = [PatchUri::new("hij"), PatchUri::new("def")];
+        partial_c2.preload_uris.extend(expected_preloads_c2.clone());
 
         // Only IFT
         let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
@@ -1224,7 +1168,11 @@ mod tests {
         );
         assert_eq!(
             preloads,
-            BTreeSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+            BTreeSet::from([
+                PatchUri::new("abc"),
+                PatchUri::new("def"),
+                PatchUri::new("hij")
+            ])
         );
     }
 
@@ -1268,7 +1216,11 @@ mod tests {
         );
         assert_eq!(
             preloads,
-            BTreeSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+            BTreeSet::from([
+                PatchUri::new("abc"),
+                PatchUri::new("def"),
+                PatchUri::new("hij"),
+            ])
         );
     }
 
@@ -1303,18 +1255,18 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    "//foo.bar/0G".to_string(),
+                    PatchUri::new("//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    "//foo.bar/0K".to_string(),
+                    PatchUri::new("//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
         );
         assert_eq!(
             preloads,
-            BTreeSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+            BTreeSet::from(["abc", "def", "hij",].map(PatchUri::new))
         );
 
         // (None, no inval)
@@ -1332,11 +1284,11 @@ mod tests {
                 ift: ScopedGroup::NoInvalidation(Default::default()),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([
                     (
-                        "//foo.bar/0K".to_string(),
+                        PatchUri::new("//foo.bar/0K"),
                         NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                     ),
                     (
-                        "//foo.bar/0G".to_string(),
+                        PatchUri::new("//foo.bar/0G"),
                         NoInvalidationPatch(patch_info_iftx("//foo.bar/0G"))
                     )
                 ]))
@@ -1344,7 +1296,7 @@ mod tests {
         );
         assert_eq!(
             preloads,
-            BTreeSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+            BTreeSet::from(["abc", "def", "hij",].map(PatchUri::new))
         );
     }
 
@@ -1379,18 +1331,18 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    "//foo.bar/0G".to_string(),
+                    PatchUri::new("//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    "//foo.bar/0K".to_string(),
+                    PatchUri::new("//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
         );
         assert_eq!(
             preloads,
-            BTreeSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+            BTreeSet::from(["abc", "def", "hij",].map(PatchUri::new))
         );
     }
 
@@ -1412,7 +1364,7 @@ mod tests {
                     "//foo.bar/08"
                 ),)),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    "//foo.bar/0K".to_string(),
+                    PatchUri::new("//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
@@ -1432,7 +1384,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    "//foo.bar/0G".to_string(),
+                    PatchUri::new("//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
@@ -1521,14 +1473,14 @@ mod tests {
                     "//foo.bar/08"
                 ),)),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    "//foo.bar/0K".to_string(),
+                    PatchUri::new("//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
         );
         assert_eq!(
             preloads,
-            BTreeSet::from(["abc".to_string(), "def".to_string(), "hij".to_string(),])
+            BTreeSet::from(["abc", "def", "hij",].map(PatchUri::new))
         );
 
         // (no inval, partial)
@@ -1544,7 +1496,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    "//foo.bar/0G".to_string(),
+                    PatchUri::new("//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
@@ -1554,12 +1506,7 @@ mod tests {
         );
         assert_eq!(
             preloads,
-            BTreeSet::from([
-                "klm".to_string(),
-                "nop".to_string(),
-                "foo".to_string(),
-                "bar".to_string(),
-            ])
+            BTreeSet::from(["klm", "nop", "foo", "bar",].map(PatchUri::new))
         );
     }
 
@@ -1639,7 +1586,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    "//foo.bar/0G".to_string(),
+                    PatchUri::new("//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::new()),
@@ -1660,11 +1607,11 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    "//foo.bar/0G".to_string(),
+                    PatchUri::new("//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    "//foo.bar/0K".to_string(),
+                    PatchUri::new("//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )])),
             }
@@ -1709,7 +1656,7 @@ mod tests {
                     "//foo.bar/08"
                 ))),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    "//foo.bar/0K".to_string(),
+                    PatchUri::new("//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )])),
             }
@@ -1728,7 +1675,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    "//foo.bar/0G".to_string(),
+                    PatchUri::new("//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
@@ -1768,48 +1715,63 @@ mod tests {
     #[test]
     fn uris() {
         let g = create_group_for(vec![]);
-        assert_eq!(g.uris().collect::<Vec<&str>>(), Vec::<&str>::default());
+        assert_eq!(
+            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            Vec::<&str>::default()
+        );
         assert!(!g.has_uris());
 
         let g = empty_group();
-        assert_eq!(g.uris().collect::<Vec<&str>>(), Vec::<&str>::default());
+        assert_eq!(
+            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            Vec::<&str>::default()
+        );
         assert!(!g.has_uris());
 
         let g = create_group_for(vec![p1_full()]);
-        assert_eq!(g.uris().collect::<Vec<&str>>(), vec!["//foo.bar/04"],);
+        assert_eq!(
+            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            vec!["//foo.bar/04"],
+        );
         assert!(g.has_uris());
 
         let g = create_group_for(vec![p2_partial_c1(), p3_partial_c2()]);
         assert_eq!(
-            g.uris().collect::<Vec<&str>>(),
+            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
             vec!["//foo.bar/08", "//foo.bar/0C"]
         );
         assert!(g.has_uris());
 
         let g = create_group_for(vec![p2_partial_c1()]);
-        assert_eq!(g.uris().collect::<Vec<&str>>(), vec!["//foo.bar/08",],);
+        assert_eq!(
+            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            vec!["//foo.bar/08",],
+        );
         assert!(g.has_uris());
 
         let g = create_group_for(vec![p3_partial_c2()]);
-        assert_eq!(g.uris().collect::<Vec<&str>>(), vec!["//foo.bar/0C"],);
+        assert_eq!(
+            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            vec!["//foo.bar/0C"],
+        );
         assert!(g.has_uris());
 
         let g = create_group_for(vec![p2_partial_c1(), p4_no_c2(), p5_no_c2()]);
         assert_eq!(
-            g.uris().collect::<Vec<&str>>(),
+            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
             vec!["//foo.bar/08", "//foo.bar/0G", "//foo.bar/0K"],
         );
         assert!(g.has_uris());
 
         let g = create_group_for(vec![p3_partial_c2(), p4_no_c1()]);
         assert_eq!(
-            g.uris().collect::<Vec<&str>>(),
+            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
             vec!["//foo.bar/0C", "//foo.bar/0G"],
         );
 
         let g = create_group_for(vec![p4_no_c1(), p5_no_c2()]);
         assert_eq!(
-            g.uris().collect::<Vec<&str>>(),
+            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
             vec!["//foo.bar/0G", "//foo.bar/0K"],
         );
         assert!(g.has_uris());
@@ -1829,7 +1791,7 @@ mod tests {
 
         let g = create_group_for(vec![p2_partial_c1, p3_partial_c2]);
         assert_eq!(
-            g.uris().collect::<Vec<&str>>(),
+            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
             vec!["//foo.bar/08", "//foo.bar/0C", "abc", "bar", "def", "foo"]
         );
         assert!(g.has_uris());
@@ -1844,7 +1806,10 @@ mod tests {
         let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
 
         assert!(!g.has_uris());
-        assert_eq!(g.uris().collect::<Vec<&str>>(), Vec::<&str>::default());
+        assert_eq!(
+            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            Vec::<&str>::default()
+        );
 
         assert_eq!(
             g.apply_next_patches(&mut Default::default()),
@@ -1863,11 +1828,11 @@ mod tests {
         assert!(g.has_uris());
         let mut patch_data = HashMap::from([
             (
-                "foo/04".to_string(),
+                PatchUri::new("foo/04"),
                 UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
             ),
             (
-                "foo/bar".to_string(),
+                PatchUri::new("foo/bar"),
                 UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
             ),
         ]);
@@ -1887,9 +1852,9 @@ mod tests {
         assert_eq!(
             patch_data,
             HashMap::from([
-                ("foo/04".to_string(), UriStatus::Applied,),
+                (PatchUri::new("foo/04"), UriStatus::Applied,),
                 (
-                    "foo/bar".to_string(),
+                    PatchUri::new("foo/bar"),
                     UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
                 ),
             ])
@@ -1920,11 +1885,11 @@ mod tests {
         assert!(g.has_uris());
         let mut patch_data = HashMap::from([
             (
-                "foo/04".to_string(),
+                PatchUri::new("foo/04"),
                 UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
             ),
             (
-                "foo/bar".to_string(),
+                PatchUri::new("foo/bar"),
                 UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
             ),
         ]);
@@ -1946,9 +1911,9 @@ mod tests {
         assert_eq!(
             patch_data,
             HashMap::from([
-                ("foo/04".to_string(), UriStatus::Applied,),
+                (PatchUri::new("foo/04"), UriStatus::Applied,),
                 (
-                    "foo/bar".to_string(),
+                    PatchUri::new("foo/bar"),
                     UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
                 ),
             ])
@@ -1968,7 +1933,7 @@ mod tests {
         let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
 
         let mut patch_data = HashMap::from([(
-            "foo/04".to_string(),
+            PatchUri::new("foo/04"),
             UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
         )]);
 
@@ -1986,7 +1951,7 @@ mod tests {
 
         assert_eq!(
             patch_data,
-            HashMap::from([("foo/04".to_string(), UriStatus::Applied,),])
+            HashMap::from([(PatchUri::new("foo/04"), UriStatus::Applied,),])
         );
 
         // IFTX
@@ -1997,7 +1962,7 @@ mod tests {
         let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
 
         let mut patch_data = HashMap::from([(
-            "foo/04".to_string(),
+            PatchUri::new("foo/04"),
             UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
         )]);
 
@@ -2015,7 +1980,7 @@ mod tests {
 
         assert_eq!(
             patch_data,
-            HashMap::from([("foo/04".to_string(), UriStatus::Applied,),])
+            HashMap::from([(PatchUri::new("foo/04"), UriStatus::Applied,),])
         );
     }
 
@@ -2042,11 +2007,11 @@ mod tests {
 
         let mut patch_data = HashMap::from([
             (
-                "foo/04".to_string(),
+                PatchUri::new("foo/04"),
                 UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
             ),
             (
-                "foo/08".to_string(),
+                PatchUri::new("foo/08"),
                 UriStatus::Pending(patch_2.as_slice().to_vec()),
             ),
         ]);
@@ -2107,11 +2072,11 @@ mod tests {
 
         let mut patch_data = HashMap::from([
             (
-                "foo/04".to_string(),
+                PatchUri::new("foo/04"),
                 UriStatus::Pending(patch_ift.as_slice().to_vec()),
             ),
             (
-                "foo/08".to_string(),
+                PatchUri::new("foo/08"),
                 UriStatus::Pending(patch_iftx.as_slice().to_vec()),
             ),
         ]);
@@ -2173,11 +2138,11 @@ mod tests {
 
         let mut patch_data = HashMap::from([
             (
-                "foo/04".to_string(),
+                PatchUri::new("foo/04"),
                 UriStatus::Pending(patch1.as_slice().to_vec()),
             ),
             (
-                "foo/08".to_string(),
+                PatchUri::new("foo/08"),
                 UriStatus::Pending(patch2.as_slice().to_vec()),
             ),
         ]);
@@ -2202,8 +2167,8 @@ mod tests {
         assert_eq!(
             patch_data,
             HashMap::from([
-                ("foo/04".to_string(), UriStatus::Applied,),
-                ("foo/08".to_string(), UriStatus::Applied,),
+                (PatchUri::new("foo/04"), UriStatus::Applied,),
+                (PatchUri::new("foo/08"), UriStatus::Applied,),
             ])
         );
 
@@ -2265,7 +2230,7 @@ mod tests {
             assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
 
         let mut patch_data = HashMap::from([(
-            "foo/04".to_string(),
+            PatchUri::new("foo/04"),
             UriStatus::Pending(patch.as_slice().to_vec()),
         )]);
 
@@ -2287,7 +2252,7 @@ mod tests {
 
         assert_eq!(
             patch_data,
-            HashMap::from([("foo/04".to_string(), UriStatus::Applied,),])
+            HashMap::from([(PatchUri::new("foo/04"), UriStatus::Applied,),])
         );
 
         // there should be one IFTX patch for foo/04 left now.
@@ -2301,7 +2266,7 @@ mod tests {
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(Default::default()),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    "foo/04".to_string(),
+                    PatchUri::new("foo/04"),
                     NoInvalidationPatch(info)
                 )])),
             }
@@ -2338,6 +2303,9 @@ mod tests {
         let Err(err) = PatchGroup::select_next_patches(font, &Default::default(), &s) else {
             panic!("Should have failed")
         };
-        assert_eq!(err, ReadError::MalformedData("Malformed URI templates."));
+        assert_eq!(
+            err,
+            ReadError::MalformedData("Failed to expand uri template in format 2 table.")
+        );
     }
 }

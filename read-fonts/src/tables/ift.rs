@@ -517,13 +517,16 @@ mod tests {
 
     #[test]
     fn uri_template_as_string() {
-        let data = test_data::simple_format1();
+        let mut data = test_data::simple_format1();
+        data.write_at("uri_template[0]", 0xc9u8);
+        data.write_at("uri_template[1]", 0xa4u8);
         let table = Ift::read(FontData::new(&data)).unwrap();
+
         let Ift::Format1(map) = table else {
             panic!("Not format 1.");
         };
 
-        assert_eq!(Ok("ABCDEFɤ"), map.uri_template_as_string());
+        assert_eq!(Ok("ɤo/{id}"), map.uri_template_as_string());
     }
 
     #[test]

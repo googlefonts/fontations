@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use font_types::Fixed;
 use incremental_font_transfer::{
     patch_group::{PatchGroup, UriStatus},
-    patchmap::{DesignSpace, FeatureSet, SubsetDefinition},
+    patchmap::{DesignSpace, FeatureSet, PatchUri, SubsetDefinition},
 };
 use libfuzzer_sys::{arbitrary, fuzz_target};
 use read_fonts::{
@@ -99,13 +99,13 @@ fuzz_target!(|input: FuzzInput| {
     }
 
     // Exercise patch application.
-    let mut uri_map: HashMap<String, UriStatus> = input
+    let mut uri_map: HashMap<PatchUri, UriStatus> = input
         .patches
         .into_iter()
-        .map(|(uri, data)| (uri, UriStatus::Pending(data)))
+        .map(|(uri, data)| (PatchUri(uri), UriStatus::Pending(data)))
         .collect();
     for uri in input.applied_patches {
-        uri_map.insert(uri.to_string(), UriStatus::Applied);
+        uri_map.insert(PatchUri(uri), UriStatus::Applied);
     }
 
     // When running under a fuzzer disable brotli decoding and instead just pass through the input data.

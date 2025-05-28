@@ -55,13 +55,6 @@ fn add_intersecting_patches(
     subset_definition: &SubsetDefinition,
     patches: &mut Vec<PatchMapEntry>,
 ) -> Result<(), ReadError> {
-    // TODO XXXXX templates that have no subs or only partial subs may result in duplicated
-    //            uris for different entry ids. So when computing application bit indices sets
-    //            we need to actually expand out the URLs:
-    //
-    // - Should probably change PatchUri to just store the expanded string.
-    // - PatchInfo/PatchUri distinction may no longer be needed (currently that mostly serves to store the expanded string)
-    // - Format 1 will need to check for duplicate URIs (also add format 1 dup url tests)
     match ift {
         Ift::Format1(format_1) => add_intersecting_format1_patches(
             font,
@@ -93,6 +86,8 @@ fn add_intersecting_format1_patches(
         ));
     }
 
+    let patches_start = patches.len();
+
     let max_entry_index = map.max_entry_index();
     let max_glyph_map_entry_index = map.max_glyph_map_entry_index();
     if max_glyph_map_entry_index > max_entry_index {
@@ -118,7 +113,9 @@ fn add_intersecting_format1_patches(
     };
 
     // Step 2: produce final output.
+    let mut applied_entries_indices: HashMap<PatchUri, IntSet<u32>> = Default::default();
     let applied_entries_start_bit_index = map.shape().applied_entries_bitmap_byte_range().start * 8;
+
     for (index, subset_def) in entries
         .into_iter()
         // Entry 0 is the entry for codepoints already in the font, so it's always considered applied and skipped.
@@ -140,10 +137,22 @@ fn add_intersecting_format1_patches(
             // For non-invalidating entries we only need to know the order (index here).
             IntersectionInfo::from_order(index.into())
         };
+
+        applied_entries_indices
+            .entry(uri.clone())
+            .or_default()
+            .insert(applied_entries_start_bit_index as u32 + index as u32);
+
         patches.push(uri.into_format_1_entry(source_table.clone(), format, intersection_info));
     }
 
-    // TODO XXXX update all of the applied entries bit indices for patches
+    if patches.len() > patches_start {
+        for p in patches[patches_start..].iter_mut() {
+            if let Some(indices) = applied_entries_indices.get(&p.uri) {
+                p.application_bit_indices = indices.clone();
+            }
+        }
+    }
 
     Ok(())
 }
@@ -501,7 +510,7 @@ fn add_intersecting_format2_patches(
             continue;
         };
 
-        if let Some(indices) = application_bit_indices.get_mut(&first_uri) {
+        if let Some(indices) = application_bit_indices.get_mut(first_uri) {
             indices.insert(e.application_flag_bit_index);
         }
     }
@@ -915,32 +924,28 @@ impl PatchMapEntry {
         &self.uri
     }
 
-    pub fn preload_uris(&self) -> impl Iterator<Item = &PatchUri> {
-        self.preload_uris.iter()
+    pub fn format(&self) -> PatchFormat {
+        self.format
     }
 
     pub(crate) fn expected_compat_id(&self) -> &CompatibilityId {
         self.source_table.expected_compat_id()
     }
-
-    pub fn source_table(&self) -> &IftTableTag {
-        &self.source_table
-    }
 }
 
 /// An expanded PatchUri string which identifies where a patch is located.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub struct PatchUri(String);
+pub struct PatchUri(pub String);
 
 impl PatchUri {
-    fn expand_template(
+    pub(crate) fn expand_template(
         template_string: &str,
         patch_id: &PatchId,
     ) -> Result<Self, UriTemplateError> {
         uri_templates::expand_template(template_string, patch_id).map(Self)
     }
 
-    fn into_format_1_entry(
+    pub(crate) fn into_format_1_entry(
         self,
         source_table: IftTableTag,
         format: PatchFormat,
@@ -1395,13 +1400,6 @@ mod tests {
         }
     }
 
-    impl PatchUri {
-        fn from_string(uri_template: &str, entry_id: &str) -> PatchUri {
-            PatchUri::expand_template(uri_template, &PatchId::String(entry_id.as_bytes().to_vec()))
-                .unwrap()
-        }
-    }
-
     fn compat_id() -> CompatibilityId {
         CompatibilityId::from_u32s([1, 2, 3, 4])
     }
@@ -1499,7 +1497,7 @@ mod tests {
                      order,
                  }| {
                     let mut it = indices.iter().map(|i| {
-                        PatchUri::expand_template("foo{id}", &PatchId::Numeric(*i)).unwrap()
+                        PatchUri::expand_template("foo/{id}", &PatchId::Numeric(*i)).unwrap()
                     });
 
                     let mut e = it.next().unwrap().into_format_2_entry(
@@ -1542,7 +1540,7 @@ mod tests {
                      order,
                  }| {
                     let mut it = indices.iter().map(|i| {
-                        PatchUri::expand_template("foo{id}", &PatchId::Numeric(*i)).unwrap()
+                        PatchUri::expand_template("foo/{id}", &PatchId::Numeric(*i)).unwrap()
                     });
                     let mut e = it.next().unwrap().into_format_2_entry(
                         it.collect(),
@@ -1907,7 +1905,7 @@ mod tests {
         index: u32,
         intersection_info: IntersectionInfo,
     ) -> PatchMapEntry {
-        let uri = PatchUri::expand_template("foo{id}", &PatchId::Numeric(index)).unwrap();
+        let uri = PatchUri::expand_template("foo/{id}", &PatchId::Numeric(index)).unwrap();
         let mut e = uri.into_format_1_entry(
             IftTableTag::Ift(compat_id()),
             PatchFormat::TableKeyed {
@@ -2698,10 +2696,10 @@ mod tests {
         .unwrap();
 
         let uris: Vec<PatchUri> = patches.into_iter().map(|e| e.uri).collect();
-        let expected_uris: Vec<_> = vec!["", "abc", "defg", "defg", "hij", ""]
+        let expected_uris: Vec<_> = ["", "abc", "defg", "defg", "hij", ""]
             .iter()
             .map(|id| PatchId::String(Vec::from(id.as_bytes())))
-            .map(|id| PatchUri::expand_template("foo{id}", &id).unwrap())
+            .map(|id| PatchUri::expand_template("foo/{id}", &id).unwrap())
             .collect();
         assert_eq!(uris, expected_uris);
     }
@@ -2725,7 +2723,7 @@ mod tests {
             .into_iter()
             .map(|e| {
                 let mut ids = vec![e.uri];
-                ids.extend(e.preload_uris.iter().map(|uri| uri.clone()));
+                ids.extend(e.preload_uris.clone());
                 ids
             })
             .collect();
@@ -2743,7 +2741,7 @@ mod tests {
                 group
                     .iter()
                     .map(|id| PatchId::String(Vec::from(id.as_bytes())))
-                    .map(|id| PatchUri::expand_template("foo{id}", &id).unwrap())
+                    .map(|id| PatchUri::expand_template("foo/{id}", &id).unwrap())
                     .collect::<Vec<PatchUri>>()
             })
             .collect::<Vec<Vec<PatchUri>>>();
@@ -2975,7 +2973,7 @@ mod tests {
 
     #[test]
     fn entry_design_codepoints_intersection() {
-        let uri = PatchUri::expand_template("foo{id}", &PatchId::Numeric(0)).unwrap();
+        let uri = PatchUri::expand_template("foo/{id}", &PatchId::Numeric(0)).unwrap();
 
         let s1 = SubsetDefinition::codepoints([3, 5, 7].into_iter().collect());
         let s2 = SubsetDefinition::codepoints([13, 15, 17].into_iter().collect());
@@ -3023,7 +3021,7 @@ mod tests {
 
     #[test]
     fn entry_design_space_intersection() {
-        let uri = PatchUri::expand_template("foo{id}", &PatchId::Numeric(0)).unwrap();
+        let uri = PatchUri::expand_template("foo/{id}", &PatchId::Numeric(0)).unwrap();
 
         let s1 = SubsetDefinition::new(
             Default::default(),

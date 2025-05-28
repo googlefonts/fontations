@@ -1128,7 +1128,7 @@ pub(crate) mod tests {
     use crate::{
         font_patch::PatchingError,
         glyph_keyed::{apply_glyph_keyed_patches, CffFourInfo, ShortDivByTwoInfo},
-        patchmap::{PatchFormat, PatchUri},
+        patchmap::{PatchId, PatchUri},
         testdata::{test_font_for_patching, test_font_for_patching_with_loca_mod},
     };
 
@@ -1178,20 +1178,14 @@ pub(crate) mod tests {
             b"IFTX" => IftTableTag::Iftx(CompatibilityId::from_u32s([0, 0, 0, 0])),
             _ => panic!("Unexpected tag value."),
         };
-        let mut indices = IntSet::<u32>::empty();
-        indices.insert(bit_index as u32);
-        PatchInfo::from_uri(
-            PatchUri::from_index(
-                "",
-                0,
-                source,
-                bit_index,
-                PatchFormat::GlyphKeyed,
-                Default::default(),
-            ),
-            indices,
-        )
-        .unwrap()
+
+        let mut info = PatchInfo {
+            uri: PatchUri::expand_template("", &PatchId::Numeric(0)).unwrap(),
+            source_table: source,
+            application_flag_bit_indices: IntSet::<u32>::empty(),
+        };
+        info.application_flag_bit_indices.insert(bit_index as u32);
+        info
     }
 
     #[test]
