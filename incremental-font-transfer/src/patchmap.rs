@@ -902,21 +902,34 @@ impl IftTableTag {
 /// entry is selected
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct PatchMapEntry {
-    uri: PatchUri,
-    preload_uris: Vec<PatchUri>,
-    format: PatchFormat,
-    source_table: IftTableTag,
-    application_bit_indices: IntSet<u32>,
-    intersection_info: IntersectionInfo,
+    pub(crate) uri: PatchUri,
+    pub(crate) preload_uris: Vec<PatchUri>,
+    pub(crate) format: PatchFormat,
+    pub(crate) source_table: IftTableTag,
+    pub(crate) application_bit_indices: IntSet<u32>,
+    pub(crate) intersection_info: IntersectionInfo,
 }
 
 impl PatchMapEntry {
-    // TODO XXXXXX constructor of some sort?
-    // TODO XXXXXX
+    pub fn uri(&self) -> &PatchUri {
+        &self.uri
+    }
+
+    pub fn preload_uris(&self) -> impl Iterator<Item = &PatchUri> {
+        self.preload_uris.iter()
+    }
+
+    pub(crate) fn expected_compat_id(&self) -> &CompatibilityId {
+        self.source_table.expected_compat_id()
+    }
+
+    pub fn source_table(&self) -> &IftTableTag {
+        &self.source_table
+    }
 }
 
 /// An expanded PatchUri string which identifies where a patch is located.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct PatchUri(String);
 
 impl PatchUri {
