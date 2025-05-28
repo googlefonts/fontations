@@ -12,8 +12,7 @@ use font_types::Tag;
 use incremental_font_transfer::{
     font_patch::IncrementalFontPatchBase,
     patch_group::PatchInfo,
-    patchmap::{intersecting_patches, PatchFormat, PatchUri, SubsetDefinition},
-    uri_templates::UriTemplateError,
+    patchmap::{intersecting_patches, PatchFormat, PatchMapEntry, SubsetDefinition},
 };
 use read_fonts::{ReadError, TableProvider};
 use shared_brotli_patch_decoder::BuiltInBrotliDecoder;
@@ -189,20 +188,14 @@ fn get_node_name(font: &FontRef<'_>) -> Result<String, ReadError> {
     Ok(name)
 }
 
-fn to_next_font(
-    base_path: &Path,
-    font: &FontRef<'_>,
-    patch_uri: PatchUri,
-) -> Result<Vec<u8>, UriTemplateError> {
-    let path = base_path.join(patch_uri.uri_string()?);
+fn to_next_font(base_path: &Path, font: &FontRef<'_>, patch: PatchMapEntry) -> Vec<u8> {
+    let path = base_path.join(patch.uri().as_ref());
     let patch_bytes = std::fs::read(&path)
         .unwrap_or_else(|e| panic!("Unable to read patch file ({}): {:?}", path.display(), e));
 
-    let patch_info: PatchInfo = PatchInfo::from_uri(patch_uri, Default::default())?;
-
-    Ok(font
-        .apply_table_keyed_patch(&patch_info, &patch_bytes, &BuiltInBrotliDecoder)
-        .expect("Patch application failed."))
+    let patch_info: PatchInfo = patch.into();
+    font.apply_table_keyed_patch(&patch_info, &patch_bytes, &BuiltInBrotliDecoder)
+        .expect("Patch application failed.")
 }
 
 #[derive(Clone, Default, Ord, PartialEq, PartialOrd, Eq)]
@@ -218,7 +211,7 @@ fn to_graph(
     base_path: &Path,
     font: FontRef<'_>,
     mut graph: BTreeMap<NodeName, BTreeSet<Edge>>,
-) -> Result<BTreeMap<NodeName, BTreeSet<Edge>>, UriTemplateError> {
+) -> BTreeMap<NodeName, BTreeSet<Edge>> {
     let patches =
         intersecting_patches(&font, &SubsetDefinition::all()).expect("patch map parsing failed");
 
@@ -226,13 +219,13 @@ fn to_graph(
     graph.entry(node_name.clone()).or_default();
 
     for patch in patches {
-        if !matches!(patch.uri.encoding(), PatchFormat::TableKeyed { .. }) {
+        if !matches!(patch.format(), PatchFormat::TableKeyed { .. }) {
             // This graph only considers invalidating (that is table keyed patches), so skip all other types.
             continue;
         }
 
-        let uri_string = patch.uri.uri_string()?;
-        let next_font = to_next_font(base_path, &font, patch.uri)?;
+        let uri_string = patch.uri().as_ref().to_string();
+        let next_font = to_next_font(base_path, &font, patch);
         let next_font = FontRef::new(&next_font).expect("Downstream font parsing failed");
 
         {
@@ -244,10 +237,10 @@ fn to_graph(
             });
         }
 
-        graph = to_graph(base_path, next_font, graph)?
+        graph = to_graph(base_path, next_font, graph)
     }
 
-    Ok(graph)
+    graph
 }
 
 fn main() {
@@ -262,8 +255,7 @@ fn main() {
     });
     let font = FontRef::new(&font_bytes).expect("Input font parsing failed");
     let mut graph = Default::default();
-    graph = to_graph(args.font.parent().unwrap(), font, graph)
-        .unwrap_or_else(|_| panic!("Input font contains malformed URI templates."));
+    graph = to_graph(args.font.parent().unwrap(), font, graph);
 
     for (key, values) in graph {
         let key = key.0;

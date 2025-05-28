@@ -11,7 +11,7 @@ use clap::Parser;
 use font_types::{Fixed, Tag};
 use incremental_font_transfer::{
     patch_group::{PatchGroup, UriStatus},
-    patchmap::{DesignSpace, FeatureSet, SubsetDefinition},
+    patchmap::{DesignSpace, FeatureSet, PatchUri, SubsetDefinition},
 };
 use read_fonts::collections::{IntSet, RangeSet};
 use regex::Regex;
@@ -92,7 +92,7 @@ fn main() {
         )
     });
 
-    let mut patch_data: HashMap<String, UriStatus> = Default::default();
+    let mut patch_data: HashMap<PatchUri, UriStatus> = Default::default();
     let mut it_count = 0;
 
     // For this a roundtrip is defined as an iteration of the below loop where at least
@@ -112,9 +112,9 @@ fn main() {
 
         let mut fetched = false;
         for uri in next_patches.uris() {
-            patch_data.entry(uri.to_string()).or_insert_with_key(|key| {
-                let uri_path = args.font.parent().unwrap().join(uri);
-                println!("    Fetching {}", key);
+            patch_data.entry(uri.clone()).or_insert_with_key(|key| {
+                let uri_path = args.font.parent().unwrap().join(uri.as_ref());
+                println!("    Fetching {}", key.as_ref());
                 fetched = true;
                 fetch_count += 1;
                 if let Some(max_fetch_count) = args.max_fetches {

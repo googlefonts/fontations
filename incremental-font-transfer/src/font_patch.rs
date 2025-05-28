@@ -237,11 +237,7 @@ mod tests {
     use crate::{
         font_patch::PatchingError,
         glyph_keyed::tests::assemble_glyph_keyed_patch,
-        patchmap::{
-            IftTableTag,
-            PatchFormat::{GlyphKeyed, TableKeyed},
-            PatchUri,
-        },
+        patchmap::{IftTableTag, PatchId, PatchUri},
         testdata::test_font_for_patching_with_loca_mod,
     };
 
@@ -251,20 +247,11 @@ mod tests {
 
     #[test]
     fn table_keyed_patch_and_font_compat_id_mismatch() {
-        let info: PatchInfo = PatchInfo::from_uri(
-            PatchUri::from_index(
-                "foo.bar/{id}",
-                0,
-                IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
-                0,
-                TableKeyed {
-                    fully_invalidating: false,
-                },
-                Default::default(),
-            ),
-            IntSet::<u32>::empty(),
-        )
-        .unwrap();
+        let info = PatchInfo {
+            uri: PatchUri::expand_template("foo.bar/{id}", &PatchId::Numeric(0)).unwrap(),
+            source_table: IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
+            application_flag_bit_indices: IntSet::<u32>::empty(),
+        };
 
         let ift_table = codepoints_only_format2();
         let mut iftx_table = codepoints_only_format2();
@@ -290,20 +277,11 @@ mod tests {
 
     #[test]
     fn table_keyed_patch_info_and_font_compat_id_mismatch() {
-        let info: PatchInfo = PatchInfo::from_uri(
-            PatchUri::from_index(
-                "foo.bar/{id}",
-                0,
-                IftTableTag::Ift(CompatibilityId::from_u32s([2, 2, 3, 4])),
-                0,
-                TableKeyed {
-                    fully_invalidating: false,
-                },
-                Default::default(),
-            ),
-            IntSet::<u32>::empty(),
-        )
-        .unwrap();
+        let info = PatchInfo {
+            uri: PatchUri::expand_template("foo.bar/{id}", &PatchId::Numeric(0)).unwrap(),
+            source_table: IftTableTag::Ift(CompatibilityId::from_u32s([2, 2, 3, 4])),
+            application_flag_bit_indices: IntSet::<u32>::empty(),
+        };
 
         let ift_table = codepoints_only_format2();
         let font = test_font_for_patching_with_loca_mod(
@@ -322,18 +300,11 @@ mod tests {
 
     #[test]
     fn glyph_keyed_patch_and_font_compat_id_mismatch() {
-        let info: PatchInfo = PatchInfo::from_uri(
-            PatchUri::from_index(
-                "foo.bar/{id}",
-                0,
-                IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
-                0,
-                GlyphKeyed,
-                Default::default(),
-            ),
-            IntSet::<u32>::empty(),
-        )
-        .unwrap();
+        let info = PatchInfo {
+            uri: PatchUri::expand_template("foo.bar/{id}", &PatchId::Numeric(0)).unwrap(),
+            source_table: IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
+            application_flag_bit_indices: IntSet::<u32>::empty(),
+        };
 
         let ift_table = codepoints_only_format2();
         let font = test_font_for_patching_with_loca_mod(
@@ -355,18 +326,11 @@ mod tests {
 
     #[test]
     fn glyph_keyed_patch_info_and_font_compat_id_mismatch() {
-        let info: PatchInfo = PatchInfo::from_uri(
-            PatchUri::from_index(
-                "foo.bar/{id}",
-                0,
-                IftTableTag::Ift(CompatibilityId::from_u32s([6, 7, 9, 9])),
-                0,
-                GlyphKeyed,
-                Default::default(),
-            ),
-            IntSet::<u32>::empty(),
-        )
-        .unwrap();
+        let info = PatchInfo {
+            uri: PatchUri::expand_template("foo.bar/{id}", &PatchId::Numeric(0)).unwrap(),
+            source_table: IftTableTag::Ift(CompatibilityId::from_u32s([6, 7, 9, 9])),
+            application_flag_bit_indices: IntSet::<u32>::empty(),
+        };
 
         let mut ift_table = codepoints_only_format2();
         ift_table.write_at("compat_id[0]", 6u32);
