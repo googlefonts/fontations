@@ -122,7 +122,13 @@ impl SingleSubBuilder {
     /// Iterate all the substitution pairs in this builder.
     ///
     /// used when compiling the `aalt` feature.
+    #[deprecated(since = "0.38.2", note = "use ::iter instead")]
     pub fn iter_pairs(&self) -> impl Iterator<Item = (GlyphId16, GlyphId16)> + '_ {
+        self.iter()
+    }
+
+    /// Iterate all the substitution pairs in this builder.
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, GlyphId16)> + '_ {
         self.items.iter().map(|(target, alt)| (*target, *alt))
     }
 
@@ -214,6 +220,11 @@ impl MultipleSubBuilder {
             Some(thing) => thing == replacement,
         }
     }
+
+    /// Iterate over the rules in this builder.
+    pub fn iter(&self) -> impl Iterator<Item = (&GlyphId16, &Vec<GlyphId16>)> {
+        self.items.iter()
+    }
 }
 
 /// A builder for [`AlternateSubstFormat1`](super::AlternateSubstFormat1) subtables
@@ -231,6 +242,11 @@ impl AlternateSubBuilder {
     /// Returns `true` if this builder contains no rules.
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
+    }
+
+    /// Iterate over the rules in this builder.
+    pub fn iter(&self) -> impl Iterator<Item = (&GlyphId16, &Vec<GlyphId16>)> {
+        self.items.iter()
     }
 
     /// Iterate all alternates in this lookup.
@@ -288,6 +304,14 @@ impl LigatureSubBuilder {
                 .any(|(seq, target)| seq == rest && *target != replacement),
             None => true,
         }
+    }
+
+    /// Iterate over the current rules in the builder.
+    ///
+    /// The result is a tuple where the first item is the target glyph and the
+    /// second item is a tuple of (components, replacement).
+    pub fn iter(&self) -> impl Iterator<Item = (&GlyphId16, &Vec<(Vec<GlyphId16>, GlyphId16)>)> {
+        self.items.iter()
     }
 }
 
