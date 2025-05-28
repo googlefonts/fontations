@@ -35,7 +35,7 @@ pub struct PatchGroup<'a> {
 
     // These patches aren't compatible, but have been requested as preloads by the
     // patch mapping.
-    preload_uris: BTreeSet<String>,
+    preload_uris: BTreeSet<PatchUri>,
 }
 
 enum Selection {
@@ -65,6 +65,8 @@ impl Selection {
     }
 }
 
+// TODO XXXX should be able to remove all uri template errors from here now.
+
 impl PatchGroup<'_> {
     /// Intersect the available and unapplied patches in ift_font against subset_definition
     ///
@@ -74,7 +76,7 @@ impl PatchGroup<'_> {
     /// Returns a group of patches which would be applied next.
     pub fn select_next_patches<'b>(
         ift_font: FontRef<'b>,
-        patch_data: &HashMap<String, UriStatus>,
+        patch_data: &HashMap<PatchUri, UriStatus>,
         subset_definition: &SubsetDefinition,
     ) -> Result<PatchGroup<'b>, ReadError> {
         let candidates = intersecting_patches(&ift_font, subset_definition)?;
@@ -112,8 +114,8 @@ impl PatchGroup<'_> {
     pub fn uris(&self) -> impl Iterator<Item = &str> {
         self.invalidating_patch_iter()
             .chain(self.non_invalidating_patch_iter())
-            .map(|info| info.uri.as_str())
-            .chain(self.preload_uris.iter().map(String::as_str))
+            .map(|info| info.uri().as_ref())
+            .chain(self.preload_uris.iter().map(PatchUri::as_ref))
     }
 
     /// Returns true if there is at least one uri associated with this group.
@@ -180,10 +182,10 @@ impl PatchGroup<'_> {
 
     fn select_next_patches_from_candidates(
         candidates: Vec<PatchMapEntry>,
-        patch_data: &HashMap<String, UriStatus>,
+        patch_data: &HashMap<PatchUri, UriStatus>,
         ift_compat_id: Option<CompatibilityId>,
         iftx_compat_id: Option<CompatibilityId>,
-    ) -> Result<(CompatibleGroup, BTreeSet<String>), ReadError> {
+    ) -> Result<(CompatibleGroup, BTreeSet<PatchUri>), ReadError> {
         // Some notes about this implementation:
         // - From candidates we need to form the largest possible group of patches which follow the selection criteria
         //   from: https://w3c.github.io/IFT/Overview.html#extend-font-subset and won't invalidate each other.
@@ -213,16 +215,15 @@ impl PatchGroup<'_> {
             patch_data,
             ift_compat_id,
             iftx_compat_id,
-        )
-        .map_err(|_| ReadError::MalformedData("Malformed URI templates."))?;
+        );
 
-        let mut combined_preload_uris: BTreeSet<String> = Default::default();
+        let mut combined_preload_uris: BTreeSet<PatchUri> = Default::default();
 
         // First check for a full invalidation patch, if one exists it's the only selection possible
         if let Some(patch) = Self::select_invalidating_candidate(full_invalidation) {
             // TODO(garretrieger): use a heuristic to select the best patch
             combined_preload_uris = patch.preload_uris.iter().cloned().collect();
-            combined_preload_uris.remove(patch.patch_info.uri());
+            combined_preload_uris.remove(&patch.patch_info.uri);
             return Ok((CompatibleGroup::Full(patch.into()), combined_preload_uris));
         }
 
@@ -238,7 +239,7 @@ impl PatchGroup<'_> {
         let mut partial_invalidation_candidates =
             [partial_invalidation_ift, partial_invalidation_iftx];
         let mut no_invalidation_candidates = [no_invalidation_ift, no_invalidation_iftx];
-        let mut selected_uris: BTreeSet<String> = Default::default();
+        let mut selected_uris: BTreeSet<PatchUri> = Default::default();
 
         loop {
             let tag_index = selection_mode.tag_index();
@@ -254,7 +255,7 @@ impl PatchGroup<'_> {
                     scoped_groups[tag_index] = Self::select_invalidating_candidate(
                         candidates
                             .into_iter()
-                            .filter(|c| !selected_uris.contains(c.patch_info.uri())),
+                            .filter(|c| !selected_uris.contains(&c.patch_info.uri)),
                     )
                     .map(|patch| {
                         combined_preload_uris.extend(patch.preload_uris.iter().cloned());
@@ -264,7 +265,7 @@ impl PatchGroup<'_> {
                 }
                 Selection::IftNo | Selection::IftxNo => {
                     if scoped_groups[tag_index].is_none() {
-                        let mut candidates: BTreeMap<String, CandidateNoInvalidationPatch> =
+                        let mut candidates: BTreeMap<PatchUri, CandidateNoInvalidationPatch> =
                             Default::default();
                         std::mem::swap(&mut candidates, &mut no_invalidation_candidates[tag_index]);
 
@@ -306,16 +307,16 @@ impl PatchGroup<'_> {
     }
 
     fn filter_and_extract_preloads(
-        candidates: BTreeMap<String, CandidateNoInvalidationPatch>,
-        previously_selected_uris: &mut BTreeSet<String>,
-        preloads: &mut BTreeSet<String>,
-    ) -> BTreeMap<String, NoInvalidationPatch> {
+        candidates: BTreeMap<PatchUri, CandidateNoInvalidationPatch>,
+        previously_selected_uris: &mut BTreeSet<PatchUri>,
+        preloads: &mut BTreeSet<PatchUri>,
+    ) -> BTreeMap<PatchUri, NoInvalidationPatch> {
         preloads.extend(
             candidates
                 .values()
                 .flat_map(|candidate| candidate.preload_uris.iter().cloned()),
         );
-        let filtered: BTreeMap<String, NoInvalidationPatch> = candidates
+        let filtered: BTreeMap<PatchUri, NoInvalidationPatch> = candidates
             .into_iter()
             .filter(|(k, _)| !previously_selected_uris.contains(k))
             .map(|(k, v)| (k, NoInvalidationPatch(v.patch_info)))
@@ -350,7 +351,7 @@ impl PatchGroup<'_> {
     /// Returns the bytes of the updated font.
     pub fn apply_next_patches(
         self,
-        patch_data: &mut HashMap<String, UriStatus>,
+        patch_data: &mut HashMap<PatchUri, UriStatus>,
     ) -> Result<Vec<u8>, PatchingError> {
         self.apply_next_patches_with_decoder(patch_data, &BuiltInBrotliDecoder)
     }
@@ -360,7 +361,7 @@ impl PatchGroup<'_> {
     /// Returns the bytes of the updated font.
     pub fn apply_next_patches_with_decoder<D: SharedBrotliDecoder>(
         self,
-        patch_data: &mut HashMap<String, UriStatus>,
+        patch_data: &mut HashMap<PatchUri, UriStatus>,
         brotli_decoder: &D,
     ) -> Result<Vec<u8>, PatchingError> {
         if let Some(patch) = self.next_invalidating_patch() {
@@ -419,58 +420,56 @@ struct GroupingByInvalidation {
     partial_invalidation_ift: Vec<CandidatePatch>,
     partial_invalidation_iftx: Vec<CandidatePatch>,
     // TODO(garretrieger): do we need sorted order, use HashMap instead?
-    no_invalidation_ift: BTreeMap<String, CandidateNoInvalidationPatch>,
-    no_invalidation_iftx: BTreeMap<String, CandidateNoInvalidationPatch>,
+    no_invalidation_ift: BTreeMap<PatchUri, CandidateNoInvalidationPatch>,
+    no_invalidation_iftx: BTreeMap<PatchUri, CandidateNoInvalidationPatch>,
 }
 
 impl GroupingByInvalidation {
     fn group_patches(
         candidates: Vec<PatchMapEntry>,
-        patch_data: &HashMap<String, UriStatus>,
+        patch_data: &HashMap<PatchUri, UriStatus>,
         ift_compat_id: Option<CompatibilityId>,
         iftx_compat_id: Option<CompatibilityId>,
-    ) -> Result<GroupingByInvalidation, UriTemplateError> {
+    ) -> GroupingByInvalidation {
         let mut result: GroupingByInvalidation = Default::default();
 
         for entry in candidates.into_iter() {
             // TODO(garretrieger): for efficiency can we delay uri template resolution until we have actually selected patches?
             // TODO(garretrieger): for btree construction don't recompute the resolved uri, cache inside the patch uri object?
-            match entry.uri.encoding() {
+            match entry.format {
                 PatchFormat::TableKeyed {
                     fully_invalidating: true,
                 } => result
                     .full_invalidation
-                    .push(CandidatePatch::from_entry(entry, patch_data)?),
+                    .push(CandidatePatch::from_entry(entry, patch_data)),
                 PatchFormat::TableKeyed {
                     fully_invalidating: false,
                 } => {
-                    if Some(entry.uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
+                    if Some(entry.expected_compat_id()) == ift_compat_id.as_ref() {
                         result
                             .partial_invalidation_ift
-                            .push(CandidatePatch::from_entry(entry, patch_data)?)
-                    } else if Some(entry.uri.expected_compatibility_id()) == iftx_compat_id.as_ref()
-                    {
+                            .push(CandidatePatch::from_entry(entry, patch_data))
+                    } else if Some(entry.expected_compat_id()) == iftx_compat_id.as_ref() {
                         result
                             .partial_invalidation_iftx
-                            .push(CandidatePatch::from_entry(entry, patch_data)?)
+                            .push(CandidatePatch::from_entry(entry, patch_data))
                     }
                 }
                 PatchFormat::GlyphKeyed => {
-                    if Some(entry.uri.expected_compatibility_id()) == ift_compat_id.as_ref() {
+                    if Some(entry.expected_compat_id()) == ift_compat_id.as_ref() {
                         result
                             .no_invalidation_ift
-                            .insert(entry.uri.uri_string()?, entry.try_into()?);
-                    } else if Some(entry.uri.expected_compatibility_id()) == iftx_compat_id.as_ref()
-                    {
+                            .insert(entry.uri().clone(), entry.into());
+                    } else if Some(entry.expected_compat_id()) == iftx_compat_id.as_ref() {
                         result
                             .no_invalidation_iftx
-                            .insert(entry.uri.uri_string()?, entry.try_into()?);
+                            .insert(entry.uri.clone(), entry.into());
                     }
                 }
             }
         }
 
-        Ok(result)
+        result
     }
 }
 
@@ -484,9 +483,19 @@ pub enum UriStatus {
 /// Tracks information related to a patch necessary to apply that patch.
 #[derive(PartialEq, Eq, Debug)]
 pub struct PatchInfo {
-    uri: String,
+    uri: PatchUri,
     source_table: IftTableTag,
     application_flag_bit_indices: IntSet<u32>,
+}
+
+impl From<PatchMapEntry> for PatchInfo {
+    fn from(value: PatchMapEntry) -> Self {
+        PatchInfo {
+            uri: value.uri,
+            source_table: value.source_table,
+            application_flag_bit_indices: value.application_bit_indices,
+        }
+    }
 }
 
 impl PatchInfo {
@@ -499,18 +508,7 @@ impl PatchInfo {
     }
 
     pub fn uri(&self) -> &str {
-        &self.uri
-    }
-
-    pub fn from_uri(
-        value: PatchUri,
-        application_flag_bit_indices: IntSet<u32>,
-    ) -> Result<Self, UriTemplateError> {
-        Ok(Self {
-            uri: value.uri_string()?,
-            application_flag_bit_indices,
-            source_table: value.source_table(),
-        })
+        self.uri.as_ref()
     }
 }
 
@@ -519,30 +517,32 @@ impl PatchInfo {
 struct CandidatePatch {
     intersection_info: IntersectionInfo,
     patch_info: PatchInfo,
-    preload_uris: Vec<String>,
+    preload_uris: Vec<PatchUri>,
     already_loaded: bool,
 }
 
 struct CandidateNoInvalidationPatch {
     patch_info: PatchInfo,
-    preload_uris: Vec<String>,
+    preload_uris: Vec<PatchUri>,
 }
 
 impl CandidatePatch {
     fn from_entry(
         value: PatchMapEntry,
-        patch_data: &HashMap<String, UriStatus>,
-    ) -> Result<CandidatePatch, UriTemplateError> {
-        let preload_uris = value.preload_uri_strings()?;
-        let intersection_info = value.uri.intersection_info();
-        let patch_info = PatchInfo::from_uri(value.uri, value.application_bit_indices)?;
-        let already_loaded = patch_data.contains_key(patch_info.uri());
-        Ok(Self {
-            intersection_info,
+        patch_data: &HashMap<PatchUri, UriStatus>,
+    ) -> CandidatePatch {
+        let patch_info = PatchInfo {
+            uri: value.uri,
+            source_table: value.source_table,
+            application_flag_bit_indices: value.application_bit_indices,
+        };
+        let already_loaded = patch_data.contains_key(&patch_info.uri);
+        Self {
+            intersection_info: value.intersection_info,
             patch_info,
-            preload_uris,
+            preload_uris: value.preload_uris,
             already_loaded,
-        })
+        }
     }
 }
 
@@ -567,15 +567,14 @@ impl Ord for CandidatePatch {
     }
 }
 
-impl TryFrom<PatchMapEntry> for CandidateNoInvalidationPatch {
-    type Error = UriTemplateError;
-
-    fn try_from(value: PatchMapEntry) -> Result<Self, Self::Error> {
-        let preload_uris = value.preload_uri_strings()?;
-        Ok(Self {
-            patch_info: PatchInfo::from_uri(value.uri, value.application_bit_indices)?,
+impl From<PatchMapEntry> for CandidateNoInvalidationPatch {
+    fn from(mut value: PatchMapEntry) -> Self {
+        let mut preload_uris: Vec<PatchUri> = vec![];
+        std::mem::swap(&mut preload_uris, &mut value.preload_uris);
+        Self {
+            patch_info: value.into(),
             preload_uris,
-        })
+        }
     }
 }
 
@@ -616,7 +615,7 @@ enum CompatibleGroup {
 #[derive(PartialEq, Eq, Debug)]
 enum ScopedGroup {
     PartialInvalidation(PartialInvalidationPatch),
-    NoInvalidation(BTreeMap<String, NoInvalidationPatch>),
+    NoInvalidation(BTreeMap<PatchUri, NoInvalidationPatch>),
 }
 
 impl ScopedGroup {
