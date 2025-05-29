@@ -296,18 +296,18 @@ fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
         let entry_count = record.entry_map_count().get();
 
         for i in 0..entry_count {
-            let index = i + cumulative_entry_map_count;
-            let byte_index = (index * field_width * 2) as usize;
+            let index = i as usize + cumulative_entry_map_count as usize;
+            let byte_index = (index * field_width as usize * 2) as usize;
             let data = FontData::new(&feature_map.entry_map_data()[byte_index..]);
-            let mapped_entry_index = record.first_new_entry_index().get() + i;
+            let mapped_entry_index = record.first_new_entry_index().get() as u32 + i as u32;
             let entry_record = EntryMapRecord::read(data, max_entry_index)?;
             let first = entry_record.first_entry_index().get();
             let last = entry_record.last_entry_index().get();
             if first > last
                 || first > max_glyph_map_entry_index
                 || last > max_glyph_map_entry_index
-                || mapped_entry_index <= max_glyph_map_entry_index
-                || mapped_entry_index > max_entry_index
+                || mapped_entry_index <= max_glyph_map_entry_index as u32
+                || mapped_entry_index > max_entry_index as u32
             {
                 // Invalid, continue on
                 continue;
@@ -317,7 +317,7 @@ fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
             // to the new entry.
             merge_intersecting_entries::<RECORD_INTERSECTION>(
                 first..=last,
-                mapped_entry_index,
+                mapped_entry_index as u16,
                 record.feature_tag(),
                 entries,
             );
