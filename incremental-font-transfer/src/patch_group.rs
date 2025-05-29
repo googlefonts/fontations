@@ -284,9 +284,6 @@ impl PatchGroup<'_> {
         // Remove any uri's selected above from the preloads
         combined_preload_uris.retain(|uri| !selected_uris.contains(uri));
 
-        // TODO XXXXX if multiple entries have the same URI are we correctly marking all entries as applied?
-        //            see: https://w3c.github.io/IFT/Overview.html#remove-entries-format-2
-
         // TODO XXXXX Have no_invalidation_ift/iftx key include entry order so uri listing order follows the spec
         //            Since the initial versions of no_invalidation_ift/iftx already dedup uris this is fine.
         // TODO XXXXX Ensure the lowest entry order version of a uri in the initial versions of no_invalidation_ift/iftx
@@ -2180,7 +2177,7 @@ mod tests {
     #[test]
     fn apply_patches_no_invalidation_duplicate_uris() {
         // Two types of duplicate uri situations
-        // 1. Same mapping table has duplicte uris. All should be marked applied.
+        // 1. Same mapping table has duplicate uris. All should be marked applied.
         // 2. Different mapping table has duplicate uris. These will not be marked as applied.
         let mut ift_builder = table_keyed_format2();
         ift_builder.write_at("encoding", 3u8);

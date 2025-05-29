@@ -213,7 +213,6 @@ fn intersect_format1_glyph_map_inner<const RECORD_INTERSECTION: bool>(
                 .get((gid - first_gid) as usize)?
                 .get()
         };
-
         if entry_index > max_glyph_map_entry_index {
             continue;
         }
@@ -1045,12 +1044,10 @@ impl IntersectionInfo {
         }
     }
 
-    fn from_order(order: usize) -> Self {
+    fn from_order(entry_order: usize) -> Self {
         Self {
-            intersecting_codepoints: 0,
-            intersecting_layout_tags: 0,
-            intersecting_design_space: Default::default(),
-            entry_order: order,
+            entry_order,
+            ..Default::default()
         }
     }
 
@@ -1354,9 +1351,9 @@ mod tests {
     use font_test_data as test_data;
     use font_test_data::ift::{
         child_indices_format2, codepoints_only_format2, custom_ids_format2, feature_map_format1,
-        features_and_design_space_format2, simple_format1, string_ids_format2,
-        string_ids_format2_with_preloads, table_keyed_format2_with_preload_urls,
-        u16_entries_format1,
+        features_and_design_space_format2, format1_with_dup_uris, simple_format1,
+        string_ids_format2, string_ids_format2_with_preloads,
+        table_keyed_format2_with_preload_urls, u16_entries_format1,
     };
     use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
     use read_fonts::types::Int24;
@@ -1432,14 +1429,20 @@ mod tests {
     #[derive(Clone)]
     struct ExpectedEntry {
         indices: Vec<u32>,
-        application_bit_index: usize,
+        application_bit_index: IntSet<u32>,
         order: usize,
+    }
+
+    fn set(value: u32) -> IntSet<u32> {
+        let mut set = IntSet::<u32>::empty();
+        set.insert(value);
+        set
     }
 
     fn f1(index: u32) -> ExpectedEntry {
         ExpectedEntry {
             indices: vec![index],
-            application_bit_index: (index as usize) + 36 * 8,
+            application_bit_index: set(index + 36 * 8),
             order: index as usize,
         }
     }
@@ -1447,7 +1450,7 @@ mod tests {
     fn f2(index: u32, entry_start: usize, order: usize) -> ExpectedEntry {
         ExpectedEntry {
             indices: vec![index],
-            application_bit_index: entry_start * 8 + 6,
+            application_bit_index: set(entry_start as u32 * 8 + 6),
             order,
         }
     }
@@ -1455,7 +1458,7 @@ mod tests {
     fn f2p(indices: Vec<u32>, entry_start: usize, order: usize) -> ExpectedEntry {
         ExpectedEntry {
             indices,
-            application_bit_index: entry_start * 8 + 6,
+            application_bit_index: set(entry_start as u32 * 8 + 6),
             order,
         }
     }
@@ -1506,8 +1509,7 @@ mod tests {
                         PatchFormat::GlyphKeyed,
                         IntersectionInfo::from_order(*order),
                     );
-                    e.application_bit_indices
-                        .insert(*application_bit_index as u32);
+                    e.application_bit_indices.union(application_bit_index);
                     e
                 },
             )
@@ -1519,6 +1521,15 @@ mod tests {
     fn test_intersection_with_all<const M: usize, const N: usize>(
         font: &FontRef,
         tags: [Tag; M],
+        expected_entries: [ExpectedEntry; N],
+    ) {
+        test_intersection_with_all_and_template(font, tags, "foo/{id}", expected_entries)
+    }
+
+    fn test_intersection_with_all_and_template<const M: usize, const N: usize>(
+        font: &FontRef,
+        tags: [Tag; M],
+        uri_template: &str,
         expected_entries: [ExpectedEntry; N],
     ) {
         let patches = intersecting_patches(
@@ -1540,7 +1551,7 @@ mod tests {
                      order,
                  }| {
                     let mut it = indices.iter().map(|i| {
-                        PatchUri::expand_template("foo/{id}", &PatchId::Numeric(*i)).unwrap()
+                        PatchUri::expand_template(uri_template, &PatchId::Numeric(*i)).unwrap()
                     });
                     let mut e = it.next().unwrap().into_format_2_entry(
                         it.collect(),
@@ -1548,8 +1559,7 @@ mod tests {
                         PatchFormat::GlyphKeyed,
                         IntersectionInfo::from_order(*order),
                     );
-                    e.application_bit_indices
-                        .insert(*application_bit_index as u32);
+                    e.application_bit_indices.union(application_bit_index);
                     e
                 },
             )
@@ -1645,6 +1655,26 @@ mod tests {
         test_intersection(&font, [0x11, 0x12, 0x123], [], [f1(2)]);
 
         test_intersection_with_all(&font, [], [f1(2)]);
+    }
+
+    #[test]
+    fn format_1_patch_map_with_duplicate_uris() {
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&format1_with_dup_uris()),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let mut e2 = f1(2);
+        let mut e3 = f1(3);
+        let mut e4 = f1(4);
+        e2.application_bit_index.union(&e3.application_bit_index);
+        e2.application_bit_index.union(&e4.application_bit_index);
+        e3.application_bit_index.union(&e2.application_bit_index);
+        e4.application_bit_index.union(&e2.application_bit_index);
+
+        test_intersection_with_all_and_template(&font, [], "foo/baar", [e2, e3, e4]);
     }
 
     #[test]
@@ -2398,27 +2428,30 @@ mod tests {
 
     #[test]
     fn format_2_patch_map_with_duplicate_uris() {
-        // TODO XXXXX
         // The mapping is set up to contain multiple entries that have the same uri.
         // Checks that application bit indices get correctly recorded.
+        let mut buffer = codepoints_only_format2();
+        buffer.write_at("entry_count", Uint24::new(5));
+        let buffer = buffer
+            .push(0b00010100u8) // DELTA | CODEPOINT 1
+            .push(Int24::new(-8)) // entry delta -4
+            .extend([0b00001101, 0b00000011, 0b00110001u8]); // {0..17}
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&codepoints_only_format2()),
+            Some(&buffer),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let e1 = f2(1, codepoints_only_format2().offset_for("entries[0]"), 0);
-        let e3 = f2(3, codepoints_only_format2().offset_for("entries[2]"), 2);
-        let e4 = f2(4, codepoints_only_format2().offset_for("entries[3]"), 3);
-        test_intersection(&font, [], [], []);
-        test_intersection(&font, [0x02], [], [e1.clone()]);
-        test_intersection(&font, [0x15], [], [e3.clone()]);
-        test_intersection(&font, [0x07], [], [e1.clone(), e3.clone()]);
-        test_intersection(&font, [80_007], [], [e4.clone()]);
+        let mut e1 = f2(1, buffer.offset_for("entries[0]"), 0);
+        let mut e5 = f2(1, buffer.offset_for("entries[3]") + 7, 4);
 
-        test_intersection_with_all(&font, [], [e1.clone(), e3.clone(), e4.clone()]);
+        e1.application_bit_index.union(&e5.application_bit_index);
+        e5.application_bit_index.union(&e1.application_bit_index);
+
+        test_intersection(&font, [], [], []);
+        test_intersection(&font, [0x02], [], [e1, e5]);
     }
 
     #[test]
