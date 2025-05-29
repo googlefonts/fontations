@@ -50,6 +50,38 @@ pub fn simple_format1() -> BeBuffer {
     buffer
 }
 
+pub fn format1_with_dup_uris() -> BeBuffer {
+    let mut buffer = be_buffer! {
+        /* ### Header ### */
+        1u8,                    // format
+        0u32,                   // reserved
+        [1u32, 2, 3, 4],        // compat id
+        4u16,                   // max entry id
+        {4u16: "max_glyph_map_entry_id"},
+        (Uint24::new(7)),       // glyph count
+        {0u32: "glyph_map_offset"},
+        0u32,                   // feature map offset
+        0b00000010u8,           // applied entry bitmap (entry 1)
+
+        8u16,                   // uri template length
+        {b'f': "uri_template[0]"},
+        {b'o': "uri_template[1]"},
+        [b'o', b'/', b'b', b'a', b'a', b'r'], // uri_template[2..7]
+
+        {3u8: "patch_format"}, // = glyph keyed
+
+        /* ### Glyph Map ### */
+        {1u16: "glyph_map"},     // first mapped glyph
+        {2u8: "entry_index[1]"},
+        [3u8, 4, 0, 0, 0]        // entry index[2..6]
+    };
+
+    let offset = buffer.offset_for("glyph_map") as u32;
+    buffer.write_at("glyph_map_offset", offset);
+
+    buffer
+}
+
 pub fn simple_format1_with_one_charstrings_offset() -> BeBuffer {
     let mut buffer = be_buffer! {
         /* ### Header ### */
@@ -271,7 +303,7 @@ pub fn codepoints_only_format2() -> BeBuffer {
       {4u32: "compat_id[3]"},
 
       3u8,                // default patch encoding
-      (Uint24::new(4)),   // entry count
+      {(Uint24::new(4)): "entry_count"},
       {0u32: "entries_offset"},
       0u32,               // entry string data offset
 
