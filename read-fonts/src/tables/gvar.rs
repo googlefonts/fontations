@@ -131,7 +131,7 @@ impl<'a> Gvar<'a> {
     ) -> Result<Option<[Point<Fixed>; 4]>, ReadError> {
         // For any given glyph, there's only one outline that contributes to
         // metrics deltas (via "phantom points"). For simple glyphs, that is
-        // the glyph itself. For composite glyphs, it is the first component
+        // the glyph itself. For composite glyphs, it is the last component
         // in the tree that has the USE_MY_METRICS flag set or, if there are
         // none, the composite glyph itself.
         //
@@ -259,26 +259,26 @@ fn find_glyph_and_point_count(
             Ok((glyph_id, simple.num_points()))
         }
         Glyph::Composite(composite) => {
-            // For composite glyphs, if one of the components has the
-            // USE_MY_METRICS flag set, recurse into the glyph referenced
-            // by that component. Otherwise, return the composite glyph
-            // itself and the number of components as the point count.
-            let mut count = 0;
-            for component in composite.components() {
-                count += 1;
-                if component
-                    .flags
-                    .contains(CompositeGlyphFlags::USE_MY_METRICS)
-                {
-                    return find_glyph_and_point_count(
-                        glyf,
-                        loca,
-                        component.glyph.into(),
-                        recurse_depth + 1,
-                    );
-                }
+            // For composite glyphs, recurse into the glyph referenced by the
+            // *last* component that has the USE_MY_METRICS flag set.
+            // Otherwise, return the composite glyph itself and the number of
+            // components as the point count.
+            // https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#point-numbers-and-processing-for-composite-glyphs
+            let (count, inherit_metrics) = composite.component_glyphs_and_flags().fold(
+                (0, None),
+                |(count, inherit_metrics), (component_id, flags)| {
+                    let has_flag = flags.contains(CompositeGlyphFlags::USE_MY_METRICS);
+                    let preferred = has_flag.then_some(component_id).or(inherit_metrics);
+
+                    (count + 1, preferred)
+                },
+            );
+
+            if let Some(component) = inherit_metrics {
+                find_glyph_and_point_count(glyf, loca, component.into(), recurse_depth + 1)
+            } else {
+                Ok((glyph_id, count))
             }
-            Ok((glyph_id, count))
         }
     }
 }
