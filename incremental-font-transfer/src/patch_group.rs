@@ -284,12 +284,8 @@ impl PatchGroup<'_> {
         // Remove any uri's selected above from the preloads
         combined_preload_uris.retain(|uri| !selected_uris.contains(uri));
 
-        // TODO XXXXX Have no_invalidation_ift/iftx key include entry order so uri listing order follows the spec
-        //            Since the initial versions of no_invalidation_ift/iftx already dedup uris this is fine.
         // TODO XXXXX Ensure the lowest entry order version of a uri in the initial versions of no_invalidation_ift/iftx
         //            is the one that's stored.
-
-        // TODO XXXXX tests of the above cases.
 
         let [Some(ift), Some(iftx)] = scoped_groups else {
             return Err(ReadError::MalformedData(
@@ -304,20 +300,25 @@ impl PatchGroup<'_> {
         candidates: BTreeMap<PatchUri, CandidateNoInvalidationPatch>,
         previously_selected_uris: &mut BTreeSet<PatchUri>,
         preloads: &mut BTreeSet<PatchUri>,
-    ) -> BTreeMap<PatchUri, NoInvalidationPatch> {
+    ) -> BTreeMap<OrderedPatchUri, NoInvalidationPatch> {
         preloads.extend(
             candidates
                 .values()
                 .flat_map(|candidate| candidate.preload_uris.iter().cloned()),
         );
-        let filtered: BTreeMap<PatchUri, NoInvalidationPatch> = candidates
+        let filtered: BTreeMap<OrderedPatchUri, NoInvalidationPatch> = candidates
             .into_iter()
             .filter(|(k, _)| !previously_selected_uris.contains(k))
-            .map(|(k, v)| (k, NoInvalidationPatch(v.patch_info)))
+            .map(|(k, v)| {
+                (
+                    OrderedPatchUri(v.entry_order, k),
+                    NoInvalidationPatch(v.patch_info),
+                )
+            })
             .collect();
 
         for (uri, _) in filtered.iter() {
-            previously_selected_uris.insert(uri.clone());
+            previously_selected_uris.insert(uri.1.clone());
         }
 
         filtered
@@ -517,6 +518,7 @@ struct CandidatePatch {
 
 struct CandidateNoInvalidationPatch {
     patch_info: PatchInfo,
+    entry_order: usize,
     preload_uris: Vec<PatchUri>,
 }
 
@@ -565,8 +567,10 @@ impl From<PatchMapEntry> for CandidateNoInvalidationPatch {
     fn from(mut value: PatchMapEntry) -> Self {
         let mut preload_uris: Vec<PatchUri> = vec![];
         std::mem::swap(&mut preload_uris, &mut value.preload_uris);
+        let entry_order = value.intersection_info.entry_order();
         Self {
             patch_info: value.into(),
+            entry_order,
             preload_uris,
         }
     }
@@ -609,7 +613,7 @@ enum CompatibleGroup {
 #[derive(PartialEq, Eq, Debug)]
 enum ScopedGroup {
     PartialInvalidation(PartialInvalidationPatch),
-    NoInvalidation(BTreeMap<PatchUri, NoInvalidationPatch>),
+    NoInvalidation(BTreeMap<OrderedPatchUri, NoInvalidationPatch>),
 }
 
 impl ScopedGroup {
@@ -629,6 +633,14 @@ impl ScopedGroup {
         }
     }
 }
+
+/// For non invalidating patches the specification requires they be ordered by entry order.
+/// That is the order that the physical entries in the patch map are in. This struct
+/// adds that ordering onto PatchUri's for when they are stored in a btree set/map.
+/// Context: https://github.com/w3c/IFT/pull/279
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct OrderedPatchUri(usize, PatchUri);
 
 struct NoInvalidationPatchesIter<'a, T>
 where
@@ -661,8 +673,8 @@ mod tests {
     use font_test_data::{
         bebuffer::BeBuffer,
         ift::{
-            glyf_u16_glyph_patches, glyph_keyed_patch_header, table_keyed_format2,
-            table_keyed_patch,
+            custom_ids_format2, glyf_u16_glyph_patches, glyph_keyed_patch_header,
+            table_keyed_format2, table_keyed_patch,
         },
     };
 
@@ -681,6 +693,12 @@ mod tests {
     impl PatchUri {
         fn new(uri: &str) -> Self {
             Self(uri.to_string())
+        }
+    }
+
+    impl OrderedPatchUri {
+        fn uri(order: usize, uri: &str) -> Self {
+            OrderedPatchUri(order, PatchUri(uri.to_string()))
         }
     }
 
@@ -1252,11 +1270,11 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    PatchUri::new("//foo.bar/0G"),
+                    OrderedPatchUri::uri(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    PatchUri::new("//foo.bar/0K"),
+                    OrderedPatchUri::uri(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
@@ -1281,11 +1299,11 @@ mod tests {
                 ift: ScopedGroup::NoInvalidation(Default::default()),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([
                     (
-                        PatchUri::new("//foo.bar/0K"),
+                        OrderedPatchUri::uri(0, "//foo.bar/0K"),
                         NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                     ),
                     (
-                        PatchUri::new("//foo.bar/0G"),
+                        OrderedPatchUri::uri(0, "//foo.bar/0G"),
                         NoInvalidationPatch(patch_info_iftx("//foo.bar/0G"))
                     )
                 ]))
@@ -1328,11 +1346,11 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    PatchUri::new("//foo.bar/0G"),
+                    OrderedPatchUri::uri(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    PatchUri::new("//foo.bar/0K"),
+                    OrderedPatchUri::uri(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
@@ -1361,7 +1379,7 @@ mod tests {
                     "//foo.bar/08"
                 ),)),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    PatchUri::new("//foo.bar/0K"),
+                    OrderedPatchUri::uri(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
@@ -1381,7 +1399,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    PatchUri::new("//foo.bar/0G"),
+                    OrderedPatchUri::uri(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
@@ -1470,7 +1488,7 @@ mod tests {
                     "//foo.bar/08"
                 ),)),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    PatchUri::new("//foo.bar/0K"),
+                    OrderedPatchUri::uri(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
@@ -1493,7 +1511,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    PatchUri::new("//foo.bar/0G"),
+                    OrderedPatchUri::uri(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
@@ -1583,7 +1601,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    PatchUri::new("//foo.bar/0G"),
+                    OrderedPatchUri::uri(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::new()),
@@ -1604,11 +1622,11 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    PatchUri::new("//foo.bar/0G"),
+                    OrderedPatchUri::uri(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    PatchUri::new("//foo.bar/0K"),
+                    OrderedPatchUri::uri(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )])),
             }
@@ -1653,7 +1671,7 @@ mod tests {
                     "//foo.bar/08"
                 ))),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    PatchUri::new("//foo.bar/0K"),
+                    OrderedPatchUri::uri(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )])),
             }
@@ -1672,7 +1690,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    PatchUri::new("//foo.bar/0G"),
+                    OrderedPatchUri::uri(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
@@ -2263,7 +2281,7 @@ mod tests {
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(Default::default()),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    PatchUri::new("foo/04"),
+                    OrderedPatchUri::uri(0, "foo/04"),
                     NoInvalidationPatch(info)
                 )])),
             }
@@ -2304,5 +2322,53 @@ mod tests {
             err,
             ReadError::MalformedData("Failed to expand uri template in format 2 table.")
         );
+    }
+
+    #[test]
+    fn select_next_patches_ordering_for_non_invalidating() {
+        // XXXXXXX also have a test of ordering where dup ids are present
+        let mut ift_builder = custom_ids_format2();
+        ift_builder.write_at("entries[0].id_delta", Int24::new(30)); // delta = +15
+        ift_builder.write_at("entries[1].id_delta", Int24::new(-10)); // delta = +15
+
+        let mut iftx_builder = custom_ids_format2();
+        iftx_builder.write_at("compat_id[0]", 5u32);
+        iftx_builder.write_at("compat_id[1]", 6u32);
+        iftx_builder.write_at("compat_id[2]", 7u32);
+        iftx_builder.write_at("compat_id[3]", 8u32);
+
+        let font = test_font_for_patching_with_loca_mod(
+            true,
+            |_| {},
+            HashMap::from([
+                (IFT_TAG, ift_builder.as_slice()),
+                (IFTX_TAG, iftx_builder.as_slice()),
+            ]),
+        );
+
+        let font = FontRef::new(font.as_slice()).unwrap();
+
+        let s = SubsetDefinition::codepoints([10].into_iter().collect());
+        let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
+
+        // Expected ID ordering
+        // IFT
+        // 16 (+15)
+        // 12 (-5)
+        // 21 (+7, +0)
+        // IFTX
+        // 0
+        // 6
+        // 15
+        // Note: these are in entry order (physical ordering in the map encoding) and not in entry id order
+        let uris: Vec<String> = g.uris().map(|p| p.as_ref().to_string()).collect();
+        let expected_uris: Vec<String> = [16, 12, 21, 0, 6, 15]
+            .into_iter()
+            .map(|index| PatchUri::expand_template("foo/{id}", &PatchId::Numeric(index)))
+            .map(|uri| uri.unwrap())
+            .map(|uri| uri.as_ref().to_string())
+            .collect();
+
+        assert_eq!(uris, expected_uris);
     }
 }

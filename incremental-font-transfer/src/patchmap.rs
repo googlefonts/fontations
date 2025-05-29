@@ -1067,6 +1067,10 @@ impl IntersectionInfo {
                 .collect(),
         }
     }
+
+    pub(crate) fn entry_order(&self) -> usize {
+        self.entry_order
+    }
 }
 
 /// Stores a set of features tags, can additionally represent all features.
@@ -2840,7 +2844,7 @@ mod tests {
     #[test]
     fn format_2_patch_map_negative_entry_id() {
         let mut data = custom_ids_format2();
-        data.write_at("id delta", Int24::new(-4));
+        data.write_at("entries[1].id_delta", Int24::new(-4));
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),

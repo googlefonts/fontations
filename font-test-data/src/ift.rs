@@ -571,7 +571,10 @@ pub fn custom_ids_format2() -> BeBuffer {
 
       0u32,                              // reserved
 
-      [1, 2, 3, 4u32],                   // compat id
+      {1u32: "compat_id[0]"},
+      {2u32: "compat_id[1]"},
+      {3u32: "compat_id[2]"},
+      {4u32: "compat_id[3]"},
 
       3u8,                               // default patch encoding = glyph keyed
       {(Uint24::new(4)): "entry_count"}, // entry count
@@ -584,12 +587,12 @@ pub fn custom_ids_format2() -> BeBuffer {
       // Entries Array
       // Entry id = 0
       {0b00010100u8: "entries[0]"},           // format = CODEPOINT_BIT_1 | ID_DELTA
-      (Int24::new(-2)),                       // id delta = -1
+      {(Int24::new(-2)): "entries[0].id_delta"}, // id delta = -1
       [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [0..17]
 
       // Entry id = 6
       {0b00100100u8: "entries[1]"},            // format = CODEPOINT_BIT_2 | ID_DELTA
-      {(Int24::new(10)): "id delta"},           // id delta = 5
+      {(Int24::new(10)): "entries[1].id_delta"},           // id delta = 5
       5u16,                                   // bias
       [0b00001101, 0b00000011, 0b00110001u8], // codepoints = [5..22]
 
