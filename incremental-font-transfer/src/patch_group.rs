@@ -284,9 +284,6 @@ impl PatchGroup<'_> {
         // Remove any uri's selected above from the preloads
         combined_preload_uris.retain(|uri| !selected_uris.contains(uri));
 
-        // TODO XXXXX Ensure the lowest entry order version of a uri in the initial versions of no_invalidation_ift/iftx
-        //            is the one that's stored.
-
         let [Some(ift), Some(iftx)] = scoped_groups else {
             return Err(ReadError::MalformedData(
                 "Failed invariant. Both arms of the mixed compat group should always be filled.",
@@ -451,14 +448,24 @@ impl GroupingByInvalidation {
                     }
                 }
                 PatchFormat::GlyphKeyed => {
-                    if Some(entry.expected_compat_id()) == ift_compat_id.as_ref() {
-                        result
-                            .no_invalidation_ift
-                            .insert(entry.uri().clone(), entry.into());
+                    let mapping = if Some(entry.expected_compat_id()) == ift_compat_id.as_ref() {
+                        Some(&mut result.no_invalidation_ift)
                     } else if Some(entry.expected_compat_id()) == iftx_compat_id.as_ref() {
-                        result
-                            .no_invalidation_iftx
-                            .insert(entry.uri.clone(), entry.into());
+                        Some(&mut result.no_invalidation_iftx)
+                    } else {
+                        None
+                    };
+                    if let Some(mapping) = mapping {
+                        mapping
+                            .entry(entry.uri().clone())
+                            .and_modify(|existing| {
+                                // When duplicate URIs are present we want to always keep the one with the
+                                // lowest entry order.
+                                if entry.intersection_info.entry_order() < existing.entry_order {
+                                    *existing = entry.clone().into()
+                                }
+                            })
+                            .or_insert_with(|| entry.into());
                     }
                 }
             }
@@ -637,7 +644,7 @@ impl ScopedGroup {
 /// For non invalidating patches the specification requires they be ordered by entry order.
 /// That is the order that the physical entries in the patch map are in. This struct
 /// adds that ordering onto PatchUri's for when they are stored in a btree set/map.
-/// Context: https://github.com/w3c/IFT/pull/279
+/// Context: <https://github.com/w3c/IFT/pull/279>
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct OrderedPatchUri(usize, PatchUri);
@@ -2326,10 +2333,9 @@ mod tests {
 
     #[test]
     fn select_next_patches_ordering_for_non_invalidating() {
-        // XXXXXXX also have a test of ordering where dup ids are present
         let mut ift_builder = custom_ids_format2();
         ift_builder.write_at("entries[0].id_delta", Int24::new(30)); // delta = +15
-        ift_builder.write_at("entries[1].id_delta", Int24::new(-10)); // delta = +15
+        ift_builder.write_at("entries[1].id_delta", Int24::new(-10)); // delta = -5
 
         let mut iftx_builder = custom_ids_format2();
         iftx_builder.write_at("compat_id[0]", 5u32);
@@ -2363,6 +2369,53 @@ mod tests {
         // Note: these are in entry order (physical ordering in the map encoding) and not in entry id order
         let uris: Vec<String> = g.uris().map(|p| p.as_ref().to_string()).collect();
         let expected_uris: Vec<String> = [16, 12, 21, 0, 6, 15]
+            .into_iter()
+            .map(|index| PatchUri::expand_template("foo/{id}", &PatchId::Numeric(index)))
+            .map(|uri| uri.unwrap())
+            .map(|uri| uri.as_ref().to_string())
+            .collect();
+
+        assert_eq!(uris, expected_uris);
+    }
+
+    #[test]
+    fn select_next_patches_ordering_for_non_invalidating_with_duplicates() {
+        let mut ift_builder = custom_ids_format2();
+        ift_builder.write_at("entries[0].id_delta", Int24::new(30)); // delta = +15
+        ift_builder.write_at("entries[1].id_delta", Int24::new(-20)); // delta = -10
+
+        let mut iftx_builder = custom_ids_format2();
+        iftx_builder.write_at("compat_id[0]", 5u32);
+        iftx_builder.write_at("compat_id[1]", 6u32);
+        iftx_builder.write_at("compat_id[2]", 7u32);
+        iftx_builder.write_at("compat_id[3]", 8u32);
+
+        let font = test_font_for_patching_with_loca_mod(
+            true,
+            |_| {},
+            HashMap::from([
+                (IFT_TAG, ift_builder.as_slice()),
+                (IFTX_TAG, iftx_builder.as_slice()),
+            ]),
+        );
+
+        let font = FontRef::new(font.as_slice()).unwrap();
+
+        let s = SubsetDefinition::codepoints([10].into_iter().collect());
+        let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
+
+        // Expected ID ordering
+        // IFT
+        // 16 (+15)
+        // 7 (-10)
+        // 16 (+7, +0)
+        // IFTX
+        // 0
+        // 6
+        // 15
+        // Note: these are in entry order (physical ordering in the map encoding) and not in entry id order
+        let uris: Vec<String> = g.uris().map(|p| p.as_ref().to_string()).collect();
+        let expected_uris: Vec<String> = [16, 7, 0, 6, 15]
             .into_iter()
             .map(|index| PatchUri::expand_template("foo/{id}", &PatchId::Numeric(index)))
             .map(|uri| uri.unwrap())
