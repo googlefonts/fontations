@@ -304,3 +304,101 @@ impl Subtable3<'_> {
         self.kern_value().get(index).map(|value| value.get() as i32)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ot_format_0() {
+        // from https://github.com/fonttools/fonttools/blob/729b3d2960efd3/Tests/ttLib/tables/_k_e_r_n_test.py#L9
+        #[rustfmt::skip]
+        const KERN_VER_0_FMT_0_DATA: &[u8] = &[
+            0x00, 0x00, // "0000 "  #  0: version=0
+            0x00, 0x01, // "0001 "  #  2: nTables=1
+            0x00, 0x00, // "0000 "  #  4: version=0 (bogus field, unused)
+            0x00, 0x20, // "0020 "  #  6: length=32
+            0x00,       // "00 "  #  8: format=0
+            0x01,       // "01 "  #  9: coverage=1
+            0x00, 0x03, // "0003 "  # 10: nPairs=3
+            0x00, 0x0C, // "000C "  # 12: searchRange=12
+            0x00, 0x01, // "0001 "  # 14: entrySelector=1
+            0x00, 0x06, // "0006 "  # 16: rangeShift=6
+            0x00, 0x04, 0x00, 0x0C, 0xFF, 0xD8, // "0004 000C FFD8 "  # 18: l=4, r=12, v=-40
+            0x00, 0x04, 0x00, 0x1C, 0x00, 0x28, // "0004 001C 0028 "  # 24: l=4, r=28, v=40
+            0x00, 0x05, 0x00, 0x28, 0xFF, 0xCE, // "0005 0028 FFCE "  # 30: l=5, r=40, v=-50
+        ];
+        let kern = Kern::read(FontData::new(KERN_VER_0_FMT_0_DATA)).unwrap();
+        let Kern::Ot(ot_kern) = &kern else {
+            panic!("Should be an OpenType kerning table");
+        };
+        assert_eq!(ot_kern.version(), 0);
+        assert_eq!(ot_kern.n_tables(), 1);
+        let subtables = kern.subtables().collect::<Vec<_>>();
+        assert_eq!(subtables.len(), 1);
+        let subtable = subtables.get(0).unwrap().as_ref().unwrap();
+        assert!(subtable.is_horizontal());
+        let Subtable::Ot(ot_subtable) = subtable else {
+            panic!("Should be an OpenType subtable");
+        };
+        assert_eq!(ot_subtable.coverage(), 1);
+        assert_eq!(ot_subtable.length(), 32);
+        check_format_0(&subtable);
+    }
+
+    #[test]
+    fn aat_format_0() {
+        // As above, but modified for AAT
+        #[rustfmt::skip]
+        const KERN_VER_1_FMT_0_DATA: &[u8] = &[
+            0x00, 0x01, 0x00, 0x00, // "0001 0000"  #  0: version=1.0
+            0x00, 0x00, 0x00, 0x01, // "0000 0001 "  #  4: nTables=1
+            0x00, 0x00, 0x00, 0x22, // "0000 0020 "  #  8: length=34
+            0x00,       // "00 "  #  12: coverage=0
+            0x00,       // "00 "  #  13: format=0
+            0x00, 0x00, // "0000" #  14: tupleIndex=0
+            0x00, 0x03, // "0003 "  # 16: nPairs=3
+            0x00, 0x0C, // "000C "  # 18: searchRange=12
+            0x00, 0x01, // "0001 "  # 20: entrySelector=1
+            0x00, 0x06, // "0006 "  # 22: rangeShift=6
+            0x00, 0x04, 0x00, 0x0C, 0xFF, 0xD8, // "0004 000C FFD8 "  # 24: l=4, r=12, v=-40
+            0x00, 0x04, 0x00, 0x1C, 0x00, 0x28, // "0004 001C 0028 "  # 30: l=4, r=28, v=40
+            0x00, 0x05, 0x00, 0x28, 0xFF, 0xCE, // "0005 0028 FFCE "  # 36: l=5, r=40, v=-50
+        ];
+        let kern = Kern::read(FontData::new(KERN_VER_1_FMT_0_DATA)).unwrap();
+        let Kern::Aat(aat_kern) = &kern else {
+            panic!("Should be an AAT kerning table");
+        };
+        assert_eq!(aat_kern.version(), MajorMinor::VERSION_1_0);
+        assert_eq!(aat_kern.n_tables(), 1);
+        let subtables = kern.subtables().collect::<Vec<_>>();
+        assert_eq!(subtables.len(), 1);
+        let subtable = subtables.get(0).unwrap().as_ref().unwrap();
+        assert!(subtable.is_horizontal());
+        let Subtable::Aat(aat_subtable) = subtable else {
+            panic!("Should be an AAT subtable");
+        };
+        assert_eq!(aat_subtable.coverage(), 0);
+        assert_eq!(aat_subtable.length(), 34);
+        check_format_0(&subtable);
+    }
+
+    fn check_format_0(subtable: &Subtable) {
+        let SubtableKind::Format0(format0) = subtable.kind().unwrap() else {
+            panic!("Should be a format 0 subtable");
+        };
+        const EXPECTED_PAIRS: &[(u16, u16, i16)] = &[(4, 12, -40), (4, 28, 40), (5, 40, -50)];
+        let pairs = format0
+            .pairs()
+            .iter()
+            .map(|pair| (pair.left().to_u16(), pair.right().to_u16(), pair.value()))
+            .collect::<Vec<_>>();
+        assert_eq!(pairs, EXPECTED_PAIRS);
+        for pair in EXPECTED_PAIRS {
+            assert_eq!(
+                format0.kerning(pair.0.into(), pair.1.into()),
+                Some(pair.2 as i32)
+            );
+        }
+    }
+}
