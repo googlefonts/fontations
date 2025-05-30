@@ -1,4 +1,4 @@
-#![parse_module(read_fonts::tables::morx)]
+#![parse_module(read_fonts::tables::kerx)]
 
 /// The [kerx (Extended Kerning)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
 #[tag = "kerx"]

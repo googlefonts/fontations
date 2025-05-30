@@ -312,6 +312,8 @@ pub struct StateTable<'a> {
 }
 
 impl StateTable<'_> {
+    pub const HEADER_LEN: usize = u16::RAW_BYTE_LEN * 4;
+
     /// Returns the class table entry for the given glyph identifier.
     pub fn class(&self, glyph_id: GlyphId16) -> Result<u8, ReadError> {
         let glyph_id = glyph_id.to_u16();
