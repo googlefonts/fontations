@@ -642,10 +642,10 @@ impl ScopedGroup {
 }
 
 /// For non invalidating patches the specification requires they be ordered by entry order.
+///
 /// That is the order that the physical entries in the patch map are in. This struct
 /// adds that ordering onto PatchUri's for when they are stored in a btree set/map.
 /// Context: <https://github.com/w3c/IFT/pull/279>
-
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct OrderedPatchUri(usize, PatchUri);
 
