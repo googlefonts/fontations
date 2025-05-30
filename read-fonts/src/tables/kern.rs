@@ -209,10 +209,7 @@ pub struct Subtable1<'a> {
 impl<'a> FontRead<'a> for Subtable1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let state_table = StateTable::read(data)?;
-        let mut cursor = data.cursor();
-        cursor.advance_by(StateTable::HEADER_LEN);
-        let values_offset = cursor.read::<u16>()? as usize;
-        let values = super::aat::safe_read_array_to_end(&data, values_offset)?;
+        let values = super::aat::safe_read_array_to_end(&data, 0)?;
         Ok(Self {
             state_table,
             values,
