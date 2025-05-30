@@ -939,4 +939,156 @@ mod test {
         let expected_bytes: [u8; 8] = [0x00, 0x01, 0x00, 0x02, 0x00, 0x02, 0x00, 0x04];
         assert_eq!(subsetted_data, expected_bytes);
     }
+
+    #[test]
+    fn test_singlepos_closure_lookups() {
+        let font = FontRef::new(include_bytes!(
+            "../test-data/fonts/gpos_chaining1_multiple_subrules_f1.otf"
+        ))
+        .unwrap();
+        let gpos_lookup_list = font.gpos().unwrap().lookup_list().unwrap();
+        let mut lookup_indices = IntSet::empty();
+        lookup_indices.insert(1_u16);
+
+        let mut glyphs = IntSet::empty();
+        // glyphs set doesn't intersect with any subtable in lookup index=1, lookup_indices set will be emptied
+        glyphs.insert(GlyphId::from(3_u32));
+        assert!(gpos_lookup_list
+            .closure_lookups(&glyphs, &mut lookup_indices)
+            .is_ok());
+        assert!(lookup_indices.is_empty());
+
+        //reset
+        lookup_indices.insert(1);
+        glyphs.clear();
+
+        // make glyphs intersect with lookup index=1
+        glyphs.insert(GlyphId::from(48_u32));
+
+        // no new lookup indices are added, lookup_indices set remains the same
+        assert!(gpos_lookup_list
+            .closure_lookups(&glyphs, &mut lookup_indices)
+            .is_ok());
+        assert_eq!(lookup_indices.len(), 1);
+        assert!(lookup_indices.contains(1_u16));
+    }
+
+    #[test]
+    fn test_context_format1_closure_lookups() {
+        let font = FontRef::new(include_bytes!(
+            "../test-data/fonts/gpos_chaining1_multiple_subrules_f1.otf"
+        ))
+        .unwrap();
+        let gpos_lookup_list = font.gpos().unwrap().lookup_list().unwrap();
+        let mut lookup_indices = IntSet::empty();
+        lookup_indices.insert(4_u16);
+
+        let mut glyphs = IntSet::empty();
+        // glyphs set doesn't intersect with any subtable in lookup index=4, lookup_indices set will be emptied
+        glyphs.insert(GlyphId::from(3_u32));
+        assert!(gpos_lookup_list
+            .closure_lookups(&glyphs, &mut lookup_indices)
+            .is_ok());
+        assert!(lookup_indices.is_empty());
+
+        //reset
+        lookup_indices.insert(4);
+        glyphs.clear();
+
+        // make glyphs intersect with subtable index=1
+        // input coverage glyph
+        glyphs.insert(GlyphId::from(49_u32));
+        // backtrack glyph
+        glyphs.insert(GlyphId::from(48_u32));
+        // input glyph
+        glyphs.insert(GlyphId::from(50_u32));
+        // lookahead glyph
+        glyphs.insert(GlyphId::from(51_u32));
+
+        assert!(gpos_lookup_list
+            .closure_lookups(&glyphs, &mut lookup_indices)
+            .is_ok());
+        assert_eq!(lookup_indices.len(), 2);
+        assert!(lookup_indices.contains(4_u16));
+        assert!(lookup_indices.contains(1_u16));
+    }
+
+    #[test]
+    fn test_context_format2_closure_lookups() {
+        let font = FontRef::new(include_bytes!(
+            "../test-data/fonts/gpos_chaining2_multiple_subrules_f1.otf"
+        ))
+        .unwrap();
+        let gpos_lookup_list = font.gpos().unwrap().lookup_list().unwrap();
+        let mut lookup_indices = IntSet::empty();
+        lookup_indices.insert(4_u16);
+
+        let mut glyphs = IntSet::empty();
+        // glyphs set doesn't intersect with any subtable in lookup index=4, lookup_indices set will be emptied
+        glyphs.insert(GlyphId::from(47_u32));
+        assert!(gpos_lookup_list
+            .closure_lookups(&glyphs, &mut lookup_indices)
+            .is_ok());
+        assert!(lookup_indices.is_empty());
+
+        //reset
+        lookup_indices.insert(4);
+        glyphs.clear();
+
+        // make glyphs intersect with subtable index=1
+        // input coverage glyph
+        glyphs.insert(GlyphId::from(49_u32));
+        glyphs.insert(GlyphId::from(50_u32));
+        // backtrack glyph
+        glyphs.insert(GlyphId::from(48_u32));
+        // lookahead glyph
+        glyphs.insert(GlyphId::from(51_u32));
+        glyphs.insert(GlyphId::from(52_u32));
+
+        assert!(gpos_lookup_list
+            .closure_lookups(&glyphs, &mut lookup_indices)
+            .is_ok());
+        assert_eq!(lookup_indices.len(), 2);
+        assert!(lookup_indices.contains(4_u16));
+        assert!(lookup_indices.contains(1_u16));
+    }
+
+    #[test]
+    fn test_context_format3_closure_lookups() {
+        let font = FontRef::new(include_bytes!("../test-data/fonts/Amiri-Regular.ttf")).unwrap();
+        let gpos_lookup_list = font.gpos().unwrap().lookup_list().unwrap();
+        let mut lookup_indices = IntSet::empty();
+        lookup_indices.insert(2_u16);
+
+        let mut glyphs = IntSet::empty();
+        // glyphs set doesn't intersect with any subtable in lookup index=2, lookup_indices set will be emptied
+        glyphs.insert(GlyphId::from(3_u32));
+        assert!(gpos_lookup_list
+            .closure_lookups(&glyphs, &mut lookup_indices)
+            .is_ok());
+        assert!(lookup_indices.is_empty());
+
+        //reset
+        lookup_indices.insert(2);
+        glyphs.clear();
+
+        // make glyphs intersect with subtable index=0
+        // input glyph
+        glyphs.insert(GlyphId::from(6053_u32));
+        // lookahead glyph
+        glyphs.insert(GlyphId::from(580_u32));
+
+        // make glyphs intersect with subtable index=2
+        // input glyph
+        glyphs.insert(GlyphId::from(2033_u32));
+        // lookahead glyph
+        glyphs.insert(GlyphId::from(435_u32));
+
+        assert!(gpos_lookup_list
+            .closure_lookups(&glyphs, &mut lookup_indices)
+            .is_ok());
+        assert_eq!(lookup_indices.len(), 3);
+        assert!(lookup_indices.contains(3_u16));
+        assert!(lookup_indices.contains(4_u16));
+    }
 }
