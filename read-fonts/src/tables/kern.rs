@@ -167,6 +167,7 @@ pub enum SubtableKind<'a> {
     Format0(Subtable0<'a>),
     Format1(Subtable1<'a>),
     Format2(Subtable2<'a>),
+    Format3(Subtable3<'a>),
 }
 
 impl ReadArgs for SubtableKind<'_> {
@@ -185,7 +186,7 @@ impl<'a> FontReadWithArgs<'a> for SubtableKind<'a> {
             0 => Ok(Self::Format0(Subtable0::read(data)?)),
             1 => Ok(Self::Format1(Subtable1::read(data)?)),
             2 => Ok(Self::Format2(Subtable2::read_with_args(data, &header_len)?)),
-            // 4 => Ok(Self::Format4(Subtable4::read(data)?)),
+            3 => Ok(Self::Format3(Subtable3::read(data)?)),
             _ => Err(ReadError::InvalidFormat(format as _)),
         }
     }
@@ -294,5 +295,15 @@ impl Subtable2ClassTable<'_> {
         self.offsets()
             .get(index as usize)
             .map(|offset| offset.get())
+    }
+}
+
+impl Subtable3<'_> {
+    /// Returns the kerning adjustment for the given pair.
+    pub fn kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
+        let left_class = self.left_class().get(left.to_u32() as usize).copied()? as usize;
+        let right_class = self.right_class().get(right.to_u32() as usize).copied()? as usize;
+        let index = left_class * self.right_class_count() as usize + right_class;
+        self.kern_value().get(index).map(|value| value.get() as i32)
     }
 }

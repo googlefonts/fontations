@@ -5,96 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The Apple Advanced Typography [kerning](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html) table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AatKernMarker {
-    subtable_data_byte_len: usize,
-}
-
-impl AatKernMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
-    }
-
-    pub fn n_tables_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn subtable_data_byte_range(&self) -> Range<usize> {
-        let start = self.n_tables_byte_range().end;
-        start..start + self.subtable_data_byte_len
-    }
-}
-
-impl MinByteRange for AatKernMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.subtable_data_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for AatKern<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<u32>();
-        let subtable_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(subtable_data_byte_len);
-        cursor.finish(AatKernMarker {
-            subtable_data_byte_len,
-        })
-    }
-}
-
-/// The Apple Advanced Typography [kerning](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html) table.
-pub type AatKern<'a> = TableRef<'a, AatKernMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> AatKern<'a> {
-    /// The version number of the kerning table (0x00010000 for the current version).
-    pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// The number of subtables included in the kerning table.
-    pub fn n_tables(&self) -> u32 {
-        let range = self.shape.n_tables_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Data for subtables, immediately following the header.    
-    pub fn subtable_data(&self) -> &'a [u8] {
-        let range = self.shape.subtable_data_byte_range();
-        self.data.read_array(range).unwrap()
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AatKern<'a> {
-    fn type_name(&self) -> &str {
-        "AatKern"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("n_tables", self.n_tables())),
-            2usize => Some(Field::new("subtable_data", self.subtable_data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AatKern<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// The OpenType [kerning](https://learn.microsoft.com/en-us/typography/opentype/spec/kern) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -185,94 +95,83 @@ impl<'a> std::fmt::Debug for OtKern<'a> {
     }
 }
 
-/// A subtable in an AAT `kern` table.
+/// The Apple Advanced Typography [kerning](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AatSubtableMarker {
-    data_byte_len: usize,
+pub struct AatKernMarker {
+    subtable_data_byte_len: usize,
 }
 
-impl AatSubtableMarker {
-    pub fn length_byte_range(&self) -> Range<usize> {
+impl AatKernMarker {
+    pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
+        start..start + MajorMinor::RAW_BYTE_LEN
+    }
+
+    pub fn n_tables_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
 
-    pub fn coverage_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn tuple_index_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.tuple_index_byte_range().end;
-        start..start + self.data_byte_len
+    pub fn subtable_data_byte_range(&self) -> Range<usize> {
+        let start = self.n_tables_byte_range().end;
+        start..start + self.subtable_data_byte_len
     }
 }
 
-impl MinByteRange for AatSubtableMarker {
+impl MinByteRange for AatKernMarker {
     fn min_byte_range(&self) -> Range<usize> {
-        0..self.data_byte_range().end
+        0..self.subtable_data_byte_range().end
     }
 }
 
-impl<'a> FontRead<'a> for AatSubtable<'a> {
+impl<'a> FontRead<'a> for AatKern<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
+        cursor.advance::<MajorMinor>();
         cursor.advance::<u32>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(data_byte_len);
-        cursor.finish(AatSubtableMarker { data_byte_len })
+        let subtable_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        cursor.advance_by(subtable_data_byte_len);
+        cursor.finish(AatKernMarker {
+            subtable_data_byte_len,
+        })
     }
 }
 
-/// A subtable in an AAT `kern` table.
-pub type AatSubtable<'a> = TableRef<'a, AatSubtableMarker>;
+/// The Apple Advanced Typography [kerning](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html) table.
+pub type AatKern<'a> = TableRef<'a, AatKernMarker>;
 
 #[allow(clippy::needless_lifetimes)]
-impl<'a> AatSubtable<'a> {
-    /// The length of this subtable in bytes, including this header.
-    pub fn length(&self) -> u32 {
-        let range = self.shape.length_byte_range();
+impl<'a> AatKern<'a> {
+    /// The version number of the kerning table (0x00010000 for the current version).
+    pub fn version(&self) -> MajorMinor {
+        let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
-    /// Circumstances under which this table is used.
-    pub fn coverage(&self) -> u16 {
-        let range = self.shape.coverage_byte_range();
+    /// The number of subtables included in the kerning table.
+    pub fn n_tables(&self) -> u32 {
+        let range = self.shape.n_tables_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
-    /// The tuple index (used for variations fonts). This value specifies which tuple this subtable covers.
-    pub fn tuple_index(&self) -> u16 {
-        let range = self.shape.tuple_index_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Subtable specific data.
-    pub fn data(&self) -> &'a [u8] {
-        let range = self.shape.data_byte_range();
+    /// Data for subtables, immediately following the header.    
+    pub fn subtable_data(&self) -> &'a [u8] {
+        let range = self.shape.subtable_data_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AatSubtable<'a> {
+impl<'a> SomeTable<'a> for AatKern<'a> {
     fn type_name(&self) -> &str {
-        "AatSubtable"
+        "AatKern"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
-            0usize => Some(Field::new("length", self.length())),
-            1usize => Some(Field::new("coverage", self.coverage())),
-            2usize => Some(Field::new("tuple_index", self.tuple_index())),
-            3usize => Some(Field::new("data", self.data())),
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new("n_tables", self.n_tables())),
+            2usize => Some(Field::new("subtable_data", self.subtable_data())),
             _ => None,
         }
     }
@@ -280,7 +179,7 @@ impl<'a> SomeTable<'a> for AatSubtable<'a> {
 
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AatSubtable<'a> {
+impl<'a> std::fmt::Debug for AatKern<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -382,6 +281,107 @@ impl<'a> SomeTable<'a> for OtSubtable<'a> {
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for OtSubtable<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+/// A subtable in an AAT `kern` table.
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct AatSubtableMarker {
+    data_byte_len: usize,
+}
+
+impl AatSubtableMarker {
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn coverage_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn tuple_index_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn data_byte_range(&self) -> Range<usize> {
+        let start = self.tuple_index_byte_range().end;
+        start..start + self.data_byte_len
+    }
+}
+
+impl MinByteRange for AatSubtableMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.data_byte_range().end
+    }
+}
+
+impl<'a> FontRead<'a> for AatSubtable<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u32>();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        cursor.advance_by(data_byte_len);
+        cursor.finish(AatSubtableMarker { data_byte_len })
+    }
+}
+
+/// A subtable in an AAT `kern` table.
+pub type AatSubtable<'a> = TableRef<'a, AatSubtableMarker>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> AatSubtable<'a> {
+    /// The length of this subtable in bytes, including this header.
+    pub fn length(&self) -> u32 {
+        let range = self.shape.length_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Circumstances under which this table is used.
+    pub fn coverage(&self) -> u16 {
+        let range = self.shape.coverage_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// The tuple index (used for variations fonts). This value specifies which tuple this subtable covers.
+    pub fn tuple_index(&self) -> u16 {
+        let range = self.shape.tuple_index_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Subtable specific data.
+    pub fn data(&self) -> &'a [u8] {
+        let range = self.shape.data_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for AatSubtable<'a> {
+    fn type_name(&self) -> &str {
+        "AatSubtable"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("length", self.length())),
+            1usize => Some(Field::new("coverage", self.coverage())),
+            2usize => Some(Field::new("tuple_index", self.tuple_index())),
+            3usize => Some(Field::new("data", self.data())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
+impl<'a> std::fmt::Debug for AatSubtable<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -595,6 +595,192 @@ impl<'a> SomeTable<'a> for Subtable2ClassTable<'a> {
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for Subtable2ClassTable<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+/// The type 3 'kern' subtable.
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct Subtable3Marker {
+    kern_value_byte_len: usize,
+    left_class_byte_len: usize,
+    right_class_byte_len: usize,
+    kern_index_byte_len: usize,
+}
+
+impl Subtable3Marker {
+    pub fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn kern_value_count_byte_range(&self) -> Range<usize> {
+        let start = self.glyph_count_byte_range().end;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn left_class_count_byte_range(&self) -> Range<usize> {
+        let start = self.kern_value_count_byte_range().end;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn right_class_count_byte_range(&self) -> Range<usize> {
+        let start = self.left_class_count_byte_range().end;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
+        let start = self.right_class_count_byte_range().end;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn kern_value_byte_range(&self) -> Range<usize> {
+        let start = self.flags_byte_range().end;
+        start..start + self.kern_value_byte_len
+    }
+
+    pub fn left_class_byte_range(&self) -> Range<usize> {
+        let start = self.kern_value_byte_range().end;
+        start..start + self.left_class_byte_len
+    }
+
+    pub fn right_class_byte_range(&self) -> Range<usize> {
+        let start = self.left_class_byte_range().end;
+        start..start + self.right_class_byte_len
+    }
+
+    pub fn kern_index_byte_range(&self) -> Range<usize> {
+        let start = self.right_class_byte_range().end;
+        start..start + self.kern_index_byte_len
+    }
+}
+
+impl MinByteRange for Subtable3Marker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.kern_index_byte_range().end
+    }
+}
+
+impl<'a> FontRead<'a> for Subtable3<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        let kern_value_count: u8 = cursor.read()?;
+        let left_class_count: u8 = cursor.read()?;
+        let right_class_count: u8 = cursor.read()?;
+        cursor.advance::<u8>();
+        let kern_value_byte_len = (kern_value_count as usize)
+            .checked_mul(i16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        cursor.advance_by(kern_value_byte_len);
+        let left_class_byte_len = (left_class_count as usize)
+            .checked_mul(u8::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        cursor.advance_by(left_class_byte_len);
+        let right_class_byte_len = (right_class_count as usize)
+            .checked_mul(u8::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        cursor.advance_by(right_class_byte_len);
+        let kern_index_byte_len =
+            (transforms::add_multiply(left_class_count, 0_usize, right_class_count))
+                .checked_mul(u8::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?;
+        cursor.advance_by(kern_index_byte_len);
+        cursor.finish(Subtable3Marker {
+            kern_value_byte_len,
+            left_class_byte_len,
+            right_class_byte_len,
+            kern_index_byte_len,
+        })
+    }
+}
+
+/// The type 3 'kern' subtable.
+pub type Subtable3<'a> = TableRef<'a, Subtable3Marker>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Subtable3<'a> {
+    /// The number of glyphs in this font.
+    pub fn glyph_count(&self) -> u16 {
+        let range = self.shape.glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// The number of kerning values.
+    pub fn kern_value_count(&self) -> u8 {
+        let range = self.shape.kern_value_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// The number of left-hand classes.
+    pub fn left_class_count(&self) -> u8 {
+        let range = self.shape.left_class_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// The number of right-hand classes.
+    pub fn right_class_count(&self) -> u8 {
+        let range = self.shape.right_class_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Set to zero (reserved for future use).
+    pub fn flags(&self) -> u8 {
+        let range = self.shape.flags_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// The kerning values.
+    pub fn kern_value(&self) -> &'a [BigEndian<i16>] {
+        let range = self.shape.kern_value_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    /// The left-hand classes.
+    pub fn left_class(&self) -> &'a [u8] {
+        let range = self.shape.left_class_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    /// The right-hand classes.
+    pub fn right_class(&self) -> &'a [u8] {
+        let range = self.shape.right_class_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    /// The indices into the kernValue array.
+    pub fn kern_index(&self) -> &'a [u8] {
+        let range = self.shape.kern_index_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for Subtable3<'a> {
+    fn type_name(&self) -> &str {
+        "Subtable3"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("glyph_count", self.glyph_count())),
+            1usize => Some(Field::new("kern_value_count", self.kern_value_count())),
+            2usize => Some(Field::new("left_class_count", self.left_class_count())),
+            3usize => Some(Field::new("right_class_count", self.right_class_count())),
+            4usize => Some(Field::new("flags", self.flags())),
+            5usize => Some(Field::new("kern_value", self.kern_value())),
+            6usize => Some(Field::new("left_class", self.left_class())),
+            7usize => Some(Field::new("right_class", self.right_class())),
+            8usize => Some(Field::new("kern_index", self.kern_index())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
+impl<'a> std::fmt::Debug for Subtable3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }

@@ -2,18 +2,6 @@
 
 extern record Subtable0Pair;
 
-/// The Apple Advanced Typography [kerning](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html) table.
-table AatKern {
-    /// The version number of the kerning table (0x00010000 for the current version).
-    #[compile(MajorMinor::VERSION_1_0)]
-    version: MajorMinor,
-    /// The number of subtables included in the kerning table.
-    n_tables: u32,
-    /// Data for subtables, immediately following the header.    
-    #[count(..)]
-    subtable_data: [u8],
-}
-
 /// The OpenType [kerning](https://learn.microsoft.com/en-us/typography/opentype/spec/kern) table.
 table OtKern {
     /// Table version number—set to 0.
@@ -26,18 +14,16 @@ table OtKern {
     subtable_data: [u8],
 }
 
-/// A subtable in an AAT `kern` table.
-table AatSubtable {
-    /// The length of this subtable in bytes, including this header.
-    #[compile(self.compute_length())]
-    length: u32,
-    /// Circumstances under which this table is used.
-    coverage: u16,
-    /// The tuple index (used for variations fonts). This value specifies which tuple this subtable covers.
-    tuple_index: u16,
-    /// Subtable specific data.
+/// The Apple Advanced Typography [kerning](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html) table.
+table AatKern {
+    /// The version number of the kerning table (0x00010000 for the current version).
+    #[compile(MajorMinor::VERSION_1_0)]
+    version: MajorMinor,
+    /// The number of subtables included in the kerning table.
+    n_tables: u32,
+    /// Data for subtables, immediately following the header.    
     #[count(..)]
-    data: [u8],
+    subtable_data: [u8],
 }
 
 /// A subtable in an OT `kern` table.
@@ -50,6 +36,20 @@ table OtSubtable {
     length: u16,
     /// Circumstances under which this table is used.
     coverage: u16,
+    /// Subtable specific data.
+    #[count(..)]
+    data: [u8],
+}
+
+/// A subtable in an AAT `kern` table.
+table AatSubtable {
+    /// The length of this subtable in bytes, including this header.
+    #[compile(self.compute_length())]
+    length: u32,
+    /// Circumstances under which this table is used.
+    coverage: u16,
+    /// The tuple index (used for variations fonts). This value specifies which tuple this subtable covers.
+    tuple_index: u16,
     /// Subtable specific data.
     #[count(..)]
     data: [u8],
@@ -79,4 +79,31 @@ table Subtable2ClassTable {
     /// The offsets array for all of the glyphs in the range.
     #[count($n_glyphs)]
     offsets: [u16],
+}
+
+/// The type 3 'kern' subtable.
+table Subtable3 {
+    /// The number of glyphs in this font.
+    glyph_count: u16,
+    /// The number of kerning values.
+    kern_value_count: u8,
+    /// The number of left-hand classes.
+    left_class_count: u8,
+    /// The number of right-hand classes.
+    right_class_count: u8,
+    /// Set to zero (reserved for future use).
+    #[compile(0)]
+    flags: u8,
+    /// The kerning values.
+    #[count($kern_value_count)]
+    kern_value: [i16],
+    /// The left-hand classes.
+    #[count($left_class_count)]
+    left_class: [u8],
+    /// The right-hand classes.
+    #[count($right_class_count)]
+    right_class: [u8],
+    /// The indices into the kernValue array.
+    #[count(add_multiply($left_class_count, 0, $right_class_count))]
+    kern_index: [u8],
 }
