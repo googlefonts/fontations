@@ -366,6 +366,11 @@ impl StateTable<'_> {
         entry.new_state = new_state.try_into().map_err(|_| ReadError::OutOfBounds)?;
         Ok(entry)
     }
+
+    /// Reads scalar values that are referenced from state table entries.
+    pub fn read_value<T: Scalar>(&self, offset: usize) -> Result<T, ReadError> {
+        self.header.offset_data().read_at::<T>(offset)
+    }
 }
 
 impl<'a> FontRead<'a> for StateTable<'a> {
