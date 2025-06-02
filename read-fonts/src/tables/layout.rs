@@ -20,7 +20,7 @@ use crate::collections::IntSet;
 #[cfg(feature = "std")]
 pub(crate) use closure::{
     ContextFormat1, ContextFormat2, ContextFormat3, LayoutLookupList, LookupClosure,
-    LookupClosureCtx,
+    LookupClosureCtx, MAX_LOOKUP_VISIT_COUNT, MAX_NESTING_LEVEL,
 };
 
 #[cfg(test)]
@@ -197,6 +197,14 @@ impl<'a> CoverageTable<'a> {
         match self {
             CoverageTable::Format1(sub) => sub.intersect_set(glyphs),
             CoverageTable::Format2(sub) => sub.intersect_set(glyphs),
+        }
+    }
+
+    /// Return the number of glyphs in this table
+    pub fn population(&self) -> usize {
+        match self {
+            CoverageTable::Format1(sub) => sub.population(),
+            CoverageTable::Format2(sub) => sub.population(),
         }
     }
 }
@@ -450,6 +458,43 @@ impl<'a> ClassDefFormat1<'a> {
         }
         out
     }
+
+    /// Returns intersected glyphs of this table and input 'glyphs' set that are assigned to input class value.
+    #[cfg(feature = "std")]
+    fn intersected_class_glyphs(&self, glyphs: &IntSet<GlyphId>, class: u16) -> IntSet<GlyphId> {
+        let mut out = IntSet::empty();
+        if glyphs.is_empty() {
+            return out;
+        }
+
+        let start_glyph = self.start_glyph_id().to_u32();
+        let glyph_count = self.glyph_count();
+        let end_glyph = start_glyph + glyph_count as u32 - 1;
+        if class == 0 {
+            let first = glyphs.first().unwrap();
+            if first.to_u32() < start_glyph {
+                out.extend(glyphs.range(first..GlyphId::from(start_glyph)));
+            }
+
+            let last = glyphs.last().unwrap();
+            if last.to_u32() > end_glyph {
+                out.extend(glyphs.range(GlyphId::from(end_glyph + 1)..=last));
+            }
+            return out;
+        }
+
+        let class_values = self.class_value_array();
+        for g in glyphs.range(GlyphId::from(start_glyph)..=GlyphId::from(end_glyph)) {
+            let idx = g.to_u32() - start_glyph;
+            let Some(c) = class_values.get(idx as usize) else {
+                break;
+            };
+            if c.get() == class {
+                out.insert(g);
+            }
+        }
+        out
+    }
 }
 
 impl<'a> ClassDefFormat2<'a> {
@@ -540,6 +585,58 @@ impl<'a> ClassDefFormat2<'a> {
         }
         out
     }
+
+    /// Returns intersected glyphs of this table and input 'glyphs' set that are assgiend to input class value.
+    #[cfg(feature = "std")]
+    fn intersected_class_glyphs(&self, glyphs: &IntSet<GlyphId>, class: u16) -> IntSet<GlyphId> {
+        let mut out = IntSet::empty();
+        if glyphs.is_empty() {
+            return out;
+        }
+
+        let first = glyphs.first().unwrap().to_u32();
+        let last = glyphs.last().unwrap().to_u32();
+        if class == 0 {
+            let mut start = first;
+            for range in self.class_range_records() {
+                let range_start = range.start_glyph_id().to_u32();
+                if start < range_start {
+                    out.extend(glyphs.range(GlyphId::from(start)..GlyphId::from(range_start)));
+                }
+
+                let range_end = range.end_glyph_id().to_u32();
+                if range_end >= last {
+                    break;
+                }
+                start = range_end + 1;
+            }
+            return out;
+        }
+
+        let num_ranges = self.class_range_count();
+        let num_bits = 16 - num_ranges.leading_zeros();
+        if num_ranges as u64 > glyphs.len() * num_bits as u64 {
+            for g in glyphs.iter() {
+                let c = self.get(GlyphId16::from(g.to_u32() as u16));
+                if c == class {
+                    out.insert(g);
+                }
+            }
+        } else {
+            for range in self.class_range_records() {
+                let range_start = range.start_glyph_id().to_u32();
+                let range_end = range.end_glyph_id().to_u32();
+                if range_start > last || range.end_glyph_id().to_u32() < first {
+                    break;
+                }
+                if range.class() != class {
+                    continue;
+                }
+                out.extend(glyphs.range(GlyphId::from(range_start)..=GlyphId::from(range_end)));
+            }
+        }
+        out
+    }
 }
 
 impl ClassRangeRecord {
@@ -589,6 +686,19 @@ impl ClassDef<'_> {
         match self {
             ClassDef::Format1(table) => table.intersect_classes(glyphs),
             ClassDef::Format2(table) => table.intersect_classes(glyphs),
+        }
+    }
+
+    /// Returns intersected glyphs of this table and input 'glyphs' set that are assgiend to input class value.
+    #[cfg(feature = "std")]
+    pub fn intersected_class_glyphs(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        class: u16,
+    ) -> IntSet<GlyphId> {
+        match self {
+            ClassDef::Format1(table) => table.intersected_class_glyphs(glyphs, class),
+            ClassDef::Format2(table) => table.intersected_class_glyphs(glyphs, class),
         }
     }
 }
