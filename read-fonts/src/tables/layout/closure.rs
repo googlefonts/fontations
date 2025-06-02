@@ -19,8 +19,8 @@ use crate::{
 const MAX_SCRIPTS: u16 = 500;
 const MAX_LANGSYS: u16 = 2000;
 const MAX_FEATURE_INDICES: u16 = 1500;
-const MAX_NESTING_LEVEL: u8 = 64;
-const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;
+pub(crate) const MAX_NESTING_LEVEL: u8 = 64;
+pub(crate) const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;
 
 struct CollectFeaturesContext<'a> {
     script_count: u16,
