@@ -666,7 +666,7 @@ impl MinByteRange for Subtable3Marker {
 impl<'a> FontRead<'a> for Subtable3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
+        let glyph_count: u16 = cursor.read()?;
         let kern_value_count: u8 = cursor.read()?;
         let left_class_count: u8 = cursor.read()?;
         let right_class_count: u8 = cursor.read()?;
@@ -675,11 +675,11 @@ impl<'a> FontRead<'a> for Subtable3<'a> {
             .checked_mul(i16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(kern_value_byte_len);
-        let left_class_byte_len = (left_class_count as usize)
+        let left_class_byte_len = (glyph_count as usize)
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(left_class_byte_len);
-        let right_class_byte_len = (right_class_count as usize)
+        let right_class_byte_len = (glyph_count as usize)
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(right_class_byte_len);

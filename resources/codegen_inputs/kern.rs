@@ -58,6 +58,7 @@ table AatSubtable {
 /// The type 0 `kern` subtable.
 table Subtable0 {
     /// The number of kerning pairs in this subtable.
+    #[compile(array_len($pairs))]
     n_pairs: u16,
     /// The largest power of two less than or equal to the value of nPairs, multiplied by the size in bytes of an entry in the subtable.
     search_range: u16,
@@ -98,10 +99,10 @@ table Subtable3 {
     #[count($kern_value_count)]
     kern_value: [i16],
     /// The left-hand classes.
-    #[count($left_class_count)]
+    #[count($glyph_count)]
     left_class: [u8],
     /// The right-hand classes.
-    #[count($right_class_count)]
+    #[count($glyph_count)]
     right_class: [u8],
     /// The indices into the kernValue array.
     #[count(add_multiply($left_class_count, 0, $right_class_count))]
