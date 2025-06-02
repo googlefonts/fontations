@@ -6,10 +6,10 @@ use super::{
     ArrayOfOffsets, ChainedClassSequenceRule, ChainedClassSequenceRuleSet, ChainedSequenceContext,
     ChainedSequenceContextFormat1, ChainedSequenceContextFormat2, ChainedSequenceContextFormat3,
     ChainedSequenceRule, ChainedSequenceRuleSet, ClassDef, ClassDefFormat1, ClassDefFormat2,
-    ClassSequenceRule, ClassSequenceRuleSet, CoverageTable, ExtensionLookup, FeatureList, FontRead,
-    GlyphId, LangSys, ReadError, Script, ScriptList, SequenceContext, SequenceContextFormat1,
-    SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord, SequenceRule,
-    SequenceRuleSet, Subtables, Tag,
+    ClassSequenceRule, ClassSequenceRuleSet, CoverageTable, ExtensionLookup, Feature, FeatureList,
+    FontRead, GlyphId, LangSys, ReadError, Script, ScriptList, SequenceContext,
+    SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord,
+    SequenceRule, SequenceRuleSet, Subtables, Tag,
 };
 use crate::{
     collections::IntSet,
@@ -19,8 +19,8 @@ use crate::{
 const MAX_SCRIPTS: u16 = 500;
 const MAX_LANGSYS: u16 = 2000;
 const MAX_FEATURE_INDICES: u16 = 1500;
-const MAX_NESTING_LEVEL: u8 = 64;
-const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;
+pub(crate) const MAX_NESTING_LEVEL: u8 = 64;
+pub(crate) const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;
 
 struct CollectFeaturesContext<'a> {
     script_count: u16,
@@ -197,6 +197,15 @@ impl LangSys<'_> {
             c.feature_indices.insert(idx);
             c.feature_indices_filter.remove(idx);
         }
+    }
+}
+
+impl Feature<'_> {
+    pub(crate) fn collect_lookups(&self) -> Vec<u16> {
+        self.lookup_list_indices()
+            .iter()
+            .map(|idx| idx.get())
+            .collect()
     }
 }
 
@@ -469,21 +478,6 @@ impl Format1Rule<'_> {
         }
     }
 
-    pub(crate) fn matches_glyphs(&self, glyphs: &IntSet<GlyphId16>) -> bool {
-        let (backtrack, lookahead) = match self {
-            Format1Rule::Plain(_) => (None, None),
-            Format1Rule::Chain(table) => (
-                Some(table.backtrack_sequence()),
-                Some(table.lookahead_sequence()),
-            ),
-        };
-        self.input_sequence()
-            .iter()
-            .chain(backtrack.into_iter().flatten())
-            .chain(lookahead.into_iter().flatten())
-            .all(|gid| glyphs.contains(gid.get()))
-    }
-
     pub(crate) fn lookup_records(&self) -> &[SequenceLookupRecord] {
         match self {
             Self::Plain(table) => table.seq_lookup_records(),
@@ -623,22 +617,6 @@ impl Format2Rule<'_> {
             Self::Plain(table) => table.seq_lookup_records(),
             Self::Chain(table) => table.seq_lookup_records(),
         }
-    }
-
-    //TODO: Fix glyph closure: this one is incorrect in case of ChainedContext, replace it with intersects()
-    pub(crate) fn matches_classes(&self, classes: &IntSet<u16>) -> bool {
-        let (backtrack, lookahead) = match self {
-            Self::Plain(_) => (None, None),
-            Self::Chain(table) => (
-                Some(table.backtrack_sequence()),
-                Some(table.lookahead_sequence()),
-            ),
-        };
-        self.input_sequence()
-            .iter()
-            .chain(backtrack.into_iter().flatten())
-            .chain(lookahead.into_iter().flatten())
-            .all(|gid| classes.contains(gid.get()))
     }
 
     pub(crate) fn intersects(
