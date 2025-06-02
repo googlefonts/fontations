@@ -1,7 +1,5 @@
 #![parse_module(read_fonts::tables::kerx)]
 
-extern record Subtable0Pair;
-
 /// The [kerx (Extended Kerning)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
 #[tag = "kerx"]
 table Kerx {
@@ -45,4 +43,14 @@ table Subtable0 {
     /// Kerning records.
     #[count($n_pairs)]
     pairs: [Subtable0Pair],
+}
+
+/// The type 0 `kerx` subtable kerning record.
+record Subtable0Pair {
+    /// The glyph index for the lefthand glyph in the kerning pair.
+    left: GlyphId16,
+    /// The glyph index for the righthand glyph in the kerning pair.
+    right: GlyphId16,
+    /// Kerning value.
+    value: i16,
 }

@@ -6,7 +6,6 @@ pub mod gdef;
 pub mod gpos;
 pub mod gsub;
 pub mod ift;
-pub mod kern;
 pub mod layout;
 
 pub static CMAP12_FONT1: &[u8] = include_bytes!("../test_data/ttf/cmap12_font1.ttf");

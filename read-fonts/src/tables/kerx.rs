@@ -1,7 +1,6 @@
 //! The [Extended Kerning (kerx)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kerx.html) table.
 
 use super::aat::{safe_read_array_to_end, ExtendedStateTable, LookupU16, LookupU32};
-pub use super::kern::Subtable0Pair;
 
 include!("../../generated/generated_kerx.rs");
 

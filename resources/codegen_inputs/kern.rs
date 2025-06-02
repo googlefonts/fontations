@@ -1,7 +1,8 @@
 #![parse_module(read_fonts::tables::kern)]
 
+extern record Subtable0Pair;
+
 /// The OpenType [kerning](https://learn.microsoft.com/en-us/typography/opentype/spec/kern) table.
-#[skip_font_write]
 table OtKern {
     /// Table version number—set to 0.
     #[compile(0)]
@@ -14,7 +15,6 @@ table OtKern {
 }
 
 /// The Apple Advanced Typography [kerning](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html) table.
-#[skip_font_write]
 table AatKern {
     /// The version number of the kerning table (0x00010000 for the current version).
     #[compile(MajorMinor::VERSION_1_0)]
@@ -27,7 +27,6 @@ table AatKern {
 }
 
 /// A subtable in an OT `kern` table.
-#[skip_font_write]
 table OtSubtable {
     /// Kern subtable version number-- set to 0.
     #[compile(0)]
@@ -43,7 +42,6 @@ table OtSubtable {
 }
 
 /// A subtable in an AAT `kern` table.
-#[skip_font_write]
 table AatSubtable {
     /// The length of this subtable in bytes, including this header.
     #[compile(self.compute_length())]
@@ -73,16 +71,6 @@ table Subtable0 {
     pairs: [Subtable0Pair],
 }
 
-/// The type 0 `kerx` subtable kerning record.
-record Subtable0Pair {
-    /// The glyph index for the lefthand glyph in the kerning pair.
-    left: GlyphId16,
-    /// The glyph index for the righthand glyph in the kerning pair.
-    right: GlyphId16,
-    /// Kerning value.
-    value: i16,
-}
-
 /// Class table for the type 2 `kern` subtable.
 table Subtable2ClassTable {
     /// First glyph in class range.
@@ -99,7 +87,6 @@ table Subtable3 {
     /// The number of glyphs in this font.
     glyph_count: u16,
     /// The number of kerning values.
-    #[compile(array_len($kern_value))]
     kern_value_count: u8,
     /// The number of left-hand classes.
     left_class_count: u8,

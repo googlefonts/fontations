@@ -332,3 +332,54 @@ impl<'a> std::fmt::Debug for Subtable0<'a> {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
+
+/// The type 0 `kerx` subtable kerning record.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Subtable0Pair {
+    /// The glyph index for the lefthand glyph in the kerning pair.
+    pub left: BigEndian<GlyphId16>,
+    /// The glyph index for the righthand glyph in the kerning pair.
+    pub right: BigEndian<GlyphId16>,
+    /// Kerning value.
+    pub value: BigEndian<i16>,
+}
+
+impl Subtable0Pair {
+    /// The glyph index for the lefthand glyph in the kerning pair.
+    pub fn left(&self) -> GlyphId16 {
+        self.left.get()
+    }
+
+    /// The glyph index for the righthand glyph in the kerning pair.
+    pub fn right(&self) -> GlyphId16 {
+        self.right.get()
+    }
+
+    /// Kerning value.
+    pub fn value(&self) -> i16 {
+        self.value.get()
+    }
+}
+
+impl FixedSize for Subtable0Pair {
+    const RAW_BYTE_LEN: usize =
+        GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for Subtable0Pair {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "Subtable0Pair",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("left", self.left())),
+                1usize => Some(Field::new("right", self.right())),
+                2usize => Some(Field::new("value", self.value())),
+                _ => None,
+            }),
+            data,
+        }
+    }
+}
