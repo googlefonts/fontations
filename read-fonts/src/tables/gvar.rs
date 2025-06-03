@@ -285,6 +285,8 @@ fn find_glyph_and_point_count(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use font_test_data::bebuffer::BeBuffer;
 
     use super::*;
@@ -571,5 +573,43 @@ mod tests {
         let gvar = Gvar::read(buf.data().into()).unwrap();
         // don't panic with overflow!
         let _ = gvar.data_range_for_gid(GlyphId::new(0));
+    }
+
+    // Test that we select the correct component to derive metrics from,
+    // considering ambiguity. Only covers the shallow case.
+    #[test]
+    fn follow_use_my_metrics() {
+        // Load the font and required tables
+        let font = FontRef::new(font_test_data::gvar::USE_MY_METRICS).unwrap();
+        let glyf = font.glyf().unwrap();
+        let loca = font.loca(None).unwrap();
+        let post = font.post().unwrap();
+
+        // Grab names for test quality-of-life and legibility
+        let gids = (0..post.num_glyphs().unwrap())
+            .map(GlyphId16::new)
+            .map(|gid| (post.glyph_name(gid).unwrap(), gid))
+            .collect::<HashMap<_, _>>();
+
+        // Test various cases
+        let (source, _) =
+            find_glyph_and_point_count(&glyf, &loca, gids["neither"].into(), 5).unwrap();
+        assert_eq!(
+            source, gids["neither"],
+            "a composite without any USE_MY_METRICS components should use its own metrics"
+        );
+
+        let (source, _) =
+            find_glyph_and_point_count(&glyf, &loca, gids["firstonly"].into(), 5).unwrap();
+        assert_eq!(
+            source, gids["first"],
+            "a composite with a single USE_MY_METRICS component should use that component's metrics"
+        );
+
+        let (source, _) = find_glyph_and_point_count(&glyf, &loca, gids["both"].into(), 5).unwrap();
+        assert_eq!(
+            source, gids["second"],
+            "a composite with multiple USE_MY_METRICS components should use the last flagged component's metrics"
+         );
     }
 }

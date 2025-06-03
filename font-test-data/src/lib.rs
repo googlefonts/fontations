@@ -281,3 +281,7 @@ pub mod meta {
         0x6e, 0x00, 0x00, 0x00,
     ];
 }
+
+pub mod gvar {
+    pub static USE_MY_METRICS: &[u8] = include_bytes!("../test_data/ttf/gvar_use_my_metrics.ttf");
+}
