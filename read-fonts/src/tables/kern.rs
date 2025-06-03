@@ -1,4 +1,4 @@
-//! The [Kerning (kern)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html) table.
+//! The kerning table.
 
 use super::aat::StateTable;
 pub use super::kerx::Subtable0Pair;
@@ -18,6 +18,10 @@ impl TopLevelTable for Kern<'_> {
 
 impl<'a> FontRead<'a> for Kern<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        // The Apple kern table has a 32-bit fixed version field set to
+        // 1.0 while the OpenType kern table has a 16-bit version field
+        // set to 0. Check the first 16-bit word to determine which
+        // version of the table we should parse.
         if data.read_at::<u16>(0)? == 0 {
             OtKern::read(data).map(Self::Ot)
         } else {
@@ -60,7 +64,9 @@ impl<'a> Iterator for Subtables<'a> {
             // For OT kern tables with a single subtable, ignore the length
             // and allow the single subtable to extend to the end of the full
             // table. Some fonts abuse this to bypass the 16-bit limit of the
-            // length field
+            // length field.
+            //
+            // This is why we don't use VarLenArray for this type.
             self.data.len()
         } else {
             self.data.read_at::<u16>(2).ok()? as usize
@@ -91,12 +97,14 @@ pub enum Subtable<'a> {
 }
 
 impl ReadArgs for Subtable<'_> {
+    // is_aat
     type Args = bool;
 }
 
 impl<'a> FontReadWithArgs<'a> for Subtable<'a> {
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
-        if *args {
+        let is_aat = *args;
+        if is_aat {
             Ok(Self::Aat(AatSubtable::read(data)?))
         } else {
             Ok(Self::Ot(OtSubtable::read(data)?))
@@ -184,15 +192,17 @@ impl ReadArgs for SubtableKind<'_> {
 impl<'a> FontReadWithArgs<'a> for SubtableKind<'a> {
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
         let (format, is_aat) = *args;
-        let header_len = if is_aat {
-            AatSubtable::HEADER_LEN
-        } else {
-            OtSubtable::HEADER_LEN
-        };
         match format {
             0 => Ok(Self::Format0(Subtable0::read(data)?)),
             1 => Ok(Self::Format1(StateTable::read(data)?)),
-            2 => Ok(Self::Format2(Subtable2::read_with_args(data, &header_len)?)),
+            2 => {
+                let header_len = if is_aat {
+                    AatSubtable::HEADER_LEN
+                } else {
+                    OtSubtable::HEADER_LEN
+                };
+                Ok(Self::Format2(Subtable2::read_with_args(data, &header_len)?))
+            }
             3 => Ok(Self::Format3(Subtable3::read(data)?)),
             _ => Err(ReadError::InvalidFormat(format as _)),
         }
@@ -206,7 +216,7 @@ impl Subtable0<'_> {
     }
 }
 
-/// The type 2 `kerx` subtable.
+/// The type 2 `kern` subtable.
 #[derive(Clone)]
 pub struct Subtable2<'a> {
     pub data: FontData<'a>,
@@ -261,10 +271,17 @@ impl Subtable2<'_> {
     pub fn kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         let left_offset = self.left_offset_table.value(left).unwrap_or(0) as usize;
         let right_offset = self.right_offset_table.value(right).unwrap_or(0) as usize;
+        // "The left-hand class values are stored pre-multiplied by the number
+        // of bytes in one row and offset by the offset of the array from the
+        // start of the subtable."
         let left_offset = left_offset.checked_sub(self.header_len)?;
+        // Make sure that the left offset is greater than the array base
+        // See <https://github.com/harfbuzz/harfbuzz/blob/6fb10ded54e4640f75f829acb754b05da5c26362/src/hb-aat-layout-common.hh#L1121>
         if left_offset < self.array_offset {
             return None;
         }
+        // "The right-hand class values are stored pre-multiplied by the number
+        // of bytes in a single kerning value (i.e., two)"
         let offset = left_offset.checked_add(right_offset)?;
         self.data
             .read_at::<i16>(offset)
