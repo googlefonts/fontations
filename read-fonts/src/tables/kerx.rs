@@ -100,19 +100,22 @@ impl<'a> FontReadWithArgs<'a> for SubtableKind<'a> {
 impl Subtable0<'_> {
     /// Returns the kerning adjustment for the given pair.
     pub fn kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
-        let left: GlyphId16 = left.try_into().ok()?;
-        let right: GlyphId16 = right.try_into().ok()?;
-        fn make_key(left: GlyphId16, right: GlyphId16) -> u32 {
-            (left.to_u32() << 16) | right.to_u32()
-        }
-        let pairs = self.pairs();
-        let idx = pairs
-            .binary_search_by_key(&make_key(left, right), |pair| {
-                make_key(pair.left(), pair.right())
-            })
-            .ok()?;
-        pairs.get(idx).map(|pair| pair.value() as i32)
+        pair_kerning(self.pairs(), left, right)
     }
+}
+
+pub(crate) fn pair_kerning(pairs: &[Subtable0Pair], left: GlyphId, right: GlyphId) -> Option<i32> {
+    let left: GlyphId16 = left.try_into().ok()?;
+    let right: GlyphId16 = right.try_into().ok()?;
+    fn make_key(left: GlyphId16, right: GlyphId16) -> u32 {
+        (left.to_u32() << 16) | right.to_u32()
+    }
+    let idx = pairs
+        .binary_search_by_key(&make_key(left, right), |pair| {
+            make_key(pair.left(), pair.right())
+        })
+        .ok()?;
+    pairs.get(idx).map(|pair| pair.value() as i32)
 }
 
 /// The type 1 `kerx` subtable.

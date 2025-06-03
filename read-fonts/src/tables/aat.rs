@@ -312,6 +312,8 @@ pub struct StateTable<'a> {
 }
 
 impl StateTable<'_> {
+    pub const HEADER_LEN: usize = u16::RAW_BYTE_LEN * 4;
+
     /// Returns the class table entry for the given glyph identifier.
     pub fn class(&self, glyph_id: GlyphId16) -> Result<u8, ReadError> {
         let glyph_id = glyph_id.to_u16();
@@ -363,6 +365,11 @@ impl StateTable<'_> {
             / n_classes as i32;
         entry.new_state = new_state.try_into().map_err(|_| ReadError::OutOfBounds)?;
         Ok(entry)
+    }
+
+    /// Reads scalar values that are referenced from state table entries.
+    pub fn read_value<T: Scalar>(&self, offset: usize) -> Result<T, ReadError> {
+        self.header.offset_data().read_at::<T>(offset)
     }
 }
 
