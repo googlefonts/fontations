@@ -873,7 +873,9 @@ SCRIPT_CLASSES = [
             (0x18A9, 0x18A9),
         ],
         "blues": [
-            ("ᠳ ᠴ ᠶ ᠽ ᡂ ᡊ ‍ᡡ‍ ‍ᡳ‍", "TOP"),
+            # U+200D is escaped to avoid the presence of suspicious-looking
+            # invisible chars in the generated Rust source.
+            ("ᠳ ᠴ ᠶ ᠽ ᡂ ᡊ \\u{200d}ᡡ\\u{200d} \\u{200d}ᡳ\\u{200d}", "TOP"),
             ("ᡃ", "0"),
         ],
     },
