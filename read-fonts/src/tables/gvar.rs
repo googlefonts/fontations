@@ -131,7 +131,7 @@ impl<'a> Gvar<'a> {
     ) -> Result<Option<[Point<Fixed>; 4]>, ReadError> {
         // For any given glyph, there's only one outline that contributes to
         // metrics deltas (via "phantom points"). For simple glyphs, that is
-        // the glyph itself. For composite glyphs, it is the first component
+        // the glyph itself. For composite glyphs, it is the last component
         // in the tree that has the USE_MY_METRICS flag set or, if there are
         // none, the composite glyph itself.
         //
@@ -259,32 +259,34 @@ fn find_glyph_and_point_count(
             Ok((glyph_id, simple.num_points()))
         }
         Glyph::Composite(composite) => {
-            // For composite glyphs, if one of the components has the
-            // USE_MY_METRICS flag set, recurse into the glyph referenced
-            // by that component. Otherwise, return the composite glyph
-            // itself and the number of components as the point count.
-            let mut count = 0;
-            for component in composite.components() {
-                count += 1;
-                if component
-                    .flags
-                    .contains(CompositeGlyphFlags::USE_MY_METRICS)
-                {
-                    return find_glyph_and_point_count(
-                        glyf,
-                        loca,
-                        component.glyph.into(),
-                        recurse_depth + 1,
-                    );
-                }
+            // For composite glyphs, recurse into the glyph referenced by the
+            // *last* component that has the USE_MY_METRICS flag set.
+            // Otherwise, return the composite glyph itself and the number of
+            // components as the point count.
+            // https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#point-numbers-and-processing-for-composite-glyphs
+            let (count, inherit_metrics) = composite.component_glyphs_and_flags().fold(
+                (0, None),
+                |(count, inherit_metrics), (component_id, flags)| {
+                    let has_flag = flags.contains(CompositeGlyphFlags::USE_MY_METRICS);
+                    let preferred = has_flag.then_some(component_id).or(inherit_metrics);
+
+                    (count + 1, preferred)
+                },
+            );
+
+            if let Some(component) = inherit_metrics {
+                find_glyph_and_point_count(glyf, loca, component.into(), recurse_depth + 1)
+            } else {
+                Ok((glyph_id, count))
             }
-            Ok((glyph_id, count))
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use font_test_data::bebuffer::BeBuffer;
 
     use super::*;
@@ -571,5 +573,43 @@ mod tests {
         let gvar = Gvar::read(buf.data().into()).unwrap();
         // don't panic with overflow!
         let _ = gvar.data_range_for_gid(GlyphId::new(0));
+    }
+
+    // Test that we select the correct component to derive metrics from,
+    // considering ambiguity. Only covers the shallow case.
+    #[test]
+    fn follow_use_my_metrics() {
+        // Load the font and required tables
+        let font = FontRef::new(font_test_data::gvar::USE_MY_METRICS).unwrap();
+        let glyf = font.glyf().unwrap();
+        let loca = font.loca(None).unwrap();
+        let post = font.post().unwrap();
+
+        // Grab names for test quality-of-life and legibility
+        let gids = (0..post.num_glyphs().unwrap())
+            .map(GlyphId16::new)
+            .map(|gid| (post.glyph_name(gid).unwrap(), gid))
+            .collect::<HashMap<_, _>>();
+
+        // Test various cases
+        let (source, _) =
+            find_glyph_and_point_count(&glyf, &loca, gids["neither"].into(), 5).unwrap();
+        assert_eq!(
+            source, gids["neither"],
+            "a composite without any USE_MY_METRICS components should use its own metrics"
+        );
+
+        let (source, _) =
+            find_glyph_and_point_count(&glyf, &loca, gids["firstonly"].into(), 5).unwrap();
+        assert_eq!(
+            source, gids["first"],
+            "a composite with a single USE_MY_METRICS component should use that component's metrics"
+        );
+
+        let (source, _) = find_glyph_and_point_count(&glyf, &loca, gids["both"].into(), 5).unwrap();
+        assert_eq!(
+            source, gids["second"],
+            "a composite with multiple USE_MY_METRICS components should use the last flagged component's metrics"
+         );
     }
 }
