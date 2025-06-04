@@ -486,7 +486,7 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
         hint_top_to_bottom: true,
         std_chars: "ᡂ ᠪ",
         blues: &[
-            ("ᠳ ᠴ ᠶ ᠽ ᡂ ᡊ ‍ᡡ‍ ‍ᡳ‍", BlueZones::TOP),
+            ("ᠳ ᠴ ᠶ ᠽ ᡂ ᡊ \u{200d}ᡡ\u{200d} \u{200d}ᡳ\u{200d}", BlueZones::TOP),
             ("ᡃ", BlueZones::NONE),
         ],
     },
