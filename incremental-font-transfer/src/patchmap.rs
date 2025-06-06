@@ -311,7 +311,7 @@ fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
 
         for i in 0..entry_count {
             let index = i as usize + cumulative_entry_map_count as usize;
-            let byte_index = (index * field_width as usize * 2) as usize;
+            let byte_index = index * field_width as usize * 2;
             let data = FontData::new(&feature_map.entry_map_data()[byte_index..]);
             let mapped_entry_index = record.first_new_entry_index().get() as u32 + i as u32;
             let entry_record = EntryMapRecord::read(data, max_entry_index)?;
@@ -1094,13 +1094,22 @@ impl FeatureSet {
         }
     }
 
-    fn extend<It>(&mut self, tags: It)
+    /// Add tag to this feature set.
+    ///
+    /// Returns true if the tag was newly inserted.
+    pub fn insert(&mut self, tag: Tag) -> bool {
+        match self {
+            FeatureSet::All => false,
+            FeatureSet::Set(feature_set) => feature_set.insert(tag),
+        }
+    }
+
+    pub fn extend<It>(&mut self, tags: It)
     where
         It: Iterator<Item = Tag>,
     {
         match self {
             FeatureSet::All => {}
-
             FeatureSet::Set(feature_set) => {
                 feature_set.extend(tags);
             }
