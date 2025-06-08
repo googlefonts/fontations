@@ -265,6 +265,12 @@ impl<'a> CollectionRef<'a> {
     }
 }
 
+impl TableDirectory<'_> {
+    fn is_sorted(&self) -> bool {
+        self.table_records().is_sorted()
+    }
+}
+
 /// Reference to an in-memory font.
 ///
 /// This is a simple implementation of the [`TableProvider`] trait backed
@@ -273,6 +279,10 @@ impl<'a> CollectionRef<'a> {
 pub struct FontRef<'a> {
     pub data: FontData<'a>,
     pub table_directory: TableDirectory<'a>,
+    // Whether the table directory is sorted and thus we can use binary search for
+    // finding table records. In principle, fonts are required to have a sorted
+    // table directory, but certain fonts don't seem to follow that requirement.
+    table_directory_sorted: bool,
 }
 
 impl<'a> FontRef<'a> {
@@ -316,10 +326,19 @@ impl<'a> FontRef<'a> {
 
     /// Returns the data for the table with the specified tag, if present.
     pub fn table_data(&self, tag: Tag) -> Option<FontData<'a>> {
-        self.table_directory
-            .table_records()
-            .binary_search_by(|rec| rec.tag.get().cmp(&tag))
-            .ok()
+        let entry = if self.table_directory_sorted {
+            self.table_directory
+                .table_records()
+                .binary_search_by(|rec| rec.tag.get().cmp(&tag))
+                .ok()
+        } else {
+            self.table_directory
+                .table_records()
+                .iter()
+                .position(|rec| rec.tag.get().eq(&tag))
+        };
+
+        entry
             .and_then(|idx| self.table_directory.table_records().get(idx))
             .and_then(|record| {
                 let start = Offset32::new(record.offset()).non_null()?;
@@ -335,9 +354,12 @@ impl<'a> FontRef<'a> {
         if [TT_SFNT_VERSION, CFF_SFNT_VERSION, TRUE_SFNT_VERSION]
             .contains(&table_directory.sfnt_version())
         {
+            let table_directory_sorted = table_directory.is_sorted();
+
             Ok(FontRef {
                 data,
                 table_directory,
+                table_directory_sorted,
             })
         } else {
             Err(ReadError::InvalidSfnt(table_directory.sfnt_version()))
@@ -353,9 +375,10 @@ impl<'a> TableProvider<'a> for FontRef<'a> {
 
 #[cfg(test)]
 mod tests {
-    use font_test_data::{ttc::TTC, AHEM};
+    use font_test_data::{be_buffer, bebuffer::BeBuffer, ttc::TTC, AHEM};
+    use types::{Tag, TT_SFNT_VERSION};
 
-    use crate::FileRef;
+    use crate::{FileRef, FontRef};
 
     #[test]
     fn file_ref_non_collection() {
@@ -369,5 +392,61 @@ mod tests {
         };
         assert_eq!(2, collection.len());
         assert!(!collection.is_empty());
+    }
+
+    #[test]
+    fn unsorted_table_directory() {
+        let cff2_data = font_test_data::cff2::EXAMPLE;
+        let post_data = font_test_data::post::SIMPLE;
+        let gdef_data = [
+            font_test_data::gdef::GDEF_HEADER,
+            font_test_data::gdef::GLYPHCLASSDEF_TABLE,
+        ]
+        .concat();
+        let gpos_data = font_test_data::gpos::SINGLEPOSFORMAT1;
+
+        let font_data = be_buffer! {
+            TT_SFNT_VERSION,
+            4u16,    // num tables
+            64u16,   // search range
+            2u16,    // entry selector
+            0u16,    // range shift
+
+            (Tag::new(b"post")),
+            0u32,    // checksum
+            76u32,   // offset
+            (post_data.len() as u32),
+
+            (Tag::new(b"GPOS")),
+            0u32,    // checksum
+            108u32,  // offset
+            (gpos_data.len() as u32),
+
+            (Tag::new(b"GDEF")),
+            0u32,    // checksum
+            128u32,  // offset
+            (gdef_data.len() as u32),
+
+            (Tag::new(b"CFF2")),
+            0u32,    // checksum
+            160u32,  // offset
+            (cff2_data.len() as u32)
+        };
+
+        let mut full_font = font_data.to_vec();
+
+        full_font.extend_from_slice(post_data);
+        full_font.extend_from_slice(gpos_data);
+        full_font.extend_from_slice(&gdef_data);
+        full_font.extend_from_slice(cff2_data);
+
+        let font = FontRef::new(&full_font).unwrap();
+
+        assert!(!font.table_directory_sorted);
+
+        assert!(font.table_data(Tag::new(b"CFF2")).is_some());
+        assert!(font.table_data(Tag::new(b"GDEF")).is_some());
+        assert!(font.table_data(Tag::new(b"GPOS")).is_some());
+        assert!(font.table_data(Tag::new(b"post")).is_some());
     }
 }
