@@ -1360,6 +1360,8 @@ impl Format2Entry {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
     use font_test_data as test_data;
     use font_test_data::ift::{
@@ -3176,5 +3178,28 @@ mod tests {
             SubsetDefinition::default().intersection(&s1),
             SubsetDefinition::default()
         );
+    }
+
+    #[test]
+    fn feature_set_extend_insert() {
+        let mut features: FeatureSet = Default::default();
+
+        let foo = Tag::from_str("fooo").unwrap();
+        let bar = Tag::from_str("baar").unwrap();
+        let baz = Tag::from_str("baaz").unwrap();
+
+        features.extend([foo, bar].into_iter());
+        features.insert(baz);
+        features.insert(foo);
+
+        assert_eq!(features, FeatureSet::Set(BTreeSet::from([foo, bar, baz])));
+
+        let mut features: FeatureSet = FeatureSet::All;
+
+        features.extend([foo, bar].into_iter());
+        features.insert(baz);
+        features.insert(foo);
+
+        assert_eq!(features, FeatureSet::All);
     }
 }
