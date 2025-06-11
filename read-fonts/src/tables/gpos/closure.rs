@@ -23,6 +23,28 @@ impl Gpos<'_> {
         let head_ptr = self.offset_data().as_bytes().as_ptr() as usize;
         script_list.collect_features(head_ptr, &feature_list, scripts, languages, features)
     }
+
+    /// Return a set of lookups referenced by the specified features
+    pub fn collect_lookups(&self, feature_indices: &IntSet<u16>) -> Result<IntSet<u16>, ReadError> {
+        let feature_list = self.feature_list()?;
+        let mut lookup_indices = feature_list.collect_lookups(feature_indices)?;
+
+        if let Some(feature_variations) = self.feature_variations().transpose()? {
+            let subs_lookup_indices = feature_variations.collect_lookups(feature_indices)?;
+            lookup_indices.union(&subs_lookup_indices);
+        }
+        Ok(lookup_indices)
+    }
+
+    /// Update the set of lookup indices with all lookups reachable from specified glyph set and lookup_indices.
+    pub fn closure_lookups(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        lookup_indices: &mut IntSet<u16>,
+    ) -> Result<(), ReadError> {
+        let lookup_list = self.lookup_list()?;
+        lookup_list.closure_lookups(glyphs, lookup_indices)
+    }
 }
 
 impl PositionLookupList<'_> {

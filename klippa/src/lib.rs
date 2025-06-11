@@ -32,6 +32,10 @@ mod vorg;
 mod vvar;
 use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
+use layout::{
+    collect_features_with_retained_subs, find_duplicate_features, prune_features,
+    PruneLangSysContext,
+};
 pub use parsing_util::{
     parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
 };
@@ -301,9 +305,17 @@ pub struct Plan {
     layout_scripts: IntSet<Tag>,
     layout_features: IntSet<Tag>,
 
-    //old->new feature index map
+    //active old->new feature index map after removing redundant langsys and prune_features
     gsub_features: FnvHashMap<u16, u16>,
     gpos_features: FnvHashMap<u16, u16>,
+
+    // active old->new lookup index map
+    gsub_lookups: FnvHashMap<u16, u16>,
+    gpos_lookups: FnvHashMap<u16, u16>,
+
+    // active script-langsys
+    gsub_script_langsys: FnvHashMap<u16, IntSet<u16>>,
+    gpos_script_langsys: FnvHashMap<u16, IntSet<u16>>,
 
     // used_mark_sets mapping: old->new
     used_mark_sets_map: FnvHashMap<u16, u16>,
@@ -501,6 +513,9 @@ impl Plan {
         cmap.closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
         remove_invalid_gids(&mut self.glyphset_gsub, self.font_num_glyphs);
 
+        // layout closure
+        self.layout_populate_gids_to_retain(font);
+
         //skip glyph closure for MATH table, it's not supported yet
 
         //glyph closure for COLR
@@ -533,6 +548,20 @@ impl Plan {
 
         self.nameid_closure(font);
         self.collect_layout_var_indices(font);
+    }
+
+    fn layout_populate_gids_to_retain(&mut self, font: &FontRef) {
+        if !self.drop_tables.contains(Tag::new(b"GSUB")) {
+            if let Ok(gsub) = font.gsub() {
+                gsub.closure_glyphs_lookups_features(self);
+            }
+        }
+
+        if !self.drop_tables.contains(Tag::new(b"GPOS")) {
+            if let Ok(gpos) = font.gpos() {
+                gpos.closure_glyphs_lookups_features(self);
+            }
+        }
     }
 
     fn create_old_gid_to_new_gid_map(&mut self) {
@@ -890,7 +919,7 @@ fn get_font_num_glyphs(font: &FontRef) -> usize {
     ret.max(maxp.num_glyphs() as usize)
 }
 
-fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash + From<u16>>(
+pub(crate) fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash + From<u16>>(
     indices: IntSet<T>,
 ) -> FnvHashMap<T, T> {
     indices
@@ -945,6 +974,32 @@ pub trait NameIdClosure {
 
 pub(crate) trait CollectVariationIndices {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>);
+}
+
+pub(crate) trait LayoutClosure {
+    /// Remove unreferenced features
+    fn prune_features(
+        &self,
+        lookup_indices: &IntSet<u16>,
+        feature_indices: IntSet<u16>,
+    ) -> IntSet<u16>;
+
+    /// Return a duplicate feature(after subsetting) index map
+    /// feature index -> the first index of all duplicates for this feature
+    fn find_duplicate_features(
+        &self,
+        lookup_indices: &IntSet<u16>,
+        feature_indices: IntSet<u16>,
+    ) -> FnvHashMap<u16, u16>;
+
+    //remove unreferenced langsys and return (script->langsys mapping, retained feature indices)
+    fn prune_langsys(
+        &self,
+        duplicate_feature_index_map: &FnvHashMap<u16, u16>,
+        layout_scripts: &IntSet<Tag>,
+    ) -> (FnvHashMap<u16, IntSet<u16>>, IntSet<u16>);
+
+    fn closure_glyphs_lookups_features(&self, plan: &mut Plan);
 }
 
 pub const CVT: Tag = Tag::new(b"cvt ");

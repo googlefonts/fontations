@@ -7,7 +7,7 @@ use super::{
     ChainedSequenceContextFormat1, ChainedSequenceContextFormat2, ChainedSequenceContextFormat3,
     ChainedSequenceRule, ChainedSequenceRuleSet, ClassDef, ClassDefFormat1, ClassDefFormat2,
     ClassSequenceRule, ClassSequenceRuleSet, CoverageTable, ExtensionLookup, Feature, FeatureList,
-    FontRead, GlyphId, LangSys, ReadError, Script, ScriptList, SequenceContext,
+    FeatureVariations, FontRead, GlyphId, LangSys, ReadError, Script, ScriptList, SequenceContext,
     SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord,
     SequenceRule, SequenceRuleSet, Subtables, Tag,
 };
@@ -206,6 +206,65 @@ impl Feature<'_> {
             .iter()
             .map(|idx| idx.get())
             .collect()
+    }
+}
+
+impl FeatureList<'_> {
+    pub(crate) fn collect_lookups(
+        &self,
+        feature_indices: &IntSet<u16>,
+    ) -> Result<IntSet<u16>, ReadError> {
+        let features_records = self.feature_records();
+        let num_features = self.feature_count();
+        let font_data = self.offset_data();
+        let mut lookup_idxes = IntSet::empty();
+
+        if feature_indices.is_inverted() {
+            for feature_rec in (0..num_features).filter_map(|i| {
+                feature_indices
+                    .contains(i)
+                    .then(|| features_records.get(i as usize))
+                    .flatten()
+            }) {
+                lookup_idxes.extend_unsorted(feature_rec.feature(font_data)?.collect_lookups());
+            }
+        } else {
+            for feature_rec in feature_indices
+                .iter()
+                .filter_map(|i| features_records.get(i as usize))
+            {
+                lookup_idxes.extend_unsorted(feature_rec.feature(font_data)?.collect_lookups());
+            }
+        }
+        Ok(lookup_idxes)
+    }
+}
+
+impl FeatureVariations<'_> {
+    pub(crate) fn collect_lookups(
+        &self,
+        feature_indices: &IntSet<u16>,
+    ) -> Result<IntSet<u16>, ReadError> {
+        let mut out = IntSet::empty();
+
+        for variation_rec in self.feature_variation_records() {
+            let Some(subs) = variation_rec
+                .feature_table_substitution(self.offset_data())
+                .transpose()?
+            else {
+                continue;
+            };
+
+            for sub_record in subs
+                .substitutions()
+                .iter()
+                .filter(|sub_rec| feature_indices.contains(sub_rec.feature_index()))
+            {
+                let sub_f = sub_record.alternate_feature(subs.offset_data())?;
+                out.extend_unsorted(sub_f.lookup_list_indices().iter().map(|i| i.get()));
+            }
+        }
+        Ok(out)
     }
 }
 
