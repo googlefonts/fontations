@@ -219,6 +219,7 @@ impl Metrics {
 #[derive(Clone)]
 pub struct GlyphMetrics<'a> {
     font: FontRef<'a>,
+    size: Size,
     glyph_count: u32,
     fixed_scale: FixedScaleFactor,
     h_metrics: &'a [LongMetric],
@@ -382,7 +383,7 @@ impl GlyphMetrics<'_> {
 
     fn bounds_from_outline(&self, glyph_id: GlyphId) -> Option<BoundingBox> {
         if let Some(outline) = self.font.outline_glyphs().get(glyph_id) {
-            let settings = DrawSettings::unhinted(Size::unscaled(), self.coords);
+            let settings = DrawSettings::unhinted(self.size, self.coords);
             let mut pen = ControlBoundsPen::default();
             outline.draw(settings, &mut pen).ok()?;
             pen.bounding_box()
