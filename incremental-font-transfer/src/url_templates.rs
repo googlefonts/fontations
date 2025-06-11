@@ -121,8 +121,7 @@ impl State<'_> {
         id_value
             .len()
             .checked_sub(digit.into())
-            .and_then(|index| id_value.as_bytes().get(index))
-            .map(|value| *value)
+            .and_then(|index| id_value.as_bytes().get(index).copied())
             .unwrap_or(b'_')
     }
 }
@@ -198,6 +197,7 @@ pub(crate) mod tests {
 
     #[test]
     fn spec_examples() {
+        // From https://w3c.github.io/IFT/Overview.html#url-templates
         check_numeric(
             &[
                 16, b'h', b't', b't', b'p', b's', b':', b'/', b'/', b'f', b'o', b'o', b'.', b'b',
@@ -237,7 +237,7 @@ pub(crate) mod tests {
             &[
                 4, b'f', b'o', b'o', b'/', 129, 1, b'/', 130, 1, b'/', 131, 1, b'/', 128,
             ],
-            &[b'b', b'a', b'z'],
+            b"baz",
             "foo/K/N/G/C9GNK",
         );
 
@@ -245,7 +245,7 @@ pub(crate) mod tests {
             &[
                 4, b'f', b'o', b'o', b'/', 129, 1, b'/', 130, 1, b'/', 131, 1, b'/', 128,
             ],
-            &[b'z'],
+            b"z",
             "foo/8/F/_/F8",
         );
 
@@ -281,6 +281,7 @@ pub(crate) mod tests {
 
     #[test]
     fn spec_error_examples() {
+        // From https://w3c.github.io/IFT/Overview.html#url-templates
         check_error(
             &[4, b'f', b'o', b'o', b'/', 150],
             123,
@@ -313,7 +314,11 @@ pub(crate) mod tests {
 
     #[test]
     fn copied_literals_only() {
-        check_numeric(&[6, b'f', b'o', b'0', b'b', b'a', b'r'], 123, "fo0bar");
+        check_numeric(
+            &[7, b'f', b'o', b'o', b'0', b'b', b'a', b'r'],
+            123,
+            "foo0bar",
+        );
     }
 
     #[test]

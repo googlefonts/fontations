@@ -31,10 +31,11 @@ pub fn simple_format1() -> BeBuffer {
         0u32,                   // feature map offset
         0b00000010u8,           // applied entry bitmap (entry 1)
 
-        8u16,                   // uri template length
-        {b'f': "uri_template[0]"},
-        {b'o': "uri_template[1]"},
-        [b'o', b'/', b'{', b'i', b'd', b'}'], // uri_template[2..7]
+        6u16,                   // url template length
+        4u8,
+        {b'f': "url_template[1]"},
+        {b'o': "url_template[2]"},
+        [b'o', b'/', 128u8], // url_template[3..6]
 
         {3u8: "patch_format"}, // = glyph keyed
 
@@ -50,7 +51,7 @@ pub fn simple_format1() -> BeBuffer {
     buffer
 }
 
-pub fn format1_with_dup_uris() -> BeBuffer {
+pub fn format1_with_dup_urls() -> BeBuffer {
     let mut buffer = be_buffer! {
         /* ### Header ### */
         1u8,                    // format
@@ -63,10 +64,8 @@ pub fn format1_with_dup_uris() -> BeBuffer {
         0u32,                   // feature map offset
         0b00000010u8,           // applied entry bitmap (entry 1)
 
-        8u16,                   // uri template length
-        {b'f': "uri_template[0]"},
-        {b'o': "uri_template[1]"},
-        [b'o', b'/', b'b', b'a', b'a', b'r'], // uri_template[2..7]
+        9u16,                   // url template length
+        [8u8, b'f', b'o', b'o', b'/', b'b', b'a', b'a', b'r'], // url_template[9]
 
         {3u8: "patch_format"}, // = glyph keyed
 
@@ -96,10 +95,10 @@ pub fn simple_format1_with_one_charstrings_offset() -> BeBuffer {
         0u32,                   // feature map offset
         0b00000010u8,           // applied entry bitmap (entry 1)
 
-        8u16,                   // uri template length
-        {b'A': "uri_template[0]"},
-        {b'B': "uri_template[1]"},
-        [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // uri_template[2..7]
+        8u16,                   // url template length
+        {b'A': "url_template[0]"},
+        {b'B': "url_template[1]"},
+        [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // url_template[2..7]
 
         {3u8: "patch_format"}, // = glyph keyed
 
@@ -131,10 +130,10 @@ pub fn simple_format1_with_two_charstrings_offsets() -> BeBuffer {
         0u32,                   // feature map offset
         0b00000010u8,           // applied entry bitmap (entry 1)
 
-        8u16,                   // uri template length
-        {b'A': "uri_template[0]"},
-        {b'B': "uri_template[1]"},
-        [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // uri_template[2..7]
+        8u16,                   // url template length
+        {b'A': "url_template[0]"},
+        {b'B': "url_template[1]"},
+        [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // url_template[2..7]
 
         {3u8: "patch_format"}, // = glyph keyed
 
@@ -179,8 +178,8 @@ pub fn u16_entries_format1() -> BeBuffer {
         0, 0u8
       ],
 
-      8u16, // uriTemplateLength
-      [b'f', b'o', b'o', b'/', b'{', b'i', b'd', b'}'],  // uriTemplate[8]
+      6u16, // urlTemplateLength
+      [4, b'f', b'o', b'o', b'/', 128u8],  // urlTemplate[6]
 
       3u8,                 // patch encoding = glyph keyed
 
@@ -229,8 +228,8 @@ pub fn feature_map_format1() -> BeBuffer {
         0, 0, 0u8                         // [384, 400)
       ],
 
-      8u16, // uriTemplateLength
-      [b'f', b'o', b'o', b'/', b'{', b'i', b'd', b'}'],  // uriTemplate[8]
+      6u16, // urlTemplateLength
+      [4, b'f', b'o', b'o', b'/', 128u8],  // urlTemplate[6]
 
       {3u8: "patch_format"},            // patch encoding = glyph keyed
 
@@ -307,8 +306,8 @@ pub fn codepoints_only_format2() -> BeBuffer {
       {0u32: "entries_offset"},
       0u32,               // entry string data offset
 
-      8u16, // uriTemplateLength
-      [b'f', b'o', b'o', b'/', b'{', b'i', b'd', b'}'],  // uriTemplate[8]
+      6u16, // urlTemplateLength
+      [4, b'f', b'o', b'o', b'/', 128u8],  // urlTemplate[6]
 
       /* ### Entries Array ### */
       // Entry id = 1
@@ -354,8 +353,8 @@ pub fn format2_with_one_charstrings_offset() -> BeBuffer {
       {0u32: "entries_offset"},
       0u32,               // entry string data offset
 
-      8u16, // uriTemplateLength
-      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
+      8u16, // urlTemplateLength
+      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // urlTemplate[8]
 
       {456u32: "charstrings_offset"}, // charstrings offset [0]
 
@@ -388,8 +387,8 @@ pub fn format2_with_two_charstrings_offset() -> BeBuffer {
       {0u32: "entries_offset"},
       0u32,               // entry string data offset
 
-      8u16, // uriTemplateLength
-      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // uriTemplate[8]
+      8u16, // urlTemplateLength
+      [b'A', b'B', b'C', b'D', b'E', b'F', 0xc9, 0xa4],  // urlTemplate[8]
 
       456u32, // charstrings offset [0]
       789u32, // charstrings offset [1]
@@ -419,8 +418,8 @@ pub fn features_and_design_space_format2() -> BeBuffer {
       {0u32: "entries_offset"},
       0u32, // entry id string data offset
 
-      8u16, // uriTemplateLength
-      [b'f', b'o', b'o', b'/', b'{', b'i', b'd', b'}'],  // uriTemplate[8]
+      6u16, // urlTemplateLength
+      [4, b'f', b'o', b'o', b'/', 128u8],  // urlTemplate[6]
 
       /* ### Entries Array ### */
       // Entry id = 1
@@ -489,8 +488,8 @@ pub fn child_indices_format2() -> BeBuffer {
       {0u32: "entries_offset"}, // entries offset
       0u32,                     // entry id string data offset
 
-      8u16, // uriTemplateLength
-      [b'f', b'o', b'o', b'/', b'{', b'i', b'd', b'}'],  // uriTemplate[8]
+      6u16, // urlTemplateLength
+      [4, b'f', b'o', b'o', b'/', 128u8],  // urlTemplate[6]
 
       // Entries Array
 
@@ -581,8 +580,8 @@ pub fn custom_ids_format2() -> BeBuffer {
       {0u32: "entries_offset"},          // entries offset
       0u32,                              // entry id string data offset
 
-      8u16, // uriTemplateLength
-      [b'f', b'o', b'o', b'/', b'{', b'i', b'd', b'}'],  // uriTemplate[8]
+      6u16, // urlTemplateLength
+      [4, b'f', b'o', b'o', b'/', 128u8],  // urlTemplate[6]
 
       // Entries Array
       // Entry id = 0
@@ -627,8 +626,8 @@ pub fn string_ids_format2() -> BeBuffer {
       {0u32: "entries_offset"}, // entries offset
       {0u32: "string_data_offset"},                     // entry id string data offset
 
-      8u16, // uriTemplateLength
-      [b'f', b'o', b'o', b'/', b'{', b'i', b'd', b'}'],  // uriTemplate[8]
+      6u16, // urlTemplateLength
+      [4, b'f', b'o', b'o', b'/', 128u8],  // urlTemplate[6]
 
       /* ### Entry Data ### */
 
@@ -682,8 +681,8 @@ pub fn string_ids_format2_with_preloads() -> BeBuffer {
       {0u32: "entries_offset"}, // entries offset
       {0u32: "string_data_offset"},                     // entry id string data offset
 
-      8u16, // uriTemplateLength
-      [b'f', b'o', b'o', b'/', b'{', b'i', b'd', b'}'],  // uriTemplate[8]
+      6u16, // urlTemplateLength
+      [4, b'f', b'o', b'o', b'/', 128u8],  // urlTemplate[6]
 
       /* ### Entry Data ### */
 
@@ -738,10 +737,9 @@ pub fn table_keyed_format2() -> BeBuffer {
       {0u32: "entries_offset"},
       0u32,               // entry string data offset
 
-      8u16, // uriTemplateLength
-      [b'f', b'o', b'o', b'/', b'{', b'i'],
-      {b'd': "uri_template_var_end"},
-      b'}', // uriTemplate[8]
+      6u16, // urlTemplateLength
+      [4u8, b'f', b'o', b'o', b'/'],
+      {128u8: "url_template_var_end"}, // urlTemplate[6]
 
       /* ### Entries Array ### */
       // Entry id = 1
@@ -773,8 +771,8 @@ pub fn table_keyed_format2_with_preload_urls() -> BeBuffer {
       {0u32: "entries_offset"},
       0u32,               // entry string data offset
 
-      8u16, // uriTemplateLength
-      [b'f', b'o', b'o', b'/', b'{', b'i', b'd', b'}'],  // uriTemplate[8]
+      6u16, // urlTemplateLength
+      [4, b'f', b'o', b'o', b'/', 128u8],  // urlTemplate[6]
 
       /* ### Entries Array ### */
 

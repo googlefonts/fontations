@@ -5,8 +5,8 @@ use std::collections::{HashMap, HashSet};
 
 use font_types::Fixed;
 use incremental_font_transfer::{
-    patch_group::{PatchGroup, UriStatus},
-    patchmap::{DesignSpace, FeatureSet, PatchUri, SubsetDefinition},
+    patch_group::{PatchGroup, UrlStatus},
+    patchmap::{DesignSpace, FeatureSet, PatchUrl, SubsetDefinition},
 };
 use libfuzzer_sys::{arbitrary, fuzz_target};
 use read_fonts::{
@@ -92,25 +92,25 @@ fuzz_target!(|input: FuzzInput| {
         return;
     };
 
-    // Exercise uris() api on group
-    black_box(group.has_uris());
-    for uri in group.uris() {
-        black_box(uri);
+    // Exercise urls() api on group
+    black_box(group.has_urls());
+    for url in group.urls() {
+        black_box(url);
     }
 
     // Exercise patch application.
-    let mut uri_map: HashMap<PatchUri, UriStatus> = input
+    let mut url_map: HashMap<PatchUrl, UrlStatus> = input
         .patches
         .into_iter()
-        .map(|(uri, data)| (PatchUri(uri), UriStatus::Pending(data)))
+        .map(|(url, data)| (PatchUrl(url), UrlStatus::Pending(data)))
         .collect();
-    for uri in input.applied_patches {
-        uri_map.insert(PatchUri(uri), UriStatus::Applied);
+    for url in input.applied_patches {
+        url_map.insert(PatchUrl(url), UrlStatus::Applied);
     }
 
     // When running under a fuzzer disable brotli decoding and instead just pass through the input data.
     // This allows the fuzzer to more effectively explore code gated behind brotli decoding.
     //
     // TODO(garretrieger): In addition to the noop decoder, also have one that can return all of the possible errors.
-    let _ = black_box(group.apply_next_patches_with_decoder(&mut uri_map, &NoopBrotliDecoder));
+    let _ = black_box(group.apply_next_patches_with_decoder(&mut url_map, &NoopBrotliDecoder));
 });

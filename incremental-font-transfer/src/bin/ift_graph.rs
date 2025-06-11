@@ -189,7 +189,7 @@ fn get_node_name(font: &FontRef<'_>) -> Result<String, ReadError> {
 }
 
 fn to_next_font(base_path: &Path, font: &FontRef<'_>, patch: PatchMapEntry) -> Vec<u8> {
-    let path = base_path.join(patch.uri().as_ref());
+    let path = base_path.join(patch.url().as_ref());
     let patch_bytes = std::fs::read(&path)
         .unwrap_or_else(|e| panic!("Unable to read patch file ({}): {:?}", path.display(), e));
 
@@ -204,7 +204,7 @@ struct NodeName(String);
 #[derive(Clone, Default, Ord, PartialEq, PartialOrd, Eq)]
 struct Edge {
     name: NodeName,
-    uri: String,
+    url: String,
 }
 
 fn to_graph(
@@ -224,7 +224,7 @@ fn to_graph(
             continue;
         }
 
-        let uri_string = patch.uri().as_ref().to_string();
+        let url_string = patch.url().as_ref().to_string();
         let next_font = to_next_font(base_path, &font, patch);
         let next_font = FontRef::new(&next_font).expect("Downstream font parsing failed");
 
@@ -233,7 +233,7 @@ fn to_graph(
             let next_node_name = get_node_name(&next_font).unwrap();
             e.insert(Edge {
                 name: NodeName(next_node_name),
-                uri: uri_string,
+                url: url_string,
             });
         }
 
@@ -262,10 +262,10 @@ fn main() {
         let values: Vec<_> = if !args.include_patch_paths {
             values.into_iter().map(|edge| edge.name.0).collect()
         } else {
-            // Add the patch URI to the node name
+            // Add the patch URL to the node name
             values
                 .into_iter()
-                .map(|edge| format!("{}|{}", edge.name.0, edge.uri))
+                .map(|edge| format!("{}|{}", edge.name.0, edge.url))
                 .collect()
         };
         println!("{key};{}", values.join(";"));

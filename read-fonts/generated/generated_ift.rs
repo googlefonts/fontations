@@ -43,17 +43,17 @@ impl<'a> Ift<'a> {
         }
     }
 
-    pub fn uri_template_length(&self) -> u16 {
+    pub fn url_template_length(&self) -> u16 {
         match self {
-            Self::Format1(item) => item.uri_template_length(),
-            Self::Format2(item) => item.uri_template_length(),
+            Self::Format1(item) => item.url_template_length(),
+            Self::Format2(item) => item.url_template_length(),
         }
     }
 
-    pub fn uri_template(&self) -> &'a [u8] {
+    pub fn url_template(&self) -> &'a [u8] {
         match self {
-            Self::Format1(item) => item.uri_template(),
-            Self::Format2(item) => item.uri_template(),
+            Self::Format1(item) => item.url_template(),
+            Self::Format2(item) => item.url_template(),
         }
     }
 
@@ -433,7 +433,7 @@ impl Format<u8> for PatchMapFormat1Marker {
 #[doc(hidden)]
 pub struct PatchMapFormat1Marker {
     applied_entries_bitmap_byte_len: usize,
-    uri_template_byte_len: usize,
+    url_template_byte_len: usize,
     cff_charstrings_offset_byte_start: Option<usize>,
     cff2_charstrings_offset_byte_start: Option<usize>,
 }
@@ -499,18 +499,18 @@ impl PatchMapFormat1Marker {
         start..start + self.applied_entries_bitmap_byte_len
     }
 
-    pub fn uri_template_length_byte_range(&self) -> Range<usize> {
+    pub fn url_template_length_byte_range(&self) -> Range<usize> {
         let start = self.applied_entries_bitmap_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
 
-    pub fn uri_template_byte_range(&self) -> Range<usize> {
-        let start = self.uri_template_length_byte_range().end;
-        start..start + self.uri_template_byte_len
+    pub fn url_template_byte_range(&self) -> Range<usize> {
+        let start = self.url_template_length_byte_range().end;
+        start..start + self.url_template_byte_len
     }
 
     pub fn patch_format_byte_range(&self) -> Range<usize> {
-        let start = self.uri_template_byte_range().end;
+        let start = self.url_template_byte_range().end;
         start..start + u8::RAW_BYTE_LEN
     }
 
@@ -549,11 +549,11 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(applied_entries_bitmap_byte_len);
-        let uri_template_length: u16 = cursor.read()?;
-        let uri_template_byte_len = (uri_template_length as usize)
+        let url_template_length: u16 = cursor.read()?;
+        let url_template_byte_len = (url_template_length as usize)
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(uri_template_byte_len);
+        cursor.advance_by(url_template_byte_len);
         cursor.advance::<u8>();
         let cff_charstrings_offset_byte_start = field_flags
             .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
@@ -571,7 +571,7 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
             .then(|| cursor.advance::<u32>());
         cursor.finish(PatchMapFormat1Marker {
             applied_entries_bitmap_byte_len,
-            uri_template_byte_len,
+            url_template_byte_len,
             cff_charstrings_offset_byte_start,
             cff2_charstrings_offset_byte_start,
         })
@@ -648,13 +648,13 @@ impl<'a> PatchMapFormat1<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    pub fn uri_template_length(&self) -> u16 {
-        let range = self.shape.uri_template_length_byte_range();
+    pub fn url_template_length(&self) -> u16 {
+        let range = self.shape.url_template_length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
-    pub fn uri_template(&self) -> &'a [u8] {
-        let range = self.shape.uri_template_byte_range();
+    pub fn url_template(&self) -> &'a [u8] {
+        let range = self.shape.url_template_byte_range();
         self.data.read_array(range).unwrap()
     }
 
@@ -708,10 +708,10 @@ impl<'a> SomeTable<'a> for PatchMapFormat1<'a> {
                 self.applied_entries_bitmap(),
             )),
             9usize => Some(Field::new(
-                "uri_template_length",
-                self.uri_template_length(),
+                "url_template_length",
+                self.url_template_length(),
             )),
-            10usize => Some(Field::new("uri_template", self.uri_template())),
+            10usize => Some(Field::new("url_template", self.url_template())),
             11usize => Some(Field::new("patch_format", self.patch_format())),
             12usize if field_flags.contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET) => {
                 Some(Field::new(
@@ -1133,7 +1133,7 @@ impl Format<u8> for PatchMapFormat2Marker {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct PatchMapFormat2Marker {
-    uri_template_byte_len: usize,
+    url_template_byte_len: usize,
     cff_charstrings_offset_byte_start: Option<usize>,
     cff2_charstrings_offset_byte_start: Option<usize>,
 }
@@ -1189,14 +1189,14 @@ impl PatchMapFormat2Marker {
         start..start + Offset32::RAW_BYTE_LEN
     }
 
-    pub fn uri_template_length_byte_range(&self) -> Range<usize> {
+    pub fn url_template_length_byte_range(&self) -> Range<usize> {
         let start = self.entry_id_string_data_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
 
-    pub fn uri_template_byte_range(&self) -> Range<usize> {
-        let start = self.uri_template_length_byte_range().end;
-        start..start + self.uri_template_byte_len
+    pub fn url_template_byte_range(&self) -> Range<usize> {
+        let start = self.url_template_length_byte_range().end;
+        start..start + self.url_template_byte_len
     }
 
     pub fn cff_charstrings_offset_byte_range(&self) -> Option<Range<usize>> {
@@ -1212,7 +1212,7 @@ impl PatchMapFormat2Marker {
 
 impl MinByteRange for PatchMapFormat2Marker {
     fn min_byte_range(&self) -> Range<usize> {
-        0..self.uri_template_byte_range().end
+        0..self.url_template_byte_range().end
     }
 }
 
@@ -1229,11 +1229,11 @@ impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
         cursor.advance::<Uint24>();
         cursor.advance::<Offset32>();
         cursor.advance::<Offset32>();
-        let uri_template_length: u16 = cursor.read()?;
-        let uri_template_byte_len = (uri_template_length as usize)
+        let url_template_length: u16 = cursor.read()?;
+        let url_template_byte_len = (url_template_length as usize)
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(uri_template_byte_len);
+        cursor.advance_by(url_template_byte_len);
         let cff_charstrings_offset_byte_start = field_flags
             .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
             .then(|| cursor.position())
@@ -1249,7 +1249,7 @@ impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
             .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)
             .then(|| cursor.advance::<u32>());
         cursor.finish(PatchMapFormat2Marker {
-            uri_template_byte_len,
+            url_template_byte_len,
             cff_charstrings_offset_byte_start,
             cff2_charstrings_offset_byte_start,
         })
@@ -1311,13 +1311,13 @@ impl<'a> PatchMapFormat2<'a> {
         self.entry_id_string_data_offset().resolve(data)
     }
 
-    pub fn uri_template_length(&self) -> u16 {
-        let range = self.shape.uri_template_length_byte_range();
+    pub fn url_template_length(&self) -> u16 {
+        let range = self.shape.url_template_length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
-    pub fn uri_template(&self) -> &'a [u8] {
-        let range = self.shape.uri_template_byte_range();
+    pub fn url_template(&self) -> &'a [u8] {
+        let range = self.shape.url_template_byte_range();
         self.data.read_array(range).unwrap()
     }
 
@@ -1363,10 +1363,10 @@ impl<'a> SomeTable<'a> for PatchMapFormat2<'a> {
                 ),
             )),
             7usize => Some(Field::new(
-                "uri_template_length",
-                self.uri_template_length(),
+                "url_template_length",
+                self.url_template_length(),
             )),
-            8usize => Some(Field::new("uri_template", self.uri_template())),
+            8usize => Some(Field::new("url_template", self.url_template())),
             9usize if field_flags.contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET) => {
                 Some(Field::new(
                     "cff_charstrings_offset",
