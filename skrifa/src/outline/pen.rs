@@ -3,6 +3,8 @@
 use alloc::{string::String, vec::Vec};
 use core::fmt::{self, Write};
 
+use crate::metrics::BoundingBox;
+
 /// Interface for accepting a sequence of path commands.
 pub trait OutlinePen {
     /// Emit a command to begin a new subpath at (x, y).
@@ -215,6 +217,60 @@ impl fmt::Display for SvgPen {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
+}
+
+/// Pen that generates the control bounds of a glyph outline.
+#[derive(Clone, Default, Debug)]
+pub struct ControlBoundsPen(Option<BoundingBox>);
+impl ControlBoundsPen {
+    /// Creates a new bounds pen.
+    pub fn new() -> Self {
+        Self(None)
+    }
+
+    /// Returns the bounding box collected by this pen.
+    pub fn bounding_box(&self) -> Option<BoundingBox> {
+        self.0
+    }
+
+    fn update_bounds(&mut self, x: f32, y: f32) {
+        if let Some(bb) = &mut self.0 {
+            bb.x_min = bb.x_min.min(x);
+            bb.y_min = bb.y_min.min(y);
+            bb.x_max = bb.x_max.max(x);
+            bb.y_max = bb.y_max.max(y);
+        } else {
+            self.0 = Some(BoundingBox {
+                x_min: x,
+                y_min: y,
+                x_max: x,
+                y_max: y,
+            });
+        }
+    }
+}
+
+impl OutlinePen for ControlBoundsPen {
+    fn move_to(&mut self, x: f32, y: f32) {
+        self.update_bounds(x, y);
+    }
+
+    fn line_to(&mut self, x: f32, y: f32) {
+        self.update_bounds(x, y);
+    }
+
+    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
+        self.update_bounds(cx0, cy0);
+        self.update_bounds(x, y);
+    }
+
+    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+        self.update_bounds(cx0, cy0);
+        self.update_bounds(cx1, cy1);
+        self.update_bounds(x, y);
+    }
+
+    fn close(&mut self) {}
 }
 
 #[cfg(test)]
