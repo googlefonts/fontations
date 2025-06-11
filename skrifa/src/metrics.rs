@@ -409,7 +409,7 @@ impl FixedScaleFactor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use font_test_data::{SIMPLE_GLYF, VAZIRMATN_VAR};
+    use font_test_data::{NOTO_SANS_JP_CFF, SIMPLE_GLYF, VAZIRMATN_VAR};
     use read_fonts::FontRef;
 
     #[test]
@@ -537,6 +537,36 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(expected, &result[..]);
+
+        // Check bounds
+        let coords = &[NormalizedCoord::from_f32(-1.0)];
+        let glyph_metrics = font.glyph_metrics(Size::unscaled(), LocationRef::new(coords));
+        let bounds = glyph_metrics.bounds(GlyphId::new(1)).unwrap();
+        assert_eq!(
+            bounds,
+            BoundingBox {
+                x_min: 33.0,
+                y_min: 0.0,
+                x_max: 1189.0,
+                y_max: 1456.0
+            }
+        );
+    }
+
+    #[test]
+    fn glyph_metrics_cff() {
+        let font = FontRef::new(NOTO_SANS_JP_CFF).unwrap();
+        let glyph_metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
+        let bounds = glyph_metrics.bounds(GlyphId::new(34)).unwrap();
+        assert_eq!(
+            bounds,
+            BoundingBox {
+                x_min: 4.0,
+                y_min: 0.0,
+                x_max: 604.0,
+                y_max: 733.0
+            }
+        );
     }
 
     #[test]
