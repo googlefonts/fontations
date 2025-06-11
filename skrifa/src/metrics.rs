@@ -30,6 +30,11 @@ use read_fonts::{
     FontRef, TableProvider,
 };
 
+use crate::{
+    outline::{pen::ControlBoundsPen, DrawSettings},
+    MetadataProvider,
+};
+
 use super::instance::{LocationRef, NormalizedCoord, Size};
 
 /// Type for a bounding box with single precision floating point coordinates.
@@ -341,12 +346,13 @@ impl<'a> GlyphMetrics<'a> {
 
     /// Returns the bounding box for the specified glyph.
     ///
-    /// Note that variations are not reflected in the bounding box returned by
-    /// this method.
-    ///
     /// Returns `None` if `glyph_id >= self.glyph_count()`, the underlying font
-    /// data is invalid, or the font does not contain TrueType outlines.
+    /// data is invalid.
     pub fn bounds(&self, glyph_id: GlyphId) -> Option<BoundingBox> {
+        if self.gvar.is_some() || self.font.cff().ok().is_some() || self.font.cff2().ok().is_some()
+        {
+            return self.bounds_from_outline(glyph_id);
+        }
         let (loca, glyf) = self.loca_glyf.as_ref()?;
         Some(match loca.get_glyf(glyph_id, glyf).ok()? {
             Some(glyph) => BoundingBox {
@@ -373,6 +379,17 @@ impl GlyphMetrics<'_> {
         deltas[1] -= deltas[0];
         Some([deltas[0], deltas[1]].map(|delta| delta.x.to_i32()))
     }
+
+    fn bounds_from_outline(&self, glyph_id: GlyphId) -> Option<BoundingBox> {
+        if let Some(outline) = self.font.outline_glyphs().get(glyph_id) {
+            let settings = DrawSettings::unhinted(Size::unscaled(), self.coords);
+            let mut pen = ControlBoundsPen::default();
+            outline.draw(settings, &mut pen).ok()?;
+            pen.bounding_box()
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -392,7 +409,6 @@ impl FixedScaleFactor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::MetadataProvider as _;
     use font_test_data::{SIMPLE_GLYF, VAZIRMATN_VAR};
     use read_fonts::FontRef;
 
