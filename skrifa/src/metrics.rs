@@ -213,6 +213,7 @@ impl Metrics {
 /// Glyph specific metrics.
 #[derive(Clone)]
 pub struct GlyphMetrics<'a> {
+    font: FontRef<'a>,
     glyph_count: u32,
     fixed_scale: FixedScaleFactor,
     h_metrics: &'a [LongMetric],
@@ -255,6 +256,8 @@ impl<'a> GlyphMetrics<'a> {
             None
         };
         Self {
+            font: font.clone(),
+            size,
             glyph_count,
             fixed_scale,
             h_metrics,
