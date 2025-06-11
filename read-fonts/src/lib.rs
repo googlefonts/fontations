@@ -267,7 +267,9 @@ impl<'a> CollectionRef<'a> {
 
 impl TableDirectory<'_> {
     fn is_sorted(&self) -> bool {
-        self.table_records().is_sorted()
+        self.table_records()
+            .windows(2)
+            .all(|pair| pair[0] <= pair[1])
     }
 }
 
