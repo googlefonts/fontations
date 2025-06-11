@@ -10,8 +10,8 @@ use std::{
 use clap::Parser;
 use font_types::{Fixed, Tag};
 use incremental_font_transfer::{
-    patch_group::{PatchGroup, UriStatus},
-    patchmap::{DesignSpace, FeatureSet, PatchUri, SubsetDefinition},
+    patch_group::{PatchGroup, UrlStatus},
+    patchmap::{DesignSpace, FeatureSet, PatchUrl, SubsetDefinition},
 };
 use read_fonts::collections::{IntSet, RangeSet};
 use regex::Regex;
@@ -92,11 +92,11 @@ fn main() {
         )
     });
 
-    let mut patch_data: HashMap<PatchUri, UriStatus> = Default::default();
+    let mut patch_data: HashMap<PatchUrl, UrlStatus> = Default::default();
     let mut it_count = 0;
 
     // For this a roundtrip is defined as an iteration of the below loop where at least
-    // one new patch URI is needed.
+    // one new patch URL is needed.
     let mut round_trip_count = 0;
     let mut fetch_count = 0;
     loop {
@@ -105,15 +105,15 @@ fn main() {
         let font = FontRef::new(&font_bytes).expect("Input font parsing failed");
         let next_patches = PatchGroup::select_next_patches(font, &patch_data, &subset_definition)
             .expect("Patch selection failed");
-        if !next_patches.has_uris() {
+        if !next_patches.has_urls() {
             println!("    No outstanding patches, all done.");
             break;
         }
 
         let mut fetched = false;
-        for uri in next_patches.uris() {
-            patch_data.entry(uri.clone()).or_insert_with_key(|key| {
-                let uri_path = args.font.parent().unwrap().join(uri.as_ref());
+        for url in next_patches.urls() {
+            patch_data.entry(url.clone()).or_insert_with_key(|key| {
+                let url_path = args.font.parent().unwrap().join(url.as_ref());
                 println!("    Fetching {}", key.as_ref());
                 fetched = true;
                 fetch_count += 1;
@@ -126,16 +126,16 @@ fn main() {
                     }
                 }
 
-                let patch_bytes = match std::fs::read(uri_path.clone()) {
+                let patch_bytes = match std::fs::read(url_path.clone()) {
                     Result::Ok(bytes) => bytes,
                     Result::Err(e) => panic!(
                         "Unable to read patch file ({}): {:?}",
-                        uri_path.display(),
+                        url_path.display(),
                         e
                     ),
                 };
 
-                UriStatus::Pending(patch_bytes)
+                UrlStatus::Pending(patch_bytes)
             });
         }
 
@@ -152,7 +152,7 @@ fn main() {
         }
 
         if let Some(info) = next_patches.next_invalidating_patch() {
-            println!("    Applying next invalidating patch {}", info.uri());
+            println!("    Applying next invalidating patch {}", info.url());
         } else {
             println!("    Applying non invalidating patches");
         }

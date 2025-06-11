@@ -15,7 +15,7 @@ use std::{
 use crate::{
     font_patch::{IncrementalFontPatchBase, PatchingError},
     patchmap::{
-        intersecting_patches, IftTableTag, IntersectionInfo, PatchFormat, PatchMapEntry, PatchUri,
+        intersecting_patches, IftTableTag, IntersectionInfo, PatchFormat, PatchMapEntry, PatchUrl,
         SubsetDefinition,
     },
 };
@@ -34,7 +34,7 @@ pub struct PatchGroup<'a> {
 
     // These patches aren't compatible, but have been requested as preloads by the
     // patch mapping.
-    preload_uris: BTreeSet<PatchUri>,
+    preload_urls: BTreeSet<PatchUrl>,
 }
 
 enum Selection {
@@ -67,13 +67,13 @@ impl Selection {
 impl PatchGroup<'_> {
     /// Intersect the available and unapplied patches in ift_font against subset_definition
     ///
-    /// patch_data provides any patch data that has been previously loaded, keyed by patch uri.
+    /// patch_data provides any patch data that has been previously loaded, keyed by patch url.
     /// May be empty if no patch data is loaded yet.
     ///
     /// Returns a group of patches which would be applied next.
     pub fn select_next_patches<'b>(
         ift_font: FontRef<'b>,
-        patch_data: &HashMap<PatchUri, UriStatus>,
+        patch_data: &HashMap<PatchUrl, UrlStatus>,
         subset_definition: &SubsetDefinition,
     ) -> Result<PatchGroup<'b>, ReadError> {
         let candidates = intersecting_patches(&ift_font, subset_definition)?;
@@ -81,7 +81,7 @@ impl PatchGroup<'_> {
             return Ok(PatchGroup {
                 font: ift_font,
                 patches: None,
-                preload_uris: Default::default(),
+                preload_urls: Default::default(),
             });
         }
 
@@ -93,7 +93,7 @@ impl PatchGroup<'_> {
             return Err(ReadError::ValidationError);
         }
 
-        let (compat_group, preload_uris) = Self::select_next_patches_from_candidates(
+        let (compat_group, preload_urls) = Self::select_next_patches_from_candidates(
             candidates,
             patch_data,
             ift_compat_id,
@@ -103,27 +103,27 @@ impl PatchGroup<'_> {
         Ok(PatchGroup {
             font: ift_font,
             patches: Some(compat_group),
-            preload_uris,
+            preload_urls,
         })
     }
 
-    /// Returns an iterator over URIs in this group.
-    pub fn uris(&self) -> impl Iterator<Item = &PatchUri> {
+    /// Returns an iterator over URLs in this group.
+    pub fn urls(&self) -> impl Iterator<Item = &PatchUrl> {
         self.invalidating_patch_iter()
             .chain(self.non_invalidating_patch_iter())
-            .map(|info| &info.uri)
-            .chain(self.preload_uris.iter())
+            .map(|info| &info.url)
+            .chain(self.preload_urls.iter())
     }
 
-    /// Returns true if there is at least one uri associated with this group.
-    pub fn has_uris(&self) -> bool {
+    /// Returns true if there is at least one url associated with this group.
+    pub fn has_urls(&self) -> bool {
         let Some(patches) = &self.patches else {
-            return !self.preload_uris.is_empty();
+            return !self.preload_urls.is_empty();
         };
         match patches {
             CompatibleGroup::Full(FullInvalidationPatch(_)) => true,
             CompatibleGroup::Mixed { ift, iftx } => {
-                ift.has_uris() || iftx.has_uris() || !self.preload_uris.is_empty()
+                ift.has_urls() || iftx.has_urls() || !self.preload_urls.is_empty()
             }
         }
     }
@@ -179,10 +179,10 @@ impl PatchGroup<'_> {
 
     fn select_next_patches_from_candidates(
         candidates: Vec<PatchMapEntry>,
-        patch_data: &HashMap<PatchUri, UriStatus>,
+        patch_data: &HashMap<PatchUrl, UrlStatus>,
         ift_compat_id: Option<CompatibilityId>,
         iftx_compat_id: Option<CompatibilityId>,
-    ) -> Result<(CompatibleGroup, BTreeSet<PatchUri>), ReadError> {
+    ) -> Result<(CompatibleGroup, BTreeSet<PatchUrl>), ReadError> {
         // Some notes about this implementation:
         // - From candidates we need to form the largest possible group of patches which follow the selection criteria
         //   from: https://w3c.github.io/IFT/Overview.html#extend-font-subset and won't invalidate each other.
@@ -193,10 +193,10 @@ impl PatchGroup<'_> {
         // - When multiple valid choices exist the specification provides a procedure for picking amongst the options:
         //   https://w3c.github.io/IFT/Overview.html#invalidating-patch-selection
         //
-        // - During selection we need to ensure that there are no PatchInfo's with duplicate URIs. The spec doesn't
+        // - During selection we need to ensure that there are no PatchInfo's with duplicate URLs. The spec doesn't
         //   require erroring on this case, and it's resolved by:
         //   - In the spec algo patches are selected and applied one at a time.
-        //   - Further it specifically disallows re-applying the same URI later.
+        //   - Further it specifically disallows re-applying the same URL later.
         //   - So therefore we de-dup by retaining the particular instance which has the highest selection
         //     priority.
 
@@ -214,14 +214,14 @@ impl PatchGroup<'_> {
             iftx_compat_id,
         );
 
-        let mut combined_preload_uris: BTreeSet<PatchUri> = Default::default();
+        let mut combined_preload_urls: BTreeSet<PatchUrl> = Default::default();
 
         // First check for a full invalidation patch, if one exists it's the only selection possible
         if let Some(patch) = Self::select_invalidating_candidate(full_invalidation) {
             // TODO(garretrieger): use a heuristic to select the best patch
-            combined_preload_uris = patch.preload_uris.iter().cloned().collect();
-            combined_preload_uris.remove(&patch.patch_info.uri);
-            return Ok((CompatibleGroup::Full(patch.into()), combined_preload_uris));
+            combined_preload_urls = patch.preload_urls.iter().cloned().collect();
+            combined_preload_urls.remove(&patch.patch_info.url);
+            return Ok((CompatibleGroup::Full(patch.into()), combined_preload_urls));
         }
 
         // Otherwise fill in the two possible selections in priority order (as defined by `Selection`):
@@ -236,7 +236,7 @@ impl PatchGroup<'_> {
         let mut partial_invalidation_candidates =
             [partial_invalidation_ift, partial_invalidation_iftx];
         let mut no_invalidation_candidates = [no_invalidation_ift, no_invalidation_iftx];
-        let mut selected_uris: BTreeSet<PatchUri> = Default::default();
+        let mut selected_urls: BTreeSet<PatchUrl> = Default::default();
 
         loop {
             let tag_index = selection_mode.tag_index();
@@ -252,25 +252,25 @@ impl PatchGroup<'_> {
                     scoped_groups[tag_index] = Self::select_invalidating_candidate(
                         candidates
                             .into_iter()
-                            .filter(|c| !selected_uris.contains(&c.patch_info.uri)),
+                            .filter(|c| !selected_urls.contains(&c.patch_info.url)),
                     )
                     .map(|patch| {
-                        combined_preload_uris.extend(patch.preload_uris.iter().cloned());
-                        selected_uris.insert(patch.patch_info.uri.clone());
+                        combined_preload_urls.extend(patch.preload_urls.iter().cloned());
+                        selected_urls.insert(patch.patch_info.url.clone());
                         ScopedGroup::PartialInvalidation(patch.into())
                     })
                 }
                 Selection::IftNo | Selection::IftxNo => {
                     if scoped_groups[tag_index].is_none() {
-                        let mut candidates: BTreeMap<PatchUri, CandidateNoInvalidationPatch> =
+                        let mut candidates: BTreeMap<PatchUrl, CandidateNoInvalidationPatch> =
                             Default::default();
                         std::mem::swap(&mut candidates, &mut no_invalidation_candidates[tag_index]);
 
                         scoped_groups[tag_index] = Some(ScopedGroup::NoInvalidation(
                             Self::filter_and_extract_preloads(
                                 candidates,
-                                &mut selected_uris,
-                                &mut combined_preload_uris,
+                                &mut selected_urls,
+                                &mut combined_preload_urls,
                             ),
                         ))
                     }
@@ -281,8 +281,8 @@ impl PatchGroup<'_> {
             selection_mode = selection_mode.next();
         }
 
-        // Remove any uri's selected above from the preloads
-        combined_preload_uris.retain(|uri| !selected_uris.contains(uri));
+        // Remove any url's selected above from the preloads
+        combined_preload_urls.retain(|url| !selected_urls.contains(url));
 
         let [Some(ift), Some(iftx)] = scoped_groups else {
             return Err(ReadError::MalformedData(
@@ -290,32 +290,32 @@ impl PatchGroup<'_> {
             ));
         };
 
-        Ok((CompatibleGroup::Mixed { ift, iftx }, combined_preload_uris))
+        Ok((CompatibleGroup::Mixed { ift, iftx }, combined_preload_urls))
     }
 
     fn filter_and_extract_preloads(
-        candidates: BTreeMap<PatchUri, CandidateNoInvalidationPatch>,
-        previously_selected_uris: &mut BTreeSet<PatchUri>,
-        preloads: &mut BTreeSet<PatchUri>,
-    ) -> BTreeMap<OrderedPatchUri, NoInvalidationPatch> {
+        candidates: BTreeMap<PatchUrl, CandidateNoInvalidationPatch>,
+        previously_selected_urls: &mut BTreeSet<PatchUrl>,
+        preloads: &mut BTreeSet<PatchUrl>,
+    ) -> BTreeMap<OrderedPatchUrl, NoInvalidationPatch> {
         preloads.extend(
             candidates
                 .values()
-                .flat_map(|candidate| candidate.preload_uris.iter().cloned()),
+                .flat_map(|candidate| candidate.preload_urls.iter().cloned()),
         );
-        let filtered: BTreeMap<OrderedPatchUri, NoInvalidationPatch> = candidates
+        let filtered: BTreeMap<OrderedPatchUrl, NoInvalidationPatch> = candidates
             .into_iter()
-            .filter(|(k, _)| !previously_selected_uris.contains(k))
+            .filter(|(k, _)| !previously_selected_urls.contains(k))
             .map(|(k, v)| {
                 (
-                    OrderedPatchUri(v.entry_order, k),
+                    OrderedPatchUrl(v.entry_order, k),
                     NoInvalidationPatch(v.patch_info),
                 )
             })
             .collect();
 
-        for (uri, _) in filtered.iter() {
-            previously_selected_uris.insert(uri.1.clone());
+        for (url, _) in filtered.iter() {
+            previously_selected_urls.insert(url.1.clone());
         }
 
         filtered
@@ -343,7 +343,7 @@ impl PatchGroup<'_> {
     /// Returns the bytes of the updated font.
     pub fn apply_next_patches(
         self,
-        patch_data: &mut HashMap<PatchUri, UriStatus>,
+        patch_data: &mut HashMap<PatchUrl, UrlStatus>,
     ) -> Result<Vec<u8>, PatchingError> {
         self.apply_next_patches_with_decoder(patch_data, &BuiltInBrotliDecoder)
     }
@@ -353,23 +353,23 @@ impl PatchGroup<'_> {
     /// Returns the bytes of the updated font.
     pub fn apply_next_patches_with_decoder<D: SharedBrotliDecoder>(
         self,
-        patch_data: &mut HashMap<PatchUri, UriStatus>,
+        patch_data: &mut HashMap<PatchUrl, UrlStatus>,
         brotli_decoder: &D,
     ) -> Result<Vec<u8>, PatchingError> {
         if let Some(patch) = self.next_invalidating_patch() {
             let entry = patch_data
-                .get_mut(&patch.uri)
+                .get_mut(&patch.url)
                 .ok_or(PatchingError::MissingPatches)?;
 
             match entry {
-                UriStatus::Pending(patch_data) => {
+                UrlStatus::Pending(patch_data) => {
                     let r = self
                         .font
                         .apply_table_keyed_patch(patch, patch_data, brotli_decoder)?;
-                    *entry = UriStatus::Applied;
+                    *entry = UrlStatus::Applied;
                     return Ok(r);
                 }
-                UriStatus::Applied => {} // previously applied uris are ignored according to the spec.
+                UrlStatus::Applied => {} // previously applied urls are ignored according to the spec.
             }
         }
 
@@ -379,12 +379,12 @@ impl PatchGroup<'_> {
             let mut accumulated_info: Vec<(&PatchInfo, &[u8])> = vec![];
             for info in self.non_invalidating_patch_iter() {
                 let data = patch_data
-                    .get(&info.uri)
+                    .get(&info.url)
                     .ok_or(PatchingError::MissingPatches)?;
 
                 match data {
-                    UriStatus::Pending(data) => accumulated_info.push((info, data)),
-                    UriStatus::Applied => {} // previously applied uris are ignored according to the spec.
+                    UrlStatus::Pending(data) => accumulated_info.push((info, data)),
+                    UrlStatus::Applied => {} // previously applied urls are ignored according to the spec.
                 }
             }
 
@@ -397,8 +397,8 @@ impl PatchGroup<'_> {
         };
 
         for info in self.non_invalidating_patch_iter() {
-            if let Some(status) = patch_data.get_mut(&info.uri) {
-                *status = UriStatus::Applied;
+            if let Some(status) = patch_data.get_mut(&info.url) {
+                *status = UrlStatus::Applied;
             };
         }
 
@@ -412,22 +412,22 @@ struct GroupingByInvalidation {
     partial_invalidation_ift: Vec<CandidatePatch>,
     partial_invalidation_iftx: Vec<CandidatePatch>,
     // TODO(garretrieger): do we need sorted order, use HashMap instead?
-    no_invalidation_ift: BTreeMap<PatchUri, CandidateNoInvalidationPatch>,
-    no_invalidation_iftx: BTreeMap<PatchUri, CandidateNoInvalidationPatch>,
+    no_invalidation_ift: BTreeMap<PatchUrl, CandidateNoInvalidationPatch>,
+    no_invalidation_iftx: BTreeMap<PatchUrl, CandidateNoInvalidationPatch>,
 }
 
 impl GroupingByInvalidation {
     fn group_patches(
         candidates: Vec<PatchMapEntry>,
-        patch_data: &HashMap<PatchUri, UriStatus>,
+        patch_data: &HashMap<PatchUrl, UrlStatus>,
         ift_compat_id: Option<CompatibilityId>,
         iftx_compat_id: Option<CompatibilityId>,
     ) -> GroupingByInvalidation {
         let mut result: GroupingByInvalidation = Default::default();
 
         for entry in candidates.into_iter() {
-            // TODO(garretrieger): for efficiency can we delay uri template resolution until we have actually selected patches?
-            // TODO(garretrieger): for btree construction don't recompute the resolved uri, cache inside the patch uri object?
+            // TODO(garretrieger): for efficiency can we delay url template resolution until we have actually selected patches?
+            // TODO(garretrieger): for btree construction don't recompute the resolved url, cache inside the patch url object?
             match entry.format {
                 PatchFormat::TableKeyed {
                     fully_invalidating: true,
@@ -457,9 +457,9 @@ impl GroupingByInvalidation {
                     };
                     if let Some(mapping) = mapping {
                         mapping
-                            .entry(entry.uri().clone())
+                            .entry(entry.url().clone())
                             .and_modify(|existing| {
-                                // When duplicate URIs are present we want to always keep the one with the
+                                // When duplicate URLs are present we want to always keep the one with the
                                 // lowest entry order.
                                 if entry.intersection_info.entry_order() < existing.entry_order {
                                     *existing = entry.clone().into()
@@ -475,9 +475,9 @@ impl GroupingByInvalidation {
     }
 }
 
-/// Tracks whether a URI has already been applied to a font or not.
+/// Tracks whether a URL has already been applied to a font or not.
 #[derive(PartialEq, Eq, Debug)]
-pub enum UriStatus {
+pub enum UrlStatus {
     Applied,
     Pending(Vec<u8>),
 }
@@ -485,7 +485,7 @@ pub enum UriStatus {
 /// Tracks information related to a patch necessary to apply that patch.
 #[derive(PartialEq, Eq, Debug)]
 pub struct PatchInfo {
-    pub(crate) uri: PatchUri,
+    pub(crate) url: PatchUrl,
     pub(crate) source_table: IftTableTag,
     pub(crate) application_flag_bit_indices: IntSet<u32>,
 }
@@ -493,7 +493,7 @@ pub struct PatchInfo {
 impl From<PatchMapEntry> for PatchInfo {
     fn from(value: PatchMapEntry) -> Self {
         PatchInfo {
-            uri: value.uri,
+            url: value.url,
             source_table: value.source_table,
             application_flag_bit_indices: value.application_bit_indices,
         }
@@ -509,8 +509,8 @@ impl PatchInfo {
         self.application_flag_bit_indices.iter()
     }
 
-    pub fn uri(&self) -> &str {
-        self.uri.as_ref()
+    pub fn url(&self) -> &str {
+        self.url.as_ref()
     }
 }
 
@@ -519,31 +519,31 @@ impl PatchInfo {
 struct CandidatePatch {
     intersection_info: IntersectionInfo,
     patch_info: PatchInfo,
-    preload_uris: Vec<PatchUri>,
+    preload_urls: Vec<PatchUrl>,
     already_loaded: bool,
 }
 
 struct CandidateNoInvalidationPatch {
     patch_info: PatchInfo,
     entry_order: usize,
-    preload_uris: Vec<PatchUri>,
+    preload_urls: Vec<PatchUrl>,
 }
 
 impl CandidatePatch {
     fn from_entry(
         value: PatchMapEntry,
-        patch_data: &HashMap<PatchUri, UriStatus>,
+        patch_data: &HashMap<PatchUrl, UrlStatus>,
     ) -> CandidatePatch {
         let patch_info = PatchInfo {
-            uri: value.uri,
+            url: value.url,
             source_table: value.source_table,
             application_flag_bit_indices: value.application_bit_indices,
         };
-        let already_loaded = patch_data.contains_key(&patch_info.uri);
+        let already_loaded = patch_data.contains_key(&patch_info.url);
         Self {
             intersection_info: value.intersection_info,
             patch_info,
-            preload_uris: value.preload_uris,
+            preload_urls: value.preload_urls,
             already_loaded,
         }
     }
@@ -572,13 +572,13 @@ impl Ord for CandidatePatch {
 
 impl From<PatchMapEntry> for CandidateNoInvalidationPatch {
     fn from(mut value: PatchMapEntry) -> Self {
-        let mut preload_uris: Vec<PatchUri> = vec![];
-        std::mem::swap(&mut preload_uris, &mut value.preload_uris);
+        let mut preload_urls: Vec<PatchUrl> = vec![];
+        std::mem::swap(&mut preload_urls, &mut value.preload_urls);
         let entry_order = value.intersection_info.entry_order();
         Self {
             patch_info: value.into(),
             entry_order,
-            preload_uris,
+            preload_urls,
         }
     }
 }
@@ -620,14 +620,14 @@ enum CompatibleGroup {
 #[derive(PartialEq, Eq, Debug)]
 enum ScopedGroup {
     PartialInvalidation(PartialInvalidationPatch),
-    NoInvalidation(BTreeMap<OrderedPatchUri, NoInvalidationPatch>),
+    NoInvalidation(BTreeMap<OrderedPatchUrl, NoInvalidationPatch>),
 }
 
 impl ScopedGroup {
-    fn has_uris(&self) -> bool {
+    fn has_urls(&self) -> bool {
         match self {
             ScopedGroup::PartialInvalidation(PartialInvalidationPatch(_)) => true,
-            ScopedGroup::NoInvalidation(uri_map) => !uri_map.is_empty(),
+            ScopedGroup::NoInvalidation(url_map) => !url_map.is_empty(),
         }
     }
 
@@ -644,10 +644,10 @@ impl ScopedGroup {
 /// For non invalidating patches the specification requires they be ordered by entry order.
 ///
 /// That is the order that the physical entries in the patch map are in. This struct
-/// adds that ordering onto PatchUri's for when they are stored in a btree set/map.
+/// adds that ordering onto PatchUrl's for when they are stored in a btree set/map.
 /// Context: <https://github.com/w3c/IFT/pull/279>
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct OrderedPatchUri(usize, PatchUri);
+pub struct OrderedPatchUrl(usize, PatchUrl);
 
 struct NoInvalidationPatchesIter<'a, T>
 where
@@ -697,15 +697,15 @@ mod tests {
     const TABLE_1_FINAL_STATE: &[u8] = "hijkabcdeflmnohijkabcdeflmno\n".as_bytes();
     const TABLE_2_FINAL_STATE: &[u8] = "foobarbaz foobarbaz foobarbaz\n".as_bytes();
 
-    impl PatchUri {
-        fn new(uri: &str) -> Self {
-            Self(uri.to_string())
+    impl PatchUrl {
+        fn new(url: &str) -> Self {
+            Self(url.to_string())
         }
     }
 
-    impl OrderedPatchUri {
-        fn uri(order: usize, uri: &str) -> Self {
-            OrderedPatchUri(order, PatchUri(uri.to_string()))
+    impl OrderedPatchUrl {
+        fn url(order: usize, url: &str) -> Self {
+            OrderedPatchUrl(order, PatchUrl(url.to_string()))
         }
     }
 
@@ -726,6 +726,10 @@ mod tests {
         font_builder.build()
     }
 
+    const URL_TEMPLATE: &[u8] = &[
+        10, b'/', b'/', b'f', b'o', b'o', b'.', b'b', b'a', b'r', b'/', 128,
+    ];
+
     fn cid_1() -> CompatibilityId {
         CompatibilityId::from_u32s([0, 0, 0, 1])
     }
@@ -735,8 +739,8 @@ mod tests {
     }
 
     fn p(index: u32, table: IftTableTag, format: PatchFormat) -> PatchMapEntry {
-        let uri = PatchUri::expand_template("//foo.bar/{id}", &PatchId::Numeric(index)).unwrap();
-        let mut e = uri.into_format_1_entry(table, format, Default::default());
+        let url = PatchUrl::expand_template(URL_TEMPLATE, &PatchId::Numeric(index)).unwrap();
+        let mut e = url.into_format_1_entry(table, format, Default::default());
         e.application_bit_indices.insert(42);
         e
     }
@@ -802,8 +806,8 @@ mod tests {
     }
 
     fn full(index: u32, codepoints: u64) -> PatchMapEntry {
-        let uri = PatchUri::expand_template("//foo.bar/{id}", &PatchId::Numeric(index)).unwrap();
-        let mut e = uri.into_format_1_entry(
+        let url = PatchUrl::expand_template(URL_TEMPLATE, &PatchId::Numeric(index)).unwrap();
+        let mut e = url.into_format_1_entry(
             IftTableTag::Ift(cid_1()),
             PatchFormat::TableKeyed {
                 fully_invalidating: true,
@@ -820,8 +824,8 @@ mod tests {
         } else {
             IftTableTag::Iftx(compat_id)
         };
-        let uri = PatchUri::expand_template("//foo.bar/{id}", &PatchId::Numeric(index)).unwrap();
-        let mut e = uri.into_format_1_entry(
+        let url = PatchUrl::expand_template(URL_TEMPLATE, &PatchId::Numeric(index)).unwrap();
+        let mut e = url.into_format_1_entry(
             tag,
             PatchFormat::TableKeyed {
                 fully_invalidating: false,
@@ -832,21 +836,21 @@ mod tests {
         e
     }
 
-    fn patch_info_ift(uri: &str) -> PatchInfo {
+    fn patch_info_ift(url: &str) -> PatchInfo {
         let mut application_flag_bit_indices = IntSet::<u32>::empty();
         application_flag_bit_indices.insert(42);
         PatchInfo {
-            uri: PatchUri::new(uri),
+            url: PatchUrl::new(url),
             application_flag_bit_indices,
             source_table: IftTableTag::Ift(cid_1()),
         }
     }
 
-    fn patch_info_iftx(uri: &str) -> PatchInfo {
+    fn patch_info_iftx(url: &str) -> PatchInfo {
         let mut application_flag_bit_indices = IntSet::<u32>::empty();
         application_flag_bit_indices.insert(42);
         PatchInfo {
-            uri: PatchUri::new(uri),
+            url: PatchUrl::new(url),
             application_flag_bit_indices,
             source_table: IftTableTag::Iftx(cid_2()),
         }
@@ -889,15 +893,15 @@ mod tests {
         assert!(preloads.is_empty());
     }
 
-    fn preload_list(uris: &[String]) -> Vec<PatchUri> {
-        uris.iter().map(|uri| PatchUri::new(uri)).collect()
+    fn preload_list(urls: &[String]) -> Vec<PatchUrl> {
+        urls.iter().map(|url| PatchUrl::new(url)).collect()
     }
 
     #[test]
     fn full_invalidation_with_preloads() {
-        let expected_preloads = [PatchUri::new("abc"), PatchUri::new("def")];
+        let expected_preloads = [PatchUrl::new("abc"), PatchUrl::new("def")];
         let mut p1_full = p1_full();
-        p1_full.preload_uris.extend(expected_preloads.clone());
+        p1_full.preload_urls.extend(expected_preloads.clone());
 
         let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p1_full.clone()],
@@ -935,12 +939,12 @@ mod tests {
     }
 
     #[test]
-    fn full_invalidation_with_preloads_removes_duplicate_uris() {
-        let expected_preloads = [PatchUri::new("abc"), PatchUri::new("def")];
+    fn full_invalidation_with_preloads_removes_duplicate_urls() {
+        let expected_preloads = [PatchUrl::new("abc"), PatchUrl::new("def")];
         let mut p1_full = p1_full();
-        p1_full.preload_uris.extend(expected_preloads.clone());
+        p1_full.preload_urls.extend(expected_preloads.clone());
         p1_full
-            .preload_uris
+            .preload_urls
             .extend(preload_list(&["//foo.bar/04".to_string()]));
 
         let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
@@ -1070,7 +1074,7 @@ mod tests {
                 partial(2, cid_1(), 24),
             ],
             // Entry 3 is marked as already loaded which gives it priority
-            &HashMap::from([(PatchUri::new("//foo.bar/0C"), UriStatus::Pending(vec![]))]),
+            &HashMap::from([(PatchUrl::new("//foo.bar/0C"), UrlStatus::Pending(vec![]))]),
             Some(cid_1()),
             Some(cid_2()),
         )
@@ -1096,8 +1100,8 @@ mod tests {
             ],
             // Entry 1 and 3 are marked as already loaded which gives it priority
             &HashMap::from([
-                (PatchUri::new("//foo.bar/04"), UriStatus::Pending(vec![])),
-                (PatchUri::new("//foo.bar/0C"), UriStatus::Pending(vec![])),
+                (PatchUrl::new("//foo.bar/04"), UrlStatus::Pending(vec![])),
+                (PatchUrl::new("//foo.bar/0C"), UrlStatus::Pending(vec![])),
             ]),
             Some(cid_1()),
             Some(cid_2()),
@@ -1121,11 +1125,11 @@ mod tests {
         let mut partial_c1 = partial(3, cid_1(), 9);
         let mut partial_c2 = partial(4, cid_2(), 9);
 
-        let expected_preloads_c1 = [PatchUri::new("abc"), PatchUri::new("def")];
-        partial_c1.preload_uris.extend(expected_preloads_c1.clone());
+        let expected_preloads_c1 = [PatchUrl::new("abc"), PatchUrl::new("def")];
+        partial_c1.preload_urls.extend(expected_preloads_c1.clone());
 
-        let expected_preloads_c2 = [PatchUri::new("hij"), PatchUri::new("def")];
-        partial_c2.preload_uris.extend(expected_preloads_c2.clone());
+        let expected_preloads_c2 = [PatchUrl::new("hij"), PatchUrl::new("def")];
+        partial_c2.preload_urls.extend(expected_preloads_c2.clone());
 
         // Only IFT
         let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
@@ -1191,9 +1195,9 @@ mod tests {
         assert_eq!(
             preloads,
             BTreeSet::from([
-                PatchUri::new("abc"),
-                PatchUri::new("def"),
-                PatchUri::new("hij")
+                PatchUrl::new("abc"),
+                PatchUrl::new("def"),
+                PatchUrl::new("hij")
             ])
         );
     }
@@ -1205,16 +1209,16 @@ mod tests {
 
         let expected_preloads_c1 = ["abc".to_string(), "def".to_string()];
         partial_c1
-            .preload_uris
+            .preload_urls
             .extend(preload_list(&expected_preloads_c1));
-        partial_c1.preload_uris.extend(preload_list(&[
+        partial_c1.preload_urls.extend(preload_list(&[
             "//foo.bar/0C".to_string(),
             "//foo.bar/0G".to_string(),
         ]));
 
         let expected_preloads_c2 = ["hij".to_string(), "def".to_string()];
         partial_c2
-            .preload_uris
+            .preload_urls
             .extend(preload_list(&expected_preloads_c2));
 
         let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
@@ -1239,9 +1243,9 @@ mod tests {
         assert_eq!(
             preloads,
             BTreeSet::from([
-                PatchUri::new("abc"),
-                PatchUri::new("def"),
-                PatchUri::new("hij"),
+                PatchUrl::new("abc"),
+                PatchUrl::new("def"),
+                PatchUrl::new("hij"),
             ])
         );
     }
@@ -1252,16 +1256,16 @@ mod tests {
         let expected_preloads_c2 = ["hij".to_string(), "def".to_string()];
         let mut p4_no_c1 = p4_no_c1();
         p4_no_c1
-            .preload_uris
+            .preload_urls
             .extend(preload_list(&expected_preloads_c1));
 
         let mut p4_no_c2 = p4_no_c2();
         p4_no_c2
-            .preload_uris
+            .preload_urls
             .extend(preload_list(&expected_preloads_c1));
         let mut p5_no_c2 = p5_no_c2();
         p5_no_c2
-            .preload_uris
+            .preload_urls
             .extend(preload_list(&expected_preloads_c2));
 
         // (no inval, no inval)
@@ -1277,18 +1281,18 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUri::uri(0, "//foo.bar/0G"),
+                    OrderedPatchUrl::url(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUri::uri(0, "//foo.bar/0K"),
+                    OrderedPatchUrl::url(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
         );
         assert_eq!(
             preloads,
-            BTreeSet::from(["abc", "def", "hij",].map(PatchUri::new))
+            BTreeSet::from(["abc", "def", "hij",].map(PatchUrl::new))
         );
 
         // (None, no inval)
@@ -1306,11 +1310,11 @@ mod tests {
                 ift: ScopedGroup::NoInvalidation(Default::default()),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([
                     (
-                        OrderedPatchUri::uri(0, "//foo.bar/0K"),
+                        OrderedPatchUrl::url(0, "//foo.bar/0K"),
                         NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                     ),
                     (
-                        OrderedPatchUri::uri(0, "//foo.bar/0G"),
+                        OrderedPatchUrl::url(0, "//foo.bar/0G"),
                         NoInvalidationPatch(patch_info_iftx("//foo.bar/0G"))
                     )
                 ]))
@@ -1318,7 +1322,7 @@ mod tests {
         );
         assert_eq!(
             preloads,
-            BTreeSet::from(["abc", "def", "hij",].map(PatchUri::new))
+            BTreeSet::from(["abc", "def", "hij",].map(PatchUrl::new))
         );
     }
 
@@ -1328,14 +1332,14 @@ mod tests {
         let expected_preloads_c2 = ["hij".to_string(), "def".to_string()];
         let mut p4_no_c1 = p4_no_c1();
         p4_no_c1
-            .preload_uris
+            .preload_urls
             .extend(preload_list(&expected_preloads_c1));
 
         let mut p5_no_c2 = p5_no_c2();
         p5_no_c2
-            .preload_uris
+            .preload_urls
             .extend(preload_list(&expected_preloads_c2));
-        p5_no_c2.preload_uris.extend(preload_list(&[
+        p5_no_c2.preload_urls.extend(preload_list(&[
             "//foo.bar/0G".to_string(),
             "//foo.bar/0K".to_string(),
         ]));
@@ -1353,18 +1357,18 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUri::uri(0, "//foo.bar/0G"),
+                    OrderedPatchUrl::url(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUri::uri(0, "//foo.bar/0K"),
+                    OrderedPatchUrl::url(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
         );
         assert_eq!(
             preloads,
-            BTreeSet::from(["abc", "def", "hij",].map(PatchUri::new))
+            BTreeSet::from(["abc", "def", "hij",].map(PatchUrl::new))
         );
     }
 
@@ -1386,7 +1390,7 @@ mod tests {
                     "//foo.bar/08"
                 ),)),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUri::uri(0, "//foo.bar/0K"),
+                    OrderedPatchUrl::url(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
@@ -1406,7 +1410,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUri::uri(0, "//foo.bar/0G"),
+                    OrderedPatchUrl::url(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
@@ -1461,22 +1465,22 @@ mod tests {
     fn mixed_with_preloads() {
         let mut p2_partial_c1 = p2_partial_c1();
         p2_partial_c1
-            .preload_uris
+            .preload_urls
             .extend(preload_list(&["abc".to_string(), "def".to_string()]));
 
         let mut p3_partial_c2 = p3_partial_c2();
         p3_partial_c2
-            .preload_uris
+            .preload_urls
             .extend(preload_list(&["klm".to_string(), "nop".to_string()]));
 
         let mut p4_no_c1 = p4_no_c1();
         p4_no_c1
-            .preload_uris
+            .preload_urls
             .extend(preload_list(&["foo".to_string(), "bar".to_string()]));
 
         let mut p5_no_c2 = p5_no_c2();
         p5_no_c2
-            .preload_uris
+            .preload_urls
             .extend(preload_list(&["hij".to_string(), "def".to_string()]));
 
         // (partial, no inval)
@@ -1495,14 +1499,14 @@ mod tests {
                     "//foo.bar/08"
                 ),)),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUri::uri(0, "//foo.bar/0K"),
+                    OrderedPatchUrl::url(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
         );
         assert_eq!(
             preloads,
-            BTreeSet::from(["abc", "def", "hij",].map(PatchUri::new))
+            BTreeSet::from(["abc", "def", "hij",].map(PatchUrl::new))
         );
 
         // (no inval, partial)
@@ -1518,7 +1522,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUri::uri(0, "//foo.bar/0G"),
+                    OrderedPatchUrl::url(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
@@ -1528,7 +1532,7 @@ mod tests {
         );
         assert_eq!(
             preloads,
-            BTreeSet::from(["klm", "nop", "foo", "bar",].map(PatchUri::new))
+            BTreeSet::from(["klm", "nop", "foo", "bar",].map(PatchUrl::new))
         );
     }
 
@@ -1594,7 +1598,7 @@ mod tests {
     }
 
     #[test]
-    fn dedups_uris() {
+    fn dedups_urls() {
         // Duplicates inside a scope
         let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
             vec![p4_no_c1(), p4_no_c1()],
@@ -1608,7 +1612,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUri::uri(0, "//foo.bar/0G"),
+                    OrderedPatchUrl::url(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::new()),
@@ -1629,11 +1633,11 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUri::uri(0, "//foo.bar/0G"),
+                    OrderedPatchUrl::url(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUri::uri(0, "//foo.bar/0K"),
+                    OrderedPatchUrl::url(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )])),
             }
@@ -1678,7 +1682,7 @@ mod tests {
                     "//foo.bar/08"
                 ))),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUri::uri(0, "//foo.bar/0K"),
+                    OrderedPatchUrl::url(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )])),
             }
@@ -1697,7 +1701,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUri::uri(0, "//foo.bar/0G"),
+                    OrderedPatchUrl::url(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
@@ -1708,10 +1712,10 @@ mod tests {
         assert!(preloads.is_empty());
     }
 
-    fn create_group_for(uris: Vec<PatchMapEntry>) -> PatchGroup<'static> {
+    fn create_group_for(urls: Vec<PatchMapEntry>) -> PatchGroup<'static> {
         let data = FontRef::new(font_test_data::CMAP12_FONT1).unwrap();
         let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
-            uris,
+            urls,
             &Default::default(),
             Some(cid_1()),
             Some(cid_2()),
@@ -1721,7 +1725,7 @@ mod tests {
         PatchGroup {
             font: data,
             patches: Some(group),
-            preload_uris: preloads,
+            preload_urls: preloads,
         }
     }
 
@@ -1730,93 +1734,93 @@ mod tests {
         PatchGroup {
             font: data,
             patches: None,
-            preload_uris: Default::default(),
+            preload_urls: Default::default(),
         }
     }
 
     #[test]
-    fn uris() {
+    fn urls() {
         let g = create_group_for(vec![]);
         assert_eq!(
-            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            g.urls().map(|url| url.as_ref()).collect::<Vec<&str>>(),
             Vec::<&str>::default()
         );
-        assert!(!g.has_uris());
+        assert!(!g.has_urls());
 
         let g = empty_group();
         assert_eq!(
-            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            g.urls().map(|url| url.as_ref()).collect::<Vec<&str>>(),
             Vec::<&str>::default()
         );
-        assert!(!g.has_uris());
+        assert!(!g.has_urls());
 
         let g = create_group_for(vec![p1_full()]);
         assert_eq!(
-            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            g.urls().map(|url| url.as_ref()).collect::<Vec<&str>>(),
             vec!["//foo.bar/04"],
         );
-        assert!(g.has_uris());
+        assert!(g.has_urls());
 
         let g = create_group_for(vec![p2_partial_c1(), p3_partial_c2()]);
         assert_eq!(
-            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            g.urls().map(|url| url.as_ref()).collect::<Vec<&str>>(),
             vec!["//foo.bar/08", "//foo.bar/0C"]
         );
-        assert!(g.has_uris());
+        assert!(g.has_urls());
 
         let g = create_group_for(vec![p2_partial_c1()]);
         assert_eq!(
-            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            g.urls().map(|url| url.as_ref()).collect::<Vec<&str>>(),
             vec!["//foo.bar/08",],
         );
-        assert!(g.has_uris());
+        assert!(g.has_urls());
 
         let g = create_group_for(vec![p3_partial_c2()]);
         assert_eq!(
-            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            g.urls().map(|url| url.as_ref()).collect::<Vec<&str>>(),
             vec!["//foo.bar/0C"],
         );
-        assert!(g.has_uris());
+        assert!(g.has_urls());
 
         let g = create_group_for(vec![p2_partial_c1(), p4_no_c2(), p5_no_c2()]);
         assert_eq!(
-            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            g.urls().map(|url| url.as_ref()).collect::<Vec<&str>>(),
             vec!["//foo.bar/08", "//foo.bar/0G", "//foo.bar/0K"],
         );
-        assert!(g.has_uris());
+        assert!(g.has_urls());
 
         let g = create_group_for(vec![p3_partial_c2(), p4_no_c1()]);
         assert_eq!(
-            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            g.urls().map(|url| url.as_ref()).collect::<Vec<&str>>(),
             vec!["//foo.bar/0C", "//foo.bar/0G"],
         );
 
         let g = create_group_for(vec![p4_no_c1(), p5_no_c2()]);
         assert_eq!(
-            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            g.urls().map(|url| url.as_ref()).collect::<Vec<&str>>(),
             vec!["//foo.bar/0G", "//foo.bar/0K"],
         );
-        assert!(g.has_uris());
+        assert!(g.has_urls());
     }
 
     #[test]
-    fn uris_with_preloads() {
+    fn urls_with_preloads() {
         let mut p2_partial_c1 = p2_partial_c1();
         p2_partial_c1
-            .preload_uris
+            .preload_urls
             .extend(preload_list(&["abc".to_string(), "def".to_string()]));
 
         let mut p3_partial_c2 = p3_partial_c2();
         p3_partial_c2
-            .preload_uris
+            .preload_urls
             .extend(preload_list(&["foo".to_string(), "bar".to_string()]));
 
         let g = create_group_for(vec![p2_partial_c1, p3_partial_c2]);
         assert_eq!(
-            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            g.urls().map(|url| url.as_ref()).collect::<Vec<&str>>(),
             vec!["//foo.bar/08", "//foo.bar/0C", "abc", "bar", "def", "foo"]
         );
-        assert!(g.has_uris());
+        assert!(g.has_urls());
     }
 
     #[test]
@@ -1827,9 +1831,9 @@ mod tests {
         let s = SubsetDefinition::codepoints([55].into_iter().collect());
         let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
 
-        assert!(!g.has_uris());
+        assert!(!g.has_urls());
         assert_eq!(
-            g.uris().map(|uri| uri.as_ref()).collect::<Vec<&str>>(),
+            g.urls().map(|url| url.as_ref()).collect::<Vec<&str>>(),
             Vec::<&str>::default()
         );
 
@@ -1847,15 +1851,15 @@ mod tests {
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
         let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
 
-        assert!(g.has_uris());
+        assert!(g.has_urls());
         let mut patch_data = HashMap::from([
             (
-                PatchUri::new("foo/04"),
-                UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+                PatchUrl::new("foo/04"),
+                UrlStatus::Pending(table_keyed_patch().as_slice().to_vec()),
             ),
             (
-                PatchUri::new("foo/bar"),
-                UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+                PatchUrl::new("foo/bar"),
+                UrlStatus::Pending(table_keyed_patch().as_slice().to_vec()),
             ),
         ]);
 
@@ -1874,10 +1878,10 @@ mod tests {
         assert_eq!(
             patch_data,
             HashMap::from([
-                (PatchUri::new("foo/04"), UriStatus::Applied,),
+                (PatchUrl::new("foo/04"), UrlStatus::Applied,),
                 (
-                    PatchUri::new("foo/bar"),
-                    UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+                    PatchUrl::new("foo/bar"),
+                    UrlStatus::Pending(table_keyed_patch().as_slice().to_vec()),
                 ),
             ])
         )
@@ -1904,15 +1908,15 @@ mod tests {
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
         let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
 
-        assert!(g.has_uris());
+        assert!(g.has_urls());
         let mut patch_data = HashMap::from([
             (
-                PatchUri::new("foo/04"),
-                UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+                PatchUrl::new("foo/04"),
+                UrlStatus::Pending(table_keyed_patch().as_slice().to_vec()),
             ),
             (
-                PatchUri::new("foo/bar"),
-                UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+                PatchUrl::new("foo/bar"),
+                UrlStatus::Pending(table_keyed_patch().as_slice().to_vec()),
             ),
         ]);
 
@@ -1933,10 +1937,10 @@ mod tests {
         assert_eq!(
             patch_data,
             HashMap::from([
-                (PatchUri::new("foo/04"), UriStatus::Applied,),
+                (PatchUrl::new("foo/04"), UrlStatus::Applied,),
                 (
-                    PatchUri::new("foo/bar"),
-                    UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+                    PatchUrl::new("foo/bar"),
+                    UrlStatus::Pending(table_keyed_patch().as_slice().to_vec()),
                 ),
             ])
         )
@@ -1955,8 +1959,8 @@ mod tests {
         let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
 
         let mut patch_data = HashMap::from([(
-            PatchUri::new("foo/04"),
-            UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+            PatchUrl::new("foo/04"),
+            UrlStatus::Pending(table_keyed_patch().as_slice().to_vec()),
         )]);
 
         let new_font = g.apply_next_patches(&mut patch_data).unwrap();
@@ -1973,7 +1977,7 @@ mod tests {
 
         assert_eq!(
             patch_data,
-            HashMap::from([(PatchUri::new("foo/04"), UriStatus::Applied,),])
+            HashMap::from([(PatchUrl::new("foo/04"), UrlStatus::Applied,),])
         );
 
         // IFTX
@@ -1984,8 +1988,8 @@ mod tests {
         let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
 
         let mut patch_data = HashMap::from([(
-            PatchUri::new("foo/04"),
-            UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+            PatchUrl::new("foo/04"),
+            UrlStatus::Pending(table_keyed_patch().as_slice().to_vec()),
         )]);
 
         let new_font = g.apply_next_patches(&mut patch_data).unwrap();
@@ -2002,7 +2006,7 @@ mod tests {
 
         assert_eq!(
             patch_data,
-            HashMap::from([(PatchUri::new("foo/04"), UriStatus::Applied,),])
+            HashMap::from([(PatchUrl::new("foo/04"), UrlStatus::Applied,),])
         );
     }
 
@@ -2029,12 +2033,12 @@ mod tests {
 
         let mut patch_data = HashMap::from([
             (
-                PatchUri::new("foo/04"),
-                UriStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+                PatchUrl::new("foo/04"),
+                UrlStatus::Pending(table_keyed_patch().as_slice().to_vec()),
             ),
             (
-                PatchUri::new("foo/08"),
-                UriStatus::Pending(patch_2.as_slice().to_vec()),
+                PatchUrl::new("foo/08"),
+                UrlStatus::Pending(patch_2.as_slice().to_vec()),
             ),
         ]);
 
@@ -2094,12 +2098,12 @@ mod tests {
 
         let mut patch_data = HashMap::from([
             (
-                PatchUri::new("foo/04"),
-                UriStatus::Pending(patch_ift.as_slice().to_vec()),
+                PatchUrl::new("foo/04"),
+                UrlStatus::Pending(patch_ift.as_slice().to_vec()),
             ),
             (
-                PatchUri::new("foo/08"),
-                UriStatus::Pending(patch_iftx.as_slice().to_vec()),
+                PatchUrl::new("foo/08"),
+                UrlStatus::Pending(patch_iftx.as_slice().to_vec()),
             ),
         ]);
 
@@ -2160,12 +2164,12 @@ mod tests {
 
         let mut patch_data = HashMap::from([
             (
-                PatchUri::new("foo/04"),
-                UriStatus::Pending(patch1.as_slice().to_vec()),
+                PatchUrl::new("foo/04"),
+                UrlStatus::Pending(patch1.as_slice().to_vec()),
             ),
             (
-                PatchUri::new("foo/08"),
-                UriStatus::Pending(patch2.as_slice().to_vec()),
+                PatchUrl::new("foo/08"),
+                UrlStatus::Pending(patch2.as_slice().to_vec()),
             ),
         ]);
 
@@ -2189,21 +2193,21 @@ mod tests {
         assert_eq!(
             patch_data,
             HashMap::from([
-                (PatchUri::new("foo/04"), UriStatus::Applied,),
-                (PatchUri::new("foo/08"), UriStatus::Applied,),
+                (PatchUrl::new("foo/04"), UrlStatus::Applied,),
+                (PatchUrl::new("foo/08"), UrlStatus::Applied,),
             ])
         );
 
         // there should be no more applicable patches left now.
         let g = PatchGroup::select_next_patches(new_font, &Default::default(), &s).unwrap();
-        assert!(!g.has_uris());
+        assert!(!g.has_urls());
     }
 
     #[test]
-    fn apply_patches_no_invalidation_duplicate_uris() {
-        // Two types of duplicate uri situations
-        // 1. Same mapping table has duplicate uris. All should be marked applied.
-        // 2. Different mapping table has duplicate uris. These will not be marked as applied.
+    fn apply_patches_no_invalidation_duplicate_urls() {
+        // Two types of duplicate url situations
+        // 1. Same mapping table has duplicate urls. All should be marked applied.
+        // 2. Different mapping table has duplicate urls. These will not be marked as applied.
         let mut ift_builder = table_keyed_format2();
         ift_builder.write_at("encoding", 3u8);
         ift_builder.write_at("compat_id[0]", 6u32);
@@ -2252,8 +2256,8 @@ mod tests {
             assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
 
         let mut patch_data = HashMap::from([(
-            PatchUri::new("foo/04"),
-            UriStatus::Pending(patch.as_slice().to_vec()),
+            PatchUrl::new("foo/04"),
+            UrlStatus::Pending(patch.as_slice().to_vec()),
         )]);
 
         let new_font = g.apply_next_patches(&mut patch_data).unwrap();
@@ -2274,7 +2278,7 @@ mod tests {
 
         assert_eq!(
             patch_data,
-            HashMap::from([(PatchUri::new("foo/04"), UriStatus::Applied,),])
+            HashMap::from([(PatchUrl::new("foo/04"), UrlStatus::Applied,),])
         );
 
         // there should be one IFTX patch for foo/04 left now.
@@ -2282,13 +2286,13 @@ mod tests {
         let group = PatchGroup::select_next_patches(new_font, &Default::default(), &all).unwrap();
         let mut info = patch_info_iftx("foo/04");
         info.application_flag_bit_indices.clear();
-        info.application_flag_bit_indices.insert(350);
+        info.application_flag_bit_indices.insert(334);
         assert_eq!(
             group.patches.unwrap(),
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(Default::default()),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUri::uri(0, "foo/04"),
+                    OrderedPatchUrl::url(0, "foo/04"),
                     NoInvalidationPatch(info)
                 )])),
             }
@@ -2313,9 +2317,9 @@ mod tests {
     }
 
     #[test]
-    fn invalid_uri_templates() {
+    fn invalid_url_templates() {
         let mut buffer = table_keyed_format2();
-        buffer.write_at("uri_template_var_end", b'~');
+        buffer.write_at("url_template_var_end", b'~');
 
         let font = base_font(Some(buffer), None);
         let font = FontRef::new(&font).unwrap();
@@ -2327,7 +2331,7 @@ mod tests {
         };
         assert_eq!(
             err,
-            ReadError::MalformedData("Failed to expand uri template in format 2 table.")
+            ReadError::MalformedData("Failed to expand url template in format 2 table.")
         );
     }
 
@@ -2367,15 +2371,20 @@ mod tests {
         // 6
         // 15
         // Note: these are in entry order (physical ordering in the map encoding) and not in entry id order
-        let uris: Vec<String> = g.uris().map(|p| p.as_ref().to_string()).collect();
-        let expected_uris: Vec<String> = [16, 12, 21, 0, 6, 15]
+        let urls: Vec<String> = g.urls().map(|p| p.as_ref().to_string()).collect();
+        let expected_urls: Vec<String> = [16, 12, 21, 0, 6, 15]
             .into_iter()
-            .map(|index| PatchUri::expand_template("foo/{id}", &PatchId::Numeric(index)))
-            .map(|uri| uri.unwrap())
-            .map(|uri| uri.as_ref().to_string())
+            .map(|index| {
+                PatchUrl::expand_template(
+                    &[4, b'f', b'o', b'o', b'/', 128],
+                    &PatchId::Numeric(index),
+                )
+            })
+            .map(|url| url.unwrap())
+            .map(|url| url.as_ref().to_string())
             .collect();
 
-        assert_eq!(uris, expected_uris);
+        assert_eq!(urls, expected_urls);
     }
 
     #[test]
@@ -2414,14 +2423,19 @@ mod tests {
         // 6
         // 15
         // Note: these are in entry order (physical ordering in the map encoding) and not in entry id order
-        let uris: Vec<String> = g.uris().map(|p| p.as_ref().to_string()).collect();
-        let expected_uris: Vec<String> = [16, 7, 0, 6, 15]
+        let urls: Vec<String> = g.urls().map(|p| p.as_ref().to_string()).collect();
+        let expected_urls: Vec<String> = [16, 7, 0, 6, 15]
             .into_iter()
-            .map(|index| PatchUri::expand_template("foo/{id}", &PatchId::Numeric(index)))
-            .map(|uri| uri.unwrap())
-            .map(|uri| uri.as_ref().to_string())
+            .map(|index| {
+                PatchUrl::expand_template(
+                    &[4, b'f', b'o', b'o', b'/', 128],
+                    &PatchId::Numeric(index),
+                )
+            })
+            .map(|url| url.unwrap())
+            .map(|url| url.as_ref().to_string())
             .collect();
 
-        assert_eq!(uris, expected_uris);
+        assert_eq!(urls, expected_urls);
     }
 }

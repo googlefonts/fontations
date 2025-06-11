@@ -28,8 +28,8 @@ impl Ift {
         glyph_map: GlyphMap,
         feature_map: Option<FeatureMap>,
         applied_entries_bitmap: Vec<u8>,
-        uri_template_length: u16,
-        uri_template: Vec<u8>,
+        url_template_length: u16,
+        url_template: Vec<u8>,
         patch_format: u8,
     ) -> Self {
         Self::Format1(PatchMapFormat1::new(
@@ -41,8 +41,8 @@ impl Ift {
             glyph_map,
             feature_map,
             applied_entries_bitmap,
-            uri_template_length,
-            uri_template,
+            url_template_length,
+            url_template,
             patch_format,
         ))
     }
@@ -56,8 +56,8 @@ impl Ift {
         entry_count: Uint24,
         entries: MappingEntries,
         entry_id_string_data: Option<IdStringData>,
-        uri_template_length: u16,
-        uri_template: Vec<u8>,
+        url_template_length: u16,
+        url_template: Vec<u8>,
     ) -> Self {
         Self::Format2(PatchMapFormat2::new(
             field_flags,
@@ -66,8 +66,8 @@ impl Ift {
             entry_count,
             entries,
             entry_id_string_data,
-            uri_template_length,
-            uri_template,
+            url_template_length,
+            url_template,
         ))
     }
 }
@@ -155,8 +155,8 @@ pub struct PatchMapFormat1 {
     /// Sub table that maps feature and glyph ids to entry indices.
     pub feature_map: NullableOffsetMarker<FeatureMap, WIDTH_32>,
     pub applied_entries_bitmap: Vec<u8>,
-    pub uri_template_length: u16,
-    pub uri_template: Vec<u8>,
+    pub url_template_length: u16,
+    pub url_template: Vec<u8>,
     /// Patch format number for patches referenced by this mapping.
     pub patch_format: u8,
     pub cff_charstrings_offset: Option<u32>,
@@ -175,8 +175,8 @@ impl PatchMapFormat1 {
         glyph_map: GlyphMap,
         feature_map: Option<FeatureMap>,
         applied_entries_bitmap: Vec<u8>,
-        uri_template_length: u16,
-        uri_template: Vec<u8>,
+        url_template_length: u16,
+        url_template: Vec<u8>,
         patch_format: u8,
     ) -> Self {
         Self {
@@ -188,8 +188,8 @@ impl PatchMapFormat1 {
             glyph_map: glyph_map.into(),
             feature_map: feature_map.into(),
             applied_entries_bitmap,
-            uri_template_length,
-            uri_template,
+            url_template_length,
+            url_template,
             patch_format,
             ..Default::default()
         }
@@ -211,8 +211,8 @@ impl FontWrite for PatchMapFormat1 {
         self.glyph_map.write_into(writer);
         self.feature_map.write_into(writer);
         self.applied_entries_bitmap.write_into(writer);
-        self.uri_template_length.write_into(writer);
-        self.uri_template.write_into(writer);
+        self.url_template_length.write_into(writer);
+        self.url_template.write_into(writer);
         self.patch_format.write_into(writer);
         self.field_flags
             .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
@@ -246,8 +246,8 @@ impl Validate for PatchMapFormat1 {
             ctx.in_field("feature_map", |ctx| {
                 self.feature_map.validate_impl(ctx);
             });
-            ctx.in_field("uri_template", |ctx| {
-                if self.uri_template.len() > (u16::MAX as usize) {
+            ctx.in_field("url_template", |ctx| {
+                if self.url_template.len() > (u16::MAX as usize) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -297,8 +297,8 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat1<'a>> for PatchMapFo
             glyph_map: obj.glyph_map().to_owned_table(),
             feature_map: obj.feature_map().to_owned_table(),
             applied_entries_bitmap: obj.applied_entries_bitmap().to_owned_obj(offset_data),
-            uri_template_length: obj.uri_template_length(),
-            uri_template: obj.uri_template().to_owned_obj(offset_data),
+            url_template_length: obj.url_template_length(),
+            url_template: obj.url_template().to_owned_obj(offset_data),
             patch_format: obj.patch_format(),
             cff_charstrings_offset: obj.cff_charstrings_offset(),
             cff2_charstrings_offset: obj.cff2_charstrings_offset(),
@@ -476,8 +476,8 @@ pub struct PatchMapFormat2 {
     pub entry_count: Uint24,
     pub entries: OffsetMarker<MappingEntries, WIDTH_32>,
     pub entry_id_string_data: NullableOffsetMarker<IdStringData, WIDTH_32>,
-    pub uri_template_length: u16,
-    pub uri_template: Vec<u8>,
+    pub url_template_length: u16,
+    pub url_template: Vec<u8>,
     pub cff_charstrings_offset: Option<u32>,
     pub cff2_charstrings_offset: Option<u32>,
 }
@@ -492,8 +492,8 @@ impl PatchMapFormat2 {
         entry_count: Uint24,
         entries: MappingEntries,
         entry_id_string_data: Option<IdStringData>,
-        uri_template_length: u16,
-        uri_template: Vec<u8>,
+        url_template_length: u16,
+        url_template: Vec<u8>,
     ) -> Self {
         Self {
             field_flags,
@@ -502,8 +502,8 @@ impl PatchMapFormat2 {
             entry_count,
             entries: entries.into(),
             entry_id_string_data: entry_id_string_data.into(),
-            uri_template_length,
-            uri_template,
+            url_template_length,
+            url_template,
             ..Default::default()
         }
     }
@@ -522,8 +522,8 @@ impl FontWrite for PatchMapFormat2 {
         self.entry_count.write_into(writer);
         self.entries.write_into(writer);
         self.entry_id_string_data.write_into(writer);
-        self.uri_template_length.write_into(writer);
-        self.uri_template.write_into(writer);
+        self.url_template_length.write_into(writer);
+        self.url_template.write_into(writer);
         self.field_flags
             .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
             .then(|| {
@@ -556,8 +556,8 @@ impl Validate for PatchMapFormat2 {
             ctx.in_field("entry_id_string_data", |ctx| {
                 self.entry_id_string_data.validate_impl(ctx);
             });
-            ctx.in_field("uri_template", |ctx| {
-                if self.uri_template.len() > (u16::MAX as usize) {
+            ctx.in_field("url_template", |ctx| {
+                if self.url_template.len() > (u16::MAX as usize) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -605,8 +605,8 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat2<'a>> for PatchMapFo
             entry_count: obj.entry_count(),
             entries: obj.entries().to_owned_table(),
             entry_id_string_data: obj.entry_id_string_data().to_owned_table(),
-            uri_template_length: obj.uri_template_length(),
-            uri_template: obj.uri_template().to_owned_obj(offset_data),
+            url_template_length: obj.url_template_length(),
+            url_template: obj.url_template().to_owned_obj(offset_data),
             cff_charstrings_offset: obj.cff_charstrings_offset(),
             cff2_charstrings_offset: obj.cff2_charstrings_offset(),
         }

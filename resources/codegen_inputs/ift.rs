@@ -58,9 +58,9 @@ table PatchMapFormat1 {
   applied_entries_bitmap: [u8],
 
   // URI Template String (UTF-8 Encoded)
-  uri_template_length: u16,
-  #[count($uri_template_length)]
-  uri_template: [u8],
+  url_template_length: u16,
+  #[count($url_template_length)]
+  url_template: [u8],
 
   /// Patch format number for patches referenced by this mapping.
   patch_format: u8,
@@ -162,9 +162,9 @@ table PatchMapFormat2 {
   entry_id_string_data_offset: Offset32<IdStringData>,
   
   // URI Template String (UTF-8 Encoded)
-  uri_template_length: u16,
-  #[count($uri_template_length)]
-  uri_template: [u8],
+  url_template_length: u16,
+  #[count($url_template_length)]
+  url_template: [u8],
 
   // Offset to the cff charstrings INDEX from the start of the CFF table.
   #[if_flag($field_flags, PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)]

@@ -237,7 +237,7 @@ mod tests {
     use crate::{
         font_patch::PatchingError,
         glyph_keyed::tests::assemble_glyph_keyed_patch,
-        patchmap::{IftTableTag, PatchId, PatchUri},
+        patchmap::{IftTableTag, PatchId, PatchUrl},
         testdata::test_font_for_patching_with_loca_mod,
     };
 
@@ -248,7 +248,11 @@ mod tests {
     #[test]
     fn table_keyed_patch_and_font_compat_id_mismatch() {
         let info = PatchInfo {
-            uri: PatchUri::expand_template("foo.bar/{id}", &PatchId::Numeric(0)).unwrap(),
+            url: PatchUrl::expand_template(
+                &[8, b'f', b'o', b'o', b'.', b'b', b'a', b'r', b'/', 128],
+                &PatchId::Numeric(0),
+            )
+            .unwrap(),
             source_table: IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
             application_flag_bit_indices: IntSet::<u32>::empty(),
         };
@@ -278,7 +282,11 @@ mod tests {
     #[test]
     fn table_keyed_patch_info_and_font_compat_id_mismatch() {
         let info = PatchInfo {
-            uri: PatchUri::expand_template("foo.bar/{id}", &PatchId::Numeric(0)).unwrap(),
+            url: PatchUrl::expand_template(
+                &[8, b'f', b'o', b'o', b'.', b'b', b'a', b'r', b'/', 128],
+                &PatchId::Numeric(0),
+            )
+            .unwrap(),
             source_table: IftTableTag::Ift(CompatibilityId::from_u32s([2, 2, 3, 4])),
             application_flag_bit_indices: IntSet::<u32>::empty(),
         };
@@ -301,7 +309,11 @@ mod tests {
     #[test]
     fn glyph_keyed_patch_and_font_compat_id_mismatch() {
         let info = PatchInfo {
-            uri: PatchUri::expand_template("foo.bar/{id}", &PatchId::Numeric(0)).unwrap(),
+            url: PatchUrl::expand_template(
+                &[8, b'f', b'o', b'o', b'.', b'b', b'a', b'r', b'/', 128],
+                &PatchId::Numeric(0),
+            )
+            .unwrap(),
             source_table: IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
             application_flag_bit_indices: IntSet::<u32>::empty(),
         };
@@ -327,7 +339,11 @@ mod tests {
     #[test]
     fn glyph_keyed_patch_info_and_font_compat_id_mismatch() {
         let info = PatchInfo {
-            uri: PatchUri::expand_template("foo.bar/{id}", &PatchId::Numeric(0)).unwrap(),
+            url: PatchUrl::expand_template(
+                &[8, b'f', b'o', b'o', b'.', b'b', b'a', b'r', b'/', 128],
+                &PatchId::Numeric(0),
+            )
+            .unwrap(),
             source_table: IftTableTag::Ift(CompatibilityId::from_u32s([6, 7, 9, 9])),
             application_flag_bit_indices: IntSet::<u32>::empty(),
         };

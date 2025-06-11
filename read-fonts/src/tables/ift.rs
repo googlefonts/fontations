@@ -183,11 +183,6 @@ impl<'a> PatchMapFormat1<'a> {
         self.max_entry_index() as u32 + 1
     }
 
-    pub fn uri_template_as_string(&self) -> Result<&str, ReadError> {
-        str::from_utf8(self.uri_template())
-            .map_err(|_| ReadError::MalformedData("Invalid UTF8 encoding for uri template."))
-    }
-
     pub fn is_entry_applied(&self, entry_index: u16) -> bool {
         let byte_index = entry_index / 8;
         let bit_mask = 1 << (entry_index % 8);
@@ -195,13 +190,6 @@ impl<'a> PatchMapFormat1<'a> {
             .get(byte_index as usize)
             .map(|byte| byte & bit_mask != 0)
             .unwrap_or(false)
-    }
-}
-
-impl PatchMapFormat2<'_> {
-    pub fn uri_template_as_string(&self) -> Result<&str, ReadError> {
-        str::from_utf8(self.uri_template())
-            .map_err(|_| ReadError::MalformedData("Invalid UTF8 encoding for uri template."))
     }
 }
 
@@ -354,7 +342,7 @@ mod tests {
     // - Test enforced minimum entry count of > 0.
     // - Test where entryIndex is a u16.
     // - Invalid table (too short).
-    // - Invalid UTF8 sequence in uri template.
+    // - Invalid UTF8 sequence in url template.
     // - Compat ID is to short.
     // - invalid entry map array (too short)
     // - feature map with short entry indices.
@@ -513,20 +501,6 @@ mod tests {
         assert!(!map.is_entry_applied(0));
         assert!(map.is_entry_applied(1));
         assert!(!map.is_entry_applied(2));
-    }
-
-    #[test]
-    fn uri_template_as_string() {
-        let mut data = test_data::simple_format1();
-        data.write_at("uri_template[0]", 0xc9u8);
-        data.write_at("uri_template[1]", 0xa4u8);
-        let table = Ift::read(FontData::new(&data)).unwrap();
-
-        let Ift::Format1(map) = table else {
-            panic!("Not format 1.");
-        };
-
-        assert_eq!(Ok("ɤo/{id}"), map.uri_template_as_string());
     }
 
     #[test]

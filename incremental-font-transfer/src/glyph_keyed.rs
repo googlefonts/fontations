@@ -1128,7 +1128,7 @@ pub(crate) mod tests {
     use crate::{
         font_patch::PatchingError,
         glyph_keyed::{apply_glyph_keyed_patches, CffFourInfo, ShortDivByTwoInfo},
-        patchmap::{PatchId, PatchUri},
+        patchmap::{PatchId, PatchUrl},
         testdata::{test_font_for_patching, test_font_for_patching_with_loca_mod},
     };
 
@@ -1180,7 +1180,7 @@ pub(crate) mod tests {
         };
 
         let mut info = PatchInfo {
-            uri: PatchUri::expand_template("", &PatchId::Numeric(0)).unwrap(),
+            url: PatchUrl::expand_template(&[], &PatchId::Numeric(0)).unwrap(),
             source_table: source,
             application_flag_bit_indices: IntSet::<u32>::empty(),
         };
