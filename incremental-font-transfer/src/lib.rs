@@ -16,7 +16,7 @@ pub mod glyph_keyed;
 pub mod patch_group;
 pub mod patchmap;
 pub mod table_keyed;
-pub mod uri_templates;
+pub mod url_templates;
 
 #[cfg(test)]
 mod testdata {
