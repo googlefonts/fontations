@@ -32,6 +32,9 @@ mod vorg;
 mod vvar;
 use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
+use layout::{
+    collect_features_with_retained_subs, feature_intersects_lookups, PruneLangSysContext,
+};
 pub use parsing_util::{
     parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
 };
@@ -945,6 +948,22 @@ pub trait NameIdClosure {
 
 pub(crate) trait CollectVariationIndices {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>);
+}
+
+pub(crate) trait PruneFeaturesLangSys {
+    /// Remove unreferenced features
+    fn prune_features(
+        &self,
+        lookup_indices: &IntSet<u16>,
+        feature_indices: IntSet<u16>,
+    ) -> IntSet<u16>;
+
+    //remove unreferenced langsys and return (script->langsys mapping, retained feature indices)
+    fn prune_langsys(
+        &self,
+        feature_index_map: &FnvHashMap<u16, u16>,
+        layout_scripts: &IntSet<Tag>,
+    ) -> (FnvHashMap<u16, IntSet<u16>>, IntSet<u16>);
 }
 
 pub const CVT: Tag = Tag::new(b"cvt ");
