@@ -159,8 +159,14 @@ pub(crate) struct Outline {
 impl Outline {
     /// Fills the outline from the given glyph.
     pub fn fill(&mut self, glyph: &OutlineGlyph, coords: &[F2Dot14]) -> Result<(), DrawError> {
+        use super::super::OutlineKind;
         self.clear();
-        let advance = glyph.draw_unscaled(LocationRef::new(coords), None, self)?;
+        let advance = if let OutlineKind::Glyf(outlines, outline) = &glyph.kind {
+            self.fill_from_glyf(outlines, outline, coords)?
+        } else {
+            glyph.draw_unscaled(LocationRef::new(coords), None, self)?
+        };
+        // let advance = glyph.draw_unscaled(LocationRef::new(coords), None, self)?;
         self.advance = advance;
         self.units_per_em = glyph.units_per_em() as i32;
         // Heuristic value
@@ -466,8 +472,8 @@ fn is_corner_flat(in_x: i32, in_y: i32, out_x: i32, out_y: i32) -> bool {
 
 #[derive(Copy, Clone, Default, Debug)]
 pub(crate) struct Contour {
-    first_ix: u16,
-    last_ix: u16,
+    pub first_ix: u16,
+    pub last_ix: u16,
 }
 
 impl Contour {
