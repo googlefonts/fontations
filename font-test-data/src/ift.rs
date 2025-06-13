@@ -17,6 +17,10 @@ pub static CFF2_FONT: &[u8] = include_bytes!("../test_data/ttf/NotoSansJP-VF.sub
 pub const CFF_FONT_CHARSTRINGS_OFFSET: u32 = 0x1b9;
 pub const CFF2_FONT_CHARSTRINGS_OFFSET: u32 = 0x8f;
 
+// Using opcode format: https://w3c.github.io/IFT/Overview.html#url-templates
+pub const RELATIVE_URL_TEMPLATE: &[u8] = b"\x04foo/\x80";
+pub const ABSOLUTE_URL_TEMPLATE: &[u8] = b"\x0a//foo.bar/\x80";
+
 // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-1
 pub fn simple_format1() -> BeBuffer {
     let mut buffer = be_buffer! {
