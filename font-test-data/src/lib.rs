@@ -130,9 +130,9 @@ pub mod closure {
     // reuses glyph set from above
     pub static CYCLIC_CONTEXTUAL: &[u8] =
         include_bytes!("../test_data/ttf/cyclic_context_closure.ttf");
-    pub static CONTEXT_WITH_UNREACHABLE_BITS: &[u8] =
+    pub static CHAIN_CONTEXT_FORMAT3_BITS: &[u8] =
         include_bytes!("../test_data/ttf/context_closure_unreachable_rule.ttf");
-    pub static CONTEXT_WITH_UNREACHABLE_BITS_GLYPHS: &str =
+    pub static CHAIN_CONTEXT_FORMAT3_BITS_GLYPHS: &str =
         include_str!("../test_data/fea/context_closure_unreachable_rule_glyphs.txt");
     pub static VARIATIONS_CLOSURE: &[u8] =
         include_bytes!("../test_data/ttf/variations_closure.ttf");
