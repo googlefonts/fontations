@@ -41,6 +41,7 @@ pub(super) fn side_bearing(
 mod tests {
     use super::*;
     use crate::{FontRef, TableProvider};
+    use font_test_data::{be_buffer, bebuffer::BeBuffer};
 
     /// Test case where "long metric" array is short
     #[test]
@@ -58,6 +59,28 @@ mod tests {
             assert_eq!(hmtx.advance(gid), Some(800));
             assert_eq!(hmtx.side_bearing(gid), Some(lsb));
         }
+    }
+
+    #[test]
+    fn missing_left_side_bearings() {
+        let hmtx_data = be_buffer! {
+            500u16, 50u16, // advance width + lsb, glyph 0
+            600u16, 60u16 // advance width + lsb, glyph 1
+        };
+
+        let hmtx = Hmtx::read(hmtx_data.data().into(), 2).unwrap();
+
+        assert_eq!(hmtx.advance(GlyphId::new(0)), Some(500));
+        assert_eq!(hmtx.side_bearing(GlyphId::new(0)), Some(50));
+
+        assert_eq!(hmtx.advance(GlyphId::new(1)), Some(600));
+        assert_eq!(hmtx.side_bearing(GlyphId::new(1)), Some(60));
+
+        assert_eq!(hmtx.advance(GlyphId::new(2)), Some(600));
+        assert_eq!(hmtx.side_bearing(GlyphId::new(2)), None);
+
+        assert_eq!(hmtx.advance(GlyphId::new(3)), Some(600));
+        assert_eq!(hmtx.side_bearing(GlyphId::new(3)), None);
     }
 
     #[test]

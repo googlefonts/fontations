@@ -1,7 +1,7 @@
 #![parse_module(read_fonts::tables::hmtx)]
 
 /// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
-#[read_args(number_of_h_metrics: u16, num_glyphs: u16)]
+#[read_args(number_of_h_metrics: u16)]
 #[tag = "hmtx"]
 table Hmtx {
     /// Paired advance width/height and left/top side bearing values for each
@@ -10,7 +10,8 @@ table Hmtx {
     h_metrics: [LongMetric],
     /// Leading (left/top) side bearings for glyph IDs greater than or equal to
     /// numberOfLongMetrics.
-    #[count(subtract($num_glyphs, $number_of_h_metrics))]
+    // TODO: Instead of always taking the tail, take the minimum of tail and (num_glyphs - number_of_h_metrics).
+    #[count(..)]
     left_side_bearings: [i16],
 }
 

@@ -37,20 +37,19 @@ impl TopLevelTable for Hmtx<'_> {
 }
 
 impl ReadArgs for Hmtx<'_> {
-    type Args = (u16, u16);
+    type Args = u16;
 }
 
 impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
-    fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
-        let (number_of_h_metrics, num_glyphs) = *args;
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let number_of_h_metrics = *args;
         let mut cursor = data.cursor();
         let h_metrics_byte_len = (number_of_h_metrics as usize)
             .checked_mul(LongMetric::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(h_metrics_byte_len);
-        let left_side_bearings_byte_len = (transforms::subtract(num_glyphs, number_of_h_metrics))
-            .checked_mul(i16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
+        let left_side_bearings_byte_len =
+            cursor.remaining_bytes() / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN;
         cursor.advance_by(left_side_bearings_byte_len);
         cursor.finish(HmtxMarker {
             h_metrics_byte_len,
@@ -64,12 +63,8 @@ impl<'a> Hmtx<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
-    pub fn read(
-        data: FontData<'a>,
-        number_of_h_metrics: u16,
-        num_glyphs: u16,
-    ) -> Result<Self, ReadError> {
-        let args = (number_of_h_metrics, num_glyphs);
+    pub fn read(data: FontData<'a>, number_of_h_metrics: u16) -> Result<Self, ReadError> {
+        let args = number_of_h_metrics;
         Self::read_with_args(data, &args)
     }
 }

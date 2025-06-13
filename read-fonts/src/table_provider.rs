@@ -42,10 +42,9 @@ pub trait TableProvider<'a> {
 
     fn hmtx(&self) -> Result<tables::hmtx::Hmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
-        let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
         let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_h_metrics())?;
         let data = self.expect_data_for_tag(tables::hmtx::Hmtx::TAG)?;
-        tables::hmtx::Hmtx::read(data, number_of_h_metrics, num_glyphs)
+        tables::hmtx::Hmtx::read(data, number_of_h_metrics)
     }
 
     fn hdmx(&self) -> Result<tables::hdmx::Hdmx<'a>, ReadError> {
@@ -56,10 +55,9 @@ pub trait TableProvider<'a> {
 
     fn vmtx(&self) -> Result<tables::vmtx::Vmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
-        let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
         let number_of_v_metrics = self.vhea().map(|vhea| vhea.number_of_long_ver_metrics())?;
         let data = self.expect_data_for_tag(tables::vmtx::Vmtx::TAG)?;
-        tables::vmtx::Vmtx::read(data, number_of_v_metrics, num_glyphs)
+        tables::vmtx::Vmtx::read(data, number_of_v_metrics)
     }
 
     fn vorg(&self) -> Result<tables::vorg::Vorg<'a>, ReadError> {
