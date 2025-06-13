@@ -681,7 +681,7 @@ mod tests {
         bebuffer::BeBuffer,
         ift::{
             custom_ids_format2, glyf_u16_glyph_patches, glyph_keyed_patch_header,
-            table_keyed_format2, table_keyed_patch,
+            table_keyed_format2, table_keyed_patch, ABSOLUTE_URL_TEMPLATE, RELATIVE_URL_TEMPLATE,
         },
     };
 
@@ -726,10 +726,6 @@ mod tests {
         font_builder.build()
     }
 
-    const URL_TEMPLATE: &[u8] = &[
-        10, b'/', b'/', b'f', b'o', b'o', b'.', b'b', b'a', b'r', b'/', 128,
-    ];
-
     fn cid_1() -> CompatibilityId {
         CompatibilityId::from_u32s([0, 0, 0, 1])
     }
@@ -739,7 +735,8 @@ mod tests {
     }
 
     fn p(index: u32, table: IftTableTag, format: PatchFormat) -> PatchMapEntry {
-        let url = PatchUrl::expand_template(URL_TEMPLATE, &PatchId::Numeric(index)).unwrap();
+        let url =
+            PatchUrl::expand_template(ABSOLUTE_URL_TEMPLATE, &PatchId::Numeric(index)).unwrap();
         let mut e = url.into_format_1_entry(table, format, Default::default());
         e.application_bit_indices.insert(42);
         e
@@ -806,7 +803,8 @@ mod tests {
     }
 
     fn full(index: u32, codepoints: u64) -> PatchMapEntry {
-        let url = PatchUrl::expand_template(URL_TEMPLATE, &PatchId::Numeric(index)).unwrap();
+        let url =
+            PatchUrl::expand_template(ABSOLUTE_URL_TEMPLATE, &PatchId::Numeric(index)).unwrap();
         let mut e = url.into_format_1_entry(
             IftTableTag::Ift(cid_1()),
             PatchFormat::TableKeyed {
@@ -824,7 +822,8 @@ mod tests {
         } else {
             IftTableTag::Iftx(compat_id)
         };
-        let url = PatchUrl::expand_template(URL_TEMPLATE, &PatchId::Numeric(index)).unwrap();
+        let url =
+            PatchUrl::expand_template(ABSOLUTE_URL_TEMPLATE, &PatchId::Numeric(index)).unwrap();
         let mut e = url.into_format_1_entry(
             tag,
             PatchFormat::TableKeyed {
@@ -2374,12 +2373,7 @@ mod tests {
         let urls: Vec<String> = g.urls().map(|p| p.as_ref().to_string()).collect();
         let expected_urls: Vec<String> = [16, 12, 21, 0, 6, 15]
             .into_iter()
-            .map(|index| {
-                PatchUrl::expand_template(
-                    &[4, b'f', b'o', b'o', b'/', 128],
-                    &PatchId::Numeric(index),
-                )
-            })
+            .map(|index| PatchUrl::expand_template(RELATIVE_URL_TEMPLATE, &PatchId::Numeric(index)))
             .map(|url| url.unwrap())
             .map(|url| url.as_ref().to_string())
             .collect();
@@ -2426,12 +2420,7 @@ mod tests {
         let urls: Vec<String> = g.urls().map(|p| p.as_ref().to_string()).collect();
         let expected_urls: Vec<String> = [16, 7, 0, 6, 15]
             .into_iter()
-            .map(|index| {
-                PatchUrl::expand_template(
-                    &[4, b'f', b'o', b'o', b'/', 128],
-                    &PatchId::Numeric(index),
-                )
-            })
+            .map(|index| PatchUrl::expand_template(RELATIVE_URL_TEMPLATE, &PatchId::Numeric(index)))
             .map(|url| url.unwrap())
             .map(|url| url.as_ref().to_string())
             .collect();

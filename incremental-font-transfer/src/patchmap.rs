@@ -1363,7 +1363,8 @@ mod tests {
         child_indices_format2, codepoints_only_format2, custom_ids_format2, feature_map_format1,
         features_and_design_space_format2, format1_with_dup_urls, simple_format1,
         string_ids_format2, string_ids_format2_with_preloads,
-        table_keyed_format2_with_preload_urls, u16_entries_format1,
+        table_keyed_format2_with_preload_urls, u16_entries_format1, ABSOLUTE_URL_TEMPLATE,
+        RELATIVE_URL_TEMPLATE,
     };
     use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
     use read_fonts::types::Int24;
@@ -1510,11 +1511,8 @@ mod tests {
                      order,
                  }| {
                     let mut it = indices.iter().map(|i| {
-                        PatchUrl::expand_template(
-                            &[4, b'f', b'o', b'o', b'/', 128],
-                            &PatchId::Numeric(*i),
-                        )
-                        .unwrap()
+                        PatchUrl::expand_template(RELATIVE_URL_TEMPLATE, &PatchId::Numeric(*i))
+                            .unwrap()
                     });
 
                     let mut e = it.next().unwrap().into_format_2_entry(
@@ -1537,12 +1535,7 @@ mod tests {
         tags: [Tag; M],
         expected_entries: [ExpectedEntry; N],
     ) {
-        test_intersection_with_all_and_template(
-            font,
-            tags,
-            &[4, b'f', b'o', b'o', b'/', 128],
-            expected_entries,
-        )
+        test_intersection_with_all_and_template(font, tags, RELATIVE_URL_TEMPLATE, expected_entries)
     }
 
     fn test_intersection_with_all_and_template<const M: usize, const N: usize>(
@@ -1609,20 +1602,10 @@ mod tests {
     fn url_template_substitution() {
         // These test cases are used in other tests.
 
-        let foo_bar_id = &[
-            10, b'/', b'/', b'f', b'o', b'o', b'.', b'b', b'a', b'r', b'/', 128,
-        ];
-        let foo_bar_d1_d2_id = &[
-            10, b'/', b'/', b'f', b'o', b'o', b'.', b'b', b'a', b'r', b'/', 129, 1, b'/', 130, 1,
-            b'/', 128,
-        ];
-        let foo_bar_d1_d2_d3_id = &[
-            10, b'/', b'/', b'f', b'o', b'o', b'.', b'b', b'a', b'r', b'/', 129, 1, b'/', 130, 1,
-            b'/', 131, 1, b'/', 128,
-        ];
-        let foo_bar_id64 = &[
-            10, b'/', b'/', b'f', b'o', b'o', b'.', b'b', b'a', b'r', b'/', 133,
-        ];
+        let foo_bar_id = ABSOLUTE_URL_TEMPLATE;
+        let foo_bar_d1_d2_id = b"\x0a//foo.bar/\x81\x01/\x82\x01/\x80";
+        let foo_bar_d1_d2_d3_id = b"\x0a//foo.bar/\x81\x01/\x82\x01/\x83\x01/\x80";
+        let foo_bar_id64 = b"\x0a//foo.bar/\x85";
 
         check_url_template_substitution(foo_bar_id, 1, "//foo.bar/04");
         check_url_template_substitution(foo_bar_id, 2, "//foo.bar/08");
@@ -1688,12 +1671,7 @@ mod tests {
         e3.application_bit_index.union(&e2.application_bit_index);
         e4.application_bit_index.union(&e2.application_bit_index);
 
-        test_intersection_with_all_and_template(
-            &font,
-            [],
-            &[8, b'f', b'o', b'o', b'/', b'b', b'a', b'a', b'r'],
-            [e2, e3, e4],
-        );
+        test_intersection_with_all_and_template(&font, [], b"\x08foo/baar", [e2, e3, e4]);
     }
 
     #[test]
@@ -1931,8 +1909,7 @@ mod tests {
         intersection_info: IntersectionInfo,
     ) -> PatchMapEntry {
         let url =
-            PatchUrl::expand_template(&[4, b'f', b'o', b'o', b'/', 128], &PatchId::Numeric(index))
-                .unwrap();
+            PatchUrl::expand_template(RELATIVE_URL_TEMPLATE, &PatchId::Numeric(index)).unwrap();
         let mut e = url.into_format_1_entry(
             IftTableTag::Ift(compat_id()),
             PatchFormat::TableKeyed {
@@ -2729,7 +2706,7 @@ mod tests {
         let expected_urls: Vec<_> = ["", "abc", "defg", "defg", "hij", ""]
             .iter()
             .map(|id| PatchId::String(Vec::from(id.as_bytes())))
-            .map(|id| PatchUrl::expand_template(&[4, b'f', b'o', b'o', b'/', 128], &id).unwrap())
+            .map(|id| PatchUrl::expand_template(RELATIVE_URL_TEMPLATE, &id).unwrap())
             .collect();
         assert_eq!(urls, expected_urls);
     }
@@ -2771,9 +2748,7 @@ mod tests {
                 group
                     .iter()
                     .map(|id| PatchId::String(Vec::from(id.as_bytes())))
-                    .map(|id| {
-                        PatchUrl::expand_template(&[4, b'f', b'o', b'o', b'/', 128], &id).unwrap()
-                    })
+                    .map(|id| PatchUrl::expand_template(RELATIVE_URL_TEMPLATE, &id).unwrap())
                     .collect::<Vec<PatchUrl>>()
             })
             .collect::<Vec<Vec<PatchUrl>>>();
@@ -3005,9 +2980,7 @@ mod tests {
 
     #[test]
     fn entry_design_codepoints_intersection() {
-        let url =
-            PatchUrl::expand_template(&[4, b'f', b'o', b'o', b'/', 128], &PatchId::Numeric(0))
-                .unwrap();
+        let url = PatchUrl::expand_template(RELATIVE_URL_TEMPLATE, &PatchId::Numeric(0)).unwrap();
 
         let s1 = SubsetDefinition::codepoints([3, 5, 7].into_iter().collect());
         let s2 = SubsetDefinition::codepoints([13, 15, 17].into_iter().collect());
@@ -3055,9 +3028,7 @@ mod tests {
 
     #[test]
     fn entry_design_space_intersection() {
-        let url =
-            PatchUrl::expand_template(&[4, b'f', b'o', b'o', b'/', 128], &PatchId::Numeric(0))
-                .unwrap();
+        let url = PatchUrl::expand_template(RELATIVE_URL_TEMPLATE, &PatchId::Numeric(0)).unwrap();
 
         let s1 = SubsetDefinition::new(
             Default::default(),
