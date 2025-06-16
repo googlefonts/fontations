@@ -37,21 +37,19 @@ impl TopLevelTable for Vmtx<'_> {
 }
 
 impl ReadArgs for Vmtx<'_> {
-    type Args = (u16, u16);
+    type Args = u16;
 }
 
 impl<'a> FontReadWithArgs<'a> for Vmtx<'a> {
-    fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
-        let (number_of_long_ver_metrics, num_glyphs) = *args;
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let number_of_long_ver_metrics = *args;
         let mut cursor = data.cursor();
         let v_metrics_byte_len = (number_of_long_ver_metrics as usize)
             .checked_mul(LongMetric::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(v_metrics_byte_len);
         let top_side_bearings_byte_len =
-            (transforms::subtract(num_glyphs, number_of_long_ver_metrics))
-                .checked_mul(i16::RAW_BYTE_LEN)
-                .ok_or(ReadError::OutOfBounds)?;
+            cursor.remaining_bytes() / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN;
         cursor.advance_by(top_side_bearings_byte_len);
         cursor.finish(VmtxMarker {
             v_metrics_byte_len,
@@ -65,12 +63,8 @@ impl<'a> Vmtx<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
-    pub fn read(
-        data: FontData<'a>,
-        number_of_long_ver_metrics: u16,
-        num_glyphs: u16,
-    ) -> Result<Self, ReadError> {
-        let args = (number_of_long_ver_metrics, num_glyphs);
+    pub fn read(data: FontData<'a>, number_of_long_ver_metrics: u16) -> Result<Self, ReadError> {
+        let args = number_of_long_ver_metrics;
         Self::read_with_args(data, &args)
     }
 }
