@@ -2,8 +2,9 @@
 
 use super::{BlendState, Error, Index, Stack};
 use crate::{
+    tables::{cff::Cff, postscript::StringId},
     types::{Fixed, Point},
-    Cursor,
+    Cursor, FontData, FontRead,
 };
 
 /// Maximum nesting depth for subroutine calls.
@@ -54,13 +55,22 @@ pub trait CommandSink {
 /// `Error::MissingBlendState` will be returned if a blend operator is
 /// present.
 pub fn evaluate(
-    charstring_data: &[u8],
+    cff_data: &[u8],
+    charstrings: Index,
     global_subrs: Index,
     subrs: Option<Index>,
     blend_state: Option<BlendState>,
+    charstring_data: &[u8],
     sink: &mut impl CommandSink,
 ) -> Result<(), Error> {
-    let mut evaluator = Evaluator::new(global_subrs, subrs, blend_state, sink);
+    let mut evaluator = Evaluator::new(
+        cff_data,
+        charstrings,
+        global_subrs,
+        subrs,
+        blend_state,
+        sink,
+    );
     evaluator.evaluate(charstring_data, 0)?;
     Ok(())
 }
@@ -68,6 +78,8 @@ pub fn evaluate(
 /// Transient state for evaluating a charstring and handling recursive
 /// subroutine calls.
 struct Evaluator<'a, S> {
+    cff_data: &'a [u8],
+    charstrings: Index<'a>,
     global_subrs: Index<'a>,
     subrs: Option<Index<'a>>,
     blend_state: Option<BlendState<'a>>,
@@ -86,12 +98,16 @@ where
     S: CommandSink,
 {
     fn new(
+        cff_data: &'a [u8],
+        charstrings: Index<'a>,
         global_subrs: Index<'a>,
         subrs: Option<Index<'a>>,
         blend_state: Option<BlendState<'a>>,
         sink: &'a mut S,
     ) -> Self {
         Self {
+            cff_data,
+            charstrings,
             global_subrs,
             subrs,
             blend_state,
@@ -195,11 +211,43 @@ where
                 return Ok(false);
             }
             // End the current charstring
-            // TODO: handle implied 'seac' operator
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=21>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2463>
             EndChar => {
-                if !self.stack.is_empty() && !self.have_read_width {
+                if self.stack.len() == 4 || self.stack.len() == 5 && !self.have_read_width {
+                    // handle implied seac operator
+                    let cff = Cff::read(FontData::new(self.cff_data))?;
+                    let charset = cff.charset(0)?.ok_or(Error::MissingCharset)?;
+                    let seac_to_gid = |code: i32| {
+                        let code: u8 = code.try_into().ok()?;
+                        let sid = *super::encoding::STANDARD_ENCODING.get(code as usize)?;
+                        charset.glyph_id(StringId::new(sid as u16)).ok()
+                    };
+                    let accent_code = self.stack.pop_i32()?;
+                    let accent_gid =
+                        seac_to_gid(accent_code).ok_or(Error::InvalidSeacCode(accent_code))?;
+                    let base_code = self.stack.pop_i32()?;
+                    let base_gid =
+                        seac_to_gid(base_code).ok_or(Error::InvalidSeacCode(base_code))?;
+                    let dy = self.stack.pop_fixed()?;
+                    let dx = self.stack.pop_fixed()?;
+                    if !self.stack.is_empty() && !self.have_read_width {
+                        self.stack.pop_i32()?;
+                        self.have_read_width = true;
+                    }
+                    // The accent must be evaluated first to match FreeType but the
+                    // base should be placed at the current position, so save it
+                    let x = self.x;
+                    let y = self.y;
+                    self.x = dx;
+                    self.y = dy;
+                    let accent_charstring = self.charstrings.get(accent_gid.to_u32() as usize)?;
+                    self.evaluate(accent_charstring, nesting_depth + 1)?;
+                    self.x = x;
+                    self.y = y;
+                    let base_charstring = self.charstrings.get(base_gid.to_u32() as usize)?;
+                    self.evaluate(base_charstring, nesting_depth + 1)?;
+                } else if !self.stack.is_empty() && !self.have_read_width {
                     self.have_read_width = true;
                     self.stack.clear();
                 }
@@ -223,7 +271,7 @@ where
                 };
                 let is_horizontal = matches!(operator, HStem | HStemHm);
                 let mut u = Fixed::ZERO;
-                while i < self.stack.len() {
+                while (i + 2) < self.stack.len() {
                     let args = self.stack.fixed_array::<2>(i)?;
                     u += args[0];
                     let w = args[1];
@@ -708,10 +756,12 @@ mod tests {
         let blend_state = BlendState::new(store, coords, 0).unwrap();
         let mut commands = CaptureCommandSink::default();
         evaluate(
-            charstring,
+            &[],
+            Index::Empty,
             global_subrs,
             None,
             Some(blend_state),
+            charstring,
             &mut commands,
         )
         .unwrap();
@@ -786,7 +836,16 @@ mod tests {
         let global_subrs = Index::new(&empty_index_bytes, false).unwrap();
         use Command::*;
         let mut commands = CaptureCommandSink::default();
-        evaluate(charstring, global_subrs, None, None, &mut commands).unwrap();
+        evaluate(
+            &[],
+            Index::Empty,
+            global_subrs,
+            None,
+            None,
+            charstring,
+            &mut commands,
+        )
+        .unwrap();
         // Expected results from extracted glyph data in
         // font-test-data/test_data/extracted/charstring_path_ops-glyphs.txt
         // --------------------------------------------------------------------
@@ -1023,7 +1082,8 @@ mod tests {
         // Test case:
         // Evaluate HHCURVETO operator with 2 elements on the stack
         let mut commands = CaptureCommandSink::default();
-        let mut evaluator = Evaluator::new(Index::Empty, None, None, &mut commands);
+        let mut evaluator =
+            Evaluator::new(&[], Index::Empty, Index::Empty, None, None, &mut commands);
         evaluator.stack.push(0).unwrap();
         evaluator.stack.push(0).unwrap();
         let mut cursor = FontData::new(&[]).cursor();

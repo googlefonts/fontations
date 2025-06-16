@@ -20,8 +20,14 @@ impl<'a> Index<'a> {
     pub fn new(data: &'a [u8], is_cff2: bool) -> Result<Self, Error> {
         let data = FontData::new(data);
         Ok(if is_cff2 {
+            if data.len() == 4 && data.read_at::<u32>(0)? == 0 {
+                return Ok(Self::Empty);
+            }
             Index2::read(data).map(|ix| ix.into())?
         } else {
+            if data.len() == 2 && data.read_at::<u16>(0)? == 0 {
+                return Ok(Self::Empty);
+            }
             Index1::read(data).map(|ix| ix.into())?
         })
     }
