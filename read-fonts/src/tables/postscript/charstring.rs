@@ -215,38 +215,7 @@ where
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2463>
             EndChar => {
                 if self.stack.len() == 4 || self.stack.len() == 5 && !self.have_read_width {
-                    // handle implied seac operator
-                    let cff = Cff::read(FontData::new(self.cff_data))?;
-                    let charset = cff.charset(0)?.ok_or(Error::MissingCharset)?;
-                    let seac_to_gid = |code: i32| {
-                        let code: u8 = code.try_into().ok()?;
-                        let sid = *super::encoding::STANDARD_ENCODING.get(code as usize)?;
-                        charset.glyph_id(StringId::new(sid as u16)).ok()
-                    };
-                    let accent_code = self.stack.pop_i32()?;
-                    let accent_gid =
-                        seac_to_gid(accent_code).ok_or(Error::InvalidSeacCode(accent_code))?;
-                    let base_code = self.stack.pop_i32()?;
-                    let base_gid =
-                        seac_to_gid(base_code).ok_or(Error::InvalidSeacCode(base_code))?;
-                    let dy = self.stack.pop_fixed()?;
-                    let dx = self.stack.pop_fixed()?;
-                    if !self.stack.is_empty() && !self.have_read_width {
-                        self.stack.pop_i32()?;
-                        self.have_read_width = true;
-                    }
-                    // The accent must be evaluated first to match FreeType but the
-                    // base should be placed at the current position, so save it
-                    let x = self.x;
-                    let y = self.y;
-                    self.x = dx;
-                    self.y = dy;
-                    let accent_charstring = self.charstrings.get(accent_gid.to_u32() as usize)?;
-                    self.evaluate(accent_charstring, nesting_depth + 1)?;
-                    self.x = x;
-                    self.y = y;
-                    let base_charstring = self.charstrings.get(base_gid.to_u32() as usize)?;
-                    self.evaluate(base_charstring, nesting_depth + 1)?;
+                    self.handle_seac(nesting_depth)?;
                 } else if !self.stack.is_empty() && !self.have_read_width {
                     self.have_read_width = true;
                     self.stack.clear();
@@ -494,6 +463,40 @@ where
             }
         }
         Ok(true)
+    }
+
+    /// See `endchar` in Appendix C at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=35>
+    fn handle_seac(&mut self, nesting_depth: u32) -> Result<(), Error> {
+        // handle implied seac operator
+        let cff = Cff::read(FontData::new(self.cff_data))?;
+        let charset = cff.charset(0)?.ok_or(Error::MissingCharset)?;
+        let seac_to_gid = |code: i32| {
+            let code: u8 = code.try_into().ok()?;
+            let sid = *super::encoding::STANDARD_ENCODING.get(code as usize)?;
+            charset.glyph_id(StringId::new(sid as u16)).ok()
+        };
+        let accent_code = self.stack.pop_i32()?;
+        let accent_gid = seac_to_gid(accent_code).ok_or(Error::InvalidSeacCode(accent_code))?;
+        let base_code = self.stack.pop_i32()?;
+        let base_gid = seac_to_gid(base_code).ok_or(Error::InvalidSeacCode(base_code))?;
+        let dy = self.stack.pop_fixed()?;
+        let dx = self.stack.pop_fixed()?;
+        if !self.stack.is_empty() && !self.have_read_width {
+            self.stack.pop_i32()?;
+            self.have_read_width = true;
+        }
+        // The accent must be evaluated first to match FreeType but the
+        // base should be placed at the current position, so save it
+        let x = self.x;
+        let y = self.y;
+        self.x = dx;
+        self.y = dy;
+        let accent_charstring = self.charstrings.get(accent_gid.to_u32() as usize)?;
+        self.evaluate(accent_charstring, nesting_depth + 1)?;
+        self.x = x;
+        self.y = y;
+        let base_charstring = self.charstrings.get(base_gid.to_u32() as usize)?;
+        self.evaluate(base_charstring, nesting_depth + 1)
     }
 
     fn coords_remaining(&self) -> usize {

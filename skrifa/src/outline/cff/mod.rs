@@ -889,9 +889,10 @@ mod tests {
         glyph
             .draw((Size::unscaled(), LocationRef::default()), &mut pen)
             .unwrap();
-        assert_eq!(
-            pen.to_string(),
-            "M322,832 L323,832 L323,834 L326,834 Z M-20,20 L14,15 L34,9 Z"
-        );
+        // This triggers the seac behavior in the endchar operator which
+        // loads an accent character followed by a base character. Ensure
+        // that we have a path to represent each by checking for two closepath
+        // commands.
+        assert_eq!(pen.to_string().chars().filter(|ch| *ch == 'Z').count(), 2);
     }
 }

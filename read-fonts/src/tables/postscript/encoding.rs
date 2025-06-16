@@ -1,6 +1,12 @@
 //! CFF standard encoding.
 
+/// This maps font specific character codes to string ids in a charset.
+/// 
+/// See "Glyph Organization" at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=18>
+/// for an explanation of how charsets, encodings and glyphs are related.
+/// 
 /// See "Standard" encoding at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=37>
+/// for this particular mapping.
 #[rustfmt::skip]
 pub(super) const STANDARD_ENCODING: [u8; 256] = [
       0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
