@@ -4,6 +4,7 @@ use std::fmt;
 
 mod blend;
 mod charset;
+mod encoding;
 mod fd_select;
 mod index;
 mod stack;
@@ -38,6 +39,8 @@ pub enum Error {
     MissingBlendState,
     MissingPrivateDict,
     MissingCharstrings,
+    MissingCharset,
+    InvalidSeacCode(i32),
     Read(ReadError),
 }
 
@@ -107,6 +110,12 @@ impl fmt::Display for Error {
             }
             Self::MissingCharstrings => {
                 write!(f, "CFF table does not contain a charstrings index")
+            }
+            Self::MissingCharset => {
+                write!(f, "CFF table does not contain a valid charset")
+            }
+            Self::InvalidSeacCode(code) => {
+                write!(f, "seac code {code} is not valid")
             }
             Self::Read(err) => write!(f, "{err}"),
         }

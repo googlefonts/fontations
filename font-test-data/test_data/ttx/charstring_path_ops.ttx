@@ -5,6 +5,9 @@
     <!-- The 'id' attribute is only for humans; it is ignored when parsed. -->
     <GlyphID id="0" name=".notdef"/>
     <GlyphID id="1" name="i"/>
+    <GlyphID id="2" name="S"/>
+    <GlyphID id="3" name="Scaron"/>
+    <GlyphID id="4" name="caron"/>
   </GlyphOrder>
 
   <head>
@@ -216,6 +219,19 @@
           15 41 42 -20 14 -24 -25 -19 -14 -42 8 flex1
           endchar
         </CharString>
+        <CharString name="S">
+          -20 20 rmoveto
+          34 -5 20 -6 rlineto
+          endchar
+        </CharString>
+        <CharString name="Scaron">
+          62 -18 228 83 207 endchar
+        </CharString>
+        <CharString name="caron">
+          340 604 rmoveto
+          1 2 3 hlineto
+          endchar
+        </CharString>        
       </CharStrings>
     </CFFFont>
 
@@ -226,5 +242,8 @@
   <hmtx>
     <mtx name=".notdef" width="600" lsb="94"/>
     <mtx name="i" width="320" lsb="23"/>
+    <mtx name="S" width="320" lsb="23"/>
+    <mtx name="Scaron" width="320" lsb="23"/>
+    <mtx name="caron" width="320" lsb="23"/>
   </hmtx>
 </ttFont>
