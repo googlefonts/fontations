@@ -1146,13 +1146,13 @@ pub(crate) mod tests {
 
     fn check_tables_equal(a: &FontRef, b: &FontRef, excluding: BTreeSet<Tag>) {
         let it_a = a
-            .table_directory
+            .table_directory()
             .table_records()
             .iter()
             .map(|r| r.tag())
             .filter(|tag| !excluding.contains(tag));
         let it_b = b
-            .table_directory
+            .table_directory()
             .table_records()
             .iter()
             .map(|r| r.tag())
