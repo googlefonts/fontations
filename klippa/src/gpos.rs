@@ -1,11 +1,19 @@
 //! impl subset() for GPOS table
 
 use crate::{
-    collect_features_with_retained_subs, find_duplicate_features, prune_features, remap_indices,
-    LayoutClosure, NameIdClosure, Plan, PruneLangSysContext,
+    collect_features_with_retained_subs, find_duplicate_features,
+    offset::SerializeSubset,
+    prune_features, remap_indices,
+    serialize::{SerializeErrorFlags, Serializer},
+    LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset, SubsetError,
+    SubsetLayoutContext,
 };
 use fnv::FnvHashMap;
-use write_fonts::read::{collections::IntSet, tables::gpos::Gpos, types::Tag};
+use write_fonts::{
+    read::{collections::IntSet, tables::gpos::Gpos, types::Tag, FontRef, TopLevelTable},
+    types::Offset16,
+    FontBuilder,
+};
 
 impl NameIdClosure for Gpos<'_> {
     //TODO: support instancing: collect from feature substitutes if exist
@@ -96,6 +104,52 @@ impl LayoutClosure for Gpos<'_> {
         plan.gpos_features = remap_indices(feature_indices);
         plan.gpos_script_langsys = script_langsys_map;
     }
+}
+
+impl Subset for Gpos<'_> {
+    fn subset(
+        &self,
+        plan: &Plan,
+        _font: &FontRef,
+        s: &mut Serializer,
+        _builder: &mut FontBuilder,
+    ) -> Result<(), SubsetError> {
+        subset_gpos(self, plan, s).map_err(|_| SubsetError::SubsetTableError(Gpos::TAG))
+    }
+}
+
+fn subset_gpos(gpos: &Gpos, plan: &Plan, s: &mut Serializer) -> Result<(), SerializeErrorFlags> {
+    // TODO: version
+    //let version = s.embed(gpos.version())?;
+
+    // script_list
+    let script_list_offset_pos = s.embed(0_u16)?;
+
+    let script_list = gpos
+        .script_list()
+        .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
+
+    let mut c = SubsetLayoutContext::new(Gpos::TAG);
+    match Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos) {
+        Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+        Err(e) => return Err(e),
+    }
+
+    // TODO: feature_list
+    // let feature_list_pos = s.embed(0_u16)?;
+
+    // TODO: lookup_list
+    // let lookup_list_pos = s.embed(0_u16)?;
+
+    // TODO: feature variations
+    //if let Some(feature_variations) = gpos
+    //    .feature_variations()
+    //    .transpose()
+    //    .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+    //{
+    //    let feature_vars_offset_pos = s.embed(0_u32)?;
+    //}
+    Ok(())
 }
 
 #[cfg(test)]

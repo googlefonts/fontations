@@ -34,7 +34,7 @@ use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
 use layout::{
     collect_features_with_retained_subs, find_duplicate_features, prune_features,
-    PruneLangSysContext,
+    PruneLangSysContext, SubsetLayoutContext,
 };
 pub use parsing_util::{
     parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
