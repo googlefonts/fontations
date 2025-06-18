@@ -255,7 +255,11 @@ impl<'a> CollectionRef<'a> {
             .ok_or(ReadError::InvalidCollectionIndex(index))?
             .get() as usize;
         let table_dir_data = self.data.slice(offset..).ok_or(ReadError::OutOfBounds)?;
-        FontRef::with_table_directory(self.data, TableDirectory::read(table_dir_data)?)
+        FontRef::with_table_directory(
+            self.data,
+            TableDirectory::read(table_dir_data)?,
+            Some(index),
+        )
     }
 
     /// Returns an iterator over the fonts in the collection.
@@ -287,8 +291,15 @@ impl TableDirectory<'_> {
 /// by a borrowed slice containing font data.
 #[derive(Clone)]
 pub struct FontRef<'a> {
-    pub data: FontData<'a>,
-    pub table_directory: TableDirectory<'a>,
+    data: FontData<'a>,
+    table_directory: TableDirectory<'a>,
+    /// The index of this font in a TrueType collection
+    ttc_index: u32,
+    /// Whether this font is a member of a TrueType collection.
+    ///
+    /// We use a bool rather than an Option to avoid bloating the struct
+    /// size.
+    in_ttc: bool,
     // Whether the table directory is sorted and thus we can use binary search for
     // finding table records. In principle, fonts are required to have a sorted
     // table directory, but certain fonts don't seem to follow that requirement.
@@ -306,7 +317,7 @@ impl<'a> FontRef<'a> {
     /// [table directory]: https://github.com/googlefonts/fontations/pull/549
     pub fn new(data: &'a [u8]) -> Result<Self, ReadError> {
         let data = FontData::new(data);
-        Self::with_table_directory(data, TableDirectory::read(data)?)
+        Self::with_table_directory(data, TableDirectory::read(data)?, None)
     }
 
     /// Creates a new reference to an in-memory font at the specified index
@@ -334,6 +345,25 @@ impl<'a> FontRef<'a> {
         }
     }
 
+    /// Returns the underlying font data.
+    ///
+    /// This is the base from which tables are loaded, meaning that for
+    /// TrueType collection files, this will be the entire font file data.
+    pub fn data(&self) -> FontData<'a> {
+        self.data
+    }
+
+    /// If the font is in a TrueType collection (ttc) file, returns the index
+    /// of the font in that collection.
+    pub fn ttc_index(&self) -> Option<u32> {
+        self.in_ttc.then_some(self.ttc_index)
+    }
+
+    /// Returns the associated table directory.
+    pub fn table_directory(&self) -> &TableDirectory<'a> {
+        &self.table_directory
+    }
+
     /// Returns the data for the table with the specified tag, if present.
     pub fn table_data(&self, tag: Tag) -> Option<FontData<'a>> {
         let entry = if self.table_directory_sorted {
@@ -357,9 +387,23 @@ impl<'a> FontRef<'a> {
             })
     }
 
+    /// Returns an iterator over all of the available fonts in
+    /// the given font data.
+    pub fn all_in(
+        data: &'a [u8],
+    ) -> impl Iterator<Item = Result<FontRef<'a>, ReadError>> + 'a + Clone {
+        let count = match FileRef::new(data) {
+            Ok(FileRef::Font(_)) => 1,
+            Ok(FileRef::Collection(ttc)) => ttc.len(),
+            _ => 0,
+        };
+        (0..count).map(|idx| FontRef::from_index(data, idx))
+    }
+
     fn with_table_directory(
         data: FontData<'a>,
         table_directory: TableDirectory<'a>,
+        ttc_index: Option<u32>,
     ) -> Result<Self, ReadError> {
         if [TT_SFNT_VERSION, CFF_SFNT_VERSION, TRUE_SFNT_VERSION]
             .contains(&table_directory.sfnt_version())
@@ -369,6 +413,8 @@ impl<'a> FontRef<'a> {
             Ok(FontRef {
                 data,
                 table_directory,
+                ttc_index: ttc_index.unwrap_or_default(),
+                in_ttc: ttc_index.is_some(),
                 table_directory_sorted,
             })
         } else {
@@ -402,6 +448,21 @@ mod tests {
         };
         assert_eq!(2, collection.len());
         assert!(!collection.is_empty());
+    }
+
+    #[test]
+    fn font_ref_all_in() {
+        assert_eq!(FontRef::all_in(AHEM).count(), 1);
+        assert_eq!(FontRef::all_in(TTC).count(), 2);
+        assert_eq!(FontRef::all_in(b"NOT_A_FONT").count(), 0);
+    }
+
+    #[test]
+    fn ttc_index() {
+        for (idx, font) in FontRef::all_in(TTC).map(|font| font.unwrap()).enumerate() {
+            assert_eq!(font.ttc_index(), Some(idx as u32));
+        }
+        assert!(FontRef::new(AHEM).unwrap().ttc_index().is_none());
     }
 
     #[test]
