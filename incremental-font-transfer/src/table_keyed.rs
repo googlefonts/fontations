@@ -127,7 +127,7 @@ pub(crate) fn copy_unprocessed_tables<'a>(
     processed_tables: BTreeSet<Tag>,
     font_builder: &mut FontBuilder<'a>,
 ) {
-    font.table_directory
+    font.table_directory()
         .table_records()
         .iter()
         .map(|r| r.tag())
