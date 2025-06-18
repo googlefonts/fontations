@@ -175,6 +175,7 @@ impl<'a> CoverageTable<'a> {
     }
 
     /// If this glyph is in the coverage table, returns its index
+    #[inline]
     pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
         match self {
             CoverageTable::Format1(sub) => sub.get(gid),
@@ -211,6 +212,7 @@ impl<'a> CoverageTable<'a> {
 
 impl CoverageFormat1<'_> {
     /// If this glyph is in the coverage table, returns its index
+    #[inline]
     pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
         let gid16: GlyphId16 = gid.into().try_into().ok()?;
         let be_glyph: BigEndian<GlyphId16> = gid16.into();
@@ -261,6 +263,7 @@ impl CoverageFormat1<'_> {
 
 impl CoverageFormat2<'_> {
     /// If this glyph is in the coverage table, returns its index
+    #[inline]
     pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
         let gid: GlyphId16 = gid.into().try_into().ok()?;
         self.range_records()
@@ -391,6 +394,7 @@ impl From<DeltaFormat> for i64 {
 
 impl<'a> ClassDefFormat1<'a> {
     /// Get the class for this glyph id
+    #[inline]
     pub fn get(&self, gid: GlyphId16) -> u16 {
         if gid < self.start_glyph_id() {
             return 0;
@@ -499,6 +503,7 @@ impl<'a> ClassDefFormat1<'a> {
 
 impl<'a> ClassDefFormat2<'a> {
     /// Get the class for this glyph id
+    #[inline]
     pub fn get(&self, gid: GlyphId16) -> u16 {
         let records = self.class_range_records();
         let ix = match records.binary_search_by(|rec| rec.start_glyph_id().cmp(&gid)) {
@@ -654,6 +659,7 @@ impl ClassRangeRecord {
 
 impl ClassDef<'_> {
     /// Get the class for this glyph id
+    #[inline]
     pub fn get(&self, gid: GlyphId16) -> u16 {
         match self {
             ClassDef::Format1(table) => table.get(gid),

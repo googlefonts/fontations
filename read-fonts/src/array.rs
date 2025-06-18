@@ -84,6 +84,7 @@ where
         })
     }
 
+    #[inline]
     pub fn get(&self, idx: usize) -> Result<T, ReadError> {
         let item_start = idx
             .checked_mul(self.item_len)
