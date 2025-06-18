@@ -267,9 +267,17 @@ impl<'a> CollectionRef<'a> {
 
 impl TableDirectory<'_> {
     fn is_sorted(&self) -> bool {
-        self.table_records()
-            .windows(2)
-            .all(|pair| pair[0] <= pair[1])
+        let mut last_tag = Tag::new(&[0u8; 4]);
+
+        for tag in self.table_records().iter().map(|rec| rec.tag()) {
+            if tag <= last_tag {
+                return false;
+            }
+
+            last_tag = tag;
+        }
+
+        true
     }
 }
 
