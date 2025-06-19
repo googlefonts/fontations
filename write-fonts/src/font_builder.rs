@@ -109,7 +109,7 @@ impl<'a> FontBuilder<'a> {
 
     /// Copy each table from the source font if it does not already exist
     pub fn copy_missing_tables(&mut self, font: FontRef<'a>) -> &mut Self {
-        for record in font.table_directory.table_records() {
+        for record in font.table_directory().table_records() {
             let tag = record.tag();
             if !self.tables.contains_key(&tag) {
                 if let Some(data) = font.data_for_tag(tag) {
@@ -288,7 +288,7 @@ mod tests {
         });
         let bytes = builder.build();
         let font = FontRef::new(&bytes).unwrap();
-        let td = font.table_directory;
+        let td = font.table_directory();
         assert_eq!(
             (256, 4, 96),
             (td.search_range(), td.entry_selector(), td.range_shift())

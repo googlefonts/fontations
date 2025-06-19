@@ -127,7 +127,7 @@ pub(crate) fn copy_unprocessed_tables<'a>(
     processed_tables: BTreeSet<Tag>,
     font_builder: &mut FontBuilder<'a>,
 ) {
-    font.table_directory
+    font.table_directory()
         .table_records()
         .iter()
         .map(|r| r.tag())
@@ -177,7 +177,7 @@ mod tests {
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
 
-        assert_eq!(font.table_directory.num_tables(), 4);
+        assert_eq!(font.table_directory().num_tables(), 4);
 
         assert_eq!(font.table_data(IFT_TAG).unwrap().as_bytes(), IFT_TABLE);
         assert_eq!(
@@ -208,11 +208,11 @@ mod tests {
         let expected_font = FontRef::new(&expected_font).unwrap();
 
         assert_eq!(
-            font.table_directory.num_tables(),
-            expected_font.table_directory.num_tables()
+            font.table_directory().num_tables(),
+            expected_font.table_directory().num_tables()
         );
 
-        for t in expected_font.table_directory.table_records() {
+        for t in expected_font.table_directory().table_records() {
             let data = font.table_data(t.tag()).unwrap();
             let expected_data = expected_font.table_data(t.tag()).unwrap();
             assert_eq!(data.as_bytes(), expected_data.as_bytes());
@@ -247,7 +247,7 @@ mod tests {
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
 
-        assert_eq!(font.table_directory.num_tables(), 5);
+        assert_eq!(font.table_directory().num_tables(), 5);
 
         assert_eq!(font.table_data(IFT_TAG).unwrap().as_bytes(), IFT_TABLE);
         assert_eq!(
@@ -323,7 +323,7 @@ mod tests {
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
 
-        assert_eq!(font.table_directory.num_tables(), 4);
+        assert_eq!(font.table_directory().num_tables(), 4);
 
         assert_eq!(font.table_data(IFT_TAG).unwrap().as_bytes(), IFT_TABLE);
         assert_eq!(
@@ -372,7 +372,7 @@ mod tests {
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
 
-        assert_eq!(font.table_directory.num_tables(), 5);
+        assert_eq!(font.table_directory().num_tables(), 5);
 
         assert_eq!(font.table_data(IFT_TAG).unwrap().as_bytes(), IFT_TABLE);
         assert_eq!(
@@ -407,7 +407,7 @@ mod tests {
         let font = r.unwrap();
         let font = FontRef::new(&font).unwrap();
 
-        assert_eq!(font.table_directory.num_tables(), 5);
+        assert_eq!(font.table_directory().num_tables(), 5);
 
         assert_eq!(font.table_data(IFT_TAG).unwrap().as_bytes(), IFT_TABLE);
         assert_eq!(

@@ -43,7 +43,7 @@ fn list_tables(font: &FontRef) {
 
     let offset_pad = get_offset_width(font);
 
-    for record in font.table_directory.table_records() {
+    for record in font.table_directory().table_records() {
         println!(
             "{0} 0x{1:02$X} {3:8} 0x{4:08X} ",
             record.tag(),
@@ -58,7 +58,7 @@ fn list_tables(font: &FontRef) {
 fn print_tables(font: &FontRef, filter: &TableFilter) {
     let mut printed = HashSet::new();
     for tag in font
-        .table_directory
+        .table_directory()
         .table_records()
         .iter()
         .map(|rec| rec.tag())
@@ -78,7 +78,7 @@ fn print_tables(font: &FontRef, filter: &TableFilter) {
 fn get_offset_width(font: &FontRef) -> usize {
     // pick how much padding we use for offsets based on the max offset in directory
     let max_off = font
-        .table_directory
+        .table_directory()
         .table_records()
         .iter()
         .map(|rec| rec.offset())

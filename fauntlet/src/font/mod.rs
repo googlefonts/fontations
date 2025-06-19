@@ -7,7 +7,7 @@ use std::{
 use ::freetype::{face::LoadFlag, Library};
 use ::skrifa::{
     outline::{HintingOptions, SmoothMode, Target},
-    raw::{types::F2Dot14, FileRef, FontRef, TableProvider},
+    raw::{types::F2Dot14, FontRef, TableProvider},
 };
 
 mod freetype;
@@ -107,10 +107,7 @@ impl Font {
         let path = path.as_ref().to_owned();
         let file = std::fs::File::open(&path).ok()?;
         let data = SharedFontData(unsafe { Arc::new(memmap2::Mmap::map(&file).ok()?) });
-        let count = match FileRef::new(data.0.as_ref()).ok()? {
-            FileRef::Font(_) => 1,
-            FileRef::Collection(collection) => collection.len() as usize,
-        };
+        let count = FontRef::fonts(data.0.as_ref()).count();
         let _ft_library = ::freetype::Library::init().ok()?;
         Some(Self {
             path,

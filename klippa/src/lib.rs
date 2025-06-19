@@ -999,7 +999,7 @@ trait Serialize<'a> {
 pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
     let mut builder = FontBuilder::default();
 
-    for record in font.table_directory.table_records() {
+    for record in font.table_directory().table_records() {
         let tag = record.tag();
         if should_drop_table(tag, plan) {
             continue;
