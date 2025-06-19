@@ -292,7 +292,7 @@ impl TableDirectory<'_> {
 #[derive(Clone)]
 pub struct FontRef<'a> {
     data: FontData<'a>,
-    table_directory: TableDirectory<'a>,
+    pub table_directory: TableDirectory<'a>,
     /// The index of this font in a TrueType collection
     ttc_index: u32,
     /// Whether this font is a member of a TrueType collection.
