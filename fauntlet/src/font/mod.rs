@@ -107,7 +107,7 @@ impl Font {
         let path = path.as_ref().to_owned();
         let file = std::fs::File::open(&path).ok()?;
         let data = SharedFontData(unsafe { Arc::new(memmap2::Mmap::map(&file).ok()?) });
-        let count = FontRef::all_in(data.0.as_ref()).count();
+        let count = FontRef::fonts(data.0.as_ref()).count();
         let _ft_library = ::freetype::Library::init().ok()?;
         Some(Self {
             path,

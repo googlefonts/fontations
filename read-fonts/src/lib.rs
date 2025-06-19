@@ -389,7 +389,7 @@ impl<'a> FontRef<'a> {
 
     /// Returns an iterator over all of the available fonts in
     /// the given font data.
-    pub fn all_in(
+    pub fn fonts(
         data: &'a [u8],
     ) -> impl Iterator<Item = Result<FontRef<'a>, ReadError>> + 'a + Clone {
         let count = match FileRef::new(data) {
@@ -452,14 +452,14 @@ mod tests {
 
     #[test]
     fn font_ref_all_in() {
-        assert_eq!(FontRef::all_in(AHEM).count(), 1);
-        assert_eq!(FontRef::all_in(TTC).count(), 2);
-        assert_eq!(FontRef::all_in(b"NOT_A_FONT").count(), 0);
+        assert_eq!(FontRef::fonts(AHEM).count(), 1);
+        assert_eq!(FontRef::fonts(TTC).count(), 2);
+        assert_eq!(FontRef::fonts(b"NOT_A_FONT").count(), 0);
     }
 
     #[test]
     fn ttc_index() {
-        for (idx, font) in FontRef::all_in(TTC).map(|font| font.unwrap()).enumerate() {
+        for (idx, font) in FontRef::fonts(TTC).map(|font| font.unwrap()).enumerate() {
             assert_eq!(font.ttc_index(), Some(idx as u32));
         }
         assert!(FontRef::new(AHEM).unwrap().ttc_index().is_none());
