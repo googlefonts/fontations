@@ -451,7 +451,7 @@ mod tests {
     }
 
     #[test]
-    fn font_ref_all_in() {
+    fn font_ref_fonts_iter() {
         assert_eq!(FontRef::fonts(AHEM).count(), 1);
         assert_eq!(FontRef::fonts(TTC).count(), 2);
         assert_eq!(FontRef::fonts(b"NOT_A_FONT").count(), 0);
