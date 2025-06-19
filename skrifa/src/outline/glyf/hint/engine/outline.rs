@@ -647,7 +647,7 @@ impl Engine<'_> {
         // thresholding abs(tan(angle)) at 1/19, corresponding to 3 degrees."
         //
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5986>
-        if discriminant.abs().wrapping_mul(19) > dotproduct.abs() {
+        if discriminant.wrapping_abs().wrapping_mul(19) > dotproduct.abs() {
             let v = mul_div(dx, -dby, 0x40) + mul_div(dy, dbx, 0x40);
             let x = mul_div(v, dax, discriminant);
             let y = mul_div(v, day, discriminant);
