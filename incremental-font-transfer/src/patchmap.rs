@@ -369,11 +369,14 @@ fn merge_intersecting_entries<const RECORD_INTERSECTION: bool>(
 
 struct EntryIntersectionCache<'a> {
     entries: &'a [Format2Entry],
+    target_subset_definition: &'a SubsetDefinition,
     cache: HashMap<usize, bool>,
+    coverage_cache: HashMap<usize, SubsetDefinition>,
 }
 
 impl EntryIntersectionCache<'_> {
-    fn intersects(&mut self, index: usize, subset_definition: &SubsetDefinition) -> bool {
+    /// Returns true if the target_subset_definition intersects the entry at index.
+    fn intersects(&mut self, index: usize) -> bool {
         if let Some(result) = self.cache.get(&index) {
             return *result;
         }
@@ -382,18 +385,37 @@ impl EntryIntersectionCache<'_> {
             return false;
         };
 
-        let result = self.compute_intersection(entry, subset_definition);
+        let result = self.compute_intersection(entry);
         self.cache.insert(index, result);
         result
     }
 
-    fn compute_intersection(
-        &mut self,
-        entry: &Format2Entry,
-        subset_definition: &SubsetDefinition,
-    ) -> bool {
+    /// Returns the intersection of target_subset_definition and the union of entry and all of it's descendants.
+    fn coverage_intersection(&mut self, index: usize) -> SubsetDefinition {
+        if let Some(result) = self.coverage_cache.get(&index) {
+            return result.clone();
+        }
+
+        let Some(entry) = self.entries.get(index) else {
+            return Default::default();
+        };
+
+        let mut self_intersection = entry
+            .subset_definition
+            .intersection(self.target_subset_definition);
+        for child_index in entry.child_indices.iter() {
+            self_intersection.union(&self.coverage_intersection(*child_index));
+        }
+
+        self.coverage_cache
+            .entry(index)
+            .or_insert(self_intersection)
+            .clone()
+    }
+
+    fn compute_intersection(&mut self, entry: &Format2Entry) -> bool {
         // See: https://w3c.github.io/IFT/Overview.html#abstract-opdef-check-entry-intersection
-        if !entry.intersects(subset_definition) {
+        if !entry.intersects(self.target_subset_definition) {
             return false;
         }
 
@@ -402,32 +424,24 @@ impl EntryIntersectionCache<'_> {
         }
 
         if entry.conjunctive_child_match {
-            self.all_children_intersect(entry, subset_definition)
+            self.all_children_intersect(entry)
         } else {
-            self.some_children_intersect(entry, subset_definition)
+            self.some_children_intersect(entry)
         }
     }
 
-    fn all_children_intersect(
-        &mut self,
-        entry: &Format2Entry,
-        subset_definition: &SubsetDefinition,
-    ) -> bool {
+    fn all_children_intersect(&mut self, entry: &Format2Entry) -> bool {
         for child_index in entry.child_indices.iter() {
-            if !self.intersects(*child_index, subset_definition) {
+            if !self.intersects(*child_index) {
                 return false;
             }
         }
         true
     }
 
-    fn some_children_intersect(
-        &mut self,
-        entry: &Format2Entry,
-        subset_definition: &SubsetDefinition,
-    ) -> bool {
+    fn some_children_intersect(&mut self, entry: &Format2Entry) -> bool {
         for child_index in entry.child_indices.iter() {
-            if self.intersects(*child_index, subset_definition) {
+            if self.intersects(*child_index) {
                 return true;
             }
         }
@@ -447,6 +461,8 @@ fn add_intersecting_format2_patches(
     let mut entry_intersection_cache = EntryIntersectionCache {
         entries: &entries,
         cache: Default::default(),
+        coverage_cache: Default::default(),
+        target_subset_definition: subset_definition,
     };
 
     let mut application_bit_indices: HashMap<PatchUrl, IntSet<u32>> = Default::default();
@@ -457,7 +473,7 @@ fn add_intersecting_format2_patches(
             continue;
         }
 
-        if !entry_intersection_cache.intersects(order, subset_definition) {
+        if !entry_intersection_cache.intersects(order) {
             continue;
         }
 
@@ -472,7 +488,7 @@ fn add_intersecting_format2_patches(
         // used for selection.
         let intersection_info = if e.format.is_invalidating() {
             IntersectionInfo::from_subset(
-                e.subset_definition.intersection(subset_definition),
+                entry_intersection_cache.coverage_intersection(order),
                 order,
             )
         } else {
@@ -2604,6 +2620,54 @@ mod tests {
                 .collect(),
             )]),
             [e2, e3, e4, e5, e6, e7, e8],
+        );
+    }
+
+    #[test]
+    fn format_2_patch_map_conjunctive_child_indices_intersection_info() {
+        let mut builder = child_indices_format2();
+        builder.write_at("entries[6]_child_count", 0b10000000u8 | 4u8);
+        builder.write_at("encoding", 1u8);
+
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&builder),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let patches = intersecting_patches(
+            &font,
+            &SubsetDefinition::new(
+                IntSet::from([6, 51, 22]),
+                FeatureSet::from([Tag::new(b"rlig"), Tag::new(b"liga")]),
+                DesignSpace::from([(
+                    Tag::new(b"wght"),
+                    [Fixed::from_i32(75)..=Fixed::from_i32(300)]
+                        .into_iter()
+                        .collect(),
+                )]),
+            ),
+        )
+        .unwrap();
+
+        let e = patches
+            .into_iter()
+            .find(|p| &p.url().0 == "foo/0S")
+            .unwrap();
+
+        let mut expected_info = IntersectionInfo::new(3, 2, 6);
+        expected_info
+            .intersecting_design_space
+            .insert(Tag::new(b"wght"), Fixed::from_i32(125)); // [75..100] + [200..300]
+
+        assert_eq!(
+            e,
+            patch_with_intersection(
+                builder.offset_for("entries[6]") * 8 + 6 - 7,
+                7,
+                expected_info,
+            ),
         );
     }
 
