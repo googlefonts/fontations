@@ -1,6 +1,6 @@
 //! impl subset() for layout common tables
 
-use std::cmp::Ordering;
+use std::{cmp::Ordering, mem};
 
 use crate::{
     serialize::{SerializeErrorFlags, Serializer},
@@ -13,13 +13,17 @@ use write_fonts::{
         tables::layout::{
             CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2, ClassRangeRecord,
             CoverageFormat1, CoverageFormat2, CoverageTable, DeltaFormat, Device,
-            DeviceOrVariationIndex, Feature, FeatureParams, RangeRecord, SizeParams,
-            StylisticSetParams, VariationIndex,
+            DeviceOrVariationIndex, Feature, FeatureList, FeatureParams, FeatureVariations,
+            LangSys, RangeRecord, Script, ScriptList, SizeParams, StylisticSetParams,
+            VariationIndex,
         },
         types::{GlyphId, GlyphId16, NameId},
     },
-    types::FixedSize,
+    types::{FixedSize, Tag},
 };
+
+const MAX_SCRIPTS: u16 = 500;
+const MAX_LANGSYS_FEATURE_COUNT: u16 = 5000;
 
 impl NameIdClosure for StylisticSetParams<'_> {
     fn collect_name_ids(&self, plan: &mut Plan) {
@@ -721,6 +725,294 @@ impl<'a> Serialize<'a> for CoverageFormat2<'a> {
         let last_range_pos = pos + range * RangeRecord::RAW_BYTE_LEN;
         s.copy_assign(last_range_pos, last);
         Ok(())
+    }
+}
+
+/// Return a set of feature indices that have alternate features defined in FeatureVariations table
+/// and the alternate version(s) intersect the set of lookup indices
+pub(crate) fn collect_features_with_retained_subs(
+    feature_variations: &FeatureVariations,
+    lookup_indices: &IntSet<u16>,
+) -> IntSet<u16> {
+    let font_data = feature_variations.offset_data();
+    let mut out = IntSet::empty();
+    for subs in feature_variations
+        .feature_variation_records()
+        .iter()
+        .filter_map(|rec| rec.feature_table_substitution(font_data))
+    {
+        let Ok(subs) = subs else {
+            return IntSet::empty();
+        };
+
+        for rec in subs.substitutions() {
+            let Ok(sub_f) = rec.alternate_feature(subs.offset_data()) else {
+                return IntSet::empty();
+            };
+            if !feature_intersects_lookups(&sub_f, lookup_indices) {
+                continue;
+            }
+            out.insert(rec.feature_index());
+        }
+    }
+    out
+}
+
+fn feature_intersects_lookups(f: &Feature, lookup_indices: &IntSet<u16>) -> bool {
+    f.lookup_list_indices()
+        .iter()
+        .any(|i| lookup_indices.contains(i.get()))
+}
+
+pub(crate) fn prune_features(
+    feature_list: &FeatureList,
+    alternate_features: &IntSet<u16>,
+    lookup_indices: &IntSet<u16>,
+    feature_indices: IntSet<u16>,
+) -> IntSet<u16> {
+    let mut out = IntSet::empty();
+    let feature_records = feature_list.feature_records();
+    for i in feature_indices.iter() {
+        let Some(feature_rec) = feature_records.get(i as usize) else {
+            continue;
+        };
+        let feature_tag = feature_rec.feature_tag();
+        // never drop feature "pref"
+        // ref: https://github.com/harfbuzz/harfbuzz/blob/fc6231726e514f96bfbb098283aab332fc6b45fb/src/hb-ot-layout-gsubgpos.hh#L4822
+        if feature_tag == Tag::new(b"pref") {
+            out.insert(i);
+            continue;
+        }
+
+        let Ok(feature) = feature_rec.feature(feature_list.offset_data()) else {
+            return out;
+        };
+        // always keep "size" feature even if it's empty
+        // ref: https://github.com/fonttools/fonttools/blob/e857fe5ef7b25e92fd829a445357e45cde16eb04/Lib/fontTools/subset/__init__.py#L1627
+        if !feature.feature_params_offset().is_null() && feature_tag == Tag::new(b"size") {
+            out.insert(i);
+            continue;
+        }
+
+        if !feature_intersects_lookups(&feature, lookup_indices) && !alternate_features.contains(i)
+        {
+            continue;
+        }
+        out.insert(i);
+    }
+    out
+}
+
+pub(crate) fn find_duplicate_features(
+    feature_list: &FeatureList,
+    lookup_indices: &IntSet<u16>,
+    feature_indices: IntSet<u16>,
+) -> FnvHashMap<u16, u16> {
+    let mut out = FnvHashMap::default();
+    if lookup_indices.is_empty() {
+        return out;
+    }
+
+    let feature_recs = feature_list.feature_records();
+    let mut unique_features = FnvHashMap::default();
+    for i in feature_indices.iter() {
+        let Some(rec) = feature_recs.get(i as usize) else {
+            continue;
+        };
+
+        let Ok(f) = rec.feature(feature_list.offset_data()) else {
+            return out;
+        };
+
+        let t = u32::from_be_bytes(rec.feature_tag().to_be_bytes());
+
+        let same_tag_features = unique_features.entry(t).or_insert(IntSet::empty());
+        if same_tag_features.is_empty() {
+            same_tag_features.insert(i);
+            out.insert(i, i);
+            continue;
+        }
+
+        for other_f_idx in same_tag_features.iter() {
+            let Some(other_rec) = feature_recs.get(other_f_idx as usize) else {
+                continue;
+            };
+
+            let Ok(other_f) = other_rec.feature(feature_list.offset_data()) else {
+                return out;
+            };
+
+            let f_iter = f
+                .lookup_list_indices()
+                .iter()
+                .filter_map(|i| lookup_indices.contains(i.get()).then_some(i.get()));
+            let other_f_iter = other_f
+                .lookup_list_indices()
+                .iter()
+                .filter_map(|i| lookup_indices.contains(i.get()).then_some(i.get()));
+            if !f_iter.eq(other_f_iter) {
+                continue;
+            } else {
+                out.insert(i, other_f_idx);
+                break;
+            }
+        }
+
+        let o = out.entry(i).or_insert(i);
+        // no duplicate for this index
+        if *o == i {
+            same_tag_features.insert(i);
+        }
+    }
+    out
+}
+
+pub(crate) struct PruneLangSysContext<'a> {
+    script_count: u16,
+    langsys_feature_count: u16,
+    // IN: retained feature indices map: old->new
+    // duplicate features will be mapped to the same value
+    feature_index_map: &'a FnvHashMap<u16, u16>,
+    // OUT: retained feature indices after pruning
+    feature_indices: IntSet<u16>,
+    // OUT: retained script->langsys map after pruning
+    script_langsys_map: FnvHashMap<u16, IntSet<u16>>,
+}
+
+impl<'a> PruneLangSysContext<'a> {
+    pub(crate) fn new(feature_index_map: &'a FnvHashMap<u16, u16>) -> Self {
+        Self {
+            script_count: 0,
+            langsys_feature_count: 0,
+            feature_index_map,
+            feature_indices: IntSet::empty(),
+            script_langsys_map: FnvHashMap::default(),
+        }
+    }
+
+    fn visit_script(&mut self) -> bool {
+        let ret = self.script_count < MAX_SCRIPTS;
+        self.script_count += 1;
+        ret
+    }
+
+    fn visit_langsys(&mut self, feature_count: u16) -> bool {
+        self.langsys_feature_count += feature_count;
+        self.langsys_feature_count < MAX_LANGSYS_FEATURE_COUNT
+    }
+
+    fn collect_langsys_features(&mut self, langsys: &LangSys) {
+        let required_feature_index = langsys.required_feature_index();
+        if required_feature_index == 0xFFFF_u16 && langsys.feature_index_count() == 0 {
+            return;
+        }
+
+        if required_feature_index != 0xFFFF_u16
+            && self.feature_index_map.contains_key(&required_feature_index)
+        {
+            self.feature_indices.insert(required_feature_index);
+        }
+
+        self.feature_indices.extend_unsorted(
+            langsys
+                .feature_indices()
+                .iter()
+                .filter_map(|i| self.feature_index_map.get(&i.get()).copied()),
+        );
+    }
+
+    fn check_equal(&self, la: &LangSys, lb: &LangSys) -> bool {
+        if la.required_feature_index() != lb.required_feature_index() {
+            return false;
+        }
+
+        let iter_a = la
+            .feature_indices()
+            .iter()
+            .filter_map(|i| self.feature_index_map.get(&i.get()));
+        let iter_b = lb
+            .feature_indices()
+            .iter()
+            .filter_map(|i| self.feature_index_map.get(&i.get()));
+
+        iter_a.eq(iter_b)
+    }
+
+    fn add_script_langsys(&mut self, script_index: u16, langsys_index: u16) {
+        let langsys_indices = self
+            .script_langsys_map
+            .entry(script_index)
+            .or_insert(IntSet::empty());
+        langsys_indices.insert(langsys_index);
+    }
+
+    pub(crate) fn prune_script_langsys(&mut self, script_index: u16, script: &Script) {
+        if script.lang_sys_count() == 0 && script.default_lang_sys_offset().is_null() {
+            return;
+        }
+
+        if !self.visit_script() {
+            return;
+        }
+
+        if let Some(Ok(default_langsys)) = script.default_lang_sys() {
+            if self.visit_langsys(default_langsys.feature_index_count()) {
+                self.collect_langsys_features(&default_langsys);
+            }
+
+            for (i, langsys_rec) in script.lang_sys_records().iter().enumerate() {
+                let Ok(l) = langsys_rec.lang_sys(script.offset_data()) else {
+                    return;
+                };
+                if !self.visit_langsys(l.feature_index_count()) {
+                    return;
+                }
+
+                if self.check_equal(&l, &default_langsys) {
+                    continue;
+                }
+                self.collect_langsys_features(&l);
+                self.add_script_langsys(script_index, i as u16);
+            }
+        } else {
+            for (i, langsys_rec) in script.lang_sys_records().iter().enumerate() {
+                let Ok(l) = langsys_rec.lang_sys(script.offset_data()) else {
+                    return;
+                };
+                if !self.visit_langsys(l.feature_index_count()) {
+                    return;
+                }
+                self.collect_langsys_features(&l);
+                self.add_script_langsys(script_index, i as u16);
+            }
+        }
+    }
+
+    pub(crate) fn script_langsys_map(&mut self) -> FnvHashMap<u16, IntSet<u16>> {
+        mem::take(&mut self.script_langsys_map)
+    }
+
+    pub(crate) fn feature_indices(&mut self) -> IntSet<u16> {
+        mem::take(&mut self.feature_indices)
+    }
+
+    pub(crate) fn prune_langsys(
+        &mut self,
+        script_list: &ScriptList,
+        layout_scripts: &IntSet<Tag>,
+    ) -> (FnvHashMap<u16, IntSet<u16>>, IntSet<u16>) {
+        for (i, script_rec) in script_list.script_records().iter().enumerate() {
+            let script_tag = script_rec.script_tag();
+            if !layout_scripts.contains(script_tag) {
+                continue;
+            }
+
+            let Ok(script) = script_rec.script(script_list.offset_data()) else {
+                return (self.script_langsys_map(), self.feature_indices());
+            };
+            self.prune_script_langsys(i as u16, &script);
+        }
+        (self.script_langsys_map(), self.feature_indices())
     }
 }
 
