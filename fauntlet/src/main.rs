@@ -29,7 +29,7 @@ enum Command {
 #[allow(clippy::explicit_write)]
 fn main() {
     // Pixels per em sizes. A size of 0 means an explicit unscaled comparison
-    let ppem_sizes = [0, 8, 16, 50, 72, 113, 144];
+    let ppem_sizes = [0.0, 8.0, 24.8, 16.0, 50.0, 72.0, 113.0, 144.0];
 
     // Locations in normalized variation space
     let var_locations = [-1.0, -0.32, 0.0, 0.42, 1.0].map(F2Dot14::from_f32);

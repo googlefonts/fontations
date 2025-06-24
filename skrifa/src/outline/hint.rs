@@ -8,6 +8,7 @@ use super::{
     OutlineCollectionKind, OutlineGlyph, OutlineGlyphCollection, OutlineKind, OutlinePen, Size,
 };
 use crate::alloc::{boxed::Box, vec::Vec};
+use raw::types::Fixed;
 
 /// Configuration settings for a hinting instance.
 #[derive(Clone, Default, Debug)]
@@ -345,10 +346,18 @@ impl HintingInstance {
                     };
                     let ppem = size.ppem();
                     let scale = glyf.compute_scale(ppem).1.to_bits();
+                    // Use fixed point rounding for ppem to match what FreeType does:
+                    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/ftobjs.c#L3349>
+                    // issue: <https://github.com/googlefonts/fontations/issues/1544>
+                    let rounded_ppem = ((Fixed::from_bits(scale)
+                        * Fixed::from_bits(glyf.units_per_em() as i32))
+                    .to_bits()
+                        + 32)
+                        >> 6;
                     hint_instance.reconfigure(
                         glyf,
                         scale,
-                        ppem.unwrap_or_default() as i32,
+                        rounded_ppem,
                         self.target,
                         &self.coords,
                     )?;

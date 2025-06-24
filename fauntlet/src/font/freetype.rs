@@ -32,8 +32,11 @@ impl FreeTypeInstance {
                 Some(hinting) => load_flags |= hinting.freetype_load_flags(),
             };
         }
-        if options.ppem != 0 {
-            face.set_pixel_sizes(options.ppem, options.ppem).ok()?;
+        if options.ppem != 0.0 {
+            // Set a fractional size using the same code as Skia:
+            // <https://github.com/google/skia/blob/a462e701b493d8f30b3130af3bbd4440c7946ccd/src/ports/SkFontHost_FreeType.cpp#L1034>
+            let size = (options.ppem * 64.0) as isize;
+            face.set_char_size(size, size, 72, 72).ok()?;
         } else {
             load_flags |= LoadFlag::NO_SCALE | LoadFlag::NO_HINTING | LoadFlag::NO_AUTOHINT;
         }
