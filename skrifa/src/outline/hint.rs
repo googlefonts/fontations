@@ -8,6 +8,7 @@ use super::{
     OutlineCollectionKind, OutlineGlyph, OutlineGlyphCollection, OutlineKind, OutlinePen, Size,
 };
 use crate::alloc::{boxed::Box, vec::Vec};
+use raw::types::Fixed;
 
 /// Configuration settings for a hinting instance.
 #[derive(Clone, Default, Debug)]
@@ -345,10 +346,18 @@ impl HintingInstance {
                     };
                     let ppem = size.ppem();
                     let scale = glyf.compute_scale(ppem).1.to_bits();
+                    // Use fixed point rounding for ppem to match what FreeType does:
+                    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/ftobjs.c#L3349>
+                    // issue: <https://github.com/googlefonts/fontations/issues/1544>
+                    let rounded_ppem = ((Fixed::from_bits(scale)
+                        * Fixed::from_bits(glyf.units_per_em() as i32))
+                    .to_bits()
+                        + 32)
+                        >> 6;
                     hint_instance.reconfigure(
                         glyf,
                         scale,
-                        ppem.unwrap_or_default() as i32,
+                        rounded_ppem,
                         self.target,
                         &self.coords,
                     )?;
@@ -532,9 +541,12 @@ impl Target {
 mod tests {
     use super::*;
     use crate::{
-        outline::{pen::NullPen, DrawSettings},
+        outline::{
+            pen::{NullPen, SvgPen},
+            DrawSettings,
+        },
         raw::TableProvider,
-        FontRef, MetadataProvider,
+        FontRef, GlyphId, MetadataProvider,
     };
 
     // FreeType ignores the hdmx table when backward compatibility mode
@@ -596,5 +608,26 @@ mod tests {
             .draw(DrawSettings::unhinted(size, location), &mut NullPen)
             .unwrap();
         assert_eq!(metrics.advance_width, Some(6.53125));
+    }
+
+    // Check that we round the value for the MPPEM instruction when applying
+    // a fractional font size
+    // <https://github.com/googlefonts/fontations/issues/1544>
+    #[test]
+    fn hint_fractional_font_size() {
+        let font = FontRef::new(font_test_data::COUSINE_HINT_SUBSET).unwrap();
+        let outlines = font.outline_glyphs();
+        let gid = GlyphId::new(1); // was 85 in the original font
+        let size = Size::new(24.8);
+        let location = LocationRef::default();
+        let hinter =
+            HintingInstance::new(&outlines, size, location, HintingOptions::default()).unwrap();
+        let outline = outlines.get(gid).unwrap();
+        let mut pen = SvgPen::new();
+        outline.draw(&hinter, &mut pen).unwrap();
+        assert_eq!(
+            pen.to_string(),
+            "M12.65625,11.015625 Q11.296875,11.421875 10.078125,11.421875 Q8.140625,11.421875 6.9375,9.9375 Q5.734375,8.46875 5.734375,6.1875 L5.734375,0 L3.5625,0 L3.5625,8.421875 Q3.5625,9.328125 3.390625,10.5625 Q3.234375,11.8125 2.9375,13 L5,13 Q5.484375,11.34375 5.578125,10 L5.640625,10 Q6.25,11.25 6.828125,11.828125 Q7.40625,12.40625 8.203125,12.703125 Q9.015625,13 10.15625,13 Q11.421875,13 12.65625,13 Z"
+        );
     }
 }

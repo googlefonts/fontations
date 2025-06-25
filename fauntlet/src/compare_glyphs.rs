@@ -31,7 +31,7 @@ pub fn compare_glyphs(
         }
     }
     let glyph_count = skrifa_instance.glyph_count();
-    let is_scaled = options.ppem != 0;
+    let is_scaled = options.ppem != 0.0;
 
     let mut ft_outline = vec![];
     let mut skrifa_outline = vec![];

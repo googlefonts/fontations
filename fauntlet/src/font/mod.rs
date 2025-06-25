@@ -79,13 +79,13 @@ impl Hinting {
 #[derive(Copy, Clone, Debug)]
 pub struct InstanceOptions<'a> {
     pub index: usize,
-    pub ppem: u32,
+    pub ppem: f32,
     pub coords: &'a [F2Dot14],
     pub hinting: Option<Hinting>,
 }
 
 impl<'a> InstanceOptions<'a> {
-    pub fn new(index: usize, ppem: u32, coords: &'a [F2Dot14], hinting: Option<Hinting>) -> Self {
+    pub fn new(index: usize, ppem: f32, coords: &'a [F2Dot14], hinting: Option<Hinting>) -> Self {
         Self {
             index,
             ppem,

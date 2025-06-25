@@ -104,6 +104,16 @@ Describes the provenance, usage and generation procedures for font data used for
   * license: [UNICODE LICENSE V3](Unicode3)
   * usage: testing morx table parsing
 
+* _cousine_hint_subset_
+  * font: Cousine Regular
+  * source: https://fonts.google.com/specimen/Cousine
+  * license: [Apache 2][Apache2]
+  * usage: testing rounding for mppem instruction at fractional font sizes
+  * subset: a single character that uses mppem
+    ```shell
+    pyftsubset cousine-regular.ttf --gids=85
+    ```
+
 ## rebuilding
 To update the binaries and extracted data, run script located at `resources/test_fonts/rebuild.sh`
 This script will install the correct version of fonttools and FreeType, and then regenerate

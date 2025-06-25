@@ -20,13 +20,13 @@ pub struct SkrifaInstance<'a> {
 impl<'a> SkrifaInstance<'a> {
     pub fn new(data: &'a SharedFontData, options: &InstanceOptions) -> Option<Self> {
         let font = FontRef::from_index(data.0.as_ref(), options.index as u32).ok()?;
-        let size = if options.ppem != 0 {
-            Size::new(options.ppem as f32)
+        let size = if options.ppem != 0.0 {
+            Size::new(options.ppem)
         } else {
             Size::unscaled()
         };
         let outlines = font.outline_glyphs();
-        let hinter = if options.ppem != 0 {
+        let hinter = if options.ppem != 0.0 {
             if options.hinting.is_some() {
                 Some(
                     HintingInstance::new(
