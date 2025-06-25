@@ -11,15 +11,18 @@ use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
-        tables::layout::{
-            CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2, ClassRangeRecord,
-            CoverageFormat1, CoverageFormat2, CoverageTable, DeltaFormat, Device,
-            DeviceOrVariationIndex, Feature, FeatureList, FeatureParams, FeatureVariations,
-            LangSys, LangSysRecord, RangeRecord, Script, ScriptList, ScriptRecord, SizeParams,
-            StylisticSetParams, VariationIndex,
+        tables::{
+            gsub::Gsub,
+            layout::{
+                CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2,
+                ClassRangeRecord, CoverageFormat1, CoverageFormat2, CoverageTable, DeltaFormat,
+                Device, DeviceOrVariationIndex, Feature, FeatureList, FeatureParams, FeatureRecord,
+                FeatureVariations, LangSys, LangSysRecord, RangeRecord, Script, ScriptList,
+                ScriptRecord, SizeParams, StylisticSetParams, VariationIndex,
+            },
         },
         types::{GlyphId, GlyphId16, NameId},
-        FontData,
+        FontData, TopLevelTable,
     },
     types::{FixedSize, Offset16, Tag},
 };
@@ -27,7 +30,7 @@ use write_fonts::{
 const MAX_SCRIPTS: u16 = 500;
 const MAX_LANGSYS: u16 = 2000;
 const MAX_FEATURE_INDICES: u16 = 1500;
-// const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;
+const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;
 const MAX_LANGSYS_FEATURE_COUNT: u16 = 5000;
 
 impl NameIdClosure for StylisticSetParams<'_> {
@@ -1025,8 +1028,7 @@ pub(crate) struct SubsetLayoutContext {
     script_count: u16,
     langsys_count: u16,
     feature_index_count: u16,
-    // TODO: add lookup_count
-    // lookup_count: u16,
+    lookup_count: u16,
     table_tag: Tag,
 }
 
@@ -1036,7 +1038,7 @@ impl SubsetLayoutContext {
             script_count: 0,
             langsys_count: 0,
             feature_index_count: 0,
-            // lookup_count: 0,
+            lookup_count: 0,
             table_tag,
         }
     }
@@ -1065,14 +1067,13 @@ impl SubsetLayoutContext {
         self.feature_index_count < MAX_FEATURE_INDICES
     }
 
-    // TODO: enable later to avoid dead code warning
-    //fn visit_lookup(&mut self) -> bool {
-    //    if self.lookup_count >= MAX_LOOKUP_VISIT_COUNT {
-    //        return false;
-    //    }
-    //    self.lookup_count += 1;
-    //    true
-    //}
+    fn visit_lookup(&mut self) -> bool {
+        if self.lookup_count >= MAX_LOOKUP_VISIT_COUNT {
+            return false;
+        }
+        self.lookup_count += 1;
+        true
+    }
 }
 
 impl<'a> SubsetTable<'a> for ScriptList<'_> {
@@ -1104,10 +1105,9 @@ impl<'a> SubsetTable<'a> for ScriptList<'_> {
                 Err(e) => return Err(e),
             }
         }
-        if num_records == 0 {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        if num_records != 0 {
+            s.copy_assign(script_count_pos, num_records);
         }
-        s.copy_assign(script_count_pos, num_records);
         Ok(())
     }
 }
@@ -1181,7 +1181,7 @@ impl<'a> SubsetTable<'a> for Script<'_> {
             false
         };
 
-        let script_langsys_map = if c.table_tag == Tag::new(b"GSUB") {
+        let script_langsys_map = if c.table_tag == Gsub::TAG {
             &plan.gsub_script_langsys
         } else {
             &plan.gpos_script_langsys
@@ -1212,7 +1212,7 @@ impl<'a> SubsetTable<'a> for Script<'_> {
             }
         }
 
-        if has_default_langsys || langsys_count != 0 || c.table_tag == Tag::new(b"GSUB") {
+        if has_default_langsys || langsys_count != 0 || c.table_tag == Gsub::TAG {
             s.copy_assign(langsys_count_pos, langsys_count);
             Ok(())
         } else {
@@ -1255,7 +1255,7 @@ impl<'a> SubsetTable<'a> for LangSys<'a> {
         // reserved field
         s.embed(0_u16)?;
 
-        let feature_index_map = if c.table_tag == Tag::new(b"GSUB") {
+        let feature_index_map = if c.table_tag == Gsub::TAG {
             &plan.gsub_features
         } else {
             &plan.gpos_features
@@ -1287,6 +1287,125 @@ impl<'a> SubsetTable<'a> for LangSys<'a> {
         }
         s.copy_assign(index_count_pos, index_count);
         Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for FeatureList<'_> {
+    type ArgsForSubset = &'a mut SubsetLayoutContext;
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        c: &mut SubsetLayoutContext,
+    ) -> Result<(), SerializeErrorFlags> {
+        let feature_count_pos = s.embed(0_u16)?;
+        let mut num_records = 0_u16;
+        let font_data = self.offset_data();
+        let feature_index_map = if c.table_tag == Gsub::TAG {
+            &plan.gsub_features
+        } else {
+            &plan.gpos_features
+        };
+        for (_, feature_record) in self
+            .feature_records()
+            .iter()
+            .enumerate()
+            .filter(|&(i, _)| feature_index_map.contains_key(&(i as u16)))
+        {
+            feature_record.subset(plan, s, (c, font_data))?;
+            num_records += 1;
+        }
+        if num_records != 0 {
+            s.copy_assign(feature_count_pos, num_records);
+        }
+        Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for FeatureRecord {
+    type ArgsForSubset = (&'a mut SubsetLayoutContext, FontData<'a>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        let tag = self.feature_tag();
+        s.embed(tag)?;
+        let feature_offset_pos = s.embed(0_u16)?;
+
+        let (c, font_data) = args;
+        let Ok(feature) = self.feature(font_data) else {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        };
+
+        Offset16::serialize_subset(&feature, s, plan, c, feature_offset_pos)
+    }
+}
+
+impl<'a> SubsetTable<'a> for Feature<'_> {
+    type ArgsForSubset = &'a mut SubsetLayoutContext;
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        c: &mut SubsetLayoutContext,
+    ) -> Result<(), SerializeErrorFlags> {
+        //FeatureParams offset
+        let feature_params_offset_pos = s.embed(0_u16)?;
+        let lookup_count_pos = s.embed(0_u16)?;
+        let mut lookup_count = 0_u16;
+        let lookup_index_map = if c.table_tag == Gsub::TAG {
+            &plan.gsub_lookups
+        } else {
+            &plan.gpos_lookups
+        };
+
+        for idx in self
+            .lookup_list_indices()
+            .iter()
+            .filter_map(|i| lookup_index_map.get(&i.get()))
+        {
+            if !c.visit_lookup() {
+                break;
+            }
+            s.embed(*idx)?;
+            lookup_count += 1;
+        }
+
+        if lookup_count != 0 {
+            s.copy_assign(lookup_count_pos, lookup_count);
+        }
+
+        if let Some(feature_params) = self
+            .feature_params()
+            .transpose()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+        {
+            Offset16::serialize_subset(&feature_params, s, plan, (), feature_params_offset_pos)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for FeatureParams<'_> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        _plan: &Plan,
+        s: &mut Serializer,
+        _args: (),
+    ) -> Result<(), SerializeErrorFlags> {
+        let ret = match self {
+            FeatureParams::StylisticSet(table) => s.embed_bytes(table.min_table_bytes()),
+            FeatureParams::Size(table) => s.embed_bytes(table.min_table_bytes()),
+            FeatureParams::CharacterVariant(table) => s.embed_bytes(table.min_table_bytes()),
+        };
+        ret.map(|_| ())
     }
 }
 
@@ -1660,6 +1779,7 @@ mod test {
 
     #[test]
     fn test_subset_script_list() {
+        use write_fonts::read::tables::gpos::Gpos;
         let font = FontRef::new(include_bytes!("../test-data/fonts/Amiri-Regular.ttf")).unwrap();
         let gpos_script_list = font.gpos().unwrap().script_list().unwrap();
 
@@ -1672,7 +1792,7 @@ mod test {
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
 
-        let mut c = SubsetLayoutContext::new(Tag::new(b"GPOS"));
+        let mut c = SubsetLayoutContext::new(Gpos::TAG);
         gpos_script_list.subset(&plan, &mut s, &mut c).unwrap();
         assert!(!s.in_error());
         s.end_serialize();
@@ -1684,6 +1804,36 @@ mod test {
             0x00, 0x01, 0x00, 0x01, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0x00, 0x01,
             0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0x00, 0x02, 0x00, 0x00,
             0x00, 0x01,
+        ];
+
+        assert_eq!(subsetted_data, expected_data);
+    }
+
+    #[test]
+    fn test_subset_feature_list() {
+        use write_fonts::read::tables::gpos::Gpos;
+        let font = FontRef::new(include_bytes!("../test-data/fonts/Amiri-Regular.ttf")).unwrap();
+        let gpos_feature_list = font.gpos().unwrap().feature_list().unwrap();
+
+        let mut plan = Plan::default();
+        plan.gpos_features.insert(0_u16, 0_u16);
+        plan.gpos_features.insert(2_u16, 1_u16);
+
+        plan.gpos_lookups.insert(82, 1);
+        plan.gpos_lookups.insert(57, 0);
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+
+        let mut c = SubsetLayoutContext::new(Gpos::TAG);
+        gpos_feature_list.subset(&plan, &mut s, &mut c).unwrap();
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let subsetted_data = s.copy_bytes();
+        let expected_data: [u8; 26] = [
+            0x00, 0x02, 0x63, 0x75, 0x72, 0x73, 0x00, 0x14, 0x6b, 0x65, 0x72, 0x6e, 0x00, 0x0e,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
         ];
 
         assert_eq!(subsetted_data, expected_data);
