@@ -28,8 +28,13 @@ enum Command {
 
 #[allow(clippy::explicit_write)]
 fn main() {
-    // Pixels per em sizes. A size of 0 means an explicit unscaled comparison
-    let ppem_sizes = [0.0, 8.0, 24.8, 16.0, 50.0, 72.0, 113.0, 144.0];
+    // Pixels per em sizes. A size of 0 means an explicit unscaled comparison.
+    //
+    // The 24.8 size exists to test rounding behavior for hinting. In particular,
+    // we used to truncate, so choose a fractional part > 0.5 to ensure proper
+    // rounding.
+    // <https://github.com/googlefonts/fontations/issues/1544>
+    let ppem_sizes = [0.0, 8.0, 16.0, 24.8, 50.0, 72.0, 113.0, 144.0];
 
     // Locations in normalized variation space
     let var_locations = [-1.0, -0.32, 0.0, 0.42, 1.0].map(F2Dot14::from_f32);
