@@ -11,7 +11,7 @@ repository.workspace = true
 
 [dependencies]
 skrifa = { workspace = true }
-freetype-rs = { version = "0.38.0", features = ["bundled"] }
+freetype-rs = { version = "0.37.0", features = ["bundled"]}
 memmap2 = "0.5.10"
 rayon = "1.8.0"
 clap = { version = "4.4.7", features = ["derive"] }

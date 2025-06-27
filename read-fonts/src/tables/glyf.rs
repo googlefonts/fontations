@@ -157,6 +157,15 @@ impl PointFlags {
     }
 }
 
+pub trait PointWithFlags<C>: Copy + Sized {
+    fn x(&self) -> C;
+    fn y(&self) -> C;
+    fn x_mut(&mut self) -> &mut C;
+    fn y_mut(&mut self) -> &mut C;
+    fn flags(&self) -> PointFlags;
+    fn flags_mut(&mut self) -> &mut PointFlags;
+}
+
 /// Trait for types that are usable for TrueType point coordinates.
 pub trait PointCoord:
     Copy
@@ -284,6 +293,84 @@ impl<'a> SimpleGlyph<'a> {
                 PointFlags::ON_CURVE
             };
             point_flags.0 &= flags_mask;
+        }
+        Ok(())
+    }
+
+    pub fn read_points_with_flags_fast<P: PointWithFlags<C>, C: PointCoord>(
+        &self,
+        points: &mut [P],
+    ) -> Result<(), ReadError> {
+        let n_points = self.num_points();
+        if points.len() != n_points {
+            return Err(ReadError::InvalidArrayLen);
+        }
+        let mut cursor = FontData::new(self.glyph_data()).cursor();
+        // We'll need at most n_points flags, but fewer if there are repeats
+        let flags_data = cursor.read_array::<u8>(n_points.min(cursor.remaining_bytes()))?;
+        let mut flags_iter = flags_data.iter().copied();
+        // Keep track of the actual number of flag bytes read so that we can
+        // create a new cursor for reading coordinates
+        let mut read_flags_bytes = 0;
+        let mut i = 0;
+        while let Some(flag_bits) = flags_iter.next() {
+            read_flags_bytes += 1;
+            if SimpleGlyphFlags::from_bits_truncate(flag_bits)
+                .contains(SimpleGlyphFlags::REPEAT_FLAG)
+            {
+                let count = (flags_iter.next().ok_or(ReadError::OutOfBounds)? as usize + 1)
+                    .min(n_points - i);
+                read_flags_bytes += 1;
+                for f in &mut points[i..i + count] {
+                    f.flags_mut().0 = flag_bits;
+                }
+                i += count;
+            } else {
+                points[i].flags_mut().0 = flag_bits;
+                i += 1;
+            }
+            if i == n_points {
+                break;
+            }
+        }
+        let mut cursor = FontData::new(self.glyph_data()).cursor();
+        cursor.advance_by(read_flags_bytes);
+        let mut x = 0i32;
+        for point in points.iter_mut() {
+            let mut delta = 0i32;
+            let flag = SimpleGlyphFlags::from_bits_truncate(point.flags().0);
+            if flag.contains(SimpleGlyphFlags::X_SHORT_VECTOR) {
+                delta = cursor.read::<u8>()? as i32;
+                if !flag.contains(SimpleGlyphFlags::X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR) {
+                    delta = -delta;
+                }
+            } else if !flag.contains(SimpleGlyphFlags::X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR) {
+                delta = cursor.read::<i16>()? as i32;
+            }
+            x = x.wrapping_add(delta);
+            *point.x_mut() = C::from_i32(x);
+        }
+        let mut y = 0i32;
+        for point in points.iter_mut() {
+            let mut delta = 0i32;
+            let flag = SimpleGlyphFlags::from_bits_truncate(point.flags().0);
+            if flag.contains(SimpleGlyphFlags::Y_SHORT_VECTOR) {
+                delta = cursor.read::<u8>()? as i32;
+                if !flag.contains(SimpleGlyphFlags::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR) {
+                    delta = -delta;
+                }
+            } else if !flag.contains(SimpleGlyphFlags::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR) {
+                delta = cursor.read::<i16>()? as i32;
+            }
+            y = y.wrapping_add(delta);
+            *point.y_mut() = C::from_i32(y);
+            let flags_mask = if cfg!(feature = "spec_next") {
+                PointFlags::CURVE_MASK
+            } else {
+                // Drop the cubic bit if the spec_next feature is not enabled
+                PointFlags::ON_CURVE
+            };
+            point.flags_mut().0 &= flags_mask;
         }
         Ok(())
     }
