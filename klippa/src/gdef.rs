@@ -275,7 +275,7 @@ impl SubsetTable<'_> for AttachList<'_> {
 
             attach_points.subset_offset(idx, s, plan, ())?;
             count += 1;
-            retained_glyphs.push(new_gid.to_u32());
+            retained_glyphs.push(*new_gid);
         }
 
         if retained_glyphs.is_empty() {
@@ -335,7 +335,7 @@ impl SubsetTable<'_> for LigCaretList<'_> {
 
             lig_glyphs.subset_offset(idx, s, plan, ())?;
             count += 1;
-            retained_glyphs.push(new_gid.to_u32());
+            retained_glyphs.push(*new_gid);
         }
 
         if retained_glyphs.is_empty() {
