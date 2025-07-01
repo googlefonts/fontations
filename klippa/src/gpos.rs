@@ -2,15 +2,23 @@
 
 use crate::{
     collect_features_with_retained_subs, find_duplicate_features,
-    offset::SerializeSubset,
+    offset::{SerializeSerialize, SerializeSubset},
     prune_features, remap_indices,
     serialize::{SerializeErrorFlags, Serializer},
-    LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset, SubsetError,
-    SubsetLayoutContext,
+    LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Serialize, Subset, SubsetError,
+    SubsetFlags, SubsetLayoutContext, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
 use write_fonts::{
-    read::{collections::IntSet, tables::gpos::Gpos, types::Tag, FontRef, TopLevelTable},
+    read::{
+        collections::IntSet,
+        tables::{
+            gpos::{Gpos, SinglePos, SinglePosFormat1, SinglePosFormat2, ValueFormat, ValueRecord},
+            layout::CoverageTable,
+        },
+        types::{GlyphId, Tag},
+        FontData, FontRef, TableProvider, TopLevelTable,
+    },
     types::Offset16,
     FontBuilder,
 };
@@ -119,27 +127,28 @@ impl Subset for Gpos<'_> {
 }
 
 fn subset_gpos(gpos: &Gpos, plan: &Plan, s: &mut Serializer) -> Result<(), SerializeErrorFlags> {
-    // TODO: version
-    //let version = s.embed(gpos.version())?;
+    // TODO: version update
+    let _version = s.embed(gpos.version())?;
 
     // script_list
     let script_list_offset_pos = s.embed(0_u16)?;
 
     let script_list = gpos
         .script_list()
-        .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
+        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
     let mut c = SubsetLayoutContext::new(Gpos::TAG);
-    match Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos) {
-        Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-        Err(e) => return Err(e),
-    }
+    Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
 
-    // TODO: feature_list
-    // let feature_list_pos = s.embed(0_u16)?;
+    // feature list
+    let feature_list_offset_pos = s.embed(0_u16)?;
+    let feature_list = gpos
+        .feature_list()
+        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+    Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
 
     // TODO: lookup_list
-    // let lookup_list_pos = s.embed(0_u16)?;
+    //let lookup_list_pos = s.embed(0_u16)?;
 
     // TODO: feature variations
     //if let Some(feature_variations) = gpos
@@ -150,6 +159,402 @@ fn subset_gpos(gpos: &Gpos, plan: &Plan, s: &mut Serializer) -> Result<(), Seria
     //    let feature_vars_offset_pos = s.embed(0_u32)?;
     //}
     Ok(())
+}
+
+fn compute_effective_format(
+    value_record: &ValueRecord,
+    strip_hints: bool,
+    strip_empty: bool,
+) -> ValueFormat {
+    let mut value_format = ValueFormat::empty();
+
+    if let Some(x_placement) = value_record.x_placement {
+        if !strip_empty || x_placement.get() != 0 {
+            value_format |= ValueFormat::X_PLACEMENT;
+        }
+    }
+
+    if let Some(y_placement) = value_record.y_placement {
+        if !strip_empty || y_placement.get() != 0 {
+            value_format |= ValueFormat::Y_PLACEMENT;
+        }
+    }
+
+    if let Some(x_advance) = value_record.x_advance {
+        if !strip_empty || x_advance.get() != 0 {
+            value_format |= ValueFormat::X_ADVANCE;
+        }
+    }
+
+    if let Some(y_advance) = value_record.y_advance {
+        if !strip_empty || y_advance.get() != 0 {
+            value_format |= ValueFormat::Y_ADVANCE;
+        }
+    }
+
+    if !value_record.x_placement_device.get().is_null() && !strip_hints {
+        value_format |= ValueFormat::X_PLACEMENT_DEVICE;
+    }
+
+    if !value_record.y_placement_device.get().is_null() && !strip_hints {
+        value_format |= ValueFormat::Y_PLACEMENT_DEVICE;
+    }
+
+    if !value_record.x_advance_device.get().is_null() && !strip_hints {
+        value_format |= ValueFormat::X_ADVANCE_DEVICE;
+    }
+
+    if !value_record.y_advance_device.get().is_null() && !strip_hints {
+        value_format |= ValueFormat::Y_ADVANCE_DEVICE;
+    }
+    value_format
+}
+
+impl<'a> SubsetTable<'a> for ValueRecord {
+    type ArgsForSubset = (ValueFormat, FontData<'a>);
+    type Output = ();
+
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        let (new_format, font_data) = args;
+        if new_format.is_empty() {
+            return Ok(());
+        }
+
+        if new_format.contains(ValueFormat::X_PLACEMENT) {
+            s.embed(self.x_placement().unwrap_or(0))?;
+        }
+
+        if new_format.contains(ValueFormat::Y_PLACEMENT) {
+            s.embed(self.y_placement().unwrap_or(0))?;
+        }
+
+        if new_format.contains(ValueFormat::X_ADVANCE) {
+            s.embed(self.x_advance().unwrap_or(0))?;
+        }
+
+        if new_format.contains(ValueFormat::Y_ADVANCE) {
+            s.embed(self.y_advance().unwrap_or(0))?;
+        }
+
+        if !new_format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
+            return Ok(());
+        }
+
+        if new_format.contains(ValueFormat::X_PLACEMENT_DEVICE) {
+            let offset_pos = s.embed(0_u16)?;
+            if let Some(device) = self
+                .x_placement_device(font_data)
+                .transpose()
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            {
+                Offset16::serialize_subset(
+                    &device,
+                    s,
+                    plan,
+                    &plan.layout_varidx_delta_map,
+                    offset_pos,
+                )?;
+            }
+        }
+
+        if new_format.contains(ValueFormat::Y_PLACEMENT_DEVICE) {
+            let offset_pos = s.embed(0_u16)?;
+            if let Some(device) = self
+                .y_placement_device(font_data)
+                .transpose()
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            {
+                Offset16::serialize_subset(
+                    &device,
+                    s,
+                    plan,
+                    &plan.layout_varidx_delta_map,
+                    offset_pos,
+                )?;
+            }
+        }
+
+        if new_format.contains(ValueFormat::X_ADVANCE_DEVICE) {
+            let offset_pos = s.embed(0_u16)?;
+            if let Some(device) = self
+                .x_advance_device(font_data)
+                .transpose()
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            {
+                Offset16::serialize_subset(
+                    &device,
+                    s,
+                    plan,
+                    &plan.layout_varidx_delta_map,
+                    offset_pos,
+                )?;
+            }
+        }
+
+        if new_format.contains(ValueFormat::Y_ADVANCE_DEVICE) {
+            let offset_pos = s.embed(0_u16)?;
+            if let Some(device) = self
+                .y_advance_device(font_data)
+                .transpose()
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            {
+                Offset16::serialize_subset(
+                    &device,
+                    s,
+                    plan,
+                    &plan.layout_varidx_delta_map,
+                    offset_pos,
+                )?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for SinglePos<'_> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        match self {
+            Self::Format1(item) => item.subset(plan, s, args),
+            Self::Format2(item) => item.subset(plan, s, args),
+        }
+    }
+}
+
+impl<'a> SubsetTable<'a> for SinglePosFormat1<'_> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        let coverage = self
+            .coverage()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        let retained_glyphs: Vec<GlyphId> = coverage
+            .intersect_set(&plan.glyphset_gsub)
+            .iter()
+            .filter_map(|g| plan.glyph_map_gsub.get(&g))
+            .copied()
+            .collect();
+        if retained_glyphs.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+
+        let value_record = self.value_record();
+        let new_format = if plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+        {
+            let (state, font) = args;
+            // do not strip hints for VF unless it has no GDEF varstore after subsetting
+            let strip_hints = if font.fvar().is_ok() {
+                !state.has_gdef_varstore
+            } else {
+                true
+            };
+            compute_effective_format(&value_record, strip_hints, true)
+        } else {
+            self.value_format()
+        };
+
+        SinglePosFormat1::serialize(
+            s,
+            (
+                &retained_glyphs,
+                &value_record,
+                new_format,
+                plan,
+                self.offset_data(),
+            ),
+        )
+    }
+}
+
+impl<'a> Serialize<'a> for SinglePosFormat1<'_> {
+    type Args = (
+        &'a [GlyphId],
+        &'a ValueRecord,
+        ValueFormat,
+        &'a Plan,
+        FontData<'a>,
+    );
+    fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags> {
+        // format
+        s.embed(1_u16)?;
+
+        // coverage offset
+        let cov_offset_pos = s.embed(0_u16)?;
+
+        let (glyphs, value_record, value_format, plan, font_data) = args;
+        //value format
+        s.embed(value_format)?;
+        //value record
+        value_record.subset(plan, s, (value_format, font_data))?;
+
+        Offset16::serialize_serialize::<CoverageTable>(s, glyphs, cov_offset_pos)
+    }
+}
+
+fn compute_new_value_format(
+    plan: &Plan,
+    has_gdef_varstore: bool,
+    font: &FontRef,
+    value_records: impl IntoIterator<Item = ValueRecord>,
+) -> ValueFormat {
+    // TODO: support instancing
+    let mut new_format = ValueFormat::empty();
+    if plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+    {
+        // do not strip hints for VF unless it has no GDEF varstore after subsetting
+        let strip_hints = if font.fvar().is_ok() {
+            !has_gdef_varstore
+        } else {
+            true
+        };
+
+        for record in value_records {
+            new_format |= compute_effective_format(&record, strip_hints, true);
+        }
+    } else if let Some(rec) = value_records.into_iter().next() {
+        new_format = rec.format;
+    }
+
+    new_format
+}
+
+impl<'a> SubsetTable<'a> for SinglePosFormat2<'_> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        let coverage = self
+            .coverage()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+        let glyph_map = &plan.glyph_map_gsub;
+        let cap = glyph_map.len().min(self.value_count() as usize);
+        let mut retained_glyphs = Vec::with_capacity(cap);
+        let mut retained_rec_idxes = IntSet::empty();
+
+        for (idx, g) in coverage.iter().enumerate() {
+            let Some(new_g) = glyph_map.get(&GlyphId::from(g)) else {
+                continue;
+            };
+            retained_glyphs.push(*new_g);
+            retained_rec_idxes.insert(idx as u16);
+        }
+
+        if retained_glyphs.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+
+        let (state, font) = args;
+        let value_records = self.value_records();
+        let it = value_records
+            .iter()
+            .enumerate()
+            .filter(|&(i, ref _rec)| retained_rec_idxes.contains(i as u16))
+            .filter_map(|(_i, rec)| rec.ok());
+        let new_format = compute_new_value_format(plan, state.has_gdef_varstore, font, it);
+
+        let Ok(first_retained_rec) =
+            value_records.get(retained_rec_idxes.first().unwrap() as usize)
+        else {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        };
+
+        let mut table_format = 1;
+        for i in retained_rec_idxes.iter().skip(1) {
+            let Ok(rec) = value_records.get(i as usize) else {
+                return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+            };
+
+            if rec != first_retained_rec {
+                table_format = 2;
+                break;
+            }
+        }
+
+        if table_format == 1 {
+            SinglePosFormat1::serialize(
+                s,
+                (
+                    &retained_glyphs,
+                    &first_retained_rec,
+                    new_format,
+                    plan,
+                    self.offset_data(),
+                ),
+            )
+        } else {
+            SinglePosFormat2::serialize(
+                s,
+                (
+                    &retained_glyphs,
+                    new_format,
+                    self,
+                    &retained_rec_idxes,
+                    plan,
+                ),
+            )
+        }
+    }
+}
+
+impl<'a> Serialize<'a> for SinglePosFormat2<'_> {
+    type Args = (
+        &'a [GlyphId],
+        ValueFormat,
+        &'a SinglePosFormat2<'a>,
+        &'a IntSet<u16>,
+        &'a Plan,
+    );
+    fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags> {
+        // format
+        s.embed(2_u16)?;
+
+        // coverage offset
+        let cov_offset_pos = s.embed(0_u16)?;
+
+        let (glyphs, value_format, table, retained_rec_idxes, plan) = args;
+        //value format
+        s.embed(value_format)?;
+
+        //value count
+        let value_count = glyphs.len();
+        s.embed(value_count as u16)?;
+
+        let value_records = table.value_records();
+        let font_data = table.offset_data();
+        for i in retained_rec_idxes.iter() {
+            let value_record = value_records
+                .get(i as usize)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+            value_record.subset(plan, s, (value_format, font_data))?;
+        }
+
+        Offset16::serialize_serialize::<CoverageTable>(s, glyphs, cov_offset_pos)
+    }
 }
 
 #[cfg(test)]
@@ -234,5 +639,113 @@ mod test {
         assert_eq!(feature_index_map.get(&2), Some(&2));
         assert_eq!(feature_index_map.get(&3), Some(&3));
         assert_eq!(feature_index_map.get(&4), Some(&4));
+    }
+
+    #[test]
+    fn test_subset_gpos_format1() {
+        use write_fonts::read::tables::gpos::PositionSubtables;
+
+        let font = FontRef::new(include_bytes!("../test-data/fonts/Amiri-Regular.ttf")).unwrap();
+        let gpos_lookups = font.gpos().unwrap().lookup_list().unwrap();
+        let lookup = gpos_lookups.lookups().get(6).unwrap();
+
+        let PositionSubtables::Single(sub_tables) = lookup.subtables().unwrap() else {
+            panic!("Wrong type of lookup table!");
+        };
+        let singlepos_table = sub_tables.get(0).unwrap();
+
+        let subset_state = SubsetState::default();
+        let mut plan = Plan::default();
+
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(5987_u32), GlyphId::from(3_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(5987_u32));
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+
+        singlepos_table
+            .subset(&plan, &mut s, (&subset_state, &font))
+            .unwrap();
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let subsetted_data = s.copy_bytes();
+        let expected_data: [u8; 16] = [
+            0x00, 0x01, 0x00, 0x0a, 0x00, 0x05, 0xfb, 0xc9, 0xfe, 0xdc, 0x00, 0x01, 0x00, 0x01,
+            0x00, 0x03,
+        ];
+
+        assert_eq!(subsetted_data, expected_data);
+    }
+
+    #[test]
+    fn test_subset_gpos_format2() {
+        use write_fonts::read::tables::gpos::PositionSubtables;
+
+        let font = FontRef::new(include_bytes!("../test-data/fonts/Amiri-Regular.ttf")).unwrap();
+        let gpos_lookups = font.gpos().unwrap().lookup_list().unwrap();
+        let lookup = gpos_lookups.lookups().get(36).unwrap();
+
+        let PositionSubtables::Single(sub_tables) = lookup.subtables().unwrap() else {
+            panic!("Wrong type of lookup table!");
+        };
+        let singlepos_table = sub_tables.get(4).unwrap();
+
+        let subset_state = SubsetState::default();
+        let mut plan = Plan::default();
+
+        // test case 1: subsetted output is still format 2
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(2270_u32), GlyphId::from(3_u32));
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(2349_u32), GlyphId::from(4_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(2270_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(2349_u32));
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+
+        singlepos_table
+            .subset(&plan, &mut s, (&subset_state, &font))
+            .unwrap();
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let subsetted_data = s.copy_bytes();
+        let expected_data: [u8; 20] = [
+            0x00, 0x02, 0x00, 0x0c, 0x00, 0x04, 0x00, 0x02, 0x00, 0xc3, 0x00, 0xfe, 0x00, 0x01,
+            0x00, 0x02, 0x00, 0x03, 0x00, 0x04,
+        ];
+
+        assert_eq!(subsetted_data, expected_data);
+
+        // test case 2: subsetted output is optimized to format 1
+        plan.glyph_map_gsub.clear();
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(2270_u32), GlyphId::from(3_u32));
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(6179_u32), GlyphId::from(4_u32));
+
+        plan.glyphset_gsub.clear();
+        plan.glyphset_gsub.insert(GlyphId::from(2270_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(6179_u32));
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+
+        singlepos_table
+            .subset(&plan, &mut s, (&subset_state, &font))
+            .unwrap();
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let subsetted_data = s.copy_bytes();
+        let expected_data: [u8; 16] = [
+            0x00, 0x01, 0x00, 0x08, 0x00, 0x04, 0x00, 0xc3, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03,
+            0x00, 0x04,
+        ];
+
+        assert_eq!(subsetted_data, expected_data);
     }
 }
