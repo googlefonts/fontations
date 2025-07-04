@@ -25,6 +25,7 @@
 use read_fonts::{
     tables::{
         glyf::Glyf, gvar::Gvar, hmtx::LongMetric, hvar::Hvar, loca::Loca, os2::SelectionFlags,
+        vvar::Vvar,
     },
     types::{BigEndian, Fixed, GlyphId},
     FontRef, TableProvider,
@@ -65,6 +66,7 @@ pub struct Decoration {
 ///   flag is set or the `hhea` line metrics are zero (the Windows metrics are used as a last resort).
 /// * [hhea](https://learn.microsoft.com/en-us/typography/opentype/spec/hhea): `max_width`, as well as the line metrics:
 ///   `ascent`, `descent`, `leading` if they are non-zero and the `USE_TYPOGRAPHIC_METRICS` flag is not set in the OS/2 table
+/// * [vhea](https://learn.microsoft.com/en-us/typography/opentype/spec/hhea): everything in `vertical_metrics`
 ///
 /// For variable fonts, deltas are computed using the  [MVAR](https://learn.microsoft.com/en-us/typography/opentype/spec/MVAR)
 /// table.
@@ -100,6 +102,23 @@ pub struct Metrics {
     pub strikeout: Option<Decoration>,
     /// Union of minimum and maximum extents for all glyphs in the font.
     pub bounds: Option<BoundingBox>,
+    /// Vertical font metrics, if present in this font.
+    pub vertical_metrics: Option<VerticalMetrics>,
+}
+
+/// Vertical font metrics. These are primarily used for vertical layout of CJK fonts.
+#[derive(Copy, Clone, PartialEq, Default, Debug)]
+pub struct VerticalMetrics {
+    /// Distance from the vertical center baseline to the right edge of
+    /// the design space.
+    pub ascent: f32,
+    /// Distance from the vertical center baseline to the left edge of
+    /// the design space.
+    pub descent: f32,
+    /// Recommended additional spacing between columns.
+    pub leading: f32,
+    /// Maximum advance height (not x-height) of all characters in the font.
+    pub max_height: f32,
 }
 
 impl Metrics {
@@ -136,6 +155,15 @@ impl Metrics {
         if let Ok(hhea) = &hhea {
             metrics.max_width = Some(hhea.advance_width_max().to_u16() as f32 * scale);
         }
+        let vhea = font.vhea();
+        if let Ok(vhea) = &vhea {
+            metrics.vertical_metrics = Some(VerticalMetrics {
+                max_height: vhea.advance_height_max().to_u16() as f32 * scale,
+                ascent: vhea.ascender().to_i16() as f32 * scale,
+                descent: vhea.descender().to_i16() as f32 * scale,
+                leading: vhea.line_gap().to_i16() as f32 * scale,
+            });
+        }
         // Choosing proper line metrics is a challenge due to the changing
         // spec, backward compatibility and broken fonts.
         //
@@ -169,7 +197,7 @@ impl Metrics {
             });
         }
         if !used_typo_metrics {
-            if let Ok(hhea) = font.hhea() {
+            if let Ok(hhea) = &hhea {
                 metrics.ascent = hhea.ascender().to_i16() as f32 * scale;
                 metrics.descent = hhea.descender().to_i16() as f32 * scale;
                 metrics.leading = hhea.line_gap().to_i16() as f32 * scale;
@@ -210,8 +238,49 @@ impl Metrics {
                 strikeout.offset += metric_delta(STRO);
                 strikeout.thickness += metric_delta(STRS);
             }
+
+            if let Some(vertical_metrics) = &mut metrics.vertical_metrics {
+                vertical_metrics.ascent += metric_delta(VASC);
+                vertical_metrics.descent += metric_delta(VDSC);
+                vertical_metrics.leading += metric_delta(VLGP);
+            }
         }
         metrics
+    }
+}
+
+/// Helper struct that stores metrics data along a single dimension (horizontal
+/// or vertical).
+#[derive(Clone)]
+struct GlyphDimensionMetrics<'a> {
+    metrics: &'a [LongMetric],
+    default_advance: u16,
+    side_bearings: &'a [BigEndian<i16>],
+}
+
+impl<'a> GlyphDimensionMetrics<'a> {
+    /// Returns the raw advance width/height of the given glyph, with no
+    /// variation deltas or scaling applied
+    fn raw_advance(&self, glyph_id: GlyphId) -> i32 {
+        self.metrics
+            .get(glyph_id.to_u32() as usize)
+            .map(|metric| metric.advance())
+            .unwrap_or(self.default_advance) as i32
+    }
+
+    /// Returns the raw left/top side bearing of the given glyph, with no
+    /// variation deltas or scaling applied
+    pub fn raw_side_bearing(&self, glyph_id: GlyphId) -> i32 {
+        let gid_index = glyph_id.to_u32() as usize;
+        self.metrics
+            .get(gid_index)
+            .map(|metric| metric.side_bearing())
+            .unwrap_or_else(|| {
+                self.side_bearings
+                    .get(gid_index.saturating_sub(self.metrics.len()))
+                    .map(|sb| sb.get())
+                    .unwrap_or_default()
+            }) as i32
     }
 }
 
@@ -222,10 +291,10 @@ pub struct GlyphMetrics<'a> {
     size: Size,
     glyph_count: u32,
     fixed_scale: FixedScaleFactor,
-    h_metrics: &'a [LongMetric],
-    default_advance_width: u16,
-    lsbs: &'a [BigEndian<i16>],
+    h_metrics: GlyphDimensionMetrics<'a>,
+    v_metrics: GlyphDimensionMetrics<'a>,
     hvar: Option<Hvar<'a>>,
+    vvar: Option<Vvar<'a>>,
     gvar: Option<Gvar<'a>>,
     loca_glyf: Option<(Loca<'a>, Glyf<'a>)>,
     coords: &'a [NormalizedCoord],
@@ -254,7 +323,19 @@ impl<'a> GlyphMetrics<'a> {
                 (h_metrics, default_advance_width, lsbs)
             })
             .unwrap_or_default();
+
+        let (v_metrics, default_advance_height, tsbs) = font
+            .vmtx()
+            .map(|vmtx| {
+                let v_metrics = vmtx.v_metrics();
+                let default_advance_height = v_metrics.last().map(|m| m.advance.get()).unwrap_or(0);
+                let tsbs = vmtx.top_side_bearings();
+                (h_metrics, default_advance_height, tsbs)
+            })
+            .unwrap_or_default();
+
         let hvar = font.hvar().ok();
+        let vvar = font.vvar().ok();
         let gvar = font.gvar().ok();
         let loca_glyf = if let (Ok(loca), Ok(glyf)) = (font.loca(None), font.glyf()) {
             Some((loca, glyf))
@@ -266,10 +347,18 @@ impl<'a> GlyphMetrics<'a> {
             size,
             glyph_count,
             fixed_scale,
-            h_metrics,
-            default_advance_width,
-            lsbs,
+            h_metrics: GlyphDimensionMetrics {
+                metrics: h_metrics,
+                default_advance: default_advance_width,
+                side_bearings: lsbs,
+            },
+            v_metrics: GlyphDimensionMetrics {
+                metrics: v_metrics,
+                default_advance: default_advance_height,
+                side_bearings: tsbs,
+            },
             hvar,
+            vvar,
             gvar,
             loca_glyf,
             coords,
@@ -292,11 +381,7 @@ impl<'a> GlyphMetrics<'a> {
         if glyph_id.to_u32() >= self.glyph_count {
             return None;
         }
-        let mut advance = self
-            .h_metrics
-            .get(glyph_id.to_u32() as usize)
-            .map(|metric| metric.advance())
-            .unwrap_or(self.default_advance_width) as i32;
+        let mut advance = self.h_metrics.raw_advance(glyph_id);
         if let Some(hvar) = &self.hvar {
             advance += hvar
                 .advance_width_delta(glyph_id, self.coords)
@@ -306,6 +391,29 @@ impl<'a> GlyphMetrics<'a> {
                 .unwrap_or(0);
         } else if self.gvar.is_some() {
             advance += self.metric_deltas_from_gvar(glyph_id).unwrap_or_default()[1];
+        }
+        Some(self.fixed_scale.apply(advance))
+    }
+
+    /// Returns the advance height for the specified glyph.
+    ///
+    /// If normalized coordinates were provided when constructing glyph metrics and
+    /// a `VVAR` table is present, applies the appropriate delta.
+    ///
+    /// Returns `None` if `glyph_id >= self.glyph_count()` or the underlying font
+    /// data is invalid.
+    pub fn advance_height(&self, glyph_id: GlyphId) -> Option<f32> {
+        if glyph_id.to_u32() >= self.glyph_count {
+            return None;
+        }
+        let mut advance = self.v_metrics.raw_advance(glyph_id);
+        if let Some(vvar) = &self.vvar {
+            advance += vvar
+                .advance_height_delta(glyph_id, self.coords)
+                .map(|delta| delta.to_f64() as i32)
+                .unwrap_or(0);
+        } else if self.gvar.is_some() {
+            advance += self.metric_deltas_from_gvar(glyph_id).unwrap_or_default()[3];
         }
         Some(self.fixed_scale.apply(advance))
     }
@@ -321,17 +429,7 @@ impl<'a> GlyphMetrics<'a> {
         if glyph_id.to_u32() >= self.glyph_count {
             return None;
         }
-        let gid_index = glyph_id.to_u32() as usize;
-        let mut lsb = self
-            .h_metrics
-            .get(gid_index)
-            .map(|metric| metric.side_bearing())
-            .unwrap_or_else(|| {
-                self.lsbs
-                    .get(gid_index.saturating_sub(self.h_metrics.len()))
-                    .map(|lsb| lsb.get())
-                    .unwrap_or_default()
-            }) as i32;
+        let mut lsb = self.h_metrics.raw_side_bearing(glyph_id);
         if let Some(hvar) = &self.hvar {
             lsb += hvar
                 .lsb_delta(glyph_id, self.coords)
@@ -343,6 +441,31 @@ impl<'a> GlyphMetrics<'a> {
             lsb += self.metric_deltas_from_gvar(glyph_id).unwrap_or_default()[0];
         }
         Some(self.fixed_scale.apply(lsb))
+    }
+
+    /// Returns the top side bearing for the specified glyph.
+    ///
+    /// If normalized coordinates were provided when constructing glyph metrics and
+    /// a `VVAR` table is present, applies the appropriate delta.
+    ///
+    /// Returns `None` if `glyph_id >= self.glyph_count()` or the underlying font
+    /// data is invalid.
+    pub fn top_side_bearing(&self, glyph_id: GlyphId) -> Option<f32> {
+        if glyph_id.to_u32() >= self.glyph_count {
+            return None;
+        }
+        let mut tsb = self.v_metrics.raw_side_bearing(glyph_id);
+        if let Some(vvar) = &self.vvar {
+            tsb += vvar
+                .tsb_delta(glyph_id, self.coords)
+                // FreeType truncates metric deltas...
+                // https://github.com/freetype/freetype/blob/7838c78f53f206ac5b8e9cefde548aa81cb00cf4/src/truetype/ttgxvar.c#L1027
+                .map(|delta| delta.to_f64() as i32)
+                .unwrap_or(0);
+        } else if self.gvar.is_some() {
+            tsb += self.metric_deltas_from_gvar(glyph_id).unwrap_or_default()[2];
+        }
+        Some(self.fixed_scale.apply(tsb))
     }
 
     /// Returns the bounding box for the specified glyph.
@@ -369,7 +492,7 @@ impl<'a> GlyphMetrics<'a> {
 }
 
 impl GlyphMetrics<'_> {
-    fn metric_deltas_from_gvar(&self, glyph_id: GlyphId) -> Option<[i32; 2]> {
+    fn metric_deltas_from_gvar(&self, glyph_id: GlyphId) -> Option<[i32; 4]> {
         let (loca, glyf) = self.loca_glyf.as_ref()?;
         let mut deltas = self
             .gvar
@@ -378,7 +501,13 @@ impl GlyphMetrics<'_> {
             .ok()
             .flatten()?;
         deltas[1] -= deltas[0];
-        Some([deltas[0], deltas[1]].map(|delta| delta.x.to_i32()))
+        deltas[3] -= deltas[2];
+        Some([
+            deltas[0].x.to_i32(),
+            deltas[1].x.to_i32(),
+            deltas[2].y.to_i32(),
+            deltas[3].y.to_i32(),
+        ])
     }
 
     fn bounds_from_outline(&self, glyph_id: GlyphId) -> Option<BoundingBox> {
@@ -440,6 +569,7 @@ mod tests {
                 offset: 307.0,
                 thickness: 51.0,
             }),
+            vertical_metrics: None,
         };
         assert_eq!(metrics, expected);
     }
@@ -468,6 +598,47 @@ mod tests {
             leading: 0.0,
             underline: None,
             strikeout: None,
+            vertical_metrics: None,
+        };
+        assert_eq!(metrics, expected);
+    }
+
+    #[test]
+    fn metrics_vertical() {
+        let font = FontRef::new(NOTO_SANS_JP_CFF).unwrap();
+        let metrics = font.metrics(Size::unscaled(), LocationRef::default());
+        let expected = Metrics {
+            units_per_em: 1000,
+            glyph_count: 60,
+            is_monospace: false,
+            italic_angle: 0.0,
+            ascent: 1160.0,
+            descent: -288.0,
+            leading: 0.0,
+            cap_height: Some(733.0),
+            x_height: Some(543.0),
+            average_width: Some(979.0),
+            max_width: Some(3000.0),
+            underline: Some(Decoration {
+                offset: -125.0,
+                thickness: 50.0,
+            }),
+            strikeout: Some(Decoration {
+                offset: 325.0,
+                thickness: 50.0,
+            }),
+            bounds: Some(BoundingBox {
+                x_min: -1002.0,
+                y_min: -1048.0,
+                x_max: 2928.0,
+                y_max: 1808.0,
+            }),
+            vertical_metrics: Some(VerticalMetrics {
+                ascent: 500.0,
+                descent: -500.0,
+                leading: 0.0,
+                max_height: 3000.0,
+            }),
         };
         assert_eq!(metrics, expected);
     }
@@ -489,6 +660,32 @@ mod tests {
                 let advance_width = glyph_metrics.advance_width(gid).unwrap();
                 let lsb = glyph_metrics.left_side_bearing(gid).unwrap();
                 (advance_width, lsb)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(expected, &result[..]);
+    }
+
+    #[test]
+    fn glyph_metrics_vertical() {
+        let font = FontRef::new(NOTO_SANS_JP_CFF).unwrap();
+        let glyph_metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
+        // (advance_width, lsb) in glyph order
+        let expected = &[
+            (608.0, 4.0),
+            (657.0, 101.0),
+            (638.0, 58.0),
+            (812.0, 101.0),
+            (723.0, 101.0),
+            (633.0, 101.0),
+            (603.0, 50.0),
+        ];
+        let result = [34, 35, 36, 46, 47, 49, 59]
+            .into_iter()
+            .map(|i| {
+                let gid = GlyphId::new(i as u32);
+                let advance_height = glyph_metrics.advance_height(gid).unwrap();
+                let tsb = glyph_metrics.top_side_bearing(gid).unwrap();
+                (advance_height, tsb)
             })
             .collect::<Vec<_>>();
         assert_eq!(expected, &result[..]);
