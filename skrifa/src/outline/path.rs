@@ -82,19 +82,25 @@ pub(crate) fn to_path<C: PointCoord>(
                 num_points: points.len(),
                 num_flags: flags.len(),
             })?;
-        let last_point = points.last().unwrap();
-        let last_flags = flags.last().unwrap();
-        let last_point = ContourPoint {
-            x: last_point.x,
-            y: last_point.y,
-            flags: *last_flags,
-        };
+        let [first_point, last_point] = [
+            (points.first(), flags.first()),
+            (points.last(), flags.last()),
+        ]
+        .map(|(point, flags)| {
+            let point = point.unwrap();
+            ContourPoint {
+                x: point.x,
+                y: point.y,
+                flags: *flags.unwrap(),
+            }
+        });
         contour_to_path(
             points.iter().zip(flags).map(|(point, flags)| ContourPoint {
                 x: point.x,
                 y: point.y,
                 flags: *flags,
             }),
+            first_point,
             last_point,
             path_style,
             pen,
@@ -146,61 +152,43 @@ where
 ///
 /// This is more general than [`to_path`] and exists to support cases (such as
 /// autohinting) where the source outline data is in a different format.
+#[inline(always)]
 pub(crate) fn contour_to_path<C: PointCoord>(
-    points: impl Iterator<Item = ContourPoint<C>>,
+    points: impl ExactSizeIterator<Item = ContourPoint<C>>,
+    first_point: ContourPoint<C>,
     last_point: ContourPoint<C>,
     style: PathStyle,
     pen: &mut impl OutlinePen,
 ) -> Result<(), ToPathError> {
-    let mut points = points.enumerate().peekable();
-    let Some((_, first_point)) = points.peek().copied() else {
-        // This is an empty contour
-        return Ok(());
-    };
     // We don't accept an off curve cubic as the first point
     if first_point.flags.is_off_curve_cubic() {
         return Err(ToPathError::ExpectedQuadOrOnCurve(0));
     }
+    match style {
+        PathStyle::FreeType => contour_to_path_freetype(points, first_point, last_point, pen),
+        PathStyle::HarfBuzz => contour_to_path_harfbuzz(points, first_point, pen),
+    }
+}
+
+fn contour_to_path_freetype<C: PointCoord>(
+    points: impl ExactSizeIterator<Item = ContourPoint<C>>,
+    first_point: ContourPoint<C>,
+    last_point: ContourPoint<C>,
+    pen: &mut impl OutlinePen,
+) -> Result<(), ToPathError> {
+    let mut points = points.enumerate();
     // For FreeType style, we may need to omit the last point if we find the
     // first on curve there
     let mut omit_last = false;
-    // For HarfBuzz style, may skip up to two points in finding the start, so
-    // process these at the end
-    let mut trailing_points = [None; 2];
     // Find our starting point
     let start_point = if first_point.flags.is_off_curve_quad() {
-        // We're starting with an off curve, so select our first move based on
-        // the path style
-        match style {
-            PathStyle::FreeType => {
-                if last_point.flags.is_on_curve() {
-                    // The last point is an on curve, so let's start there
-                    omit_last = true;
-                    last_point
-                } else {
-                    // It's also an off curve, so take implicit midpoint
-                    last_point.midpoint(first_point)
-                }
-            }
-            PathStyle::HarfBuzz => {
-                // Always consume the first point
-                points.next();
-                // Then check the next point
-                let Some((_, next_point)) = points.peek().copied() else {
-                    // This is a single point contour
-                    return Ok(());
-                };
-                if next_point.flags.is_on_curve() {
-                    points.next();
-                    trailing_points = [Some((0, first_point)), Some((1, next_point))];
-                    // Next is on curve, so let's start there
-                    next_point
-                } else {
-                    // It's also an off curve, so take the implicit midpoint
-                    trailing_points = [Some((0, first_point)), None];
-                    first_point.midpoint(next_point)
-                }
-            }
+        if last_point.flags.is_on_curve() {
+            // The last point is an on curve, so let's start there
+            omit_last = true;
+            last_point
+        } else {
+            // It's also an off curve, so take implicit midpoint
+            last_point.midpoint(first_point)
         }
     } else {
         // We're starting with an on curve, so consume the point
@@ -211,8 +199,9 @@ pub(crate) fn contour_to_path<C: PointCoord>(
     pen.move_to(point.x, point.y);
     let mut state = PendingState::default();
     if omit_last {
-        while let Some((ix, point)) = points.next() {
-            if points.peek().is_none() {
+        let end_ix = points.len() - 1;
+        for (ix, point) in points {
+            if ix == end_ix {
                 break;
             }
             state.emit(ix, point, pen)?;
@@ -221,6 +210,49 @@ pub(crate) fn contour_to_path<C: PointCoord>(
         for (ix, point) in points {
             state.emit(ix, point, pen)?;
         }
+    }
+    state.finish(0, start_point, pen)?;
+    Ok(())
+}
+
+fn contour_to_path_harfbuzz<C: PointCoord>(
+    points: impl ExactSizeIterator<Item = ContourPoint<C>>,
+    first_point: ContourPoint<C>,
+    pen: &mut impl OutlinePen,
+) -> Result<(), ToPathError> {
+    let mut points = points.enumerate().peekable();
+    // For HarfBuzz style, may skip up to two points in finding the start, so
+    // process these at the end
+    let mut trailing_points = [None; 2];
+    // Find our starting point
+    let start_point = if first_point.flags.is_off_curve_quad() {
+        // Always consume the first point
+        points.next();
+        // Then check the next point
+        let Some((_, next_point)) = points.peek().copied() else {
+            // This is a single point contour
+            return Ok(());
+        };
+        if next_point.flags.is_on_curve() {
+            points.next();
+            trailing_points = [Some((0, first_point)), Some((1, next_point))];
+            // Next is on curve, so let's start there
+            next_point
+        } else {
+            // It's also an off curve, so take the implicit midpoint
+            trailing_points = [Some((0, first_point)), None];
+            first_point.midpoint(next_point)
+        }
+    } else {
+        // We're starting with an on curve, so consume the point
+        points.next();
+        first_point
+    };
+    let point = start_point.point_f32();
+    pen.move_to(point.x, point.y);
+    let mut state = PendingState::default();
+    for (ix, point) in points {
+        state.emit(ix, point, pen)?;
     }
     for (ix, point) in trailing_points.iter().filter_map(|x| *x) {
         state.emit(ix, point, pen)?;

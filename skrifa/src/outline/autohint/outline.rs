@@ -204,9 +204,13 @@ impl Outline {
             let Some(points) = self.points.get(contour.range()) else {
                 continue;
             };
-            if let Some(last_point) = points.last().map(Point::as_contour_point) {
+            if let (Some(first_point), Some(last_point)) = (
+                points.first().map(Point::as_contour_point),
+                points.last().map(Point::as_contour_point),
+            ) {
                 path::contour_to_path(
                     points.iter().map(Point::as_contour_point),
+                    first_point,
                     last_point,
                     style,
                     pen,
