@@ -4,7 +4,7 @@ use std::{borrow::Cow, fmt::Write, str::FromStr};
 
 use font_types::Tag;
 use read_fonts::{
-    traversal::{Field, FieldType, ResolvedOffset, SomeTable},
+    traversal::{Field, FieldType, ResolvedOffset, SomeTable, SomeTableProvider},
     FontRef,
 };
 
@@ -21,7 +21,7 @@ pub enum QueryElement {
 }
 
 pub fn print_query(font: &FontRef, query: &Query) -> Result<(), String> {
-    let table = match super::get_some_table(font, query.tag) {
+    let table = match font.expect_some_table(query.tag) {
         Ok(table) => table,
         Err(err) => return Err(err.to_string()),
     };

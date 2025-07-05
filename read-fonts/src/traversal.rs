@@ -23,7 +23,7 @@ use types::{
 use crate::{
     array::{ComputedArray, VarLenArray},
     read::{ComputeSize, ReadArgs},
-    FontData, FontRead, FontReadWithArgs, ReadError, VarSize,
+    tables, FontData, FontRead, FontReadWithArgs, ReadError, TableProvider, TopLevelTable, VarSize,
 };
 
 /// Types of fields in font tables.
@@ -281,6 +281,79 @@ impl<'a> dyn SomeTable<'a> + 'a {
         FieldIter {
             table: self,
             idx: 0,
+        }
+    }
+}
+
+/// The dynamic equivalent of [`TableProvider`]. It allows you to look up a table
+/// by its tag.
+pub trait SomeTableProvider<'a> {
+    /// Access the table for the given tag as a [`SomeTable`].
+    fn expect_some_table(&self, tag: Tag) -> Result<Box<dyn SomeTable<'a> + 'a>, ReadError>;
+}
+
+impl<'a, T> SomeTableProvider<'a> for T
+where
+    T: TableProvider<'a>,
+{
+    fn expect_some_table(&self, tag: Tag) -> Result<Box<dyn SomeTable<'a> + 'a>, ReadError> {
+        fn as_some_table<'a, T: SomeTable<'a> + 'a>(table_ref: T) -> Box<dyn SomeTable<'a> + 'a> {
+            Box::new(table_ref) as _
+        }
+
+        match tag {
+            tables::head::Head::TAG => self.head().map(as_some_table),
+            tables::name::Name::TAG => self.name().map(as_some_table),
+            tables::hhea::Hhea::TAG => self.hhea().map(as_some_table),
+            tables::vhea::Vhea::TAG => self.vhea().map(as_some_table),
+            tables::hmtx::Hmtx::TAG => self.hmtx().map(as_some_table),
+            tables::hdmx::Hdmx::TAG => self.hdmx().map(as_some_table),
+            tables::vmtx::Vmtx::TAG => self.vmtx().map(as_some_table),
+            tables::vorg::Vorg::TAG => self.vorg().map(as_some_table),
+            tables::fvar::Fvar::TAG => self.fvar().map(as_some_table),
+            tables::avar::Avar::TAG => self.avar().map(as_some_table),
+            tables::hvar::Hvar::TAG => self.hvar().map(as_some_table),
+            tables::vvar::Vvar::TAG => self.vvar().map(as_some_table),
+            tables::mvar::Mvar::TAG => self.mvar().map(as_some_table),
+            tables::maxp::Maxp::TAG => self.maxp().map(as_some_table),
+            tables::os2::Os2::TAG => self.os2().map(as_some_table),
+            tables::post::Post::TAG => self.post().map(as_some_table),
+            tables::gasp::Gasp::TAG => self.gasp().map(as_some_table),
+            tables::loca::Loca::TAG => self.loca(None).map(as_some_table),
+            tables::glyf::Glyf::TAG => self.glyf().map(as_some_table),
+            tables::gvar::Gvar::TAG => self.gvar().map(as_some_table),
+            // cvt not implemented
+            tables::cvar::Cvar::TAG => self.cvar().map(as_some_table),
+            // cff not implemented
+            // cff2 not implemented
+            tables::cmap::Cmap::TAG => self.cmap().map(as_some_table),
+            tables::gdef::Gdef::TAG => self.gdef().map(as_some_table),
+            tables::gpos::Gpos::TAG => self.gpos().map(as_some_table),
+            tables::gsub::Gsub::TAG => self.gsub().map(as_some_table),
+            tables::feat::Feat::TAG => self.feat().map(as_some_table),
+            tables::ltag::Ltag::TAG => self.ltag().map(as_some_table),
+            tables::ankr::Ankr::TAG => self.ankr().map(as_some_table),
+            tables::trak::Trak::TAG => self.trak().map(as_some_table),
+            tables::morx::Morx::TAG => self.morx().map(as_some_table),
+            tables::kerx::Kerx::TAG => self.kerx().map(as_some_table),
+            // kern not implemented
+            tables::colr::Colr::TAG => self.colr().map(as_some_table),
+            tables::cpal::Cpal::TAG => self.cpal().map(as_some_table),
+            tables::cblc::Cblc::TAG => self.cblc().map(as_some_table),
+            tables::cbdt::Cbdt::TAG => self.cbdt().map(as_some_table),
+            tables::eblc::Eblc::TAG => self.eblc().map(as_some_table),
+            tables::ebdt::Ebdt::TAG => self.ebdt().map(as_some_table),
+            tables::sbix::Sbix::TAG => self.sbix().map(as_some_table),
+            tables::stat::Stat::TAG => self.stat().map(as_some_table),
+            tables::svg::Svg::TAG => self.svg().map(as_some_table),
+            tables::varc::Varc::TAG => self.varc().map(as_some_table),
+            #[cfg(feature = "ift")]
+            tables::ift::IFT_TAG => self.ift().map(as_some_table),
+            #[cfg(feature = "ift")]
+            tables::ift::IFTX_TAG => self.iftx().map(as_some_table),
+            tables::meta::Meta::TAG => self.meta().map(as_some_table),
+            tables::base::Base::TAG => self.base().map(as_some_table),
+            _ => Err(ReadError::TableIsMissing(tag)),
         }
     }
 }

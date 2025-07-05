@@ -6,7 +6,10 @@
 use std::{collections::HashSet, str::FromStr};
 
 use font_types::Tag;
-use read_fonts::{traversal::SomeTable, FileRef, FontRef, ReadError, TableProvider, TopLevelTable};
+use read_fonts::{
+    traversal::{SomeTable, SomeTableProvider},
+    FileRef, FontRef,
+};
 
 mod print;
 mod query;
@@ -96,38 +99,8 @@ fn hex_width(val: u32) -> usize {
     }
 }
 
-/// Given a font and a tag, return the appropriate table as a [`dyn SomeTable`][SomeTable].
-fn get_some_table<'a>(
-    font: &FontRef<'a>,
-    tag: Tag,
-) -> Result<Box<dyn SomeTable<'a> + 'a>, ReadError> {
-    use read_fonts::tables;
-    match tag {
-        tables::gpos::Gpos::TAG => font.gpos().map(|x| Box::new(x) as _),
-        tables::gsub::Gsub::TAG => font.gsub().map(|x| Box::new(x) as _),
-        tables::cmap::Cmap::TAG => font.cmap().map(|x| Box::new(x) as _),
-        tables::fvar::Fvar::TAG => font.fvar().map(|x| Box::new(x) as _),
-        tables::avar::Avar::TAG => font.avar().map(|x| Box::new(x) as _),
-        tables::gdef::Gdef::TAG => font.gdef().map(|x| Box::new(x) as _),
-        tables::glyf::Glyf::TAG => font.glyf().map(|x| Box::new(x) as _),
-        tables::head::Head::TAG => font.head().map(|x| Box::new(x) as _),
-        tables::hhea::Hhea::TAG => font.hhea().map(|x| Box::new(x) as _),
-        tables::hmtx::Hmtx::TAG => font.hmtx().map(|x| Box::new(x) as _),
-        tables::loca::Loca::TAG => font.loca(None).map(|x| Box::new(x) as _),
-        tables::maxp::Maxp::TAG => font.maxp().map(|x| Box::new(x) as _),
-        tables::name::Name::TAG => font.name().map(|x| Box::new(x) as _),
-        tables::post::Post::TAG => font.post().map(|x| Box::new(x) as _),
-        tables::colr::Colr::TAG => font.colr().map(|x| Box::new(x) as _),
-        tables::stat::Stat::TAG => font.stat().map(|x| Box::new(x) as _),
-        tables::vhea::Vhea::TAG => font.vhea().map(|x| Box::new(x) as _),
-        tables::vmtx::Vmtx::TAG => font.vmtx().map(|x| Box::new(x) as _),
-        tables::svg::Svg::TAG => font.svg().map(|x| Box::new(x) as _),
-        _ => Err(ReadError::TableIsMissing(tag)),
-    }
-}
-
 fn print_table(font: &FontRef, tag: Tag) {
-    match get_some_table(font, tag) {
+    match font.expect_some_table(tag) {
         Ok(table) => fancy_print_table(&table).unwrap(),
         Err(err) => println!("{tag}: Error '{err}'"),
     }
