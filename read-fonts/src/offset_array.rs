@@ -4,7 +4,7 @@
 //! resolving individual offsets as they are accessed.
 
 use crate::offset::ResolveNullableOffset;
-use font_types::{BigEndian, Nullable, Offset16, Scalar};
+use font_types::{BigEndian, BytesWrapper, Nullable, Offset16};
 
 use crate::{FontData, FontReadWithArgs, Offset, ReadArgs, ReadError, ResolveOffset};
 
@@ -15,8 +15,8 @@ use crate::{FontData, FontReadWithArgs, Offset, ReadArgs, ReadError, ResolveOffs
 /// ergonomic interface that unburdens the user from needing to manually
 /// determine the appropriate input data and arguments for a raw offset.
 #[derive(Clone)]
-pub struct ArrayOfOffsets<'a, T: ReadArgs, O: Scalar = Offset16> {
-    offsets: &'a [BigEndian<O>],
+pub struct ArrayOfOffsets<'a, T: ReadArgs, O: BytesWrapper = BigEndian<Offset16>> {
+    offsets: &'a [O],
     data: FontData<'a>,
     args: T::Args,
 }
@@ -26,18 +26,19 @@ pub struct ArrayOfOffsets<'a, T: ReadArgs, O: Scalar = Offset16> {
 /// This is identical to [`ArrayOfOffsets`], except that each offset is
 /// allowed to be null.
 #[derive(Clone)]
-pub struct ArrayOfNullableOffsets<'a, T: ReadArgs, O: Scalar = Offset16> {
-    offsets: &'a [BigEndian<Nullable<O>>],
+pub struct ArrayOfNullableOffsets<'a, T: ReadArgs, O: BytesWrapper = BigEndian<Nullable<Offset16>>>
+{
+    offsets: &'a [O],
     data: FontData<'a>,
     args: T::Args,
 }
 
 impl<'a, T, O> ArrayOfOffsets<'a, T, O>
 where
-    O: Scalar,
+    O: BytesWrapper,
     T: ReadArgs,
 {
-    pub(crate) fn new(offsets: &'a [BigEndian<O>], data: FontData<'a>, args: T::Args) -> Self {
+    pub(crate) fn new(offsets: &'a [O], data: FontData<'a>, args: T::Args) -> Self {
         Self {
             offsets,
             data,
@@ -48,7 +49,8 @@ where
 
 impl<'a, T, O> ArrayOfOffsets<'a, T, O>
 where
-    O: Scalar + Offset,
+    O: BytesWrapper,
+    O::Inner: Offset,
     T: ReadArgs + FontReadWithArgs<'a>,
     T::Args: Copy + 'static,
 {
@@ -89,14 +91,11 @@ where
 
 impl<'a, T, O> ArrayOfNullableOffsets<'a, T, O>
 where
-    O: Scalar + Offset,
+    O: BytesWrapper,
+    O::Inner: ResolveNullableOffset,
     T: ReadArgs,
 {
-    pub(crate) fn new(
-        offsets: &'a [BigEndian<Nullable<O>>],
-        data: FontData<'a>,
-        args: T::Args,
-    ) -> Self {
+    pub(crate) fn new(offsets: &'a [O], data: FontData<'a>, args: T::Args) -> Self {
         Self {
             offsets,
             data,
@@ -107,7 +106,8 @@ where
 
 impl<'a, T, O> ArrayOfNullableOffsets<'a, T, O>
 where
-    O: Scalar + Offset,
+    O: BytesWrapper,
+    O::Inner: ResolveNullableOffset,
     T: ReadArgs + FontReadWithArgs<'a>,
     T::Args: Copy + 'static,
 {

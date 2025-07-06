@@ -13,7 +13,7 @@ use write_fonts::{
         types::{BigEndian, NameId},
         FontRef, Offset, TopLevelTable,
     },
-    types::{FixedSize, Offset32},
+    types::{BytesWrapper, FixedSize, Offset32},
     FontBuilder,
 };
 

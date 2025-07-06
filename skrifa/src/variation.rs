@@ -1,5 +1,6 @@
 //! Axes of variation in a variable font.
 
+use raw::types::BytesWrapper;
 use read_fonts::{
     tables::avar::Avar,
     tables::fvar::{self, Fvar},

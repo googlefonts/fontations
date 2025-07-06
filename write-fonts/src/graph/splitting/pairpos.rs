@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use font_types::{FixedSize, GlyphId16, Offset16};
+use font_types::{BytesWrapper, FixedSize, GlyphId16, Offset16};
 use read_fonts::tables::{
     gpos::{self as rgpos, ValueFormat},
     layout as rlayout,

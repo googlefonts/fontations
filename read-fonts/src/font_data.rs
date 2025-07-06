@@ -4,7 +4,7 @@
 use std::ops::{Range, RangeBounds};
 
 use bytemuck::AnyBitPattern;
-use types::{BigEndian, FixedSize, Scalar};
+use types::{BigEndian, BytesWrapper, FixedSize, LittleEndian, Scalar, ScalarLE};
 
 use crate::array::ComputedArray;
 use crate::read::{ComputeSize, FontReadWithArgs, ReadError};
@@ -86,6 +86,26 @@ impl<'a> FontData<'a> {
             .ok_or(ReadError::OutOfBounds)
     }
 
+    /// Read a little-endian scalar at the provided location in the data.
+    pub fn read_scalar_le_at<T: ScalarLE>(&self, offset: usize) -> Result<T, ReadError> {
+        let end = offset
+            .checked_add(T::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        self.bytes
+            .get(offset..end)
+            .and_then(T::read_le)
+            .ok_or(ReadError::OutOfBounds)
+    }
+
+    /// Read a chunk of raw bytes at the provided location in the data.
+    pub fn read_raw_at<const N: usize>(&self, offset: usize) -> Result<[u8; N], ReadError> {
+        let end = offset.checked_add(N).ok_or(ReadError::OutOfBounds)?;
+        self.bytes
+            .get(offset..end)
+            .and_then(|bytes| <[u8; N]>::try_from(bytes).ok())
+            .ok_or(ReadError::OutOfBounds)
+    }
+
     /// Read a big-endian value at the provided location in the data.
     pub fn read_be_at<T: Scalar>(&self, offset: usize) -> Result<BigEndian<T>, ReadError> {
         let end = offset
@@ -94,6 +114,17 @@ impl<'a> FontData<'a> {
         self.bytes
             .get(offset..end)
             .and_then(BigEndian::from_slice)
+            .ok_or(ReadError::OutOfBounds)
+    }
+
+    /// Read a little-endian value at the provided location in the data.
+    pub fn read_le_at<T: ScalarLE>(&self, offset: usize) -> Result<LittleEndian<T>, ReadError> {
+        let end = offset
+            .checked_add(T::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        self.bytes
+            .get(offset..end)
+            .and_then(LittleEndian::from_slice)
             .ok_or(ReadError::OutOfBounds)
     }
 
@@ -221,9 +252,23 @@ impl<'a> Cursor<'a> {
         temp
     }
 
+    /// Read a little-endian scalar and advance the cursor.
+    pub(crate) fn read_scalar_le<T: ScalarLE>(&mut self) -> Result<T, ReadError> {
+        let temp = self.data.read_scalar_le_at(self.pos);
+        self.advance::<T>();
+        temp
+    }
+
     /// Read a big-endian value and advance the cursor.
     pub(crate) fn read_be<T: Scalar>(&mut self) -> Result<BigEndian<T>, ReadError> {
         let temp = self.data.read_be_at(self.pos);
+        self.advance::<T>();
+        temp
+    }
+
+    /// Read a little-endian value and advance the cursor.
+    pub(crate) fn read_le<T: ScalarLE>(&mut self) -> Result<LittleEndian<T>, ReadError> {
+        let temp = self.data.read_le_at(self.pos);
         self.advance::<T>();
         temp
     }

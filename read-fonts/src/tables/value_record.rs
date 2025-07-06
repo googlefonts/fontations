@@ -1,7 +1,7 @@
 //! A GPOS ValueRecord
 
 use font_types::Nullable;
-use types::{BigEndian, FixedSize, Offset16};
+use types::{BigEndian, BytesWrapper, FixedSize, Offset16};
 
 use super::ValueFormat;
 use crate::{tables::layout::DeviceOrVariationIndex, ResolveNullableOffset};

@@ -10,6 +10,7 @@ use kurbo::BezPath;
 use read_fonts::{tables::glyf::SimpleGlyphFlags, FontRead};
 
 pub use read_fonts::tables::glyf::CurvePoint;
+use types::BytesWrapper;
 
 use super::Bbox;
 

@@ -7,7 +7,7 @@ use crate::{
     table_provider::TopLevelTable,
     FontData,
 };
-use types::{BigEndian, GlyphId, Tag};
+use types::{BigEndian, BytesWrapper, GlyphId, Tag};
 
 #[cfg(feature = "experimental_traverse")]
 use crate::traversal;
