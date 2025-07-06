@@ -479,6 +479,7 @@ impl StemSnaps {
     }
 }
 
+#[inline]
 pub(crate) fn parse_int(cursor: &mut Cursor, b0: u8) -> Result<i32, Error> {
     // Size   b0 range     Value range              Value calculation
     //--------------------------------------------------------------------------------
