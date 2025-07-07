@@ -27,10 +27,7 @@ impl FreeTypeInstance {
         // Ignore hinting settings for tricky fonts. Let FreeType do its own
         // thing
         if !face.is_tricky() {
-            match options.hinting {
-                None => load_flags |= LoadFlag::NO_HINTING,
-                Some(hinting) => load_flags |= hinting.freetype_load_flags(),
-            };
+            load_flags |= options.hinting.freetype_load_flags();
         }
         if options.ppem != 0.0 {
             // Set a fractional size using the same code as Skia:
