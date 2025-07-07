@@ -23,6 +23,9 @@ pub(crate) use closure::{
     LookupClosureCtx, MAX_LOOKUP_VISIT_COUNT, MAX_NESTING_LEVEL,
 };
 
+#[cfg(feature = "std")]
+pub use closure::Intersect;
+
 #[cfg(test)]
 mod spec_tests;
 
