@@ -5,7 +5,7 @@ use crate::{
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, Serializer},
-    CollectVariationIndices, Plan, Subset, SubsetError, SubsetTable,
+    CollectVariationIndices, Plan, Subset, SubsetError, SubsetState, SubsetTable,
 };
 use write_fonts::{
     read::{
@@ -27,18 +27,24 @@ use write_fonts::{
 // reference: subset() for GDEF in harfbuzz
 // <https://github.com/harfbuzz/harfbuzz/blob/59001aa9527c056ad08626cfec9a079b65d8aec8/src/OT/Layout/GDEF/GDEF.hh#L660>
 impl Subset for Gdef<'_> {
-    fn subset(
+    fn subset_with_state(
         &self,
         plan: &Plan,
         _font: &FontRef,
+        state: &mut SubsetState,
         s: &mut Serializer,
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
-        subset_gdef(self, plan, s).map_err(|_| SubsetError::SubsetTableError(Gdef::TAG))
+        subset_gdef(self, plan, s, state).map_err(|_| SubsetError::SubsetTableError(Gdef::TAG))
     }
 }
 
-fn subset_gdef(gdef: &Gdef, plan: &Plan, s: &mut Serializer) -> Result<(), SerializeErrorFlags> {
+fn subset_gdef(
+    gdef: &Gdef,
+    plan: &Plan,
+    s: &mut Serializer,
+    state: &mut SubsetState,
+) -> Result<(), SerializeErrorFlags> {
     let version = gdef.version();
     // major version
     s.embed(version.major)?;
@@ -233,6 +239,7 @@ fn subset_gdef(gdef: &Gdef, plan: &Plan, s: &mut Serializer) -> Result<(), Seria
         || (version.minor >= 2 && subset_mark_glyphsets_def)
         || (version.minor >= 3 && subset_varstore)
     {
+        state.has_gdef_varstore = subset_varstore;
         Ok(())
     } else {
         Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY)
@@ -275,7 +282,7 @@ impl SubsetTable<'_> for AttachList<'_> {
 
             attach_points.subset_offset(idx, s, plan, ())?;
             count += 1;
-            retained_glyphs.push(new_gid.to_u32());
+            retained_glyphs.push(*new_gid);
         }
 
         if retained_glyphs.is_empty() {
@@ -335,7 +342,7 @@ impl SubsetTable<'_> for LigCaretList<'_> {
 
             lig_glyphs.subset_offset(idx, s, plan, ())?;
             count += 1;
-            retained_glyphs.push(new_gid.to_u32());
+            retained_glyphs.push(*new_gid);
         }
 
         if retained_glyphs.is_empty() {
