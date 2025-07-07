@@ -5,7 +5,7 @@ use std::{cmp::Ordering, mem};
 use crate::{
     offset::SerializeSubset,
     serialize::{OffsetWhence, SerializeErrorFlags, Serializer},
-    CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetTable,
+    CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
 use write_fonts::{
@@ -16,13 +16,14 @@ use write_fonts::{
             layout::{
                 CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2,
                 ClassRangeRecord, CoverageFormat1, CoverageFormat2, CoverageTable, DeltaFormat,
-                Device, DeviceOrVariationIndex, Feature, FeatureList, FeatureParams, FeatureRecord,
-                FeatureVariations, LangSys, LangSysRecord, RangeRecord, Script, ScriptList,
-                ScriptRecord, SizeParams, StylisticSetParams, VariationIndex,
+                Device, DeviceOrVariationIndex, ExtensionLookup, Feature, FeatureList,
+                FeatureParams, FeatureRecord, FeatureVariations, Intersect, LangSys, LangSysRecord,
+                RangeRecord, Script, ScriptList, ScriptRecord, SizeParams, StylisticSetParams,
+                Subtables, VariationIndex,
             },
         },
         types::{GlyphId, GlyphId16, NameId},
-        FontData, TopLevelTable,
+        FontData, FontRead, FontRef, TopLevelTable,
     },
     types::{FixedSize, Offset16, Tag},
 };
@@ -1402,6 +1403,39 @@ impl<'a> SubsetTable<'a> for FeatureParams<'_> {
             FeatureParams::CharacterVariant(table) => s.embed_bytes(table.min_table_bytes()),
         };
         ret.map(|_| ())
+    }
+}
+
+// TODO: serialize offset array and num of subtables
+impl<'a, T, Ext> SubsetTable<'a> for Subtables<'a, T, Ext>
+where
+    T: SubsetTable<'a, ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>)>
+        + Intersect
+        + FontRead<'a>
+        + 'a,
+    Ext: ExtensionLookup<'a, T> + 'a,
+{
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        for sub in self.iter() {
+            let sub =
+                sub.map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+            if !sub
+                .intersects(&plan.glyphset_gsub)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            {
+                continue;
+            }
+            sub.subset(plan, s, args)?;
+        }
+        Ok(())
     }
 }
 

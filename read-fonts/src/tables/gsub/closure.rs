@@ -19,7 +19,7 @@ use super::{
 
 #[cfg(feature = "std")]
 use crate::tables::layout::{
-    ContextFormat1, ContextFormat2, ContextFormat3, LayoutLookupList, LookupClosure,
+    ContextFormat1, ContextFormat2, ContextFormat3, Intersect, LayoutLookupList, LookupClosure,
     LookupClosureCtx,
 };
 
@@ -882,7 +882,9 @@ impl LookupClosure for SubstitutionLookup<'_> {
 
         self.subtables()?.closure_lookups(c, lookup_index)
     }
+}
 
+impl Intersect for SubstitutionLookup<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         self.subtables()?.intersects(glyph_set)
     }
@@ -896,7 +898,9 @@ impl LookupClosure for SubstitutionSubtables<'_> {
             _ => Ok(()),
         }
     }
+}
 
+impl Intersect for SubstitutionSubtables<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             SubstitutionSubtables::Single(subtables) => subtables.intersects(glyph_set),
@@ -910,7 +914,7 @@ impl LookupClosure for SubstitutionSubtables<'_> {
     }
 }
 
-impl LookupClosure for SingleSubst<'_> {
+impl Intersect for SingleSubst<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Format1(item) => item.intersects(glyph_set),
@@ -919,31 +923,31 @@ impl LookupClosure for SingleSubst<'_> {
     }
 }
 
-impl LookupClosure for SingleSubstFormat1<'_> {
+impl Intersect for SingleSubstFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         Ok(self.coverage()?.intersects(glyph_set))
     }
 }
 
-impl LookupClosure for SingleSubstFormat2<'_> {
+impl Intersect for SingleSubstFormat2<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         Ok(self.coverage()?.intersects(glyph_set))
     }
 }
 
-impl LookupClosure for MultipleSubstFormat1<'_> {
+impl Intersect for MultipleSubstFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         Ok(self.coverage()?.intersects(glyph_set))
     }
 }
 
-impl LookupClosure for AlternateSubstFormat1<'_> {
+impl Intersect for AlternateSubstFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         Ok(self.coverage()?.intersects(glyph_set))
     }
 }
 
-impl LookupClosure for LigatureSubstFormat1<'_> {
+impl Intersect for LigatureSubstFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         let coverage = self.coverage()?;
         let lig_sets = self.ligature_sets();
@@ -960,7 +964,7 @@ impl LookupClosure for LigatureSubstFormat1<'_> {
     }
 }
 
-impl LookupClosure for LigatureSet<'_> {
+impl Intersect for LigatureSet<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         let ligs = self.ligatures();
         for lig in ligs.iter() {
@@ -972,7 +976,7 @@ impl LookupClosure for LigatureSet<'_> {
     }
 }
 
-impl LookupClosure for Ligature<'_> {
+impl Intersect for Ligature<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         let ret = self
             .component_glyph_ids()
@@ -982,7 +986,7 @@ impl LookupClosure for Ligature<'_> {
     }
 }
 
-impl LookupClosure for ReverseChainSingleSubstFormat1<'_> {
+impl Intersect for ReverseChainSingleSubstFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         if !self.coverage()?.intersects(glyph_set) {
             return Ok(false);
