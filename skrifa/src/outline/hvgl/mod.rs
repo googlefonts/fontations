@@ -23,6 +23,10 @@ use crate::{
     Transform,
 };
 
+#[cfg(feature = "libm")]
+#[allow(unused_imports)]
+use core_maths::CoreFloat;
+
 use bytemuck::{AnyBitPattern, NoUninit};
 
 #[derive(Clone)]
