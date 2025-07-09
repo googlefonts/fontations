@@ -97,6 +97,17 @@ impl<'a> FontData<'a> {
             .ok_or(ReadError::OutOfBounds)
     }
 
+    /// Read a raw byte slice at the provided location in the data.
+    pub fn read_raw_at<const N: usize>(&self, offset: usize) -> Result<[u8; N], ReadError> {
+        let end = offset
+            .checked_add(N)
+            .ok_or(ReadError::OutOfBounds)?;
+        self.bytes
+            .get(offset..end)
+            .and_then(|data| <[u8; N]>::try_from(data).ok())
+            .ok_or(ReadError::OutOfBounds)
+    }
+
     pub fn read_with_args<T>(&self, range: Range<usize>, args: &T::Args) -> Result<T, ReadError>
     where
         T: FontReadWithArgs<'a>,
@@ -225,6 +236,13 @@ impl<'a> Cursor<'a> {
     pub(crate) fn read_be<T: Scalar>(&mut self) -> Result<BigEndian<T>, ReadError> {
         let temp = self.data.read_be_at(self.pos);
         self.advance::<T>();
+        temp
+    }
+
+    /// Read a raw byte slice and advance the cursor
+    pub fn read_raw<const N: usize>(&mut self) -> Result<[u8; N], ReadError> {
+        let temp = self.data.read_raw_at(self.pos);
+        self.advance_by(N);
         temp
     }
 
