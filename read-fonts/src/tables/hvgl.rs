@@ -76,7 +76,10 @@ impl<'a> Hvgl<'a> {
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         let [maj1, maj2, min1, min2] = self.data.read_raw_at(range.start).unwrap();
-        MajorMinor::new(u16::from_le_bytes([maj1, maj2]), u16::from_le_bytes([min1, min2]))
+        MajorMinor::new(
+            u16::from_le_bytes([maj1, maj2]),
+            u16::from_le_bytes([min1, min2]),
+        )
     }
 
     /// The number of parts (shapes and composite shapes) in the table
@@ -88,7 +91,9 @@ impl<'a> Hvgl<'a> {
     /// The offset from the beginning of the table to the part index. Currently always 24 (0x18).
     pub fn part_index_offset(&self) -> Offset32 {
         let range = self.shape.part_index_offset_byte_range();
-        Offset32::new(u32::from_le_bytes(self.data.read_raw_at(range.start).unwrap()))
+        Offset32::new(u32::from_le_bytes(
+            self.data.read_raw_at(range.start).unwrap(),
+        ))
     }
 
     /// The number of externally-visible parts.
@@ -100,8 +105,7 @@ impl<'a> Hvgl<'a> {
     pub fn part_index(&self) -> Result<PartIndex<'a>, ReadError> {
         let data = self.data;
         let args = self.num_parts();
-        self.part_index_offset()
-            .resolve_with_args(data, &args)
+        self.part_index_offset().resolve_with_args(data, &args)
     }
 }
 
@@ -117,10 +121,7 @@ impl<'a> SomeTable<'a> for Hvgl<'a> {
             2 => Some(Field::new("part_index_offset", self.part_index_offset())),
             3 => Some(Field::new(
                 "part_index_offset",
-                FieldType::offset(
-                    self.part_index_offset(),
-                    self.part_index(),
-                ),
+                FieldType::offset(self.part_index_offset(), self.part_index()),
             )),
             4 => Some(Field::new("num_glyphs", self.num_glyphs())),
             _ => None,
@@ -200,7 +201,11 @@ impl<'a> PartIndex<'a> {
     pub fn parts_size(&self) -> u32 {
         // The sentinel value at the end of the parts index "points at the end
         // of the last part's data". Relative to what, Apple???
-        u32::from_le_bytes(self.data.read_raw_at(self.shape.part_offsets_byte_len).unwrap())
+        u32::from_le_bytes(
+            self.data
+                .read_raw_at(self.shape.part_offsets_byte_len)
+                .unwrap(),
+        )
     }
 }
 
@@ -445,17 +450,28 @@ impl<'a> FontRead<'a> for ShapePart<'a> {
         let num_axes = u16::from_le_bytes(cursor.read_raw()?);
         let num_paths = u16::from_le_bytes(cursor.read_raw()?);
         let num_segments = u16::from_le_bytes(cursor.read_raw()?);
-        let path_sizes_byte_len = (num_paths as usize).checked_mul(u16::RAW_BYTE_LEN).ok_or(ReadError::OutOfBounds)?;
+        let path_sizes_byte_len = (num_paths as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(path_sizes_byte_len);
-        let blend_types_byte_len = (num_segments as usize).checked_mul(CoordBlendType::RAW_BYTE_LEN).ok_or(ReadError::OutOfBounds)?;
+        let blend_types_byte_len = (num_segments as usize)
+            .checked_mul(CoordBlendType::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(blend_types_byte_len);
         // Mathematically, none of these operations can overflow
-        let padding_byte_len = (f64::RAW_BYTE_LEN - (cursor.position()? % f64::RAW_BYTE_LEN)) % f64::RAW_BYTE_LEN;
+        let padding_byte_len =
+            (f64::RAW_BYTE_LEN - (cursor.position()? % f64::RAW_BYTE_LEN)) % f64::RAW_BYTE_LEN;
         cursor.advance_by(padding_byte_len);
         // 4 coordinates per segment
-        let master_coordinate_vector_byte_len = (num_segments as usize).checked_mul(f64::RAW_BYTE_LEN * 4).ok_or(ReadError::OutOfBounds)?;
+        let master_coordinate_vector_byte_len = (num_segments as usize)
+            .checked_mul(f64::RAW_BYTE_LEN * 4)
+            .ok_or(ReadError::OutOfBounds)?;
         // matrix with (4 * segments) rows and (2 * axes) columns
-        let delta_coordinate_matrix_byte_len = (num_segments as usize).checked_mul(num_axes as usize).and_then(|n| n.checked_mul(4 * 2)).and_then(|n| n.checked_mul(f64::RAW_BYTE_LEN)).ok_or(ReadError::OutOfBounds)?;
+        let delta_coordinate_matrix_byte_len = (num_segments as usize)
+            .checked_mul(num_axes as usize)
+            .and_then(|n| n.checked_mul(4 * 2))
+            .and_then(|n| n.checked_mul(f64::RAW_BYTE_LEN))
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.finish(ShapePartMarker {
             path_sizes_byte_len,
             blend_types_byte_len,
@@ -558,8 +574,7 @@ impl SubpartRecord {
 }
 
 impl FixedSize for SubpartRecord {
-    const RAW_BYTE_LEN: usize =
-        u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -831,26 +846,35 @@ impl<'a> CompositePart<'a> {
 
     pub fn subparts(&self) -> Result<&[SubpartRecord], ReadError> {
         // This can't overflow but it's good practice to use checked ops anyway
-        let offset = (self.subpart_array_offset() as usize).checked_mul(4).ok_or(ReadError::OutOfBounds)?;
-        let end = (self.num_direct_subparts() as usize).checked_mul(SubpartRecord::RAW_BYTE_LEN).and_then(|len| offset.checked_add(len)).ok_or(ReadError::OutOfBounds)?;
+        let offset = (self.subpart_array_offset() as usize)
+            .checked_mul(4)
+            .ok_or(ReadError::OutOfBounds)?;
+        let end = (self.num_direct_subparts() as usize)
+            .checked_mul(SubpartRecord::RAW_BYTE_LEN)
+            .and_then(|len| offset.checked_add(len))
+            .ok_or(ReadError::OutOfBounds)?;
         self.data.read_array(offset..end)
     }
 
     fn extremum_column_starts_byte_range(&self) -> Result<Range<usize>, ReadError> {
         // This can't overflow but it's good practice to use checked ops anyway
-        let start = (self.extremum_column_starts_offset() as usize).checked_mul(4).ok_or(ReadError::OutOfBounds)?;
+        let start = (self.extremum_column_starts_offset() as usize)
+            .checked_mul(4)
+            .ok_or(ReadError::OutOfBounds)?;
         // Array of (2 * axisCount) + 1 u16s. The last one is a sentinel value.
         let end = (self.num_direct_axes() as usize)
             .checked_mul(2)
             .and_then(|n| n.checked_add(1))
             .and_then(|n| n.checked_mul(u16::RAW_BYTE_LEN))
-            .and_then(|len| start.checked_add(len)).ok_or(ReadError::OutOfBounds)?;
+            .and_then(|len| start.checked_add(len))
+            .ok_or(ReadError::OutOfBounds)?;
 
         Ok(start..end)
     }
 
     pub fn extremum_column_starts(&self) -> Result<&[LittleEndian<u16>], ReadError> {
-        self.data.read_array(self.extremum_column_starts_byte_range()?)
+        self.data
+            .read_array(self.extremum_column_starts_byte_range()?)
     }
 
     fn master_row_indices_byte_range(&self) -> Result<Range<usize>, ReadError> {
@@ -858,7 +882,8 @@ impl<'a> CompositePart<'a> {
         let start = self.extremum_column_starts_byte_range()?.end;
         let end = (self.num_master_axis_values() as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
-            .and_then(|len| start.checked_add(len)).ok_or(ReadError::OutOfBounds)?;
+            .and_then(|len| start.checked_add(len))
+            .ok_or(ReadError::OutOfBounds)?;
 
         Ok(start..end)
     }
@@ -872,45 +897,59 @@ impl<'a> CompositePart<'a> {
         let start = self.master_row_indices_byte_range()?.end;
         let end = (self.num_extremum_axis_values() as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
-            .and_then(|len| start.checked_add(len)).ok_or(ReadError::OutOfBounds)?;
+            .and_then(|len| start.checked_add(len))
+            .ok_or(ReadError::OutOfBounds)?;
 
         Ok(start..end)
     }
 
     pub fn extremum_row_indices(&self) -> Result<&[LittleEndian<u16>], ReadError> {
-        self.data.read_array(self.extremum_row_indices_byte_range()?)
+        self.data
+            .read_array(self.extremum_row_indices_byte_range()?)
     }
 
     pub fn master_axis_value_deltas(&self) -> Result<&[LittleEndian<f32>], ReadError> {
         // This can't overflow but it's good practice to use checked ops anyway
-        let start = (self.master_axis_deltas_offset() as usize).checked_mul(4).ok_or(ReadError::OutOfBounds)?;
+        let start = (self.master_axis_deltas_offset() as usize)
+            .checked_mul(4)
+            .ok_or(ReadError::OutOfBounds)?;
         let end = (self.num_master_axis_values() as usize)
             .checked_mul(f32::RAW_BYTE_LEN)
-            .and_then(|len| start.checked_add(len)).ok_or(ReadError::OutOfBounds)?;
+            .and_then(|len| start.checked_add(len))
+            .ok_or(ReadError::OutOfBounds)?;
         self.data.read_array(start..end)
     }
 
     pub fn extremum_axis_value_deltas(&self) -> Result<&[LittleEndian<f32>], ReadError> {
         // This can't overflow but it's good practice to use checked ops anyway
-        let start = (self.extremum_axis_deltas_offset() as usize).checked_mul(4).ok_or(ReadError::OutOfBounds)?;
+        let start = (self.extremum_axis_deltas_offset() as usize)
+            .checked_mul(4)
+            .ok_or(ReadError::OutOfBounds)?;
         let end = (self.num_extremum_axis_values() as usize)
             .checked_mul(f32::RAW_BYTE_LEN)
-            .and_then(|len| start.checked_add(len)).ok_or(ReadError::OutOfBounds)?;
+            .and_then(|len| start.checked_add(len))
+            .ok_or(ReadError::OutOfBounds)?;
         self.data.read_array(start..end)
     }
 
     fn master_translation_deltas_byte_range(&self) -> Result<Range<usize>, ReadError> {
         // This can't overflow but it's good practice to use checked ops anyway
-        let start = (self.translations_offset() as usize).checked_mul(4).ok_or(ReadError::OutOfBounds)?;
+        let start = (self.translations_offset() as usize)
+            .checked_mul(4)
+            .ok_or(ReadError::OutOfBounds)?;
         let end = (self.num_master_translations() as usize)
             .checked_mul(TranslationDelta::RAW_BYTE_LEN)
-            .and_then(|len| start.checked_add(len)).ok_or(ReadError::OutOfBounds)?;
+            .and_then(|len| start.checked_add(len))
+            .ok_or(ReadError::OutOfBounds)?;
 
         Ok(start..end)
     }
 
-    pub fn master_translation_deltas(&self) -> Result<&[LittleEndian<TranslationDelta>], ReadError> {
-        self.data.read_array(self.master_translation_deltas_byte_range()?)
+    pub fn master_translation_deltas(
+        &self,
+    ) -> Result<&[LittleEndian<TranslationDelta>], ReadError> {
+        self.data
+            .read_array(self.master_translation_deltas_byte_range()?)
     }
 
     fn extremum_translation_deltas_byte_range(&self) -> Result<Range<usize>, ReadError> {
@@ -918,13 +957,17 @@ impl<'a> CompositePart<'a> {
         let start = self.master_translation_deltas_byte_range()?.end;
         let end = (self.num_extremum_translations() as usize)
             .checked_mul(TranslationDelta::RAW_BYTE_LEN)
-            .and_then(|len| start.checked_add(len)).ok_or(ReadError::OutOfBounds)?;
+            .and_then(|len| start.checked_add(len))
+            .ok_or(ReadError::OutOfBounds)?;
 
         Ok(start..end)
     }
 
-    pub fn extremum_translation_deltas(&self) -> Result<&[LittleEndian<TranslationDelta>], ReadError> {
-        self.data.read_array(self.extremum_translation_deltas_byte_range()?)
+    pub fn extremum_translation_deltas(
+        &self,
+    ) -> Result<&[LittleEndian<TranslationDelta>], ReadError> {
+        self.data
+            .read_array(self.extremum_translation_deltas_byte_range()?)
     }
 
     fn extremum_translation_indices_byte_range(&self) -> Result<Range<usize>, ReadError> {
@@ -932,13 +975,15 @@ impl<'a> CompositePart<'a> {
         let start = self.extremum_translation_deltas_byte_range()?.end;
         let end = (self.num_extremum_translations() as usize)
             .checked_mul(MatrixIndexRecord::RAW_BYTE_LEN)
-            .and_then(|len| start.checked_add(len)).ok_or(ReadError::OutOfBounds)?;
+            .and_then(|len| start.checked_add(len))
+            .ok_or(ReadError::OutOfBounds)?;
 
         Ok(start..end)
     }
 
     pub fn extremum_translation_indices(&self) -> Result<&[MatrixIndexRecord], ReadError> {
-        self.data.read_array(self.extremum_translation_indices_byte_range()?)
+        self.data
+            .read_array(self.extremum_translation_indices_byte_range()?)
     }
 
     fn master_translation_indices_byte_range(&self) -> Result<Range<usize>, ReadError> {
@@ -946,27 +991,33 @@ impl<'a> CompositePart<'a> {
         let start = self.extremum_translation_indices_byte_range()?.end;
         let end = (self.num_master_translations() as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
-            .and_then(|len| start.checked_add(len)).ok_or(ReadError::OutOfBounds)?;
+            .and_then(|len| start.checked_add(len))
+            .ok_or(ReadError::OutOfBounds)?;
 
         Ok(start..end)
     }
 
     pub fn master_translation_indices(&self) -> Result<&[LittleEndian<u16>], ReadError> {
-        self.data.read_array(self.master_translation_indices_byte_range()?)
+        self.data
+            .read_array(self.master_translation_indices_byte_range()?)
     }
 
     fn master_rotation_deltas_byte_range(&self) -> Result<Range<usize>, ReadError> {
         // This can't overflow but it's good practice to use checked ops anyway
-        let start = (self.rotations_offset() as usize).checked_mul(4).ok_or(ReadError::OutOfBounds)?;
+        let start = (self.rotations_offset() as usize)
+            .checked_mul(4)
+            .ok_or(ReadError::OutOfBounds)?;
         let end = (self.num_master_rotations() as usize)
             .checked_mul(f32::RAW_BYTE_LEN)
-            .and_then(|len| start.checked_add(len)).ok_or(ReadError::OutOfBounds)?;
+            .and_then(|len| start.checked_add(len))
+            .ok_or(ReadError::OutOfBounds)?;
 
         Ok(start..end)
     }
 
     pub fn master_rotation_deltas(&self) -> Result<&[LittleEndian<f32>], ReadError> {
-        self.data.read_array(self.master_rotation_deltas_byte_range()?)
+        self.data
+            .read_array(self.master_rotation_deltas_byte_range()?)
     }
 
     fn extremum_rotation_deltas_byte_range(&self) -> Result<Range<usize>, ReadError> {
@@ -974,13 +1025,15 @@ impl<'a> CompositePart<'a> {
         let start = self.master_rotation_deltas_byte_range()?.end;
         let end = (self.num_extremum_rotations() as usize)
             .checked_mul(f32::RAW_BYTE_LEN)
-            .and_then(|len| start.checked_add(len)).ok_or(ReadError::OutOfBounds)?;
+            .and_then(|len| start.checked_add(len))
+            .ok_or(ReadError::OutOfBounds)?;
 
         Ok(start..end)
     }
 
     pub fn extremum_rotation_deltas(&self) -> Result<&[LittleEndian<f32>], ReadError> {
-        self.data.read_array(self.extremum_rotation_deltas_byte_range()?)
+        self.data
+            .read_array(self.extremum_rotation_deltas_byte_range()?)
     }
 
     fn extremum_rotation_indices_byte_range(&self) -> Result<Range<usize>, ReadError> {
@@ -988,13 +1041,15 @@ impl<'a> CompositePart<'a> {
         let start = self.extremum_rotation_deltas_byte_range()?.end;
         let end = (self.num_extremum_rotations() as usize)
             .checked_mul(MatrixIndexRecord::RAW_BYTE_LEN)
-            .and_then(|len| start.checked_add(len)).ok_or(ReadError::OutOfBounds)?;
+            .and_then(|len| start.checked_add(len))
+            .ok_or(ReadError::OutOfBounds)?;
 
         Ok(start..end)
     }
 
     pub fn extremum_rotation_indices(&self) -> Result<&[MatrixIndexRecord], ReadError> {
-        self.data.read_array(self.extremum_rotation_indices_byte_range()?)
+        self.data
+            .read_array(self.extremum_rotation_indices_byte_range()?)
     }
 
     fn master_rotation_indices_byte_range(&self) -> Result<Range<usize>, ReadError> {
@@ -1002,15 +1057,16 @@ impl<'a> CompositePart<'a> {
         let start = self.extremum_rotation_indices_byte_range()?.end;
         let end = (self.num_master_rotations() as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
-            .and_then(|len| start.checked_add(len)).ok_or(ReadError::OutOfBounds)?;
+            .and_then(|len| start.checked_add(len))
+            .ok_or(ReadError::OutOfBounds)?;
 
         Ok(start..end)
     }
 
     pub fn master_rotation_indices(&self) -> Result<&[LittleEndian<u16>], ReadError> {
-        self.data.read_array(self.master_rotation_indices_byte_range()?)
+        self.data
+            .read_array(self.master_rotation_indices_byte_range()?)
     }
-
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -1150,9 +1206,7 @@ impl<'a> From<CoordBlendType> for FieldType<'a> {
 
 // ----------------------------------------------------------------------------
 
-pub trait ByteArray:
-    Copy + AsRef<[u8]> + bytemuck::AnyBitPattern + bytemuck::Zeroable
-{
+pub trait ByteArray: Copy + AsRef<[u8]> + bytemuck::AnyBitPattern + bytemuck::Zeroable {
     /// Must always succeed for `[u8; N]` if `slice.len() == N`, must fail otherwise
     fn from_slice(slice: &[u8]) -> Option<Self>;
 }

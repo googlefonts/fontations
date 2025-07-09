@@ -9,9 +9,19 @@ mod memory;
 mod outline;
 pub use outline::Outline;
 
-use raw::{tables::hvgl::{CompositePart, CoordBlendType, Hvgl, LittleEndian, Part, PartArray, ShapePart, TranslationDelta}, types::{F2Dot14, GlyphId, Point}, FontRef, ReadError, TableProvider};
+use raw::{
+    tables::hvgl::{
+        CompositePart, CoordBlendType, Hvgl, LittleEndian, Part, PartArray, ShapePart,
+        TranslationDelta,
+    },
+    types::{F2Dot14, GlyphId, Point},
+    FontRef, ReadError, TableProvider,
+};
 
-use crate::{outline::{hvgl::memory::HvglOutlineMemory, metrics::GlyphHMetrics, DrawError, OutlinePen}, Transform};
+use crate::{
+    outline::{hvgl::memory::HvglOutlineMemory, metrics::GlyphHMetrics, DrawError, OutlinePen},
+    Transform,
+};
 
 use bytemuck::{AnyBitPattern, NoUninit};
 
@@ -81,33 +91,41 @@ impl<'a> From<&'a [LittleEndian<f64>]> for Segment {
 /// Turn a [`Segment`], which can mean different things depending on its blend
 /// type, into an absolutely-positioned quadratic segment with one on-curve and
 /// one off-curve point.
-fn resolve_blend_type(prev_segment: &Segment, cur_segment: &Segment, next_segment: &mut Segment, blend_type: CoordBlendType) -> Result<Segment, ReadError> {
+fn resolve_blend_type(
+    prev_segment: &Segment,
+    cur_segment: &Segment,
+    next_segment: &mut Segment,
+    blend_type: CoordBlendType,
+) -> Result<Segment, ReadError> {
     Ok(match blend_type {
         CoordBlendType::Curve => {
             // not actually the on-curve X, but the parallel factor for curve-type segments
             let t = cur_segment.on_curve_x.clamp(0.0, 1.0);
 
-            let x = prev_segment.off_curve_x + ((cur_segment.off_curve_x - prev_segment.off_curve_x) * t);
-            let y = prev_segment.off_curve_y + ((cur_segment.off_curve_y - prev_segment.off_curve_y) * t);
+            let x = prev_segment.off_curve_x
+                + ((cur_segment.off_curve_x - prev_segment.off_curve_x) * t);
+            let y = prev_segment.off_curve_y
+                + ((cur_segment.off_curve_y - prev_segment.off_curve_y) * t);
 
             Segment {
                 on_curve_x: x,
                 on_curve_y: y,
                 ..*cur_segment
             }
-        },
+        }
         CoordBlendType::Corner | CoordBlendType::SecondTangent => *cur_segment,
         CoordBlendType::IsolatedTangent => {
             cur_segment.project_on_curve_to_tangent(prev_segment, cur_segment)
-        },
+        }
         CoordBlendType::FirstTangent => {
-            let resolved_segment = cur_segment.project_on_curve_to_tangent(prev_segment, &next_segment);
+            let resolved_segment =
+                cur_segment.project_on_curve_to_tangent(prev_segment, &next_segment);
             // TODO: Mutating the next segment seems suspicious, but it's what
             // HarfBuzz does. This blend type seems unused, so I can't test if
             // it's correct.
             *next_segment = next_segment.project_on_curve_to_tangent(prev_segment, &next_segment);
             resolved_segment
-        },
+        }
         // ReadError::InvalidFormat requires us to return the
         // invalid format itself, which we lose during parsing
         _ => return Err(ReadError::MalformedData("Unknown blend type")),
@@ -138,7 +156,7 @@ impl<'a> Outlines<'a> {
     fn compute_scale(&self, ppem: Option<f32>) -> f32 {
         match ppem {
             Some(ppem) => ppem / self.units_per_em as f32,
-            None => 1.0
+            None => 1.0,
         }
     }
 
@@ -160,7 +178,7 @@ impl<'a> Outlines<'a> {
     /// range of top-level parts, returns [`None`].
     fn part_for_glyph_id(&self, id: GlyphId) -> Result<Option<Part<'a>>, ReadError> {
         if id.to_u32() >= self.hvgl.num_glyphs() {
-            return Ok(None)
+            return Ok(None);
         }
 
         self.part_at(id.to_u32())
@@ -178,7 +196,9 @@ impl<'a> Outlines<'a> {
         let part = &outline.part;
         let memory = HvglOutlineMemory::new(outline, buf).ok_or(DrawError::InsufficientMemory)?;
         {
-            let (provided_coords, remaining_coords) = memory.coords.split_at_mut(coords.len().min(memory.coords.len()));
+            let (provided_coords, remaining_coords) = memory
+                .coords
+                .split_at_mut(coords.len().min(memory.coords.len()));
             for (dst, src) in provided_coords.iter_mut().zip(coords.iter()) {
                 *dst = src.to_f32();
             }
@@ -186,11 +206,20 @@ impl<'a> Outlines<'a> {
         }
         memory.transforms.fill(Transform::default());
 
-        self.draw_part(part, scale, memory.coords, memory.transforms, memory.segments, pen)
+        self.draw_part(
+            part,
+            scale,
+            memory.coords,
+            memory.transforms,
+            memory.segments,
+            pen,
+        )
     }
 
     pub fn outline(&self, glyph_id: GlyphId) -> Result<Outline<'a>, DrawError> {
-        let part = self.part_for_glyph_id(glyph_id)?.ok_or(DrawError::GlyphNotFound(glyph_id))?;
+        let part = self
+            .part_for_glyph_id(glyph_id)?
+            .ok_or(DrawError::GlyphNotFound(glyph_id))?;
         let mut outline = Outline {
             glyph_id,
             part: part.clone(),
@@ -204,20 +233,27 @@ impl<'a> Outlines<'a> {
     /// know how much temp memory to allocate. All the offset-chasing is quite
     /// slow; it would sure be nice if this info was included in the composite
     /// part header.
-    fn outline_rec(&self, outline: &mut Outline<'_>, part: &Part<'_>, recursion_depth: usize) -> Result<(), DrawError> {
+    fn outline_rec(
+        &self,
+        outline: &mut Outline<'_>,
+        part: &Part<'_>,
+        recursion_depth: usize,
+    ) -> Result<(), DrawError> {
         if recursion_depth >= MAX_RECURSION_DEPTH {
             return Err(DrawError::RecursionLimitExceeded(outline.glyph_id));
         }
         match part {
             Part::Shape(shape) => {
                 outline.max_num_segments = outline.max_num_segments.max(shape.num_segments());
-            },
+            }
             Part::Composite(composite) => {
                 for part in composite.subparts()? {
-                    let part = self.part_at(part.part_table_index())?.ok_or(DrawError::GlyphNotFound(part.part_table_index().into()))?;
+                    let part = self
+                        .part_at(part.part_table_index())?
+                        .ok_or(DrawError::GlyphNotFound(part.part_table_index().into()))?;
                     self.outline_rec(outline, &part, recursion_depth + 1)?;
                 }
-            },
+            }
         }
         Ok(())
     }
@@ -225,7 +261,15 @@ impl<'a> Outlines<'a> {
     /// Draw a shape part (a "leaf node" that contains the actual contours).
     ///
     /// See <https://github.com/harfbuzz/harfbuzz/blob/3c81945/src/hb-aat-var-hvgl-table.cc#L90-L347>.
-    fn draw_shape_part(&self, shape: &'a ShapePart<'a>, scale: f32, coords: &mut [f32], transforms: &mut [Transform], segment_memory: &mut [Segment], pen: &mut impl OutlinePen) -> Result<(), DrawError> {
+    fn draw_shape_part(
+        &self,
+        shape: &'a ShapePart<'a>,
+        scale: f32,
+        coords: &mut [f32],
+        transforms: &mut [Transform],
+        segment_memory: &mut [Segment],
+        pen: &mut impl OutlinePen,
+    ) -> Result<(), DrawError> {
         let transform = &transforms[0];
         let num_axes = shape.num_axes() as usize;
         let total_num_segments = shape.num_segments() as usize;
@@ -241,7 +285,9 @@ impl<'a> Outlines<'a> {
         // We're guaranteed (because we preparsed the glyph) that segment_memory
         // is big enough. But I haven't benchmarked if a `return` is faster than
         // a panic yet.
-        let mut all_segments = segment_memory.get_mut(..total_num_segments).ok_or(ReadError::OutOfBounds)?;
+        let mut all_segments = segment_memory
+            .get_mut(..total_num_segments)
+            .ok_or(ReadError::OutOfBounds)?;
         for (segment, segment_points) in all_segments.iter_mut().zip(points.chunks_exact(4)) {
             *segment = Segment::from(segment_points);
         }
@@ -252,7 +298,10 @@ impl<'a> Outlines<'a> {
         // segment points) is bottlenecked on waiting for the previous iteration
         // to finish. Summing things one axis at a time can be parallelized and
         // pipelined, increasing performance.
-        for (coord, axis_deltas) in shape_coords.iter().zip(deltas.chunks_exact(total_num_segments * 8)) {
+        for (coord, axis_deltas) in shape_coords
+            .iter()
+            .zip(deltas.chunks_exact(total_num_segments * 8))
+        {
             if *coord == 0.0 {
                 continue;
             }
@@ -282,9 +331,13 @@ impl<'a> Outlines<'a> {
                 // it that this branch is unlikely to be taken
                 continue;
             }
-            let (segments, tail) = all_segments.split_at_mut_checked(segment_count).ok_or(ReadError::OutOfBounds)?;
+            let (segments, tail) = all_segments
+                .split_at_mut_checked(segment_count)
+                .ok_or(ReadError::OutOfBounds)?;
             all_segments = tail;
-            let (subpath_blend_types, tail) = blend_types.split_at_checked(segment_count).ok_or(ReadError::OutOfBounds)?;
+            let (subpath_blend_types, tail) = blend_types
+                .split_at_checked(segment_count)
+                .ok_or(ReadError::OutOfBounds)?;
             blend_types = tail;
 
             let first_segment = *segments.first().unwrap();
@@ -306,15 +359,28 @@ impl<'a> Outlines<'a> {
 
                 let blend_type = subpath_blend_types[i].get();
 
-                let blended_segment = resolve_blend_type(&prev_segment, &cur_segment, &mut next_segment, blend_type)?;
+                let blended_segment =
+                    resolve_blend_type(&prev_segment, &cur_segment, &mut next_segment, blend_type)?;
                 if let Some(prev) = prev_blended_segment {
-                    let p0 = transform.transform_point(Point::new(prev.off_curve_x as f32, prev.off_curve_y as f32)) * scale;
-                    let p = transform.transform_point(Point::new(blended_segment.on_curve_x as f32, blended_segment.on_curve_y as f32)) * scale;
+                    let p0 = transform.transform_point(Point::new(
+                        prev.off_curve_x as f32,
+                        prev.off_curve_y as f32,
+                    )) * scale;
+                    let p = transform.transform_point(Point::new(
+                        blended_segment.on_curve_x as f32,
+                        blended_segment.on_curve_y as f32,
+                    )) * scale;
                     pen.quad_to(p0.x, p0.y, p.x, p.y);
                 } else {
-                    let p = transform.transform_point(Point::new(blended_segment.on_curve_x as f32, blended_segment.on_curve_y as f32)) * scale;
+                    let p = transform.transform_point(Point::new(
+                        blended_segment.on_curve_x as f32,
+                        blended_segment.on_curve_y as f32,
+                    )) * scale;
                     pen.move_to(p.x, p.y);
-                    first_point = Point::new(blended_segment.on_curve_x as f32, blended_segment.on_curve_y as f32);
+                    first_point = Point::new(
+                        blended_segment.on_curve_x as f32,
+                        blended_segment.on_curve_y as f32,
+                    );
                 }
 
                 prev_blended_segment = Some(blended_segment);
@@ -323,7 +389,9 @@ impl<'a> Outlines<'a> {
             }
 
             let prev = prev_blended_segment.unwrap();
-            let p0 = transform.transform_point(Point::new(prev.off_curve_x as f32, prev.off_curve_y as f32)) * scale;
+            let p0 = transform
+                .transform_point(Point::new(prev.off_curve_x as f32, prev.off_curve_y as f32))
+                * scale;
             let p = transform.transform_point(first_point) * scale;
             pen.quad_to(p0.x, p0.y, p.x, p.y);
             pen.close();
@@ -335,12 +403,22 @@ impl<'a> Outlines<'a> {
     /// Apply a composite part's delta coords and transforms to its subparts, and then draw them in turn.
     ///
     /// See <https://github.com/harfbuzz/harfbuzz/blob/3c81945/src/hb-aat-var-hvgl-table.cc#L576-L613>.
-    fn draw_composite_part(&self, composite: &'a CompositePart<'a>, scale: f32, coords: &mut [f32], transforms: &mut [Transform], segment_memory: &mut [Segment], pen: &mut impl OutlinePen) -> Result<(), DrawError> {
+    fn draw_composite_part(
+        &self,
+        composite: &'a CompositePart<'a>,
+        scale: f32,
+        coords: &mut [f32],
+        transforms: &mut [Transform],
+        segment_memory: &mut [Segment],
+        pen: &mut impl OutlinePen,
+    ) -> Result<(), DrawError> {
         let num_total_axes = composite.num_total_axes() as usize;
         let coords_len = coords.len();
         let coords = &mut coords[..num_total_axes.min(coords_len)];
 
-        let (my_coords, child_coords) = coords.split_at_mut_checked(composite.num_direct_axes().into()).ok_or(ReadError::OutOfBounds)?;
+        let (my_coords, child_coords) = coords
+            .split_at_mut_checked(composite.num_direct_axes().into())
+            .ok_or(ReadError::OutOfBounds)?;
 
         composite_apply_to_coords(&composite, child_coords, my_coords)?;
 
@@ -348,7 +426,8 @@ impl<'a> Outlines<'a> {
         let transforms_len = transforms.len();
         let transforms = &mut transforms[0..num_total_subparts.min(transforms_len)];
 
-        let (transforms_head, transforms_tail) = transforms.split_first_mut().ok_or(ReadError::OutOfBounds)?;
+        let (transforms_head, transforms_tail) =
+            transforms.split_first_mut().ok_or(ReadError::OutOfBounds)?;
 
         composite_apply_to_transforms(&composite, transforms_tail, my_coords)?;
 
@@ -357,34 +436,57 @@ impl<'a> Outlines<'a> {
             // probably-random memory access, so it has high latency. The
             // compiler can't reorder the code for us because of the
             // error-handling branches.
-            let subpart_part = self.part_at(subpart.part_table_index())?.ok_or_else(|| DrawError::GlyphNotFound(subpart.part_table_index().into()))?;
-            let subpart_coords = child_coords.get_mut(subpart.tree_axis_index() as usize..).ok_or(ReadError::OutOfBounds)?;
+            let subpart_part = self
+                .part_at(subpart.part_table_index())?
+                .ok_or_else(|| DrawError::GlyphNotFound(subpart.part_table_index().into()))?;
+            let subpart_coords = child_coords
+                .get_mut(subpart.tree_axis_index() as usize..)
+                .ok_or(ReadError::OutOfBounds)?;
 
-            let this_transform = transforms_tail.get_mut(subpart.tree_part_index() as usize).ok_or(ReadError::OutOfBounds)?;
+            let this_transform = transforms_tail
+                .get_mut(subpart.tree_part_index() as usize)
+                .ok_or(ReadError::OutOfBounds)?;
             if this_transform.is_translation() {
-                let Transform { dx, dy, ..} = *this_transform;
+                let Transform { dx, dy, .. } = *this_transform;
                 *this_transform = *transforms_head;
                 *this_transform = this_transform.translate(dx, dy);
             } else {
                 *this_transform = *transforms_head * *this_transform;
             }
 
-            let subpart_transforms = transforms_tail.get_mut(subpart.tree_part_index() as usize..).ok_or(ReadError::OutOfBounds)?;
-            self.draw_part(&subpart_part, scale, subpart_coords, subpart_transforms, segment_memory, pen)?;
+            let subpart_transforms = transforms_tail
+                .get_mut(subpart.tree_part_index() as usize..)
+                .ok_or(ReadError::OutOfBounds)?;
+            self.draw_part(
+                &subpart_part,
+                scale,
+                subpart_coords,
+                subpart_transforms,
+                segment_memory,
+                pen,
+            )?;
         }
 
         Ok(())
     }
 
     #[inline(always)]
-    fn draw_part(&self, part: &Part<'a>, scale: f32, coords: &mut [f32], transforms: &mut [Transform], segment_memory: &mut [Segment], pen: &mut impl OutlinePen) -> Result<(), DrawError> {
+    fn draw_part(
+        &self,
+        part: &Part<'a>,
+        scale: f32,
+        coords: &mut [f32],
+        transforms: &mut [Transform],
+        segment_memory: &mut [Segment],
+        pen: &mut impl OutlinePen,
+    ) -> Result<(), DrawError> {
         match part {
             Part::Shape(shape) => {
                 self.draw_shape_part(&shape, scale, coords, transforms, segment_memory, pen)
-            },
+            }
             Part::Composite(composite) => {
                 self.draw_composite_part(&composite, scale, coords, transforms, segment_memory, pen)
-            },
+            }
         }
     }
 }
@@ -392,12 +494,20 @@ impl<'a> Outlines<'a> {
 /// Apply a composite part's deltas to its subparts' deltas. They're stored in a sparse format.
 ///
 /// See <https://github.com/harfbuzz/harfbuzz/blob/3c81945/src/hb-aat-var-hvgl-table.cc#L350-L389>.
-fn composite_apply_to_coords<'a>(part: &'a CompositePart<'a>, out_coords: &mut [f32], coords: &[f32]) -> Result<(), ReadError> {
+fn composite_apply_to_coords<'a>(
+    part: &'a CompositePart<'a>,
+    out_coords: &mut [f32],
+    coords: &[f32],
+) -> Result<(), ReadError> {
     let ecs = part.extremum_column_starts()?;
     let extremum_row_indices = part.extremum_row_indices()?;
     let extremum_axis_value_deltas = part.extremum_axis_value_deltas()?;
 
-    for (row_idx, delta) in part.master_row_indices()?.iter().zip(part.master_axis_value_deltas()?) {
+    for (row_idx, delta) in part
+        .master_row_indices()?
+        .iter()
+        .zip(part.master_axis_value_deltas()?)
+    {
         out_coords[row_idx.get() as usize] += delta.get();
     }
 
@@ -410,12 +520,23 @@ fn composite_apply_to_coords<'a>(part: &'a CompositePart<'a>, out_coords: &mut [
         let scalar = coord.abs();
 
         let sparse_row_start = ecs.get(column_idx).ok_or(ReadError::OutOfBounds)?.get() as usize;
-        let sparse_row_end = ecs.get(column_idx.saturating_add(1)).ok_or(ReadError::OutOfBounds)?.get() as usize;
+        let sparse_row_end = ecs
+            .get(column_idx.saturating_add(1))
+            .ok_or(ReadError::OutOfBounds)?
+            .get() as usize;
 
         for row_idx in sparse_row_start..sparse_row_end.min(extremum_axis_value_deltas.len()) {
-            let row = extremum_row_indices.get(row_idx).ok_or(ReadError::OutOfBounds)?.get();
-            let delta = extremum_axis_value_deltas.get(row_idx).ok_or(ReadError::OutOfBounds)?.get();
-            *out_coords.get_mut(row as usize).ok_or(ReadError::OutOfBounds)? += delta * scalar;
+            let row = extremum_row_indices
+                .get(row_idx)
+                .ok_or(ReadError::OutOfBounds)?
+                .get();
+            let delta = extremum_axis_value_deltas
+                .get(row_idx)
+                .ok_or(ReadError::OutOfBounds)?
+                .get();
+            *out_coords
+                .get_mut(row as usize)
+                .ok_or(ReadError::OutOfBounds)? += delta * scalar;
         }
     }
 
@@ -425,7 +546,11 @@ fn composite_apply_to_coords<'a>(part: &'a CompositePart<'a>, out_coords: &mut [
 /// Apply a composite part's transforms to its subparts. They're stored in a sparse format.
 ///
 /// See <https://github.com/harfbuzz/harfbuzz/blob/3c81945/src/hb-aat-var-hvgl-table.cc#L392-L573>.
-fn composite_apply_to_transforms<'a>(part: &'a CompositePart<'a>, transforms: &mut [Transform], coords: &[f32]) -> Result<(), ReadError> {
+fn composite_apply_to_transforms<'a>(
+    part: &'a CompositePart<'a>,
+    transforms: &mut [Transform],
+    coords: &[f32],
+) -> Result<(), ReadError> {
     let master_translation_deltas = part.master_translation_deltas()?;
     let mut extremum_translation_deltas = part.extremum_translation_deltas()?;
     let mut extremum_translation_indices = part.extremum_translation_indices()?;
@@ -438,13 +563,18 @@ fn composite_apply_to_transforms<'a>(part: &'a CompositePart<'a>, transforms: &m
 
     if part.num_extremum_rotations() == 0 {
         // If there are no rotations, we can skip most of the complex logic.
-        for (idx, delta) in extremum_translation_indices.iter().zip(extremum_translation_deltas.iter()) {
+        for (idx, delta) in extremum_translation_indices
+            .iter()
+            .zip(extremum_translation_deltas.iter())
+        {
             let row = idx.row();
             let column = idx.column();
             let delta = delta.get();
 
             let axis_idx = column / 2;
-            let coord = *coords.get(axis_idx as usize).ok_or(ReadError::OutOfBounds)?;
+            let coord = *coords
+                .get(axis_idx as usize)
+                .ok_or(ReadError::OutOfBounds)?;
             if coord == 0.0 {
                 continue;
             }
@@ -477,8 +607,12 @@ fn composite_apply_to_transforms<'a>(part: &'a CompositePart<'a>, transforms: &m
             let mut is_translate_only = true;
 
             loop {
-                let row_translation = extremum_translation_indices.get(0).filter(|i| i.row() as usize == row);
-                let row_rotation = extremum_rotation_indices.get(0).filter(|i| i.row() as usize == row);
+                let row_translation = extremum_translation_indices
+                    .get(0)
+                    .filter(|i| i.row() as usize == row);
+                let row_rotation = extremum_rotation_indices
+                    .get(0)
+                    .filter(|i| i.row() as usize == row);
 
                 let mut column = 2 * part.num_direct_axes() as usize;
                 if let Some(tr_index) = row_translation {
@@ -495,13 +629,19 @@ fn composite_apply_to_transforms<'a>(part: &'a CompositePart<'a>, transforms: &m
                 let mut extremum_rotation_delta = 0.0;
 
                 if row_translation.is_some_and(|tr_index| tr_index.column() as usize == column) {
-                    extremum_translation_delta = extremum_translation_deltas.get(0).ok_or(ReadError::OutOfBounds)?.get();
+                    extremum_translation_delta = extremum_translation_deltas
+                        .get(0)
+                        .ok_or(ReadError::OutOfBounds)?
+                        .get();
                     extremum_translation_indices = &extremum_translation_indices[1..];
                     extremum_translation_deltas = &extremum_translation_deltas[1..];
                 }
 
                 if row_rotation.is_some_and(|rot_index| rot_index.column() as usize == column) {
-                    extremum_rotation_delta = extremum_rotation_deltas.get(0).ok_or(ReadError::OutOfBounds)?.get();
+                    extremum_rotation_delta = extremum_rotation_deltas
+                        .get(0)
+                        .ok_or(ReadError::OutOfBounds)?
+                        .get();
                     extremum_rotation_indices = &extremum_rotation_indices[1..];
                     extremum_rotation_deltas = &extremum_rotation_deltas[1..];
                 }
@@ -540,9 +680,15 @@ fn composite_apply_to_transforms<'a>(part: &'a CompositePart<'a>, transforms: &m
                     // matrix yet, `pre_translate` is equivalent to `translate`
                     // but saves a lot of multiplications.
                     if is_translate_only {
-                        transform = transform.pre_translate(extremum_translation_delta.x * scalar, extremum_translation_delta.y * scalar);
+                        transform = transform.pre_translate(
+                            extremum_translation_delta.x * scalar,
+                            extremum_translation_delta.y * scalar,
+                        );
                     } else {
-                        transform = transform.translate(extremum_translation_delta.x * scalar, extremum_translation_delta.y * scalar);
+                        transform = transform.translate(
+                            extremum_translation_delta.x * scalar,
+                            extremum_translation_delta.y * scalar,
+                        );
                     }
                 }
             }
@@ -563,7 +709,10 @@ fn composite_apply_to_transforms<'a>(part: &'a CompositePart<'a>, transforms: &m
         *transform = Transform::rotation(delta.get()) * *transform;
     }
 
-    for (row, delta) in master_translation_indices.iter().zip(master_translation_deltas) {
+    for (row, delta) in master_translation_indices
+        .iter()
+        .zip(master_translation_deltas)
+    {
         let row = row.get() as usize;
         let delta = delta.get();
         let Some(transform) = transforms.get_mut(row) else {

@@ -1,6 +1,6 @@
 use crate::{outline::memory::alloc_slice, Transform};
 
-use super::{Outline ,Segment};
+use super::{Outline, Segment};
 
 /// Buffers used during glyph scaling.
 pub(crate) struct HvglOutlineMemory<'a> {

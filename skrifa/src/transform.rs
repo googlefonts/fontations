@@ -55,7 +55,7 @@ impl Transform {
             xy: -s,
             yy: c,
             dx: ((1.0 - c) * x) + (s * y),
-            dy: (-s * x) + ((1.0 - c) * y)
+            dy: (-s * x) + ((1.0 - c) * y),
         }
     }
 

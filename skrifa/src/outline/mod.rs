@@ -585,9 +585,7 @@ impl<'a> OutlineGlyphCollection<'a> {
                 let upem = font.head().ok()?.units_per_em();
                 OutlineCollectionKind::Cff(cff::Outlines::from_cff2(font, upem)?)
             }
-            OutlineGlyphFormat::Hvgl => {
-                OutlineCollectionKind::Hvgl(hvgl::Outlines::new(font)?)
-            }
+            OutlineGlyphFormat::Hvgl => OutlineCollectionKind::Hvgl(hvgl::Outlines::new(font)?),
         };
         Some(Self { kind })
     }
@@ -615,7 +613,9 @@ impl<'a> OutlineGlyphCollection<'a> {
             OutlineCollectionKind::Cff(cff) => Some(OutlineGlyph {
                 kind: OutlineKind::Cff(cff.clone(), glyph_id, cff.subfont_index(glyph_id)),
             }),
-            OutlineCollectionKind::Hvgl(hvgl) => Some(OutlineGlyph { kind: OutlineKind::Hvgl(hvgl.clone(), hvgl.outline(glyph_id).ok()?) })
+            OutlineCollectionKind::Hvgl(hvgl) => Some(OutlineGlyph {
+                kind: OutlineKind::Hvgl(hvgl.clone(), hvgl.outline(glyph_id).ok()?),
+            }),
         }
     }
 

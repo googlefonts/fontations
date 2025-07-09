@@ -99,9 +99,7 @@ impl<'a> FontData<'a> {
 
     /// Read a raw byte slice at the provided location in the data.
     pub fn read_raw_at<const N: usize>(&self, offset: usize) -> Result<[u8; N], ReadError> {
-        let end = offset
-            .checked_add(N)
-            .ok_or(ReadError::OutOfBounds)?;
+        let end = offset.checked_add(N).ok_or(ReadError::OutOfBounds)?;
         self.bytes
             .get(offset..end)
             .and_then(|data| <[u8; N]>::try_from(data).ok())
