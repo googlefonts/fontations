@@ -18,9 +18,10 @@ use std::{
 use crate::{
     alloc::vec::Vec,
     color::{
-        transform::Transform, traversal_tests::test_glyph_defs::*, Brush, ColorPainter, ColorStop,
+        traversal_tests::test_glyph_defs::*, Brush, ColorPainter, ColorStop,
     },
     setting::VariationSetting,
+    Transform,
     MetadataProvider,
 };
 

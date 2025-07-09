@@ -15,7 +15,7 @@ use helpers::*;
 struct NopPainter;
 
 impl ColorPainter for NopPainter {
-    fn push_transform(&mut self, _transform: skrifa::color::Transform) {
+    fn push_transform(&mut self, _transform: skrifa::Transform) {
         // nop
     }
 
