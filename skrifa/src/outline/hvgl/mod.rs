@@ -274,13 +274,13 @@ impl<'a> Outlines<'a> {
         segment_memory: &mut [Segment],
         pen: &mut impl OutlinePen,
     ) -> Result<(), DrawError> {
-        let transform = &transforms[0];
-        let num_axes = shape.num_axes() as usize;
         let total_num_segments = shape.num_segments() as usize;
         if total_num_segments == 0 {
             return Ok(());
         }
 
+        let transform = &transforms[0];
+        let num_axes = shape.num_axes() as usize;
         let points = shape.master_coordinate_vector();
         let mut blend_types = shape.blend_types();
         let deltas = shape.delta_coordinate_matrix();
@@ -512,7 +512,9 @@ fn composite_apply_to_coords<'a>(
         .iter()
         .zip(part.master_axis_value_deltas()?)
     {
-        out_coords[row_idx.get() as usize] += delta.get();
+        *out_coords
+            .get_mut(row_idx.get() as usize)
+            .ok_or(ReadError::OutOfBounds)? += delta.get();
     }
 
     for (axis_idx, coord) in coords.iter().copied().enumerate() {
