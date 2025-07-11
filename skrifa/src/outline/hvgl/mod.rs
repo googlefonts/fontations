@@ -7,6 +7,8 @@
 
 mod memory;
 mod outline;
+mod transform;
+
 pub use outline::Outline;
 
 use raw::{
@@ -18,9 +20,10 @@ use raw::{
     FontRef, ReadError, TableProvider,
 };
 
-use crate::{
-    outline::{hvgl::memory::HvglOutlineMemory, metrics::GlyphHMetrics, DrawError, OutlinePen},
-    Transform,
+use crate::outline::{
+    hvgl::{memory::HvglOutlineMemory, transform::Transform},
+    metrics::GlyphHMetrics,
+    DrawError, OutlinePen,
 };
 
 #[cfg(feature = "libm")]
@@ -157,9 +160,9 @@ impl<'a> Outlines<'a> {
         self.hvgl.num_glyphs()
     }
 
-    fn compute_scale(&self, ppem: Option<f32>) -> f32 {
+    fn compute_scale(&self, ppem: Option<f32>) -> f64 {
         match ppem {
-            Some(ppem) => ppem / self.units_per_em as f32,
+            Some(ppem) => ppem as f64 / self.units_per_em as f64,
             None => 1.0,
         }
     }
@@ -268,7 +271,7 @@ impl<'a> Outlines<'a> {
     fn draw_shape_part(
         &self,
         shape: &'a ShapePart<'a>,
-        scale: f32,
+        scale: f64,
         coords: &mut [f32],
         transforms: &mut [Transform],
         segment_memory: &mut [Segment],
@@ -350,7 +353,7 @@ impl<'a> Outlines<'a> {
             let mut cur_segment = first_segment;
 
             let mut prev_blended_segment: Option<Segment> = None;
-            let mut first_point = Point::<f32>::default();
+            let mut first_point = Point::<f64>::default();
 
             for i in 0..segment_count {
                 let mut next_segment = if i == segment_count - 1 {
@@ -366,25 +369,22 @@ impl<'a> Outlines<'a> {
                 let blended_segment =
                     resolve_blend_type(&prev_segment, &cur_segment, &mut next_segment, blend_type)?;
                 if let Some(prev) = prev_blended_segment {
-                    let p0 = transform.transform_point(Point::new(
-                        prev.off_curve_x as f32,
-                        prev.off_curve_y as f32,
-                    )) * scale;
+                    let p0 = transform
+                        .transform_point(Point::new(prev.off_curve_x, prev.off_curve_y))
+                        * scale;
                     let p = transform.transform_point(Point::new(
-                        blended_segment.on_curve_x as f32,
-                        blended_segment.on_curve_y as f32,
+                        blended_segment.on_curve_x,
+                        blended_segment.on_curve_y,
                     )) * scale;
-                    pen.quad_to(p0.x, p0.y, p.x, p.y);
+                    pen.quad_to(p0.x as f32, p0.y as f32, p.x as f32, p.y as f32);
                 } else {
                     let p = transform.transform_point(Point::new(
-                        blended_segment.on_curve_x as f32,
-                        blended_segment.on_curve_y as f32,
+                        blended_segment.on_curve_x,
+                        blended_segment.on_curve_y,
                     )) * scale;
-                    pen.move_to(p.x, p.y);
-                    first_point = Point::new(
-                        blended_segment.on_curve_x as f32,
-                        blended_segment.on_curve_y as f32,
-                    );
+                    pen.move_to(p.x as f32, p.y as f32);
+                    first_point =
+                        Point::new(blended_segment.on_curve_x, blended_segment.on_curve_y);
                 }
 
                 prev_blended_segment = Some(blended_segment);
@@ -393,11 +393,10 @@ impl<'a> Outlines<'a> {
             }
 
             let prev = prev_blended_segment.unwrap();
-            let p0 = transform
-                .transform_point(Point::new(prev.off_curve_x as f32, prev.off_curve_y as f32))
-                * scale;
+            let p0 =
+                transform.transform_point(Point::new(prev.off_curve_x, prev.off_curve_y)) * scale;
             let p = transform.transform_point(first_point) * scale;
-            pen.quad_to(p0.x, p0.y, p.x, p.y);
+            pen.quad_to(p0.x as f32, p0.y as f32, p.x as f32, p.y as f32);
             pen.close();
         }
 
@@ -410,7 +409,7 @@ impl<'a> Outlines<'a> {
     fn draw_composite_part(
         &self,
         composite: &'a CompositePart<'a>,
-        scale: f32,
+        scale: f64,
         coords: &mut [f32],
         transforms: &mut [Transform],
         segment_memory: &mut [Segment],
@@ -478,7 +477,7 @@ impl<'a> Outlines<'a> {
     fn draw_part(
         &self,
         part: &Part<'a>,
-        scale: f32,
+        scale: f64,
         coords: &mut [f32],
         transforms: &mut [Transform],
         segment_memory: &mut [Segment],
@@ -588,13 +587,13 @@ fn composite_apply_to_transforms<'a>(
             if pos != (coord > 0.0) {
                 continue;
             }
-            let scalar = coord.abs();
 
             let Some(dst) = transforms.get_mut(row as usize) else {
                 break;
             };
 
-            *dst = dst.pre_translate(delta.x * scalar, delta.y * scalar);
+            let scalar = coord.abs() as f64;
+            *dst = dst.pre_translate(delta.x as f64 * scalar, delta.y as f64 * scalar);
         }
     } else {
         loop {
@@ -661,12 +660,12 @@ fn composite_apply_to_transforms<'a>(
                 if pos != (coord > 0.0) {
                     continue;
                 }
-                let scalar = coord.abs();
+                let scalar = coord.abs() as f64;
 
                 if extremum_rotation_delta != 0.0 {
-                    let mut center_x = extremum_translation_delta.x;
-                    let mut center_y = extremum_translation_delta.y;
-                    let mut angle = extremum_rotation_delta;
+                    let mut center_x = extremum_translation_delta.x as f64;
+                    let mut center_y = extremum_translation_delta.y as f64;
+                    let mut angle = extremum_rotation_delta as f64;
                     if center_x != 0.0 || center_y != 0.0 {
                         let (s, c) = angle.sin_cos();
                         let one_minus_c = 1.0 - c;
@@ -687,13 +686,13 @@ fn composite_apply_to_transforms<'a>(
                     // but saves a lot of multiplications.
                     if is_translate_only {
                         transform = transform.pre_translate(
-                            extremum_translation_delta.x * scalar,
-                            extremum_translation_delta.y * scalar,
+                            extremum_translation_delta.x as f64 * scalar,
+                            extremum_translation_delta.y as f64 * scalar,
                         );
                     } else {
                         transform = transform.translate(
-                            extremum_translation_delta.x * scalar,
-                            extremum_translation_delta.y * scalar,
+                            extremum_translation_delta.x as f64 * scalar,
+                            extremum_translation_delta.y as f64 * scalar,
                         );
                     }
                 }
@@ -712,7 +711,7 @@ fn composite_apply_to_transforms<'a>(
         let Some(transform) = transforms.get_mut(row) else {
             break;
         };
-        *transform = Transform::rotation(delta.get()) * *transform;
+        *transform = Transform::rotation(delta.get() as f64) * *transform;
     }
 
     for (row, delta) in master_translation_indices
@@ -724,7 +723,7 @@ fn composite_apply_to_transforms<'a>(
         let Some(transform) = transforms.get_mut(row) else {
             break;
         };
-        *transform = transform.pre_translate(delta.x, delta.y);
+        *transform = transform.pre_translate(delta.x as f64, delta.y as f64);
     }
 
     Ok(())

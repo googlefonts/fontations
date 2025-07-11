@@ -1,4 +1,8 @@
-//! Contains a [`Transform`] object holding values of an affine transformation matrix.
+//! Contains a [`Transform`] object holding values of an affine transformation
+//! matrix.
+//!
+//! This is similar to [`crate::color::Transform`], but specialized for hvgl
+//! outlines' needs.
 use std::ops::{Mul, MulAssign};
 
 #[cfg(feature = "libm")]
@@ -13,41 +17,34 @@ use bytemuck::{AnyBitPattern, NoUninit};
 
 #[derive(Clone, Debug, PartialEq, AnyBitPattern, NoUninit)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
-/// A transformation matrix to be applied to the drawing canvas.
-///
-/// Factors are specified in column-order, meaning that
-/// for a vector `(x,y)` the transformed position `x'` of the vector
-/// is calculated by
-/// `x' = xx * x + xy * y + dx`,
-/// and the transformed position y' is calculated by
-/// `y' = yx * x + yy * y + dy`.
+/// An affine transformation matrix applied to coordinates in hvgl glyphs.
 #[derive(Copy)]
 #[repr(C)]
 pub struct Transform {
-    pub xx: f32,
-    pub yx: f32,
-    pub xy: f32,
-    pub yy: f32,
-    pub dx: f32,
-    pub dy: f32,
+    pub xx: f64,
+    pub yx: f64,
+    pub xy: f64,
+    pub yy: f64,
+    pub dx: f64,
+    pub dy: f64,
 }
 
 impl Transform {
     /// This is equivalent to pre-multiplying this matrix by a translation
     /// matrix, but is much faster.
-    pub(crate) fn pre_translate(mut self, x: f32, y: f32) -> Self {
+    pub(crate) fn pre_translate(mut self, x: f64, y: f64) -> Self {
         self.dx += x;
         self.dy += y;
         self
     }
 
-    pub(crate) fn translate(mut self, x: f32, y: f32) -> Self {
+    pub(crate) fn translate(mut self, x: f64, y: f64) -> Self {
         self.dx += (self.xx * x) + (self.xy * y);
         self.dy += (self.yx * x) + (self.yy * y);
         self
     }
 
-    pub(crate) fn rotation_around_center(radians: f32, x: f32, y: f32) -> Self {
+    pub(crate) fn rotation_around_center(radians: f64, x: f64, y: f64) -> Self {
         let (s, c) = radians.sin_cos();
         Self {
             xx: c,
@@ -59,7 +56,7 @@ impl Transform {
         }
     }
 
-    pub(crate) fn rotation(radians: f32) -> Self {
+    pub(crate) fn rotation(radians: f64) -> Self {
         let (s, c) = radians.sin_cos();
         Self {
             xx: c,
@@ -75,7 +72,7 @@ impl Transform {
         self.xx == 1.0 && self.yx == 0.0 && self.xy == 0.0 && self.yy == 1.0
     }
 
-    pub(crate) fn transform_point(&self, Point { x, y }: Point<f32>) -> Point<f32> {
+    pub(crate) fn transform_point(&self, Point { x, y }: Point<f64>) -> Point<f64> {
         Point::new(
             self.dx + (self.xx * x) + (self.xy * y),
             self.dy + (self.yx * x) + (self.yy * y),
@@ -93,7 +90,7 @@ impl Mul for Transform {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        fn muladdmul(a: f32, b: f32, c: f32, d: f32) -> f32 {
+        fn muladdmul(a: f64, b: f64, c: f64, d: f64) -> f64 {
             a * b + c * d
         }
         Self {

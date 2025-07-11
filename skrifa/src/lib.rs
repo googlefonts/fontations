@@ -44,13 +44,11 @@ mod collections;
 mod decycler;
 mod glyph_name;
 mod provider;
-mod transform;
 mod variation;
 
 pub use glyph_name::{GlyphName, GlyphNameSource, GlyphNames};
 #[doc(inline)]
 pub use outline::{OutlineGlyph, OutlineGlyphCollection};
-pub use transform::Transform;
 pub use variation::{Axis, AxisCollection, NamedInstance, NamedInstanceCollection};
 
 /// Useful collection of common types suitable for glob importing.

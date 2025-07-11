@@ -17,9 +17,11 @@ use std::{
 
 use crate::{
     alloc::vec::Vec,
-    color::{traversal_tests::test_glyph_defs::*, Brush, ColorPainter, ColorStop},
+    color::{
+        transform::Transform, traversal_tests::test_glyph_defs::*, Brush, ColorPainter, ColorStop,
+    },
     setting::VariationSetting,
-    MetadataProvider, Transform,
+    MetadataProvider,
 };
 
 #[derive(Serialize, Deserialize, Default, PartialEq)]

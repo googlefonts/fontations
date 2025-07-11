@@ -1,6 +1,6 @@
 use raw::{tables::hvgl::Part, types::GlyphId};
 
-use crate::Transform;
+use super::Transform;
 
 /// Represents the information necessary to scale a glyph outline.
 ///
