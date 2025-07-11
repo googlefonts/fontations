@@ -27,17 +27,7 @@ impl<'a> SkrifaInstance<'a> {
         };
         let outlines = font.outline_glyphs();
         let hinter = if options.ppem != 0.0 {
-            if options.hinting.is_some() {
-                Some(
-                    HintingInstance::new(
-                        &outlines,
-                        size,
-                        options.coords,
-                        options.hinting.unwrap().skrifa_options(),
-                    )
-                    .ok()?,
-                )
-            } else if outlines.require_interpreter() {
+            if outlines.require_interpreter() {
                 // In this case, we must use the interpreter to match FreeType
                 Some(
                     HintingInstance::new(
@@ -51,6 +41,8 @@ impl<'a> SkrifaInstance<'a> {
                     )
                     .ok()?,
                 )
+            } else if let Some(hinting_options) = options.hinting.skrifa_options() {
+                Some(HintingInstance::new(&outlines, size, options.coords, hinting_options).ok()?)
             } else {
                 None
             }
