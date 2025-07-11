@@ -207,7 +207,7 @@ impl<'a> Outlines<'a> {
                 .coords
                 .split_at_mut(coords.len().min(memory.coords.len()));
             for (dst, src) in provided_coords.iter_mut().zip(coords.iter()) {
-                *dst = src.to_f32();
+                *dst = src.to_f32() as f64;
             }
             remaining_coords.fill(0.0);
         }
@@ -272,7 +272,7 @@ impl<'a> Outlines<'a> {
         &self,
         shape: &'a ShapePart<'a>,
         scale: f64,
-        coords: &mut [f32],
+        coords: &mut [f64],
         transforms: &mut [Transform],
         segment_memory: &mut [Segment],
         pen: &mut impl OutlinePen,
@@ -317,7 +317,7 @@ impl<'a> Outlines<'a> {
             } else {
                 &axis_deltas[..total_num_segments * 4]
             };
-            let scalar = coord.abs() as f64;
+            let scalar = coord.abs();
 
             for (segment, delta) in all_segments.iter_mut().zip(axis_deltas.chunks_exact(4)) {
                 // This is autovectorized quite well, but we don't get FMA. I'm
@@ -410,7 +410,7 @@ impl<'a> Outlines<'a> {
         &self,
         composite: &'a CompositePart<'a>,
         scale: f64,
-        coords: &mut [f32],
+        coords: &mut [f64],
         transforms: &mut [Transform],
         segment_memory: &mut [Segment],
         pen: &mut impl OutlinePen,
@@ -478,7 +478,7 @@ impl<'a> Outlines<'a> {
         &self,
         part: &Part<'a>,
         scale: f64,
-        coords: &mut [f32],
+        coords: &mut [f64],
         transforms: &mut [Transform],
         segment_memory: &mut [Segment],
         pen: &mut impl OutlinePen,
@@ -499,8 +499,8 @@ impl<'a> Outlines<'a> {
 /// See <https://github.com/harfbuzz/harfbuzz/blob/3c81945/src/hb-aat-var-hvgl-table.cc#L350-L389>.
 fn composite_apply_to_coords<'a>(
     part: &'a CompositePart<'a>,
-    out_coords: &mut [f32],
-    coords: &[f32],
+    out_coords: &mut [f64],
+    coords: &[f64],
 ) -> Result<(), ReadError> {
     let ecs = part.extremum_column_starts()?;
     let extremum_row_indices = part.extremum_row_indices()?;
@@ -513,7 +513,7 @@ fn composite_apply_to_coords<'a>(
     {
         *out_coords
             .get_mut(row_idx.get() as usize)
-            .ok_or(ReadError::OutOfBounds)? += delta.get();
+            .ok_or(ReadError::OutOfBounds)? += delta.get() as f64;
     }
 
     for (axis_idx, coord) in coords.iter().copied().enumerate() {
@@ -541,7 +541,7 @@ fn composite_apply_to_coords<'a>(
                 .get();
             *out_coords
                 .get_mut(row as usize)
-                .ok_or(ReadError::OutOfBounds)? += delta * scalar;
+                .ok_or(ReadError::OutOfBounds)? += delta as f64 * scalar;
         }
     }
 
@@ -554,7 +554,7 @@ fn composite_apply_to_coords<'a>(
 fn composite_apply_to_transforms<'a>(
     part: &'a CompositePart<'a>,
     transforms: &mut [Transform],
-    coords: &[f32],
+    coords: &[f64],
 ) -> Result<(), ReadError> {
     let master_translation_deltas = part.master_translation_deltas()?;
     let mut extremum_translation_deltas = part.extremum_translation_deltas()?;
@@ -592,7 +592,7 @@ fn composite_apply_to_transforms<'a>(
                 break;
             };
 
-            let scalar = coord.abs() as f64;
+            let scalar = coord.abs();
             *dst = dst.pre_translate(delta.x as f64 * scalar, delta.y as f64 * scalar);
         }
     } else {
@@ -660,7 +660,7 @@ fn composite_apply_to_transforms<'a>(
                 if pos != (coord > 0.0) {
                     continue;
                 }
-                let scalar = coord.abs() as f64;
+                let scalar = coord.abs();
 
                 if extremum_rotation_delta != 0.0 {
                     let mut center_x = extremum_translation_delta.x as f64;

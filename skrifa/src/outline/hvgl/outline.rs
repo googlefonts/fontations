@@ -29,7 +29,7 @@ impl Outline<'_> {
         // One transform per subpart
         size += self.part.num_total_subparts() as usize * size_of::<Transform>();
         // One axis coordinate per axis
-        size += self.part.num_total_axes() as usize * size_of::<f32>();
+        size += self.part.num_total_axes() as usize * size_of::<f64>();
         if size != 0 {
             // If we're given a buffer that is not aligned, we'll need to
             // adjust, so add our maximum alignment requirement in bytes.

@@ -4,7 +4,7 @@ use super::{Outline, Segment, Transform};
 
 /// Buffers used during glyph scaling.
 pub(crate) struct HvglOutlineMemory<'a> {
-    pub coords: &'a mut [f32],
+    pub coords: &'a mut [f64],
     pub transforms: &'a mut [Transform],
     pub segments: &'a mut [Segment],
 }
