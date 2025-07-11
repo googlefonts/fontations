@@ -100,7 +100,7 @@ impl<'a> SubsetTable<'a> for PairSet<'_> {
 
         for pairvalue_rec in self.pair_value_records().iter() {
             let pairvalue_rec = pairvalue_rec
-                .or_else(|_| Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)))?;
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
             let Some(gid) = glyph_map.get(&GlyphId::from(pairvalue_rec.second_glyph())) else {
                 continue;
             };

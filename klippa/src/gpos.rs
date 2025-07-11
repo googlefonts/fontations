@@ -1,5 +1,7 @@
 //! impl subset() for GPOS table
 
+mod anchor;
+mod cursive_pos;
 mod pair_pos;
 mod single_pos;
 mod value_record;
@@ -174,8 +176,8 @@ impl<'a> SubsetTable<'a> for PositionSubtables<'a> {
     ) -> Result<(), SerializeErrorFlags> {
         match self {
             PositionSubtables::Single(subtables) => subtables.subset(plan, s, args),
-            PositionSubtables::Pair(_) => Ok(()),
-            PositionSubtables::Cursive(_) => Ok(()),
+            PositionSubtables::Pair(subtables) => subtables.subset(plan, s, args),
+            PositionSubtables::Cursive(subtables) => subtables.subset(plan, s, args),
             PositionSubtables::MarkToBase(_) => Ok(()),
             PositionSubtables::MarkToLig(_) => Ok(()),
             PositionSubtables::MarkToMark(_) => Ok(()),
