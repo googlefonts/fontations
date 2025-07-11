@@ -39,7 +39,9 @@ record ContainsOffsets {
     #[compile(array_len($array_offset))]
     off_array_count: u16,
     #[read_offset_with($off_array_count)]
+    #[offset_from(BasicTable)]
     array_offset: Offset16<[SimpleRecord]>,
+    #[offset_from(BasicTable)]
     other_offset: Offset32<BasicTable>,
 }
 
