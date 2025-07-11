@@ -12,7 +12,7 @@ use raw::{
         layout::{Feature, ScriptTags},
         varc::CoverageTable,
     },
-    types::Tag,
+    types::{BytesWrapper, Tag},
     ReadError, TableProvider,
 };
 

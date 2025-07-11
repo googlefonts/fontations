@@ -8,7 +8,7 @@ use write_fonts::{
         tables::post::{Post, DEFAULT_GLYPH_NAMES},
         FontRef, TopLevelTable,
     },
-    types::{GlyphId, Version16Dot16},
+    types::{BytesWrapper, GlyphId, Version16Dot16},
     FontBuilder,
 };
 

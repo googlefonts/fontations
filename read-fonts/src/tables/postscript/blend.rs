@@ -1,6 +1,6 @@
 //! Support for the dictionary and charstring blend operator.
 
-use font_types::{BigEndian, F2Dot14, Fixed};
+use font_types::{BigEndian, BytesWrapper, F2Dot14, Fixed};
 
 use super::Error;
 use crate::tables::variations::{ItemVariationData, ItemVariationStore};

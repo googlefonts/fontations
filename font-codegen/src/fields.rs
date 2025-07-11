@@ -354,11 +354,21 @@ pub(crate) struct FieldConstructorInfo {
     pub(crate) manual_compile_type: bool,
 }
 
-fn big_endian(typ: &syn::Ident) -> TokenStream {
+fn endian_wrapper(typ: &syn::Ident, is_little_endian: bool) -> TokenStream {
     if typ == "u8" {
         return quote!(#typ);
+    } else {
+        let wrapper_ty = endian_wrapper_ty(is_little_endian);
+        quote!(#wrapper_ty<#typ>)
     }
-    quote!(BigEndian<#typ>)
+}
+
+fn endian_wrapper_ty(is_little_endian: bool) -> TokenStream {
+    if is_little_endian {
+        quote!(LittleEndian)
+    } else {
+        quote!(BigEndian)
+    }
 }
 
 fn traversal_arm_for_field(
@@ -517,9 +527,12 @@ impl Field {
     pub(crate) fn type_for_record(&self) -> TokenStream {
         match &self.typ {
             FieldType::Offset { typ, .. } if self.is_nullable() => {
-                quote!(BigEndian<Nullable<#typ>>)
+                let endian_ty = endian_wrapper_ty(self.is_little_endian());
+                quote! { #endian_ty<Nullable<#typ>> }
             }
-            FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => big_endian(typ),
+            FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
+                endian_wrapper(typ, self.is_little_endian())
+            }
             FieldType::Struct { typ } => typ.to_token_stream(),
             FieldType::ComputedArray(array) => {
                 let inner = array.type_with_lifetime();
@@ -528,10 +541,11 @@ impl Field {
             FieldType::VarLenArray(_) => quote!(compile_error("VarLenArray not used in records?")),
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
                 FieldType::Offset { typ, .. } if self.is_nullable() => {
-                    quote!(&'a [BigEndian<Nullable<#typ>>])
+                    let endian_ty = endian_wrapper_ty(self.is_little_endian());
+                    quote!(&'a [#endian_ty<Nullable<#typ>>])
                 }
                 FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
-                    let be = big_endian(typ);
+                    let be = endian_wrapper(typ, self.is_little_endian());
                     quote!(&'a [#be])
                 }
                 FieldType::Struct { typ } => quote!( &'a [#typ] ),
@@ -603,6 +617,34 @@ impl Field {
 
     pub(crate) fn is_conditional(&self) -> bool {
         self.attrs.conditional.is_some()
+    }
+
+    fn is_little_endian(&self) -> bool {
+        self.attrs.little_endian.is_some()
+    }
+
+    fn cursor_read_method(&self) -> TokenStream {
+        if self.is_little_endian() {
+            quote! { read_scalar_le }
+        } else {
+            quote! { read }
+        }
+    }
+
+    fn cursor_read_endian_method(&self) -> TokenStream {
+        if self.is_little_endian() {
+            quote! { read_le }
+        } else {
+            quote! { read_be }
+        }
+    }
+
+    fn data_read_at_method(&self) -> TokenStream {
+        if self.is_little_endian() {
+            quote! { read_scalar_le_at }
+        } else {
+            quote! { read_at }
+        }
     }
 
     /// Sanity check we are in a sane state for the end of phase
@@ -754,10 +796,11 @@ impl Field {
             | FieldType::Struct { typ } => typ.to_token_stream(),
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
                 FieldType::Offset { typ, .. } if self.is_nullable() => {
-                    quote!(&'a [BigEndian<Nullable<#typ>>])
+                    let endian_ty = endian_wrapper_ty(self.is_little_endian());
+                    quote!(&'a [#endian_ty<Nullable<#typ>>])
                 }
                 FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
-                    let be = big_endian(typ);
+                    let be = endian_wrapper(typ, self.is_little_endian());
                     quote!(&'a [#be])
                 }
                 FieldType::Struct { typ } => quote!(&'a [#typ]),
@@ -820,7 +863,8 @@ impl Field {
         } else if is_array {
             quote!(self.data.read_array(range).unwrap())
         } else {
-            quote!(self.data.read_at(range.start).unwrap())
+            let read_at = self.data_read_at_method();
+            quote!(self.data.#read_at(range.start).unwrap())
         };
         if is_versioned {
             read_stmt = quote!(Some(#read_stmt));
@@ -956,6 +1000,20 @@ impl Field {
             } else {
                 quote!(ArrayOfOffsets)
             };
+            let wrapper_type = if offset_type == "u8" {
+                if self.is_nullable() {
+                    quote!(Nullable<u8>)
+                } else {
+                    quote!(u8)
+                }
+            } else {
+                let endian = endian_wrapper_ty(self.is_little_endian());
+                if self.is_nullable() {
+                    quote!(#endian<Nullable<#offset_type>>)
+                } else {
+                    quote!(#endian<#offset_type>)
+                }
+            };
 
             let target_lifetime = (!target_is_generic).then(|| quote!(<'a>));
 
@@ -965,7 +1023,7 @@ impl Field {
                 quote!(())
             };
             let mut return_type =
-                quote!( #array_type<'a, #target_ident #target_lifetime, #offset_type> );
+                quote!( #array_type<'a, #target_ident #target_lifetime, #wrapper_type> );
             let mut body = quote!(#array_type::new(offsets, data, #args_token));
             if self.is_conditional() {
                 return_type = quote!( Option< #return_type > );
@@ -1100,9 +1158,11 @@ impl Field {
             assert!(!self.is_array());
             let typ = self.typ.cooked_type_tokens();
             let condition = condition.condition_tokens_for_read();
+            let read_method = self.cursor_read_method();
+
             if self.read_at_parse_time {
                 quote! {
-                    let #name = #condition.then(|| cursor.read::<#typ>()).transpose()?.unwrap_or_default();
+                    let #name = #condition.then(|| cursor.#read_method::<#typ>()).transpose()?.unwrap_or_default();
                 }
             } else {
                 quote! {
@@ -1111,7 +1171,8 @@ impl Field {
             }
         } else if self.read_at_parse_time {
             let typ = self.typ.cooked_type_tokens();
-            quote! ( let #name: #typ = cursor.read()?; )
+            let read_method = self.cursor_read_method();
+            quote! ( let #name: #typ = cursor.#read_method()?; )
         } else {
             panic!("who wrote this garbage anyway?");
         };
@@ -1221,7 +1282,8 @@ impl Field {
                     // directly
                     quote!(cursor.read()?)
                 } else {
-                    quote!(cursor.read_be()?)
+                    let method = self.cursor_read_endian_method();
+                    quote!(cursor.#method()?)
                 }
             }
             _ => match self
@@ -1231,7 +1293,10 @@ impl Field {
                 .map(FieldReadArgs::to_tokens_for_validation)
             {
                 Some(args) => quote!(cursor.read_with_args(&#args)?),
-                None => quote!(cursor.read_be()?),
+                None => {
+                    let method = self.cursor_read_endian_method();
+                    quote!(cursor.#method()?)
+                }
             },
         };
         quote!( #name : #rhs )

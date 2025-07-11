@@ -19,7 +19,7 @@ use write_fonts::{
         types::{FixedSize, GlyphId},
         FontRef, TopLevelTable,
     },
-    types::{Offset32, Uint24},
+    types::{BytesWrapper, Offset32, Uint24},
     FontBuilder,
 };
 

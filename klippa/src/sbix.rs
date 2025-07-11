@@ -2,7 +2,7 @@
 use crate::serialize::{OffsetWhence, SerializeErrorFlags, Serializer};
 use crate::{Plan, Subset, SubsetError, SubsetTable};
 use skrifa::GlyphId;
-use write_fonts::types::FixedSize;
+use write_fonts::types::{BigEndian, FixedSize};
 use write_fonts::{
     read::{
         tables::sbix::{Sbix, Strike},
@@ -34,7 +34,7 @@ fn serialize_header(sbix: &Sbix, s: &mut Serializer) -> Result<(), SerializeErro
     s.embed(sbix.flags()).map(|_| ())
 }
 
-impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, Strike<'a>, Offset32> {
+impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, Strike<'a>, BigEndian<Offset32>> {
     type ArgsForSubset = ();
     type Output = ();
     fn subset(

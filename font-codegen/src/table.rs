@@ -824,6 +824,11 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
             quote!(Self::#name(table) => table)
         });
 
+    let format_read_method = if item.little_endian {
+        quote! { read_scalar_le_at }
+    } else {
+        quote! { read_at }
+    };
     let format_offset = item
         .format_offset
         .as_ref()
@@ -859,7 +864,7 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
 
         impl<'a> FontRead<'a> for #name<'a> {
             fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-                let format: #format = data.read_at(#format_offset)?;
+                let format: #format = data.#format_read_method(#format_offset)?;
                 #maybe_allow_lint
                 match format {
                     #( #match_arms ),*

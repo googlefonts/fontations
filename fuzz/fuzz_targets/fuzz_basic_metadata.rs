@@ -1,6 +1,7 @@
 #![no_main]
 use std::error::Error;
 
+use font_types::BytesWrapper;
 use libfuzzer_sys::fuzz_target;
 use skrifa::raw::TableProvider;
 

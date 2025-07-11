@@ -2,7 +2,7 @@
 //!
 //! This means taking a set of glyphs and updating it to include any other glyphs
 //! reachable from those glyphs via substitution, recursively.
-use font_types::GlyphId;
+use types::{BytesWrapper, GlyphId};
 
 use crate::{
     collections::IntSet,
