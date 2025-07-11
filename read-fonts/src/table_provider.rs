@@ -181,6 +181,10 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    fn hvgl(&self) -> Result<tables::hvgl::Hvgl<'a>, ReadError> {
+        self.expect_table()
+    }
+
     fn colr(&self) -> Result<tables::colr::Colr<'a>, ReadError> {
         self.expect_table()
     }
