@@ -40,7 +40,12 @@ impl FreeTypeInstance {
         } else {
             load_flags |= LoadFlag::NO_SCALE | LoadFlag::NO_HINTING | LoadFlag::NO_AUTOHINT;
         }
-        if !options.coords.is_empty() {
+        // Skrifa has an optimization path that disables variation processing when
+        // all coords are zero. FreeType has been updated to do the same
+        // (https://gitlab.freedesktop.org/freetype/freetype/-/commit/fa412cf5c58256a0dafdb912c7252a16229f5140)
+        // but this isn't yet available in our freetype-sys crate so avoid setting
+        // variations for all zero coords.
+        if !options.coords.is_empty() && !options.coords.iter().all(|coord| coord.to_bits() == 0) {
             let mut ft_coords = vec![];
             ft_coords.extend(
                 options
