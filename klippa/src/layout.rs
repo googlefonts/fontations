@@ -728,7 +728,8 @@ impl<'a> Serialize<'a> for CoverageFormat2<'a> {
         }
 
         let last_range_pos = pos + range * RangeRecord::RAW_BYTE_LEN;
-        s.copy_assign(last_range_pos, last);
+        // end glyph
+        s.copy_assign(last_range_pos + 2, last);
         Ok(())
     }
 }

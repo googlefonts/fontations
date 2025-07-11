@@ -1,6 +1,8 @@
 //! impl subset() for GPOS table
 
+mod pair_pos;
 mod single_pos;
+mod value_record;
 
 use crate::{
     collect_features_with_retained_subs, find_duplicate_features,
