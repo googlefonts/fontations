@@ -1,10 +1,10 @@
 //! impl subset() for SinglePos subtable
 
 use crate::{
-    gpos::value_record::compute_effective_format,
+    gpos::value_record::{collect_variation_indices, compute_effective_format},
     offset::SerializeSerialize,
     serialize::{SerializeErrorFlags, Serializer},
-    Plan, Serialize, SubsetFlags, SubsetState, SubsetTable,
+    CollectVariationIndices, Plan, Serialize, SubsetFlags, SubsetState, SubsetTable,
 };
 use write_fonts::{
     read::{
@@ -257,6 +257,55 @@ impl<'a> Serialize<'a> for SinglePosFormat2<'_> {
         }
 
         Offset16::serialize_serialize::<CoverageTable>(s, glyphs, cov_offset_pos)
+    }
+}
+
+impl CollectVariationIndices for SinglePos<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        match self {
+            Self::Format1(item) => item.collect_variation_indices(plan, varidx_set),
+            Self::Format2(item) => item.collect_variation_indices(plan, varidx_set),
+        }
+    }
+}
+
+impl CollectVariationIndices for SinglePosFormat1<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        if !self
+            .value_format()
+            .intersects(ValueFormat::ANY_DEVICE_OR_VARIDX)
+        {
+            return;
+        }
+        collect_variation_indices(&self.value_record(), self.offset_data(), plan, varidx_set);
+    }
+}
+
+impl CollectVariationIndices for SinglePosFormat2<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        if !self
+            .value_format()
+            .intersects(ValueFormat::ANY_DEVICE_OR_VARIDX)
+        {
+            return;
+        }
+
+        let Ok(coverage) = self.coverage() else {
+            return;
+        };
+        let value_records = self.value_records();
+        let glyph_set = &plan.glyphset_gsub;
+        for i in coverage
+            .iter()
+            .enumerate()
+            .filter(|&(_, g)| glyph_set.contains(GlyphId::from(g)))
+            .map(|(i, _)| i)
+        {
+            let Ok(value_record) = value_records.get(i) else {
+                return;
+            };
+            collect_variation_indices(&value_record, self.offset_data(), plan, varidx_set);
+        }
     }
 }
 

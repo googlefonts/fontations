@@ -3,10 +3,11 @@
 use crate::{
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, Serializer},
-    Plan, SubsetTable,
+    CollectVariationIndices, Plan, SubsetTable,
 };
 use write_fonts::{
     read::{
+        collections::IntSet,
         tables::gpos::{ValueFormat, ValueRecord},
         FontData,
     },
@@ -165,5 +166,33 @@ impl<'a> SubsetTable<'a> for ValueRecord {
             }
         }
         Ok(())
+    }
+}
+
+pub(crate) fn collect_variation_indices(
+    value_record: &ValueRecord,
+    font_data: FontData,
+    plan: &Plan,
+    varidx_set: &mut IntSet<u32>,
+) {
+    let value_format = value_record.format;
+    if !value_format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
+        return;
+    }
+
+    if let Some(Ok(x_pla_device)) = value_record.x_placement_device(font_data) {
+        x_pla_device.collect_variation_indices(plan, varidx_set);
+    }
+
+    if let Some(Ok(y_pla_device)) = value_record.y_placement_device(font_data) {
+        y_pla_device.collect_variation_indices(plan, varidx_set);
+    }
+
+    if let Some(Ok(x_adv_device)) = value_record.x_advance_device(font_data) {
+        x_adv_device.collect_variation_indices(plan, varidx_set);
+    }
+
+    if let Some(Ok(y_adv_device)) = value_record.y_advance_device(font_data) {
+        y_adv_device.collect_variation_indices(plan, varidx_set);
     }
 }

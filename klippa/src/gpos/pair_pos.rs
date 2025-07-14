@@ -1,12 +1,12 @@
 //! impl subset() for PairPos subtable
 
 use crate::{
-    gpos::value_record::compute_effective_format,
+    gpos::value_record::{collect_variation_indices, compute_effective_format},
     layout::ClassDefSubsetStruct,
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, Serializer},
-    Plan, SubsetFlags, SubsetState, SubsetTable,
+    CollectVariationIndices, Plan, SubsetFlags, SubsetState, SubsetTable,
 };
 
 use fnv::FnvHashMap;
@@ -392,6 +392,131 @@ impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
     }
 }
 
+impl CollectVariationIndices for PairSet<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        let glyph_set = &plan.glyphset_gsub;
+        let font_data = self.offset_data();
+        for pairvalue_record in self.pair_value_records().iter() {
+            let Ok(pairvalue_record) = pairvalue_record else {
+                return;
+            };
+
+            if !glyph_set.contains(GlyphId::from(pairvalue_record.second_glyph())) {
+                continue;
+            }
+
+            collect_variation_indices(
+                pairvalue_record.value_record1(),
+                font_data,
+                plan,
+                varidx_set,
+            );
+            collect_variation_indices(
+                pairvalue_record.value_record2(),
+                font_data,
+                plan,
+                varidx_set,
+            );
+        }
+    }
+}
+
+impl CollectVariationIndices for PairPos<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        match self {
+            Self::Format1(item) => item.collect_variation_indices(plan, varidx_set),
+            Self::Format2(item) => item.collect_variation_indices(plan, varidx_set),
+        }
+    }
+}
+
+impl CollectVariationIndices for PairPosFormat1<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        let value_format1 = self.value_format1();
+        let value_format2 = self.value_format2();
+
+        if !value_format1.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX)
+            && !value_format2.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX)
+        {
+            return;
+        }
+
+        let Ok(coverage) = self.coverage() else {
+            return;
+        };
+
+        let glyph_set = &plan.glyphset_gsub;
+        let pair_sets = self.pair_sets();
+        for i in coverage
+            .iter()
+            .enumerate()
+            .filter(|&(_, g)| glyph_set.contains(GlyphId::from(g)))
+            .map(|(i, _)| i)
+        {
+            let Ok(pair_set) = pair_sets.get(i) else {
+                return;
+            };
+            pair_set.collect_variation_indices(plan, varidx_set);
+        }
+    }
+}
+
+impl CollectVariationIndices for PairPosFormat2<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        let value_format1 = self.value_format1();
+        let value_format2 = self.value_format2();
+
+        if !value_format1.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX)
+            && !value_format2.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX)
+        {
+            return;
+        }
+        let Ok(coverage) = self.coverage() else {
+            return;
+        };
+
+        let glyph_set = &plan.glyphset_gsub;
+        let cov_glyphs = coverage.intersect_set(glyph_set);
+        if cov_glyphs.is_empty() {
+            return;
+        };
+
+        let Ok(classdef1) = self.class_def1() else {
+            return;
+        };
+
+        let Ok(classdef2) = self.class_def2() else {
+            return;
+        };
+
+        let class1_set = classdef1.intersect_classes(&cov_glyphs);
+        if class1_set.is_empty() {
+            return;
+        }
+        let mut class2_set = classdef2.intersect_classes(glyph_set);
+        if class2_set.is_empty() {
+            return;
+        }
+        class2_set.insert(0);
+
+        let font_data = self.offset_data();
+        let class1_records = self.class1_records();
+        for class1 in class1_set.iter() {
+            let Ok(class1_record) = class1_records.get(class1 as usize) else {
+                return;
+            };
+            let class2_records = class1_record.class2_records();
+            for class2 in class2_set.iter() {
+                let Ok(class2_rec) = class2_records.get(class2 as usize) else {
+                    return;
+                };
+                collect_variation_indices(class2_rec.value_record1(), font_data, plan, varidx_set);
+                collect_variation_indices(class2_rec.value_record2(), font_data, plan, varidx_set);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -525,5 +650,73 @@ mod test {
         ];
 
         assert_eq!(subsetted_data, expected_data);
+    }
+
+    #[test]
+    fn test_collect_variation_indices_pairpos_format1() {
+        use write_fonts::read::tables::gpos::PositionSubtables;
+
+        let font = FontRef::new(include_bytes!(
+            "../../test-data/fonts/RobotoFlex-Variable.ttf"
+        ))
+        .unwrap();
+        let gpos_lookups = font.gpos().unwrap().lookup_list().unwrap();
+        let lookup = gpos_lookups.lookups().get(0).unwrap();
+
+        let PositionSubtables::Pair(sub_tables) = lookup.subtables().unwrap() else {
+            panic!("Wrong type of lookup table!");
+        };
+        let pairpos_table = sub_tables.get(0).unwrap();
+        let mut plan = Plan::default();
+
+        plan.glyphset_gsub.insert(GlyphId::from(3_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(11_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(55_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(57_u32));
+
+        let mut varidx_set = IntSet::empty();
+        pairpos_table.collect_variation_indices(&plan, &mut varidx_set);
+        assert_eq!(varidx_set.len(), 5);
+        assert!(varidx_set.contains(0x6f0013_u32));
+        assert!(varidx_set.contains(0x3e0004_u32));
+        assert!(varidx_set.contains(0x540010_u32));
+        assert!(varidx_set.contains(0x1c0024_u32));
+        assert!(varidx_set.contains(0x1c003c_u32));
+    }
+
+    #[test]
+    fn test_collect_variation_indices_pairpos_format2() {
+        use write_fonts::read::tables::gpos::PositionSubtables;
+
+        let font = FontRef::new(include_bytes!(
+            "../../test-data/fonts/RobotoFlex-Variable.ttf"
+        ))
+        .unwrap();
+        let gpos_lookups = font.gpos().unwrap().lookup_list().unwrap();
+        let lookup = gpos_lookups.lookups().get(0).unwrap();
+
+        let PositionSubtables::Pair(sub_tables) = lookup.subtables().unwrap() else {
+            panic!("Wrong type of lookup table!");
+        };
+        let pairpos_table = sub_tables.get(1).unwrap();
+        let mut plan = Plan::default();
+
+        plan.glyphset_gsub.insert(GlyphId::from(38_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(39_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(68_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(127_u32));
+
+        let mut varidx_set = IntSet::empty();
+        pairpos_table.collect_variation_indices(&plan, &mut varidx_set);
+        assert_eq!(varidx_set.len(), 9);
+        assert!(varidx_set.contains(0x12000f_u32));
+        assert!(varidx_set.contains(0x3c0000_u32));
+        assert!(varidx_set.contains(0x54001e_u32));
+        assert!(varidx_set.contains(0x1c0031_u32));
+        assert!(varidx_set.contains(0xb000b_u32));
+        assert!(varidx_set.contains(0x1c0035_u32));
+        assert!(varidx_set.contains(0x1c0022_u32));
+        assert!(varidx_set.contains(0x100005_u32));
+        assert!(varidx_set.contains(0x1c0036_u32));
     }
 }

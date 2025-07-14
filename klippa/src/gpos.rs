@@ -2,6 +2,8 @@
 
 mod anchor;
 mod cursive_pos;
+mod mark_array;
+mod mark_base_pos;
 mod pair_pos;
 mod single_pos;
 mod value_record;
@@ -11,16 +13,19 @@ use crate::{
     offset::SerializeSubset,
     prune_features, remap_indices,
     serialize::{SerializeErrorFlags, Serializer},
-    LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset, SubsetError,
-    SubsetLayoutContext, SubsetState, SubsetTable,
+    CollectVariationIndices, LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset,
+    SubsetError, SubsetLayoutContext, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
-        tables::gpos::{Gpos, PositionSubtables},
+        tables::{
+            gpos::{Gpos, PositionSubtables},
+            layout::{ExtensionLookup, Intersect, Subtables},
+        },
         types::Tag,
-        FontRef, TopLevelTable,
+        FontRead, FontRef, TopLevelTable,
     },
     types::Offset16,
     FontBuilder,
@@ -183,6 +188,73 @@ impl<'a> SubsetTable<'a> for PositionSubtables<'a> {
             PositionSubtables::MarkToMark(_) => Ok(()),
             PositionSubtables::Contextual(_) => Ok(()),
             PositionSubtables::ChainContextual(_) => Ok(()),
+        }
+    }
+}
+
+impl CollectVariationIndices for Gpos<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        let Ok(lookups) = self.lookup_list() else {
+            return;
+        };
+
+        let lookups = lookups.lookups();
+        for i in plan.gpos_lookups.keys() {
+            let Ok(lookup) = lookups.get(*i as usize) else {
+                return;
+            };
+
+            let Ok(subtables) = lookup.subtables() else {
+                return;
+            };
+            subtables.collect_variation_indices(plan, varidx_set);
+        }
+    }
+}
+
+//TODO: support all lookup types
+impl CollectVariationIndices for PositionSubtables<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        match self {
+            PositionSubtables::Single(subtables) => {
+                subtables.collect_variation_indices(plan, varidx_set)
+            }
+            PositionSubtables::Pair(subtables) => {
+                subtables.collect_variation_indices(plan, varidx_set)
+            }
+            PositionSubtables::Cursive(subtables) => {
+                subtables.collect_variation_indices(plan, varidx_set)
+            }
+            PositionSubtables::MarkToBase(subtables) => {
+                subtables.collect_variation_indices(plan, varidx_set)
+            }
+            PositionSubtables::MarkToLig(_subtables) => (),
+            PositionSubtables::MarkToMark(_subtables) => (),
+            PositionSubtables::Contextual(_subtables) => (),
+            PositionSubtables::ChainContextual(_subtables) => (),
+        }
+    }
+}
+
+impl<'a, T, Ext> CollectVariationIndices for Subtables<'a, T, Ext>
+where
+    T: CollectVariationIndices + Intersect + FontRead<'a> + 'a,
+    Ext: ExtensionLookup<'a, T> + 'a,
+{
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        for t in self.iter() {
+            let Ok(t) = t else {
+                return;
+            };
+
+            let Ok(intersect) = t.intersects(&plan.glyphset_gsub) else {
+                return;
+            };
+
+            if !intersect {
+                continue;
+            }
+            t.collect_variation_indices(plan, varidx_set);
         }
     }
 }
