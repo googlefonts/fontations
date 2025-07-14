@@ -41,7 +41,8 @@ fn main() {
 
     // We don't currently test hinting.
     // Waiting on <https://github.com/googlefonts/fontations/issues/620>
-    let hinting = None;
+    // let hinting = None;
+    let hinting = Some(fauntlet::Hinting::Auto(fauntlet::HintingTarget::Light));
 
     use clap::Parser as _;
     let args = Args::parse_from(wild::args());

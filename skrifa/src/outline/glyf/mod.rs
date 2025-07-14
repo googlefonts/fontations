@@ -38,9 +38,9 @@ pub const PHANTOM_POINT_COUNT: usize = 4;
 pub struct Outlines<'a> {
     pub(crate) font: FontRef<'a>,
     pub(crate) glyph_metrics: GlyphHMetrics<'a>,
-    loca: Loca<'a>,
-    glyf: Glyf<'a>,
-    gvar: Option<Gvar<'a>>,
+    pub(crate) loca: Loca<'a>,
+    pub(crate) glyf: Glyf<'a>,
+    pub(crate) gvar: Option<Gvar<'a>>,
     hdmx: Option<Hdmx<'a>>,
     fpgm: &'a [u8],
     prep: &'a [u8],

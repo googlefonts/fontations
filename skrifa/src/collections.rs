@@ -62,6 +62,35 @@ where
         true
     }
 
+    pub fn resize(&mut self, new_len: usize) {
+        if new_len > N {
+            self.spill_to_heap(new_len);
+        }
+        match &mut self.0 {
+            Storage::Inline(buf, len) => {
+                if new_len > *len {
+                    for value in &mut buf[*len..new_len] {
+                        *value = Default::default();
+                    }
+                }
+                *len = new_len;
+            }
+            Storage::Heap(vec) => vec.resize(new_len, T::default()),
+        }
+    }
+
+    fn spill_to_heap(&mut self, capacity: usize) {
+        match &mut self.0 {
+            Storage::Inline(buf, len) => {
+                let mut vec = Vec::new();
+                vec.reserve(capacity);
+                vec.extend_from_slice(&buf[..*len]);
+                self.0 = Storage::Heap(vec);
+            }
+            _ => {}
+        }
+    }
+
     /// Appends an element to the back of the collection.
     pub fn push(&mut self, value: T) {
         match &mut self.0 {
