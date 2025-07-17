@@ -54,7 +54,7 @@ pub struct Outlines<'a> {
     units_per_em: u16,
     os2_vmetrics: [i16; 2],
     prefer_interpreter: bool,
-    prevent_fractional_scaling: bool,
+    pub(crate) prevent_fractional_scaling: bool,
 }
 
 impl<'a> Outlines<'a> {

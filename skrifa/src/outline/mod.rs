@@ -641,6 +641,17 @@ impl<'a> OutlineGlyphCollection<'a> {
             .unwrap_or_default()
     }
 
+    /// Returns true when the font supports hinting at fractional sizes.
+    ///
+    /// When this returns false, the requested size will be rounded before
+    /// computing the scale factor for hinted glyphs.
+    pub fn fractional_size_hinting(&self) -> bool {
+        match &self.kind {
+            OutlineCollectionKind::Glyf(glyf) => !glyf.prevent_fractional_scaling,
+            _ => true,
+        }
+    }
+
     pub(crate) fn font(&self) -> Option<&FontRef<'a>> {
         match &self.kind {
             OutlineCollectionKind::Glyf(glyf) => Some(&glyf.font),
