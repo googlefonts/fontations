@@ -178,6 +178,7 @@ fn hinting_modes(engine: Option<HintingEngine>, target: Option<HintingTarget>) -
         Some(HintingEngine::Interpreter) => collect_hinting_modes(false, target, &mut modes),
         Some(HintingEngine::Auto) => collect_hinting_modes(true, target, &mut modes),
         Some(HintingEngine::All) => {
+            modes.push(Hinting::None);
             collect_hinting_modes(false, target, &mut modes);
             collect_hinting_modes(true, target, &mut modes);
         }
