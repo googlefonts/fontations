@@ -62,7 +62,9 @@ impl<'a> Outlines<'a> {
         let head = font.head().ok()?;
         // If bit 3 of head.flags is set, then we round ppems when
         // scaling
-        let fractional_size_hinting = head.flags() & 0x8 == 0;
+        let fractional_size_hinting = !head
+            .flags()
+            .contains(read_fonts::tables::head::Flags::FORCE_INTEGER_PPEM);
         let loca = font.loca(Some(head.index_to_loc_format() == 1)).ok()?;
         let glyf = font.glyf().ok()?;
         let glyph_metrics = GlyphHMetrics::new(font)?;

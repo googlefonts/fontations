@@ -339,6 +339,359 @@ impl<'a> From<MacStyle> for FieldType<'a> {
     }
 }
 
+/// The `flags` field for the head table.
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
+pub struct Flags {
+    bits: u16,
+}
+
+impl Flags {
+    /// Bit 0: Baseline for font at y=0.
+    pub const BASELINE_AT_Y_0: Self = Self { bits: 0x0001 };
+
+    /// Bit 1: Left sidebearing point at x=0 (relevant only for TrueType rasterizers).
+    pub const LSB_AT_X_0: Self = Self { bits: 0x0002 };
+
+    /// Bit 2: Instructions may depend on point size.
+    pub const INSTRUCTIONS_DEPEND_ON_POINT_SIZE: Self = Self { bits: 0x0004 };
+
+    /// Bit 3: Force ppem to integer values for all internal scaler math; may use fractional ppem sizes if this bit is clear. It is strongly recommended that this be set in hinted fonts.
+    pub const FORCE_INTEGER_PPEM: Self = Self { bits: 0x0008 };
+
+    /// Bit 4: Instructions may alter advance width (the advance widths might not scale linearly).
+    pub const INSTRUCTIONS_MAY_ALTER_ADVANCE_WIDTH: Self = Self { bits: 0x0010 };
+
+    /// Bit 11: Font data is “lossless” as a result of having been subjected to optimizing transformation and/or compression (such as compression mechanisms defined by ISO/IEC 14496-18, MicroType® Express, WOFF 2.0, or similar) where the original font functionality and features are retained but the binary compatibility between input and output font files is not guaranteed. As a result of the applied transform, the DSIG table may also be invalidated.
+    pub const LOSSLESS_TRANSFORMED_FONT_DATA: Self = Self { bits: 0x0800 };
+
+    /// Bit 12: Font converted (produce compatible metrics).
+    pub const CONVERTED_FONT: Self = Self { bits: 0x1000 };
+
+    /// Bit 13: Font optimized for ClearType. Note, fonts that rely on embedded bitmaps (EBDT) for rendering should not be considered optimized for ClearType, and therefore should keep this bit cleared.
+    pub const OPTIMIZED_FOR_CLEARTYPE: Self = Self { bits: 0x2000 };
+
+    /// Bit 14: Last Resort font. If set, indicates that the glyphs encoded in the 'cmap' subtables are simply generic symbolic representations of code point ranges and do not truly represent support for those code points. If unset, indicates that the glyphs encoded in the 'cmap' subtables represent proper support for those code points.
+    pub const LAST_RESORT_FONT: Self = Self { bits: 0x4000 };
+}
+
+impl Flags {
+    ///  Returns an empty set of flags.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self { bits: 0 }
+    }
+
+    /// Returns the set containing all flags.
+    #[inline]
+    pub const fn all() -> Self {
+        Self {
+            bits: Self::BASELINE_AT_Y_0.bits
+                | Self::LSB_AT_X_0.bits
+                | Self::INSTRUCTIONS_DEPEND_ON_POINT_SIZE.bits
+                | Self::FORCE_INTEGER_PPEM.bits
+                | Self::INSTRUCTIONS_MAY_ALTER_ADVANCE_WIDTH.bits
+                | Self::LOSSLESS_TRANSFORMED_FONT_DATA.bits
+                | Self::CONVERTED_FONT.bits
+                | Self::OPTIMIZED_FOR_CLEARTYPE.bits
+                | Self::LAST_RESORT_FONT.bits,
+        }
+    }
+
+    /// Returns the raw value of the flags currently stored.
+    #[inline]
+    pub const fn bits(&self) -> u16 {
+        self.bits
+    }
+
+    /// Convert from underlying bit representation, unless that
+    /// representation contains bits that do not correspond to a flag.
+    #[inline]
+    pub const fn from_bits(bits: u16) -> Option<Self> {
+        if (bits & !Self::all().bits()) == 0 {
+            Some(Self { bits })
+        } else {
+            None
+        }
+    }
+
+    /// Convert from underlying bit representation, dropping any bits
+    /// that do not correspond to flags.
+    #[inline]
+    pub const fn from_bits_truncate(bits: u16) -> Self {
+        Self {
+            bits: bits & Self::all().bits,
+        }
+    }
+
+    /// Returns `true` if no flags are currently stored.
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.bits() == Self::empty().bits()
+    }
+
+    /// Returns `true` if there are flags common to both `self` and `other`.
+    #[inline]
+    pub const fn intersects(&self, other: Self) -> bool {
+        !(Self {
+            bits: self.bits & other.bits,
+        })
+        .is_empty()
+    }
+
+    /// Returns `true` if all of the flags in `other` are contained within `self`.
+    #[inline]
+    pub const fn contains(&self, other: Self) -> bool {
+        (self.bits & other.bits) == other.bits
+    }
+
+    /// Inserts the specified flags in-place.
+    #[inline]
+    pub fn insert(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+
+    /// Removes the specified flags in-place.
+    #[inline]
+    pub fn remove(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+
+    /// Toggles the specified flags in-place.
+    #[inline]
+    pub fn toggle(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+
+    /// Returns the intersection between the flags in `self` and
+    /// `other`.
+    ///
+    /// Specifically, the returned set contains only the flags which are
+    /// present in *both* `self` *and* `other`.
+    ///
+    /// This is equivalent to using the `&` operator (e.g.
+    /// [`ops::BitAnd`]), as in `flags & other`.
+    ///
+    /// [`ops::BitAnd`]: https://doc.rust-lang.org/std/ops/trait.BitAnd.html
+    #[inline]
+    #[must_use]
+    pub const fn intersection(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+
+    /// Returns the union of between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags which are
+    /// present in *either* `self` *or* `other`, including any which are
+    /// present in both.
+    ///
+    /// This is equivalent to using the `|` operator (e.g.
+    /// [`ops::BitOr`]), as in `flags | other`.
+    ///
+    /// [`ops::BitOr`]: https://doc.rust-lang.org/std/ops/trait.BitOr.html
+    #[inline]
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+
+    /// Returns the difference between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags present in
+    /// `self`, except for the ones present in `other`.
+    ///
+    /// It is also conceptually equivalent to the "bit-clear" operation:
+    /// `flags & !other` (and this syntax is also supported).
+    ///
+    /// This is equivalent to using the `-` operator (e.g.
+    /// [`ops::Sub`]), as in `flags - other`.
+    ///
+    /// [`ops::Sub`]: https://doc.rust-lang.org/std/ops/trait.Sub.html
+    #[inline]
+    #[must_use]
+    pub const fn difference(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOr for Flags {
+    type Output = Self;
+
+    /// Returns the union of the two sets of flags.
+    #[inline]
+    fn bitor(self, other: Flags) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOrAssign for Flags {
+    /// Adds the set of flags.
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+}
+
+impl std::ops::BitXor for Flags {
+    type Output = Self;
+
+    /// Returns the left flags, but with all the right flags toggled.
+    #[inline]
+    fn bitxor(self, other: Self) -> Self {
+        Self {
+            bits: self.bits ^ other.bits,
+        }
+    }
+}
+
+impl std::ops::BitXorAssign for Flags {
+    /// Toggles the set of flags.
+    #[inline]
+    fn bitxor_assign(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+}
+
+impl std::ops::BitAnd for Flags {
+    type Output = Self;
+
+    /// Returns the intersection between the two sets of flags.
+    #[inline]
+    fn bitand(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+}
+
+impl std::ops::BitAndAssign for Flags {
+    /// Disables all flags disabled in the set.
+    #[inline]
+    fn bitand_assign(&mut self, other: Self) {
+        self.bits &= other.bits;
+    }
+}
+
+impl std::ops::Sub for Flags {
+    type Output = Self;
+
+    /// Returns the set difference of the two sets of flags.
+    #[inline]
+    fn sub(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::SubAssign for Flags {
+    /// Disables all flags enabled in the set.
+    #[inline]
+    fn sub_assign(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+}
+
+impl std::ops::Not for Flags {
+    type Output = Self;
+
+    /// Returns the complement of this set of flags.
+    #[inline]
+    fn not(self) -> Self {
+        Self { bits: !self.bits } & Self::all()
+    }
+}
+
+impl std::fmt::Debug for Flags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let members: &[(&str, Self)] = &[
+            ("BASELINE_AT_Y_0", Self::BASELINE_AT_Y_0),
+            ("LSB_AT_X_0", Self::LSB_AT_X_0),
+            (
+                "INSTRUCTIONS_DEPEND_ON_POINT_SIZE",
+                Self::INSTRUCTIONS_DEPEND_ON_POINT_SIZE,
+            ),
+            ("FORCE_INTEGER_PPEM", Self::FORCE_INTEGER_PPEM),
+            (
+                "INSTRUCTIONS_MAY_ALTER_ADVANCE_WIDTH",
+                Self::INSTRUCTIONS_MAY_ALTER_ADVANCE_WIDTH,
+            ),
+            (
+                "LOSSLESS_TRANSFORMED_FONT_DATA",
+                Self::LOSSLESS_TRANSFORMED_FONT_DATA,
+            ),
+            ("CONVERTED_FONT", Self::CONVERTED_FONT),
+            ("OPTIMIZED_FOR_CLEARTYPE", Self::OPTIMIZED_FOR_CLEARTYPE),
+            ("LAST_RESORT_FONT", Self::LAST_RESORT_FONT),
+        ];
+        let mut first = true;
+        for (name, value) in members {
+            if self.contains(*value) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str(name)?;
+            }
+        }
+        if first {
+            f.write_str("(empty)")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Binary for Flags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Binary::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::Octal for Flags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Octal::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::LowerHex for Flags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::LowerHex::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::UpperHex for Flags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::UpperHex::fmt(&self.bits, f)
+    }
+}
+
+impl font_types::Scalar for Flags {
+    type Raw = <u16 as font_types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        self.bits().to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u16>::from_raw(raw);
+        Self::from_bits_truncate(t)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> From<Flags> for FieldType<'a> {
+    fn from(src: Flags) -> FieldType<'a> {
+        src.bits().into()
+    }
+}
+
 /// The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head)
 /// (font header) table.
 #[derive(Debug, Clone, Copy)]
@@ -368,7 +721,7 @@ impl HeadMarker {
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.magic_number_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + Flags::RAW_BYTE_LEN
     }
 
     pub fn units_per_em_byte_range(&self) -> Range<usize> {
@@ -450,7 +803,7 @@ impl<'a> FontRead<'a> for Head<'a> {
         cursor.advance::<Fixed>();
         cursor.advance::<u32>();
         cursor.advance::<u32>();
-        cursor.advance::<u16>();
+        cursor.advance::<Flags>();
         cursor.advance::<u16>();
         cursor.advance::<LongDateTime>();
         cursor.advance::<LongDateTime>();
@@ -501,8 +854,8 @@ impl<'a> Head<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    /// See the flags enum
-    pub fn flags(&self) -> u16 {
+    /// See the flags enum.
+    pub fn flags(&self) -> Flags {
         let range = self.shape.flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }

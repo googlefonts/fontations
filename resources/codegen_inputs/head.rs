@@ -19,6 +19,28 @@ flags u16 MacStyle {
     // Bits 7-15: Reserved (set to 0)    
 }
 
+/// The `flags` field for the head table.
+flags u16 Flags {
+    /// Bit 0: Baseline for font at y=0.
+    BASELINE_AT_Y_0 = 0x0001,
+    /// Bit 1: Left sidebearing point at x=0 (relevant only for TrueType rasterizers).
+    LSB_AT_X_0 = 0x0002,
+    /// Bit 2: Instructions may depend on point size.
+    INSTRUCTIONS_DEPEND_ON_POINT_SIZE = 0x0004,
+    /// Bit 3: Force ppem to integer values for all internal scaler math; may use fractional ppem sizes if this bit is clear. It is strongly recommended that this be set in hinted fonts.
+    FORCE_INTEGER_PPEM = 0x0008,
+    /// Bit 4: Instructions may alter advance width (the advance widths might not scale linearly).
+    INSTRUCTIONS_MAY_ALTER_ADVANCE_WIDTH = 0x0010,
+    /// Bit 11: Font data is “lossless” as a result of having been subjected to optimizing transformation and/or compression (such as compression mechanisms defined by ISO/IEC 14496-18, MicroType® Express, WOFF 2.0, or similar) where the original font functionality and features are retained but the binary compatibility between input and output font files is not guaranteed. As a result of the applied transform, the DSIG table may also be invalidated.
+    LOSSLESS_TRANSFORMED_FONT_DATA = 0x0800,
+    /// Bit 12: Font converted (produce compatible metrics).
+    CONVERTED_FONT = 0x1000,
+    /// Bit 13: Font optimized for ClearType. Note, fonts that rely on embedded bitmaps (EBDT) for rendering should not be considered optimized for ClearType, and therefore should keep this bit cleared.
+    OPTIMIZED_FOR_CLEARTYPE = 0x2000,
+    /// Bit 14: Last Resort font. If set, indicates that the glyphs encoded in the 'cmap' subtables are simply generic symbolic representations of code point ranges and do not truly represent support for those code points. If unset, indicates that the glyphs encoded in the 'cmap' subtables represent proper support for those code points.
+    LAST_RESORT_FONT = 0x4000,
+}
+
 /// The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head) 
 /// (font header) table.
 #[tag = "head"]
@@ -37,8 +59,8 @@ table Head {
     /// Set to 0x5F0F3CF5.
     #[default(0x5F0F3CF5)]
     magic_number: u32,
-    /// See the flags enum
-    flags: u16,
+    /// See the flags enum.
+    flags: Flags,
     /// Set to a value from 16 to 16384. Any value in this range is
     /// valid. In fonts that have TrueType outlines, a power of 2 is
     /// recommended as this allows performance optimizations in some

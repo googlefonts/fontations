@@ -5,9 +5,15 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-pub use read_fonts::tables::head::MacStyle;
+pub use read_fonts::tables::head::{Flags, MacStyle};
 
 impl FontWrite for MacStyle {
+    fn write_into(&self, writer: &mut TableWriter) {
+        writer.write_slice(&self.bits().to_be_bytes())
+    }
+}
+
+impl FontWrite for Flags {
     fn write_into(&self, writer: &mut TableWriter) {
         writer.write_slice(&self.bits().to_be_bytes())
     }
@@ -28,8 +34,8 @@ pub struct Head {
     pub checksum_adjustment: u32,
     /// Set to 0x5F0F3CF5.
     pub magic_number: u32,
-    /// See the flags enum
-    pub flags: u16,
+    /// See the flags enum.
+    pub flags: Flags,
     /// Set to a value from 16 to 16384. Any value in this range is
     /// valid. In fonts that have TrueType outlines, a power of 2 is
     /// recommended as this allows performance optimizations in some
@@ -87,7 +93,7 @@ impl Head {
     pub fn new(
         font_revision: Fixed,
         checksum_adjustment: u32,
-        flags: u16,
+        flags: Flags,
         units_per_em: u16,
         created: LongDateTime,
         modified: LongDateTime,
