@@ -4,9 +4,9 @@ include!("../../generated/generated_head.rs");
 
 #[cfg(test)]
 mod tests {
-    use font_test_data::bebuffer::BeBuffer;
-
     use super::*;
+    use crate::{FontRef, TableProvider};
+    use font_test_data::bebuffer::BeBuffer;
 
     #[test]
     fn smoke_text() {
@@ -26,5 +26,20 @@ mod tests {
         assert_eq!(head.units_per_em(), 4096);
         assert_eq!(head.created().as_secs(), -500);
         assert_eq!(head.y_min(), -50);
+        assert_eq!(head.flags(), Flags::INSTRUCTIONS_MAY_ALTER_ADVANCE_WIDTH);
+    }
+
+    #[test]
+    fn flags() {
+        let head = FontRef::new(font_test_data::TINOS_SUBSET)
+            .unwrap()
+            .head()
+            .unwrap();
+        assert_eq!(
+            head.flags(),
+            Flags::BASELINE_AT_Y_0
+                | Flags::FORCE_INTEGER_PPEM
+                | Flags::INSTRUCTIONS_MAY_ALTER_ADVANCE_WIDTH
+        );
     }
 }
