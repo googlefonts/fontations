@@ -15,7 +15,7 @@ pub fn compare_glyphs(
         // Don't run on bitmap fonts (yet)
         return true;
     }
-    if let Some(Hinting::Auto(_)) = options.hinting {
+    if let Hinting::Auto(_) = options.hinting {
         // This font is a pathological case for autohinting due to the
         // extreme number of generated segments and edges. To be
         // precise, it takes longer to test this single font than the
@@ -67,10 +67,11 @@ pub fn compare_glyphs(
                     if hvar_adv == gvar_adv || (ft_advance - skrifa_advance).abs() > 1.0 {
                         writeln!(
                             std::io::stderr(),
-                            "[{path:?}#{} ppem: {} coords: {:?}] glyph id {} advance doesn't match:\nFreeType: {ft_advance:?}\nSkrifa:   {skrifa_advance:?}",
+                            "[{path:?}#{} ppem: {} coords: {:?} hinting: {:?}] glyph id {} advance doesn't match:\nFreeType: {ft_advance:?}\nSkrifa:   {skrifa_advance:?}",
                             options.index,
                             options.ppem,
                             options.coords,
+                            options.hinting,
                             gid.to_u32(),
                         )
                         .unwrap();
