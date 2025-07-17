@@ -26,7 +26,7 @@ flags u16 Flags {
     /// Bit 1: Left sidebearing point at x=0 (relevant only for TrueType rasterizers).
     LSB_AT_X_0 = 0x0002,
     /// Bit 2: Instructions may depend on point size.
-    INSTRUCTIONS_DEPEND_ON_POINT_SIZE = 0x0004,
+    INSTRUCTIONS_MAY_DEPEND_ON_POINT_SIZE = 0x0004,
     /// Bit 3: Force ppem to integer values for all internal scaler math; may use fractional ppem sizes if this bit is clear. It is strongly recommended that this be set in hinted fonts.
     FORCE_INTEGER_PPEM = 0x0008,
     /// Bit 4: Instructions may alter advance width (the advance widths might not scale linearly).

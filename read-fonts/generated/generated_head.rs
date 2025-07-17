@@ -355,7 +355,7 @@ impl Flags {
     pub const LSB_AT_X_0: Self = Self { bits: 0x0002 };
 
     /// Bit 2: Instructions may depend on point size.
-    pub const INSTRUCTIONS_DEPEND_ON_POINT_SIZE: Self = Self { bits: 0x0004 };
+    pub const INSTRUCTIONS_MAY_DEPEND_ON_POINT_SIZE: Self = Self { bits: 0x0004 };
 
     /// Bit 3: Force ppem to integer values for all internal scaler math; may use fractional ppem sizes if this bit is clear. It is strongly recommended that this be set in hinted fonts.
     pub const FORCE_INTEGER_PPEM: Self = Self { bits: 0x0008 };
@@ -389,7 +389,7 @@ impl Flags {
         Self {
             bits: Self::BASELINE_AT_Y_0.bits
                 | Self::LSB_AT_X_0.bits
-                | Self::INSTRUCTIONS_DEPEND_ON_POINT_SIZE.bits
+                | Self::INSTRUCTIONS_MAY_DEPEND_ON_POINT_SIZE.bits
                 | Self::FORCE_INTEGER_PPEM.bits
                 | Self::INSTRUCTIONS_MAY_ALTER_ADVANCE_WIDTH.bits
                 | Self::LOSSLESS_TRANSFORMED_FONT_DATA.bits
@@ -617,8 +617,8 @@ impl std::fmt::Debug for Flags {
             ("BASELINE_AT_Y_0", Self::BASELINE_AT_Y_0),
             ("LSB_AT_X_0", Self::LSB_AT_X_0),
             (
-                "INSTRUCTIONS_DEPEND_ON_POINT_SIZE",
-                Self::INSTRUCTIONS_DEPEND_ON_POINT_SIZE,
+                "INSTRUCTIONS_MAY_DEPEND_ON_POINT_SIZE",
+                Self::INSTRUCTIONS_MAY_DEPEND_ON_POINT_SIZE,
             ),
             ("FORCE_INTEGER_PPEM", Self::FORCE_INTEGER_PPEM),
             (
