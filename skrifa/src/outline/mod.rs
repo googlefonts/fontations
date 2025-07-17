@@ -647,7 +647,7 @@ impl<'a> OutlineGlyphCollection<'a> {
     /// computing the scale factor for hinted glyphs.
     pub fn fractional_size_hinting(&self) -> bool {
         match &self.kind {
-            OutlineCollectionKind::Glyf(glyf) => !glyf.prevent_fractional_scaling,
+            OutlineCollectionKind::Glyf(glyf) => glyf.fractional_size_hinting,
             _ => true,
         }
     }
@@ -698,7 +698,7 @@ pub(super) fn with_glyf_memory<R>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{instance::Location, MetadataProvider};
+    use crate::{instance::Location, outline::pen::SvgPen, MetadataProvider};
     use kurbo::{Affine, BezPath, PathEl, Point};
     use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
@@ -1452,5 +1452,42 @@ mod tests {
             .advance_width
             .unwrap();
         assert_eq!(advance, 11.0);
+    }
+
+    /// Ensure we produce different TrueType outlines based on the
+    /// fractional_size_hinting flag
+    #[test]
+    fn fractional_size_hinting_matters() {
+        let font = FontRef::from_index(font_test_data::TINOS_SUBSET, 0).unwrap();
+        let mut outlines = font.outline_glyphs();
+        let instance = HintingInstance::new(
+            &outlines,
+            Size::new(24.8),
+            LocationRef::default(),
+            HintingOptions::default(),
+        )
+        .unwrap();
+        let gid = GlyphId::new(2);
+        let outline_with_fractional = {
+            let OutlineCollectionKind::Glyf(glyf) = &mut outlines.kind else {
+                panic!("this is definitely a TrueType font");
+            };
+            glyf.fractional_size_hinting = true;
+            let mut pen = SvgPen::new();
+            let outline = outlines.get(gid).unwrap();
+            outline.draw(&instance, &mut pen).unwrap();
+            pen.to_string()
+        };
+        let outline_without_fractional = {
+            let OutlineCollectionKind::Glyf(glyf) = &mut outlines.kind else {
+                panic!("this is definitely a TrueType font");
+            };
+            glyf.fractional_size_hinting = false;
+            let mut pen = SvgPen::new();
+            let outline = outlines.get(gid).unwrap();
+            outline.draw(&instance, &mut pen).unwrap();
+            pen.to_string()
+        };
+        assert_ne!(outline_with_fractional, outline_without_fractional);
     }
 }
