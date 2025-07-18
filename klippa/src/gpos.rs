@@ -4,6 +4,8 @@ mod anchor;
 mod cursive_pos;
 mod mark_array;
 mod mark_base_pos;
+mod mark_lig_pos;
+mod mark_mark_pos;
 mod pair_pos;
 mod single_pos;
 mod value_record;
@@ -228,10 +230,13 @@ impl CollectVariationIndices for PositionSubtables<'_> {
             PositionSubtables::MarkToBase(subtables) => {
                 subtables.collect_variation_indices(plan, varidx_set)
             }
-            PositionSubtables::MarkToLig(_subtables) => (),
-            PositionSubtables::MarkToMark(_subtables) => (),
-            PositionSubtables::Contextual(_subtables) => (),
-            PositionSubtables::ChainContextual(_subtables) => (),
+            PositionSubtables::MarkToLig(subtables) => {
+                subtables.collect_variation_indices(plan, varidx_set)
+            }
+            PositionSubtables::MarkToMark(subtables) => {
+                subtables.collect_variation_indices(plan, varidx_set)
+            }
+            _ => (),
         }
     }
 }
