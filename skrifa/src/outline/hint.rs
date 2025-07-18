@@ -375,6 +375,9 @@ impl HintingInstance {
                     }
                     self.kind = HinterKind::Cff(subfonts);
                 }
+                OutlineCollectionKind::Hvgl(..) => {
+                    self.kind = HinterKind::Hvgl;
+                }
                 OutlineCollectionKind::None => {}
             },
             Engine::Auto(styles) => {
@@ -426,7 +429,7 @@ impl HintingInstance {
                 if matches!(path_style, PathStyle::HarfBuzz) {
                     return Err(DrawError::HarfBuzzHintingUnsupported);
                 }
-                super::with_glyf_memory(outline, Hinting::Embedded, memory, |buf| {
+                super::with_temporary_memory(glyph, Hinting::Embedded, memory, |buf| {
                     let scaled_outline = FreeTypeScaler::hinted(
                         glyf,
                         outline,
@@ -456,6 +459,12 @@ impl HintingInstance {
                 cff.draw(subfont, *glyph_id, &self.coords, true, pen)?;
                 Ok(AdjustedMetrics::default())
             }
+            (HinterKind::Hvgl, OutlineKind::Hvgl(hvgl, outline)) => {
+                super::with_temporary_memory(glyph, Hinting::None, memory, |buf| {
+                    hvgl.draw(outline, buf, self.size.ppem(), &self.coords, pen)?;
+                    Ok(AdjustedMetrics::default())
+                })
+            }
             _ => Err(DrawError::NoSources),
         }
     }
@@ -468,6 +477,13 @@ enum HinterKind {
     None,
     Glyf(Box<glyf::HintInstance>),
     Cff(Vec<cff::Subfont>),
+    /// HVF fonts don't have any built-in hinting--this is Apple we're talking
+    /// about. The autohinter, however, works fine.
+    ///
+    /// TODO: abstract [`HintingInstance`] to something like `ScalerInstance`;
+    /// it'd be useful to store f32'ified variation coords in it. (see
+    /// https://github.com/googlefonts/fontations/issues/1551)
+    Hvgl,
     Auto(autohint::Instance),
 }
 

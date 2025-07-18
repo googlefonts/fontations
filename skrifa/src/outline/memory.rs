@@ -27,3 +27,35 @@ pub(super) fn with_temporary_memory<R>(size: usize, mut f: impl FnMut(&mut [u8])
         f(&mut vec![0u8; size])
     }
 }
+
+/// Allocates a mutable slice of `T` of the given length from the specified
+/// buffer.
+///
+/// Returns the allocated slice and the remainder of the buffer.
+pub(super) fn alloc_slice<T>(buf: &mut [u8], len: usize) -> Option<(&mut [T], &mut [u8])>
+where
+    T: bytemuck::AnyBitPattern + bytemuck::NoUninit,
+{
+    if len == 0 {
+        return Some((Default::default(), buf));
+    }
+    // 1) Ensure we slice the buffer at a position that is properly aligned
+    // for T.
+    let base_ptr = buf.as_ptr() as usize;
+    let aligned_ptr = align_up(base_ptr, align_of::<T>());
+    let aligned_offset = aligned_ptr - base_ptr;
+    let buf = buf.get_mut(aligned_offset..)?;
+    // 2) Ensure we have enough space in the buffer to allocate our slice.
+    let len_in_bytes = len * size_of::<T>();
+    if len_in_bytes > buf.len() {
+        return None;
+    }
+    let (slice_buf, rest) = buf.split_at_mut(len_in_bytes);
+    // Bytemuck handles all safety guarantees here.
+    let slice = bytemuck::try_cast_slice_mut(slice_buf).ok()?;
+    Some((slice, rest))
+}
+
+fn align_up(len: usize, alignment: usize) -> usize {
+    len + (len.wrapping_neg() & (alignment - 1))
+}

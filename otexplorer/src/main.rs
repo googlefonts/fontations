@@ -113,6 +113,7 @@ fn get_some_table<'a>(
         tables::head::Head::TAG => font.head().map(|x| Box::new(x) as _),
         tables::hhea::Hhea::TAG => font.hhea().map(|x| Box::new(x) as _),
         tables::hmtx::Hmtx::TAG => font.hmtx().map(|x| Box::new(x) as _),
+        tables::hvgl::Hvgl::TAG => font.hvgl().map(|x| Box::new(x) as _),
         tables::loca::Loca::TAG => font.loca(None).map(|x| Box::new(x) as _),
         tables::maxp::Maxp::TAG => font.maxp().map(|x| Box::new(x) as _),
         tables::name::Name::TAG => font.name().map(|x| Box::new(x) as _),
