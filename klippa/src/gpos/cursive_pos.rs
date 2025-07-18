@@ -3,10 +3,11 @@
 use crate::{
     offset::{SerializeSerialize, SerializeSubset},
     serialize::{SerializeErrorFlags, Serializer},
-    Plan, SubsetState, SubsetTable,
+    CollectVariationIndices, Plan, SubsetState, SubsetTable,
 };
 use write_fonts::{
     read::{
+        collections::IntSet,
         tables::{
             gpos::{CursivePosFormat1, EntryExitRecord},
             layout::CoverageTable,
@@ -101,6 +102,34 @@ impl<'a> SubsetTable<'a> for EntryExitRecord {
             Offset16::serialize_subset(&exit_anchor, s, plan, (), exit_offset_pos)?;
         }
         Ok(())
+    }
+}
+
+impl CollectVariationIndices for CursivePosFormat1<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        let Ok(coverage) = self.coverage() else {
+            return;
+        };
+
+        let font_data = self.offset_data();
+        let glyph_set = &plan.glyphset_gsub;
+        let entry_exit_records = self.entry_exit_record();
+        for i in coverage
+            .iter()
+            .enumerate()
+            .filter(|&(_, g)| glyph_set.contains(GlyphId::from(g)))
+            .map(|(i, _)| i)
+        {
+            let Some(rec) = entry_exit_records.get(i) else {
+                return;
+            };
+            if let Some(Ok(entry_anchor)) = rec.entry_anchor(font_data) {
+                entry_anchor.collect_variation_indices(plan, varidx_set);
+            }
+            if let Some(Ok(exit_anchor)) = rec.exit_anchor(font_data) {
+                exit_anchor.collect_variation_indices(plan, varidx_set);
+            }
+        }
     }
 }
 

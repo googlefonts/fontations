@@ -3,10 +3,13 @@
 use crate::{
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, Serializer},
-    Plan, SubsetFlags, SubsetTable,
+    CollectVariationIndices, Plan, SubsetFlags, SubsetTable,
 };
 use write_fonts::{
-    read::tables::gpos::{AnchorFormat1, AnchorFormat2, AnchorFormat3, AnchorTable},
+    read::{
+        collections::IntSet,
+        tables::gpos::{AnchorFormat1, AnchorFormat2, AnchorFormat3, AnchorTable},
+    },
     types::Offset16,
 };
 
@@ -120,5 +123,24 @@ impl<'a> SubsetTable<'a> for AnchorFormat3<'_> {
             s.copy_assign(format_pos, 1_u16);
         }
         Ok(())
+    }
+}
+
+impl CollectVariationIndices for AnchorTable<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        if let Self::Format3(item) = self {
+            item.collect_variation_indices(plan, varidx_set)
+        }
+    }
+}
+
+impl CollectVariationIndices for AnchorFormat3<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        if let Some(Ok(x_device)) = self.x_device() {
+            x_device.collect_variation_indices(plan, varidx_set);
+        }
+        if let Some(Ok(y_device)) = self.y_device() {
+            y_device.collect_variation_indices(plan, varidx_set);
+        }
     }
 }
