@@ -1,6 +1,7 @@
 //! impl subset() for CursivePos subtable
 
 use crate::{
+    layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
     offset::{SerializeSerialize, SerializeSubset},
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, SubsetState, SubsetTable,
@@ -12,7 +13,6 @@ use write_fonts::{
             gpos::{CursivePosFormat1, EntryExitRecord},
             layout::CoverageTable,
         },
-        types::GlyphId,
         FontData, FontRef,
     },
     types::Offset16,
@@ -40,27 +40,22 @@ impl<'a> SubsetTable<'a> for CursivePosFormat1<'_> {
             .coverage()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
         let exit_records = self.entry_exit_record();
-        let mut glyphs =
-            Vec::with_capacity(exit_records.len().min(plan.glyphset_gsub.len() as usize));
-
         let font_data = self.offset_data();
-        for (i, g) in coverage.iter().enumerate().filter_map(|(i, g)| {
-            plan.glyph_map_gsub
-                .get(&GlyphId::from(g))
-                .map(|new_g| (i, *new_g))
-        }) {
-            let Some(exit_record) = exit_records.get(i) else {
+
+        let (glyphs, exit_record_idxes) =
+            intersected_glyphs_and_indices(&coverage, &plan.glyphset_gsub, &plan.glyph_map_gsub);
+        if glyphs.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+
+        for i in exit_record_idxes.iter() {
+            let Some(exit_record) = exit_records.get(i as usize) else {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
             };
             match exit_record.subset(plan, s, font_data) {
-                Ok(()) => {
-                    entry_exit_count += 1;
-                    glyphs.push(g);
-                }
+                Ok(()) => entry_exit_count += 1,
                 Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-                Err(e) => {
-                    return Err(e);
-                }
+                Err(e) => return Err(e),
             }
         }
 
@@ -114,13 +109,9 @@ impl CollectVariationIndices for CursivePosFormat1<'_> {
         let font_data = self.offset_data();
         let glyph_set = &plan.glyphset_gsub;
         let entry_exit_records = self.entry_exit_record();
-        for i in coverage
-            .iter()
-            .enumerate()
-            .filter(|&(_, g)| glyph_set.contains(GlyphId::from(g)))
-            .map(|(i, _)| i)
-        {
-            let Some(rec) = entry_exit_records.get(i) else {
+        let record_idxes = intersected_coverage_indices(&coverage, glyph_set);
+        for i in record_idxes.iter() {
+            let Some(rec) = entry_exit_records.get(i as usize) else {
                 return;
             };
             if let Some(Ok(entry_anchor)) = rec.entry_anchor(font_data) {
@@ -136,7 +127,7 @@ impl CollectVariationIndices for CursivePosFormat1<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{FontRef, TableProvider};
+    use write_fonts::read::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn test_subset_cursive_pos() {

@@ -2,6 +2,7 @@
 
 use crate::{
     gpos::value_record::{collect_variation_indices, compute_effective_format},
+    layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
     offset::SerializeSerialize,
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, Serialize, SubsetFlags, SubsetState, SubsetTable,
@@ -154,18 +155,8 @@ impl<'a> SubsetTable<'a> for SinglePosFormat2<'_> {
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        let glyph_map = &plan.glyph_map_gsub;
-        let cap = glyph_map.len().min(self.value_count() as usize);
-        let mut retained_glyphs = Vec::with_capacity(cap);
-        let mut retained_rec_idxes = IntSet::empty();
-
-        for (idx, g) in coverage.iter().enumerate() {
-            let Some(new_g) = glyph_map.get(&GlyphId::from(g)) else {
-                continue;
-            };
-            retained_glyphs.push(*new_g);
-            retained_rec_idxes.insert(idx as u16);
-        }
+        let (retained_glyphs, retained_rec_idxes) =
+            intersected_glyphs_and_indices(&coverage, &plan.glyphset_gsub, &plan.glyph_map_gsub);
 
         if retained_glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
@@ -295,13 +286,9 @@ impl CollectVariationIndices for SinglePosFormat2<'_> {
         };
         let value_records = self.value_records();
         let glyph_set = &plan.glyphset_gsub;
-        for i in coverage
-            .iter()
-            .enumerate()
-            .filter(|&(_, g)| glyph_set.contains(GlyphId::from(g)))
-            .map(|(i, _)| i)
-        {
-            let Ok(value_record) = value_records.get(i) else {
+        let value_record_idxes = intersected_coverage_indices(&coverage, glyph_set);
+        for i in value_record_idxes.iter() {
+            let Ok(value_record) = value_records.get(i as usize) else {
                 return;
             };
             collect_variation_indices(&value_record, self.offset_data(), plan, varidx_set);

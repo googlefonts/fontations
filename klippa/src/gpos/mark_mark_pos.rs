@@ -1,6 +1,9 @@
 //! impl subset() for MarkMarkPos subtable
-use crate::{gpos::mark_array::collect_mark_record_varidx, CollectVariationIndices, Plan};
-use write_fonts::read::{collections::IntSet, tables::gpos::MarkMarkPosFormat1, types::GlyphId};
+use crate::{
+    gpos::mark_array::collect_mark_record_varidx, layout::intersected_coverage_indices,
+    CollectVariationIndices, Plan,
+};
+use write_fonts::read::{collections::IntSet, tables::gpos::MarkMarkPosFormat1};
 
 impl CollectVariationIndices for MarkMarkPosFormat1<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
@@ -15,13 +18,10 @@ impl CollectVariationIndices for MarkMarkPosFormat1<'_> {
         let mark1_array_data = mark1_array.offset_data();
         let mark1_records = mark1_array.mark_records();
 
+        let mark1_record_idxes = intersected_coverage_indices(&mark1_coverage, glyph_set);
         let mut retained_mark_classes = IntSet::empty();
-        for i in mark1_coverage
-            .iter()
-            .enumerate()
-            .filter_map(|(i, g)| glyph_set.contains(GlyphId::from(g)).then_some(i))
-        {
-            let Some(mark1_record) = mark1_records.get(i) else {
+        for i in mark1_record_idxes.iter() {
+            let Some(mark1_record) = mark1_records.get(i as usize) else {
                 return;
             };
             let class = mark1_record.mark_class();
@@ -37,12 +37,9 @@ impl CollectVariationIndices for MarkMarkPosFormat1<'_> {
         };
         let mark2_array_data = mark2_array.offset_data();
         let mark2_records = mark2_array.mark2_records();
-        for i in mark2_coverage
-            .iter()
-            .enumerate()
-            .filter_map(|(i, g)| glyph_set.contains(GlyphId::from(g)).then_some(i))
-        {
-            let Ok(mark2_record) = mark2_records.get(i) else {
+        let mark2_record_idxes = intersected_coverage_indices(&mark2_coverage, glyph_set);
+        for i in mark2_record_idxes.iter() {
+            let Ok(mark2_record) = mark2_records.get(i as usize) else {
                 return;
             };
             let mark2_anchors = mark2_record.mark2_anchors(mark2_array_data);
@@ -58,7 +55,7 @@ impl CollectVariationIndices for MarkMarkPosFormat1<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{FontRef, TableProvider};
+    use write_fonts::read::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn test_collect_variation_indices_markmarkpos() {
