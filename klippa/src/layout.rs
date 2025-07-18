@@ -734,6 +734,72 @@ impl<'a> Serialize<'a> for CoverageFormat2<'a> {
     }
 }
 
+/// Return glyphs and their indices in the input Coverage table that intersect with the input glyph set
+/// returned glyphs are mapped into new glyph ids
+pub(crate) fn intersected_glyphs_and_indices(
+    coverage: &CoverageTable,
+    glyph_set: &IntSet<GlyphId>,
+    glyph_map: &FnvHashMap<GlyphId, GlyphId>,
+) -> (Vec<GlyphId>, IntSet<u16>) {
+    let count = match coverage {
+        CoverageTable::Format1(t) => t.glyph_count(),
+        CoverageTable::Format2(t) => t.range_count(),
+    };
+    let num_bits = 32 - count.leading_zeros();
+
+    let coverage_population = coverage.population();
+    let glyph_set_len = glyph_set.len();
+    let cap = coverage_population.min(glyph_set_len as usize);
+    let mut glyphs = Vec::with_capacity(cap);
+    let mut indices = IntSet::empty();
+
+    if coverage_population as u32 > (glyph_set_len as u32) * num_bits {
+        for (idx, g) in glyph_set
+            .iter()
+            .filter_map(|g| coverage.get(g).map(|idx| (idx, g)))
+            .filter_map(|(idx, g)| glyph_map.get(&g).map(|new_g| (idx, *new_g)))
+        {
+            glyphs.push(g);
+            indices.insert(idx);
+        }
+    } else {
+        for (i, g) in coverage
+            .iter()
+            .enumerate()
+            .filter_map(|(i, g)| glyph_map.get(&GlyphId::from(g)).map(|&new_g| (i, new_g)))
+        {
+            glyphs.push(g);
+            indices.insert(i as u16);
+        }
+    }
+    (glyphs, indices)
+}
+
+/// Return indices of glyphs in the input Coverage table that intersect with the input glyph set
+pub(crate) fn intersected_coverage_indices(
+    coverage: &CoverageTable,
+    glyph_set: &IntSet<GlyphId>,
+) -> IntSet<u16> {
+    let count = match coverage {
+        CoverageTable::Format1(t) => t.glyph_count(),
+        CoverageTable::Format2(t) => t.range_count(),
+    };
+    let num_bits = 32 - count.leading_zeros();
+
+    let coverage_population = coverage.population();
+    let glyph_set_len = glyph_set.len();
+
+    if coverage_population as u32 > (glyph_set_len as u32) * num_bits {
+        glyph_set.iter().filter_map(|g| coverage.get(g)).collect()
+    } else {
+        coverage
+            .iter()
+            .enumerate()
+            .filter_map(|(i, g)| glyph_set.contains(GlyphId::from(g)).then_some(i as u16))
+            .collect()
+    }
+}
+
 /// Return a set of feature indices that have alternate features defined in FeatureVariations table
 /// and the alternate version(s) intersect the set of lookup indices
 pub(crate) fn collect_features_with_retained_subs(

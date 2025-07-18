@@ -2,7 +2,7 @@
 
 use crate::{
     gpos::value_record::{collect_variation_indices, compute_effective_format},
-    layout::ClassDefSubsetStruct,
+    layout::{intersected_coverage_indices, intersected_glyphs_and_indices, ClassDefSubsetStruct},
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, Serializer},
@@ -55,12 +55,9 @@ fn compute_effective_pair_formats_1(
 
     let coverage = pair_pos.coverage()?;
     let pair_sets = pair_pos.pair_sets();
-    for (_, pair_set) in coverage
-        .iter()
-        .zip(pair_sets.iter())
-        .filter(|&(g, _)| glyph_set.contains(GlyphId::from(g)))
-    {
-        let pair_set = pair_set?;
+    let partset_idxes = intersected_coverage_indices(&coverage, glyph_set);
+    for i in partset_idxes.iter() {
+        let pair_set = pair_sets.get(i as usize)?;
         for pair_value_rec in pair_set.pair_value_records().iter() {
             let pair_value_rec = pair_value_rec?;
             let second_glyph = pair_value_rec.second_glyph();
@@ -184,26 +181,22 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
         let pair_sets = self.pair_sets();
 
-        let mut glyphs = Vec::new();
-        for (i, g) in coverage
-            .iter()
-            .enumerate()
-            .filter_map(|(i, g)| glyph_map.get(&GlyphId::from(g)).map(|new_g| (i, new_g)))
-        {
-            match pair_sets.subset_offset(i, s, plan, (new_format1, new_format2)) {
+        let (glyphs, pairset_idxes) =
+            intersected_glyphs_and_indices(&coverage, glyph_set, glyph_map);
+        if glyphs.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+
+        for i in pairset_idxes.iter() {
+            match pair_sets.subset_offset(i as usize, s, plan, (new_format1, new_format2)) {
                 Ok(()) => {
                     pairset_count += 1;
-                    glyphs.push(*g);
                 }
                 Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
                 Err(e) => {
                     return Err(e);
                 }
             }
-        }
-
-        if glyphs.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
         s.copy_assign(pairset_count_pos, pairset_count);
@@ -447,13 +440,9 @@ impl CollectVariationIndices for PairPosFormat1<'_> {
 
         let glyph_set = &plan.glyphset_gsub;
         let pair_sets = self.pair_sets();
-        for i in coverage
-            .iter()
-            .enumerate()
-            .filter(|&(_, g)| glyph_set.contains(GlyphId::from(g)))
-            .map(|(i, _)| i)
-        {
-            let Ok(pair_set) = pair_sets.get(i) else {
+        let pairset_idxes = intersected_coverage_indices(&coverage, glyph_set);
+        for i in pairset_idxes.iter() {
+            let Ok(pair_set) = pair_sets.get(i as usize) else {
                 return;
             };
             pair_set.collect_variation_indices(plan, varidx_set);
