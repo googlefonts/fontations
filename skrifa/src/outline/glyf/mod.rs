@@ -11,7 +11,7 @@ use core_maths::CoreFloat;
 
 pub use hint::{HintError, HintInstance, HintOutline};
 pub use outline::{Outline, ScaledOutline};
-use raw::{FontRef, ReadError};
+use raw::{types::BytesWrapper, FontRef, ReadError};
 
 use super::{DrawError, GlyphHMetrics, Hinting};
 use crate::GLYF_COMPOSITE_RECURSION_LIMIT;

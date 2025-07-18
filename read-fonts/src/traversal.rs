@@ -16,8 +16,8 @@
 use std::{fmt::Debug, ops::Deref};
 
 use types::{
-    BigEndian, F2Dot14, FWord, Fixed, GlyphId16, Int24, LongDateTime, MajorMinor, NameId, Nullable,
-    Offset16, Offset24, Offset32, Scalar, Tag, UfWord, Uint24, Version16Dot16,
+    BigEndian, BytesWrapper, F2Dot14, FWord, Fixed, GlyphId16, Int24, LongDateTime, MajorMinor,
+    NameId, Nullable, Offset16, Offset24, Offset32, Scalar, Tag, UfWord, Uint24, Version16Dot16,
 };
 
 use crate::{

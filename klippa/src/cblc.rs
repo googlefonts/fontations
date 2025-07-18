@@ -16,7 +16,7 @@ use write_fonts::{
         },
         FontRef, TableProvider, TopLevelTable,
     },
-    types::{FixedSize, GlyphId, Offset32},
+    types::{BytesWrapper, FixedSize, GlyphId, Offset32},
     FontBuilder,
 };
 

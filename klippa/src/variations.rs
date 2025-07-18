@@ -13,7 +13,7 @@ use write_fonts::{
             DeltaSetIndexMap, ItemVariationData, ItemVariationStore, VariationRegionList,
         },
     },
-    types::{BigEndian, F2Dot14, FixedSize, Offset32},
+    types::{BigEndian, BytesWrapper, F2Dot14, FixedSize, Offset32},
 };
 
 impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
