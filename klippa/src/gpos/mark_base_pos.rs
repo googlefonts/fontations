@@ -1,6 +1,12 @@
 //! impl subset() for MarkBasePos subtable
-use crate::{gpos::mark_array::collect_mark_record_varidx, CollectVariationIndices, Plan};
-use write_fonts::read::{collections::IntSet, tables::gpos::MarkBasePosFormat1, types::GlyphId};
+use crate::{
+    gpos::mark_array::{collect_mark_record_varidx, get_mark_class_map},
+    serialize::{SerializeErrorFlags, Serializer},
+    CollectVariationIndices, Plan, SubsetState, SubsetTable,
+};
+use write_fonts::read::{
+    collections::IntSet, tables::gpos::MarkBasePosFormat1, types::GlyphId, FontRef,
+};
 
 impl CollectVariationIndices for MarkBasePosFormat1<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
@@ -55,6 +61,50 @@ impl CollectVariationIndices for MarkBasePosFormat1<'_> {
                 }
             }
         }
+    }
+}
+
+impl<'a> SubsetTable<'a> for MarkBasePosFormat1<'_> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        let mark_coverage = self
+            .mark_coverage()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+        let mark_array = self
+            .mark_array()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+        let glyph_set = &plan.glyphset_gsub;
+        let mark_class_map = get_mark_class_map(&mark_coverage, &mark_array, glyph_set);
+        if mark_class_map.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+
+        // format
+        s.embed(self.pos_format())?;
+
+        // mark coverage offset
+        let mark_cov_offset_pos = s.embed(0_u16)?;
+
+        // base coverage offset
+        let base_cov_offset_pos = s.embed(0_u16)?;
+
+        // mark class count
+        let mark_class_count = mark_class_map.len() as u16;
+        s.embed(mark_class_count)?;
+
+        // mark array offset
+        let mark_array_offset_pos = s.embed(0_u16)?;
+        // base array offset
+        let base_array_offset_pos = s.embed(0_u16)?;
+        Ok(())
     }
 }
 
