@@ -105,10 +105,11 @@ pub fn compare_glyphs(
             }
             write!(
                 std::io::stderr(),
-                "[{path:?}#{} ppem: {} coords: {:?}] glyph id {} outline doesn't match:\n{diff_str}",
+                "[{path:?}#{} ppem: {} coords: {:?} hinting {:?}] glyph id {} outline doesn't match:\n{diff_str}",
                 options.index,
                 options.ppem,
                 options.coords,
+                options.hinting,
                 gid.to_u32(),
             )
             .unwrap();
