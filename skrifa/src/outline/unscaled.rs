@@ -139,11 +139,19 @@ impl UnscaledOutlineRef<'_> {
     }
 }
 
+#[derive(Copy, Clone)]
+enum PendingElement {
+    Line([f32; 2]),
+    Cubic([f32; 6]),
+}
+
 /// Adapts an UnscaledOutlineSink to be fed from a pen while tracking
 /// memory allocation errors.
 pub(super) struct UnscaledPenAdapter<'a, T> {
     sink: &'a mut T,
     failed: bool,
+    last_start: Option<(f32, f32)>,
+    pending: Option<PendingElement>,
 }
 
 impl<'a, T> UnscaledPenAdapter<'a, T> {
@@ -151,14 +159,8 @@ impl<'a, T> UnscaledPenAdapter<'a, T> {
         Self {
             sink,
             failed: false,
-        }
-    }
-
-    pub fn finish(self) -> Result<(), DrawError> {
-        if self.failed {
-            Err(DrawError::InsufficientMemory)
-        } else {
-            Ok(())
+            last_start: None,
+            pending: None,
         }
     }
 }
@@ -181,35 +183,65 @@ where
             self.failed = true;
         }
     }
+
+    fn flush_pending(&mut self, for_close: bool) {
+        if let Some(element) = self.pending.take() {
+            let [x, y] = match element {
+                PendingElement::Line([x, y]) => [x, y],
+                PendingElement::Cubic([x0, y0, x1, y1, x, y]) => {
+                    self.push(x0, y0, PointFlags::off_curve_cubic(), false);
+                    self.push(x1, y1, PointFlags::off_curve_cubic(), false);
+                    [x, y]
+                }
+            };
+            if !for_close || (for_close && self.last_start != Some((x, y))) {
+                self.push(x, y, PointFlags::on_curve(), false);
+            }
+        }
+    }
+
+    pub fn finish(mut self) -> Result<(), DrawError> {
+        self.flush_pending(true);
+        if self.failed {
+            Err(DrawError::InsufficientMemory)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl<T: UnscaledOutlineSink> super::OutlinePen for UnscaledPenAdapter<'_, T> {
     fn move_to(&mut self, x: f32, y: f32) {
+        // self.flush_pending_cubic(false);
         self.push(x, y, PointFlags::on_curve(), true);
+        self.last_start = Some((x, y));
     }
 
     fn line_to(&mut self, x: f32, y: f32) {
-        self.push(x, y, PointFlags::on_curve(), false);
+        self.flush_pending(false);
+        self.pending = Some(PendingElement::Line([x, y]));
     }
 
     fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
+        self.flush_pending(false);
         self.push(cx0, cy0, PointFlags::off_curve_quad(), false);
         self.push(x, y, PointFlags::on_curve(), false);
     }
 
     fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
-        self.push(cx0, cy0, PointFlags::off_curve_cubic(), false);
-        self.push(cx1, cy1, PointFlags::off_curve_cubic(), false);
-        self.push(x, y, PointFlags::on_curve(), false);
+        self.flush_pending(false);
+        self.pending = Some(PendingElement::Cubic([cx0, cy0, cx1, cy1, x, y]));
     }
 
-    fn close(&mut self) {}
+    fn close(&mut self) {
+        self.flush_pending(true);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{prelude::LocationRef, MetadataProvider};
+    use crate::{outline::OutlinePen, prelude::LocationRef, MetadataProvider};
     use raw::{types::GlyphId, FontRef};
 
     #[test]
@@ -363,5 +395,51 @@ mod tests {
         assert_eq!(bottom_contour, 0..14);
         assert_eq!(bottom_point_ix, 0);
         assert_eq!(bottom_y, Some(80));
+    }
+
+    /// When a contour ends with a line or cubic whose end matches the start
+    /// point, omit the last on curve.
+    #[test]
+    fn omit_unnecessary_trailing_oncurves() {
+        let mut outline = UnscaledOutlineBuf::<64>::new();
+        let mut pen = UnscaledPenAdapter::new(&mut outline);
+        pen.move_to(0.5, 1.5);
+        pen.line_to(1.0, 2.0);
+        // matches start, omit last on curve
+        pen.line_to(0.5, 1.5);
+        pen.close();
+        pen.move_to(5.0, 6.0);
+        pen.curve_to(1.0, 1.0, 2.0, 2.0, 2.0, 3.0);
+        // matches start, omit last on curve
+        pen.curve_to(1.0, 1.0, 2.0, 2.0, 5.0, 6.0);
+        pen.close();
+        pen.move_to(5.0, 6.0);
+        // doesn't match start, keep on curve
+        pen.curve_to(1.0, 1.0, 2.0, 2.0, 2.0, 3.0);
+        pen.close();
+        // Collect a vec of bools where true means on curve
+        let on_curves = outline
+            .0
+            .iter()
+            .map(|point| point.flags.is_on_curve())
+            .collect::<Vec<_>>();
+        #[rustfmt::skip]
+        let expected_on_curves = [
+            true,  // move
+            true,  // line
+                   // trailing line omitted
+            true,  // move
+            false, // cubic 1 off curve 1
+            false, // cubic 1 off curve 2
+            true,  // cubic 1 on curve
+            false, // cubic 2 off curve 1
+            false, // cubic 2 off curve 2
+                   // trailing on curve omitted
+            true,  // move
+            false, // cubic 1 off curve 1
+            false, // cubic 1 off curve 2
+            true,  // trailing on curve retained
+        ];
+        assert_eq!(on_curves, expected_on_curves);
     }
 }
