@@ -517,6 +517,22 @@ impl<S: CommandSink> CommandSink for ScalingSink26Dot6<'_, S> {
     }
 }
 
+#[derive(Copy, Clone)]
+enum PendingElement {
+    Move([Fixed; 2]),
+    Line([Fixed; 2]),
+    Curve([Fixed; 6]),
+}
+
+impl PendingElement {
+    fn target_point(&self) -> [Fixed; 2] {
+        match self {
+            Self::Move(xy) | Self::Line(xy) => *xy,
+            Self::Curve([.., x, y]) => [*x, *y],
+        }
+    }
+}
+
 /// Command sink adapter that suppresses degenerate move and line commands.
 ///
 /// FreeType avoids emitting empty contours and zero length lines to prevent
@@ -526,9 +542,9 @@ impl<S: CommandSink> CommandSink for ScalingSink26Dot6<'_, S> {
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.c#L1786>
 struct NopFilteringSink<'a, S> {
+    is_open: bool,
     start: Option<(Fixed, Fixed)>,
-    last: Option<(Fixed, Fixed)>,
-    pending_move: Option<(Fixed, Fixed)>,
+    pending_element: Option<PendingElement>,
     inner: &'a mut S,
 }
 
@@ -538,33 +554,38 @@ where
 {
     fn new(inner: &'a mut S) -> Self {
         Self {
+            is_open: false,
             start: None,
-            last: None,
-            pending_move: None,
+            pending_element: None,
             inner,
         }
     }
 
-    fn flush_pending_move(&mut self) {
-        if let Some((x, y)) = self.pending_move.take() {
-            if let Some((last_x, last_y)) = self.start {
-                if self.last != self.start {
-                    self.inner.line_to(last_x, last_y);
+    fn flush_pending(&mut self, for_close: bool) {
+        if let Some(pending) = self.pending_element.take() {
+            match pending {
+                PendingElement::Move([x, y]) => {
+                    if !for_close {
+                        self.is_open = true;
+                        self.inner.move_to(x, y);
+                        self.start = Some((x, y));
+                    }
+                    return;
+                }
+                PendingElement::Line([x, y]) => {
+                    if !for_close || self.start != Some((x, y)) {
+                        self.inner.line_to(x, y);
+                    }
+                }
+                PendingElement::Curve([cx0, cy0, cx1, cy1, x, y]) => {
+                    self.inner.curve_to(cx0, cy0, cx1, cy1, x, y);
                 }
             }
-            self.start = Some((x, y));
-            self.last = None;
-            self.inner.move_to(x, y);
         }
     }
 
     pub fn finish(&mut self) {
-        if let Some((x, y)) = self.start {
-            if self.last != self.start {
-                self.inner.line_to(x, y);
-            }
-            self.inner.close();
-        }
+        self.close();
     }
 }
 
@@ -589,32 +610,32 @@ where
     }
 
     fn move_to(&mut self, x: Fixed, y: Fixed) {
-        self.pending_move = Some((x, y));
+        self.pending_element = Some(PendingElement::Move([x, y]));
     }
 
     fn line_to(&mut self, x: Fixed, y: Fixed) {
-        if self.pending_move == Some((x, y)) {
+        // Omit the line if we're already at the given position
+        if self
+            .pending_element
+            .map(|element| element.target_point() == [x, y])
+            .unwrap_or_default()
+        {
             return;
         }
-        self.flush_pending_move();
-        if self.last == Some((x, y)) || (self.last.is_none() && self.start == Some((x, y))) {
-            return;
-        }
-        self.inner.line_to(x, y);
-        self.last = Some((x, y));
+        self.flush_pending(false);
+        self.pending_element = Some(PendingElement::Line([x, y]));
     }
 
     fn curve_to(&mut self, cx1: Fixed, cy1: Fixed, cx2: Fixed, cy2: Fixed, x: Fixed, y: Fixed) {
-        self.flush_pending_move();
-        self.last = Some((x, y));
-        self.inner.curve_to(cx1, cy1, cx2, cy2, x, y);
+        self.flush_pending(false);
+        self.pending_element = Some(PendingElement::Curve([cx1, cy1, cx2, cy2, x, y]));
     }
 
     fn close(&mut self) {
-        if self.pending_move.is_none() {
+        self.flush_pending(true);
+        if self.is_open {
             self.inner.close();
-            self.start = None;
-            self.last = None;
+            self.is_open = false;
         }
     }
 }
