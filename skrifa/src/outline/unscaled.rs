@@ -194,7 +194,7 @@ where
                     [x, y]
                 }
             };
-            if !for_close || (for_close && self.last_start != Some((x, y))) {
+            if !for_close || self.last_start != Some((x, y)) {
                 self.push(x, y, PointFlags::on_curve(), false);
             }
         }
@@ -212,7 +212,6 @@ where
 
 impl<T: UnscaledOutlineSink> super::OutlinePen for UnscaledPenAdapter<'_, T> {
     fn move_to(&mut self, x: f32, y: f32) {
-        // self.flush_pending_cubic(false);
         self.push(x, y, PointFlags::on_curve(), true);
         self.last_start = Some((x, y));
     }
@@ -417,6 +416,7 @@ mod tests {
         // doesn't match start, keep on curve
         pen.curve_to(1.0, 1.0, 2.0, 2.0, 2.0, 3.0);
         pen.close();
+        pen.finish().unwrap();
         // Collect a vec of bools where true means on curve
         let on_curves = outline
             .0
