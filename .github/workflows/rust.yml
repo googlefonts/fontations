@@ -9,7 +9,9 @@ on:
     - cron: '22 2 * * *' # run at 2:22 every day
 
 name: Continuous integration
-
+permissions:
+  contents: read
+  
 jobs:
   check:
     name: Rustfmt
