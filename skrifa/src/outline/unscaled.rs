@@ -396,7 +396,8 @@ mod tests {
     }
 
     /// When a contour ends with a line or cubic whose end matches the start
-    /// point, omit the last on curve.
+    /// point, omit the last on curve. This matches FreeType behavior when
+    /// constructing a TrueType style outline from a CFF font.
     #[test]
     fn omit_unnecessary_trailing_oncurves() {
         let mut outline = UnscaledOutlineBuf::<64>::new();
