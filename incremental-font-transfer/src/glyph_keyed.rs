@@ -10,7 +10,7 @@ use crate::patchmap::IftTableTag;
 use crate::table_keyed::copy_unprocessed_tables;
 use crate::{font_patch::PatchingError, patch_group::PatchInfo};
 
-use font_types::{Scalar, Uint24};
+use font_types::{BytesWrapper, Scalar, Uint24};
 use read_fonts::tables::postscript::Index;
 use read_fonts::{
     collections::IntSet,

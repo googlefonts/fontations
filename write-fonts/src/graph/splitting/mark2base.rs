@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use font_types::{FixedSize, Offset16};
+use font_types::{BytesWrapper, FixedSize, Offset16};
 use read_fonts::tables::{gpos as rgpos, layout as rlayout};
 
 use crate::{tables::layout::CoverageTable, write::TableData};

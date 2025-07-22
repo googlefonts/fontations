@@ -1,5 +1,7 @@
 //! Additional support for working with OpenType scripts and language systems.
 
+use types::BytesWrapper;
+
 use super::{FeatureList, LangSys, ReadError, Script, ScriptList, Tag, TaggedElement};
 use std::ops::Deref;
 

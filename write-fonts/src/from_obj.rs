@@ -2,10 +2,11 @@
 
 use std::collections::BTreeSet;
 
+use read::ResolveNullableOffset;
 use read_fonts::{
     ArrayOfNullableOffsets, ArrayOfOffsets, FontData, FontReadWithArgs, Offset, ReadArgs, ReadError,
 };
-use types::{BigEndian, Scalar};
+use types::{BigEndian, BytesWrapper, Scalar};
 
 use crate::{NullableOffsetMarker, OffsetMarker};
 
@@ -173,7 +174,8 @@ where
     T: FromObjRef<U> + Default,
     U: ReadArgs + FontReadWithArgs<'a>,
     U::Args: 'static,
-    O: Scalar + Offset,
+    O: BytesWrapper,
+    O::Inner: Offset,
 {
     fn from_obj_ref(from: &ArrayOfOffsets<'a, U, O>, data: FontData) -> Self {
         from.iter()
@@ -188,7 +190,8 @@ where
     T: FromObjRef<U> + Default,
     U: ReadArgs + FontReadWithArgs<'a>,
     U::Args: 'static,
-    O: Scalar + Offset,
+    O: BytesWrapper,
+    O::Inner: ResolveNullableOffset,
 {
     fn from_obj_ref(from: &ArrayOfNullableOffsets<'a, U, O>, data: FontData) -> Self {
         from.iter()
@@ -202,7 +205,8 @@ where
     T: FromTableRef<U> + Default,
     U: ReadArgs + FontReadWithArgs<'a>,
     U::Args: 'static,
-    O: Scalar + Offset,
+    O: BytesWrapper,
+    O::Inner: Offset,
 {
 }
 
@@ -212,6 +216,7 @@ where
     T: FromObjRef<U> + Default,
     U: ReadArgs + FontReadWithArgs<'a>,
     U::Args: 'static,
-    O: Scalar + Offset,
+    O: BytesWrapper,
+    O::Inner: ResolveNullableOffset,
 {
 }

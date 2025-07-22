@@ -9,6 +9,7 @@
 use std::collections::BTreeSet;
 
 use crate::font_patch::PatchingError;
+use font_types::BytesWrapper;
 use read_fonts::{
     tables::ift::{TableKeyedPatch, TablePatch, TablePatchFlags},
     types::Tag,

@@ -1,6 +1,6 @@
 //! computing closure for the colr table
 
-use font_types::{GlyphId, GlyphId16};
+use font_types::{BytesWrapper, GlyphId, GlyphId16};
 
 use crate::{collections::IntSet, tables::variations::NO_VARIATION_INDEX, ResolveOffset};
 

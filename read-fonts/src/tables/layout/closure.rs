@@ -1,6 +1,6 @@
 //! Support Layout Closure
 
-use types::{BigEndian, GlyphId16};
+use types::{BigEndian, BytesWrapper, GlyphId16};
 
 use super::{
     ArrayOfOffsets, ChainedClassSequenceRule, ChainedClassSequenceRuleSet, ChainedSequenceContext,

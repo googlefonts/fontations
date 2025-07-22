@@ -1732,7 +1732,7 @@ impl<'a> PairPosFormat1<'a> {
     }
 
     /// A dynamically resolving wrapper for [`pair_set_offsets`][Self::pair_set_offsets].
-    pub fn pair_sets(&self) -> ArrayOfOffsets<'a, PairSet<'a>, Offset16> {
+    pub fn pair_sets(&self) -> ArrayOfOffsets<'a, PairSet<'a>, BigEndian<Offset16>> {
         let data = self.data;
         let offsets = self.pair_set_offsets();
         let args = (self.value_format1(), self.value_format2());
@@ -2922,7 +2922,7 @@ impl<'a> BaseRecord<'a> {
     pub fn base_anchors(
         &self,
         data: FontData<'a>,
-    ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset16> {
+    ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, BigEndian<Nullable<Offset16>>> {
         let offsets = self.base_anchor_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -3236,7 +3236,7 @@ impl<'a> LigatureArray<'a> {
     }
 
     /// A dynamically resolving wrapper for [`ligature_attach_offsets`][Self::ligature_attach_offsets].
-    pub fn ligature_attaches(&self) -> ArrayOfOffsets<'a, LigatureAttach<'a>, Offset16> {
+    pub fn ligature_attaches(&self) -> ArrayOfOffsets<'a, LigatureAttach<'a>, BigEndian<Offset16>> {
         let data = self.data;
         let offsets = self.ligature_attach_offsets();
         let args = self.mark_class_count();
@@ -3422,7 +3422,7 @@ impl<'a> ComponentRecord<'a> {
     pub fn ligature_anchors(
         &self,
         data: FontData<'a>,
-    ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset16> {
+    ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, BigEndian<Nullable<Offset16>>> {
         let offsets = self.ligature_anchor_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -3797,7 +3797,7 @@ impl<'a> Mark2Record<'a> {
     pub fn mark2_anchors(
         &self,
         data: FontData<'a>,
-    ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset16> {
+    ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, BigEndian<Nullable<Offset16>>> {
         let offsets = self.mark2_anchor_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }

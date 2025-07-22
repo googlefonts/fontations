@@ -98,6 +98,7 @@ pub(crate) struct TableFormat {
     pub(crate) format: syn::Ident,
     pub(crate) format_offset: Option<syn::LitInt>,
     pub(crate) variants: Vec<FormatVariant>,
+    pub(crate) little_endian: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -183,6 +184,7 @@ pub(crate) struct FieldAttrs {
     pub(crate) nullable: Option<syn::Path>,
     pub(crate) conditional: Option<Attr<Condition>>,
     pub(crate) skip_getter: Option<syn::Path>,
+    pub(crate) little_endian: Option<syn::Path>,
     /// specify that an offset getter has a custom impl
     pub(crate) offset_getter: Option<Attr<syn::Ident>>,
     /// optionally a method on the parent type used to generate the offset data
@@ -492,6 +494,7 @@ mod kw {
     syn::custom_keyword!(record);
     syn::custom_keyword!(flags);
     syn::custom_keyword!(format);
+    syn::custom_keyword!(little_endian);
     syn::custom_keyword!(group);
     syn::custom_keyword!(skip);
     syn::custom_keyword!(scalar);
@@ -672,6 +675,12 @@ impl Parse for TableFormat {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let attrs: TableAttrs = input.parse()?;
         let _kw = input.parse::<kw::format>()?;
+        let little_endian = if input.peek(kw::little_endian) {
+            input.parse::<kw::little_endian>()?;
+            true
+        } else {
+            false
+        };
         let format: syn::Ident = input.parse()?;
         let format_offset = if input.peek(Token![@]) {
             input.parse::<Token![@]>()?;
@@ -705,6 +714,7 @@ impl Parse for TableFormat {
             name,
             variants,
             format_offset,
+            little_endian,
         })
     }
 }
@@ -1040,6 +1050,7 @@ impl FieldAttrs {
 static DOC: &str = "doc";
 static NULLABLE: &str = "nullable";
 static SKIP_GETTER: &str = "skip_getter";
+static LITTLE_ENDIAN: &str = "little_endian";
 static COUNT: &str = "count";
 static SINCE_VERSION: &str = "since_version";
 static IF_COND: &str = "if_cond";
@@ -1078,6 +1089,8 @@ impl Parse for FieldAttrs {
                 this.nullable = Some(attr.path().clone());
             } else if ident == SKIP_GETTER {
                 this.skip_getter = Some(attr.path().clone());
+            } else if ident == LITTLE_ENDIAN {
+                this.little_endian = Some(attr.path().clone());
             } else if ident == OFFSET_GETTER {
                 this.offset_getter = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == OFFSET_DATA {
