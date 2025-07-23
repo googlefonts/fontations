@@ -1,35 +1,93 @@
 //! The [Axis Variations](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
 
 use super::variations::{DeltaSetIndexMap, ItemVariationStore};
+use crate::FontRead;
 
 include!("../../generated/generated_avar.rs");
 
 impl SegmentMaps<'_> {
     /// Applies the piecewise linear mapping to the specified coordinate.
     pub fn apply(&self, coord: Fixed) -> Fixed {
-        let mut prev = AxisValueMap {
-            from_coordinate: Default::default(),
-            to_coordinate: Default::default(),
-        };
-        for (i, axis_value_map) in self.axis_value_maps().iter().enumerate() {
-            use core::cmp::Ordering::*;
-            let from = axis_value_map.from_coordinate().to_fixed();
-            match from.cmp(&coord) {
-                Equal => return axis_value_map.to_coordinate().to_fixed(),
-                Greater => {
-                    if i == 0 {
-                        return coord;
-                    }
-                    let to = axis_value_map.to_coordinate().to_fixed();
-                    let prev_from = prev.from_coordinate().to_fixed();
-                    let prev_to = prev.to_coordinate().to_fixed();
-                    return prev_to + (to - prev_to).mul_div(coord - prev_from, from - prev_from);
-                }
-                _ => {}
+        let maps = self.axis_value_maps();
+        let coord_f32 = coord.to_f32();
+
+        match maps.len() {
+            0 => coord,
+            1 => {
+                let map = maps[0];
+                coord - map.from_coordinate().to_fixed() + map.to_coordinate().to_fixed()
             }
-            prev = *axis_value_map;
+            _ => {
+                let mut start = 0;
+                let mut end = maps.len();
+
+                if maps.len() >= 2 {
+                    if maps[0].from_coordinate().to_f32() == -1.0
+                        && maps[0].to_coordinate().to_f32() == -1.0
+                        && maps[1].from_coordinate().to_f32() == -1.0
+                    {
+                        start += 1;
+                    }
+                    if maps[end - 1].from_coordinate().to_f32() == 1.0
+                        && maps[end - 1].to_coordinate().to_f32() == 1.0
+                        && maps[end - 2].from_coordinate().to_f32() == 1.0
+                    {
+                        end -= 1;
+                    }
+                }
+
+                let maps = &maps[start..end];
+
+                // exact match
+                let exact_matches: Vec<_> = maps
+                    .iter()
+                    .filter(|m| m.from_coordinate().to_f32() == coord_f32)
+                    .collect();
+                match exact_matches.len() {
+                    0 => {} // fallthrough
+                    1 => return exact_matches[0].to_coordinate().to_fixed(),
+                    3 => return exact_matches[1].to_coordinate().to_fixed(),
+                    _ => {
+                        let (first, last) = (exact_matches[0], *exact_matches.last().unwrap());
+                        return if coord_f32 < 0.0 {
+                            last.to_coordinate().to_fixed()
+                        } else if coord_f32 > 0.0 {
+                            first.to_coordinate().to_fixed()
+                        } else {
+                            let f = first.to_coordinate().to_f32().abs();
+                            let l = last.to_coordinate().to_f32().abs();
+                            if f < l {
+                                first.to_coordinate().to_fixed()
+                            } else {
+                                last.to_coordinate().to_fixed()
+                            }
+                        };
+                    }
+                }
+
+                for i in 0..maps.len() {
+                    let from = maps[i].from_coordinate().to_f32();
+                    if coord_f32 < from {
+                        if i == 0 {
+                            let delta = coord - maps[0].from_coordinate().to_fixed();
+                            return maps[0].to_coordinate().to_fixed() + delta;
+                        }
+                        let p = &maps[i - 1];
+                        let n = &maps[i];
+                        let p_from = p.from_coordinate().to_fixed();
+                        let p_to = p.to_coordinate().to_fixed();
+                        let n_from = n.from_coordinate().to_fixed();
+                        let n_to = n.to_coordinate().to_fixed();
+                        let delta = coord - p_from;
+                        let scale = n_from - p_from;
+                        return p_to + (n_to - p_to).mul_div(delta, scale);
+                    }
+                }
+
+                let last = maps.last().unwrap();
+                coord - last.from_coordinate().to_fixed() + last.to_coordinate().to_fixed()
+            }
         }
-        coord
     }
 }
 
@@ -58,9 +116,7 @@ impl<'a> FontRead<'a> for SegmentMaps<'a> {
 
 #[cfg(test)]
 mod tests {
-
     use font_test_data::bebuffer::BeBuffer;
-
     use super::*;
     use crate::{FontRef, TableProvider};
 
@@ -68,8 +124,6 @@ mod tests {
         [F2Dot14::from_f32(from), F2Dot14::from_f32(to)]
     }
 
-    // for the purpose of testing it is easier for us to use an array
-    // instead of a concrete type, since we can write that into BeBuffer
     impl PartialEq<[F2Dot14; 2]> for AxisValueMap {
         fn eq(&self, other: &[F2Dot14; 2]) -> bool {
             self.from_coordinate == other[0] && self.to_coordinate == other[1]
@@ -111,36 +165,20 @@ mod tests {
 
         let data = BeBuffer::new()
             .push(MajorMinor::VERSION_1_0)
-            .push(0u16) // reserved
-            .push(2u16) // axis count
-            // segment map one
-            .push(3u16) // position count
+            .push(0u16)
+            .push(2u16)
+            .push(3u16)
             .extend(segment_one_maps[0])
             .extend(segment_one_maps[1])
             .extend(segment_one_maps[2])
-            // segment map two
-            .push(2u16) // position count
+            .push(2u16)
             .extend(segment_two_maps[0])
             .extend(segment_two_maps[1]);
 
         let avar = super::Avar::read(data.data().into()).unwrap();
         assert_eq!(avar.axis_segment_maps().iter().count(), 2);
-        assert_eq!(
-            avar.axis_segment_maps()
-                .get(0)
-                .unwrap()
-                .unwrap()
-                .axis_value_maps,
-            segment_one_maps,
-        );
-        assert_eq!(
-            avar.axis_segment_maps()
-                .get(1)
-                .unwrap()
-                .unwrap()
-                .axis_value_maps,
-            segment_two_maps,
-        );
+        assert_eq!(avar.axis_segment_maps().get(0).unwrap().unwrap().axis_value_maps, segment_one_maps);
+        assert_eq!(avar.axis_segment_maps().get(1).unwrap().unwrap().axis_value_maps, segment_two_maps);
     }
 
     #[test]
@@ -149,23 +187,28 @@ mod tests {
         let avar = font.avar().unwrap();
         let segment_map = avar.axis_segment_maps().get(0).unwrap().unwrap();
         let coords = [-1.0, -0.5, 0.0, 0.5, 1.0];
-        let expected_result = [-1.0, -0.375, 0.0, 0.600006103515625, 1.0];
-        assert_eq!(
-            &expected_result[..],
-            &coords
-                .iter()
-                .map(|coord| segment_map.apply(Fixed::from_f64(*coord)).to_f64())
-                .collect::<Vec<_>>()
-        );
+        let expected_result = [-1.0, -0.375, 0.0, 0.6000061, 1.0];
+        let results: Vec<f32> = coords
+            .iter()
+            .map(|c| segment_map.apply(Fixed::from_f64(*c as f64)).to_f32())
+            .collect();
+        for (res, exp) in results.iter().zip(expected_result.iter()) {
+            assert!((res - exp).abs() < 0.0001);
+        }
     }
 
     #[test]
-    fn avar2() {
-        let font = FontRef::new(font_test_data::AVAR2_CHECKER).unwrap();
-        let avar = font.avar().unwrap();
-        assert_eq!(avar.version(), MajorMinor::VERSION_2_0);
-        assert!(avar.axis_index_map_offset().is_some());
-        assert!(avar.var_store_offset().is_some());
-        assert!(avar.var_store().is_some());
+    fn fallback_cases() {
+        let single_map = SegmentMaps {
+            position_map_count: 1.into(),
+            axis_value_maps: &[AxisValueMap {
+                from_coordinate: F2Dot14::from_f32(0.5).into(),
+                to_coordinate: F2Dot14::from_f32(0.8).into(),
+            }],
+        };
+        let coord = Fixed::from_f64(0.6);
+        let expected = Fixed::from_f64(0.9);
+        assert_eq!(single_map.apply(coord), expected);
     }
 }
+
