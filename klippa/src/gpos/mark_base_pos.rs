@@ -16,7 +16,7 @@ use write_fonts::{
         },
         FontData, FontRef,
     },
-    types::Offset16,
+    types::{GlyphId, Offset16},
 };
 
 impl CollectVariationIndices for MarkBasePosFormat1<'_> {
@@ -134,40 +134,51 @@ impl<'a> SubsetTable<'a> for MarkBasePosFormat1<'_> {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
-        Offset16::serialize_serialize::<CoverageTable>(s, &base_glyphs, base_cov_offset_pos)?;
-        Offset16::serialize_subset(
+        let base_glyphs = Offset16::serialize_subset(
             &base_array,
             s,
             plan,
-            (&base_record_idxes, &mark_class_map),
+            (&base_glyphs, &base_record_idxes, &mark_class_map),
             base_array_offset_pos,
         )?;
-        Ok(())
+        Offset16::serialize_serialize::<CoverageTable>(s, &base_glyphs, base_cov_offset_pos)
     }
 }
 
 impl<'a> SubsetTable<'a> for BaseArray<'_> {
-    type ArgsForSubset = (&'a IntSet<u16>, &'a FnvHashMap<u16, u16>);
-    type Output = ();
+    type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u16>, &'a FnvHashMap<u16, u16>);
+    type Output = Vec<GlyphId>;
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
         args: Self::ArgsForSubset,
-    ) -> Result<(), SerializeErrorFlags> {
-        let (base_record_idxes, mark_class_map) = args;
+    ) -> Result<Vec<GlyphId>, SerializeErrorFlags> {
+        let (base_glyphs, base_record_idxes, mark_class_map) = args;
+        let mut retained_base_glyphs = Vec::with_capacity(base_glyphs.len());
         // base count
-        s.embed(base_record_idxes.len() as u16)?;
+        let base_count_pos = s.embed(0_u16)?;
 
         let font_data = self.offset_data();
         let base_records = self.base_records();
-        for i in base_record_idxes.iter() {
+        for (g, i) in base_glyphs.iter().zip(base_record_idxes.iter()) {
             let base_record = base_records
                 .get(i as usize)
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-            base_record.subset(plan, s, (mark_class_map, font_data))?;
+
+            match base_record.subset(plan, s, (mark_class_map, font_data)) {
+                Ok(()) => retained_base_glyphs.push(*g),
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(e) => return Err(e),
+            }
         }
-        Ok(())
+
+        let base_count = retained_base_glyphs.len() as u16;
+        if base_count == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        s.copy_assign(base_count_pos, base_count);
+        Ok(retained_base_glyphs)
     }
 }
 
@@ -183,6 +194,9 @@ impl<'a> SubsetTable<'a> for BaseRecord<'_> {
         let (mark_class_map, font_data) = args;
         let base_anchors = self.base_anchors(font_data);
         let orig_mark_class_count = base_anchors.len() as u16;
+
+        let mut has_effective_anchors = false;
+        let snap = s.snapshot();
         for i in (0..orig_mark_class_count).filter(|class| mark_class_map.contains_key(class)) {
             let anchor_offset_pos = s.embed(0_u16)?;
             let Some(base_anchor) = base_anchors
@@ -193,6 +207,14 @@ impl<'a> SubsetTable<'a> for BaseRecord<'_> {
                 continue;
             };
             Offset16::serialize_subset(&base_anchor, s, plan, (), anchor_offset_pos)?;
+            if !has_effective_anchors {
+                has_effective_anchors = true;
+            }
+        }
+
+        if !has_effective_anchors {
+            s.revert_snapshot(snap);
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
         Ok(())
     }

@@ -1,9 +1,21 @@
 //! impl subset() for MarkLigPos subtable
 use crate::{
-    gpos::mark_array::collect_mark_record_varidx, layout::intersected_coverage_indices,
-    CollectVariationIndices, Plan,
+    gpos::mark_array::{collect_mark_record_varidx, get_mark_class_map},
+    layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
+    offset::{SerializeSerialize, SerializeSubset},
+    serialize::{SerializeErrorFlags, Serializer},
+    CollectVariationIndices, Plan, SubsetState, SubsetTable,
 };
-use write_fonts::read::{collections::IntSet, tables::gpos::MarkLigPosFormat1};
+use fnv::FnvHashMap;
+use write_fonts::read::{
+    collections::IntSet,
+    tables::{
+        gpos::{ComponentRecord, LigatureArray, LigatureAttach, MarkLigPosFormat1},
+        layout::CoverageTable,
+    },
+    types::{GlyphId, Offset16},
+    FontData, FontRef,
+};
 
 impl CollectVariationIndices for MarkLigPosFormat1<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
@@ -56,6 +68,198 @@ impl CollectVariationIndices for MarkLigPosFormat1<'_> {
                 }
             }
         }
+    }
+}
+
+impl<'a> SubsetTable<'a> for MarkLigPosFormat1<'_> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        let mark_coverage = self
+            .mark_coverage()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+        let mark_array = self
+            .mark_array()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+        let glyph_set = &plan.glyphset_gsub;
+        let glyph_map = &plan.glyph_map_gsub;
+        let mark_class_map = get_mark_class_map(&mark_coverage, &mark_array, glyph_set);
+        if mark_class_map.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+
+        // format
+        s.embed(self.pos_format())?;
+
+        // mark coverage offset
+        let mark_cov_offset_pos = s.embed(0_u16)?;
+
+        // ligature coverage offset
+        let lig_cov_offset_pos = s.embed(0_u16)?;
+
+        // mark class count
+        let mark_class_count = mark_class_map.len() as u16;
+        s.embed(mark_class_count)?;
+
+        // mark array offset
+        let mark_array_offset_pos = s.embed(0_u16)?;
+        let (mark_glyphs, mark_record_idxes) =
+            intersected_glyphs_and_indices(&mark_coverage, glyph_set, glyph_map);
+
+        Offset16::serialize_serialize::<CoverageTable>(s, &mark_glyphs, mark_cov_offset_pos)?;
+        Offset16::serialize_subset(
+            &mark_array,
+            s,
+            plan,
+            (&mark_record_idxes, &mark_class_map),
+            mark_array_offset_pos,
+        )?;
+
+        // ligature array offset
+        let lig_array_offset_pos = s.embed(0_u16)?;
+
+        let lig_coverage = self
+            .ligature_coverage()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        let lig_array = self
+            .ligature_array()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+        let (lig_glyphs, lig_attach_idxes) =
+            intersected_glyphs_and_indices(&lig_coverage, glyph_set, glyph_map);
+        if lig_glyphs.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+
+        // Return non-empty lig glyphs for serializing coverage table
+        // lig glyphs might have no anchor points defined for retained class of mark glyphs
+        let lig_glyphs = Offset16::serialize_subset(
+            &lig_array,
+            s,
+            plan,
+            (&lig_glyphs, &lig_attach_idxes, &mark_class_map),
+            lig_array_offset_pos,
+        )?;
+        Offset16::serialize_serialize::<CoverageTable>(s, &lig_glyphs, lig_cov_offset_pos)
+    }
+}
+
+impl<'a> SubsetTable<'a> for LigatureArray<'_> {
+    type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u16>, &'a FnvHashMap<u16, u16>);
+    type Output = Vec<GlyphId>;
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<Vec<GlyphId>, SerializeErrorFlags> {
+        let (lig_glyphs, lig_attach_idxes, mark_class_map) = args;
+
+        let mut retained_lig_glyphs = Vec::with_capacity(lig_glyphs.len());
+        // ligature count
+        let lig_count_pos = s.embed(0_u16)?;
+
+        let lig_attaches = self.ligature_attaches();
+        for (g, i) in lig_glyphs.iter().zip(lig_attach_idxes.iter()) {
+            let lig_attach = lig_attaches
+                .get(i as usize)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+            match lig_attach.subset(plan, s, mark_class_map) {
+                Ok(()) => retained_lig_glyphs.push(*g),
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(e) => return Err(e),
+            }
+        }
+
+        let lig_count = retained_lig_glyphs.len() as u16;
+        if lig_count == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+
+        s.copy_assign(lig_count_pos, lig_count);
+        Ok(retained_lig_glyphs)
+    }
+}
+
+impl<'a> SubsetTable<'a> for LigatureAttach<'_> {
+    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        mark_class_map: &FnvHashMap<u16, u16>,
+    ) -> Result<(), SerializeErrorFlags> {
+        let snap = s.snapshot();
+        s.embed(self.component_count())?;
+
+        let component_records = self.component_records();
+        let font_data = self.offset_data();
+        let mut has_non_empty_rec = false;
+
+        for component_rec in component_records.iter() {
+            let component_rec = component_rec
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+            match component_rec.subset(plan, s, (font_data, mark_class_map)) {
+                Ok(()) => {
+                    if !has_non_empty_rec {
+                        has_non_empty_rec = true
+                    }
+                }
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(e) => return Err(e),
+            }
+        }
+
+        if !has_non_empty_rec {
+            s.revert_snapshot(snap);
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for ComponentRecord<'_> {
+    type ArgsForSubset = (FontData<'a>, &'a FnvHashMap<u16, u16>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        let (font_data, mark_class_map) = args;
+        let lig_anchors = self.ligature_anchors(font_data);
+        let orig_mark_class_count = lig_anchors.len() as u16;
+
+        let mut has_effective_anchors = false;
+        for i in (0..orig_mark_class_count).filter(|class| mark_class_map.contains_key(class)) {
+            let anchor_offset_pos = s.embed(0_u16)?;
+            let Some(lig_anchor) = lig_anchors
+                .get(i as usize)
+                .transpose()
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            else {
+                continue;
+            };
+            Offset16::serialize_subset(&lig_anchor, s, plan, (), anchor_offset_pos)?;
+            if !has_effective_anchors {
+                has_effective_anchors = true;
+            }
+        }
+
+        if !has_effective_anchors {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        Ok(())
     }
 }
 
