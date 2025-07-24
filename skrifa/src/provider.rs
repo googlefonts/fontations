@@ -7,7 +7,10 @@ use super::{
     instance::{LocationRef, Size},
     metrics::{GlyphMetrics, Metrics},
     outline::OutlineGlyphCollection,
-    string::{LocalizedStrings, StringId},
+    string::{
+        get_best_family_name, get_best_full_name, get_best_subfamily_name, LocalizedStrings,
+        StringId,
+    },
     variation::{AxisCollection, NamedInstanceCollection},
     FontRef,
 };
@@ -28,6 +31,12 @@ pub trait MetadataProvider<'a>: Sized {
     /// Returns an iterator over the collection of localized strings for the
     /// given informational string identifier.
     fn localized_strings(&self, id: StringId) -> LocalizedStrings<'a>;
+
+    fn best_family_name(&self) -> Option<String>;
+
+    fn best_subfamily_name(&self) -> Option<String>;
+
+    fn best_full_name(&self) -> Option<String>;
 
     /// Returns the mapping from glyph identifiers to names.
     fn glyph_names(&self) -> GlyphNames<'a>;
@@ -78,6 +87,18 @@ impl<'a> MetadataProvider<'a> for FontRef<'a> {
     /// given informational string identifier.
     fn localized_strings(&self, id: StringId) -> LocalizedStrings<'a> {
         LocalizedStrings::new(self, id)
+    }
+
+    fn best_family_name(&self) -> Option<String> {
+        get_best_family_name(self)
+    }
+
+    fn best_subfamily_name(&self) -> Option<String> {
+        get_best_subfamily_name(self)
+    }
+
+    fn best_full_name(&self) -> Option<String> {
+        get_best_full_name(self)
     }
 
     /// Returns the mapping from glyph identifiers to names.

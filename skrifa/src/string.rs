@@ -597,12 +597,72 @@ const LANGUAGE_ID_TO_BCP47: &[(u16, &str)] = &[
     (0x540a, "es-US"),        //Spanish
 ];
 
+fn _get_best_name(font: &FontRef, name_ids: Vec<StringId>) -> Option<String> {
+    for name_id in name_ids {
+        if let Some(name) = LocalizedStrings::new(font, name_id).english_or_first() {
+            return Some(name.to_string());
+        }
+    }
+    None
+}
+
+pub fn get_best_family_name(font: &FontRef) -> Option<String> {
+    let name_ids = vec![
+        StringId::WWS_FAMILY_NAME,
+        StringId::TYPOGRAPHIC_FAMILY_NAME,
+        StringId::FAMILY_NAME,
+    ];
+    _get_best_name(font, name_ids)
+}
+
+pub fn get_best_subfamily_name(font: &FontRef) -> Option<String> {
+    let name_ids = vec![
+        StringId::WWS_SUBFAMILY_NAME,
+        StringId::TYPOGRAPHIC_SUBFAMILY_NAME,
+        StringId::SUBFAMILY_NAME,
+    ];
+    _get_best_name(font, name_ids)
+}
+
+pub fn get_best_full_name(font: &FontRef) -> Option<String> {
+    let ids = [
+        (21, Some(22)),
+        (16, Some(17)),
+        (1, Some(2)),
+        (4, None), // 4 = Full Name
+        (6, None), // 6 = PostScript Name
+    ];
+    for (id_first, id_second) in ids {
+        if id_second.is_some() {
+            let fam_name = _get_best_name(font, vec![StringId::new(id_first)]);
+            let subfam_name = _get_best_name(font, vec![StringId::new(id_second.unwrap())]);
+
+            // If both family and subfamily names are found,
+            // return the full name, otherwise continue to the next pair.
+            if fam_name.is_some() && subfam_name.is_some() {
+                return Some(format!("{} {}", fam_name.unwrap(), subfam_name.unwrap()));
+            }
+        } else {
+            // If id_second is None, this must be name id 4 or 6
+            let full_name = _get_best_name(font, vec![StringId::new(id_first)]);
+            if full_name.is_some() {
+                return full_name;
+            }
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use crate::MetadataProvider;
 
     use super::*;
     use read_fonts::FontRef;
+    use write_fonts::{
+        tables::name::{Name, NameRecord},
+        FontBuilder,
+    };
 
     #[test]
     fn localized() {
@@ -645,5 +705,37 @@ mod tests {
                 .to_string(),
             "Regular"
         );
+    }
+
+    #[test]
+    fn best_names() {
+        // names_only.ttf has name id 1 and 2
+        let font = FontRef::new(font_test_data::NAMES_ONLY).unwrap();
+        assert_eq!(font.best_family_name().unwrap().to_string(), "NameTest");
+        assert_eq!(font.best_subfamily_name().unwrap().to_string(), "Regular");
+        assert_eq!(
+            font.best_full_name().unwrap().to_string(),
+            "NameTest Regular"
+        );
+
+        // ahem.ttf has name id 16 and 17
+        let ahem = FontRef::new(font_test_data::AHEM).unwrap();
+        assert_eq!(ahem.best_family_name().unwrap().to_string(), "Ahem");
+        assert_eq!(ahem.best_subfamily_name().unwrap().to_string(), "Regular");
+        assert_eq!(ahem.best_full_name().unwrap().to_string(), "Ahem Regular");
+
+        // Test full name via ids 4 and 6.
+        for (id, s) in [(4, "Full Name ID 4"), (6, "Full Name ID 6")] {
+            let mut font_builder = FontBuilder::new();
+            let mut name_table = Name::default();
+            let mut new_records = Vec::new();
+            let name_rec = NameRecord::new(3, 1, 1033, StringId::new(id), String::from(s).into());
+            new_records.push(name_rec);
+            name_table.name_record = new_records;
+            font_builder.add_table(&name_table).unwrap();
+            let font_data = font_builder.build();
+            let test_font = FontRef::new(&font_data).unwrap();
+            assert_eq!(test_font.best_full_name().unwrap().to_string(), s);
+        }
     }
 }
