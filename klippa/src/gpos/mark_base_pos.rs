@@ -16,7 +16,7 @@ use write_fonts::{
         },
         FontData, FontRef,
     },
-    types::Offset16,
+    types::{GlyphId, Offset16},
 };
 
 impl CollectVariationIndices for MarkBasePosFormat1<'_> {
@@ -134,40 +134,51 @@ impl<'a> SubsetTable<'a> for MarkBasePosFormat1<'_> {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
-        Offset16::serialize_serialize::<CoverageTable>(s, &base_glyphs, base_cov_offset_pos)?;
-        Offset16::serialize_subset(
+        let base_glyphs = Offset16::serialize_subset(
             &base_array,
             s,
             plan,
-            (&base_record_idxes, &mark_class_map),
+            (&base_glyphs, &base_record_idxes, &mark_class_map),
             base_array_offset_pos,
         )?;
-        Ok(())
+        Offset16::serialize_serialize::<CoverageTable>(s, &base_glyphs, base_cov_offset_pos)
     }
 }
 
 impl<'a> SubsetTable<'a> for BaseArray<'_> {
-    type ArgsForSubset = (&'a IntSet<u16>, &'a FnvHashMap<u16, u16>);
-    type Output = ();
+    type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u16>, &'a FnvHashMap<u16, u16>);
+    type Output = Vec<GlyphId>;
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
         args: Self::ArgsForSubset,
-    ) -> Result<(), SerializeErrorFlags> {
-        let (base_record_idxes, mark_class_map) = args;
+    ) -> Result<Vec<GlyphId>, SerializeErrorFlags> {
+        let (base_glyphs, base_record_idxes, mark_class_map) = args;
+        let mut retained_base_glyphs = Vec::with_capacity(base_glyphs.len());
         // base count
-        s.embed(base_record_idxes.len() as u16)?;
+        let base_count_pos = s.embed(0_u16)?;
 
         let font_data = self.offset_data();
         let base_records = self.base_records();
-        for i in base_record_idxes.iter() {
+        for (g, i) in base_glyphs.iter().zip(base_record_idxes.iter()) {
             let base_record = base_records
                 .get(i as usize)
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-            base_record.subset(plan, s, (mark_class_map, font_data))?;
+
+            match base_record.subset(plan, s, (mark_class_map, font_data)) {
+                Ok(()) => retained_base_glyphs.push(*g),
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(e) => return Err(e),
+            }
         }
-        Ok(())
+
+        let base_count = retained_base_glyphs.len() as u16;
+        if base_count == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        s.copy_assign(base_count_pos, base_count);
+        Ok(retained_base_glyphs)
     }
 }
 
@@ -183,6 +194,9 @@ impl<'a> SubsetTable<'a> for BaseRecord<'_> {
         let (mark_class_map, font_data) = args;
         let base_anchors = self.base_anchors(font_data);
         let orig_mark_class_count = base_anchors.len() as u16;
+
+        let mut has_effective_anchors = false;
+        let snap = s.snapshot();
         for i in (0..orig_mark_class_count).filter(|class| mark_class_map.contains_key(class)) {
             let anchor_offset_pos = s.embed(0_u16)?;
             let Some(base_anchor) = base_anchors
@@ -193,6 +207,14 @@ impl<'a> SubsetTable<'a> for BaseRecord<'_> {
                 continue;
             };
             Offset16::serialize_subset(&base_anchor, s, plan, (), anchor_offset_pos)?;
+            if !has_effective_anchors {
+                has_effective_anchors = true;
+            }
+        }
+
+        if !has_effective_anchors {
+            s.revert_snapshot(snap);
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
         Ok(())
     }
@@ -284,14 +306,82 @@ mod test {
 
         let subsetted_data = s.copy_bytes();
         let expected_data: [u8; 106] = [
-            0x00, 0x01, 0x00, 0x62, 0x00, 0x2c, 0x00, 0x02, 0x00, 0x32, 0x00, 0x0c, 0x00, 0x01,
-            0x00, 0x10, 0x00, 0x06, 0x00, 0x03, 0x02, 0x76, 0x00, 0x00, 0x00, 0x14, 0x00, 0x00,
-            0x00, 0x03, 0x02, 0x76, 0x05, 0xb0, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
-            0x80, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x1a,
+            0x00, 0x01, 0x00, 0x62, 0x00, 0x0c, 0x00, 0x02, 0x00, 0x32, 0x00, 0x12, 0x00, 0x01,
+            0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x10, 0x00, 0x06, 0x00, 0x03, 0x02, 0x76,
+            0x00, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x03, 0x02, 0x76, 0x05, 0xb0, 0x00, 0x0a,
+            0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x80, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x1a,
             0x00, 0x01, 0x00, 0x0a, 0x00, 0x03, 0x02, 0x00, 0x00, 0x00, 0x00, 0x0a, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x03, 0x02, 0x00, 0x04, 0x1c, 0x00, 0x10,
             0x00, 0x0a, 0x00, 0x01, 0x00, 0x00, 0x80, 0x00, 0x00, 0x04, 0x00, 0x01, 0x80, 0x00,
             0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x04,
+        ];
+
+        assert_eq!(subsetted_data, expected_data);
+    }
+
+    #[test]
+    fn test_subset_markbase_pos_remove_empty_base_record() {
+        use write_fonts::read::tables::gpos::PositionSubtables;
+
+        let font = FontRef::new(include_bytes!(
+            "../../test-data/fonts/RobotoFlex-Variable.ttf"
+        ))
+        .unwrap();
+        let gpos_lookups = font.gpos().unwrap().lookup_list().unwrap();
+        let lookup = gpos_lookups.lookups().get(1).unwrap();
+
+        let PositionSubtables::MarkToBase(sub_tables) = lookup.subtables().unwrap() else {
+            panic!("Wrong type of lookup table!");
+        };
+        let markbasepos_table = sub_tables.get(0).unwrap();
+
+        let subset_state = SubsetState::default();
+        let mut plan = Plan::default();
+
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(36_u32), GlyphId::from(1_u32));
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(37_u32), GlyphId::from(2_u32));
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(404_u32), GlyphId::from(4_u32));
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(409_u32), GlyphId::from(5_u32));
+
+        plan.glyphset_gsub.insert(GlyphId::from(36_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(37_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(404_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(409_u32));
+
+        plan.layout_varidx_delta_map
+            .insert(0x40001_u32, (0x0_u32, 0));
+        plan.layout_varidx_delta_map
+            .insert(0x160004_u32, (0x30000_u32, 0));
+        plan.layout_varidx_delta_map
+            .insert(0x6f000c_u32, (0x40000_u32, 0));
+        plan.layout_varidx_delta_map
+            .insert(0x830015_u32, (0x50000_u32, 0));
+        plan.layout_varidx_delta_map
+            .insert(0x860011_u32, (0x70000_u32, 0));
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+
+        markbasepos_table
+            .subset(&plan, &mut s, (&subset_state, &font))
+            .unwrap();
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let subsetted_data = s.copy_bytes();
+        let expected_data: [u8; 102] = [
+            0x00, 0x01, 0x00, 0x5e, 0x00, 0x0c, 0x00, 0x02, 0x00, 0x2e, 0x00, 0x12, 0x00, 0x01,
+            0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x06, 0x00, 0x03, 0x04, 0x57,
+            0x00, 0x00, 0x00, 0x10, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x05,
+            0x00, 0x00, 0x80, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x1a, 0x00, 0x01, 0x00, 0x0a,
+            0x00, 0x03, 0x02, 0x00, 0x00, 0x00, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+            0x80, 0x00, 0x00, 0x03, 0x00, 0x46, 0x04, 0x1c, 0x00, 0x10, 0x00, 0x0a, 0x00, 0x03,
+            0x00, 0x00, 0x80, 0x00, 0x00, 0x07, 0x00, 0x00, 0x80, 0x00, 0x00, 0x01, 0x00, 0x02,
+            0x00, 0x04, 0x00, 0x05,
         ];
 
         assert_eq!(subsetted_data, expected_data);
