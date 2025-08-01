@@ -10,6 +10,7 @@ mod gdef;
 mod glyf_loca;
 mod gpos;
 mod gsub;
+mod gsubgpos;
 mod gvar;
 mod hdmx;
 mod head;
