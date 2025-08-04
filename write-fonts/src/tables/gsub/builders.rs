@@ -114,7 +114,12 @@ impl SingleSubBuilder {
         !matches!(self.items.get(&target), Some(x) if *x != replacement)
     }
 
-    /// Returns `true` if there are no substitutions in this builder.
+    /// Returns the number of rules in the builder.
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    /// Returns `true` if there are no rules in this builder.
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
@@ -205,6 +210,16 @@ impl Builder for MultipleSubBuilder {
 }
 
 impl MultipleSubBuilder {
+    /// Returns the number of rules in the builder.
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    /// Returns `true` if there are no rules in this builder.
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
     /// Add a new substitution to this builder.
     ///
     /// If the target already exists with a different replacement, it will be
@@ -234,14 +249,19 @@ pub struct AlternateSubBuilder {
 }
 
 impl AlternateSubBuilder {
+    /// Returns the number of rules in the builder.
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    /// Returns `true` if there are no rules in this builder.
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
     /// Add a new alternate sub rule to this lookup.
     pub fn insert(&mut self, target: GlyphId16, replacement: Vec<GlyphId16>) {
         self.items.insert(target, replacement);
-    }
-
-    /// Returns `true` if this builder contains no rules.
-    pub fn is_empty(&self) -> bool {
-        self.items.is_empty()
     }
 
     /// Iterate over the rules in this builder.
@@ -280,6 +300,16 @@ pub struct LigatureSubBuilder {
 }
 
 impl LigatureSubBuilder {
+    /// Returns the number of rules in the builder.
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    /// Returns `true` if there are no rules in this builder.
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
     /// Add a new ligature substitution rule to the builder.
     pub fn insert(&mut self, target: Vec<GlyphId16>, replacement: GlyphId16) {
         let (first, rest) = target.split_first().unwrap();

@@ -276,6 +276,16 @@ pub struct SinglePosBuilder {
 }
 
 impl SinglePosBuilder {
+    /// Returns the number of rules in the lookup.
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    /// Returns `true` if no rules have been added to the builder.
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
     /// Add a new single-pos rule to this builder.
     pub fn insert(&mut self, glyph: GlyphId16, record: ValueRecordBuilder) {
         self.items.insert(glyph, record);
@@ -601,6 +611,16 @@ pub struct CursivePosBuilder {
 }
 
 impl CursivePosBuilder {
+    /// Returns the number of rules in the lookup.
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    /// Returns `true` if no rules have been added to the builder.
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
     /// Insert a new entry/exit anchor pair for a glyph.
     pub fn insert(
         &mut self,
@@ -734,6 +754,16 @@ impl std::fmt::Display for PreviouslyAssignedClass {
 }
 
 impl MarkToBaseBuilder {
+    /// Returns the number of rules in the lookup.
+    pub fn len(&self) -> usize {
+        self.bases.len()
+    }
+
+    /// Returns `true` if no rules have been added to the builder.
+    pub fn is_empty(&self) -> bool {
+        self.bases.is_empty()
+    }
+
     /// Add a new mark glyph.
     ///
     /// If this glyph already exists in another mark class, we return the
@@ -802,7 +832,12 @@ pub struct MarkToLigBuilder {
 }
 
 impl MarkToLigBuilder {
-    /// `true` if this builder contains no rules
+    /// Returns the number of rules in the lookup.
+    pub fn len(&self) -> usize {
+        self.ligatures.len()
+    }
+
+    /// Returns `true` if no rules have been added to the builder.
     pub fn is_empty(&self) -> bool {
         self.ligatures.is_empty()
     }
@@ -927,6 +962,16 @@ pub struct MarkToMarkBuilder {
 }
 
 impl MarkToMarkBuilder {
+    /// Returns the number of rules in the lookup.
+    pub fn len(&self) -> usize {
+        self.base_marks.len()
+    }
+
+    /// Returns `true` if no rules have been added to the builder.
+    pub fn is_empty(&self) -> bool {
+        self.base_marks.is_empty()
+    }
+
     /// Add a new mark1 (combining) glyph.
     ///
     /// If this glyph already exists in another mark class, we return the
