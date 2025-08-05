@@ -605,21 +605,21 @@ fn get_best_name(font: &FontRef, name_ids: Vec<StringId>) -> Option<String> {
 }
 
 pub fn get_best_family_name(font: &FontRef) -> Option<String> {
-    let name_ids = vec![
+    const NAME_IDS: [StringId; 3] = [
         StringId::WWS_FAMILY_NAME,
         StringId::TYPOGRAPHIC_FAMILY_NAME,
         StringId::FAMILY_NAME,
     ];
-    get_best_name(font, name_ids)
+    get_best_name(font, NAME_IDS.to_vec())
 }
 
 pub fn get_best_subfamily_name(font: &FontRef) -> Option<String> {
-    let name_ids = vec![
+    const NAME_IDS: [StringId; 3] = [
         StringId::WWS_SUBFAMILY_NAME,
         StringId::TYPOGRAPHIC_SUBFAMILY_NAME,
         StringId::SUBFAMILY_NAME,
     ];
-    get_best_name(font, name_ids)
+    get_best_name(font, NAME_IDS.to_vec())
 }
 
 pub fn get_best_full_name(font: &FontRef) -> Option<String> {
