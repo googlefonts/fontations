@@ -41,6 +41,7 @@ impl TopLevelTable for Cmap<'_> {
 }
 
 impl<'a> FontRead<'a> for Cmap<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -61,17 +62,20 @@ pub type Cmap<'a> = TableRef<'a, CmapMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap<'a> {
     /// Table version number (0).
+    #[inline]
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of encoding tables that follow.
+    #[inline]
     pub fn num_tables(&self) -> u16 {
         let range = self.shape.num_tables_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn encoding_records(&self) -> &'a [EncodingRecord] {
         let range = self.shape.encoding_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -124,17 +128,20 @@ pub struct EncodingRecord {
 
 impl EncodingRecord {
     /// Platform ID.
+    #[inline]
     pub fn platform_id(&self) -> PlatformId {
         self.platform_id.get()
     }
 
     /// Platform-specific encoding ID.
+    #[inline]
     pub fn encoding_id(&self) -> u16 {
         self.encoding_id.get()
     }
 
     /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
     /// encoding.
+    #[inline]
     pub fn subtable_offset(&self) -> Offset32 {
         self.subtable_offset.get()
     }
@@ -378,6 +385,7 @@ impl MinByteRange for Cmap0Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap0<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -399,12 +407,14 @@ pub type Cmap0<'a> = TableRef<'a, Cmap0Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap0<'a> {
     /// Format number is set to 0.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// This is the length in bytes of the subtable.
+    #[inline]
     pub fn length(&self) -> u16 {
         let range = self.shape.length_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -412,12 +422,14 @@ impl<'a> Cmap0<'a> {
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u16 {
         let range = self.shape.language_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// An array that maps character codes to glyph index values.
+    #[inline]
     pub fn glyph_id_array(&self) -> &'a [u8] {
         let range = self.shape.glyph_id_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -488,6 +500,7 @@ impl MinByteRange for Cmap2Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -509,12 +522,14 @@ pub type Cmap2<'a> = TableRef<'a, Cmap2Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap2<'a> {
     /// Format number is set to 2.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// This is the length in bytes of the subtable.
+    #[inline]
     pub fn length(&self) -> u16 {
         let range = self.shape.length_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -522,6 +537,7 @@ impl<'a> Cmap2<'a> {
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u16 {
         let range = self.shape.language_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -529,6 +545,7 @@ impl<'a> Cmap2<'a> {
 
     /// Array that maps high bytes to subHeaders: value is subHeader
     /// index × 8.
+    #[inline]
     pub fn sub_header_keys(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.sub_header_keys_byte_range();
         self.data.read_array(range).unwrap()
@@ -576,21 +593,25 @@ pub struct SubHeader {
 
 impl SubHeader {
     /// First valid low byte for this SubHeader.
+    #[inline]
     pub fn first_code(&self) -> u16 {
         self.first_code.get()
     }
 
     /// Number of valid low bytes for this SubHeader.
+    #[inline]
     pub fn entry_count(&self) -> u16 {
         self.entry_count.get()
     }
 
     /// See text below.
+    #[inline]
     pub fn id_delta(&self) -> i16 {
         self.id_delta.get()
     }
 
     /// See text below.
+    #[inline]
     pub fn id_range_offset(&self) -> u16 {
         self.id_range_offset.get()
     }
@@ -707,6 +728,7 @@ impl MinByteRange for Cmap4Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap4<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -752,12 +774,14 @@ pub type Cmap4<'a> = TableRef<'a, Cmap4Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap4<'a> {
     /// Format number is set to 4.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// This is the length in bytes of the subtable.
+    #[inline]
     pub fn length(&self) -> u16 {
         let range = self.shape.length_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -765,12 +789,14 @@ impl<'a> Cmap4<'a> {
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u16 {
         let range = self.shape.language_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// 2 × segCount.
+    #[inline]
     pub fn seg_count_x2(&self) -> u16 {
         let range = self.shape.seg_count_x2_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -779,6 +805,7 @@ impl<'a> Cmap4<'a> {
     /// Maximum power of 2 less than or equal to segCount, times 2
     /// ((2**floor(log2(segCount))) * 2, where “**” is an
     /// exponentiation operator)
+    #[inline]
     pub fn search_range(&self) -> u16 {
         let range = self.shape.search_range_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -786,6 +813,7 @@ impl<'a> Cmap4<'a> {
 
     /// Log2 of the maximum power of 2 less than or equal to numTables
     /// (log2(searchRange/2), which is equal to floor(log2(segCount)))
+    #[inline]
     pub fn entry_selector(&self) -> u16 {
         let range = self.shape.entry_selector_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -793,36 +821,42 @@ impl<'a> Cmap4<'a> {
 
     /// segCount times 2, minus searchRange ((segCount * 2) -
     /// searchRange)
+    #[inline]
     pub fn range_shift(&self) -> u16 {
         let range = self.shape.range_shift_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End characterCode for each segment, last=0xFFFF.
+    #[inline]
     pub fn end_code(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.end_code_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Start character code for each segment.
+    #[inline]
     pub fn start_code(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.start_code_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Delta for all character codes in segment.
+    #[inline]
     pub fn id_delta(&self) -> &'a [BigEndian<i16>] {
         let range = self.shape.id_delta_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Offsets into glyphIdArray or 0
+    #[inline]
     pub fn id_range_offsets(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.id_range_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Glyph index array (arbitrary length)
+    #[inline]
     pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.glyph_id_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -911,6 +945,7 @@ impl MinByteRange for Cmap6Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap6<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -934,12 +969,14 @@ pub type Cmap6<'a> = TableRef<'a, Cmap6Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap6<'a> {
     /// Format number is set to 6.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// This is the length in bytes of the subtable.
+    #[inline]
     pub fn length(&self) -> u16 {
         let range = self.shape.length_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -947,24 +984,28 @@ impl<'a> Cmap6<'a> {
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u16 {
         let range = self.shape.language_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// First character code of subrange.
+    #[inline]
     pub fn first_code(&self) -> u16 {
         let range = self.shape.first_code_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of character codes in subrange.
+    #[inline]
     pub fn entry_count(&self) -> u16 {
         let range = self.shape.entry_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of glyph index values for character codes in the range.
+    #[inline]
     pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.glyph_id_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -1053,6 +1094,7 @@ impl MinByteRange for Cmap8Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap8<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1081,12 +1123,14 @@ pub type Cmap8<'a> = TableRef<'a, Cmap8Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap8<'a> {
     /// Subtable format; set to 8.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Byte length of this subtable (including the header)
+    #[inline]
     pub fn length(&self) -> u32 {
         let range = self.shape.length_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1094,6 +1138,7 @@ impl<'a> Cmap8<'a> {
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u32 {
         let range = self.shape.language_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1102,18 +1147,21 @@ impl<'a> Cmap8<'a> {
     /// Tightly packed array of bits (8K bytes total) indicating
     /// whether the particular 16-bit (index) value is the start of a
     /// 32-bit character code
+    #[inline]
     pub fn is32(&self) -> &'a [u8] {
         let range = self.shape.is32_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Number of groupings which follow
+    #[inline]
     pub fn num_groups(&self) -> u32 {
         let range = self.shape.num_groups_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SequentialMapGroup records.
+    #[inline]
     pub fn groups(&self) -> &'a [SequentialMapGroup] {
         let range = self.shape.groups_byte_range();
         self.data.read_array(range).unwrap()
@@ -1175,17 +1223,20 @@ impl SequentialMapGroup {
     /// for one or more 16-bit character codes (which is determined
     /// from the is32 array), this 32-bit value will have the high
     /// 16-bits set to zero
+    #[inline]
     pub fn start_char_code(&self) -> u32 {
         self.start_char_code.get()
     }
 
     /// Last character code in this group; same condition as listed
     /// above for the startCharCode
+    #[inline]
     pub fn end_char_code(&self) -> u32 {
         self.end_char_code.get()
     }
 
     /// Glyph index corresponding to the starting character code
+    #[inline]
     pub fn start_glyph_id(&self) -> u32 {
         self.start_glyph_id.get()
     }
@@ -1266,6 +1317,7 @@ impl MinByteRange for Cmap10Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap10<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1289,12 +1341,14 @@ pub type Cmap10<'a> = TableRef<'a, Cmap10Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap10<'a> {
     /// Subtable format; set to 10.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Byte length of this subtable (including the header)
+    #[inline]
     pub fn length(&self) -> u32 {
         let range = self.shape.length_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1302,24 +1356,28 @@ impl<'a> Cmap10<'a> {
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u32 {
         let range = self.shape.language_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// First character code covered
+    #[inline]
     pub fn start_char_code(&self) -> u32 {
         let range = self.shape.start_char_code_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of character codes covered
+    #[inline]
     pub fn num_chars(&self) -> u32 {
         let range = self.shape.num_chars_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of glyph indices for the character codes covered
+    #[inline]
     pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.glyph_id_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -1402,6 +1460,7 @@ impl MinByteRange for Cmap12Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap12<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1423,12 +1482,14 @@ pub type Cmap12<'a> = TableRef<'a, Cmap12Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap12<'a> {
     /// Subtable format; set to 12.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Byte length of this subtable (including the header)
+    #[inline]
     pub fn length(&self) -> u32 {
         let range = self.shape.length_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1436,18 +1497,21 @@ impl<'a> Cmap12<'a> {
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u32 {
         let range = self.shape.language_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of groupings which follow
+    #[inline]
     pub fn num_groups(&self) -> u32 {
         let range = self.shape.num_groups_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SequentialMapGroup records.
+    #[inline]
     pub fn groups(&self) -> &'a [SequentialMapGroup] {
         let range = self.shape.groups_byte_range();
         self.data.read_array(range).unwrap()
@@ -1536,6 +1600,7 @@ impl MinByteRange for Cmap13Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap13<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1557,12 +1622,14 @@ pub type Cmap13<'a> = TableRef<'a, Cmap13Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap13<'a> {
     /// Subtable format; set to 13.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Byte length of this subtable (including the header)
+    #[inline]
     pub fn length(&self) -> u32 {
         let range = self.shape.length_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1570,18 +1637,21 @@ impl<'a> Cmap13<'a> {
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u32 {
         let range = self.shape.language_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of groupings which follow
+    #[inline]
     pub fn num_groups(&self) -> u32 {
         let range = self.shape.num_groups_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of ConstantMapGroup records.
+    #[inline]
     pub fn groups(&self) -> &'a [ConstantMapGroup] {
         let range = self.shape.groups_byte_range();
         self.data.read_array(range).unwrap()
@@ -1636,17 +1706,20 @@ pub struct ConstantMapGroup {
 
 impl ConstantMapGroup {
     /// First character code in this group
+    #[inline]
     pub fn start_char_code(&self) -> u32 {
         self.start_char_code.get()
     }
 
     /// Last character code in this group
+    #[inline]
     pub fn end_char_code(&self) -> u32 {
         self.end_char_code.get()
     }
 
     /// Glyph index to be used for all the characters in the group’s
     /// range.
+    #[inline]
     pub fn glyph_id(&self) -> u32 {
         self.glyph_id.get()
     }
@@ -1712,6 +1785,7 @@ impl MinByteRange for Cmap14Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap14<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1733,24 +1807,28 @@ pub type Cmap14<'a> = TableRef<'a, Cmap14Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap14<'a> {
     /// Subtable format. Set to 14.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Byte length of this subtable (including this header)
+    #[inline]
     pub fn length(&self) -> u32 {
         let range = self.shape.length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of variation Selector Records
+    #[inline]
     pub fn num_var_selector_records(&self) -> u32 {
         let range = self.shape.num_var_selector_records_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of VariationSelector records.
+    #[inline]
     pub fn var_selector(&self) -> &'a [VariationSelector] {
         let range = self.shape.var_selector_byte_range();
         self.data.read_array(range).unwrap()
@@ -1808,12 +1886,14 @@ pub struct VariationSelector {
 
 impl VariationSelector {
     /// Variation selector
+    #[inline]
     pub fn var_selector(&self) -> Uint24 {
         self.var_selector.get()
     }
 
     /// Offset from the start of the [`Cmap14`] subtable to Default UVS
     /// Table. May be NULL.
+    #[inline]
     pub fn default_uvs_offset(&self) -> Nullable<Offset32> {
         self.default_uvs_offset.get()
     }
@@ -1829,6 +1909,7 @@ impl VariationSelector {
 
     /// Offset from the start of the [`Cmap14`] subtable to Non-Default
     /// UVS Table. May be NULL.
+    #[inline]
     pub fn non_default_uvs_offset(&self) -> Nullable<Offset32> {
         self.non_default_uvs_offset.get()
     }
@@ -1899,6 +1980,7 @@ impl MinByteRange for DefaultUvsMarker {
 }
 
 impl<'a> FontRead<'a> for DefaultUvs<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let num_unicode_value_ranges: u32 = cursor.read()?;
@@ -1916,12 +1998,14 @@ pub type DefaultUvs<'a> = TableRef<'a, DefaultUvsMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> DefaultUvs<'a> {
     /// Number of Unicode character ranges.
+    #[inline]
     pub fn num_unicode_value_ranges(&self) -> u32 {
         let range = self.shape.num_unicode_value_ranges_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of UnicodeRange records.
+    #[inline]
     pub fn ranges(&self) -> &'a [UnicodeRange] {
         let range = self.shape.ranges_byte_range();
         self.data.read_array(range).unwrap()
@@ -1986,6 +2070,7 @@ impl MinByteRange for NonDefaultUvsMarker {
 }
 
 impl<'a> FontRead<'a> for NonDefaultUvs<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let num_uvs_mappings: u32 = cursor.read()?;
@@ -2004,11 +2089,13 @@ pub type NonDefaultUvs<'a> = TableRef<'a, NonDefaultUvsMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> NonDefaultUvs<'a> {
+    #[inline]
     pub fn num_uvs_mappings(&self) -> u32 {
         let range = self.shape.num_uvs_mappings_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn uvs_mapping(&self) -> &'a [UvsMapping] {
         let range = self.shape.uvs_mapping_byte_range();
         self.data.read_array(range).unwrap()
@@ -2057,11 +2144,13 @@ pub struct UvsMapping {
 
 impl UvsMapping {
     /// Base Unicode value of the UVS
+    #[inline]
     pub fn unicode_value(&self) -> Uint24 {
         self.unicode_value.get()
     }
 
     /// Glyph ID of the UVS
+    #[inline]
     pub fn glyph_id(&self) -> u16 {
         self.glyph_id.get()
     }
@@ -2099,11 +2188,13 @@ pub struct UnicodeRange {
 
 impl UnicodeRange {
     /// First value in this range
+    #[inline]
     pub fn start_unicode_value(&self) -> Uint24 {
         self.start_unicode_value.get()
     }
 
     /// Number of additional values in this range
+    #[inline]
     pub fn additional_count(&self) -> u8 {
         self.additional_count
     }

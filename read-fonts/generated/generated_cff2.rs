@@ -58,6 +58,7 @@ impl MinByteRange for Cff2HeaderMarker {
 }
 
 impl<'a> FontRead<'a> for Cff2Header<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -88,42 +89,49 @@ pub type Cff2Header<'a> = TableRef<'a, Cff2HeaderMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cff2Header<'a> {
     /// Format major version (set to 2).
+    #[inline]
     pub fn major_version(&self) -> u8 {
         let range = self.shape.major_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Format minor version (set to 0).
+    #[inline]
     pub fn minor_version(&self) -> u8 {
         let range = self.shape.minor_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Header size (bytes).
+    #[inline]
     pub fn header_size(&self) -> u8 {
         let range = self.shape.header_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Length of Top DICT structure in bytes.
+    #[inline]
     pub fn top_dict_length(&self) -> u16 {
         let range = self.shape.top_dict_length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Padding bytes before the start of the Top DICT.
+    #[inline]
     pub fn _padding(&self) -> &'a [u8] {
         let range = self.shape._padding_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Data containing the Top DICT.
+    #[inline]
     pub fn top_dict_data(&self) -> &'a [u8] {
         let range = self.shape.top_dict_data_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Remaining table data.
+    #[inline]
     pub fn trailing_data(&self) -> &'a [u8] {
         let range = self.shape.trailing_data_byte_range();
         self.data.read_array(range).unwrap()

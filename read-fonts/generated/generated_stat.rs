@@ -61,6 +61,7 @@ impl TopLevelTable for Stat<'_> {
 }
 
 impl<'a> FontRead<'a> for Stat<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
@@ -88,12 +89,14 @@ pub type Stat<'a> = TableRef<'a, StatMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Stat<'a> {
     /// Major/minor version number. Set to 1.2 for new fonts.
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The size in bytes of each axis record.
+    #[inline]
     pub fn design_axis_size(&self) -> u16 {
         let range = self.shape.design_axis_size_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -103,6 +106,7 @@ impl<'a> Stat<'a> {
     /// this value must be greater than or equal to the axisCount value
     /// in the 'fvar' table. In all fonts, must be greater than zero if
     /// axisValueCount is greater than zero.
+    #[inline]
     pub fn design_axis_count(&self) -> u16 {
         let range = self.shape.design_axis_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -112,6 +116,7 @@ impl<'a> Stat<'a> {
     /// start of the design axes array. If designAxisCount is zero, set
     /// to zero; if designAxisCount is greater than zero, must be
     /// greater than zero.
+    #[inline]
     pub fn design_axes_offset(&self) -> Offset32 {
         let range = self.shape.design_axes_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -125,6 +130,7 @@ impl<'a> Stat<'a> {
     }
 
     /// The number of axis value tables.
+    #[inline]
     pub fn axis_value_count(&self) -> u16 {
         let range = self.shape.axis_value_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -134,6 +140,7 @@ impl<'a> Stat<'a> {
     /// start of the design axes value offsets array. If axisValueCount
     /// is zero, set to zero; if axisValueCount is greater than zero,
     /// must be greater than zero.
+    #[inline]
     pub fn offset_to_axis_value_offsets(&self) -> Nullable<Offset32> {
         let range = self.shape.offset_to_axis_value_offsets_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -150,6 +157,7 @@ impl<'a> Stat<'a> {
     /// Name ID used as fallback when projection of names into a
     /// particular font model produces a subfamily name containing only
     /// elidable elements.
+    #[inline]
     pub fn elided_fallback_name_id(&self) -> Option<NameId> {
         let range = self.shape.elided_fallback_name_id_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -219,12 +227,14 @@ pub struct AxisRecord {
 
 impl AxisRecord {
     /// A tag identifying the axis of design variation.
+    #[inline]
     pub fn axis_tag(&self) -> Tag {
         self.axis_tag.get()
     }
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this axis.
+    #[inline]
     pub fn axis_name_id(&self) -> NameId {
         self.axis_name_id.get()
     }
@@ -232,6 +242,7 @@ impl AxisRecord {
     /// A value that applications can use to determine primary sorting
     /// of face names, or for ordering of labels when composing family
     /// or face names.
+    #[inline]
     pub fn axis_ordering(&self) -> u16 {
         self.axis_ordering.get()
     }
@@ -282,6 +293,7 @@ impl ReadArgs for AxisValueArray<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for AxisValueArray<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let axis_value_count = *args;
         let mut cursor = data.cursor();
@@ -300,6 +312,7 @@ impl<'a> AxisValueArray<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, axis_value_count: u16) -> Result<Self, ReadError> {
         let args = axis_value_count;
         Self::read_with_args(data, &args)
@@ -313,6 +326,7 @@ pub type AxisValueArray<'a> = TableRef<'a, AxisValueArrayMarker>;
 impl<'a> AxisValueArray<'a> {
     /// Array of offsets to axis value tables, in bytes from the start
     /// of the axis value offsets array.
+    #[inline]
     pub fn axis_value_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.axis_value_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -508,6 +522,7 @@ impl MinByteRange for AxisValueFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -525,6 +540,7 @@ pub type AxisValueFormat1<'a> = TableRef<'a, AxisValueFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat1<'a> {
     /// Format identifier — set to 1.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -533,12 +549,14 @@ impl<'a> AxisValueFormat1<'a> {
     /// Zero-base index into the axis record array identifying the axis
     /// of design variation to which the axis value table applies. Must
     /// be less than designAxisCount.
+    #[inline]
     pub fn axis_index(&self) -> u16 {
         let range = self.shape.axis_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Flags — see below for details.
+    #[inline]
     pub fn flags(&self) -> AxisValueTableFlags {
         let range = self.shape.flags_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -546,12 +564,14 @@ impl<'a> AxisValueFormat1<'a> {
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
+    #[inline]
     pub fn value_name_id(&self) -> NameId {
         let range = self.shape.value_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// A numeric value for this attribute value.
+    #[inline]
     pub fn value(&self) -> Fixed {
         let range = self.shape.value_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -636,6 +656,7 @@ impl MinByteRange for AxisValueFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -655,6 +676,7 @@ pub type AxisValueFormat2<'a> = TableRef<'a, AxisValueFormat2Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat2<'a> {
     /// Format identifier — set to 2.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -663,12 +685,14 @@ impl<'a> AxisValueFormat2<'a> {
     /// Zero-base index into the axis record array identifying the axis
     /// of design variation to which the axis value table applies. Must
     /// be less than designAxisCount.
+    #[inline]
     pub fn axis_index(&self) -> u16 {
         let range = self.shape.axis_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Flags — see below for details.
+    #[inline]
     pub fn flags(&self) -> AxisValueTableFlags {
         let range = self.shape.flags_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -676,12 +700,14 @@ impl<'a> AxisValueFormat2<'a> {
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
+    #[inline]
     pub fn value_name_id(&self) -> NameId {
         let range = self.shape.value_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// A nominal numeric value for this attribute value.
+    #[inline]
     pub fn nominal_value(&self) -> Fixed {
         let range = self.shape.nominal_value_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -689,6 +715,7 @@ impl<'a> AxisValueFormat2<'a> {
 
     /// The minimum value for a range associated with the specified
     /// name ID.
+    #[inline]
     pub fn range_min_value(&self) -> Fixed {
         let range = self.shape.range_min_value_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -696,6 +723,7 @@ impl<'a> AxisValueFormat2<'a> {
 
     /// The maximum value for a range associated with the specified
     /// name ID.
+    #[inline]
     pub fn range_max_value(&self) -> Fixed {
         let range = self.shape.range_max_value_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -777,6 +805,7 @@ impl MinByteRange for AxisValueFormat3Marker {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -795,6 +824,7 @@ pub type AxisValueFormat3<'a> = TableRef<'a, AxisValueFormat3Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat3<'a> {
     /// Format identifier — set to 3.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -803,12 +833,14 @@ impl<'a> AxisValueFormat3<'a> {
     /// Zero-base index into the axis record array identifying the axis
     /// of design variation to which the axis value table applies. Must
     /// be less than designAxisCount.
+    #[inline]
     pub fn axis_index(&self) -> u16 {
         let range = self.shape.axis_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Flags — see below for details.
+    #[inline]
     pub fn flags(&self) -> AxisValueTableFlags {
         let range = self.shape.flags_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -816,18 +848,21 @@ impl<'a> AxisValueFormat3<'a> {
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
+    #[inline]
     pub fn value_name_id(&self) -> NameId {
         let range = self.shape.value_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// A numeric value for this attribute value.
+    #[inline]
     pub fn value(&self) -> Fixed {
         let range = self.shape.value_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The numeric value for a style-linked mapping from this value.
+    #[inline]
     pub fn linked_value(&self) -> Fixed {
         let range = self.shape.linked_value_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -905,6 +940,7 @@ impl MinByteRange for AxisValueFormat4Marker {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat4<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -927,6 +963,7 @@ pub type AxisValueFormat4<'a> = TableRef<'a, AxisValueFormat4Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat4<'a> {
     /// Format identifier — set to 4.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -934,12 +971,14 @@ impl<'a> AxisValueFormat4<'a> {
 
     /// The total number of axes contributing to this axis-values
     /// combination.
+    #[inline]
     pub fn axis_count(&self) -> u16 {
         let range = self.shape.axis_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Flags — see below for details.
+    #[inline]
     pub fn flags(&self) -> AxisValueTableFlags {
         let range = self.shape.flags_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -947,6 +986,7 @@ impl<'a> AxisValueFormat4<'a> {
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this combination of axis values.
+    #[inline]
     pub fn value_name_id(&self) -> NameId {
         let range = self.shape.value_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -954,6 +994,7 @@ impl<'a> AxisValueFormat4<'a> {
 
     /// Array of AxisValue records that provide the combination of axis
     /// values, one for each contributing axis.
+    #[inline]
     pub fn axis_values(&self) -> &'a [AxisValueRecord] {
         let range = self.shape.axis_values_byte_range();
         self.data.read_array(range).unwrap()
@@ -1007,11 +1048,13 @@ pub struct AxisValueRecord {
 impl AxisValueRecord {
     /// Zero-base index into the axis record array identifying the axis
     /// to which this value applies. Must be less than designAxisCount.
+    #[inline]
     pub fn axis_index(&self) -> u16 {
         self.axis_index.get()
     }
 
     /// A numeric value for this attribute value.
+    #[inline]
     pub fn value(&self) -> Fixed {
         self.value.get()
     }

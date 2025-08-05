@@ -36,6 +36,7 @@ impl MinByteRange for OtKernMarker {
 }
 
 impl<'a> FontRead<'a> for OtKern<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -54,18 +55,21 @@ pub type OtKern<'a> = TableRef<'a, OtKernMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> OtKern<'a> {
     /// Table version number—set to 0.
+    #[inline]
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of subtables in the kerning table.
+    #[inline]
     pub fn n_tables(&self) -> u16 {
         let range = self.shape.n_tables_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Data for subtables, immediately following the header.
+    #[inline]
     pub fn subtable_data(&self) -> &'a [u8] {
         let range = self.shape.subtable_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -126,6 +130,7 @@ impl MinByteRange for AatKernMarker {
 }
 
 impl<'a> FontRead<'a> for AatKern<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
@@ -144,18 +149,21 @@ pub type AatKern<'a> = TableRef<'a, AatKernMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AatKern<'a> {
     /// The version number of the kerning table (0x00010000 for the current version).
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of subtables included in the kerning table.
+    #[inline]
     pub fn n_tables(&self) -> u32 {
         let range = self.shape.n_tables_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Data for subtables, immediately following the header.    
+    #[inline]
     pub fn subtable_data(&self) -> &'a [u8] {
         let range = self.shape.subtable_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -221,6 +229,7 @@ impl MinByteRange for OtSubtableMarker {
 }
 
 impl<'a> FontRead<'a> for OtSubtable<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -238,24 +247,28 @@ pub type OtSubtable<'a> = TableRef<'a, OtSubtableMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> OtSubtable<'a> {
     /// Kern subtable version number-- set to 0.
+    #[inline]
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The length of this subtable in bytes, including this header.
+    #[inline]
     pub fn length(&self) -> u16 {
         let range = self.shape.length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Circumstances under which this table is used.
+    #[inline]
     pub fn coverage(&self) -> u16 {
         let range = self.shape.coverage_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Subtable specific data.
+    #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()
@@ -322,6 +335,7 @@ impl MinByteRange for AatSubtableMarker {
 }
 
 impl<'a> FontRead<'a> for AatSubtable<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u32>();
@@ -339,24 +353,28 @@ pub type AatSubtable<'a> = TableRef<'a, AatSubtableMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AatSubtable<'a> {
     /// The length of this subtable in bytes, including this header.
+    #[inline]
     pub fn length(&self) -> u32 {
         let range = self.shape.length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Circumstances under which this table is used.
+    #[inline]
     pub fn coverage(&self) -> u16 {
         let range = self.shape.coverage_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The tuple index (used for variations fonts). This value specifies which tuple this subtable covers.
+    #[inline]
     pub fn tuple_index(&self) -> u16 {
         let range = self.shape.tuple_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Subtable specific data.
+    #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()
@@ -428,6 +446,7 @@ impl MinByteRange for Subtable0Marker {
 }
 
 impl<'a> FontRead<'a> for Subtable0<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let n_pairs: u16 = cursor.read()?;
@@ -448,30 +467,35 @@ pub type Subtable0<'a> = TableRef<'a, Subtable0Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable0<'a> {
     /// The number of kerning pairs in this subtable.
+    #[inline]
     pub fn n_pairs(&self) -> u16 {
         let range = self.shape.n_pairs_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The largest power of two less than or equal to the value of nPairs, multiplied by the size in bytes of an entry in the subtable.
+    #[inline]
     pub fn search_range(&self) -> u16 {
         let range = self.shape.search_range_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// This is calculated as log2 of the largest power of two less than or equal to the value of nPairs. This value indicates how many iterations of the search loop have to be made. For example, in a list of eight items, there would be three iterations of the loop.
+    #[inline]
     pub fn entry_selector(&self) -> u16 {
         let range = self.shape.entry_selector_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The value of nPairs minus the largest power of two less than or equal to nPairs. This is multiplied by the size in bytes of an entry in the table.
+    #[inline]
     pub fn range_shift(&self) -> u16 {
         let range = self.shape.range_shift_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Kerning records.
+    #[inline]
     pub fn pairs(&self) -> &'a [Subtable0Pair] {
         let range = self.shape.pairs_byte_range();
         self.data.read_array(range).unwrap()
@@ -541,6 +565,7 @@ impl MinByteRange for Subtable2ClassTableMarker {
 }
 
 impl<'a> FontRead<'a> for Subtable2ClassTable<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<GlyphId16>();
@@ -559,18 +584,21 @@ pub type Subtable2ClassTable<'a> = TableRef<'a, Subtable2ClassTableMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable2ClassTable<'a> {
     /// First glyph in class range.
+    #[inline]
     pub fn first_glyph(&self) -> GlyphId16 {
         let range = self.shape.first_glyph_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of glyph in class range.
+    #[inline]
     pub fn n_glyphs(&self) -> u16 {
         let range = self.shape.n_glyphs_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The offsets array for all of the glyphs in the range.
+    #[inline]
     pub fn offsets(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -664,6 +692,7 @@ impl MinByteRange for Subtable3Marker {
 }
 
 impl<'a> FontRead<'a> for Subtable3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
@@ -703,54 +732,63 @@ pub type Subtable3<'a> = TableRef<'a, Subtable3Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable3<'a> {
     /// The number of glyphs in this font.
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of kerning values.
+    #[inline]
     pub fn kern_value_count(&self) -> u8 {
         let range = self.shape.kern_value_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of left-hand classes.
+    #[inline]
     pub fn left_class_count(&self) -> u8 {
         let range = self.shape.left_class_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of right-hand classes.
+    #[inline]
     pub fn right_class_count(&self) -> u8 {
         let range = self.shape.right_class_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Set to zero (reserved for future use).
+    #[inline]
     pub fn flags(&self) -> u8 {
         let range = self.shape.flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The kerning values.
+    #[inline]
     pub fn kern_value(&self) -> &'a [BigEndian<i16>] {
         let range = self.shape.kern_value_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// The left-hand classes.
+    #[inline]
     pub fn left_class(&self) -> &'a [u8] {
         let range = self.shape.left_class_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// The right-hand classes.
+    #[inline]
     pub fn right_class(&self) -> &'a [u8] {
         let range = self.shape.right_class_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// The indices into the kernValue array.
+    #[inline]
     pub fn kern_index(&self) -> &'a [u8] {
         let range = self.shape.kern_index_byte_range();
         self.data.read_array(range).unwrap()

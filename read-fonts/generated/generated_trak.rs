@@ -49,6 +49,7 @@ impl TopLevelTable for Trak<'_> {
 }
 
 impl<'a> FontRead<'a> for Trak<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
@@ -66,18 +67,21 @@ pub type Trak<'a> = TableRef<'a, TrakMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Trak<'a> {
     /// Version number of the tracking table (0x00010000 for the current version).
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Format of the tracking table (set to 0).
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset from start of tracking table to TrackData for horizontal text (or 0 if none).
+    #[inline]
     pub fn horiz_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.horiz_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -90,6 +94,7 @@ impl<'a> Trak<'a> {
     }
 
     /// Offset from start of tracking table to TrackData for vertical text (or 0 if none).
+    #[inline]
     pub fn vert_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.vert_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -168,6 +173,7 @@ impl MinByteRange for TrackDataMarker {
 }
 
 impl<'a> FontRead<'a> for TrackData<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let n_tracks: u16 = cursor.read()?;
@@ -189,24 +195,28 @@ pub type TrackData<'a> = TableRef<'a, TrackDataMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> TrackData<'a> {
     /// Number of separate tracks included in this table.
+    #[inline]
     pub fn n_tracks(&self) -> u16 {
         let range = self.shape.n_tracks_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of point sizes included in this table.
+    #[inline]
     pub fn n_sizes(&self) -> u16 {
         let range = self.shape.n_sizes_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset from the start of the tracking table to the start of the size subtable.
+    #[inline]
     pub fn size_table_offset(&self) -> u32 {
         let range = self.shape.size_table_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of TrackTableEntry records.
+    #[inline]
     pub fn track_table(&self) -> &'a [TrackTableEntry] {
         let range = self.shape.track_table_byte_range();
         self.data.read_array(range).unwrap()
@@ -259,16 +269,19 @@ pub struct TrackTableEntry {
 
 impl TrackTableEntry {
     /// Track value for this record.
+    #[inline]
     pub fn track(&self) -> Fixed {
         self.track.get()
     }
 
     /// The 'name' table index for this track (a short word or phrase like \"loose\" or \"very tight\"). NameIndex has a value greater than 255 and less than 32768.
+    #[inline]
     pub fn name_index(&self) -> NameId {
         self.name_index.get()
     }
 
     /// Offset from the start of the tracking table to per-size tracking values for this track.
+    #[inline]
     pub fn offset(&self) -> u16 {
         self.offset.get()
     }

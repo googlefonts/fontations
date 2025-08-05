@@ -109,6 +109,7 @@ impl TopLevelTable for Vhea<'_> {
 }
 
 impl<'a> FontRead<'a> for Vhea<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Version16Dot16>();
@@ -138,18 +139,21 @@ pub type Vhea<'a> = TableRef<'a, VheaMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vhea<'a> {
     /// The major/minor version (1, 1)
+    #[inline]
     pub fn version(&self) -> Version16Dot16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Typographic ascent.
+    #[inline]
     pub fn ascender(&self) -> FWord {
         let range = self.shape.ascender_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Typographic descent.
+    #[inline]
     pub fn descender(&self) -> FWord {
         let range = self.shape.descender_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -157,12 +161,14 @@ impl<'a> Vhea<'a> {
 
     /// Typographic line gap. Negative LineGap values are treated as
     /// zero in some legacy platform implementations.
+    #[inline]
     pub fn line_gap(&self) -> FWord {
         let range = self.shape.line_gap_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum advance height value in 'vmtx' table.
+    #[inline]
     pub fn advance_height_max(&self) -> UfWord {
         let range = self.shape.advance_height_max_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -170,18 +176,21 @@ impl<'a> Vhea<'a> {
 
     /// Minimum top sidebearing value in 'vmtx' table for glyphs with
     /// contours (empty glyphs should be ignored).
+    #[inline]
     pub fn min_top_side_bearing(&self) -> FWord {
         let range = self.shape.min_top_side_bearing_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum bottom sidebearing value
+    #[inline]
     pub fn min_bottom_side_bearing(&self) -> FWord {
         let range = self.shape.min_bottom_side_bearing_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Defined as max( tsb + (yMax-yMin)).
+    #[inline]
     pub fn y_max_extent(&self) -> FWord {
         let range = self.shape.y_max_extent_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -189,12 +198,14 @@ impl<'a> Vhea<'a> {
 
     /// Used to calculate the slope of the cursor (rise/run); 1 for
     /// vertical caret, 0 for horizontal.
+    #[inline]
     pub fn caret_slope_rise(&self) -> i16 {
         let range = self.shape.caret_slope_rise_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// 0 for vertical caret, 1 for horizontal.
+    #[inline]
     pub fn caret_slope_run(&self) -> i16 {
         let range = self.shape.caret_slope_run_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -203,18 +214,21 @@ impl<'a> Vhea<'a> {
     /// The amount by which a slanted highlight on a glyph needs to be
     /// shifted to produce the best appearance. Set to 0 for
     /// non-slanted fonts
+    #[inline]
     pub fn caret_offset(&self) -> i16 {
         let range = self.shape.caret_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// 0 for current format.
+    #[inline]
     pub fn metric_data_format(&self) -> i16 {
         let range = self.shape.metric_data_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of advance heights in the vertical metrics (`vmtx`) table.
+    #[inline]
     pub fn number_of_long_ver_metrics(&self) -> u16 {
         let range = self.shape.number_of_long_ver_metrics_byte_range();
         self.data.read_at(range.start).unwrap()

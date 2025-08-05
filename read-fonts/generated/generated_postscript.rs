@@ -42,6 +42,7 @@ impl MinByteRange for Index1Marker {
 }
 
 impl<'a> FontRead<'a> for Index1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let count: u16 = cursor.read()?;
@@ -65,24 +66,28 @@ pub type Index1<'a> = TableRef<'a, Index1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Index1<'a> {
     /// Number of objects stored in INDEX.
+    #[inline]
     pub fn count(&self) -> u16 {
         let range = self.shape.count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Object array element size.
+    #[inline]
     pub fn off_size(&self) -> u8 {
         let range = self.shape.off_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Bytes containing `count + 1` offsets each of `off_size`.
+    #[inline]
     pub fn offsets(&self) -> &'a [u8] {
         let range = self.shape.offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Array containing the object data.
+    #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()
@@ -150,6 +155,7 @@ impl MinByteRange for Index2Marker {
 }
 
 impl<'a> FontRead<'a> for Index2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let count: u32 = cursor.read()?;
@@ -173,24 +179,28 @@ pub type Index2<'a> = TableRef<'a, Index2Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Index2<'a> {
     /// Number of objects stored in INDEX.
+    #[inline]
     pub fn count(&self) -> u32 {
         let range = self.shape.count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Object array element size.
+    #[inline]
     pub fn off_size(&self) -> u8 {
         let range = self.shape.off_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Bytes containing `count + 1` offsets each of `off_size`.
+    #[inline]
     pub fn offsets(&self) -> &'a [u8] {
         let range = self.shape.offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Array containing the object data.
+    #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()
@@ -329,6 +339,7 @@ impl MinByteRange for FdSelectFormat0Marker {
 }
 
 impl<'a> FontRead<'a> for FdSelectFormat0<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -344,12 +355,14 @@ pub type FdSelectFormat0<'a> = TableRef<'a, FdSelectFormat0Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FdSelectFormat0<'a> {
     /// Format = 0.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// FD selector array (one entry for each glyph).
+    #[inline]
     pub fn fds(&self) -> &'a [u8] {
         let range = self.shape.fds_byte_range();
         self.data.read_array(range).unwrap()
@@ -418,6 +431,7 @@ impl MinByteRange for FdSelectFormat3Marker {
 }
 
 impl<'a> FontRead<'a> for FdSelectFormat3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -437,24 +451,28 @@ pub type FdSelectFormat3<'a> = TableRef<'a, FdSelectFormat3Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FdSelectFormat3<'a> {
     /// Format = 3.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of ranges.
+    #[inline]
     pub fn n_ranges(&self) -> u16 {
         let range = self.shape.n_ranges_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Range3 array.
+    #[inline]
     pub fn ranges(&self) -> &'a [FdSelectRange3] {
         let range = self.shape.ranges_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Sentinel GID. Set equal to the number of glyphs in the font.
+    #[inline]
     pub fn sentinel(&self) -> u16 {
         let range = self.shape.sentinel_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -505,11 +523,13 @@ pub struct FdSelectRange3 {
 
 impl FdSelectRange3 {
     /// First glyph index in range.
+    #[inline]
     pub fn first(&self) -> u16 {
         self.first.get()
     }
 
     /// FD index for all glyphs in range.
+    #[inline]
     pub fn fd(&self) -> u8 {
         self.fd
     }
@@ -574,6 +594,7 @@ impl MinByteRange for FdSelectFormat4Marker {
 }
 
 impl<'a> FontRead<'a> for FdSelectFormat4<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -593,24 +614,28 @@ pub type FdSelectFormat4<'a> = TableRef<'a, FdSelectFormat4Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FdSelectFormat4<'a> {
     /// Format = 4.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of ranges.
+    #[inline]
     pub fn n_ranges(&self) -> u32 {
         let range = self.shape.n_ranges_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Range4 array.
+    #[inline]
     pub fn ranges(&self) -> &'a [FdSelectRange4] {
         let range = self.shape.ranges_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Sentinel GID. Set equal to the number of glyphs in the font.
+    #[inline]
     pub fn sentinel(&self) -> u32 {
         let range = self.shape.sentinel_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -661,11 +686,13 @@ pub struct FdSelectRange4 {
 
 impl FdSelectRange4 {
     /// First glyph index in range.
+    #[inline]
     pub fn first(&self) -> u32 {
         self.first.get()
     }
 
     /// FD index for all glyphs in range.
+    #[inline]
     pub fn fd(&self) -> u16 {
         self.fd.get()
     }
@@ -798,6 +825,7 @@ impl MinByteRange for CharsetFormat0Marker {
 }
 
 impl<'a> FontRead<'a> for CharsetFormat0<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -813,12 +841,14 @@ pub type CharsetFormat0<'a> = TableRef<'a, CharsetFormat0Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CharsetFormat0<'a> {
     /// Format; =0
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Glyph name array.
+    #[inline]
     pub fn glyph(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.glyph_byte_range();
         self.data.read_array(range).unwrap()
@@ -877,6 +907,7 @@ impl MinByteRange for CharsetFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for CharsetFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -893,12 +924,14 @@ pub type CharsetFormat1<'a> = TableRef<'a, CharsetFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CharsetFormat1<'a> {
     /// Format; =1
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Range1 array.
+    #[inline]
     pub fn ranges(&self) -> &'a [CharsetRange1] {
         let range = self.shape.ranges_byte_range();
         self.data.read_array(range).unwrap()
@@ -947,11 +980,13 @@ pub struct CharsetRange1 {
 
 impl CharsetRange1 {
     /// First glyph in range.
+    #[inline]
     pub fn first(&self) -> u16 {
         self.first.get()
     }
 
     /// Glyphs left in range (excluding first).
+    #[inline]
     pub fn n_left(&self) -> u8 {
         self.n_left
     }
@@ -1006,6 +1041,7 @@ impl MinByteRange for CharsetFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for CharsetFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -1022,12 +1058,14 @@ pub type CharsetFormat2<'a> = TableRef<'a, CharsetFormat2Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CharsetFormat2<'a> {
     /// Format; =2
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Range2 array.
+    #[inline]
     pub fn ranges(&self) -> &'a [CharsetRange2] {
         let range = self.shape.ranges_byte_range();
         self.data.read_array(range).unwrap()
@@ -1076,11 +1114,13 @@ pub struct CharsetRange2 {
 
 impl CharsetRange2 {
     /// First glyph in range.
+    #[inline]
     pub fn first(&self) -> u16 {
         self.first.get()
     }
 
     /// Glyphs left in range (excluding first).
+    #[inline]
     pub fn n_left(&self) -> u16 {
         self.n_left.get()
     }
