@@ -624,16 +624,16 @@ pub fn get_best_subfamily_name(font: &FontRef) -> Option<String> {
 
 pub fn get_best_full_name(font: &FontRef) -> Option<String> {
     let ids = [
-        (21, Some(22)),
-        (16, Some(17)),
-        (1, Some(2)),
-        (4, None), // 4 = Full Name
-        (6, None), // 6 = PostScript Name
+        (StringId::WWS_FAMILY_NAME, Some(StringId::WWS_SUBFAMILY_NAME)),
+        (StringId::TYPOGRAPHIC_FAMILY_NAME, Some(StringId::TYPOGRAPHIC_SUBFAMILY_NAME)),
+        (StringId::FAMILY_NAME, Some(StringId::SUBFAMILY_NAME)),
+        (StringId::FULL_NAME, None),
+        (StringId::POSTSCRIPT_NAME, None),
     ];
     for (id_first, id_second) in ids {
         if id_second.is_some() {
-            let fam_name = get_best_name(font, vec![StringId::new(id_first)]);
-            let subfam_name = get_best_name(font, vec![StringId::new(id_second.unwrap())]);
+            let fam_name = get_best_name(font, vec![id_first]);
+            let subfam_name = get_best_name(font, vec![id_second.unwrap()]);
 
             // If both family and subfamily names are found,
             // return the full name, otherwise continue to the next pair.
@@ -642,7 +642,7 @@ pub fn get_best_full_name(font: &FontRef) -> Option<String> {
             }
         } else {
             // If id_second is None, this must be name id 4 or 6
-            let full_name = get_best_name(font, vec![StringId::new(id_first)]);
+            let full_name = get_best_name(font, vec![id_first]);
             if full_name.is_some() {
                 return full_name;
             }
