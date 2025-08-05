@@ -80,6 +80,7 @@ impl TopLevelTable for Colr<'_> {
 }
 
 impl<'a> FontRead<'a> for Colr<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: u16 = cursor.read()?;
@@ -138,18 +139,21 @@ pub type Colr<'a> = TableRef<'a, ColrMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Colr<'a> {
     /// Table version number - set to 0 or 1.
+    #[inline]
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of BaseGlyph records; may be 0 in a version 1 table.
+    #[inline]
     pub fn num_base_glyph_records(&self) -> u16 {
         let range = self.shape.num_base_glyph_records_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to baseGlyphRecords array (may be NULL).
+    #[inline]
     pub fn base_glyph_records_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.base_glyph_records_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -164,6 +168,7 @@ impl<'a> Colr<'a> {
     }
 
     /// Offset to layerRecords array (may be NULL).
+    #[inline]
     pub fn layer_records_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.layer_records_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -177,12 +182,14 @@ impl<'a> Colr<'a> {
     }
 
     /// Number of Layer records; may be 0 in a version 1 table.
+    #[inline]
     pub fn num_layer_records(&self) -> u16 {
         let range = self.shape.num_layer_records_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to BaseGlyphList table.
+    #[inline]
     pub fn base_glyph_list_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.base_glyph_list_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -195,6 +202,7 @@ impl<'a> Colr<'a> {
     }
 
     /// Offset to LayerList table (may be NULL).
+    #[inline]
     pub fn layer_list_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.layer_list_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -207,6 +215,7 @@ impl<'a> Colr<'a> {
     }
 
     /// Offset to ClipList table (may be NULL).
+    #[inline]
     pub fn clip_list_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.clip_list_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -219,6 +228,7 @@ impl<'a> Colr<'a> {
     }
 
     /// Offset to DeltaSetIndexMap table (may be NULL).
+    #[inline]
     pub fn var_index_map_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.var_index_map_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -231,6 +241,7 @@ impl<'a> Colr<'a> {
     }
 
     /// Offset to ItemVariationStore (may be NULL).
+    #[inline]
     pub fn item_variation_store_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.item_variation_store_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -330,16 +341,19 @@ pub struct BaseGlyph {
 
 impl BaseGlyph {
     /// Glyph ID of the base glyph.
+    #[inline]
     pub fn glyph_id(&self) -> GlyphId16 {
         self.glyph_id.get()
     }
 
     /// Index (base 0) into the layerRecords array.
+    #[inline]
     pub fn first_layer_index(&self) -> u16 {
         self.first_layer_index.get()
     }
 
     /// Number of color layers associated with this glyph.
+    #[inline]
     pub fn num_layers(&self) -> u16 {
         self.num_layers.get()
     }
@@ -378,11 +392,13 @@ pub struct Layer {
 
 impl Layer {
     /// Glyph ID of the glyph used for a given layer.
+    #[inline]
     pub fn glyph_id(&self) -> GlyphId16 {
         self.glyph_id.get()
     }
 
     /// Index (base 0) for a palette entry in the CPAL table.
+    #[inline]
     pub fn palette_index(&self) -> u16 {
         self.palette_index.get()
     }
@@ -433,6 +449,7 @@ impl MinByteRange for BaseGlyphListMarker {
 }
 
 impl<'a> FontRead<'a> for BaseGlyphList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let num_base_glyph_paint_records: u32 = cursor.read()?;
@@ -451,11 +468,13 @@ pub type BaseGlyphList<'a> = TableRef<'a, BaseGlyphListMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseGlyphList<'a> {
+    #[inline]
     pub fn num_base_glyph_paint_records(&self) -> u32 {
         let range = self.shape.num_base_glyph_paint_records_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn base_glyph_paint_records(&self) -> &'a [BaseGlyphPaint] {
         let range = self.shape.base_glyph_paint_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -507,11 +526,13 @@ pub struct BaseGlyphPaint {
 
 impl BaseGlyphPaint {
     /// Glyph ID of the base glyph.
+    #[inline]
     pub fn glyph_id(&self) -> GlyphId16 {
         self.glyph_id.get()
     }
 
     /// Offset to a Paint table, from the beginning of the [`BaseGlyphList`] table.
+    #[inline]
     pub fn paint_offset(&self) -> Offset32 {
         self.paint_offset.get()
     }
@@ -573,6 +594,7 @@ impl MinByteRange for LayerListMarker {
 }
 
 impl<'a> FontRead<'a> for LayerList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let num_layers: u32 = cursor.read()?;
@@ -591,12 +613,14 @@ pub type LayerList<'a> = TableRef<'a, LayerListMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LayerList<'a> {
+    #[inline]
     pub fn num_layers(&self) -> u32 {
         let range = self.shape.num_layers_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offsets to Paint tables.
+    #[inline]
     pub fn paint_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.paint_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -676,6 +700,7 @@ impl MinByteRange for ClipListMarker {
 }
 
 impl<'a> FontRead<'a> for ClipList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -694,18 +719,21 @@ pub type ClipList<'a> = TableRef<'a, ClipListMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClipList<'a> {
     /// Set to 1.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of Clip records.
+    #[inline]
     pub fn num_clips(&self) -> u32 {
         let range = self.shape.num_clips_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Clip records. Sorted by startGlyphID.
+    #[inline]
     pub fn clips(&self) -> &'a [Clip] {
         let range = self.shape.clips_byte_range();
         self.data.read_array(range).unwrap()
@@ -757,16 +785,19 @@ pub struct Clip {
 
 impl Clip {
     /// First glyph ID in the range.
+    #[inline]
     pub fn start_glyph_id(&self) -> GlyphId16 {
         self.start_glyph_id.get()
     }
 
     /// Last glyph ID in the range.
+    #[inline]
     pub fn end_glyph_id(&self) -> GlyphId16 {
         self.end_glyph_id.get()
     }
 
     /// Offset to a ClipBox table, from the beginning of the [`ClipList`] table.
+    #[inline]
     pub fn clip_box_offset(&self) -> Offset24 {
         self.clip_box_offset.get()
     }
@@ -951,6 +982,7 @@ impl MinByteRange for ClipBoxFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for ClipBoxFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -968,30 +1000,35 @@ pub type ClipBoxFormat1<'a> = TableRef<'a, ClipBoxFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClipBoxFormat1<'a> {
     /// Set to 1.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum x of clip box.
+    #[inline]
     pub fn x_min(&self) -> FWord {
         let range = self.shape.x_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum y of clip box.
+    #[inline]
     pub fn y_min(&self) -> FWord {
         let range = self.shape.y_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum x of clip box.
+    #[inline]
     pub fn x_max(&self) -> FWord {
         let range = self.shape.x_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum y of clip box.
+    #[inline]
     pub fn y_max(&self) -> FWord {
         let range = self.shape.y_max_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1071,6 +1108,7 @@ impl MinByteRange for ClipBoxFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for ClipBoxFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -1089,36 +1127,42 @@ pub type ClipBoxFormat2<'a> = TableRef<'a, ClipBoxFormat2Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClipBoxFormat2<'a> {
     /// Set to 2.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum x of clip box. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn x_min(&self) -> FWord {
         let range = self.shape.x_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum y of clip box. For variation, use varIndexBase + 1.
+    #[inline]
     pub fn y_min(&self) -> FWord {
         let range = self.shape.y_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum x of clip box. For variation, use varIndexBase + 2.
+    #[inline]
     pub fn x_max(&self) -> FWord {
         let range = self.shape.x_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum y of clip box. For variation, use varIndexBase + 3.
+    #[inline]
     pub fn y_max(&self) -> FWord {
         let range = self.shape.y_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         let range = self.shape.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1164,11 +1208,13 @@ pub struct ColorIndex {
 
 impl ColorIndex {
     /// Index for a CPAL palette entry.
+    #[inline]
     pub fn palette_index(&self) -> u16 {
         self.palette_index.get()
     }
 
     /// Alpha value.
+    #[inline]
     pub fn alpha(&self) -> F2Dot14 {
         self.alpha.get()
     }
@@ -1208,16 +1254,19 @@ pub struct VarColorIndex {
 
 impl VarColorIndex {
     /// Index for a CPAL palette entry.
+    #[inline]
     pub fn palette_index(&self) -> u16 {
         self.palette_index.get()
     }
 
     /// Alpha value. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn alpha(&self) -> F2Dot14 {
         self.alpha.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         self.var_index_base.get()
     }
@@ -1258,16 +1307,19 @@ pub struct ColorStop {
 
 impl ColorStop {
     /// Position on a color line.
+    #[inline]
     pub fn stop_offset(&self) -> F2Dot14 {
         self.stop_offset.get()
     }
 
     /// Index for a CPAL palette entry.
+    #[inline]
     pub fn palette_index(&self) -> u16 {
         self.palette_index.get()
     }
 
     /// Alpha value.
+    #[inline]
     pub fn alpha(&self) -> F2Dot14 {
         self.alpha.get()
     }
@@ -1310,21 +1362,25 @@ pub struct VarColorStop {
 
 impl VarColorStop {
     /// Position on a color line. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn stop_offset(&self) -> F2Dot14 {
         self.stop_offset.get()
     }
 
     /// Index for a CPAL palette entry.
+    #[inline]
     pub fn palette_index(&self) -> u16 {
         self.palette_index.get()
     }
 
     /// Alpha value. For variation, use varIndexBase + 1.
+    #[inline]
     pub fn alpha(&self) -> F2Dot14 {
         self.alpha.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         self.var_index_base.get()
     }
@@ -1383,6 +1439,7 @@ impl MinByteRange for ColorLineMarker {
 }
 
 impl<'a> FontRead<'a> for ColorLine<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Extend>();
@@ -1403,17 +1460,20 @@ pub type ColorLine<'a> = TableRef<'a, ColorLineMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ColorLine<'a> {
     /// An Extend enum value.
+    #[inline]
     pub fn extend(&self) -> Extend {
         let range = self.shape.extend_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of ColorStop records.
+    #[inline]
     pub fn num_stops(&self) -> u16 {
         let range = self.shape.num_stops_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn color_stops(&self) -> &'a [ColorStop] {
         let range = self.shape.color_stops_byte_range();
         self.data.read_array(range).unwrap()
@@ -1481,6 +1541,7 @@ impl MinByteRange for VarColorLineMarker {
 }
 
 impl<'a> FontRead<'a> for VarColorLine<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Extend>();
@@ -1501,18 +1562,21 @@ pub type VarColorLine<'a> = TableRef<'a, VarColorLineMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarColorLine<'a> {
     /// An Extend enum value.
+    #[inline]
     pub fn extend(&self) -> Extend {
         let range = self.shape.extend_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of ColorStop records.
+    #[inline]
     pub fn num_stops(&self) -> u16 {
         let range = self.shape.num_stops_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Allows for variations.
+    #[inline]
     pub fn color_stops(&self) -> &'a [VarColorStop] {
         let range = self.shape.color_stops_byte_range();
         self.data.read_array(range).unwrap()
@@ -1903,6 +1967,7 @@ impl MinByteRange for PaintColrLayersMarker {
 }
 
 impl<'a> FontRead<'a> for PaintColrLayers<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -1918,18 +1983,21 @@ pub type PaintColrLayers<'a> = TableRef<'a, PaintColrLayersMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintColrLayers<'a> {
     /// Set to 1.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of offsets to paint tables to read from LayerList.
+    #[inline]
     pub fn num_layers(&self) -> u8 {
         let range = self.shape.num_layers_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Index (base 0) into the LayerList.
+    #[inline]
     pub fn first_layer_index(&self) -> u32 {
         let range = self.shape.first_layer_index_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1992,6 +2060,7 @@ impl MinByteRange for PaintSolidMarker {
 }
 
 impl<'a> FontRead<'a> for PaintSolid<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -2007,18 +2076,21 @@ pub type PaintSolid<'a> = TableRef<'a, PaintSolidMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSolid<'a> {
     /// Set to 2.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Index for a CPAL palette entry.
+    #[inline]
     pub fn palette_index(&self) -> u16 {
         let range = self.shape.palette_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Alpha value.
+    #[inline]
     pub fn alpha(&self) -> F2Dot14 {
         let range = self.shape.alpha_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2086,6 +2158,7 @@ impl MinByteRange for PaintVarSolidMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarSolid<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -2102,24 +2175,28 @@ pub type PaintVarSolid<'a> = TableRef<'a, PaintVarSolidMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSolid<'a> {
     /// Set to 3.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Index for a CPAL palette entry.
+    #[inline]
     pub fn palette_index(&self) -> u16 {
         let range = self.shape.palette_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Alpha value. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn alpha(&self) -> F2Dot14 {
         let range = self.shape.alpha_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         let range = self.shape.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2208,6 +2285,7 @@ impl MinByteRange for PaintLinearGradientMarker {
 }
 
 impl<'a> FontRead<'a> for PaintLinearGradient<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -2228,12 +2306,14 @@ pub type PaintLinearGradient<'a> = TableRef<'a, PaintLinearGradientMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintLinearGradient<'a> {
     /// Set to 4.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to ColorLine table.
+    #[inline]
     pub fn color_line_offset(&self) -> Offset24 {
         let range = self.shape.color_line_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2246,36 +2326,42 @@ impl<'a> PaintLinearGradient<'a> {
     }
 
     /// Start point (p₀) x coordinate.
+    #[inline]
     pub fn x0(&self) -> FWord {
         let range = self.shape.x0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Start point (p₀) y coordinate.
+    #[inline]
     pub fn y0(&self) -> FWord {
         let range = self.shape.y0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End point (p₁) x coordinate.
+    #[inline]
     pub fn x1(&self) -> FWord {
         let range = self.shape.x1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End point (p₁) y coordinate.
+    #[inline]
     pub fn y1(&self) -> FWord {
         let range = self.shape.y1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Rotation point (p₂) x coordinate.
+    #[inline]
     pub fn x2(&self) -> FWord {
         let range = self.shape.x2_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Rotation point (p₂) y coordinate.
+    #[inline]
     pub fn y2(&self) -> FWord {
         let range = self.shape.y2_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2376,6 +2462,7 @@ impl MinByteRange for PaintVarLinearGradientMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarLinearGradient<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -2397,12 +2484,14 @@ pub type PaintVarLinearGradient<'a> = TableRef<'a, PaintVarLinearGradientMarker>
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarLinearGradient<'a> {
     /// Set to 5.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to VarColorLine table.
+    #[inline]
     pub fn color_line_offset(&self) -> Offset24 {
         let range = self.shape.color_line_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2416,6 +2505,7 @@ impl<'a> PaintVarLinearGradient<'a> {
 
     /// Start point (p₀) x coordinate. For variation, use
     /// varIndexBase + 0.
+    #[inline]
     pub fn x0(&self) -> FWord {
         let range = self.shape.x0_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2423,6 +2513,7 @@ impl<'a> PaintVarLinearGradient<'a> {
 
     /// Start point (p₀) y coordinate. For variation, use
     /// varIndexBase + 1.
+    #[inline]
     pub fn y0(&self) -> FWord {
         let range = self.shape.y0_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2430,6 +2521,7 @@ impl<'a> PaintVarLinearGradient<'a> {
 
     /// End point (p₁) x coordinate. For variation, use varIndexBase
     /// + 2.
+    #[inline]
     pub fn x1(&self) -> FWord {
         let range = self.shape.x1_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2437,6 +2529,7 @@ impl<'a> PaintVarLinearGradient<'a> {
 
     /// End point (p₁) y coordinate. For variation, use varIndexBase
     /// + 3.
+    #[inline]
     pub fn y1(&self) -> FWord {
         let range = self.shape.y1_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2444,6 +2537,7 @@ impl<'a> PaintVarLinearGradient<'a> {
 
     /// Rotation point (p₂) x coordinate. For variation, use
     /// varIndexBase + 4.
+    #[inline]
     pub fn x2(&self) -> FWord {
         let range = self.shape.x2_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2451,12 +2545,14 @@ impl<'a> PaintVarLinearGradient<'a> {
 
     /// Rotation point (p₂) y coordinate. For variation, use
     /// varIndexBase + 5.
+    #[inline]
     pub fn y2(&self) -> FWord {
         let range = self.shape.y2_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         let range = self.shape.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2553,6 +2649,7 @@ impl MinByteRange for PaintRadialGradientMarker {
 }
 
 impl<'a> FontRead<'a> for PaintRadialGradient<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -2573,12 +2670,14 @@ pub type PaintRadialGradient<'a> = TableRef<'a, PaintRadialGradientMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRadialGradient<'a> {
     /// Set to 6.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to ColorLine table.
+    #[inline]
     pub fn color_line_offset(&self) -> Offset24 {
         let range = self.shape.color_line_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2591,36 +2690,42 @@ impl<'a> PaintRadialGradient<'a> {
     }
 
     /// Start circle center x coordinate.
+    #[inline]
     pub fn x0(&self) -> FWord {
         let range = self.shape.x0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Start circle center y coordinate.
+    #[inline]
     pub fn y0(&self) -> FWord {
         let range = self.shape.y0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Start circle radius.
+    #[inline]
     pub fn radius0(&self) -> UfWord {
         let range = self.shape.radius0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End circle center x coordinate.
+    #[inline]
     pub fn x1(&self) -> FWord {
         let range = self.shape.x1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End circle center y coordinate.
+    #[inline]
     pub fn y1(&self) -> FWord {
         let range = self.shape.y1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End circle radius.
+    #[inline]
     pub fn radius1(&self) -> UfWord {
         let range = self.shape.radius1_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2721,6 +2826,7 @@ impl MinByteRange for PaintVarRadialGradientMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarRadialGradient<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -2742,12 +2848,14 @@ pub type PaintVarRadialGradient<'a> = TableRef<'a, PaintVarRadialGradientMarker>
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRadialGradient<'a> {
     /// Set to 7.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to VarColorLine table.
+    #[inline]
     pub fn color_line_offset(&self) -> Offset24 {
         let range = self.shape.color_line_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2761,6 +2869,7 @@ impl<'a> PaintVarRadialGradient<'a> {
 
     /// Start circle center x coordinate. For variation, use
     /// varIndexBase + 0.
+    #[inline]
     pub fn x0(&self) -> FWord {
         let range = self.shape.x0_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2768,12 +2877,14 @@ impl<'a> PaintVarRadialGradient<'a> {
 
     /// Start circle center y coordinate. For variation, use
     /// varIndexBase + 1.
+    #[inline]
     pub fn y0(&self) -> FWord {
         let range = self.shape.y0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Start circle radius. For variation, use varIndexBase + 2.
+    #[inline]
     pub fn radius0(&self) -> UfWord {
         let range = self.shape.radius0_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2781,6 +2892,7 @@ impl<'a> PaintVarRadialGradient<'a> {
 
     /// End circle center x coordinate. For variation, use varIndexBase
     /// + 3.
+    #[inline]
     pub fn x1(&self) -> FWord {
         let range = self.shape.x1_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2788,18 +2900,21 @@ impl<'a> PaintVarRadialGradient<'a> {
 
     /// End circle center y coordinate. For variation, use varIndexBase
     /// + 4.
+    #[inline]
     pub fn y1(&self) -> FWord {
         let range = self.shape.y1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End circle radius. For variation, use varIndexBase + 5.
+    #[inline]
     pub fn radius1(&self) -> UfWord {
         let range = self.shape.radius1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         let range = self.shape.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2886,6 +3001,7 @@ impl MinByteRange for PaintSweepGradientMarker {
 }
 
 impl<'a> FontRead<'a> for PaintSweepGradient<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -2904,12 +3020,14 @@ pub type PaintSweepGradient<'a> = TableRef<'a, PaintSweepGradientMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSweepGradient<'a> {
     /// Set to 8.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to ColorLine table.
+    #[inline]
     pub fn color_line_offset(&self) -> Offset24 {
         let range = self.shape.color_line_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2922,12 +3040,14 @@ impl<'a> PaintSweepGradient<'a> {
     }
 
     /// Center x coordinate.
+    #[inline]
     pub fn center_x(&self) -> FWord {
         let range = self.shape.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Center y coordinate.
+    #[inline]
     pub fn center_y(&self) -> FWord {
         let range = self.shape.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2935,6 +3055,7 @@ impl<'a> PaintSweepGradient<'a> {
 
     /// Start of the angular range of the gradient, 180° in
     /// counter-clockwise degrees per 1.0 of value.
+    #[inline]
     pub fn start_angle(&self) -> F2Dot14 {
         let range = self.shape.start_angle_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2942,6 +3063,7 @@ impl<'a> PaintSweepGradient<'a> {
 
     /// End of the angular range of the gradient, 180° in
     /// counter-clockwise degrees per 1.0 of value.
+    #[inline]
     pub fn end_angle(&self) -> F2Dot14 {
         let range = self.shape.end_angle_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3030,6 +3152,7 @@ impl MinByteRange for PaintVarSweepGradientMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarSweepGradient<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -3049,12 +3172,14 @@ pub type PaintVarSweepGradient<'a> = TableRef<'a, PaintVarSweepGradientMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSweepGradient<'a> {
     /// Set to 9.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to VarColorLine table.
+    #[inline]
     pub fn color_line_offset(&self) -> Offset24 {
         let range = self.shape.color_line_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3067,12 +3192,14 @@ impl<'a> PaintVarSweepGradient<'a> {
     }
 
     /// Center x coordinate. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn center_x(&self) -> FWord {
         let range = self.shape.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Center y coordinate. For variation, use varIndexBase + 1.
+    #[inline]
     pub fn center_y(&self) -> FWord {
         let range = self.shape.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3081,6 +3208,7 @@ impl<'a> PaintVarSweepGradient<'a> {
     /// Start of the angular range of the gradient, 180° in
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 2.
+    #[inline]
     pub fn start_angle(&self) -> F2Dot14 {
         let range = self.shape.start_angle_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3089,12 +3217,14 @@ impl<'a> PaintVarSweepGradient<'a> {
     /// End of the angular range of the gradient, 180° in
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 3.
+    #[inline]
     pub fn end_angle(&self) -> F2Dot14 {
         let range = self.shape.end_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         let range = self.shape.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3164,6 +3294,7 @@ impl MinByteRange for PaintGlyphMarker {
 }
 
 impl<'a> FontRead<'a> for PaintGlyph<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -3179,12 +3310,14 @@ pub type PaintGlyph<'a> = TableRef<'a, PaintGlyphMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintGlyph<'a> {
     /// Set to 10.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint table.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3197,6 +3330,7 @@ impl<'a> PaintGlyph<'a> {
     }
 
     /// Glyph ID for the source outline.
+    #[inline]
     pub fn glyph_id(&self) -> GlyphId16 {
         let range = self.shape.glyph_id_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3257,6 +3391,7 @@ impl MinByteRange for PaintColrGlyphMarker {
 }
 
 impl<'a> FontRead<'a> for PaintColrGlyph<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -3271,12 +3406,14 @@ pub type PaintColrGlyph<'a> = TableRef<'a, PaintColrGlyphMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintColrGlyph<'a> {
     /// Set to 11.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Glyph ID for a BaseGlyphList base glyph.
+    #[inline]
     pub fn glyph_id(&self) -> GlyphId16 {
         let range = self.shape.glyph_id_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3338,6 +3475,7 @@ impl MinByteRange for PaintTransformMarker {
 }
 
 impl<'a> FontRead<'a> for PaintTransform<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -3353,12 +3491,14 @@ pub type PaintTransform<'a> = TableRef<'a, PaintTransformMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintTransform<'a> {
     /// Set to 12.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3371,6 +3511,7 @@ impl<'a> PaintTransform<'a> {
     }
 
     /// Offset to an Affine2x3 table.
+    #[inline]
     pub fn transform_offset(&self) -> Offset24 {
         let range = self.shape.transform_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3445,6 +3586,7 @@ impl MinByteRange for PaintVarTransformMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarTransform<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -3460,12 +3602,14 @@ pub type PaintVarTransform<'a> = TableRef<'a, PaintVarTransformMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarTransform<'a> {
     /// Set to 13.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3478,6 +3622,7 @@ impl<'a> PaintVarTransform<'a> {
     }
 
     /// Offset to a VarAffine2x3 table.
+    #[inline]
     pub fn transform_offset(&self) -> Offset24 {
         let range = self.shape.transform_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3563,6 +3708,7 @@ impl MinByteRange for Affine2x3Marker {
 }
 
 impl<'a> FontRead<'a> for Affine2x3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Fixed>();
@@ -3581,36 +3727,42 @@ pub type Affine2x3<'a> = TableRef<'a, Affine2x3Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Affine2x3<'a> {
     /// x-component of transformed x-basis vector.
+    #[inline]
     pub fn xx(&self) -> Fixed {
         let range = self.shape.xx_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y-component of transformed x-basis vector.
+    #[inline]
     pub fn yx(&self) -> Fixed {
         let range = self.shape.yx_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// x-component of transformed y-basis vector.
+    #[inline]
     pub fn xy(&self) -> Fixed {
         let range = self.shape.xy_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y-component of transformed y-basis vector.
+    #[inline]
     pub fn yy(&self) -> Fixed {
         let range = self.shape.yy_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Translation in x direction.
+    #[inline]
     pub fn dx(&self) -> Fixed {
         let range = self.shape.dx_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Translation in y direction.
+    #[inline]
     pub fn dy(&self) -> Fixed {
         let range = self.shape.dy_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3692,6 +3844,7 @@ impl MinByteRange for VarAffine2x3Marker {
 }
 
 impl<'a> FontRead<'a> for VarAffine2x3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Fixed>();
@@ -3712,6 +3865,7 @@ pub type VarAffine2x3<'a> = TableRef<'a, VarAffine2x3Marker>;
 impl<'a> VarAffine2x3<'a> {
     /// x-component of transformed x-basis vector. For variation, use
     /// varIndexBase + 0.
+    #[inline]
     pub fn xx(&self) -> Fixed {
         let range = self.shape.xx_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3719,6 +3873,7 @@ impl<'a> VarAffine2x3<'a> {
 
     /// y-component of transformed x-basis vector. For variation, use
     /// varIndexBase + 1.
+    #[inline]
     pub fn yx(&self) -> Fixed {
         let range = self.shape.yx_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3726,6 +3881,7 @@ impl<'a> VarAffine2x3<'a> {
 
     /// x-component of transformed y-basis vector. For variation, use
     /// varIndexBase + 2.
+    #[inline]
     pub fn xy(&self) -> Fixed {
         let range = self.shape.xy_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3733,24 +3889,28 @@ impl<'a> VarAffine2x3<'a> {
 
     /// y-component of transformed y-basis vector. For variation, use
     /// varIndexBase + 3.
+    #[inline]
     pub fn yy(&self) -> Fixed {
         let range = self.shape.yy_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Translation in x direction. For variation, use varIndexBase + 4.
+    #[inline]
     pub fn dx(&self) -> Fixed {
         let range = self.shape.dx_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Translation in y direction. For variation, use varIndexBase + 5.
+    #[inline]
     pub fn dy(&self) -> Fixed {
         let range = self.shape.dy_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         let range = self.shape.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3822,6 +3982,7 @@ impl MinByteRange for PaintTranslateMarker {
 }
 
 impl<'a> FontRead<'a> for PaintTranslate<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -3838,12 +3999,14 @@ pub type PaintTranslate<'a> = TableRef<'a, PaintTranslateMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintTranslate<'a> {
     /// Set to 14.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3856,12 +4019,14 @@ impl<'a> PaintTranslate<'a> {
     }
 
     /// Translation in x direction.
+    #[inline]
     pub fn dx(&self) -> FWord {
         let range = self.shape.dx_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Translation in y direction.
+    #[inline]
     pub fn dy(&self) -> FWord {
         let range = self.shape.dy_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3938,6 +4103,7 @@ impl MinByteRange for PaintVarTranslateMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarTranslate<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -3955,12 +4121,14 @@ pub type PaintVarTranslate<'a> = TableRef<'a, PaintVarTranslateMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarTranslate<'a> {
     /// Set to 15.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3973,18 +4141,21 @@ impl<'a> PaintVarTranslate<'a> {
     }
 
     /// Translation in x direction. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn dx(&self) -> FWord {
         let range = self.shape.dx_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Translation in y direction. For variation, use varIndexBase + 1.
+    #[inline]
     pub fn dy(&self) -> FWord {
         let range = self.shape.dy_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         let range = self.shape.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4057,6 +4228,7 @@ impl MinByteRange for PaintScaleMarker {
 }
 
 impl<'a> FontRead<'a> for PaintScale<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -4073,12 +4245,14 @@ pub type PaintScale<'a> = TableRef<'a, PaintScaleMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScale<'a> {
     /// Set to 16.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4091,12 +4265,14 @@ impl<'a> PaintScale<'a> {
     }
 
     /// Scale factor in x direction.
+    #[inline]
     pub fn scale_x(&self) -> F2Dot14 {
         let range = self.shape.scale_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Scale factor in y direction.
+    #[inline]
     pub fn scale_y(&self) -> F2Dot14 {
         let range = self.shape.scale_y_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4173,6 +4349,7 @@ impl MinByteRange for PaintVarScaleMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarScale<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -4190,12 +4367,14 @@ pub type PaintVarScale<'a> = TableRef<'a, PaintVarScaleMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScale<'a> {
     /// Set to 17.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4209,6 +4388,7 @@ impl<'a> PaintVarScale<'a> {
 
     /// Scale factor in x direction. For variation, use varIndexBase +
     /// 0.
+    #[inline]
     pub fn scale_x(&self) -> F2Dot14 {
         let range = self.shape.scale_x_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4216,12 +4396,14 @@ impl<'a> PaintVarScale<'a> {
 
     /// Scale factor in y direction. For variation, use varIndexBase +
     /// 1.
+    #[inline]
     pub fn scale_y(&self) -> F2Dot14 {
         let range = self.shape.scale_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         let range = self.shape.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4304,6 +4486,7 @@ impl MinByteRange for PaintScaleAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintScaleAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -4322,12 +4505,14 @@ pub type PaintScaleAroundCenter<'a> = TableRef<'a, PaintScaleAroundCenterMarker>
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleAroundCenter<'a> {
     /// Set to 18.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4340,24 +4525,28 @@ impl<'a> PaintScaleAroundCenter<'a> {
     }
 
     /// Scale factor in x direction.
+    #[inline]
     pub fn scale_x(&self) -> F2Dot14 {
         let range = self.shape.scale_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Scale factor in y direction.
+    #[inline]
     pub fn scale_y(&self) -> F2Dot14 {
         let range = self.shape.scale_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// x coordinate for the center of scaling.
+    #[inline]
     pub fn center_x(&self) -> FWord {
         let range = self.shape.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y coordinate for the center of scaling.
+    #[inline]
     pub fn center_y(&self) -> FWord {
         let range = self.shape.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4446,6 +4635,7 @@ impl MinByteRange for PaintVarScaleAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarScaleAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -4465,12 +4655,14 @@ pub type PaintVarScaleAroundCenter<'a> = TableRef<'a, PaintVarScaleAroundCenterM
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleAroundCenter<'a> {
     /// Set to 19.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4484,6 +4676,7 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
 
     /// Scale factor in x direction. For variation, use varIndexBase +
     /// 0.
+    #[inline]
     pub fn scale_x(&self) -> F2Dot14 {
         let range = self.shape.scale_x_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4491,6 +4684,7 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
 
     /// Scale factor in y direction. For variation, use varIndexBase +
     /// 1.
+    #[inline]
     pub fn scale_y(&self) -> F2Dot14 {
         let range = self.shape.scale_y_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4498,6 +4692,7 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
 
     /// x coordinate for the center of scaling. For variation, use
     /// varIndexBase + 2.
+    #[inline]
     pub fn center_x(&self) -> FWord {
         let range = self.shape.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4505,12 +4700,14 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
 
     /// y coordinate for the center of scaling. For variation, use
     /// varIndexBase + 3.
+    #[inline]
     pub fn center_y(&self) -> FWord {
         let range = self.shape.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         let range = self.shape.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4580,6 +4777,7 @@ impl MinByteRange for PaintScaleUniformMarker {
 }
 
 impl<'a> FontRead<'a> for PaintScaleUniform<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -4595,12 +4793,14 @@ pub type PaintScaleUniform<'a> = TableRef<'a, PaintScaleUniformMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleUniform<'a> {
     /// Set to 20.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4613,6 +4813,7 @@ impl<'a> PaintScaleUniform<'a> {
     }
 
     /// Scale factor in x and y directions.
+    #[inline]
     pub fn scale(&self) -> F2Dot14 {
         let range = self.shape.scale_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4683,6 +4884,7 @@ impl MinByteRange for PaintVarScaleUniformMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarScaleUniform<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -4699,12 +4901,14 @@ pub type PaintVarScaleUniform<'a> = TableRef<'a, PaintVarScaleUniformMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleUniform<'a> {
     /// Set to 21.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4718,12 +4922,14 @@ impl<'a> PaintVarScaleUniform<'a> {
 
     /// Scale factor in x and y directions. For variation, use
     /// varIndexBase + 0.
+    #[inline]
     pub fn scale(&self) -> F2Dot14 {
         let range = self.shape.scale_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         let range = self.shape.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4800,6 +5006,7 @@ impl MinByteRange for PaintScaleUniformAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintScaleUniformAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -4817,12 +5024,14 @@ pub type PaintScaleUniformAroundCenter<'a> = TableRef<'a, PaintScaleUniformAroun
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleUniformAroundCenter<'a> {
     /// Set to 22.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4835,18 +5044,21 @@ impl<'a> PaintScaleUniformAroundCenter<'a> {
     }
 
     /// Scale factor in x and y directions.
+    #[inline]
     pub fn scale(&self) -> F2Dot14 {
         let range = self.shape.scale_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// x coordinate for the center of scaling.
+    #[inline]
     pub fn center_x(&self) -> FWord {
         let range = self.shape.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y coordinate for the center of scaling.
+    #[inline]
     pub fn center_y(&self) -> FWord {
         let range = self.shape.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4929,6 +5141,7 @@ impl MinByteRange for PaintVarScaleUniformAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarScaleUniformAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -4948,12 +5161,14 @@ pub type PaintVarScaleUniformAroundCenter<'a> =
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleUniformAroundCenter<'a> {
     /// Set to 23.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4967,6 +5182,7 @@ impl<'a> PaintVarScaleUniformAroundCenter<'a> {
 
     /// Scale factor in x and y directions. For variation, use
     /// varIndexBase + 0.
+    #[inline]
     pub fn scale(&self) -> F2Dot14 {
         let range = self.shape.scale_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4974,6 +5190,7 @@ impl<'a> PaintVarScaleUniformAroundCenter<'a> {
 
     /// x coordinate for the center of scaling. For variation, use
     /// varIndexBase + 1.
+    #[inline]
     pub fn center_x(&self) -> FWord {
         let range = self.shape.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4981,12 +5198,14 @@ impl<'a> PaintVarScaleUniformAroundCenter<'a> {
 
     /// y coordinate for the center of scaling. For variation, use
     /// varIndexBase + 2.
+    #[inline]
     pub fn center_y(&self) -> FWord {
         let range = self.shape.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         let range = self.shape.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5055,6 +5274,7 @@ impl MinByteRange for PaintRotateMarker {
 }
 
 impl<'a> FontRead<'a> for PaintRotate<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -5070,12 +5290,14 @@ pub type PaintRotate<'a> = TableRef<'a, PaintRotateMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRotate<'a> {
     /// Set to 24.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5089,6 +5311,7 @@ impl<'a> PaintRotate<'a> {
 
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value.
+    #[inline]
     pub fn angle(&self) -> F2Dot14 {
         let range = self.shape.angle_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5159,6 +5382,7 @@ impl MinByteRange for PaintVarRotateMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarRotate<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -5175,12 +5399,14 @@ pub type PaintVarRotate<'a> = TableRef<'a, PaintVarRotateMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRotate<'a> {
     /// Set to 25.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5194,12 +5420,14 @@ impl<'a> PaintVarRotate<'a> {
 
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn angle(&self) -> F2Dot14 {
         let range = self.shape.angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         let range = self.shape.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5276,6 +5504,7 @@ impl MinByteRange for PaintRotateAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintRotateAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -5293,12 +5522,14 @@ pub type PaintRotateAroundCenter<'a> = TableRef<'a, PaintRotateAroundCenterMarke
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRotateAroundCenter<'a> {
     /// Set to 26.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5312,18 +5543,21 @@ impl<'a> PaintRotateAroundCenter<'a> {
 
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value.
+    #[inline]
     pub fn angle(&self) -> F2Dot14 {
         let range = self.shape.angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// x coordinate for the center of rotation.
+    #[inline]
     pub fn center_x(&self) -> FWord {
         let range = self.shape.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y coordinate for the center of rotation.
+    #[inline]
     pub fn center_y(&self) -> FWord {
         let range = self.shape.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5406,6 +5640,7 @@ impl MinByteRange for PaintVarRotateAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarRotateAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -5424,12 +5659,14 @@ pub type PaintVarRotateAroundCenter<'a> = TableRef<'a, PaintVarRotateAroundCente
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRotateAroundCenter<'a> {
     /// Set to 27.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5443,6 +5680,7 @@ impl<'a> PaintVarRotateAroundCenter<'a> {
 
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn angle(&self) -> F2Dot14 {
         let range = self.shape.angle_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5450,6 +5688,7 @@ impl<'a> PaintVarRotateAroundCenter<'a> {
 
     /// x coordinate for the center of rotation. For variation, use
     /// varIndexBase + 1.
+    #[inline]
     pub fn center_x(&self) -> FWord {
         let range = self.shape.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5457,12 +5696,14 @@ impl<'a> PaintVarRotateAroundCenter<'a> {
 
     /// y coordinate for the center of rotation. For variation, use
     /// varIndexBase + 2.
+    #[inline]
     pub fn center_y(&self) -> FWord {
         let range = self.shape.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         let range = self.shape.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5536,6 +5777,7 @@ impl MinByteRange for PaintSkewMarker {
 }
 
 impl<'a> FontRead<'a> for PaintSkew<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -5552,12 +5794,14 @@ pub type PaintSkew<'a> = TableRef<'a, PaintSkewMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSkew<'a> {
     /// Set to 28.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5571,6 +5815,7 @@ impl<'a> PaintSkew<'a> {
 
     /// Angle of skew in the direction of the x-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
+    #[inline]
     pub fn x_skew_angle(&self) -> F2Dot14 {
         let range = self.shape.x_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5578,6 +5823,7 @@ impl<'a> PaintSkew<'a> {
 
     /// Angle of skew in the direction of the y-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
+    #[inline]
     pub fn y_skew_angle(&self) -> F2Dot14 {
         let range = self.shape.y_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5654,6 +5900,7 @@ impl MinByteRange for PaintVarSkewMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarSkew<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -5671,12 +5918,14 @@ pub type PaintVarSkew<'a> = TableRef<'a, PaintVarSkewMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSkew<'a> {
     /// Set to 29.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5691,6 +5940,7 @@ impl<'a> PaintVarSkew<'a> {
     /// Angle of skew in the direction of the x-axis, 180° ┬░ in
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 0.
+    #[inline]
     pub fn x_skew_angle(&self) -> F2Dot14 {
         let range = self.shape.x_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5699,12 +5949,14 @@ impl<'a> PaintVarSkew<'a> {
     /// Angle of skew in the direction of the y-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 1.
+    #[inline]
     pub fn y_skew_angle(&self) -> F2Dot14 {
         let range = self.shape.y_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         let range = self.shape.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5787,6 +6039,7 @@ impl MinByteRange for PaintSkewAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintSkewAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -5805,12 +6058,14 @@ pub type PaintSkewAroundCenter<'a> = TableRef<'a, PaintSkewAroundCenterMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSkewAroundCenter<'a> {
     /// Set to 30.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5824,6 +6079,7 @@ impl<'a> PaintSkewAroundCenter<'a> {
 
     /// Angle of skew in the direction of the x-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
+    #[inline]
     pub fn x_skew_angle(&self) -> F2Dot14 {
         let range = self.shape.x_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5831,18 +6087,21 @@ impl<'a> PaintSkewAroundCenter<'a> {
 
     /// Angle of skew in the direction of the y-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
+    #[inline]
     pub fn y_skew_angle(&self) -> F2Dot14 {
         let range = self.shape.y_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// x coordinate for the center of rotation.
+    #[inline]
     pub fn center_x(&self) -> FWord {
         let range = self.shape.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y coordinate for the center of rotation.
+    #[inline]
     pub fn center_y(&self) -> FWord {
         let range = self.shape.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5931,6 +6190,7 @@ impl MinByteRange for PaintVarSkewAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarSkewAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -5950,12 +6210,14 @@ pub type PaintVarSkewAroundCenter<'a> = TableRef<'a, PaintVarSkewAroundCenterMar
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSkewAroundCenter<'a> {
     /// Set to 31.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.shape.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5970,6 +6232,7 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
     /// Angle of skew in the direction of the x-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 0.
+    #[inline]
     pub fn x_skew_angle(&self) -> F2Dot14 {
         let range = self.shape.x_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5978,6 +6241,7 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
     /// Angle of skew in the direction of the y-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 1.
+    #[inline]
     pub fn y_skew_angle(&self) -> F2Dot14 {
         let range = self.shape.y_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5985,6 +6249,7 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
 
     /// x coordinate for the center of rotation. For variation, use
     /// varIndexBase + 2.
+    #[inline]
     pub fn center_x(&self) -> FWord {
         let range = self.shape.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5992,12 +6257,14 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
 
     /// y coordinate for the center of rotation. For variation, use
     /// varIndexBase + 3.
+    #[inline]
     pub fn center_y(&self) -> FWord {
         let range = self.shape.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         let range = self.shape.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -6072,6 +6339,7 @@ impl MinByteRange for PaintCompositeMarker {
 }
 
 impl<'a> FontRead<'a> for PaintComposite<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -6088,12 +6356,14 @@ pub type PaintComposite<'a> = TableRef<'a, PaintCompositeMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintComposite<'a> {
     /// Set to 32.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a source Paint table.
+    #[inline]
     pub fn source_paint_offset(&self) -> Offset24 {
         let range = self.shape.source_paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -6106,12 +6376,14 @@ impl<'a> PaintComposite<'a> {
     }
 
     /// A CompositeMode enumeration value.
+    #[inline]
     pub fn composite_mode(&self) -> CompositeMode {
         let range = self.shape.composite_mode_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a backdrop Paint table.
+    #[inline]
     pub fn backdrop_paint_offset(&self) -> Offset24 {
         let range = self.shape.backdrop_paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()

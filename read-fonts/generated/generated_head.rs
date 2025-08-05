@@ -797,6 +797,7 @@ impl TopLevelTable for Head<'_> {
 }
 
 impl<'a> FontRead<'a> for Head<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
@@ -827,12 +828,14 @@ pub type Head<'a> = TableRef<'a, HeadMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Head<'a> {
     /// Version number of the font header table, set to (1, 0)
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Set by font manufacturer.
+    #[inline]
     pub fn font_revision(&self) -> Fixed {
         let range = self.shape.font_revision_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -843,18 +846,21 @@ impl<'a> Head<'a> {
     /// font collection file, the value of this field will be
     /// invalidated by changes to the file structure and font table
     /// directory, and must be ignored.
+    #[inline]
     pub fn checksum_adjustment(&self) -> u32 {
         let range = self.shape.checksum_adjustment_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Set to 0x5F0F3CF5.
+    #[inline]
     pub fn magic_number(&self) -> u32 {
         let range = self.shape.magic_number_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// See the flags enum.
+    #[inline]
     pub fn flags(&self) -> Flags {
         let range = self.shape.flags_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -864,6 +870,7 @@ impl<'a> Head<'a> {
     /// valid. In fonts that have TrueType outlines, a power of 2 is
     /// recommended as this allows performance optimizations in some
     /// rasterizers.
+    #[inline]
     pub fn units_per_em(&self) -> u16 {
         let range = self.shape.units_per_em_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -871,6 +878,7 @@ impl<'a> Head<'a> {
 
     /// Number of seconds since 12:00 midnight that started January 1st
     /// 1904 in GMT/UTC time zone.
+    #[inline]
     pub fn created(&self) -> LongDateTime {
         let range = self.shape.created_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -878,60 +886,70 @@ impl<'a> Head<'a> {
 
     /// Number of seconds since 12:00 midnight that started January 1st
     /// 1904 in GMT/UTC time zone.
+    #[inline]
     pub fn modified(&self) -> LongDateTime {
         let range = self.shape.modified_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum x coordinate across all glyph bounding boxes.
+    #[inline]
     pub fn x_min(&self) -> i16 {
         let range = self.shape.x_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum y coordinate across all glyph bounding boxes.
+    #[inline]
     pub fn y_min(&self) -> i16 {
         let range = self.shape.y_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum x coordinate across all glyph bounding boxes.
+    #[inline]
     pub fn x_max(&self) -> i16 {
         let range = self.shape.x_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum y coordinate across all glyph bounding boxes.
+    #[inline]
     pub fn y_max(&self) -> i16 {
         let range = self.shape.y_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Bits identifying the font's style; see [MacStyle]
+    #[inline]
     pub fn mac_style(&self) -> MacStyle {
         let range = self.shape.mac_style_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Smallest readable size in pixels.
+    #[inline]
     pub fn lowest_rec_ppem(&self) -> u16 {
         let range = self.shape.lowest_rec_ppem_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Deprecated (Set to 2).
+    #[inline]
     pub fn font_direction_hint(&self) -> i16 {
         let range = self.shape.font_direction_hint_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// 0 for short offsets (Offset16), 1 for long (Offset32).
+    #[inline]
     pub fn index_to_loc_format(&self) -> i16 {
         let range = self.shape.index_to_loc_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// 0 for current format.
+    #[inline]
     pub fn glyph_data_format(&self) -> i16 {
         let range = self.shape.glyph_data_format_byte_range();
         self.data.read_at(range.start).unwrap()

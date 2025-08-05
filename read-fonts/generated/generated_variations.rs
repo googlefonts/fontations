@@ -52,6 +52,7 @@ impl ReadArgs for TupleVariationHeader<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for TupleVariationHeader<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let axis_count = *args;
         let mut cursor = data.cursor();
@@ -84,6 +85,7 @@ impl<'a> TupleVariationHeader<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, axis_count: u16) -> Result<Self, ReadError> {
         let args = axis_count;
         Self::read_with_args(data, &args)
@@ -97,6 +99,7 @@ pub type TupleVariationHeader<'a> = TableRef<'a, TupleVariationHeaderMarker>;
 impl<'a> TupleVariationHeader<'a> {
     /// The size in bytes of the serialized data for this tuple
     /// variation table.
+    #[inline]
     pub fn variation_data_size(&self) -> u16 {
         let range = self.shape.variation_data_size_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -104,6 +107,7 @@ impl<'a> TupleVariationHeader<'a> {
 
     /// A packed field. The high 4 bits are flags (see below). The low
     /// 12 bits are an index into a shared tuple records array.
+    #[inline]
     pub fn tuple_index(&self) -> TupleIndex {
         let range = self.shape.tuple_index_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -154,6 +158,7 @@ impl<'a> Tuple<'a> {
     ///
     /// The number of elements must match the axisCount specified in the
     /// 'fvar' table.
+    #[inline]
     pub fn values(&self) -> &'a [BigEndian<F2Dot14>] {
         self.values
     }
@@ -249,6 +254,7 @@ impl MinByteRange for DeltaSetIndexMapFormat0Marker {
 }
 
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -268,6 +274,7 @@ pub type DeltaSetIndexMapFormat0<'a> = TableRef<'a, DeltaSetIndexMapFormat0Marke
 #[allow(clippy::needless_lifetimes)]
 impl<'a> DeltaSetIndexMapFormat0<'a> {
     /// DeltaSetIndexMap format: set to 0.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -275,18 +282,21 @@ impl<'a> DeltaSetIndexMapFormat0<'a> {
 
     /// A packed field that describes the compressed representation of
     /// delta-set indices. See details below.
+    #[inline]
     pub fn entry_format(&self) -> EntryFormat {
         let range = self.shape.entry_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of mapping entries.
+    #[inline]
     pub fn map_count(&self) -> u16 {
         let range = self.shape.map_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The delta-set index mapping data. See details below.
+    #[inline]
     pub fn map_data(&self) -> &'a [u8] {
         let range = self.shape.map_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -357,6 +367,7 @@ impl MinByteRange for DeltaSetIndexMapFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -376,6 +387,7 @@ pub type DeltaSetIndexMapFormat1<'a> = TableRef<'a, DeltaSetIndexMapFormat1Marke
 #[allow(clippy::needless_lifetimes)]
 impl<'a> DeltaSetIndexMapFormat1<'a> {
     /// DeltaSetIndexMap format: set to 1.
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -383,18 +395,21 @@ impl<'a> DeltaSetIndexMapFormat1<'a> {
 
     /// A packed field that describes the compressed representation of
     /// delta-set indices. See details below.
+    #[inline]
     pub fn entry_format(&self) -> EntryFormat {
         let range = self.shape.entry_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of mapping entries.
+    #[inline]
     pub fn map_count(&self) -> u32 {
         let range = self.shape.map_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The delta-set index mapping data. See details below.
+    #[inline]
     pub fn map_data(&self) -> &'a [u8] {
         let range = self.shape.map_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -856,6 +871,7 @@ impl MinByteRange for VariationRegionListMarker {
 }
 
 impl<'a> FontRead<'a> for VariationRegionList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let axis_count: u16 = cursor.read()?;
@@ -877,6 +893,7 @@ pub type VariationRegionList<'a> = TableRef<'a, VariationRegionListMarker>;
 impl<'a> VariationRegionList<'a> {
     /// The number of variation axes for this font. This must be the
     /// same number as axisCount in the 'fvar' table.
+    #[inline]
     pub fn axis_count(&self) -> u16 {
         let range = self.shape.axis_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -884,12 +901,14 @@ impl<'a> VariationRegionList<'a> {
 
     /// The number of variation region tables in the variation region
     /// list. Must be less than 32,768.
+    #[inline]
     pub fn region_count(&self) -> u16 {
         let range = self.shape.region_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of variation regions.
+    #[inline]
     pub fn variation_regions(&self) -> ComputedArray<'a, VariationRegion<'a>> {
         let range = self.shape.variation_regions_byte_range();
         self.data.read_with_args(range, &self.axis_count()).unwrap()
@@ -937,6 +956,7 @@ pub struct VariationRegion<'a> {
 impl<'a> VariationRegion<'a> {
     /// Array of region axis coordinates records, in the order of axes
     /// given in the 'fvar' table.
+    #[inline]
     pub fn region_axes(&self) -> &'a [RegionAxisCoordinates] {
         self.region_axes
     }
@@ -1014,16 +1034,19 @@ pub struct RegionAxisCoordinates {
 
 impl RegionAxisCoordinates {
     /// The region start coordinate value for the current axis.
+    #[inline]
     pub fn start_coord(&self) -> F2Dot14 {
         self.start_coord.get()
     }
 
     /// The region peak coordinate value for the current axis.
+    #[inline]
     pub fn peak_coord(&self) -> F2Dot14 {
         self.peak_coord.get()
     }
 
     /// The region end coordinate value for the current axis.
+    #[inline]
     pub fn end_coord(&self) -> F2Dot14 {
         self.end_coord.get()
     }
@@ -1086,6 +1109,7 @@ impl MinByteRange for ItemVariationStoreMarker {
 }
 
 impl<'a> FontRead<'a> for ItemVariationStore<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1107,6 +1131,7 @@ pub type ItemVariationStore<'a> = TableRef<'a, ItemVariationStoreMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ItemVariationStore<'a> {
     /// Format— set to 1
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1114,6 +1139,7 @@ impl<'a> ItemVariationStore<'a> {
 
     /// Offset in bytes from the start of the item variation store to
     /// the variation region list.
+    #[inline]
     pub fn variation_region_list_offset(&self) -> Offset32 {
         let range = self.shape.variation_region_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1126,6 +1152,7 @@ impl<'a> ItemVariationStore<'a> {
     }
 
     /// The number of item variation data subtables.
+    #[inline]
     pub fn item_variation_data_count(&self) -> u16 {
         let range = self.shape.item_variation_data_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1133,6 +1160,7 @@ impl<'a> ItemVariationStore<'a> {
 
     /// Offsets in bytes from the start of the item variation store to
     /// each item variation data subtable.
+    #[inline]
     pub fn item_variation_data_offsets(&self) -> &'a [BigEndian<Nullable<Offset32>>] {
         let range = self.shape.item_variation_data_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -1236,6 +1264,7 @@ impl MinByteRange for ItemVariationDataMarker {
 }
 
 impl<'a> FontRead<'a> for ItemVariationData<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let item_count: u16 = cursor.read()?;
@@ -1263,18 +1292,21 @@ pub type ItemVariationData<'a> = TableRef<'a, ItemVariationDataMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ItemVariationData<'a> {
     /// The number of delta sets for distinct items.
+    #[inline]
     pub fn item_count(&self) -> u16 {
         let range = self.shape.item_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// A packed field: the high bit is a flag—see details below.
+    #[inline]
     pub fn word_delta_count(&self) -> u16 {
         let range = self.shape.word_delta_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of variation regions referenced.
+    #[inline]
     pub fn region_index_count(&self) -> u16 {
         let range = self.shape.region_index_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1282,12 +1314,14 @@ impl<'a> ItemVariationData<'a> {
 
     /// Array of indices into the variation region list for the regions
     /// referenced by this item variation data table.
+    #[inline]
     pub fn region_indexes(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.region_indexes_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Delta-set rows.
+    #[inline]
     pub fn delta_sets(&self) -> &'a [u8] {
         let range = self.shape.delta_sets_byte_range();
         self.data.read_array(range).unwrap()

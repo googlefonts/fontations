@@ -46,6 +46,7 @@ impl TopLevelTable for Cvar<'_> {
 }
 
 impl<'a> FontRead<'a> for Cvar<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
@@ -65,6 +66,7 @@ pub type Cvar<'a> = TableRef<'a, CvarMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cvar<'a> {
     /// Major/minor version number of the CVT variations table — set to (1,0).
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -74,12 +76,14 @@ impl<'a> Cvar<'a> {
     /// are the number of tuple variation tables for this glyph. The
     /// number of tuple variation tables can be any number between 1
     /// and 4095.
+    #[inline]
     pub fn tuple_variation_count(&self) -> TupleVariationCount {
         let range = self.shape.tuple_variation_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset from the start of the 'cvar' table to the serialized data.
+    #[inline]
     pub fn data_offset(&self) -> Offset16 {
         let range = self.shape.data_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -92,6 +96,7 @@ impl<'a> Cvar<'a> {
     }
 
     /// Array of tuple variation headers.
+    #[inline]
     pub fn tuple_variation_headers(&self) -> VarLenArray<'a, TupleVariationHeader> {
         let range = self.shape.tuple_variation_headers_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()

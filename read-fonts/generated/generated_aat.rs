@@ -133,6 +133,7 @@ impl MinByteRange for Lookup0Marker {
 }
 
 impl<'a> FontRead<'a> for Lookup0<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -151,12 +152,14 @@ pub type Lookup0<'a> = TableRef<'a, Lookup0Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup0<'a> {
     /// Format number is set to 0.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Values, indexed by glyph index.
+    #[inline]
     pub fn values_data(&self) -> &'a [u8] {
         let range = self.shape.values_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -242,6 +245,7 @@ impl MinByteRange for Lookup2Marker {
 }
 
 impl<'a> FontRead<'a> for Lookup2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -268,42 +272,49 @@ pub type Lookup2<'a> = TableRef<'a, Lookup2Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup2<'a> {
     /// Format number is set to 2.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Size of a lookup unit for this search in bytes.
+    #[inline]
     pub fn unit_size(&self) -> u16 {
         let range = self.shape.unit_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of units of the preceding size to be searched.
+    #[inline]
     pub fn n_units(&self) -> u16 {
         let range = self.shape.n_units_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The value of unitSize times the largest power of 2 that is less than or equal to the value of nUnits.
+    #[inline]
     pub fn search_range(&self) -> u16 {
         let range = self.shape.search_range_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The log base 2 of the largest power of 2 less than or equal to the value of nUnits.
+    #[inline]
     pub fn entry_selector(&self) -> u16 {
         let range = self.shape.entry_selector_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The value of unitSize times the difference of the value of nUnits minus the largest power of 2 less than or equal to the value of nUnits.
+    #[inline]
     pub fn range_shift(&self) -> u16 {
         let range = self.shape.range_shift_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Segments.
+    #[inline]
     pub fn segments_data(&self) -> &'a [u8] {
         let range = self.shape.segments_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -394,6 +405,7 @@ impl MinByteRange for Lookup4Marker {
 }
 
 impl<'a> FontRead<'a> for Lookup4<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -418,42 +430,49 @@ pub type Lookup4<'a> = TableRef<'a, Lookup4Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup4<'a> {
     /// Format number is set to 4.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Size of a lookup unit for this search in bytes.
+    #[inline]
     pub fn unit_size(&self) -> u16 {
         let range = self.shape.unit_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of units of the preceding size to be searched.
+    #[inline]
     pub fn n_units(&self) -> u16 {
         let range = self.shape.n_units_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The value of unitSize times the largest power of 2 that is less than or equal to the value of nUnits.
+    #[inline]
     pub fn search_range(&self) -> u16 {
         let range = self.shape.search_range_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The log base 2 of the largest power of 2 less than or equal to the value of nUnits.
+    #[inline]
     pub fn entry_selector(&self) -> u16 {
         let range = self.shape.entry_selector_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The value of unitSize times the difference of the value of nUnits minus the largest power of 2 less than or equal to the value of nUnits.
+    #[inline]
     pub fn range_shift(&self) -> u16 {
         let range = self.shape.range_shift_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Segments.
+    #[inline]
     pub fn segments(&self) -> &'a [LookupSegment4] {
         let range = self.shape.segments_byte_range();
         self.data.read_array(range).unwrap()
@@ -509,16 +528,19 @@ pub struct LookupSegment4 {
 
 impl LookupSegment4 {
     /// Last glyph index in this segment.
+    #[inline]
     pub fn last_glyph(&self) -> u16 {
         self.last_glyph.get()
     }
 
     /// First glyph index in this segment.
+    #[inline]
     pub fn first_glyph(&self) -> u16 {
         self.first_glyph.get()
     }
 
     /// A 16-bit offset from the start of the table to the data.
+    #[inline]
     pub fn value_offset(&self) -> u16 {
         self.value_offset.get()
     }
@@ -600,6 +622,7 @@ impl MinByteRange for Lookup6Marker {
 }
 
 impl<'a> FontRead<'a> for Lookup6<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -625,42 +648,49 @@ pub type Lookup6<'a> = TableRef<'a, Lookup6Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup6<'a> {
     /// Format number is set to 6.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Size of a lookup unit for this search in bytes.
+    #[inline]
     pub fn unit_size(&self) -> u16 {
         let range = self.shape.unit_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of units of the preceding size to be searched.
+    #[inline]
     pub fn n_units(&self) -> u16 {
         let range = self.shape.n_units_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The value of unitSize times the largest power of 2 that is less than or equal to the value of nUnits.
+    #[inline]
     pub fn search_range(&self) -> u16 {
         let range = self.shape.search_range_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The log base 2 of the largest power of 2 less than or equal to the value of nUnits.
+    #[inline]
     pub fn entry_selector(&self) -> u16 {
         let range = self.shape.entry_selector_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The value of unitSize times the difference of the value of nUnits minus the largest power of 2 less than or equal to the value of nUnits.
+    #[inline]
     pub fn range_shift(&self) -> u16 {
         let range = self.shape.range_shift_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Values, indexed by glyph index.
+    #[inline]
     pub fn entries_data(&self) -> &'a [u8] {
         let range = self.shape.entries_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -735,6 +765,7 @@ impl MinByteRange for Lookup8Marker {
 }
 
 impl<'a> FontRead<'a> for Lookup8<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -757,12 +788,14 @@ pub type Lookup8<'a> = TableRef<'a, Lookup8Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup8<'a> {
     /// Format number is set to 8.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// First glyph index included in the trimmed array.
+    #[inline]
     pub fn first_glyph(&self) -> u16 {
         let range = self.shape.first_glyph_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -770,6 +803,7 @@ impl<'a> Lookup8<'a> {
 
     /// Total number of glyphs (equivalent to the last glyph minus the value
     /// of firstGlyph plus 1).
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -777,6 +811,7 @@ impl<'a> Lookup8<'a> {
 
     /// The lookup values (indexed by the glyph index minus the value of
     /// firstGlyph). Entries in the value array must be two bytes.
+    #[inline]
     pub fn value_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.value_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -853,6 +888,7 @@ impl MinByteRange for Lookup10Marker {
 }
 
 impl<'a> FontRead<'a> for Lookup10<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -876,6 +912,7 @@ pub type Lookup10<'a> = TableRef<'a, Lookup10Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup10<'a> {
     /// Format number is set to 10.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -883,12 +920,14 @@ impl<'a> Lookup10<'a> {
 
     /// Size of a lookup unit for this lookup table in bytes. Allowed values
     /// are 1, 2, 4, and 8.
+    #[inline]
     pub fn unit_size(&self) -> u16 {
         let range = self.shape.unit_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// First glyph index included in the trimmed array.
+    #[inline]
     pub fn first_glyph(&self) -> u16 {
         let range = self.shape.first_glyph_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -896,6 +935,7 @@ impl<'a> Lookup10<'a> {
 
     /// Total number of glyphs (equivalent to the last glyph minus the value
     /// of firstGlyph plus 1).
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -903,6 +943,7 @@ impl<'a> Lookup10<'a> {
 
     /// The lookup values (indexed by the glyph index minus the value of
     /// firstGlyph).
+    #[inline]
     pub fn values_data(&self) -> &'a [u8] {
         let range = self.shape.values_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -968,6 +1009,7 @@ impl MinByteRange for StateHeaderMarker {
 }
 
 impl<'a> FontRead<'a> for StateHeader<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -985,12 +1027,14 @@ pub type StateHeader<'a> = TableRef<'a, StateHeaderMarker>;
 impl<'a> StateHeader<'a> {
     /// Size of a state, in bytes. The size is limited to 8 bits, although the
     /// field is 16 bits for alignment.
+    #[inline]
     pub fn state_size(&self) -> u16 {
         let range = self.shape.state_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Byte offset from the beginning of the state table to the class subtable.
+    #[inline]
     pub fn class_table_offset(&self) -> Offset16 {
         let range = self.shape.class_table_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1003,6 +1047,7 @@ impl<'a> StateHeader<'a> {
     }
 
     /// Byte offset from the beginning of the state table to the state array.
+    #[inline]
     pub fn state_array_offset(&self) -> Offset16 {
         let range = self.shape.state_array_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1015,6 +1060,7 @@ impl<'a> StateHeader<'a> {
     }
 
     /// Byte offset from the beginning of the state table to the entry subtable.
+    #[inline]
     pub fn entry_table_offset(&self) -> Offset16 {
         let range = self.shape.entry_table_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1091,6 +1137,7 @@ impl MinByteRange for ClassSubtableMarker {
 }
 
 impl<'a> FontRead<'a> for ClassSubtable<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1111,12 +1158,14 @@ pub type ClassSubtable<'a> = TableRef<'a, ClassSubtableMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClassSubtable<'a> {
     /// Glyph index of the first glyph in the class table.
+    #[inline]
     pub fn first_glyph(&self) -> u16 {
         let range = self.shape.first_glyph_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of glyphs in class table.
+    #[inline]
     pub fn n_glyphs(&self) -> u16 {
         let range = self.shape.n_glyphs_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1124,6 +1173,7 @@ impl<'a> ClassSubtable<'a> {
 
     /// The class codes (indexed by glyph index minus firstGlyph). Class codes
     /// range from 0 to the value of stateSize minus 1.
+    #[inline]
     pub fn class_array(&self) -> &'a [u8] {
         let range = self.shape.class_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -1174,6 +1224,7 @@ impl MinByteRange for RawBytesMarker {
 }
 
 impl<'a> FontRead<'a> for RawBytes<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
@@ -1187,6 +1238,7 @@ pub type RawBytes<'a> = TableRef<'a, RawBytesMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> RawBytes<'a> {
+    #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()
@@ -1248,6 +1300,7 @@ impl MinByteRange for StxHeaderMarker {
 }
 
 impl<'a> FontRead<'a> for StxHeader<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u32>();
@@ -1264,12 +1317,14 @@ pub type StxHeader<'a> = TableRef<'a, StxHeaderMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> StxHeader<'a> {
     /// Number of classes, which is the number of 16-bit entry indices in a single line in the state array.
+    #[inline]
     pub fn n_classes(&self) -> u32 {
         let range = self.shape.n_classes_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Byte offset from the beginning of the state table to the class subtable.
+    #[inline]
     pub fn class_table_offset(&self) -> Offset32 {
         let range = self.shape.class_table_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1282,6 +1337,7 @@ impl<'a> StxHeader<'a> {
     }
 
     /// Byte offset from the beginning of the state table to the state array.
+    #[inline]
     pub fn state_array_offset(&self) -> Offset32 {
         let range = self.shape.state_array_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1294,6 +1350,7 @@ impl<'a> StxHeader<'a> {
     }
 
     /// Byte offset from the beginning of the state table to the entry subtable.
+    #[inline]
     pub fn entry_table_offset(&self) -> Offset32 {
         let range = self.shape.entry_table_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1360,6 +1417,7 @@ impl MinByteRange for RawWordsMarker {
 }
 
 impl<'a> FontRead<'a> for RawWords<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let data_byte_len = cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
@@ -1373,6 +1431,7 @@ pub type RawWords<'a> = TableRef<'a, RawWordsMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> RawWords<'a> {
+    #[inline]
     pub fn data(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()

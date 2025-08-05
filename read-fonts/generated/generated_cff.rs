@@ -52,6 +52,7 @@ impl MinByteRange for CffHeaderMarker {
 }
 
 impl<'a> FontRead<'a> for CffHeader<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -77,36 +78,42 @@ pub type CffHeader<'a> = TableRef<'a, CffHeaderMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CffHeader<'a> {
     /// Format major version (starting at 1).
+    #[inline]
     pub fn major(&self) -> u8 {
         let range = self.shape.major_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Format minor version (starting at 0).
+    #[inline]
     pub fn minor(&self) -> u8 {
         let range = self.shape.minor_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Header size (bytes).
+    #[inline]
     pub fn hdr_size(&self) -> u8 {
         let range = self.shape.hdr_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Absolute offset size.
+    #[inline]
     pub fn off_size(&self) -> u8 {
         let range = self.shape.off_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Padding bytes before the start of the Name INDEX.
+    #[inline]
     pub fn _padding(&self) -> &'a [u8] {
         let range = self.shape._padding_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Remaining table data.
+    #[inline]
     pub fn trailing_data(&self) -> &'a [u8] {
         let range = self.shape.trailing_data_byte_range();
         self.data.read_array(range).unwrap()

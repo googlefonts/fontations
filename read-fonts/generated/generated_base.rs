@@ -46,6 +46,7 @@ impl TopLevelTable for Base<'_> {
 }
 
 impl<'a> FontRead<'a> for Base<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
@@ -70,12 +71,14 @@ pub type Base<'a> = TableRef<'a, BaseMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Base<'a> {
     /// (major, minor) Version for the BASE table (1,0) or (1,1)
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to horizontal Axis table, from beginning of BASE table (may be NULL)
+    #[inline]
     pub fn horiz_axis_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.horiz_axis_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -88,6 +91,7 @@ impl<'a> Base<'a> {
     }
 
     /// Offset to vertical Axis table, from beginning of BASE table (may be NULL)
+    #[inline]
     pub fn vert_axis_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.vert_axis_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -100,6 +104,7 @@ impl<'a> Base<'a> {
     }
 
     /// Offset to Item Variation Store table, from beginning of BASE table (may be null)
+    #[inline]
     pub fn item_var_store_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.item_var_store_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -170,6 +175,7 @@ impl MinByteRange for AxisMarker {
 }
 
 impl<'a> FontRead<'a> for Axis<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
@@ -185,6 +191,7 @@ pub type Axis<'a> = TableRef<'a, AxisMarker>;
 impl<'a> Axis<'a> {
     /// Offset to BaseTagList table, from beginning of Axis table (may
     /// be NULL)
+    #[inline]
     pub fn base_tag_list_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.base_tag_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -197,6 +204,7 @@ impl<'a> Axis<'a> {
     }
 
     /// Offset to BaseScriptList table, from beginning of Axis table
+    #[inline]
     pub fn base_script_list_offset(&self) -> Offset16 {
         let range = self.shape.base_script_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -263,6 +271,7 @@ impl MinByteRange for BaseTagListMarker {
 }
 
 impl<'a> FontRead<'a> for BaseTagList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let base_tag_count: u16 = cursor.read()?;
@@ -283,6 +292,7 @@ pub type BaseTagList<'a> = TableRef<'a, BaseTagListMarker>;
 impl<'a> BaseTagList<'a> {
     /// Number of baseline identification tags in this text direction
     /// — may be zero (0)
+    #[inline]
     pub fn base_tag_count(&self) -> u16 {
         let range = self.shape.base_tag_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -290,6 +300,7 @@ impl<'a> BaseTagList<'a> {
 
     /// Array of 4-byte baseline identification tags — must be in
     /// alphabetical order
+    #[inline]
     pub fn baseline_tags(&self) -> &'a [BigEndian<Tag>] {
         let range = self.shape.baseline_tags_byte_range();
         self.data.read_array(range).unwrap()
@@ -344,6 +355,7 @@ impl MinByteRange for BaseScriptListMarker {
 }
 
 impl<'a> FontRead<'a> for BaseScriptList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let base_script_count: u16 = cursor.read()?;
@@ -363,6 +375,7 @@ pub type BaseScriptList<'a> = TableRef<'a, BaseScriptListMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseScriptList<'a> {
     /// Number of BaseScriptRecords defined
+    #[inline]
     pub fn base_script_count(&self) -> u16 {
         let range = self.shape.base_script_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -370,6 +383,7 @@ impl<'a> BaseScriptList<'a> {
 
     /// Array of BaseScriptRecords, in alphabetical order by
     /// baseScriptTag
+    #[inline]
     pub fn base_script_records(&self) -> &'a [BaseScriptRecord] {
         let range = self.shape.base_script_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -418,11 +432,13 @@ pub struct BaseScriptRecord {
 
 impl BaseScriptRecord {
     /// 4-byte script identification tag
+    #[inline]
     pub fn base_script_tag(&self) -> Tag {
         self.base_script_tag.get()
     }
 
     /// Offset to BaseScript table, from beginning of BaseScriptList
+    #[inline]
     pub fn base_script_offset(&self) -> Offset16 {
         self.base_script_offset.get()
     }
@@ -494,6 +510,7 @@ impl MinByteRange for BaseScriptMarker {
 }
 
 impl<'a> FontRead<'a> for BaseScript<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
@@ -515,6 +532,7 @@ pub type BaseScript<'a> = TableRef<'a, BaseScriptMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseScript<'a> {
     /// Offset to BaseValues table, from beginning of BaseScript table (may be NULL)
+    #[inline]
     pub fn base_values_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.base_values_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -527,6 +545,7 @@ impl<'a> BaseScript<'a> {
     }
 
     /// Offset to MinMax table, from beginning of BaseScript table (may be NULL)
+    #[inline]
     pub fn default_min_max_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.default_min_max_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -539,6 +558,7 @@ impl<'a> BaseScript<'a> {
     }
 
     /// Number of BaseLangSysRecords defined — may be zero (0)
+    #[inline]
     pub fn base_lang_sys_count(&self) -> u16 {
         let range = self.shape.base_lang_sys_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -546,6 +566,7 @@ impl<'a> BaseScript<'a> {
 
     /// Array of BaseLangSysRecords, in alphabetical order by
     /// BaseLangSysTag
+    #[inline]
     pub fn base_lang_sys_records(&self) -> &'a [BaseLangSysRecord] {
         let range = self.shape.base_lang_sys_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -605,11 +626,13 @@ pub struct BaseLangSysRecord {
 
 impl BaseLangSysRecord {
     /// 4-byte language system identification tag
+    #[inline]
     pub fn base_lang_sys_tag(&self) -> Tag {
         self.base_lang_sys_tag.get()
     }
 
     /// Offset to MinMax table, from beginning of BaseScript table
+    #[inline]
     pub fn min_max_offset(&self) -> Offset16 {
         self.min_max_offset.get()
     }
@@ -676,6 +699,7 @@ impl MinByteRange for BaseValuesMarker {
 }
 
 impl<'a> FontRead<'a> for BaseValues<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -698,6 +722,7 @@ impl<'a> BaseValues<'a> {
     /// Index number of default baseline for this script — equals
     /// index position of baseline tag in baselineTags array of the
     /// BaseTagList
+    #[inline]
     pub fn default_baseline_index(&self) -> u16 {
         let range = self.shape.default_baseline_index_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -705,6 +730,7 @@ impl<'a> BaseValues<'a> {
 
     /// Number of BaseCoord tables defined — should equal
     /// baseTagCount in the BaseTagList
+    #[inline]
     pub fn base_coord_count(&self) -> u16 {
         let range = self.shape.base_coord_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -713,6 +739,7 @@ impl<'a> BaseValues<'a> {
     /// Array of offsets to BaseCoord tables, from beginning of
     /// BaseValues table — order matches baselineTags array in the
     /// BaseTagList
+    #[inline]
     pub fn base_coord_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.base_coord_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -801,6 +828,7 @@ impl MinByteRange for MinMaxMarker {
 }
 
 impl<'a> FontRead<'a> for MinMax<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
@@ -823,6 +851,7 @@ pub type MinMax<'a> = TableRef<'a, MinMaxMarker>;
 impl<'a> MinMax<'a> {
     /// Offset to BaseCoord table that defines the minimum extent
     /// value, from the beginning of MinMax table (may be NULL)
+    #[inline]
     pub fn min_coord_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.min_coord_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -836,6 +865,7 @@ impl<'a> MinMax<'a> {
 
     /// Offset to BaseCoord table that defines maximum extent value,
     /// from the beginning of MinMax table (may be NULL)
+    #[inline]
     pub fn max_coord_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.max_coord_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -848,6 +878,7 @@ impl<'a> MinMax<'a> {
     }
 
     /// Number of FeatMinMaxRecords — may be zero (0)
+    #[inline]
     pub fn feat_min_max_count(&self) -> u16 {
         let range = self.shape.feat_min_max_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -855,6 +886,7 @@ impl<'a> MinMax<'a> {
 
     /// Array of FeatMinMaxRecords, in alphabetical order by
     /// featureTableTag
+    #[inline]
     pub fn feat_min_max_records(&self) -> &'a [FeatMinMaxRecord] {
         let range = self.shape.feat_min_max_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -917,12 +949,14 @@ pub struct FeatMinMaxRecord {
 impl FeatMinMaxRecord {
     /// 4-byte feature identification tag — must match feature tag in
     /// FeatureList
+    #[inline]
     pub fn feature_table_tag(&self) -> Tag {
         self.feature_table_tag.get()
     }
 
     /// Offset to BaseCoord table that defines the minimum extent
     /// value, from beginning of MinMax table (may be NULL)
+    #[inline]
     pub fn min_coord_offset(&self) -> Nullable<Offset16> {
         self.min_coord_offset.get()
     }
@@ -938,6 +972,7 @@ impl FeatMinMaxRecord {
 
     /// Offset to BaseCoord table that defines the maximum extent
     /// value, from beginning of MinMax table (may be NULL)
+    #[inline]
     pub fn max_coord_offset(&self) -> Nullable<Offset16> {
         self.max_coord_offset.get()
     }
@@ -1092,6 +1127,7 @@ impl MinByteRange for BaseCoordFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for BaseCoordFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1106,12 +1142,14 @@ pub type BaseCoordFormat1<'a> = TableRef<'a, BaseCoordFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseCoordFormat1<'a> {
     /// Format identifier — format = 1
+    #[inline]
     pub fn base_coord_format(&self) -> u16 {
         let range = self.shape.base_coord_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// X or Y value, in design units
+    #[inline]
     pub fn coordinate(&self) -> i16 {
         let range = self.shape.coordinate_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1178,6 +1216,7 @@ impl MinByteRange for BaseCoordFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for BaseCoordFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1194,24 +1233,28 @@ pub type BaseCoordFormat2<'a> = TableRef<'a, BaseCoordFormat2Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseCoordFormat2<'a> {
     /// Format identifier — format = 2
+    #[inline]
     pub fn base_coord_format(&self) -> u16 {
         let range = self.shape.base_coord_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// X or Y value, in design units
+    #[inline]
     pub fn coordinate(&self) -> i16 {
         let range = self.shape.coordinate_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Glyph ID of control glyph
+    #[inline]
     pub fn reference_glyph(&self) -> u16 {
         let range = self.shape.reference_glyph_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Index of contour point on the reference glyph
+    #[inline]
     pub fn base_coord_point(&self) -> u16 {
         let range = self.shape.base_coord_point_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1275,6 +1318,7 @@ impl MinByteRange for BaseCoordFormat3Marker {
 }
 
 impl<'a> FontRead<'a> for BaseCoordFormat3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1290,12 +1334,14 @@ pub type BaseCoordFormat3<'a> = TableRef<'a, BaseCoordFormat3Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseCoordFormat3<'a> {
     /// Format identifier — format = 3
+    #[inline]
     pub fn base_coord_format(&self) -> u16 {
         let range = self.shape.base_coord_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// X or Y value, in design units
+    #[inline]
     pub fn coordinate(&self) -> i16 {
         let range = self.shape.coordinate_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1304,6 +1350,7 @@ impl<'a> BaseCoordFormat3<'a> {
     /// Offset to Device table (non-variable font) / Variation Index
     /// table (variable font) for X or Y value, from beginning of
     /// BaseCoord table (may be NULL).
+    #[inline]
     pub fn device_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.device_offset_byte_range();
         self.data.read_at(range.start).unwrap()

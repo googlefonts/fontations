@@ -49,6 +49,7 @@ impl TopLevelTable for Hvar<'_> {
 }
 
 impl<'a> FontRead<'a> for Hvar<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
@@ -67,12 +68,14 @@ pub type Hvar<'a> = TableRef<'a, HvarMarker>;
 impl<'a> Hvar<'a> {
     /// Major version number of the horizontal metrics variations table — set to 1.
     /// Minor version number of the horizontal metrics variations table — set to 0.
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset in bytes from the start of this table to the item variation store table.
+    #[inline]
     pub fn item_variation_store_offset(&self) -> Offset32 {
         let range = self.shape.item_variation_store_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -85,6 +88,7 @@ impl<'a> Hvar<'a> {
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for advance widths (may be NULL).
+    #[inline]
     pub fn advance_width_mapping_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.advance_width_mapping_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -97,6 +101,7 @@ impl<'a> Hvar<'a> {
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for left side bearings (may be NULL).
+    #[inline]
     pub fn lsb_mapping_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.lsb_mapping_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -109,6 +114,7 @@ impl<'a> Hvar<'a> {
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for right side bearings (may be NULL).
+    #[inline]
     pub fn rsb_mapping_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.rsb_mapping_offset_byte_range();
         self.data.read_at(range.start).unwrap()

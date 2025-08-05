@@ -37,6 +37,7 @@ impl MinByteRange for Table1Marker {
 }
 
 impl<'a> FontRead<'a> for Table1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -50,16 +51,19 @@ pub type Table1<'a> = TableRef<'a, Table1Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Table1<'a> {
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn heft(&self) -> u32 {
         let range = self.shape.heft_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn flex(&self) -> u16 {
         let range = self.shape.flex_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -123,6 +127,7 @@ impl MinByteRange for Table2Marker {
 }
 
 impl<'a> FontRead<'a> for Table2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -139,16 +144,19 @@ pub type Table2<'a> = TableRef<'a, Table2Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Table2<'a> {
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn value_count(&self) -> u16 {
         let range = self.shape.value_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn values(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.values_byte_range();
         self.data.read_array(range).unwrap()
@@ -205,6 +213,7 @@ impl MinByteRange for Table3Marker {
 }
 
 impl<'a> FontRead<'a> for Table3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -217,11 +226,13 @@ pub type Table3<'a> = TableRef<'a, Table3Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Table3<'a> {
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn something(&self) -> u16 {
         let range = self.shape.something_byte_range();
         self.data.read_at(range.start).unwrap()

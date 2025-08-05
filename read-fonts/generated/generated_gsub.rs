@@ -51,6 +51,7 @@ impl TopLevelTable for Gsub<'_> {
 }
 
 impl<'a> FontRead<'a> for Gsub<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
@@ -76,12 +77,14 @@ pub type Gsub<'a> = TableRef<'a, GsubMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Gsub<'a> {
     /// The major and minor version of the GSUB table, as a tuple (u16, u16)
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to ScriptList table, from beginning of GSUB table
+    #[inline]
     pub fn script_list_offset(&self) -> Offset16 {
         let range = self.shape.script_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -94,6 +97,7 @@ impl<'a> Gsub<'a> {
     }
 
     /// Offset to FeatureList table, from beginning of GSUB table
+    #[inline]
     pub fn feature_list_offset(&self) -> Offset16 {
         let range = self.shape.feature_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -106,6 +110,7 @@ impl<'a> Gsub<'a> {
     }
 
     /// Offset to LookupList table, from beginning of GSUB table
+    #[inline]
     pub fn lookup_list_offset(&self) -> Offset16 {
         let range = self.shape.lookup_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -119,6 +124,7 @@ impl<'a> Gsub<'a> {
 
     /// Offset to FeatureVariations table, from beginning of the GSUB
     /// table (may be NULL)
+    #[inline]
     pub fn feature_variations_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.feature_variations_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -185,6 +191,7 @@ pub enum SubstitutionLookup<'a> {
 }
 
 impl<'a> FontRead<'a> for SubstitutionLookup<'a> {
+    #[inline]
     fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
         let untyped = Lookup::read(bytes)?;
         match untyped.lookup_type() {
@@ -367,6 +374,7 @@ impl MinByteRange for SingleSubstFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for SingleSubstFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -382,6 +390,7 @@ pub type SingleSubstFormat1<'a> = TableRef<'a, SingleSubstFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SingleSubstFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn subst_format(&self) -> u16 {
         let range = self.shape.subst_format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -389,6 +398,7 @@ impl<'a> SingleSubstFormat1<'a> {
 
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -401,6 +411,7 @@ impl<'a> SingleSubstFormat1<'a> {
     }
 
     /// Add to original glyph ID to get substitute glyph ID
+    #[inline]
     pub fn delta_glyph_id(&self) -> i16 {
         let range = self.shape.delta_glyph_id_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -473,6 +484,7 @@ impl MinByteRange for SingleSubstFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for SingleSubstFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -494,6 +506,7 @@ pub type SingleSubstFormat2<'a> = TableRef<'a, SingleSubstFormat2Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SingleSubstFormat2<'a> {
     /// Format identifier: format = 2
+    #[inline]
     pub fn subst_format(&self) -> u16 {
         let range = self.shape.subst_format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -501,6 +514,7 @@ impl<'a> SingleSubstFormat2<'a> {
 
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -513,12 +527,14 @@ impl<'a> SingleSubstFormat2<'a> {
     }
 
     /// Number of glyph IDs in the substituteGlyphIDs array
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of substitute glyph IDs — ordered by Coverage index
+    #[inline]
     pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.substitute_glyph_ids_byte_range();
         self.data.read_array(range).unwrap()
@@ -595,6 +611,7 @@ impl MinByteRange for MultipleSubstFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for MultipleSubstFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -616,6 +633,7 @@ pub type MultipleSubstFormat1<'a> = TableRef<'a, MultipleSubstFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MultipleSubstFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn subst_format(&self) -> u16 {
         let range = self.shape.subst_format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -623,6 +641,7 @@ impl<'a> MultipleSubstFormat1<'a> {
 
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -635,6 +654,7 @@ impl<'a> MultipleSubstFormat1<'a> {
     }
 
     /// Number of Sequence table offsets in the sequenceOffsets array
+    #[inline]
     pub fn sequence_count(&self) -> u16 {
         let range = self.shape.sequence_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -642,6 +662,7 @@ impl<'a> MultipleSubstFormat1<'a> {
 
     /// Array of offsets to Sequence tables. Offsets are from beginning
     /// of substitution subtable, ordered by Coverage index
+    #[inline]
     pub fn sequence_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.sequence_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -721,6 +742,7 @@ impl MinByteRange for SequenceMarker {
 }
 
 impl<'a> FontRead<'a> for Sequence<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
@@ -741,12 +763,14 @@ pub type Sequence<'a> = TableRef<'a, SequenceMarker>;
 impl<'a> Sequence<'a> {
     /// Number of glyph IDs in the substituteGlyphIDs array. This must
     /// always be greater than 0.
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// String of glyph IDs to substitute
+    #[inline]
     pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.substitute_glyph_ids_byte_range();
         self.data.read_array(range).unwrap()
@@ -818,6 +842,7 @@ impl MinByteRange for AlternateSubstFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for AlternateSubstFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -839,6 +864,7 @@ pub type AlternateSubstFormat1<'a> = TableRef<'a, AlternateSubstFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AlternateSubstFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn subst_format(&self) -> u16 {
         let range = self.shape.subst_format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -846,6 +872,7 @@ impl<'a> AlternateSubstFormat1<'a> {
 
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -858,6 +885,7 @@ impl<'a> AlternateSubstFormat1<'a> {
     }
 
     /// Number of AlternateSet tables
+    #[inline]
     pub fn alternate_set_count(&self) -> u16 {
         let range = self.shape.alternate_set_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -865,6 +893,7 @@ impl<'a> AlternateSubstFormat1<'a> {
 
     /// Array of offsets to AlternateSet tables. Offsets are from
     /// beginning of substitution subtable, ordered by Coverage index
+    #[inline]
     pub fn alternate_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.alternate_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -947,6 +976,7 @@ impl MinByteRange for AlternateSetMarker {
 }
 
 impl<'a> FontRead<'a> for AlternateSet<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
@@ -966,12 +996,14 @@ pub type AlternateSet<'a> = TableRef<'a, AlternateSetMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AlternateSet<'a> {
     /// Number of glyph IDs in the alternateGlyphIDs array
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of alternate glyph IDs, in arbitrary order
+    #[inline]
     pub fn alternate_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.alternate_glyph_ids_byte_range();
         self.data.read_array(range).unwrap()
@@ -1043,6 +1075,7 @@ impl MinByteRange for LigatureSubstFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for LigatureSubstFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1064,6 +1097,7 @@ pub type LigatureSubstFormat1<'a> = TableRef<'a, LigatureSubstFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LigatureSubstFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn subst_format(&self) -> u16 {
         let range = self.shape.subst_format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1071,6 +1105,7 @@ impl<'a> LigatureSubstFormat1<'a> {
 
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1083,6 +1118,7 @@ impl<'a> LigatureSubstFormat1<'a> {
     }
 
     /// Number of LigatureSet tables
+    #[inline]
     pub fn ligature_set_count(&self) -> u16 {
         let range = self.shape.ligature_set_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1090,6 +1126,7 @@ impl<'a> LigatureSubstFormat1<'a> {
 
     /// Array of offsets to LigatureSet tables. Offsets are from
     /// beginning of substitution subtable, ordered by Coverage index
+    #[inline]
     pub fn ligature_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.ligature_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -1169,6 +1206,7 @@ impl MinByteRange for LigatureSetMarker {
 }
 
 impl<'a> FontRead<'a> for LigatureSet<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let ligature_count: u16 = cursor.read()?;
@@ -1188,6 +1226,7 @@ pub type LigatureSet<'a> = TableRef<'a, LigatureSetMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LigatureSet<'a> {
     /// Number of Ligature tables
+    #[inline]
     pub fn ligature_count(&self) -> u16 {
         let range = self.shape.ligature_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1195,6 +1234,7 @@ impl<'a> LigatureSet<'a> {
 
     /// Array of offsets to Ligature tables. Offsets are from beginning
     /// of LigatureSet table, ordered by preference.
+    #[inline]
     pub fn ligature_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.ligature_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -1274,6 +1314,7 @@ impl MinByteRange for LigatureMarker {
 }
 
 impl<'a> FontRead<'a> for Ligature<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<GlyphId16>();
@@ -1294,12 +1335,14 @@ pub type Ligature<'a> = TableRef<'a, LigatureMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ligature<'a> {
     /// glyph ID of ligature to substitute
+    #[inline]
     pub fn ligature_glyph(&self) -> GlyphId16 {
         let range = self.shape.ligature_glyph_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of components in the ligature
+    #[inline]
     pub fn component_count(&self) -> u16 {
         let range = self.shape.component_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1307,6 +1350,7 @@ impl<'a> Ligature<'a> {
 
     /// Array of component glyph IDs — start with the second
     /// component, ordered in writing direction
+    #[inline]
     pub fn component_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.component_glyph_ids_byte_range();
         self.data.read_array(range).unwrap()
@@ -1382,6 +1426,7 @@ impl<T> Clone for ExtensionSubstFormat1Marker<T> {
 impl<T> Copy for ExtensionSubstFormat1Marker<T> {}
 
 impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1426,6 +1471,7 @@ pub type ExtensionSubstFormat1<'a, T> = TableRef<'a, ExtensionSubstFormat1Marker
 #[allow(clippy::needless_lifetimes)]
 impl<'a, T> ExtensionSubstFormat1<'a, T> {
     /// Format identifier. Set to 1.
+    #[inline]
     pub fn subst_format(&self) -> u16 {
         let range = self.shape.subst_format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1433,6 +1479,7 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
 
     /// Lookup type of subtable referenced by extensionOffset (that is,
     /// the extension subtable).
+    #[inline]
     pub fn extension_lookup_type(&self) -> u16 {
         let range = self.shape.extension_lookup_type_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1441,6 +1488,7 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
     /// Offset to the extension subtable, of lookup type
     /// extensionLookupType, relative to the start of the
     /// ExtensionSubstFormat1 subtable.
+    #[inline]
     pub fn extension_offset(&self) -> Offset32 {
         let range = self.shape.extension_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1497,6 +1545,7 @@ pub enum ExtensionSubtable<'a> {
 }
 
 impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
+    #[inline]
     fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
         let untyped = ExtensionSubstFormat1::read(bytes)?;
         match untyped.extension_lookup_type() {
@@ -1624,6 +1673,7 @@ impl MinByteRange for ReverseChainSingleSubstFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1657,6 +1707,7 @@ pub type ReverseChainSingleSubstFormat1<'a> = TableRef<'a, ReverseChainSingleSub
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ReverseChainSingleSubstFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn subst_format(&self) -> u16 {
         let range = self.shape.subst_format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1664,6 +1715,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
 
     /// Offset to Coverage table, from beginning of substitution
     /// subtable.
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1676,6 +1728,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     }
 
     /// Number of glyphs in the backtrack sequence.
+    #[inline]
     pub fn backtrack_glyph_count(&self) -> u16 {
         let range = self.shape.backtrack_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1683,6 +1736,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
 
     /// Array of offsets to coverage tables in backtrack sequence, in
     /// glyph sequence order.
+    #[inline]
     pub fn backtrack_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.backtrack_coverage_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -1696,6 +1750,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     }
 
     /// Number of glyphs in lookahead sequence.
+    #[inline]
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1703,6 +1758,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
 
     /// Array of offsets to coverage tables in lookahead sequence, in
     /// glyph sequence order.
+    #[inline]
     pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lookahead_coverage_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -1716,12 +1772,14 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     }
 
     /// Number of glyph IDs in the substituteGlyphIDs array.
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of substitute glyph IDs — ordered by Coverage index.
+    #[inline]
     pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.substitute_glyph_ids_byte_range();
         self.data.read_array(range).unwrap()

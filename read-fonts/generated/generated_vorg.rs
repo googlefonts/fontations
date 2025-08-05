@@ -46,6 +46,7 @@ impl TopLevelTable for Vorg<'_> {
 }
 
 impl<'a> FontRead<'a> for Vorg<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
@@ -67,6 +68,7 @@ pub type Vorg<'a> = TableRef<'a, VorgMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vorg<'a> {
     /// Major/minor version number. Set to 1.0.
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -75,18 +77,21 @@ impl<'a> Vorg<'a> {
     /// The y coordinate of a glyph’s vertical origin, in the font’s design
     /// coordinate system, to be used if no entry is present for the glyph
     /// in the vertOriginYMetrics array.
+    #[inline]
     pub fn default_vert_origin_y(&self) -> i16 {
         let range = self.shape.default_vert_origin_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of elements in the vertOriginYMetrics array.
+    #[inline]
     pub fn num_vert_origin_y_metrics(&self) -> u16 {
         let range = self.shape.num_vert_origin_y_metrics_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of VertOriginYMetrics records, sorted by glyph ID.
+    #[inline]
     pub fn vert_origin_y_metrics(&self) -> &'a [VertOriginYMetrics] {
         let range = self.shape.vert_origin_y_metrics_byte_range();
         self.data.read_array(range).unwrap()
@@ -143,11 +148,13 @@ pub struct VertOriginYMetrics {
 
 impl VertOriginYMetrics {
     /// Glyph index.
+    #[inline]
     pub fn glyph_index(&self) -> GlyphId16 {
         self.glyph_index.get()
     }
 
     /// Y coordinate, in the font’s design coordinate system, of the glyph’s vertical origin.
+    #[inline]
     pub fn vert_origin_y(&self) -> i16 {
         self.vert_origin_y.get()
     }

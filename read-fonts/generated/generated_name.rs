@@ -59,6 +59,7 @@ impl TopLevelTable for Name<'_> {
 }
 
 impl<'a> FontRead<'a> for Name<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: u16 = cursor.read()?;
@@ -104,36 +105,42 @@ pub type Name<'a> = TableRef<'a, NameMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Name<'a> {
     /// Table version number (0 or 1)
+    #[inline]
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of name records.
+    #[inline]
     pub fn count(&self) -> u16 {
         let range = self.shape.count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to start of string storage (from start of table).
+    #[inline]
     pub fn storage_offset(&self) -> u16 {
         let range = self.shape.storage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The name records where count is the number of records.
+    #[inline]
     pub fn name_record(&self) -> &'a [NameRecord] {
         let range = self.shape.name_record_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Number of language-tag records.
+    #[inline]
     pub fn lang_tag_count(&self) -> Option<u16> {
         let range = self.shape.lang_tag_count_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// The language-tag records where langTagCount is the number of records.
+    #[inline]
     pub fn lang_tag_record(&self) -> Option<&'a [LangTagRecord]> {
         let range = self.shape.lang_tag_record_byte_range()?;
         Some(self.data.read_array(range).unwrap())
@@ -197,12 +204,14 @@ pub struct LangTagRecord {
 
 impl LangTagRecord {
     /// Language-tag string length (in bytes)
+    #[inline]
     pub fn length(&self) -> u16 {
         self.length.get()
     }
 
     /// Language-tag string offset from start of storage area (in
     /// bytes).
+    #[inline]
     pub fn lang_tag_offset(&self) -> Offset16 {
         self.lang_tag_offset.get()
     }
@@ -248,31 +257,37 @@ pub struct NameRecord {
 
 impl NameRecord {
     /// Platform ID.
+    #[inline]
     pub fn platform_id(&self) -> u16 {
         self.platform_id.get()
     }
 
     /// Platform-specific encoding ID.
+    #[inline]
     pub fn encoding_id(&self) -> u16 {
         self.encoding_id.get()
     }
 
     /// Language ID.
+    #[inline]
     pub fn language_id(&self) -> u16 {
         self.language_id.get()
     }
 
     /// Name ID.
+    #[inline]
     pub fn name_id(&self) -> NameId {
         self.name_id.get()
     }
 
     /// String length (in bytes).
+    #[inline]
     pub fn length(&self) -> u16 {
         self.length.get()
     }
 
     /// String offset from start of storage area (in bytes).
+    #[inline]
     pub fn string_offset(&self) -> Offset16 {
         self.string_offset.get()
     }

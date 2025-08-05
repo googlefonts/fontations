@@ -90,6 +90,7 @@ impl TopLevelTable for Post<'_> {
 }
 
 impl<'a> FontRead<'a> for Post<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: Version16Dot16 = cursor.read()?;
@@ -150,6 +151,7 @@ impl<'a> Post<'a> {
     /// 0x00010000 for version 1.0 0x00020000 for version 2.0
     /// 0x00025000 for version 2.5 (deprecated) 0x00030000 for version
     /// 3.0
+    #[inline]
     pub fn version(&self) -> Version16Dot16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -158,6 +160,7 @@ impl<'a> Post<'a> {
     /// Italic angle in counter-clockwise degrees from the vertical.
     /// Zero for upright text, negative for text that leans to the
     /// right (forward).
+    #[inline]
     pub fn italic_angle(&self) -> Fixed {
         let range = self.shape.italic_angle_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -170,6 +173,7 @@ impl<'a> Post<'a> {
     /// historical reasons. The value of the PostScript key may be
     /// calculated by subtracting half the underlineThickness from the
     /// value of this field.
+    #[inline]
     pub fn underline_position(&self) -> FWord {
         let range = self.shape.underline_position_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -179,6 +183,7 @@ impl<'a> Post<'a> {
     /// underline thickness should match the thickness of the
     /// underscore character (U+005F LOW LINE), and should also match
     /// the strikeout thickness, which is specified in the OS/2 table.
+    #[inline]
     pub fn underline_thickness(&self) -> FWord {
         let range = self.shape.underline_thickness_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -186,18 +191,21 @@ impl<'a> Post<'a> {
 
     /// Set to 0 if the font is proportionally spaced, non-zero if the
     /// font is not proportionally spaced (i.e. monospaced).
+    #[inline]
     pub fn is_fixed_pitch(&self) -> u32 {
         let range = self.shape.is_fixed_pitch_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum memory usage when an OpenType font is downloaded.
+    #[inline]
     pub fn min_mem_type42(&self) -> u32 {
         let range = self.shape.min_mem_type42_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum memory usage when an OpenType font is downloaded.
+    #[inline]
     pub fn max_mem_type42(&self) -> u32 {
         let range = self.shape.max_mem_type42_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -205,6 +213,7 @@ impl<'a> Post<'a> {
 
     /// Minimum memory usage when an OpenType font is downloaded as a
     /// Type 1 font.
+    #[inline]
     pub fn min_mem_type1(&self) -> u32 {
         let range = self.shape.min_mem_type1_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -212,6 +221,7 @@ impl<'a> Post<'a> {
 
     /// Maximum memory usage when an OpenType font is downloaded as a
     /// Type 1 font.
+    #[inline]
     pub fn max_mem_type1(&self) -> u32 {
         let range = self.shape.max_mem_type1_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -219,18 +229,21 @@ impl<'a> Post<'a> {
 
     /// Number of glyphs (this should be the same as numGlyphs in
     /// 'maxp' table).
+    #[inline]
     pub fn num_glyphs(&self) -> Option<u16> {
         let range = self.shape.num_glyphs_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// Array of indices into the string data. See below for details.
+    #[inline]
     pub fn glyph_name_index(&self) -> Option<&'a [BigEndian<u16>]> {
         let range = self.shape.glyph_name_index_byte_range()?;
         Some(self.data.read_array(range).unwrap())
     }
 
     /// Storage for the string data.
+    #[inline]
     pub fn string_data(&self) -> Option<VarLenArray<'a, PString<'a>>> {
         let range = self.shape.string_data_byte_range()?;
         Some(VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap())

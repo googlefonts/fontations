@@ -170,6 +170,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
             }
 
             impl<'a> FontReadWithArgs<'a> for #name<'a> {
+                #[inline]
                 fn read_with_args(data: FontData<'a>, args: &#args_type) -> Result<Self, ReadError> {
                     let #destructure_pattern = *args;
                     let #maybe_mut_kw cursor = data.cursor();
@@ -185,6 +186,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
                 ///
                 /// This type requires some external state in order to be
                 /// parsed.
+                #[inline]
                 pub fn read(data: FontData<'a>, #( #constructor_args, )* ) -> Result<Self, ReadError> {
                     let args = #args_from_constructor_args;
                     Self::read_with_args(data, &args)
@@ -194,6 +196,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
     } else {
         Ok(quote! {
             impl<'a, #generic> FontRead<'a> for #name<'a, #generic> {
+            #[inline]
             fn read(data: FontData<'a>) -> Result<Self, ReadError> {
                 let #maybe_mut_kw cursor = data.cursor();
                 #( #field_validation_stmts )*
@@ -241,6 +244,7 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
         }
 
         impl<'a> FontRead<'a> for #name <'a> {
+            #[inline]
             fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
                 let untyped = #inner::read(bytes)?;
                 match untyped.#type_field() {

@@ -51,6 +51,7 @@ impl TopLevelTable for Meta<'_> {
 }
 
 impl<'a> FontRead<'a> for Meta<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u32>();
@@ -71,24 +72,28 @@ pub type Meta<'a> = TableRef<'a, MetaMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Meta<'a> {
     /// Version number of the metadata table — set to 1.
+    #[inline]
     pub fn version(&self) -> u32 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Flags — currently unused; set to 0.
+    #[inline]
     pub fn flags(&self) -> u32 {
         let range = self.shape.flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of data maps in the table.
+    #[inline]
     pub fn data_maps_count(&self) -> u32 {
         let range = self.shape.data_maps_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of data map records.
+    #[inline]
     pub fn data_maps(&self) -> &'a [DataMapRecord] {
         let range = self.shape.data_maps_byte_range();
         self.data.read_array(range).unwrap()
@@ -141,11 +146,13 @@ pub struct DataMapRecord {
 
 impl DataMapRecord {
     /// A tag indicating the type of metadata.
+    #[inline]
     pub fn tag(&self) -> Tag {
         self.tag.get()
     }
 
     /// Offset in bytes from the beginning of the metadata table to the data for this tag.
+    #[inline]
     pub fn data_offset(&self) -> Offset32 {
         self.data_offset.get()
     }
@@ -160,6 +167,7 @@ impl DataMapRecord {
     }
 
     /// Length of the data, in bytes. The data is not required to be padded to any byte boundary.
+    #[inline]
     pub fn data_length(&self) -> u32 {
         self.data_length.get()
     }

@@ -62,6 +62,7 @@ impl TopLevelTable for Gdef<'_> {
 }
 
 impl<'a> FontRead<'a> for Gdef<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
@@ -96,6 +97,7 @@ pub type Gdef<'a> = TableRef<'a, GdefMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Gdef<'a> {
     /// The major/minor version of the GDEF table
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -103,6 +105,7 @@ impl<'a> Gdef<'a> {
 
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
+    #[inline]
     pub fn glyph_class_def_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.glyph_class_def_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -116,6 +119,7 @@ impl<'a> Gdef<'a> {
 
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
+    #[inline]
     pub fn attach_list_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.attach_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -129,6 +133,7 @@ impl<'a> Gdef<'a> {
 
     /// Offset to ligature caret list table, from beginning of GDEF
     /// header (may be NULL)
+    #[inline]
     pub fn lig_caret_list_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.lig_caret_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -142,6 +147,7 @@ impl<'a> Gdef<'a> {
 
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
+    #[inline]
     pub fn mark_attach_class_def_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.mark_attach_class_def_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -155,6 +161,7 @@ impl<'a> Gdef<'a> {
 
     /// Offset to the table of mark glyph set definitions, from
     /// beginning of GDEF header (may be NULL)
+    #[inline]
     pub fn mark_glyph_sets_def_offset(&self) -> Option<Nullable<Offset16>> {
         let range = self.shape.mark_glyph_sets_def_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -168,6 +175,7 @@ impl<'a> Gdef<'a> {
 
     /// Offset to the Item Variation Store table, from beginning of
     /// GDEF header (may be NULL)
+    #[inline]
     pub fn item_var_store_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.item_var_store_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -312,6 +320,7 @@ impl MinByteRange for AttachListMarker {
 }
 
 impl<'a> FontRead<'a> for AttachList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
@@ -332,6 +341,7 @@ pub type AttachList<'a> = TableRef<'a, AttachListMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AttachList<'a> {
     /// Offset to Coverage table - from beginning of AttachList table
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -344,6 +354,7 @@ impl<'a> AttachList<'a> {
     }
 
     /// Number of glyphs with attachment points
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -351,6 +362,7 @@ impl<'a> AttachList<'a> {
 
     /// Array of offsets to AttachPoint tables-from beginning of
     /// AttachList table-in Coverage Index order
+    #[inline]
     pub fn attach_point_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.attach_point_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -429,6 +441,7 @@ impl MinByteRange for AttachPointMarker {
 }
 
 impl<'a> FontRead<'a> for AttachPoint<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let point_count: u16 = cursor.read()?;
@@ -448,12 +461,14 @@ pub type AttachPoint<'a> = TableRef<'a, AttachPointMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AttachPoint<'a> {
     /// Number of attachment points on this glyph
+    #[inline]
     pub fn point_count(&self) -> u16 {
         let range = self.shape.point_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of contour point indices -in increasing numerical order
+    #[inline]
     pub fn point_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.point_indices_byte_range();
         self.data.read_array(range).unwrap()
@@ -513,6 +528,7 @@ impl MinByteRange for LigCaretListMarker {
 }
 
 impl<'a> FontRead<'a> for LigCaretList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
@@ -533,6 +549,7 @@ pub type LigCaretList<'a> = TableRef<'a, LigCaretListMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LigCaretList<'a> {
     /// Offset to Coverage table - from beginning of LigCaretList table
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -545,6 +562,7 @@ impl<'a> LigCaretList<'a> {
     }
 
     /// Number of ligature glyphs
+    #[inline]
     pub fn lig_glyph_count(&self) -> u16 {
         let range = self.shape.lig_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -552,6 +570,7 @@ impl<'a> LigCaretList<'a> {
 
     /// Array of offsets to LigGlyph tables, from beginning of
     /// LigCaretList table —in Coverage Index order
+    #[inline]
     pub fn lig_glyph_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lig_glyph_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -630,6 +649,7 @@ impl MinByteRange for LigGlyphMarker {
 }
 
 impl<'a> FontRead<'a> for LigGlyph<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let caret_count: u16 = cursor.read()?;
@@ -649,6 +669,7 @@ pub type LigGlyph<'a> = TableRef<'a, LigGlyphMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LigGlyph<'a> {
     /// Number of CaretValue tables for this ligature (components - 1)
+    #[inline]
     pub fn caret_count(&self) -> u16 {
         let range = self.shape.caret_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -656,6 +677,7 @@ impl<'a> LigGlyph<'a> {
 
     /// Array of offsets to CaretValue tables, from beginning of
     /// LigGlyph table — in increasing coordinate order
+    #[inline]
     pub fn caret_value_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.caret_value_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -810,6 +832,7 @@ impl MinByteRange for CaretValueFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for CaretValueFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -824,12 +847,14 @@ pub type CaretValueFormat1<'a> = TableRef<'a, CaretValueFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CaretValueFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn caret_value_format(&self) -> u16 {
         let range = self.shape.caret_value_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// X or Y value, in design units
+    #[inline]
     pub fn coordinate(&self) -> i16 {
         let range = self.shape.coordinate_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -886,6 +911,7 @@ impl MinByteRange for CaretValueFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for CaretValueFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -900,12 +926,14 @@ pub type CaretValueFormat2<'a> = TableRef<'a, CaretValueFormat2Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CaretValueFormat2<'a> {
     /// Format identifier: format = 2
+    #[inline]
     pub fn caret_value_format(&self) -> u16 {
         let range = self.shape.caret_value_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Contour point index on glyph
+    #[inline]
     pub fn caret_value_point_index(&self) -> u16 {
         let range = self.shape.caret_value_point_index_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -970,6 +998,7 @@ impl MinByteRange for CaretValueFormat3Marker {
 }
 
 impl<'a> FontRead<'a> for CaretValueFormat3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -985,12 +1014,14 @@ pub type CaretValueFormat3<'a> = TableRef<'a, CaretValueFormat3Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CaretValueFormat3<'a> {
     /// Format identifier-format = 3
+    #[inline]
     pub fn caret_value_format(&self) -> u16 {
         let range = self.shape.caret_value_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// X or Y value, in design units
+    #[inline]
     pub fn coordinate(&self) -> i16 {
         let range = self.shape.coordinate_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -999,6 +1030,7 @@ impl<'a> CaretValueFormat3<'a> {
     /// Offset to Device table (non-variable font) / Variation Index
     /// table (variable font) for X or Y value-from beginning of
     /// CaretValue table
+    #[inline]
     pub fn device_offset(&self) -> Offset16 {
         let range = self.shape.device_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1072,6 +1104,7 @@ impl MinByteRange for MarkGlyphSetsMarker {
 }
 
 impl<'a> FontRead<'a> for MarkGlyphSets<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1092,12 +1125,14 @@ pub type MarkGlyphSets<'a> = TableRef<'a, MarkGlyphSetsMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MarkGlyphSets<'a> {
     /// Format identifier == 1
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of mark glyph sets defined
+    #[inline]
     pub fn mark_glyph_set_count(&self) -> u16 {
         let range = self.shape.mark_glyph_set_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1105,6 +1140,7 @@ impl<'a> MarkGlyphSets<'a> {
 
     /// Array of offsets to mark glyph set coverage tables, from the
     /// start of the MarkGlyphSets table.
+    #[inline]
     pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.coverage_offsets_byte_range();
         self.data.read_array(range).unwrap()

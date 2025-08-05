@@ -46,6 +46,7 @@ impl TopLevelTable for Morx<'_> {
 }
 
 impl<'a> FontRead<'a> for Morx<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -66,17 +67,20 @@ pub type Morx<'a> = TableRef<'a, MorxMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Morx<'a> {
     /// Version number of the extended glyph metamorphosis table (either 2 or 3).
+    #[inline]
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of metamorphosis chains contained in this table.
+    #[inline]
     pub fn n_chains(&self) -> u32 {
         let range = self.shape.n_chains_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn chains(&self) -> VarLenArray<'a, Chain<'a>> {
         let range = self.shape.chains_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
@@ -156,6 +160,7 @@ impl MinByteRange for ChainMarker {
 }
 
 impl<'a> FontRead<'a> for Chain<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u32>();
@@ -184,36 +189,42 @@ pub type Chain<'a> = TableRef<'a, ChainMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Chain<'a> {
     /// The default specification for subtables.
+    #[inline]
     pub fn default_flags(&self) -> u32 {
         let range = self.shape.default_flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Total byte count, including this header; must be a multiple of 4.
+    #[inline]
     pub fn chain_length(&self) -> u32 {
         let range = self.shape.chain_length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of feature subtable entries.
+    #[inline]
     pub fn n_feature_entries(&self) -> u32 {
         let range = self.shape.n_feature_entries_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of subtables in the chain.
+    #[inline]
     pub fn n_subtables(&self) -> u32 {
         let range = self.shape.n_subtables_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Feature entries for this chain.
+    #[inline]
     pub fn features(&self) -> &'a [Feature] {
         let range = self.shape.features_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Array of chain subtables.
+    #[inline]
     pub fn subtables(&self) -> VarLenArray<'a, Subtable<'a>> {
         let range = self.shape.subtables_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
@@ -273,21 +284,25 @@ pub struct Feature {
 
 impl Feature {
     /// The type of feature.
+    #[inline]
     pub fn feature_type(&self) -> u16 {
         self.feature_type.get()
     }
 
     /// The feature's setting (aka selector).
+    #[inline]
     pub fn feature_settings(&self) -> u16 {
         self.feature_settings.get()
     }
 
     /// Flags for the settings that this feature and setting enables.
+    #[inline]
     pub fn enable_flags(&self) -> u32 {
         self.enable_flags.get()
     }
 
     /// Complement of flags for the settings that this feature and setting disable.
+    #[inline]
     pub fn disable_flags(&self) -> u32 {
         self.disable_flags.get()
     }
@@ -351,6 +366,7 @@ impl MinByteRange for SubtableMarker {
 }
 
 impl<'a> FontRead<'a> for Subtable<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u32>();
@@ -368,24 +384,28 @@ pub type Subtable<'a> = TableRef<'a, SubtableMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable<'a> {
     /// Total subtable length, including this header.
+    #[inline]
     pub fn length(&self) -> u32 {
         let range = self.shape.length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Coverage flags and subtable type.
+    #[inline]
     pub fn coverage(&self) -> u32 {
         let range = self.shape.coverage_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The 32-bit mask identifying which subtable this is (the subtable being executed if the AND of this value and the processed defaultFlags is nonzero).
+    #[inline]
     pub fn sub_feature_flags(&self) -> u32 {
         let range = self.shape.sub_feature_flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Data for specific subtable.
+    #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()
@@ -432,12 +452,14 @@ pub struct ContextualEntryData {
 impl ContextualEntryData {
     /// Index of the substitution table for the marked glyph (use 0xFFFF for
     /// none).
+    #[inline]
     pub fn mark_index(&self) -> u16 {
         self.mark_index.get()
     }
 
     /// Index of the substitution table for the current glyph (use 0xFFFF for
     /// none)
+    #[inline]
     pub fn current_index(&self) -> u16 {
         self.current_index.get()
     }
@@ -482,6 +504,7 @@ impl InsertionEntryData {
     /// Zero-based index into the insertion glyph table. The number of glyphs
     /// to be inserted is contained in the currentInsertCount field in the
     /// flags (see below). A value of 0xFFFF indicates no insertion is to be done.
+    #[inline]
     pub fn current_insert_index(&self) -> u16 {
         self.current_insert_index.get()
     }
@@ -490,6 +513,7 @@ impl InsertionEntryData {
     /// to be inserted is contained in the markedInsertCount field in the
     /// flags (see below). A value of 0xFFFF indicates no insertion is to be
     /// done.
+    #[inline]
     pub fn marked_insert_index(&self) -> u16 {
         self.marked_insert_index.get()
     }

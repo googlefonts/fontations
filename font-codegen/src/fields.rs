@@ -831,6 +831,7 @@ impl Field {
 
         Some(quote! {
             #( #docs )*
+            #[inline]
             pub fn #name(&self) -> #return_type {
                 let range = #range_stmt;
                 #read_stmt
@@ -876,6 +877,7 @@ impl Field {
         let offset_getter = self.typed_offset_field_getter(None, Some(record));
         Some(quote! {
             #(#docs)*
+            #[inline]
             pub fn #name(&self) -> #add_borrow_just_for_record #return_type {
                 #getter_expr
             }

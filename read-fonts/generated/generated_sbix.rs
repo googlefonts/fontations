@@ -359,6 +359,7 @@ impl ReadArgs for Sbix<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Sbix<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let num_glyphs = *args;
         let mut cursor = data.cursor();
@@ -381,6 +382,7 @@ impl<'a> Sbix<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
         let args = num_glyphs;
         Self::read_with_args(data, &args)
@@ -393,6 +395,7 @@ pub type Sbix<'a> = TableRef<'a, SbixMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Sbix<'a> {
     /// Table version number — set to 1.
+    #[inline]
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -401,18 +404,21 @@ impl<'a> Sbix<'a> {
     /// Bit 0: Set to 1.
     /// Bit 1: Draw outlines.
     /// Bits 2 to 15: reserved (set to 0).
+    #[inline]
     pub fn flags(&self) -> HeaderFlags {
         let range = self.shape.flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of bitmap strikes.
+    #[inline]
     pub fn num_strikes(&self) -> u32 {
         let range = self.shape.num_strikes_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offsets from the beginning of the 'sbix' table to data for each individual bitmap strike.
+    #[inline]
     pub fn strike_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.strike_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -504,6 +510,7 @@ impl ReadArgs for Strike<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Strike<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let num_glyphs = *args;
         let mut cursor = data.cursor();
@@ -524,6 +531,7 @@ impl<'a> Strike<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
         let args = num_glyphs;
         Self::read_with_args(data, &args)
@@ -536,18 +544,21 @@ pub type Strike<'a> = TableRef<'a, StrikeMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Strike<'a> {
     /// The PPEM size for which this strike was designed.
+    #[inline]
     pub fn ppem(&self) -> u16 {
         let range = self.shape.ppem_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The device pixel density (in PPI) for which this strike was designed. (E.g., 96 PPI, 192 PPI.)
+    #[inline]
     pub fn ppi(&self) -> u16 {
         let range = self.shape.ppi_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset from the beginning of the strike data header to bitmap data for an individual glyph ID.
+    #[inline]
     pub fn glyph_data_offsets(&self) -> &'a [BigEndian<u32>] {
         let range = self.shape.glyph_data_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -613,6 +624,7 @@ impl MinByteRange for GlyphDataMarker {
 }
 
 impl<'a> FontRead<'a> for GlyphData<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<i16>();
@@ -630,24 +642,28 @@ pub type GlyphData<'a> = TableRef<'a, GlyphDataMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphData<'a> {
     /// The horizontal (x-axis) position of the left edge of the bitmap graphic in relation to the glyph design space origin.
+    #[inline]
     pub fn origin_offset_x(&self) -> i16 {
         let range = self.shape.origin_offset_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The vertical (y-axis) position of the bottom edge of the bitmap graphic in relation to the glyph design space origin.
+    #[inline]
     pub fn origin_offset_y(&self) -> i16 {
         let range = self.shape.origin_offset_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Indicates the format of the embedded graphic data: one of 'jpg ', 'png ' or 'tiff', or the special format 'dupe'.
+    #[inline]
     pub fn graphic_type(&self) -> Tag {
         let range = self.shape.graphic_type_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The actual embedded graphic data. The total length is inferred from sequential entries in the glyphDataOffsets array and the fixed size (8 bytes) of the preceding fields.
+    #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()

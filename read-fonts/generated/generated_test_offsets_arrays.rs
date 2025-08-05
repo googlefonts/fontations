@@ -67,6 +67,7 @@ impl MinByteRange for KindsOfOffsetsMarker {
 }
 
 impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
@@ -109,12 +110,14 @@ pub type KindsOfOffsets<'a> = TableRef<'a, KindsOfOffsetsMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> KindsOfOffsets<'a> {
     /// The major/minor version of the GDEF table
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// A normal offset
+    #[inline]
     pub fn nonnullable_offset(&self) -> Offset16 {
         let range = self.shape.nonnullable_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -127,6 +130,7 @@ impl<'a> KindsOfOffsets<'a> {
     }
 
     /// An offset that is nullable, but always present
+    #[inline]
     pub fn nullable_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.nullable_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -139,12 +143,14 @@ impl<'a> KindsOfOffsets<'a> {
     }
 
     /// count of the array at array_offset
+    #[inline]
     pub fn array_offset_count(&self) -> u16 {
         let range = self.shape.array_offset_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// An offset to an array:
+    #[inline]
     pub fn array_offset(&self) -> Offset16 {
         let range = self.shape.array_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -158,6 +164,7 @@ impl<'a> KindsOfOffsets<'a> {
     }
 
     /// An offset to an array of records
+    #[inline]
     pub fn record_array_offset(&self) -> Offset16 {
         let range = self.shape.record_array_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -171,6 +178,7 @@ impl<'a> KindsOfOffsets<'a> {
     }
 
     /// A nullable, versioned offset to an array of records
+    #[inline]
     pub fn versioned_nullable_record_array_offset(&self) -> Option<Nullable<Offset16>> {
         let range = self
             .shape
@@ -187,6 +195,7 @@ impl<'a> KindsOfOffsets<'a> {
     }
 
     /// A normal offset that is versioned
+    #[inline]
     pub fn versioned_nonnullable_offset(&self) -> Option<Offset16> {
         let range = self.shape.versioned_nonnullable_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -199,6 +208,7 @@ impl<'a> KindsOfOffsets<'a> {
     }
 
     /// An offset that is nullable and versioned
+    #[inline]
     pub fn versioned_nullable_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.versioned_nullable_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -328,6 +338,7 @@ impl MinByteRange for KindsOfArraysOfOffsetsMarker {
 }
 
 impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
@@ -380,18 +391,21 @@ pub type KindsOfArraysOfOffsets<'a> = TableRef<'a, KindsOfArraysOfOffsetsMarker>
 #[allow(clippy::needless_lifetimes)]
 impl<'a> KindsOfArraysOfOffsets<'a> {
     /// The version
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of items in each array
+    #[inline]
     pub fn count(&self) -> u16 {
         let range = self.shape.count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// A normal array offset
+    #[inline]
     pub fn nonnullable_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.nonnullable_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -405,6 +419,7 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     /// An offset that is nullable, but always present
+    #[inline]
     pub fn nullable_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.nullable_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -418,6 +433,7 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     /// A normal offset that is versioned
+    #[inline]
     pub fn versioned_nonnullable_offsets(&self) -> Option<&'a [BigEndian<Offset16>]> {
         let range = self.shape.versioned_nonnullable_offsets_byte_range()?;
         Some(self.data.read_array(range).unwrap())
@@ -431,6 +447,7 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     /// An offset that is nullable and versioned
+    #[inline]
     pub fn versioned_nullable_offsets(&self) -> Option<&'a [BigEndian<Nullable<Offset16>>]> {
         let range = self.shape.versioned_nullable_offsets_byte_range()?;
         Some(self.data.read_array(range).unwrap())
@@ -573,6 +590,7 @@ impl MinByteRange for KindsOfArraysMarker {
 }
 
 impl<'a> FontRead<'a> for KindsOfArrays<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: u16 = cursor.read()?;
@@ -624,36 +642,42 @@ pub type KindsOfArrays<'a> = TableRef<'a, KindsOfArraysMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> KindsOfArrays<'a> {
+    #[inline]
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// the number of items in each array
+    #[inline]
     pub fn count(&self) -> u16 {
         let range = self.shape.count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// an array of scalars
+    #[inline]
     pub fn scalars(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.scalars_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// an array of records
+    #[inline]
     pub fn records(&self) -> &'a [Shmecord] {
         let range = self.shape.records_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// a versioned array of scalars
+    #[inline]
     pub fn versioned_scalars(&self) -> Option<&'a [BigEndian<u16>]> {
         let range = self.shape.versioned_scalars_byte_range()?;
         Some(self.data.read_array(range).unwrap())
     }
 
     /// a versioned array of scalars
+    #[inline]
     pub fn versioned_records(&self) -> Option<&'a [Shmecord]> {
         let range = self.shape.versioned_records_byte_range()?;
         Some(self.data.read_array(range).unwrap())
@@ -734,6 +758,7 @@ impl MinByteRange for VarLenHaverMarker {
 }
 
 impl<'a> FontRead<'a> for VarLenHaver<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let count: u16 = cursor.read()?;
@@ -751,16 +776,19 @@ pub type VarLenHaver<'a> = TableRef<'a, VarLenHaverMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarLenHaver<'a> {
+    #[inline]
     pub fn count(&self) -> u16 {
         let range = self.shape.count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn var_len(&self) -> VarLenArray<'a, VarSizeDummy> {
         let range = self.shape.var_len_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
     }
 
+    #[inline]
     pub fn other_field(&self) -> u32 {
         let range = self.shape.other_field_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -813,6 +841,7 @@ impl MinByteRange for DummyMarker {
 }
 
 impl<'a> FontRead<'a> for Dummy<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -825,6 +854,7 @@ pub type Dummy<'a> = TableRef<'a, DummyMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Dummy<'a> {
+    #[inline]
     pub fn value(&self) -> u16 {
         let range = self.shape.value_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -861,10 +891,12 @@ pub struct Shmecord {
 }
 
 impl Shmecord {
+    #[inline]
     pub fn length(&self) -> u16 {
         self.length.get()
     }
 
+    #[inline]
     pub fn breadth(&self) -> u32 {
         self.breadth.get()
     }
