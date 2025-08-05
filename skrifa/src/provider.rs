@@ -32,10 +32,24 @@ pub trait MetadataProvider<'a>: Sized {
     /// given informational string identifier.
     fn localized_strings(&self, id: StringId) -> LocalizedStrings<'a>;
 
+    /// Returns an optional best family name.
+    /// WWS Family Name (NID 21)
+    /// Typographic Family Name (NID 16)
+    /// Family Name (NID 1)
     fn best_family_name(&self) -> Option<String>;
 
+    /// Returns an optional best subfamily name.
+    /// WWS Subfamily Name (NID 22)
+    /// Typographic Subfamily Name (NID 17)
+    /// Subfamily Name (NID 2)
     fn best_subfamily_name(&self) -> Option<String>;
 
+    /// Returns an optional best full name.
+    /// WWS Family Name + WWS Subfamily Name (NID 21 + 22)
+    /// Typographic Family Name + Typographic Subfamily Name (NID 16 + 17)
+    /// Family Name + Subfamily Name (NID 1 + 2)
+    /// Full Name (NID 4)
+    /// PostScript Name (NID 6)
     fn best_full_name(&self) -> Option<String>;
 
     /// Returns the mapping from glyph identifiers to names.
@@ -89,14 +103,28 @@ impl<'a> MetadataProvider<'a> for FontRef<'a> {
         LocalizedStrings::new(self, id)
     }
 
+    /// Returns an optional best family name.
+    /// WWS Family Name (NID 21)
+    /// Typographic Family Name (NID 16)
+    /// Family Name (NID 1)
     fn best_family_name(&self) -> Option<String> {
         get_best_family_name(self)
     }
 
+    /// Returns an optional best subfamily name.
+    /// WWS Subfamily Name (NID 22)
+    /// Typographic Subfamily Name (NID 17)
+    /// Subfamily Name (NID 2)
     fn best_subfamily_name(&self) -> Option<String> {
         get_best_subfamily_name(self)
     }
 
+    /// Returns an optional best full name.
+    /// WWS Family Name + WWS Subfamily Name (NID 21 + 22)
+    /// Typographic Family Name + Typographic Subfamily Name (NID 16 + 17)
+    /// Family Name + Subfamily Name (NID 1 + 2)
+    /// Full Name (NID 4)
+    /// PostScript Name (NID 6)
     fn best_full_name(&self) -> Option<String> {
         get_best_full_name(self)
     }
