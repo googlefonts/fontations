@@ -598,12 +598,10 @@ const LANGUAGE_ID_TO_BCP47: &[(u16, &str)] = &[
 ];
 
 fn get_best_name(font: &FontRef, name_ids: Vec<StringId>) -> Option<String> {
-    for name_id in name_ids {
-        if let Some(name) = LocalizedStrings::new(font, name_id).english_or_first() {
-            return Some(name.to_string());
-        }
-    }
-    None
+    name_ids
+        .iter()
+        .find_map(|id| LocalizedStrings::new(font, *id).english_or_first()
+        .map(|name| name.to_string()))
 }
 
 pub fn get_best_family_name(font: &FontRef) -> Option<String> {
