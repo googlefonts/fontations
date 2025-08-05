@@ -597,7 +597,7 @@ const LANGUAGE_ID_TO_BCP47: &[(u16, &str)] = &[
     (0x540a, "es-US"),        //Spanish
 ];
 
-fn _get_best_name(font: &FontRef, name_ids: Vec<StringId>) -> Option<String> {
+fn get_best_name(font: &FontRef, name_ids: Vec<StringId>) -> Option<String> {
     for name_id in name_ids {
         if let Some(name) = LocalizedStrings::new(font, name_id).english_or_first() {
             return Some(name.to_string());
@@ -612,7 +612,7 @@ pub fn get_best_family_name(font: &FontRef) -> Option<String> {
         StringId::TYPOGRAPHIC_FAMILY_NAME,
         StringId::FAMILY_NAME,
     ];
-    _get_best_name(font, name_ids)
+    get_best_name(font, name_ids)
 }
 
 pub fn get_best_subfamily_name(font: &FontRef) -> Option<String> {
@@ -621,7 +621,7 @@ pub fn get_best_subfamily_name(font: &FontRef) -> Option<String> {
         StringId::TYPOGRAPHIC_SUBFAMILY_NAME,
         StringId::SUBFAMILY_NAME,
     ];
-    _get_best_name(font, name_ids)
+    get_best_name(font, name_ids)
 }
 
 pub fn get_best_full_name(font: &FontRef) -> Option<String> {
@@ -634,8 +634,8 @@ pub fn get_best_full_name(font: &FontRef) -> Option<String> {
     ];
     for (id_first, id_second) in ids {
         if id_second.is_some() {
-            let fam_name = _get_best_name(font, vec![StringId::new(id_first)]);
-            let subfam_name = _get_best_name(font, vec![StringId::new(id_second.unwrap())]);
+            let fam_name = get_best_name(font, vec![StringId::new(id_first)]);
+            let subfam_name = get_best_name(font, vec![StringId::new(id_second.unwrap())]);
 
             // If both family and subfamily names are found,
             // return the full name, otherwise continue to the next pair.
@@ -644,7 +644,7 @@ pub fn get_best_full_name(font: &FontRef) -> Option<String> {
             }
         } else {
             // If id_second is None, this must be name id 4 or 6
-            let full_name = _get_best_name(font, vec![StringId::new(id_first)]);
+            let full_name = get_best_name(font, vec![StringId::new(id_first)]);
             if full_name.is_some() {
                 return full_name;
             }
