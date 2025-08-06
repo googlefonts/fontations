@@ -419,7 +419,7 @@ impl<'a> Sbix<'a> {
     }
 
     /// A dynamically resolving wrapper for [`strike_offsets`][Self::strike_offsets].
-    pub fn strikes(&self) -> ArrayOfOffsets<'a, Strike<'a>, Offset32> {
+    pub fn strikes(&self) -> ArrayOfOffsets<'a, Strike<'a>, BigEndian<Offset32>> {
         let data = self.data;
         let offsets = self.strike_offsets();
         let args = self.num_glyphs();

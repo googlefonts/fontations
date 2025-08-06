@@ -14,7 +14,7 @@ use super::{
 };
 use alloc::vec::Vec;
 use raw::{
-    types::{F26Dot6, F2Dot14, Fixed, Point},
+    types::{BytesWrapper, F26Dot6, F2Dot14, Fixed, Point},
     TableProvider,
 };
 

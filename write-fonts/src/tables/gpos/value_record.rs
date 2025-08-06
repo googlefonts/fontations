@@ -228,6 +228,7 @@ impl FromObjRef<read_fonts::tables::gpos::ValueRecord> for ValueRecord {
 mod tests {
     use font_types::GlyphId16;
     use read_fonts::FontRead;
+    use types::BytesWrapper;
 
     use crate::tables::{
         gpos::{SinglePos, SinglePosFormat1, SinglePosFormat2},

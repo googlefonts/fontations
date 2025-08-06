@@ -1,5 +1,7 @@
 //! CFF charset support.
 
+use types::BytesWrapper;
+
 use super::{
     CharsetFormat0, CharsetFormat1, CharsetFormat2, CharsetRange1, CharsetRange2, CustomCharset,
     FontData, FontRead, GlyphId, ReadError, StringId,

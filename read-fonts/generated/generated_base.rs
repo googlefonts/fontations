@@ -719,7 +719,7 @@ impl<'a> BaseValues<'a> {
     }
 
     /// A dynamically resolving wrapper for [`base_coord_offsets`][Self::base_coord_offsets].
-    pub fn base_coords(&self) -> ArrayOfOffsets<'a, BaseCoord<'a>, Offset16> {
+    pub fn base_coords(&self) -> ArrayOfOffsets<'a, BaseCoord<'a>, BigEndian<Offset16>> {
         let data = self.data;
         let offsets = self.base_coord_offsets();
         ArrayOfOffsets::new(offsets, data, ())
