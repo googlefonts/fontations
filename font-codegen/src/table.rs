@@ -39,6 +39,30 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 
     let of_unit_docs = " Replace the specific generic type on this implementation with `()`";
 
+    let fixed_fields_name = item.fixed_fields_name();
+    let fixed_fields = item
+        .fields
+        .iter()
+        .take_while(|field| field.is_fixed)
+        .collect::<Vec<_>>();
+    let fixed_field_names = fixed_fields.iter().map(|fld| &fld.name);
+    let fixed_field_types = fixed_fields.iter().map(|fld| fld.type_for_record());
+    let fixed_field_inner_types = fixed_fields.iter().map(|fld| fld.typ.cooked_type_tokens());
+
+    let fixed_size_for_fixed_fields = if fixed_fields.is_empty() {
+        quote!(
+            impl FixedSize for #fixed_fields_name {
+                const RAW_BYTE_LEN: usize = 0;
+            }
+        )
+    } else {
+        quote!(
+            impl FixedSize for #fixed_fields_name {
+                const RAW_BYTE_LEN: usize = #( #fixed_field_inner_types::RAW_BYTE_LEN )+*;
+            }
+        )
+    };
+
     // In the presence of a generic param we only impl FontRead for Name<()>,
     // and then use into() to convert it to the concrete generic type.
     let impl_into_generic = generic.as_ref().map(|t| {
@@ -57,12 +81,12 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                impl<'a> #raw_name<'a, ()> {
                    #[allow(dead_code)]
                    pub(crate) fn into_concrete<T>(self) -> #raw_name<'a, #t> {
-                       let TableRef { data, #shape_name} = self;
+                       let TableRef { data, fixed_fields, #shape_name} = self;
                        TableRef {
                            shape: #marker_name {
                                #( #shape_fields, )*
                                offset_type: std::marker::PhantomData,
-                           }, data
+                           }, data, fixed_fields
                        }
                    }
                }
@@ -73,12 +97,12 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                    #[allow(dead_code)]
                    #[doc = #of_unit_docs]
                    pub(crate) fn of_unit_type(&self) -> #raw_name<'a, ()> {
-                       let TableRef { data, #shape_name} = self;
+                       let TableRef { data, fixed_fields, #shape_name} = self;
                        TableRef {
                            shape: #marker_name {
                                #( #shape_fields, )*
                                offset_type: std::marker::PhantomData,
-                           }, data: *data,
+                           }, data: *data, fixed_fields: *fixed_fields
                        }
                    }
                }
@@ -105,6 +129,15 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     Ok(quote! {
         #optional_format_trait_impl
 
+        #[derive(Copy, Clone, Debug, bytemuck::AnyBitPattern)]
+        #[repr(C)]
+        #[repr(packed)]
+        pub struct #fixed_fields_name {
+            #( pub #fixed_field_names: #fixed_field_types, )*
+        }
+
+        #fixed_size_for_fixed_fields
+
         #( #docs )*
         #[derive(Debug, #derive_clone_copy)]
         #[doc(hidden)]
@@ -128,7 +161,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         #impl_into_generic
 
         #( #docs )*
-        pub type #raw_name<'a, #generic> = TableRef<'a, #marker_name<#generic>>;
+        pub type #raw_name<'a, #generic> = TableRef<'a, #marker_name<#generic>, #fixed_fields_name>;
 
         #[allow(clippy::needless_lifetimes)]
         impl<'a, #generic> #raw_name<'a, #generic> {
@@ -144,6 +177,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
     let marker_name = item.marker_name();
     let name = item.raw_name();
+    let fixed_fields_name = item.fixed_fields_name();
     let field_validation_stmts = item.iter_field_validation_stmts();
     let shape_field_names = item.iter_shape_field_names();
     let generic = item.attrs.generic_offset.as_ref();
@@ -153,10 +187,6 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
             "ReadWithArgs not implemented for tables with phantom params."
         );)
     });
-
-    // the cursor doesn't need to be mut if there are no fields,
-    // which happens at least once (in glyf)?
-    let maybe_mut_kw = (!item.fields.fields.is_empty()).then(|| quote!(mut));
 
     if let Some(read_args) = &item.attrs.read_args {
         let args_type = read_args.args_type();
@@ -170,13 +200,15 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
             }
 
             impl<'a> FontReadWithArgs<'a> for #name<'a> {
+                #[inline]
                 fn read_with_args(data: FontData<'a>, args: &#args_type) -> Result<Self, ReadError> {
                     let #destructure_pattern = *args;
-                    let #maybe_mut_kw cursor = data.cursor();
+                    let mut cursor = data.cursor();
+                    let fixed_fields: &'a #fixed_fields_name = cursor.read_ref()?;
                     #( #field_validation_stmts )*
                     cursor.finish( #marker_name {
                         #( #shape_field_names, )*
-                    })
+                    }, fixed_fields)
                 }
             }
 
@@ -185,6 +217,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
                 ///
                 /// This type requires some external state in order to be
                 /// parsed.
+                #[inline]
                 pub fn read(data: FontData<'a>, #( #constructor_args, )* ) -> Result<Self, ReadError> {
                     let args = #args_from_constructor_args;
                     Self::read_with_args(data, &args)
@@ -194,13 +227,15 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
     } else {
         Ok(quote! {
             impl<'a, #generic> FontRead<'a> for #name<'a, #generic> {
+            #[inline]
             fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-                let #maybe_mut_kw cursor = data.cursor();
+                let mut cursor = data.cursor();
+                let fixed_fields: &'a #fixed_fields_name = cursor.read_ref()?;
                 #( #field_validation_stmts )*
                 cursor.finish( #marker_name {
                     #( #shape_field_names, )*
                     #phantom
-                })
+                }, fixed_fields)
             }
         }
         })
@@ -241,6 +276,7 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
         }
 
         impl<'a> FontRead<'a> for #name <'a> {
+            #[inline]
             fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
                 let untyped = #inner::read(bytes)?;
                 match untyped.#type_field() {
@@ -709,6 +745,7 @@ fn generate_format_shared_getters(item: &TableFormat, items: &Items) -> syn::Res
 
     Ok(quote! {
         #[doc = "Return the `FontData` used to resolve offsets for this table."]
+        #[inline]
         pub fn offset_data(&self) -> FontData<'a> {
             match self {
                 #( #data_arms )*
@@ -731,6 +768,7 @@ fn generate_format_getter_for_shared_field(item: &TableFormat, field: &Field) ->
 
     quote! {
         #( #docs )*
+        #[inline]
         pub fn #method_name(&self) -> #return_type {
             match self {
                 #( #arms )*
@@ -912,6 +950,10 @@ impl Table {
 
     fn marker_name(&self) -> syn::Ident {
         quote::format_ident!("{}Marker", self.raw_name())
+    }
+
+    fn fixed_fields_name(&self) -> syn::Ident {
+        quote::format_ident!("{}FixedFields", self.raw_name())
     }
 
     fn iter_shape_byte_fns(&self) -> impl Iterator<Item = TokenStream> + '_ {

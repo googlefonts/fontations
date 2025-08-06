@@ -5,6 +5,25 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ColrFixedFields {
+    pub version: BigEndian<u16>,
+    pub num_base_glyph_records: BigEndian<u16>,
+    pub base_glyph_records_offset: BigEndian<Nullable<Offset32>>,
+    pub layer_records_offset: BigEndian<Nullable<Offset32>>,
+    pub num_layer_records: BigEndian<u16>,
+}
+
+impl FixedSize for ColrFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
+}
+
 /// [COLR (Color)](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#colr-header) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -80,13 +99,11 @@ impl TopLevelTable for Colr<'_> {
 }
 
 impl<'a> FontRead<'a> for Colr<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let version: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<u16>();
+        let fixed_fields: &'a ColrFixedFields = cursor.read_ref()?;
+        let version = fixed_fields.version.get();
         let base_glyph_list_offset_byte_start = version
             .compatible(1u16)
             .then(|| cursor.position())
@@ -122,40 +139,44 @@ impl<'a> FontRead<'a> for Colr<'a> {
         version
             .compatible(1u16)
             .then(|| cursor.advance::<Offset32>());
-        cursor.finish(ColrMarker {
-            base_glyph_list_offset_byte_start,
-            layer_list_offset_byte_start,
-            clip_list_offset_byte_start,
-            var_index_map_offset_byte_start,
-            item_variation_store_offset_byte_start,
-        })
+        cursor.finish(
+            ColrMarker {
+                base_glyph_list_offset_byte_start,
+                layer_list_offset_byte_start,
+                clip_list_offset_byte_start,
+                var_index_map_offset_byte_start,
+                item_variation_store_offset_byte_start,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [COLR (Color)](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#colr-header) table
-pub type Colr<'a> = TableRef<'a, ColrMarker>;
+pub type Colr<'a> = TableRef<'a, ColrMarker, ColrFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Colr<'a> {
     /// Table version number - set to 0 or 1.
+    #[inline]
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Number of BaseGlyph records; may be 0 in a version 1 table.
+    #[inline]
     pub fn num_base_glyph_records(&self) -> u16 {
-        let range = self.shape.num_base_glyph_records_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_base_glyph_records.get()
     }
 
     /// Offset to baseGlyphRecords array (may be NULL).
+    #[inline]
     pub fn base_glyph_records_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.base_glyph_records_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().base_glyph_records_offset.get()
     }
 
     /// Attempt to resolve [`base_glyph_records_offset`][Self::base_glyph_records_offset].
+    #[inline]
     pub fn base_glyph_records(&self) -> Option<Result<&'a [BaseGlyph], ReadError>> {
         let data = self.data;
         let args = self.num_base_glyph_records();
@@ -164,12 +185,13 @@ impl<'a> Colr<'a> {
     }
 
     /// Offset to layerRecords array (may be NULL).
+    #[inline]
     pub fn layer_records_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.layer_records_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().layer_records_offset.get()
     }
 
     /// Attempt to resolve [`layer_records_offset`][Self::layer_records_offset].
+    #[inline]
     pub fn layer_records(&self) -> Option<Result<&'a [Layer], ReadError>> {
         let data = self.data;
         let args = self.num_layer_records();
@@ -177,66 +199,76 @@ impl<'a> Colr<'a> {
     }
 
     /// Number of Layer records; may be 0 in a version 1 table.
+    #[inline]
     pub fn num_layer_records(&self) -> u16 {
-        let range = self.shape.num_layer_records_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_layer_records.get()
     }
 
     /// Offset to BaseGlyphList table.
+    #[inline]
     pub fn base_glyph_list_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.base_glyph_list_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`base_glyph_list_offset`][Self::base_glyph_list_offset].
+    #[inline]
     pub fn base_glyph_list(&self) -> Option<Result<BaseGlyphList<'a>, ReadError>> {
         let data = self.data;
         self.base_glyph_list_offset().map(|x| x.resolve(data))?
     }
 
     /// Offset to LayerList table (may be NULL).
+    #[inline]
     pub fn layer_list_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.layer_list_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`layer_list_offset`][Self::layer_list_offset].
+    #[inline]
     pub fn layer_list(&self) -> Option<Result<LayerList<'a>, ReadError>> {
         let data = self.data;
         self.layer_list_offset().map(|x| x.resolve(data))?
     }
 
     /// Offset to ClipList table (may be NULL).
+    #[inline]
     pub fn clip_list_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.clip_list_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`clip_list_offset`][Self::clip_list_offset].
+    #[inline]
     pub fn clip_list(&self) -> Option<Result<ClipList<'a>, ReadError>> {
         let data = self.data;
         self.clip_list_offset().map(|x| x.resolve(data))?
     }
 
     /// Offset to DeltaSetIndexMap table (may be NULL).
+    #[inline]
     pub fn var_index_map_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.var_index_map_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`var_index_map_offset`][Self::var_index_map_offset].
+    #[inline]
     pub fn var_index_map(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
         self.var_index_map_offset().map(|x| x.resolve(data))?
     }
 
     /// Offset to ItemVariationStore (may be NULL).
+    #[inline]
     pub fn item_variation_store_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.item_variation_store_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
+    #[inline]
     pub fn item_variation_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
         let data = self.data;
         self.item_variation_store_offset()
@@ -330,16 +362,19 @@ pub struct BaseGlyph {
 
 impl BaseGlyph {
     /// Glyph ID of the base glyph.
+    #[inline]
     pub fn glyph_id(&self) -> GlyphId16 {
         self.glyph_id.get()
     }
 
     /// Index (base 0) into the layerRecords array.
+    #[inline]
     pub fn first_layer_index(&self) -> u16 {
         self.first_layer_index.get()
     }
 
     /// Number of color layers associated with this glyph.
+    #[inline]
     pub fn num_layers(&self) -> u16 {
         self.num_layers.get()
     }
@@ -378,11 +413,13 @@ pub struct Layer {
 
 impl Layer {
     /// Glyph ID of the glyph used for a given layer.
+    #[inline]
     pub fn glyph_id(&self) -> GlyphId16 {
         self.glyph_id.get()
     }
 
     /// Index (base 0) for a palette entry in the CPAL table.
+    #[inline]
     pub fn palette_index(&self) -> u16 {
         self.palette_index.get()
     }
@@ -405,6 +442,17 @@ impl<'a> SomeRecord<'a> for Layer {
             data,
         }
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct BaseGlyphListFixedFields {
+    pub num_base_glyph_paint_records: BigEndian<u32>,
+}
+
+impl FixedSize for BaseGlyphListFixedFields {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN;
 }
 
 /// [BaseGlyphList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
@@ -433,29 +481,35 @@ impl MinByteRange for BaseGlyphListMarker {
 }
 
 impl<'a> FontRead<'a> for BaseGlyphList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let num_base_glyph_paint_records: u32 = cursor.read()?;
+        let fixed_fields: &'a BaseGlyphListFixedFields = cursor.read_ref()?;
+        let num_base_glyph_paint_records = fixed_fields.num_base_glyph_paint_records.get();
         let base_glyph_paint_records_byte_len = (num_base_glyph_paint_records as usize)
             .checked_mul(BaseGlyphPaint::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(base_glyph_paint_records_byte_len);
-        cursor.finish(BaseGlyphListMarker {
-            base_glyph_paint_records_byte_len,
-        })
+        cursor.finish(
+            BaseGlyphListMarker {
+                base_glyph_paint_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [BaseGlyphList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
-pub type BaseGlyphList<'a> = TableRef<'a, BaseGlyphListMarker>;
+pub type BaseGlyphList<'a> = TableRef<'a, BaseGlyphListMarker, BaseGlyphListFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseGlyphList<'a> {
+    #[inline]
     pub fn num_base_glyph_paint_records(&self) -> u32 {
-        let range = self.shape.num_base_glyph_paint_records_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_base_glyph_paint_records.get()
     }
 
+    #[inline]
     pub fn base_glyph_paint_records(&self) -> &'a [BaseGlyphPaint] {
         let range = self.shape.base_glyph_paint_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -507,11 +561,13 @@ pub struct BaseGlyphPaint {
 
 impl BaseGlyphPaint {
     /// Glyph ID of the base glyph.
+    #[inline]
     pub fn glyph_id(&self) -> GlyphId16 {
         self.glyph_id.get()
     }
 
     /// Offset to a Paint table, from the beginning of the [`BaseGlyphList`] table.
+    #[inline]
     pub fn paint_offset(&self) -> Offset32 {
         self.paint_offset.get()
     }
@@ -520,6 +576,7 @@ impl BaseGlyphPaint {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    #[inline]
     pub fn paint<'a>(&self, data: FontData<'a>) -> Result<Paint<'a>, ReadError> {
         self.paint_offset().resolve(data)
     }
@@ -545,6 +602,17 @@ impl<'a> SomeRecord<'a> for BaseGlyphPaint {
             data,
         }
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct LayerListFixedFields {
+    pub num_layers: BigEndian<u32>,
+}
+
+impl FixedSize for LayerListFixedFields {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN;
 }
 
 /// [LayerList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
@@ -573,36 +641,43 @@ impl MinByteRange for LayerListMarker {
 }
 
 impl<'a> FontRead<'a> for LayerList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let num_layers: u32 = cursor.read()?;
+        let fixed_fields: &'a LayerListFixedFields = cursor.read_ref()?;
+        let num_layers = fixed_fields.num_layers.get();
         let paint_offsets_byte_len = (num_layers as usize)
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(paint_offsets_byte_len);
-        cursor.finish(LayerListMarker {
-            paint_offsets_byte_len,
-        })
+        cursor.finish(
+            LayerListMarker {
+                paint_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [LayerList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
-pub type LayerList<'a> = TableRef<'a, LayerListMarker>;
+pub type LayerList<'a> = TableRef<'a, LayerListMarker, LayerListFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LayerList<'a> {
+    #[inline]
     pub fn num_layers(&self) -> u32 {
-        let range = self.shape.num_layers_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_layers.get()
     }
 
     /// Offsets to Paint tables.
+    #[inline]
     pub fn paint_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.paint_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`paint_offsets`][Self::paint_offsets].
+    #[inline]
     pub fn paints(&self) -> ArrayOfOffsets<'a, Paint<'a>, Offset32> {
         let data = self.data;
         let offsets = self.paint_offsets();
@@ -645,6 +720,18 @@ impl<'a> std::fmt::Debug for LayerList<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ClipListFixedFields {
+    pub format: u8,
+    pub num_clips: BigEndian<u32>,
+}
+
+impl FixedSize for ClipListFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
 /// [ClipList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -676,36 +763,38 @@ impl MinByteRange for ClipListMarker {
 }
 
 impl<'a> FontRead<'a> for ClipList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        let num_clips: u32 = cursor.read()?;
+        let fixed_fields: &'a ClipListFixedFields = cursor.read_ref()?;
+        let num_clips = fixed_fields.num_clips.get();
         let clips_byte_len = (num_clips as usize)
             .checked_mul(Clip::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(clips_byte_len);
-        cursor.finish(ClipListMarker { clips_byte_len })
+        cursor.finish(ClipListMarker { clips_byte_len }, fixed_fields)
     }
 }
 
 /// [ClipList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
-pub type ClipList<'a> = TableRef<'a, ClipListMarker>;
+pub type ClipList<'a> = TableRef<'a, ClipListMarker, ClipListFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClipList<'a> {
     /// Set to 1.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Number of Clip records.
+    #[inline]
     pub fn num_clips(&self) -> u32 {
-        let range = self.shape.num_clips_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_clips.get()
     }
 
     /// Clip records. Sorted by startGlyphID.
+    #[inline]
     pub fn clips(&self) -> &'a [Clip] {
         let range = self.shape.clips_byte_range();
         self.data.read_array(range).unwrap()
@@ -757,16 +846,19 @@ pub struct Clip {
 
 impl Clip {
     /// First glyph ID in the range.
+    #[inline]
     pub fn start_glyph_id(&self) -> GlyphId16 {
         self.start_glyph_id.get()
     }
 
     /// Last glyph ID in the range.
+    #[inline]
     pub fn end_glyph_id(&self) -> GlyphId16 {
         self.end_glyph_id.get()
     }
 
     /// Offset to a ClipBox table, from the beginning of the [`ClipList`] table.
+    #[inline]
     pub fn clip_box_offset(&self) -> Offset24 {
         self.clip_box_offset.get()
     }
@@ -775,6 +867,7 @@ impl Clip {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    #[inline]
     pub fn clip_box<'a>(&self, data: FontData<'a>) -> Result<ClipBox<'a>, ReadError> {
         self.clip_box_offset().resolve(data)
     }
@@ -813,6 +906,7 @@ pub enum ClipBox<'a> {
 
 impl<'a> ClipBox<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
+    #[inline]
     pub fn offset_data(&self) -> FontData<'a> {
         match self {
             Self::Format1(item) => item.offset_data(),
@@ -821,6 +915,7 @@ impl<'a> ClipBox<'a> {
     }
 
     /// Set to 1.
+    #[inline]
     pub fn format(&self) -> u8 {
         match self {
             Self::Format1(item) => item.format(),
@@ -829,6 +924,7 @@ impl<'a> ClipBox<'a> {
     }
 
     /// Minimum x of clip box.
+    #[inline]
     pub fn x_min(&self) -> FWord {
         match self {
             Self::Format1(item) => item.x_min(),
@@ -837,6 +933,7 @@ impl<'a> ClipBox<'a> {
     }
 
     /// Minimum y of clip box.
+    #[inline]
     pub fn y_min(&self) -> FWord {
         match self {
             Self::Format1(item) => item.y_min(),
@@ -845,6 +942,7 @@ impl<'a> ClipBox<'a> {
     }
 
     /// Maximum x of clip box.
+    #[inline]
     pub fn x_max(&self) -> FWord {
         match self {
             Self::Format1(item) => item.x_max(),
@@ -853,6 +951,7 @@ impl<'a> ClipBox<'a> {
     }
 
     /// Maximum y of clip box.
+    #[inline]
     pub fn y_max(&self) -> FWord {
         match self {
             Self::Format1(item) => item.y_max(),
@@ -912,6 +1011,25 @@ impl Format<u8> for ClipBoxFormat1Marker {
     const FORMAT: u8 = 1;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ClipBoxFormat1FixedFields {
+    pub format: u8,
+    pub x_min: BigEndian<FWord>,
+    pub y_min: BigEndian<FWord>,
+    pub x_max: BigEndian<FWord>,
+    pub y_max: BigEndian<FWord>,
+}
+
+impl FixedSize for ClipBoxFormat1FixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN;
+}
+
 /// [ClipBoxFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -951,50 +1069,47 @@ impl MinByteRange for ClipBoxFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for ClipBoxFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(ClipBoxFormat1Marker {})
+        let fixed_fields: &'a ClipBoxFormat1FixedFields = cursor.read_ref()?;
+        cursor.finish(ClipBoxFormat1Marker {}, fixed_fields)
     }
 }
 
 /// [ClipBoxFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
-pub type ClipBoxFormat1<'a> = TableRef<'a, ClipBoxFormat1Marker>;
+pub type ClipBoxFormat1<'a> = TableRef<'a, ClipBoxFormat1Marker, ClipBoxFormat1FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClipBoxFormat1<'a> {
     /// Set to 1.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Minimum x of clip box.
+    #[inline]
     pub fn x_min(&self) -> FWord {
-        let range = self.shape.x_min_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x_min.get()
     }
 
     /// Minimum y of clip box.
+    #[inline]
     pub fn y_min(&self) -> FWord {
-        let range = self.shape.y_min_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y_min.get()
     }
 
     /// Maximum x of clip box.
+    #[inline]
     pub fn x_max(&self) -> FWord {
-        let range = self.shape.x_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x_max.get()
     }
 
     /// Maximum y of clip box.
+    #[inline]
     pub fn y_max(&self) -> FWord {
-        let range = self.shape.y_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y_max.get()
     }
 }
 
@@ -1025,6 +1140,27 @@ impl<'a> std::fmt::Debug for ClipBoxFormat1<'a> {
 
 impl Format<u8> for ClipBoxFormat2Marker {
     const FORMAT: u8 = 2;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ClipBoxFormat2FixedFields {
+    pub format: u8,
+    pub x_min: BigEndian<FWord>,
+    pub y_min: BigEndian<FWord>,
+    pub x_max: BigEndian<FWord>,
+    pub y_max: BigEndian<FWord>,
+    pub var_index_base: BigEndian<u32>,
+}
+
+impl FixedSize for ClipBoxFormat2FixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [ClipBoxFormat2](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
@@ -1071,57 +1207,53 @@ impl MinByteRange for ClipBoxFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for ClipBoxFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(ClipBoxFormat2Marker {})
+        let fixed_fields: &'a ClipBoxFormat2FixedFields = cursor.read_ref()?;
+        cursor.finish(ClipBoxFormat2Marker {}, fixed_fields)
     }
 }
 
 /// [ClipBoxFormat2](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
-pub type ClipBoxFormat2<'a> = TableRef<'a, ClipBoxFormat2Marker>;
+pub type ClipBoxFormat2<'a> = TableRef<'a, ClipBoxFormat2Marker, ClipBoxFormat2FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClipBoxFormat2<'a> {
     /// Set to 2.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Minimum x of clip box. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn x_min(&self) -> FWord {
-        let range = self.shape.x_min_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x_min.get()
     }
 
     /// Minimum y of clip box. For variation, use varIndexBase + 1.
+    #[inline]
     pub fn y_min(&self) -> FWord {
-        let range = self.shape.y_min_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y_min.get()
     }
 
     /// Maximum x of clip box. For variation, use varIndexBase + 2.
+    #[inline]
     pub fn x_max(&self) -> FWord {
-        let range = self.shape.x_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x_max.get()
     }
 
     /// Maximum y of clip box. For variation, use varIndexBase + 3.
+    #[inline]
     pub fn y_max(&self) -> FWord {
-        let range = self.shape.y_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y_max.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index_base.get()
     }
 }
 
@@ -1164,11 +1296,13 @@ pub struct ColorIndex {
 
 impl ColorIndex {
     /// Index for a CPAL palette entry.
+    #[inline]
     pub fn palette_index(&self) -> u16 {
         self.palette_index.get()
     }
 
     /// Alpha value.
+    #[inline]
     pub fn alpha(&self) -> F2Dot14 {
         self.alpha.get()
     }
@@ -1208,16 +1342,19 @@ pub struct VarColorIndex {
 
 impl VarColorIndex {
     /// Index for a CPAL palette entry.
+    #[inline]
     pub fn palette_index(&self) -> u16 {
         self.palette_index.get()
     }
 
     /// Alpha value. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn alpha(&self) -> F2Dot14 {
         self.alpha.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         self.var_index_base.get()
     }
@@ -1258,16 +1395,19 @@ pub struct ColorStop {
 
 impl ColorStop {
     /// Position on a color line.
+    #[inline]
     pub fn stop_offset(&self) -> F2Dot14 {
         self.stop_offset.get()
     }
 
     /// Index for a CPAL palette entry.
+    #[inline]
     pub fn palette_index(&self) -> u16 {
         self.palette_index.get()
     }
 
     /// Alpha value.
+    #[inline]
     pub fn alpha(&self) -> F2Dot14 {
         self.alpha.get()
     }
@@ -1310,21 +1450,25 @@ pub struct VarColorStop {
 
 impl VarColorStop {
     /// Position on a color line. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn stop_offset(&self) -> F2Dot14 {
         self.stop_offset.get()
     }
 
     /// Index for a CPAL palette entry.
+    #[inline]
     pub fn palette_index(&self) -> u16 {
         self.palette_index.get()
     }
 
     /// Alpha value. For variation, use varIndexBase + 1.
+    #[inline]
     pub fn alpha(&self) -> F2Dot14 {
         self.alpha.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
         self.var_index_base.get()
     }
@@ -1350,6 +1494,15 @@ impl<'a> SomeRecord<'a> for VarColorStop {
             data,
         }
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ColorLineFixedFields {}
+
+impl FixedSize for ColorLineFixedFields {
+    const RAW_BYTE_LEN: usize = 0;
 }
 
 /// [ColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
@@ -1383,37 +1536,45 @@ impl MinByteRange for ColorLineMarker {
 }
 
 impl<'a> FontRead<'a> for ColorLine<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
+        let fixed_fields: &'a ColorLineFixedFields = cursor.read_ref()?;
         cursor.advance::<Extend>();
         let num_stops: u16 = cursor.read()?;
         let color_stops_byte_len = (num_stops as usize)
             .checked_mul(ColorStop::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(color_stops_byte_len);
-        cursor.finish(ColorLineMarker {
-            color_stops_byte_len,
-        })
+        cursor.finish(
+            ColorLineMarker {
+                color_stops_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [ColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
-pub type ColorLine<'a> = TableRef<'a, ColorLineMarker>;
+pub type ColorLine<'a> = TableRef<'a, ColorLineMarker, ColorLineFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ColorLine<'a> {
     /// An Extend enum value.
+    #[inline]
     pub fn extend(&self) -> Extend {
         let range = self.shape.extend_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of ColorStop records.
+    #[inline]
     pub fn num_stops(&self) -> u16 {
         let range = self.shape.num_stops_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn color_stops(&self) -> &'a [ColorStop] {
         let range = self.shape.color_stops_byte_range();
         self.data.read_array(range).unwrap()
@@ -1450,6 +1611,15 @@ impl<'a> std::fmt::Debug for ColorLine<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct VarColorLineFixedFields {}
+
+impl FixedSize for VarColorLineFixedFields {
+    const RAW_BYTE_LEN: usize = 0;
+}
+
 /// [VarColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1481,38 +1651,46 @@ impl MinByteRange for VarColorLineMarker {
 }
 
 impl<'a> FontRead<'a> for VarColorLine<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
+        let fixed_fields: &'a VarColorLineFixedFields = cursor.read_ref()?;
         cursor.advance::<Extend>();
         let num_stops: u16 = cursor.read()?;
         let color_stops_byte_len = (num_stops as usize)
             .checked_mul(VarColorStop::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(color_stops_byte_len);
-        cursor.finish(VarColorLineMarker {
-            color_stops_byte_len,
-        })
+        cursor.finish(
+            VarColorLineMarker {
+                color_stops_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [VarColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
-pub type VarColorLine<'a> = TableRef<'a, VarColorLineMarker>;
+pub type VarColorLine<'a> = TableRef<'a, VarColorLineMarker, VarColorLineFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarColorLine<'a> {
     /// An Extend enum value.
+    #[inline]
     pub fn extend(&self) -> Extend {
         let range = self.shape.extend_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of ColorStop records.
+    #[inline]
     pub fn num_stops(&self) -> u16 {
         let range = self.shape.num_stops_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Allows for variations.
+    #[inline]
     pub fn color_stops(&self) -> &'a [VarColorStop] {
         let range = self.shape.color_stops_byte_range();
         self.data.read_array(range).unwrap()
@@ -1635,6 +1813,7 @@ pub enum Paint<'a> {
 
 impl<'a> Paint<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
+    #[inline]
     pub fn offset_data(&self) -> FontData<'a> {
         match self {
             Self::ColrLayers(item) => item.offset_data(),
@@ -1673,6 +1852,7 @@ impl<'a> Paint<'a> {
     }
 
     /// Set to 1.
+    #[inline]
     pub fn format(&self) -> u8 {
         match self {
             Self::ColrLayers(item) => item.format(),
@@ -1874,6 +2054,19 @@ impl Format<u8> for PaintColrLayersMarker {
     const FORMAT: u8 = 1;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintColrLayersFixedFields {
+    pub format: u8,
+    pub num_layers: u8,
+    pub first_layer_index: BigEndian<u32>,
+}
+
+impl FixedSize for PaintColrLayersFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
 /// [PaintColrLayers](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-1-paintcolrlayers) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1903,36 +2096,35 @@ impl MinByteRange for PaintColrLayersMarker {
 }
 
 impl<'a> FontRead<'a> for PaintColrLayers<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u8>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintColrLayersMarker {})
+        let fixed_fields: &'a PaintColrLayersFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintColrLayersMarker {}, fixed_fields)
     }
 }
 
 /// [PaintColrLayers](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-1-paintcolrlayers) table
-pub type PaintColrLayers<'a> = TableRef<'a, PaintColrLayersMarker>;
+pub type PaintColrLayers<'a> = TableRef<'a, PaintColrLayersMarker, PaintColrLayersFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintColrLayers<'a> {
     /// Set to 1.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Number of offsets to paint tables to read from LayerList.
+    #[inline]
     pub fn num_layers(&self) -> u8 {
-        let range = self.shape.num_layers_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_layers
     }
 
     /// Index (base 0) into the LayerList.
+    #[inline]
     pub fn first_layer_index(&self) -> u32 {
-        let range = self.shape.first_layer_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().first_layer_index.get()
     }
 }
 
@@ -1961,6 +2153,19 @@ impl<'a> std::fmt::Debug for PaintColrLayers<'a> {
 
 impl Format<u8> for PaintSolidMarker {
     const FORMAT: u8 = 2;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintSolidFixedFields {
+    pub format: u8,
+    pub palette_index: BigEndian<u16>,
+    pub alpha: BigEndian<F2Dot14>,
+}
+
+impl FixedSize for PaintSolidFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
 /// [PaintSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
@@ -1992,36 +2197,35 @@ impl MinByteRange for PaintSolidMarker {
 }
 
 impl<'a> FontRead<'a> for PaintSolid<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u16>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintSolidMarker {})
+        let fixed_fields: &'a PaintSolidFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintSolidMarker {}, fixed_fields)
     }
 }
 
 /// [PaintSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
-pub type PaintSolid<'a> = TableRef<'a, PaintSolidMarker>;
+pub type PaintSolid<'a> = TableRef<'a, PaintSolidMarker, PaintSolidFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSolid<'a> {
     /// Set to 2.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Index for a CPAL palette entry.
+    #[inline]
     pub fn palette_index(&self) -> u16 {
-        let range = self.shape.palette_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().palette_index.get()
     }
 
     /// Alpha value.
+    #[inline]
     pub fn alpha(&self) -> F2Dot14 {
-        let range = self.shape.alpha_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().alpha.get()
     }
 }
 
@@ -2050,6 +2254,21 @@ impl<'a> std::fmt::Debug for PaintSolid<'a> {
 
 impl Format<u8> for PaintVarSolidMarker {
     const FORMAT: u8 = 3;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintVarSolidFixedFields {
+    pub format: u8,
+    pub palette_index: BigEndian<u16>,
+    pub alpha: BigEndian<F2Dot14>,
+    pub var_index_base: BigEndian<u32>,
+}
+
+impl FixedSize for PaintVarSolidFixedFields {
+    const RAW_BYTE_LEN: usize =
+        u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
 /// [PaintVarSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
@@ -2086,43 +2305,41 @@ impl MinByteRange for PaintVarSolidMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarSolid<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u16>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarSolidMarker {})
+        let fixed_fields: &'a PaintVarSolidFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintVarSolidMarker {}, fixed_fields)
     }
 }
 
 /// [PaintVarSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
-pub type PaintVarSolid<'a> = TableRef<'a, PaintVarSolidMarker>;
+pub type PaintVarSolid<'a> = TableRef<'a, PaintVarSolidMarker, PaintVarSolidFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSolid<'a> {
     /// Set to 3.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Index for a CPAL palette entry.
+    #[inline]
     pub fn palette_index(&self) -> u16 {
-        let range = self.shape.palette_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().palette_index.get()
     }
 
     /// Alpha value. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn alpha(&self) -> F2Dot14 {
-        let range = self.shape.alpha_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().alpha.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index_base.get()
     }
 }
 
@@ -2152,6 +2369,31 @@ impl<'a> std::fmt::Debug for PaintVarSolid<'a> {
 
 impl Format<u8> for PaintLinearGradientMarker {
     const FORMAT: u8 = 4;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintLinearGradientFixedFields {
+    pub format: u8,
+    pub color_line_offset: BigEndian<Offset24>,
+    pub x0: BigEndian<FWord>,
+    pub y0: BigEndian<FWord>,
+    pub x1: BigEndian<FWord>,
+    pub y1: BigEndian<FWord>,
+    pub x2: BigEndian<FWord>,
+    pub y2: BigEndian<FWord>,
+}
+
+impl FixedSize for PaintLinearGradientFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN;
 }
 
 /// [PaintLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
@@ -2208,77 +2450,73 @@ impl MinByteRange for PaintLinearGradientMarker {
 }
 
 impl<'a> FontRead<'a> for PaintLinearGradient<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintLinearGradientMarker {})
+        let fixed_fields: &'a PaintLinearGradientFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintLinearGradientMarker {}, fixed_fields)
     }
 }
 
 /// [PaintLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
-pub type PaintLinearGradient<'a> = TableRef<'a, PaintLinearGradientMarker>;
+pub type PaintLinearGradient<'a> =
+    TableRef<'a, PaintLinearGradientMarker, PaintLinearGradientFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintLinearGradient<'a> {
     /// Set to 4.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to ColorLine table.
+    #[inline]
     pub fn color_line_offset(&self) -> Offset24 {
-        let range = self.shape.color_line_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().color_line_offset.get()
     }
 
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
+    #[inline]
     pub fn color_line(&self) -> Result<ColorLine<'a>, ReadError> {
         let data = self.data;
         self.color_line_offset().resolve(data)
     }
 
     /// Start point (p₀) x coordinate.
+    #[inline]
     pub fn x0(&self) -> FWord {
-        let range = self.shape.x0_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x0.get()
     }
 
     /// Start point (p₀) y coordinate.
+    #[inline]
     pub fn y0(&self) -> FWord {
-        let range = self.shape.y0_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y0.get()
     }
 
     /// End point (p₁) x coordinate.
+    #[inline]
     pub fn x1(&self) -> FWord {
-        let range = self.shape.x1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x1.get()
     }
 
     /// End point (p₁) y coordinate.
+    #[inline]
     pub fn y1(&self) -> FWord {
-        let range = self.shape.y1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y1.get()
     }
 
     /// Rotation point (p₂) x coordinate.
+    #[inline]
     pub fn x2(&self) -> FWord {
-        let range = self.shape.x2_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x2.get()
     }
 
     /// Rotation point (p₂) y coordinate.
+    #[inline]
     pub fn y2(&self) -> FWord {
-        let range = self.shape.y2_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y2.get()
     }
 }
 
@@ -2315,6 +2553,33 @@ impl<'a> std::fmt::Debug for PaintLinearGradient<'a> {
 
 impl Format<u8> for PaintVarLinearGradientMarker {
     const FORMAT: u8 = 5;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintVarLinearGradientFixedFields {
+    pub format: u8,
+    pub color_line_offset: BigEndian<Offset24>,
+    pub x0: BigEndian<FWord>,
+    pub y0: BigEndian<FWord>,
+    pub x1: BigEndian<FWord>,
+    pub y1: BigEndian<FWord>,
+    pub x2: BigEndian<FWord>,
+    pub y2: BigEndian<FWord>,
+    pub var_index_base: BigEndian<u32>,
+}
+
+impl FixedSize for PaintVarLinearGradientFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [PaintVarLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
@@ -2376,39 +2641,34 @@ impl MinByteRange for PaintVarLinearGradientMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarLinearGradient<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarLinearGradientMarker {})
+        let fixed_fields: &'a PaintVarLinearGradientFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintVarLinearGradientMarker {}, fixed_fields)
     }
 }
 
 /// [PaintVarLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
-pub type PaintVarLinearGradient<'a> = TableRef<'a, PaintVarLinearGradientMarker>;
+pub type PaintVarLinearGradient<'a> =
+    TableRef<'a, PaintVarLinearGradientMarker, PaintVarLinearGradientFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarLinearGradient<'a> {
     /// Set to 5.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to VarColorLine table.
+    #[inline]
     pub fn color_line_offset(&self) -> Offset24 {
-        let range = self.shape.color_line_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().color_line_offset.get()
     }
 
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
+    #[inline]
     pub fn color_line(&self) -> Result<VarColorLine<'a>, ReadError> {
         let data = self.data;
         self.color_line_offset().resolve(data)
@@ -2416,50 +2676,50 @@ impl<'a> PaintVarLinearGradient<'a> {
 
     /// Start point (p₀) x coordinate. For variation, use
     /// varIndexBase + 0.
+    #[inline]
     pub fn x0(&self) -> FWord {
-        let range = self.shape.x0_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x0.get()
     }
 
     /// Start point (p₀) y coordinate. For variation, use
     /// varIndexBase + 1.
+    #[inline]
     pub fn y0(&self) -> FWord {
-        let range = self.shape.y0_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y0.get()
     }
 
     /// End point (p₁) x coordinate. For variation, use varIndexBase
     /// + 2.
+    #[inline]
     pub fn x1(&self) -> FWord {
-        let range = self.shape.x1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x1.get()
     }
 
     /// End point (p₁) y coordinate. For variation, use varIndexBase
     /// + 3.
+    #[inline]
     pub fn y1(&self) -> FWord {
-        let range = self.shape.y1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y1.get()
     }
 
     /// Rotation point (p₂) x coordinate. For variation, use
     /// varIndexBase + 4.
+    #[inline]
     pub fn x2(&self) -> FWord {
-        let range = self.shape.x2_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x2.get()
     }
 
     /// Rotation point (p₂) y coordinate. For variation, use
     /// varIndexBase + 5.
+    #[inline]
     pub fn y2(&self) -> FWord {
-        let range = self.shape.y2_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y2.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index_base.get()
     }
 }
 
@@ -2497,6 +2757,31 @@ impl<'a> std::fmt::Debug for PaintVarLinearGradient<'a> {
 
 impl Format<u8> for PaintRadialGradientMarker {
     const FORMAT: u8 = 6;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintRadialGradientFixedFields {
+    pub format: u8,
+    pub color_line_offset: BigEndian<Offset24>,
+    pub x0: BigEndian<FWord>,
+    pub y0: BigEndian<FWord>,
+    pub radius0: BigEndian<UfWord>,
+    pub x1: BigEndian<FWord>,
+    pub y1: BigEndian<FWord>,
+    pub radius1: BigEndian<UfWord>,
+}
+
+impl FixedSize for PaintRadialGradientFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + UfWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + UfWord::RAW_BYTE_LEN;
 }
 
 /// [PaintRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
@@ -2553,77 +2838,73 @@ impl MinByteRange for PaintRadialGradientMarker {
 }
 
 impl<'a> FontRead<'a> for PaintRadialGradient<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.finish(PaintRadialGradientMarker {})
+        let fixed_fields: &'a PaintRadialGradientFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintRadialGradientMarker {}, fixed_fields)
     }
 }
 
 /// [PaintRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
-pub type PaintRadialGradient<'a> = TableRef<'a, PaintRadialGradientMarker>;
+pub type PaintRadialGradient<'a> =
+    TableRef<'a, PaintRadialGradientMarker, PaintRadialGradientFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRadialGradient<'a> {
     /// Set to 6.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to ColorLine table.
+    #[inline]
     pub fn color_line_offset(&self) -> Offset24 {
-        let range = self.shape.color_line_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().color_line_offset.get()
     }
 
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
+    #[inline]
     pub fn color_line(&self) -> Result<ColorLine<'a>, ReadError> {
         let data = self.data;
         self.color_line_offset().resolve(data)
     }
 
     /// Start circle center x coordinate.
+    #[inline]
     pub fn x0(&self) -> FWord {
-        let range = self.shape.x0_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x0.get()
     }
 
     /// Start circle center y coordinate.
+    #[inline]
     pub fn y0(&self) -> FWord {
-        let range = self.shape.y0_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y0.get()
     }
 
     /// Start circle radius.
+    #[inline]
     pub fn radius0(&self) -> UfWord {
-        let range = self.shape.radius0_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().radius0.get()
     }
 
     /// End circle center x coordinate.
+    #[inline]
     pub fn x1(&self) -> FWord {
-        let range = self.shape.x1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x1.get()
     }
 
     /// End circle center y coordinate.
+    #[inline]
     pub fn y1(&self) -> FWord {
-        let range = self.shape.y1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y1.get()
     }
 
     /// End circle radius.
+    #[inline]
     pub fn radius1(&self) -> UfWord {
-        let range = self.shape.radius1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().radius1.get()
     }
 }
 
@@ -2660,6 +2941,33 @@ impl<'a> std::fmt::Debug for PaintRadialGradient<'a> {
 
 impl Format<u8> for PaintVarRadialGradientMarker {
     const FORMAT: u8 = 7;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintVarRadialGradientFixedFields {
+    pub format: u8,
+    pub color_line_offset: BigEndian<Offset24>,
+    pub x0: BigEndian<FWord>,
+    pub y0: BigEndian<FWord>,
+    pub radius0: BigEndian<UfWord>,
+    pub x1: BigEndian<FWord>,
+    pub y1: BigEndian<FWord>,
+    pub radius1: BigEndian<UfWord>,
+    pub var_index_base: BigEndian<u32>,
+}
+
+impl FixedSize for PaintVarRadialGradientFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + UfWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + UfWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [PaintVarRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
@@ -2721,39 +3029,34 @@ impl MinByteRange for PaintVarRadialGradientMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarRadialGradient<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarRadialGradientMarker {})
+        let fixed_fields: &'a PaintVarRadialGradientFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintVarRadialGradientMarker {}, fixed_fields)
     }
 }
 
 /// [PaintVarRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
-pub type PaintVarRadialGradient<'a> = TableRef<'a, PaintVarRadialGradientMarker>;
+pub type PaintVarRadialGradient<'a> =
+    TableRef<'a, PaintVarRadialGradientMarker, PaintVarRadialGradientFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRadialGradient<'a> {
     /// Set to 7.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to VarColorLine table.
+    #[inline]
     pub fn color_line_offset(&self) -> Offset24 {
-        let range = self.shape.color_line_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().color_line_offset.get()
     }
 
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
+    #[inline]
     pub fn color_line(&self) -> Result<VarColorLine<'a>, ReadError> {
         let data = self.data;
         self.color_line_offset().resolve(data)
@@ -2761,48 +3064,48 @@ impl<'a> PaintVarRadialGradient<'a> {
 
     /// Start circle center x coordinate. For variation, use
     /// varIndexBase + 0.
+    #[inline]
     pub fn x0(&self) -> FWord {
-        let range = self.shape.x0_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x0.get()
     }
 
     /// Start circle center y coordinate. For variation, use
     /// varIndexBase + 1.
+    #[inline]
     pub fn y0(&self) -> FWord {
-        let range = self.shape.y0_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y0.get()
     }
 
     /// Start circle radius. For variation, use varIndexBase + 2.
+    #[inline]
     pub fn radius0(&self) -> UfWord {
-        let range = self.shape.radius0_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().radius0.get()
     }
 
     /// End circle center x coordinate. For variation, use varIndexBase
     /// + 3.
+    #[inline]
     pub fn x1(&self) -> FWord {
-        let range = self.shape.x1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x1.get()
     }
 
     /// End circle center y coordinate. For variation, use varIndexBase
     /// + 4.
+    #[inline]
     pub fn y1(&self) -> FWord {
-        let range = self.shape.y1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y1.get()
     }
 
     /// End circle radius. For variation, use varIndexBase + 5.
+    #[inline]
     pub fn radius1(&self) -> UfWord {
-        let range = self.shape.radius1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().radius1.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index_base.get()
     }
 }
 
@@ -2840,6 +3143,27 @@ impl<'a> std::fmt::Debug for PaintVarRadialGradient<'a> {
 
 impl Format<u8> for PaintSweepGradientMarker {
     const FORMAT: u8 = 8;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintSweepGradientFixedFields {
+    pub format: u8,
+    pub color_line_offset: BigEndian<Offset24>,
+    pub center_x: BigEndian<FWord>,
+    pub center_y: BigEndian<FWord>,
+    pub start_angle: BigEndian<F2Dot14>,
+    pub end_angle: BigEndian<F2Dot14>,
+}
+
+impl FixedSize for PaintSweepGradientFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN;
 }
 
 /// [PaintSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
@@ -2886,65 +3210,63 @@ impl MinByteRange for PaintSweepGradientMarker {
 }
 
 impl<'a> FontRead<'a> for PaintSweepGradient<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintSweepGradientMarker {})
+        let fixed_fields: &'a PaintSweepGradientFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintSweepGradientMarker {}, fixed_fields)
     }
 }
 
 /// [PaintSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
-pub type PaintSweepGradient<'a> = TableRef<'a, PaintSweepGradientMarker>;
+pub type PaintSweepGradient<'a> =
+    TableRef<'a, PaintSweepGradientMarker, PaintSweepGradientFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSweepGradient<'a> {
     /// Set to 8.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to ColorLine table.
+    #[inline]
     pub fn color_line_offset(&self) -> Offset24 {
-        let range = self.shape.color_line_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().color_line_offset.get()
     }
 
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
+    #[inline]
     pub fn color_line(&self) -> Result<ColorLine<'a>, ReadError> {
         let data = self.data;
         self.color_line_offset().resolve(data)
     }
 
     /// Center x coordinate.
+    #[inline]
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_x.get()
     }
 
     /// Center y coordinate.
+    #[inline]
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_y.get()
     }
 
     /// Start of the angular range of the gradient, 180° in
     /// counter-clockwise degrees per 1.0 of value.
+    #[inline]
     pub fn start_angle(&self) -> F2Dot14 {
-        let range = self.shape.start_angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().start_angle.get()
     }
 
     /// End of the angular range of the gradient, 180° in
     /// counter-clockwise degrees per 1.0 of value.
+    #[inline]
     pub fn end_angle(&self) -> F2Dot14 {
-        let range = self.shape.end_angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().end_angle.get()
     }
 }
 
@@ -2979,6 +3301,29 @@ impl<'a> std::fmt::Debug for PaintSweepGradient<'a> {
 
 impl Format<u8> for PaintVarSweepGradientMarker {
     const FORMAT: u8 = 9;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintVarSweepGradientFixedFields {
+    pub format: u8,
+    pub color_line_offset: BigEndian<Offset24>,
+    pub center_x: BigEndian<FWord>,
+    pub center_y: BigEndian<FWord>,
+    pub start_angle: BigEndian<F2Dot14>,
+    pub end_angle: BigEndian<F2Dot14>,
+    pub var_index_base: BigEndian<u32>,
+}
+
+impl FixedSize for PaintVarSweepGradientFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [PaintVarSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
@@ -3030,74 +3375,71 @@ impl MinByteRange for PaintVarSweepGradientMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarSweepGradient<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarSweepGradientMarker {})
+        let fixed_fields: &'a PaintVarSweepGradientFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintVarSweepGradientMarker {}, fixed_fields)
     }
 }
 
 /// [PaintVarSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
-pub type PaintVarSweepGradient<'a> = TableRef<'a, PaintVarSweepGradientMarker>;
+pub type PaintVarSweepGradient<'a> =
+    TableRef<'a, PaintVarSweepGradientMarker, PaintVarSweepGradientFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSweepGradient<'a> {
     /// Set to 9.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to VarColorLine table.
+    #[inline]
     pub fn color_line_offset(&self) -> Offset24 {
-        let range = self.shape.color_line_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().color_line_offset.get()
     }
 
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
+    #[inline]
     pub fn color_line(&self) -> Result<VarColorLine<'a>, ReadError> {
         let data = self.data;
         self.color_line_offset().resolve(data)
     }
 
     /// Center x coordinate. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_x.get()
     }
 
     /// Center y coordinate. For variation, use varIndexBase + 1.
+    #[inline]
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_y.get()
     }
 
     /// Start of the angular range of the gradient, 180° in
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 2.
+    #[inline]
     pub fn start_angle(&self) -> F2Dot14 {
-        let range = self.shape.start_angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().start_angle.get()
     }
 
     /// End of the angular range of the gradient, 180° in
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 3.
+    #[inline]
     pub fn end_angle(&self) -> F2Dot14 {
-        let range = self.shape.end_angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().end_angle.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index_base.get()
     }
 }
 
@@ -3135,6 +3477,19 @@ impl Format<u8> for PaintGlyphMarker {
     const FORMAT: u8 = 10;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintGlyphFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub glyph_id: BigEndian<GlyphId16>,
+}
+
+impl FixedSize for PaintGlyphFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN;
+}
+
 /// [PaintGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-10-paintglyph) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -3164,42 +3519,42 @@ impl MinByteRange for PaintGlyphMarker {
 }
 
 impl<'a> FontRead<'a> for PaintGlyph<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<GlyphId16>();
-        cursor.finish(PaintGlyphMarker {})
+        let fixed_fields: &'a PaintGlyphFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintGlyphMarker {}, fixed_fields)
     }
 }
 
 /// [PaintGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-10-paintglyph) table
-pub type PaintGlyph<'a> = TableRef<'a, PaintGlyphMarker>;
+pub type PaintGlyph<'a> = TableRef<'a, PaintGlyphMarker, PaintGlyphFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintGlyph<'a> {
     /// Set to 10.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint table.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
     }
 
     /// Glyph ID for the source outline.
+    #[inline]
     pub fn glyph_id(&self) -> GlyphId16 {
-        let range = self.shape.glyph_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_id.get()
     }
 }
 
@@ -3233,6 +3588,18 @@ impl Format<u8> for PaintColrGlyphMarker {
     const FORMAT: u8 = 11;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintColrGlyphFixedFields {
+    pub format: u8,
+    pub glyph_id: BigEndian<GlyphId16>,
+}
+
+impl FixedSize for PaintColrGlyphFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN;
+}
+
 /// [PaintColrGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-11-paintcolrglyph) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -3257,29 +3624,29 @@ impl MinByteRange for PaintColrGlyphMarker {
 }
 
 impl<'a> FontRead<'a> for PaintColrGlyph<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<GlyphId16>();
-        cursor.finish(PaintColrGlyphMarker {})
+        let fixed_fields: &'a PaintColrGlyphFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintColrGlyphMarker {}, fixed_fields)
     }
 }
 
 /// [PaintColrGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-11-paintcolrglyph) table
-pub type PaintColrGlyph<'a> = TableRef<'a, PaintColrGlyphMarker>;
+pub type PaintColrGlyph<'a> = TableRef<'a, PaintColrGlyphMarker, PaintColrGlyphFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintColrGlyph<'a> {
     /// Set to 11.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Glyph ID for a BaseGlyphList base glyph.
+    #[inline]
     pub fn glyph_id(&self) -> GlyphId16 {
-        let range = self.shape.glyph_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_id.get()
     }
 }
 
@@ -3307,6 +3674,19 @@ impl<'a> std::fmt::Debug for PaintColrGlyph<'a> {
 
 impl Format<u8> for PaintTransformMarker {
     const FORMAT: u8 = 12;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintTransformFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub transform_offset: BigEndian<Offset24>,
+}
+
+impl FixedSize for PaintTransformFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
 }
 
 /// [PaintTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
@@ -3338,45 +3718,46 @@ impl MinByteRange for PaintTransformMarker {
 }
 
 impl<'a> FontRead<'a> for PaintTransform<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<Offset24>();
-        cursor.finish(PaintTransformMarker {})
+        let fixed_fields: &'a PaintTransformFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintTransformMarker {}, fixed_fields)
     }
 }
 
 /// [PaintTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
-pub type PaintTransform<'a> = TableRef<'a, PaintTransformMarker>;
+pub type PaintTransform<'a> = TableRef<'a, PaintTransformMarker, PaintTransformFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintTransform<'a> {
     /// Set to 12.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
     }
 
     /// Offset to an Affine2x3 table.
+    #[inline]
     pub fn transform_offset(&self) -> Offset24 {
-        let range = self.shape.transform_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().transform_offset.get()
     }
 
     /// Attempt to resolve [`transform_offset`][Self::transform_offset].
+    #[inline]
     pub fn transform(&self) -> Result<Affine2x3<'a>, ReadError> {
         let data = self.data;
         self.transform_offset().resolve(data)
@@ -3416,6 +3797,19 @@ impl Format<u8> for PaintVarTransformMarker {
     const FORMAT: u8 = 13;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintVarTransformFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub transform_offset: BigEndian<Offset24>,
+}
+
+impl FixedSize for PaintVarTransformFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
+}
+
 /// [PaintVarTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -3445,45 +3839,47 @@ impl MinByteRange for PaintVarTransformMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarTransform<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<Offset24>();
-        cursor.finish(PaintVarTransformMarker {})
+        let fixed_fields: &'a PaintVarTransformFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintVarTransformMarker {}, fixed_fields)
     }
 }
 
 /// [PaintVarTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
-pub type PaintVarTransform<'a> = TableRef<'a, PaintVarTransformMarker>;
+pub type PaintVarTransform<'a> =
+    TableRef<'a, PaintVarTransformMarker, PaintVarTransformFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarTransform<'a> {
     /// Set to 13.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
     }
 
     /// Offset to a VarAffine2x3 table.
+    #[inline]
     pub fn transform_offset(&self) -> Offset24 {
-        let range = self.shape.transform_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().transform_offset.get()
     }
 
     /// Attempt to resolve [`transform_offset`][Self::transform_offset].
+    #[inline]
     pub fn transform(&self) -> Result<VarAffine2x3<'a>, ReadError> {
         let data = self.data;
         self.transform_offset().resolve(data)
@@ -3517,6 +3913,27 @@ impl<'a> std::fmt::Debug for PaintVarTransform<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Affine2x3FixedFields {
+    pub xx: BigEndian<Fixed>,
+    pub yx: BigEndian<Fixed>,
+    pub xy: BigEndian<Fixed>,
+    pub yy: BigEndian<Fixed>,
+    pub dx: BigEndian<Fixed>,
+    pub dy: BigEndian<Fixed>,
+}
+
+impl FixedSize for Affine2x3FixedFields {
+    const RAW_BYTE_LEN: usize = Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN;
 }
 
 /// [Affine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
@@ -3563,57 +3980,53 @@ impl MinByteRange for Affine2x3Marker {
 }
 
 impl<'a> FontRead<'a> for Affine2x3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.finish(Affine2x3Marker {})
+        let fixed_fields: &'a Affine2x3FixedFields = cursor.read_ref()?;
+        cursor.finish(Affine2x3Marker {}, fixed_fields)
     }
 }
 
 /// [Affine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
-pub type Affine2x3<'a> = TableRef<'a, Affine2x3Marker>;
+pub type Affine2x3<'a> = TableRef<'a, Affine2x3Marker, Affine2x3FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Affine2x3<'a> {
     /// x-component of transformed x-basis vector.
+    #[inline]
     pub fn xx(&self) -> Fixed {
-        let range = self.shape.xx_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().xx.get()
     }
 
     /// y-component of transformed x-basis vector.
+    #[inline]
     pub fn yx(&self) -> Fixed {
-        let range = self.shape.yx_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().yx.get()
     }
 
     /// x-component of transformed y-basis vector.
+    #[inline]
     pub fn xy(&self) -> Fixed {
-        let range = self.shape.xy_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().xy.get()
     }
 
     /// y-component of transformed y-basis vector.
+    #[inline]
     pub fn yy(&self) -> Fixed {
-        let range = self.shape.yy_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().yy.get()
     }
 
     /// Translation in x direction.
+    #[inline]
     pub fn dx(&self) -> Fixed {
-        let range = self.shape.dx_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().dx.get()
     }
 
     /// Translation in y direction.
+    #[inline]
     pub fn dy(&self) -> Fixed {
-        let range = self.shape.dy_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().dy.get()
     }
 }
 
@@ -3641,6 +4054,29 @@ impl<'a> std::fmt::Debug for Affine2x3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct VarAffine2x3FixedFields {
+    pub xx: BigEndian<Fixed>,
+    pub yx: BigEndian<Fixed>,
+    pub xy: BigEndian<Fixed>,
+    pub yy: BigEndian<Fixed>,
+    pub dx: BigEndian<Fixed>,
+    pub dy: BigEndian<Fixed>,
+    pub var_index_base: BigEndian<u32>,
+}
+
+impl FixedSize for VarAffine2x3FixedFields {
+    const RAW_BYTE_LEN: usize = Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [VarAffine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
@@ -3692,68 +4128,63 @@ impl MinByteRange for VarAffine2x3Marker {
 }
 
 impl<'a> FontRead<'a> for VarAffine2x3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<u32>();
-        cursor.finish(VarAffine2x3Marker {})
+        let fixed_fields: &'a VarAffine2x3FixedFields = cursor.read_ref()?;
+        cursor.finish(VarAffine2x3Marker {}, fixed_fields)
     }
 }
 
 /// [VarAffine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
-pub type VarAffine2x3<'a> = TableRef<'a, VarAffine2x3Marker>;
+pub type VarAffine2x3<'a> = TableRef<'a, VarAffine2x3Marker, VarAffine2x3FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarAffine2x3<'a> {
     /// x-component of transformed x-basis vector. For variation, use
     /// varIndexBase + 0.
+    #[inline]
     pub fn xx(&self) -> Fixed {
-        let range = self.shape.xx_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().xx.get()
     }
 
     /// y-component of transformed x-basis vector. For variation, use
     /// varIndexBase + 1.
+    #[inline]
     pub fn yx(&self) -> Fixed {
-        let range = self.shape.yx_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().yx.get()
     }
 
     /// x-component of transformed y-basis vector. For variation, use
     /// varIndexBase + 2.
+    #[inline]
     pub fn xy(&self) -> Fixed {
-        let range = self.shape.xy_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().xy.get()
     }
 
     /// y-component of transformed y-basis vector. For variation, use
     /// varIndexBase + 3.
+    #[inline]
     pub fn yy(&self) -> Fixed {
-        let range = self.shape.yy_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().yy.get()
     }
 
     /// Translation in x direction. For variation, use varIndexBase + 4.
+    #[inline]
     pub fn dx(&self) -> Fixed {
-        let range = self.shape.dx_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().dx.get()
     }
 
     /// Translation in y direction. For variation, use varIndexBase + 5.
+    #[inline]
     pub fn dy(&self) -> Fixed {
-        let range = self.shape.dy_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().dy.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index_base.get()
     }
 }
 
@@ -3786,6 +4217,21 @@ impl<'a> std::fmt::Debug for VarAffine2x3<'a> {
 
 impl Format<u8> for PaintTranslateMarker {
     const FORMAT: u8 = 14;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintTranslateFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub dx: BigEndian<FWord>,
+    pub dy: BigEndian<FWord>,
+}
+
+impl FixedSize for PaintTranslateFixedFields {
+    const RAW_BYTE_LEN: usize =
+        u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + FWord::RAW_BYTE_LEN + FWord::RAW_BYTE_LEN;
 }
 
 /// [PaintTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
@@ -3822,49 +4268,48 @@ impl MinByteRange for PaintTranslateMarker {
 }
 
 impl<'a> FontRead<'a> for PaintTranslate<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintTranslateMarker {})
+        let fixed_fields: &'a PaintTranslateFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintTranslateMarker {}, fixed_fields)
     }
 }
 
 /// [PaintTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
-pub type PaintTranslate<'a> = TableRef<'a, PaintTranslateMarker>;
+pub type PaintTranslate<'a> = TableRef<'a, PaintTranslateMarker, PaintTranslateFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintTranslate<'a> {
     /// Set to 14.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
     }
 
     /// Translation in x direction.
+    #[inline]
     pub fn dx(&self) -> FWord {
-        let range = self.shape.dx_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().dx.get()
     }
 
     /// Translation in y direction.
+    #[inline]
     pub fn dy(&self) -> FWord {
-        let range = self.shape.dy_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().dy.get()
     }
 }
 
@@ -3897,6 +4342,25 @@ impl<'a> std::fmt::Debug for PaintTranslate<'a> {
 
 impl Format<u8> for PaintVarTranslateMarker {
     const FORMAT: u8 = 15;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintVarTranslateFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub dx: BigEndian<FWord>,
+    pub dy: BigEndian<FWord>,
+    pub var_index_base: BigEndian<u32>,
+}
+
+impl FixedSize for PaintVarTranslateFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [PaintVarTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
@@ -3938,56 +4402,55 @@ impl MinByteRange for PaintVarTranslateMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarTranslate<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarTranslateMarker {})
+        let fixed_fields: &'a PaintVarTranslateFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintVarTranslateMarker {}, fixed_fields)
     }
 }
 
 /// [PaintVarTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
-pub type PaintVarTranslate<'a> = TableRef<'a, PaintVarTranslateMarker>;
+pub type PaintVarTranslate<'a> =
+    TableRef<'a, PaintVarTranslateMarker, PaintVarTranslateFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarTranslate<'a> {
     /// Set to 15.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
     }
 
     /// Translation in x direction. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn dx(&self) -> FWord {
-        let range = self.shape.dx_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().dx.get()
     }
 
     /// Translation in y direction. For variation, use varIndexBase + 1.
+    #[inline]
     pub fn dy(&self) -> FWord {
-        let range = self.shape.dy_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().dy.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index_base.get()
     }
 }
 
@@ -4021,6 +4484,21 @@ impl<'a> std::fmt::Debug for PaintVarTranslate<'a> {
 
 impl Format<u8> for PaintScaleMarker {
     const FORMAT: u8 = 16;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintScaleFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub scale_x: BigEndian<F2Dot14>,
+    pub scale_y: BigEndian<F2Dot14>,
+}
+
+impl FixedSize for PaintScaleFixedFields {
+    const RAW_BYTE_LEN: usize =
+        u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
 /// [PaintScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
@@ -4057,49 +4535,48 @@ impl MinByteRange for PaintScaleMarker {
 }
 
 impl<'a> FontRead<'a> for PaintScale<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintScaleMarker {})
+        let fixed_fields: &'a PaintScaleFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintScaleMarker {}, fixed_fields)
     }
 }
 
 /// [PaintScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintScale<'a> = TableRef<'a, PaintScaleMarker>;
+pub type PaintScale<'a> = TableRef<'a, PaintScaleMarker, PaintScaleFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScale<'a> {
     /// Set to 16.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
     }
 
     /// Scale factor in x direction.
+    #[inline]
     pub fn scale_x(&self) -> F2Dot14 {
-        let range = self.shape.scale_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().scale_x.get()
     }
 
     /// Scale factor in y direction.
+    #[inline]
     pub fn scale_y(&self) -> F2Dot14 {
-        let range = self.shape.scale_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().scale_y.get()
     }
 }
 
@@ -4132,6 +4609,25 @@ impl<'a> std::fmt::Debug for PaintScale<'a> {
 
 impl Format<u8> for PaintVarScaleMarker {
     const FORMAT: u8 = 17;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintVarScaleFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub scale_x: BigEndian<F2Dot14>,
+    pub scale_y: BigEndian<F2Dot14>,
+    pub var_index_base: BigEndian<u32>,
+}
+
+impl FixedSize for PaintVarScaleFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [PaintVarScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
@@ -4173,35 +4669,33 @@ impl MinByteRange for PaintVarScaleMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarScale<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarScaleMarker {})
+        let fixed_fields: &'a PaintVarScaleFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintVarScaleMarker {}, fixed_fields)
     }
 }
 
 /// [PaintVarScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintVarScale<'a> = TableRef<'a, PaintVarScaleMarker>;
+pub type PaintVarScale<'a> = TableRef<'a, PaintVarScaleMarker, PaintVarScaleFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScale<'a> {
     /// Set to 17.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
@@ -4209,22 +4703,22 @@ impl<'a> PaintVarScale<'a> {
 
     /// Scale factor in x direction. For variation, use varIndexBase +
     /// 0.
+    #[inline]
     pub fn scale_x(&self) -> F2Dot14 {
-        let range = self.shape.scale_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().scale_x.get()
     }
 
     /// Scale factor in y direction. For variation, use varIndexBase +
     /// 1.
+    #[inline]
     pub fn scale_y(&self) -> F2Dot14 {
-        let range = self.shape.scale_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().scale_y.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index_base.get()
     }
 }
 
@@ -4258,6 +4752,27 @@ impl<'a> std::fmt::Debug for PaintVarScale<'a> {
 
 impl Format<u8> for PaintScaleAroundCenterMarker {
     const FORMAT: u8 = 18;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintScaleAroundCenterFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub scale_x: BigEndian<F2Dot14>,
+    pub scale_y: BigEndian<F2Dot14>,
+    pub center_x: BigEndian<FWord>,
+    pub center_y: BigEndian<FWord>,
+}
+
+impl FixedSize for PaintScaleAroundCenterFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN;
 }
 
 /// [PaintScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
@@ -4304,63 +4819,61 @@ impl MinByteRange for PaintScaleAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintScaleAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintScaleAroundCenterMarker {})
+        let fixed_fields: &'a PaintScaleAroundCenterFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintScaleAroundCenterMarker {}, fixed_fields)
     }
 }
 
 /// [PaintScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintScaleAroundCenter<'a> = TableRef<'a, PaintScaleAroundCenterMarker>;
+pub type PaintScaleAroundCenter<'a> =
+    TableRef<'a, PaintScaleAroundCenterMarker, PaintScaleAroundCenterFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleAroundCenter<'a> {
     /// Set to 18.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
     }
 
     /// Scale factor in x direction.
+    #[inline]
     pub fn scale_x(&self) -> F2Dot14 {
-        let range = self.shape.scale_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().scale_x.get()
     }
 
     /// Scale factor in y direction.
+    #[inline]
     pub fn scale_y(&self) -> F2Dot14 {
-        let range = self.shape.scale_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().scale_y.get()
     }
 
     /// x coordinate for the center of scaling.
+    #[inline]
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_x.get()
     }
 
     /// y coordinate for the center of scaling.
+    #[inline]
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_y.get()
     }
 }
 
@@ -4395,6 +4908,29 @@ impl<'a> std::fmt::Debug for PaintScaleAroundCenter<'a> {
 
 impl Format<u8> for PaintVarScaleAroundCenterMarker {
     const FORMAT: u8 = 19;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintVarScaleAroundCenterFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub scale_x: BigEndian<F2Dot14>,
+    pub scale_y: BigEndian<F2Dot14>,
+    pub center_x: BigEndian<FWord>,
+    pub center_y: BigEndian<FWord>,
+    pub var_index_base: BigEndian<u32>,
+}
+
+impl FixedSize for PaintVarScaleAroundCenterFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [PaintVarScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
@@ -4446,37 +4982,34 @@ impl MinByteRange for PaintVarScaleAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarScaleAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarScaleAroundCenterMarker {})
+        let fixed_fields: &'a PaintVarScaleAroundCenterFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintVarScaleAroundCenterMarker {}, fixed_fields)
     }
 }
 
 /// [PaintVarScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintVarScaleAroundCenter<'a> = TableRef<'a, PaintVarScaleAroundCenterMarker>;
+pub type PaintVarScaleAroundCenter<'a> =
+    TableRef<'a, PaintVarScaleAroundCenterMarker, PaintVarScaleAroundCenterFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleAroundCenter<'a> {
     /// Set to 19.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
@@ -4484,36 +5017,36 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
 
     /// Scale factor in x direction. For variation, use varIndexBase +
     /// 0.
+    #[inline]
     pub fn scale_x(&self) -> F2Dot14 {
-        let range = self.shape.scale_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().scale_x.get()
     }
 
     /// Scale factor in y direction. For variation, use varIndexBase +
     /// 1.
+    #[inline]
     pub fn scale_y(&self) -> F2Dot14 {
-        let range = self.shape.scale_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().scale_y.get()
     }
 
     /// x coordinate for the center of scaling. For variation, use
     /// varIndexBase + 2.
+    #[inline]
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_x.get()
     }
 
     /// y coordinate for the center of scaling. For variation, use
     /// varIndexBase + 3.
+    #[inline]
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_y.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index_base.get()
     }
 }
 
@@ -4551,6 +5084,19 @@ impl Format<u8> for PaintScaleUniformMarker {
     const FORMAT: u8 = 20;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintScaleUniformFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub scale: BigEndian<F2Dot14>,
+}
+
+impl FixedSize for PaintScaleUniformFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
+}
+
 /// [PaintScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -4580,42 +5126,43 @@ impl MinByteRange for PaintScaleUniformMarker {
 }
 
 impl<'a> FontRead<'a> for PaintScaleUniform<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintScaleUniformMarker {})
+        let fixed_fields: &'a PaintScaleUniformFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintScaleUniformMarker {}, fixed_fields)
     }
 }
 
 /// [PaintScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintScaleUniform<'a> = TableRef<'a, PaintScaleUniformMarker>;
+pub type PaintScaleUniform<'a> =
+    TableRef<'a, PaintScaleUniformMarker, PaintScaleUniformFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleUniform<'a> {
     /// Set to 20.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
     }
 
     /// Scale factor in x and y directions.
+    #[inline]
     pub fn scale(&self) -> F2Dot14 {
-        let range = self.shape.scale_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().scale.get()
     }
 }
 
@@ -4647,6 +5194,21 @@ impl<'a> std::fmt::Debug for PaintScaleUniform<'a> {
 
 impl Format<u8> for PaintVarScaleUniformMarker {
     const FORMAT: u8 = 21;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintVarScaleUniformFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub scale: BigEndian<F2Dot14>,
+    pub var_index_base: BigEndian<u32>,
+}
+
+impl FixedSize for PaintVarScaleUniformFixedFields {
+    const RAW_BYTE_LEN: usize =
+        u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
 /// [PaintVarScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
@@ -4683,34 +5245,34 @@ impl MinByteRange for PaintVarScaleUniformMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarScaleUniform<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarScaleUniformMarker {})
+        let fixed_fields: &'a PaintVarScaleUniformFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintVarScaleUniformMarker {}, fixed_fields)
     }
 }
 
 /// [PaintVarScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintVarScaleUniform<'a> = TableRef<'a, PaintVarScaleUniformMarker>;
+pub type PaintVarScaleUniform<'a> =
+    TableRef<'a, PaintVarScaleUniformMarker, PaintVarScaleUniformFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleUniform<'a> {
     /// Set to 21.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
@@ -4718,15 +5280,15 @@ impl<'a> PaintVarScaleUniform<'a> {
 
     /// Scale factor in x and y directions. For variation, use
     /// varIndexBase + 0.
+    #[inline]
     pub fn scale(&self) -> F2Dot14 {
-        let range = self.shape.scale_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().scale.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index_base.get()
     }
 }
 
@@ -4759,6 +5321,25 @@ impl<'a> std::fmt::Debug for PaintVarScaleUniform<'a> {
 
 impl Format<u8> for PaintScaleUniformAroundCenterMarker {
     const FORMAT: u8 = 22;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintScaleUniformAroundCenterFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub scale: BigEndian<F2Dot14>,
+    pub center_x: BigEndian<FWord>,
+    pub center_y: BigEndian<FWord>,
+}
+
+impl FixedSize for PaintScaleUniformAroundCenterFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN;
 }
 
 /// [PaintScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
@@ -4800,56 +5381,55 @@ impl MinByteRange for PaintScaleUniformAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintScaleUniformAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintScaleUniformAroundCenterMarker {})
+        let fixed_fields: &'a PaintScaleUniformAroundCenterFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintScaleUniformAroundCenterMarker {}, fixed_fields)
     }
 }
 
 /// [PaintScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintScaleUniformAroundCenter<'a> = TableRef<'a, PaintScaleUniformAroundCenterMarker>;
+pub type PaintScaleUniformAroundCenter<'a> =
+    TableRef<'a, PaintScaleUniformAroundCenterMarker, PaintScaleUniformAroundCenterFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleUniformAroundCenter<'a> {
     /// Set to 22.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
     }
 
     /// Scale factor in x and y directions.
+    #[inline]
     pub fn scale(&self) -> F2Dot14 {
-        let range = self.shape.scale_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().scale.get()
     }
 
     /// x coordinate for the center of scaling.
+    #[inline]
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_x.get()
     }
 
     /// y coordinate for the center of scaling.
+    #[inline]
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_y.get()
     }
 }
 
@@ -4883,6 +5463,27 @@ impl<'a> std::fmt::Debug for PaintScaleUniformAroundCenter<'a> {
 
 impl Format<u8> for PaintVarScaleUniformAroundCenterMarker {
     const FORMAT: u8 = 23;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintVarScaleUniformAroundCenterFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub scale: BigEndian<F2Dot14>,
+    pub center_x: BigEndian<FWord>,
+    pub center_y: BigEndian<FWord>,
+    pub var_index_base: BigEndian<u32>,
+}
+
+impl FixedSize for PaintVarScaleUniformAroundCenterFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [PaintVarScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
@@ -4929,37 +5530,37 @@ impl MinByteRange for PaintVarScaleUniformAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarScaleUniformAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarScaleUniformAroundCenterMarker {})
+        let fixed_fields: &'a PaintVarScaleUniformAroundCenterFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintVarScaleUniformAroundCenterMarker {}, fixed_fields)
     }
 }
 
 /// [PaintVarScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintVarScaleUniformAroundCenter<'a> =
-    TableRef<'a, PaintVarScaleUniformAroundCenterMarker>;
+pub type PaintVarScaleUniformAroundCenter<'a> = TableRef<
+    'a,
+    PaintVarScaleUniformAroundCenterMarker,
+    PaintVarScaleUniformAroundCenterFixedFields,
+>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleUniformAroundCenter<'a> {
     /// Set to 23.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
@@ -4967,29 +5568,29 @@ impl<'a> PaintVarScaleUniformAroundCenter<'a> {
 
     /// Scale factor in x and y directions. For variation, use
     /// varIndexBase + 0.
+    #[inline]
     pub fn scale(&self) -> F2Dot14 {
-        let range = self.shape.scale_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().scale.get()
     }
 
     /// x coordinate for the center of scaling. For variation, use
     /// varIndexBase + 1.
+    #[inline]
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_x.get()
     }
 
     /// y coordinate for the center of scaling. For variation, use
     /// varIndexBase + 2.
+    #[inline]
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_y.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index_base.get()
     }
 }
 
@@ -5026,6 +5627,19 @@ impl Format<u8> for PaintRotateMarker {
     const FORMAT: u8 = 24;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintRotateFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub angle: BigEndian<F2Dot14>,
+}
+
+impl FixedSize for PaintRotateFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
+}
+
 /// [PaintRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -5055,33 +5669,33 @@ impl MinByteRange for PaintRotateMarker {
 }
 
 impl<'a> FontRead<'a> for PaintRotate<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintRotateMarker {})
+        let fixed_fields: &'a PaintRotateFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintRotateMarker {}, fixed_fields)
     }
 }
 
 /// [PaintRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-pub type PaintRotate<'a> = TableRef<'a, PaintRotateMarker>;
+pub type PaintRotate<'a> = TableRef<'a, PaintRotateMarker, PaintRotateFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRotate<'a> {
     /// Set to 24.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
@@ -5089,9 +5703,9 @@ impl<'a> PaintRotate<'a> {
 
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value.
+    #[inline]
     pub fn angle(&self) -> F2Dot14 {
-        let range = self.shape.angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().angle.get()
     }
 }
 
@@ -5123,6 +5737,21 @@ impl<'a> std::fmt::Debug for PaintRotate<'a> {
 
 impl Format<u8> for PaintVarRotateMarker {
     const FORMAT: u8 = 25;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintVarRotateFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub angle: BigEndian<F2Dot14>,
+    pub var_index_base: BigEndian<u32>,
+}
+
+impl FixedSize for PaintVarRotateFixedFields {
+    const RAW_BYTE_LEN: usize =
+        u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
 /// [PaintVarRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
@@ -5159,34 +5788,33 @@ impl MinByteRange for PaintVarRotateMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarRotate<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarRotateMarker {})
+        let fixed_fields: &'a PaintVarRotateFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintVarRotateMarker {}, fixed_fields)
     }
 }
 
 /// [PaintVarRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-pub type PaintVarRotate<'a> = TableRef<'a, PaintVarRotateMarker>;
+pub type PaintVarRotate<'a> = TableRef<'a, PaintVarRotateMarker, PaintVarRotateFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRotate<'a> {
     /// Set to 25.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
@@ -5194,15 +5822,15 @@ impl<'a> PaintVarRotate<'a> {
 
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn angle(&self) -> F2Dot14 {
-        let range = self.shape.angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().angle.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index_base.get()
     }
 }
 
@@ -5235,6 +5863,25 @@ impl<'a> std::fmt::Debug for PaintVarRotate<'a> {
 
 impl Format<u8> for PaintRotateAroundCenterMarker {
     const FORMAT: u8 = 26;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintRotateAroundCenterFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub angle: BigEndian<F2Dot14>,
+    pub center_x: BigEndian<FWord>,
+    pub center_y: BigEndian<FWord>,
+}
+
+impl FixedSize for PaintRotateAroundCenterFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN;
 }
 
 /// [PaintRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
@@ -5276,35 +5923,34 @@ impl MinByteRange for PaintRotateAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintRotateAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintRotateAroundCenterMarker {})
+        let fixed_fields: &'a PaintRotateAroundCenterFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintRotateAroundCenterMarker {}, fixed_fields)
     }
 }
 
 /// [PaintRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-pub type PaintRotateAroundCenter<'a> = TableRef<'a, PaintRotateAroundCenterMarker>;
+pub type PaintRotateAroundCenter<'a> =
+    TableRef<'a, PaintRotateAroundCenterMarker, PaintRotateAroundCenterFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRotateAroundCenter<'a> {
     /// Set to 26.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
@@ -5312,21 +5958,21 @@ impl<'a> PaintRotateAroundCenter<'a> {
 
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value.
+    #[inline]
     pub fn angle(&self) -> F2Dot14 {
-        let range = self.shape.angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().angle.get()
     }
 
     /// x coordinate for the center of rotation.
+    #[inline]
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_x.get()
     }
 
     /// y coordinate for the center of rotation.
+    #[inline]
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_y.get()
     }
 }
 
@@ -5360,6 +6006,27 @@ impl<'a> std::fmt::Debug for PaintRotateAroundCenter<'a> {
 
 impl Format<u8> for PaintVarRotateAroundCenterMarker {
     const FORMAT: u8 = 27;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintVarRotateAroundCenterFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub angle: BigEndian<F2Dot14>,
+    pub center_x: BigEndian<FWord>,
+    pub center_y: BigEndian<FWord>,
+    pub var_index_base: BigEndian<u32>,
+}
+
+impl FixedSize for PaintVarRotateAroundCenterFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [PaintVarRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
@@ -5406,36 +6073,34 @@ impl MinByteRange for PaintVarRotateAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarRotateAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarRotateAroundCenterMarker {})
+        let fixed_fields: &'a PaintVarRotateAroundCenterFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintVarRotateAroundCenterMarker {}, fixed_fields)
     }
 }
 
 /// [PaintVarRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-pub type PaintVarRotateAroundCenter<'a> = TableRef<'a, PaintVarRotateAroundCenterMarker>;
+pub type PaintVarRotateAroundCenter<'a> =
+    TableRef<'a, PaintVarRotateAroundCenterMarker, PaintVarRotateAroundCenterFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRotateAroundCenter<'a> {
     /// Set to 27.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
@@ -5443,29 +6108,29 @@ impl<'a> PaintVarRotateAroundCenter<'a> {
 
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value. For variation, use varIndexBase + 0.
+    #[inline]
     pub fn angle(&self) -> F2Dot14 {
-        let range = self.shape.angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().angle.get()
     }
 
     /// x coordinate for the center of rotation. For variation, use
     /// varIndexBase + 1.
+    #[inline]
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_x.get()
     }
 
     /// y coordinate for the center of rotation. For variation, use
     /// varIndexBase + 2.
+    #[inline]
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_y.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index_base.get()
     }
 }
 
@@ -5502,6 +6167,21 @@ impl Format<u8> for PaintSkewMarker {
     const FORMAT: u8 = 28;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintSkewFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub x_skew_angle: BigEndian<F2Dot14>,
+    pub y_skew_angle: BigEndian<F2Dot14>,
+}
+
+impl FixedSize for PaintSkewFixedFields {
+    const RAW_BYTE_LEN: usize =
+        u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
+}
+
 /// [PaintSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -5536,34 +6216,33 @@ impl MinByteRange for PaintSkewMarker {
 }
 
 impl<'a> FontRead<'a> for PaintSkew<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintSkewMarker {})
+        let fixed_fields: &'a PaintSkewFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintSkewMarker {}, fixed_fields)
     }
 }
 
 /// [PaintSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-pub type PaintSkew<'a> = TableRef<'a, PaintSkewMarker>;
+pub type PaintSkew<'a> = TableRef<'a, PaintSkewMarker, PaintSkewFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSkew<'a> {
     /// Set to 28.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
@@ -5571,16 +6250,16 @@ impl<'a> PaintSkew<'a> {
 
     /// Angle of skew in the direction of the x-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
+    #[inline]
     pub fn x_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.x_skew_angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x_skew_angle.get()
     }
 
     /// Angle of skew in the direction of the y-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
+    #[inline]
     pub fn y_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.y_skew_angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y_skew_angle.get()
     }
 }
 
@@ -5613,6 +6292,25 @@ impl<'a> std::fmt::Debug for PaintSkew<'a> {
 
 impl Format<u8> for PaintVarSkewMarker {
     const FORMAT: u8 = 29;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintVarSkewFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub x_skew_angle: BigEndian<F2Dot14>,
+    pub y_skew_angle: BigEndian<F2Dot14>,
+    pub var_index_base: BigEndian<u32>,
+}
+
+impl FixedSize for PaintVarSkewFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [PaintVarSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
@@ -5654,35 +6352,33 @@ impl MinByteRange for PaintVarSkewMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarSkew<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarSkewMarker {})
+        let fixed_fields: &'a PaintVarSkewFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintVarSkewMarker {}, fixed_fields)
     }
 }
 
 /// [PaintVarSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-pub type PaintVarSkew<'a> = TableRef<'a, PaintVarSkewMarker>;
+pub type PaintVarSkew<'a> = TableRef<'a, PaintVarSkewMarker, PaintVarSkewFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSkew<'a> {
     /// Set to 29.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
@@ -5691,23 +6387,23 @@ impl<'a> PaintVarSkew<'a> {
     /// Angle of skew in the direction of the x-axis, 180° ┬░ in
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 0.
+    #[inline]
     pub fn x_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.x_skew_angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x_skew_angle.get()
     }
 
     /// Angle of skew in the direction of the y-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 1.
+    #[inline]
     pub fn y_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.y_skew_angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y_skew_angle.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index_base.get()
     }
 }
 
@@ -5741,6 +6437,27 @@ impl<'a> std::fmt::Debug for PaintVarSkew<'a> {
 
 impl Format<u8> for PaintSkewAroundCenterMarker {
     const FORMAT: u8 = 30;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintSkewAroundCenterFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub x_skew_angle: BigEndian<F2Dot14>,
+    pub y_skew_angle: BigEndian<F2Dot14>,
+    pub center_x: BigEndian<FWord>,
+    pub center_y: BigEndian<FWord>,
+}
+
+impl FixedSize for PaintSkewAroundCenterFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN;
 }
 
 /// [PaintSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
@@ -5787,36 +6504,34 @@ impl MinByteRange for PaintSkewAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintSkewAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintSkewAroundCenterMarker {})
+        let fixed_fields: &'a PaintSkewAroundCenterFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintSkewAroundCenterMarker {}, fixed_fields)
     }
 }
 
 /// [PaintSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-pub type PaintSkewAroundCenter<'a> = TableRef<'a, PaintSkewAroundCenterMarker>;
+pub type PaintSkewAroundCenter<'a> =
+    TableRef<'a, PaintSkewAroundCenterMarker, PaintSkewAroundCenterFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSkewAroundCenter<'a> {
     /// Set to 30.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
@@ -5824,28 +6539,28 @@ impl<'a> PaintSkewAroundCenter<'a> {
 
     /// Angle of skew in the direction of the x-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
+    #[inline]
     pub fn x_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.x_skew_angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x_skew_angle.get()
     }
 
     /// Angle of skew in the direction of the y-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
+    #[inline]
     pub fn y_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.y_skew_angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y_skew_angle.get()
     }
 
     /// x coordinate for the center of rotation.
+    #[inline]
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_x.get()
     }
 
     /// y coordinate for the center of rotation.
+    #[inline]
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_y.get()
     }
 }
 
@@ -5880,6 +6595,29 @@ impl<'a> std::fmt::Debug for PaintSkewAroundCenter<'a> {
 
 impl Format<u8> for PaintVarSkewAroundCenterMarker {
     const FORMAT: u8 = 31;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintVarSkewAroundCenterFixedFields {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub x_skew_angle: BigEndian<F2Dot14>,
+    pub y_skew_angle: BigEndian<F2Dot14>,
+    pub center_x: BigEndian<FWord>,
+    pub center_y: BigEndian<FWord>,
+    pub var_index_base: BigEndian<u32>,
+}
+
+impl FixedSize for PaintVarSkewAroundCenterFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [PaintVarSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
@@ -5931,37 +6669,34 @@ impl MinByteRange for PaintVarSkewAroundCenterMarker {
 }
 
 impl<'a> FontRead<'a> for PaintVarSkewAroundCenter<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarSkewAroundCenterMarker {})
+        let fixed_fields: &'a PaintVarSkewAroundCenterFixedFields = cursor.read_ref()?;
+        cursor.finish(PaintVarSkewAroundCenterMarker {}, fixed_fields)
     }
 }
 
 /// [PaintVarSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-pub type PaintVarSkewAroundCenter<'a> = TableRef<'a, PaintVarSkewAroundCenterMarker>;
+pub type PaintVarSkewAroundCenter<'a> =
+    TableRef<'a, PaintVarSkewAroundCenterMarker, PaintVarSkewAroundCenterFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSkewAroundCenter<'a> {
     /// Set to 31.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a Paint subtable.
+    #[inline]
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().paint_offset.get()
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.paint_offset().resolve(data)
@@ -5970,37 +6705,37 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
     /// Angle of skew in the direction of the x-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 0.
+    #[inline]
     pub fn x_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.x_skew_angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x_skew_angle.get()
     }
 
     /// Angle of skew in the direction of the y-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 1.
+    #[inline]
     pub fn y_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.y_skew_angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y_skew_angle.get()
     }
 
     /// x coordinate for the center of rotation. For variation, use
     /// varIndexBase + 2.
+    #[inline]
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_x.get()
     }
 
     /// y coordinate for the center of rotation. For variation, use
     /// varIndexBase + 3.
+    #[inline]
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().center_y.get()
     }
 
     /// Base index into DeltaSetIndexMap.
+    #[inline]
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index_base.get()
     }
 }
 
@@ -6038,6 +6773,18 @@ impl Format<u8> for PaintCompositeMarker {
     const FORMAT: u8 = 32;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PaintCompositeFixedFields {
+    pub format: u8,
+    pub source_paint_offset: BigEndian<Offset24>,
+}
+
+impl FixedSize for PaintCompositeFixedFields {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
+}
+
 /// [PaintComposite](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -6072,52 +6819,56 @@ impl MinByteRange for PaintCompositeMarker {
 }
 
 impl<'a> FontRead<'a> for PaintComposite<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
+        let fixed_fields: &'a PaintCompositeFixedFields = cursor.read_ref()?;
         cursor.advance::<CompositeMode>();
         cursor.advance::<Offset24>();
-        cursor.finish(PaintCompositeMarker {})
+        cursor.finish(PaintCompositeMarker {}, fixed_fields)
     }
 }
 
 /// [PaintComposite](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite) table
-pub type PaintComposite<'a> = TableRef<'a, PaintCompositeMarker>;
+pub type PaintComposite<'a> = TableRef<'a, PaintCompositeMarker, PaintCompositeFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintComposite<'a> {
     /// Set to 32.
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
     /// Offset to a source Paint table.
+    #[inline]
     pub fn source_paint_offset(&self) -> Offset24 {
-        let range = self.shape.source_paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().source_paint_offset.get()
     }
 
     /// Attempt to resolve [`source_paint_offset`][Self::source_paint_offset].
+    #[inline]
     pub fn source_paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.source_paint_offset().resolve(data)
     }
 
     /// A CompositeMode enumeration value.
+    #[inline]
     pub fn composite_mode(&self) -> CompositeMode {
         let range = self.shape.composite_mode_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a backdrop Paint table.
+    #[inline]
     pub fn backdrop_paint_offset(&self) -> Offset24 {
         let range = self.shape.backdrop_paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Attempt to resolve [`backdrop_paint_offset`][Self::backdrop_paint_offset].
+    #[inline]
     pub fn backdrop_paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
         self.backdrop_paint_offset().resolve(data)

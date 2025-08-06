@@ -9,6 +9,19 @@ impl Format<u16> for Table1Marker {
     const FORMAT: u16 = 1;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Table1FixedFields {
+    pub format: BigEndian<u16>,
+    pub heft: BigEndian<u32>,
+    pub flex: BigEndian<u16>,
+}
+
+impl FixedSize for Table1FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct Table1Marker {}
@@ -37,32 +50,31 @@ impl MinByteRange for Table1Marker {
 }
 
 impl<'a> FontRead<'a> for Table1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        cursor.advance::<u16>();
-        cursor.finish(Table1Marker {})
+        let fixed_fields: &'a Table1FixedFields = cursor.read_ref()?;
+        cursor.finish(Table1Marker {}, fixed_fields)
     }
 }
 
-pub type Table1<'a> = TableRef<'a, Table1Marker>;
+pub type Table1<'a> = TableRef<'a, Table1Marker, Table1FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Table1<'a> {
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
+    #[inline]
     pub fn heft(&self) -> u32 {
-        let range = self.shape.heft_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().heft.get()
     }
 
+    #[inline]
     pub fn flex(&self) -> u16 {
-        let range = self.shape.flex_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flex.get()
     }
 }
 
@@ -91,6 +103,18 @@ impl<'a> std::fmt::Debug for Table1<'a> {
 
 impl Format<u16> for Table2Marker {
     const FORMAT: u16 = 2;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Table2FixedFields {
+    pub format: BigEndian<u16>,
+    pub value_count: BigEndian<u16>,
+}
+
+impl FixedSize for Table2FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -123,32 +147,34 @@ impl MinByteRange for Table2Marker {
 }
 
 impl<'a> FontRead<'a> for Table2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let value_count: u16 = cursor.read()?;
+        let fixed_fields: &'a Table2FixedFields = cursor.read_ref()?;
+        let value_count = fixed_fields.value_count.get();
         let values_byte_len = (value_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(values_byte_len);
-        cursor.finish(Table2Marker { values_byte_len })
+        cursor.finish(Table2Marker { values_byte_len }, fixed_fields)
     }
 }
 
-pub type Table2<'a> = TableRef<'a, Table2Marker>;
+pub type Table2<'a> = TableRef<'a, Table2Marker, Table2FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Table2<'a> {
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
+    #[inline]
     pub fn value_count(&self) -> u16 {
-        let range = self.shape.value_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value_count.get()
     }
 
+    #[inline]
     pub fn values(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.values_byte_range();
         self.data.read_array(range).unwrap()
@@ -182,6 +208,18 @@ impl Format<u16> for Table3Marker {
     const FORMAT: u16 = 3;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Table3FixedFields {
+    pub format: BigEndian<u16>,
+    pub something: BigEndian<u16>,
+}
+
+impl FixedSize for Table3FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct Table3Marker {}
@@ -205,26 +243,26 @@ impl MinByteRange for Table3Marker {
 }
 
 impl<'a> FontRead<'a> for Table3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.finish(Table3Marker {})
+        let fixed_fields: &'a Table3FixedFields = cursor.read_ref()?;
+        cursor.finish(Table3Marker {}, fixed_fields)
     }
 }
 
-pub type Table3<'a> = TableRef<'a, Table3Marker>;
+pub type Table3<'a> = TableRef<'a, Table3Marker, Table3FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Table3<'a> {
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
+    #[inline]
     pub fn something(&self) -> u16 {
-        let range = self.shape.something_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().something.get()
     }
 }
 
@@ -259,6 +297,7 @@ pub enum MyTable<'a> {
 
 impl<'a> MyTable<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
+    #[inline]
     pub fn offset_data(&self) -> FontData<'a> {
         match self {
             Self::Format1(item) => item.offset_data(),
@@ -267,6 +306,7 @@ impl<'a> MyTable<'a> {
         }
     }
 
+    #[inline]
     pub fn format(&self) -> u16 {
         match self {
             Self::Format1(item) => item.format(),

@@ -5,6 +5,19 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct HdmxFixedFields {
+    pub version: BigEndian<u16>,
+    pub num_records: BigEndian<u16>,
+    pub size_device_record: BigEndian<u32>,
+}
+
+impl FixedSize for HdmxFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
 /// The [Horizontal Device Metrics](https://learn.microsoft.com/en-us/typography/opentype/spec/hdmx) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -51,12 +64,13 @@ impl ReadArgs for Hdmx<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Hdmx<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let num_glyphs = *args;
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let num_records: u16 = cursor.read()?;
-        let size_device_record: u32 = cursor.read()?;
+        let fixed_fields: &'a HdmxFixedFields = cursor.read_ref()?;
+        let num_records = fixed_fields.num_records.get();
+        let size_device_record = fixed_fields.size_device_record.get();
         let records_byte_len = (num_records as usize)
             .checked_mul(<DeviceRecord as ComputeSize>::compute_size(&(
                 num_glyphs,
@@ -64,10 +78,13 @@ impl<'a> FontReadWithArgs<'a> for Hdmx<'a> {
             ))?)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(records_byte_len);
-        cursor.finish(HdmxMarker {
-            num_glyphs,
-            records_byte_len,
-        })
+        cursor.finish(
+            HdmxMarker {
+                num_glyphs,
+                records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
@@ -76,6 +93,7 @@ impl<'a> Hdmx<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
         let args = num_glyphs;
         Self::read_with_args(data, &args)
@@ -83,29 +101,30 @@ impl<'a> Hdmx<'a> {
 }
 
 /// The [Horizontal Device Metrics](https://learn.microsoft.com/en-us/typography/opentype/spec/hdmx) table.
-pub type Hdmx<'a> = TableRef<'a, HdmxMarker>;
+pub type Hdmx<'a> = TableRef<'a, HdmxMarker, HdmxFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Hdmx<'a> {
     /// Table version number (set to 0).
+    #[inline]
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Number of device records.
+    #[inline]
     pub fn num_records(&self) -> u16 {
-        let range = self.shape.num_records_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_records.get()
     }
 
     /// Size of device record, 32-bit aligned.
+    #[inline]
     pub fn size_device_record(&self) -> u32 {
-        let range = self.shape.size_device_record_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().size_device_record.get()
     }
 
     /// Array of device records.
+    #[inline]
     pub fn records(&self) -> ComputedArray<'a, DeviceRecord<'a>> {
         let range = self.shape.records_byte_range();
         self.data

@@ -19,6 +19,7 @@ pub enum Lookup<'a> {
 
 impl<'a> Lookup<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
+    #[inline]
     pub fn offset_data(&self) -> FontData<'a> {
         match self {
             Self::Format0(item) => item.offset_data(),
@@ -31,6 +32,7 @@ impl<'a> Lookup<'a> {
     }
 
     /// Format number is set to 0.
+    #[inline]
     pub fn format(&self) -> u16 {
         match self {
             Self::Format0(item) => item.format(),
@@ -106,6 +108,17 @@ impl Format<u16> for Lookup0Marker {
     const FORMAT: u16 = 0;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Lookup0FixedFields {
+    pub format: BigEndian<u16>,
+}
+
+impl FixedSize for Lookup0FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+}
+
 /// Simple array format. The lookup data is an array of lookup values, indexed
 /// by glyph index.
 #[derive(Debug, Clone, Copy)]
@@ -133,30 +146,35 @@ impl MinByteRange for Lookup0Marker {
 }
 
 impl<'a> FontRead<'a> for Lookup0<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
+        let fixed_fields: &'a Lookup0FixedFields = cursor.read_ref()?;
         let values_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(values_data_byte_len);
-        cursor.finish(Lookup0Marker {
-            values_data_byte_len,
-        })
+        cursor.finish(
+            Lookup0Marker {
+                values_data_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// Simple array format. The lookup data is an array of lookup values, indexed
 /// by glyph index.
-pub type Lookup0<'a> = TableRef<'a, Lookup0Marker>;
+pub type Lookup0<'a> = TableRef<'a, Lookup0Marker, Lookup0FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup0<'a> {
     /// Format number is set to 0.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Values, indexed by glyph index.
+    #[inline]
     pub fn values_data(&self) -> &'a [u8] {
         let range = self.shape.values_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -187,6 +205,27 @@ impl<'a> std::fmt::Debug for Lookup0<'a> {
 
 impl Format<u16> for Lookup2Marker {
     const FORMAT: u16 = 2;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Lookup2FixedFields {
+    pub format: BigEndian<u16>,
+    pub unit_size: BigEndian<u16>,
+    pub n_units: BigEndian<u16>,
+    pub search_range: BigEndian<u16>,
+    pub entry_selector: BigEndian<u16>,
+    pub range_shift: BigEndian<u16>,
+}
+
+impl FixedSize for Lookup2FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
 }
 
 /// Segment single format. Each non-overlapping segment has a single lookup
@@ -242,68 +281,70 @@ impl MinByteRange for Lookup2Marker {
 }
 
 impl<'a> FontRead<'a> for Lookup2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let unit_size: u16 = cursor.read()?;
-        let n_units: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
+        let fixed_fields: &'a Lookup2FixedFields = cursor.read_ref()?;
+        let unit_size = fixed_fields.unit_size.get();
+        let n_units = fixed_fields.n_units.get();
         let segments_data_byte_len = (transforms::add_multiply(unit_size, 0_usize, n_units))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(segments_data_byte_len);
-        cursor.finish(Lookup2Marker {
-            segments_data_byte_len,
-        })
+        cursor.finish(
+            Lookup2Marker {
+                segments_data_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// Segment single format. Each non-overlapping segment has a single lookup
 /// value that applies to all glyphs in the segment. A segment is defined as
 /// a contiguous range of glyph indexes.
-pub type Lookup2<'a> = TableRef<'a, Lookup2Marker>;
+pub type Lookup2<'a> = TableRef<'a, Lookup2Marker, Lookup2FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup2<'a> {
     /// Format number is set to 2.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Size of a lookup unit for this search in bytes.
+    #[inline]
     pub fn unit_size(&self) -> u16 {
-        let range = self.shape.unit_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().unit_size.get()
     }
 
     /// Number of units of the preceding size to be searched.
+    #[inline]
     pub fn n_units(&self) -> u16 {
-        let range = self.shape.n_units_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().n_units.get()
     }
 
     /// The value of unitSize times the largest power of 2 that is less than or equal to the value of nUnits.
+    #[inline]
     pub fn search_range(&self) -> u16 {
-        let range = self.shape.search_range_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().search_range.get()
     }
 
     /// The log base 2 of the largest power of 2 less than or equal to the value of nUnits.
+    #[inline]
     pub fn entry_selector(&self) -> u16 {
-        let range = self.shape.entry_selector_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().entry_selector.get()
     }
 
     /// The value of unitSize times the difference of the value of nUnits minus the largest power of 2 less than or equal to the value of nUnits.
+    #[inline]
     pub fn range_shift(&self) -> u16 {
-        let range = self.shape.range_shift_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().range_shift.get()
     }
 
     /// Segments.
+    #[inline]
     pub fn segments_data(&self) -> &'a [u8] {
         let range = self.shape.segments_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -339,6 +380,27 @@ impl<'a> std::fmt::Debug for Lookup2<'a> {
 
 impl Format<u16> for Lookup4Marker {
     const FORMAT: u16 = 4;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Lookup4FixedFields {
+    pub format: BigEndian<u16>,
+    pub unit_size: BigEndian<u16>,
+    pub n_units: BigEndian<u16>,
+    pub search_range: BigEndian<u16>,
+    pub entry_selector: BigEndian<u16>,
+    pub range_shift: BigEndian<u16>,
+}
+
+impl FixedSize for Lookup4FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
 }
 
 /// Segment array format. A segment mapping is performed (as with Format 2),
@@ -394,66 +456,64 @@ impl MinByteRange for Lookup4Marker {
 }
 
 impl<'a> FontRead<'a> for Lookup4<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let n_units: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
+        let fixed_fields: &'a Lookup4FixedFields = cursor.read_ref()?;
+        let n_units = fixed_fields.n_units.get();
         let segments_byte_len = (n_units as usize)
             .checked_mul(LookupSegment4::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(segments_byte_len);
-        cursor.finish(Lookup4Marker { segments_byte_len })
+        cursor.finish(Lookup4Marker { segments_byte_len }, fixed_fields)
     }
 }
 
 /// Segment array format. A segment mapping is performed (as with Format 2),
 /// but instead of a single lookup value for all the glyphs in the segment,
 /// each glyph in the segment gets its own separate lookup value.
-pub type Lookup4<'a> = TableRef<'a, Lookup4Marker>;
+pub type Lookup4<'a> = TableRef<'a, Lookup4Marker, Lookup4FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup4<'a> {
     /// Format number is set to 4.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Size of a lookup unit for this search in bytes.
+    #[inline]
     pub fn unit_size(&self) -> u16 {
-        let range = self.shape.unit_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().unit_size.get()
     }
 
     /// Number of units of the preceding size to be searched.
+    #[inline]
     pub fn n_units(&self) -> u16 {
-        let range = self.shape.n_units_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().n_units.get()
     }
 
     /// The value of unitSize times the largest power of 2 that is less than or equal to the value of nUnits.
+    #[inline]
     pub fn search_range(&self) -> u16 {
-        let range = self.shape.search_range_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().search_range.get()
     }
 
     /// The log base 2 of the largest power of 2 less than or equal to the value of nUnits.
+    #[inline]
     pub fn entry_selector(&self) -> u16 {
-        let range = self.shape.entry_selector_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().entry_selector.get()
     }
 
     /// The value of unitSize times the difference of the value of nUnits minus the largest power of 2 less than or equal to the value of nUnits.
+    #[inline]
     pub fn range_shift(&self) -> u16 {
-        let range = self.shape.range_shift_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().range_shift.get()
     }
 
     /// Segments.
+    #[inline]
     pub fn segments(&self) -> &'a [LookupSegment4] {
         let range = self.shape.segments_byte_range();
         self.data.read_array(range).unwrap()
@@ -509,16 +569,19 @@ pub struct LookupSegment4 {
 
 impl LookupSegment4 {
     /// Last glyph index in this segment.
+    #[inline]
     pub fn last_glyph(&self) -> u16 {
         self.last_glyph.get()
     }
 
     /// First glyph index in this segment.
+    #[inline]
     pub fn first_glyph(&self) -> u16 {
         self.first_glyph.get()
     }
 
     /// A 16-bit offset from the start of the table to the data.
+    #[inline]
     pub fn value_offset(&self) -> u16 {
         self.value_offset.get()
     }
@@ -546,6 +609,27 @@ impl<'a> SomeRecord<'a> for LookupSegment4 {
 
 impl Format<u16> for Lookup6Marker {
     const FORMAT: u16 = 6;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Lookup6FixedFields {
+    pub format: BigEndian<u16>,
+    pub unit_size: BigEndian<u16>,
+    pub n_units: BigEndian<u16>,
+    pub search_range: BigEndian<u16>,
+    pub entry_selector: BigEndian<u16>,
+    pub range_shift: BigEndian<u16>,
+}
+
+impl FixedSize for Lookup6FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
 }
 
 /// Single table format. The lookup data is a sorted list of
@@ -600,67 +684,69 @@ impl MinByteRange for Lookup6Marker {
 }
 
 impl<'a> FontRead<'a> for Lookup6<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let unit_size: u16 = cursor.read()?;
-        let n_units: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
+        let fixed_fields: &'a Lookup6FixedFields = cursor.read_ref()?;
+        let unit_size = fixed_fields.unit_size.get();
+        let n_units = fixed_fields.n_units.get();
         let entries_data_byte_len = (transforms::add_multiply(unit_size, 0_usize, n_units))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(entries_data_byte_len);
-        cursor.finish(Lookup6Marker {
-            entries_data_byte_len,
-        })
+        cursor.finish(
+            Lookup6Marker {
+                entries_data_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// Single table format. The lookup data is a sorted list of
 /// <glyph index,lookup value> pairs.
-pub type Lookup6<'a> = TableRef<'a, Lookup6Marker>;
+pub type Lookup6<'a> = TableRef<'a, Lookup6Marker, Lookup6FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup6<'a> {
     /// Format number is set to 6.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Size of a lookup unit for this search in bytes.
+    #[inline]
     pub fn unit_size(&self) -> u16 {
-        let range = self.shape.unit_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().unit_size.get()
     }
 
     /// Number of units of the preceding size to be searched.
+    #[inline]
     pub fn n_units(&self) -> u16 {
-        let range = self.shape.n_units_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().n_units.get()
     }
 
     /// The value of unitSize times the largest power of 2 that is less than or equal to the value of nUnits.
+    #[inline]
     pub fn search_range(&self) -> u16 {
-        let range = self.shape.search_range_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().search_range.get()
     }
 
     /// The log base 2 of the largest power of 2 less than or equal to the value of nUnits.
+    #[inline]
     pub fn entry_selector(&self) -> u16 {
-        let range = self.shape.entry_selector_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().entry_selector.get()
     }
 
     /// The value of unitSize times the difference of the value of nUnits minus the largest power of 2 less than or equal to the value of nUnits.
+    #[inline]
     pub fn range_shift(&self) -> u16 {
-        let range = self.shape.range_shift_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().range_shift.get()
     }
 
     /// Values, indexed by glyph index.
+    #[inline]
     pub fn entries_data(&self) -> &'a [u8] {
         let range = self.shape.entries_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -696,6 +782,19 @@ impl<'a> std::fmt::Debug for Lookup6<'a> {
 
 impl Format<u16> for Lookup8Marker {
     const FORMAT: u16 = 8;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Lookup8FixedFields {
+    pub format: BigEndian<u16>,
+    pub first_glyph: BigEndian<u16>,
+    pub glyph_count: BigEndian<u16>,
+}
+
+impl FixedSize for Lookup8FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// Trimmed array format. The lookup data is a simple trimmed array
@@ -735,48 +834,52 @@ impl MinByteRange for Lookup8Marker {
 }
 
 impl<'a> FontRead<'a> for Lookup8<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let glyph_count: u16 = cursor.read()?;
+        let fixed_fields: &'a Lookup8FixedFields = cursor.read_ref()?;
+        let glyph_count = fixed_fields.glyph_count.get();
         let value_array_byte_len = (glyph_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(value_array_byte_len);
-        cursor.finish(Lookup8Marker {
-            value_array_byte_len,
-        })
+        cursor.finish(
+            Lookup8Marker {
+                value_array_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// Trimmed array format. The lookup data is a simple trimmed array
 /// indexed by glyph index.
-pub type Lookup8<'a> = TableRef<'a, Lookup8Marker>;
+pub type Lookup8<'a> = TableRef<'a, Lookup8Marker, Lookup8FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup8<'a> {
     /// Format number is set to 8.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// First glyph index included in the trimmed array.
+    #[inline]
     pub fn first_glyph(&self) -> u16 {
-        let range = self.shape.first_glyph_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().first_glyph.get()
     }
 
     /// Total number of glyphs (equivalent to the last glyph minus the value
     /// of firstGlyph plus 1).
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
-        let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_count.get()
     }
 
     /// The lookup values (indexed by the glyph index minus the value of
     /// firstGlyph). Entries in the value array must be two bytes.
+    #[inline]
     pub fn value_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.value_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -809,6 +912,21 @@ impl<'a> std::fmt::Debug for Lookup8<'a> {
 
 impl Format<u16> for Lookup10Marker {
     const FORMAT: u16 = 10;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Lookup10FixedFields {
+    pub format: BigEndian<u16>,
+    pub unit_size: BigEndian<u16>,
+    pub first_glyph: BigEndian<u16>,
+    pub glyph_count: BigEndian<u16>,
+}
+
+impl FixedSize for Lookup10FixedFields {
+    const RAW_BYTE_LEN: usize =
+        u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// Trimmed array format. The lookup data is a simple trimmed array
@@ -853,56 +971,60 @@ impl MinByteRange for Lookup10Marker {
 }
 
 impl<'a> FontRead<'a> for Lookup10<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let unit_size: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        let glyph_count: u16 = cursor.read()?;
+        let fixed_fields: &'a Lookup10FixedFields = cursor.read_ref()?;
+        let unit_size = fixed_fields.unit_size.get();
+        let glyph_count = fixed_fields.glyph_count.get();
         let values_data_byte_len = (transforms::add_multiply(glyph_count, 0_usize, unit_size))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(values_data_byte_len);
-        cursor.finish(Lookup10Marker {
-            values_data_byte_len,
-        })
+        cursor.finish(
+            Lookup10Marker {
+                values_data_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// Trimmed array format. The lookup data is a simple trimmed array
 /// indexed by glyph index.
-pub type Lookup10<'a> = TableRef<'a, Lookup10Marker>;
+pub type Lookup10<'a> = TableRef<'a, Lookup10Marker, Lookup10FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup10<'a> {
     /// Format number is set to 10.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Size of a lookup unit for this lookup table in bytes. Allowed values
     /// are 1, 2, 4, and 8.
+    #[inline]
     pub fn unit_size(&self) -> u16 {
-        let range = self.shape.unit_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().unit_size.get()
     }
 
     /// First glyph index included in the trimmed array.
+    #[inline]
     pub fn first_glyph(&self) -> u16 {
-        let range = self.shape.first_glyph_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().first_glyph.get()
     }
 
     /// Total number of glyphs (equivalent to the last glyph minus the value
     /// of firstGlyph plus 1).
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
-        let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_count.get()
     }
 
     /// The lookup values (indexed by the glyph index minus the value of
     /// firstGlyph).
+    #[inline]
     pub fn values_data(&self) -> &'a [u8] {
         let range = self.shape.values_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -932,6 +1054,23 @@ impl<'a> std::fmt::Debug for Lookup10<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct StateHeaderFixedFields {
+    pub state_size: BigEndian<u16>,
+    pub class_table_offset: BigEndian<Offset16>,
+    pub state_array_offset: BigEndian<Offset16>,
+    pub entry_table_offset: BigEndian<Offset16>,
+}
+
+impl FixedSize for StateHeaderFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN;
 }
 
 /// Header for a state table.
@@ -968,59 +1107,60 @@ impl MinByteRange for StateHeaderMarker {
 }
 
 impl<'a> FontRead<'a> for StateHeader<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.finish(StateHeaderMarker {})
+        let fixed_fields: &'a StateHeaderFixedFields = cursor.read_ref()?;
+        cursor.finish(StateHeaderMarker {}, fixed_fields)
     }
 }
 
 /// Header for a state table.
-pub type StateHeader<'a> = TableRef<'a, StateHeaderMarker>;
+pub type StateHeader<'a> = TableRef<'a, StateHeaderMarker, StateHeaderFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> StateHeader<'a> {
     /// Size of a state, in bytes. The size is limited to 8 bits, although the
     /// field is 16 bits for alignment.
+    #[inline]
     pub fn state_size(&self) -> u16 {
-        let range = self.shape.state_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().state_size.get()
     }
 
     /// Byte offset from the beginning of the state table to the class subtable.
+    #[inline]
     pub fn class_table_offset(&self) -> Offset16 {
-        let range = self.shape.class_table_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().class_table_offset.get()
     }
 
     /// Attempt to resolve [`class_table_offset`][Self::class_table_offset].
+    #[inline]
     pub fn class_table(&self) -> Result<ClassSubtable<'a>, ReadError> {
         let data = self.data;
         self.class_table_offset().resolve(data)
     }
 
     /// Byte offset from the beginning of the state table to the state array.
+    #[inline]
     pub fn state_array_offset(&self) -> Offset16 {
-        let range = self.shape.state_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().state_array_offset.get()
     }
 
     /// Attempt to resolve [`state_array_offset`][Self::state_array_offset].
+    #[inline]
     pub fn state_array(&self) -> Result<RawBytes<'a>, ReadError> {
         let data = self.data;
         self.state_array_offset().resolve(data)
     }
 
     /// Byte offset from the beginning of the state table to the entry subtable.
+    #[inline]
     pub fn entry_table_offset(&self) -> Offset16 {
-        let range = self.shape.entry_table_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().entry_table_offset.get()
     }
 
     /// Attempt to resolve [`entry_table_offset`][Self::entry_table_offset].
+    #[inline]
     pub fn entry_table(&self) -> Result<RawBytes<'a>, ReadError> {
         let data = self.data;
         self.entry_table_offset().resolve(data)
@@ -1060,6 +1200,18 @@ impl<'a> std::fmt::Debug for StateHeader<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ClassSubtableFixedFields {
+    pub first_glyph: BigEndian<u16>,
+    pub n_glyphs: BigEndian<u16>,
+}
+
+impl FixedSize for ClassSubtableFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// Maps the glyph indexes of your font into classes.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1091,39 +1243,44 @@ impl MinByteRange for ClassSubtableMarker {
 }
 
 impl<'a> FontRead<'a> for ClassSubtable<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let n_glyphs: u16 = cursor.read()?;
+        let fixed_fields: &'a ClassSubtableFixedFields = cursor.read_ref()?;
+        let n_glyphs = fixed_fields.n_glyphs.get();
         let class_array_byte_len = (n_glyphs as usize)
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(class_array_byte_len);
-        cursor.finish(ClassSubtableMarker {
-            class_array_byte_len,
-        })
+        cursor.finish(
+            ClassSubtableMarker {
+                class_array_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// Maps the glyph indexes of your font into classes.
-pub type ClassSubtable<'a> = TableRef<'a, ClassSubtableMarker>;
+pub type ClassSubtable<'a> = TableRef<'a, ClassSubtableMarker, ClassSubtableFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClassSubtable<'a> {
     /// Glyph index of the first glyph in the class table.
+    #[inline]
     pub fn first_glyph(&self) -> u16 {
-        let range = self.shape.first_glyph_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().first_glyph.get()
     }
 
     /// Number of glyphs in class table.
+    #[inline]
     pub fn n_glyphs(&self) -> u16 {
-        let range = self.shape.n_glyphs_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().n_glyphs.get()
     }
 
     /// The class codes (indexed by glyph index minus firstGlyph). Class codes
     /// range from 0 to the value of stateSize minus 1.
+    #[inline]
     pub fn class_array(&self) -> &'a [u8] {
         let range = self.shape.class_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -1153,6 +1310,15 @@ impl<'a> std::fmt::Debug for ClassSubtable<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct RawBytesFixedFields {}
+
+impl FixedSize for RawBytesFixedFields {
+    const RAW_BYTE_LEN: usize = 0;
+}
+
 /// Used for the `state_array` and `entry_table` fields in [`StateHeader`].
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1174,19 +1340,22 @@ impl MinByteRange for RawBytesMarker {
 }
 
 impl<'a> FontRead<'a> for RawBytes<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
+        let fixed_fields: &'a RawBytesFixedFields = cursor.read_ref()?;
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(RawBytesMarker { data_byte_len })
+        cursor.finish(RawBytesMarker { data_byte_len }, fixed_fields)
     }
 }
 
 /// Used for the `state_array` and `entry_table` fields in [`StateHeader`].
-pub type RawBytes<'a> = TableRef<'a, RawBytesMarker>;
+pub type RawBytes<'a> = TableRef<'a, RawBytesMarker, RawBytesFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> RawBytes<'a> {
+    #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()
@@ -1212,6 +1381,23 @@ impl<'a> std::fmt::Debug for RawBytes<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct StxHeaderFixedFields {
+    pub n_classes: BigEndian<u32>,
+    pub class_table_offset: BigEndian<Offset32>,
+    pub state_array_offset: BigEndian<Offset32>,
+    pub entry_table_offset: BigEndian<Offset32>,
+}
+
+impl FixedSize for StxHeaderFixedFields {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN;
 }
 
 /// Header for an extended state table.
@@ -1248,58 +1434,59 @@ impl MinByteRange for StxHeaderMarker {
 }
 
 impl<'a> FontRead<'a> for StxHeader<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.finish(StxHeaderMarker {})
+        let fixed_fields: &'a StxHeaderFixedFields = cursor.read_ref()?;
+        cursor.finish(StxHeaderMarker {}, fixed_fields)
     }
 }
 
 /// Header for an extended state table.
-pub type StxHeader<'a> = TableRef<'a, StxHeaderMarker>;
+pub type StxHeader<'a> = TableRef<'a, StxHeaderMarker, StxHeaderFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> StxHeader<'a> {
     /// Number of classes, which is the number of 16-bit entry indices in a single line in the state array.
+    #[inline]
     pub fn n_classes(&self) -> u32 {
-        let range = self.shape.n_classes_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().n_classes.get()
     }
 
     /// Byte offset from the beginning of the state table to the class subtable.
+    #[inline]
     pub fn class_table_offset(&self) -> Offset32 {
-        let range = self.shape.class_table_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().class_table_offset.get()
     }
 
     /// Attempt to resolve [`class_table_offset`][Self::class_table_offset].
+    #[inline]
     pub fn class_table(&self) -> Result<LookupU16<'a>, ReadError> {
         let data = self.data;
         self.class_table_offset().resolve(data)
     }
 
     /// Byte offset from the beginning of the state table to the state array.
+    #[inline]
     pub fn state_array_offset(&self) -> Offset32 {
-        let range = self.shape.state_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().state_array_offset.get()
     }
 
     /// Attempt to resolve [`state_array_offset`][Self::state_array_offset].
+    #[inline]
     pub fn state_array(&self) -> Result<RawWords<'a>, ReadError> {
         let data = self.data;
         self.state_array_offset().resolve(data)
     }
 
     /// Byte offset from the beginning of the state table to the entry subtable.
+    #[inline]
     pub fn entry_table_offset(&self) -> Offset32 {
-        let range = self.shape.entry_table_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().entry_table_offset.get()
     }
 
     /// Attempt to resolve [`entry_table_offset`][Self::entry_table_offset].
+    #[inline]
     pub fn entry_table(&self) -> Result<RawBytes<'a>, ReadError> {
         let data = self.data;
         self.entry_table_offset().resolve(data)
@@ -1339,6 +1526,15 @@ impl<'a> std::fmt::Debug for StxHeader<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct RawWordsFixedFields {}
+
+impl FixedSize for RawWordsFixedFields {
+    const RAW_BYTE_LEN: usize = 0;
+}
+
 /// Used for the `state_array` in [`StxHeader`].
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1360,19 +1556,22 @@ impl MinByteRange for RawWordsMarker {
 }
 
 impl<'a> FontRead<'a> for RawWords<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
+        let fixed_fields: &'a RawWordsFixedFields = cursor.read_ref()?;
         let data_byte_len = cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(RawWordsMarker { data_byte_len })
+        cursor.finish(RawWordsMarker { data_byte_len }, fixed_fields)
     }
 }
 
 /// Used for the `state_array` in [`StxHeader`].
-pub type RawWords<'a> = TableRef<'a, RawWordsMarker>;
+pub type RawWords<'a> = TableRef<'a, RawWordsMarker, RawWordsFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> RawWords<'a> {
+    #[inline]
     pub fn data(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()

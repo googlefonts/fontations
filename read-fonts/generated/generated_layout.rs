@@ -5,6 +5,17 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ScriptListFixedFields {
+    pub script_count: BigEndian<u16>,
+}
+
+impl FixedSize for ScriptListFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+}
+
 /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -31,31 +42,37 @@ impl MinByteRange for ScriptListMarker {
 }
 
 impl<'a> FontRead<'a> for ScriptList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let script_count: u16 = cursor.read()?;
+        let fixed_fields: &'a ScriptListFixedFields = cursor.read_ref()?;
+        let script_count = fixed_fields.script_count.get();
         let script_records_byte_len = (script_count as usize)
             .checked_mul(ScriptRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(script_records_byte_len);
-        cursor.finish(ScriptListMarker {
-            script_records_byte_len,
-        })
+        cursor.finish(
+            ScriptListMarker {
+                script_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
-pub type ScriptList<'a> = TableRef<'a, ScriptListMarker>;
+pub type ScriptList<'a> = TableRef<'a, ScriptListMarker, ScriptListFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ScriptList<'a> {
     /// Number of ScriptRecords
+    #[inline]
     pub fn script_count(&self) -> u16 {
-        let range = self.shape.script_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().script_count.get()
     }
 
     /// Array of ScriptRecords, listed alphabetically by script tag
+    #[inline]
     pub fn script_records(&self) -> &'a [ScriptRecord] {
         let range = self.shape.script_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -104,11 +121,13 @@ pub struct ScriptRecord {
 
 impl ScriptRecord {
     /// 4-byte script tag identifier
+    #[inline]
     pub fn script_tag(&self) -> Tag {
         self.script_tag.get()
     }
 
     /// Offset to Script table, from beginning of ScriptList
+    #[inline]
     pub fn script_offset(&self) -> Offset16 {
         self.script_offset.get()
     }
@@ -117,6 +136,7 @@ impl ScriptRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    #[inline]
     pub fn script<'a>(&self, data: FontData<'a>) -> Result<Script<'a>, ReadError> {
         self.script_offset().resolve(data)
     }
@@ -142,6 +162,18 @@ impl<'a> SomeRecord<'a> for ScriptRecord {
             data,
         }
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ScriptFixedFields {
+    pub default_lang_sys_offset: BigEndian<Nullable<Offset16>>,
+    pub lang_sys_count: BigEndian<u16>,
+}
+
+impl FixedSize for ScriptFixedFields {
+    const RAW_BYTE_LEN: usize = Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// [Script Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-table-and-language-system-record)
@@ -175,33 +207,38 @@ impl MinByteRange for ScriptMarker {
 }
 
 impl<'a> FontRead<'a> for Script<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<Offset16>();
-        let lang_sys_count: u16 = cursor.read()?;
+        let fixed_fields: &'a ScriptFixedFields = cursor.read_ref()?;
+        let lang_sys_count = fixed_fields.lang_sys_count.get();
         let lang_sys_records_byte_len = (lang_sys_count as usize)
             .checked_mul(LangSysRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(lang_sys_records_byte_len);
-        cursor.finish(ScriptMarker {
-            lang_sys_records_byte_len,
-        })
+        cursor.finish(
+            ScriptMarker {
+                lang_sys_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Script Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-table-and-language-system-record)
-pub type Script<'a> = TableRef<'a, ScriptMarker>;
+pub type Script<'a> = TableRef<'a, ScriptMarker, ScriptFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Script<'a> {
     /// Offset to default LangSys table, from beginning of Script table
     /// — may be NULL
+    #[inline]
     pub fn default_lang_sys_offset(&self) -> Nullable<Offset16> {
-        let range = self.shape.default_lang_sys_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().default_lang_sys_offset.get()
     }
 
     /// Attempt to resolve [`default_lang_sys_offset`][Self::default_lang_sys_offset].
+    #[inline]
     pub fn default_lang_sys(&self) -> Option<Result<LangSys<'a>, ReadError>> {
         let data = self.data;
         self.default_lang_sys_offset().resolve(data)
@@ -209,12 +246,13 @@ impl<'a> Script<'a> {
 
     /// Number of LangSysRecords for this script — excluding the
     /// default LangSys
+    #[inline]
     pub fn lang_sys_count(&self) -> u16 {
-        let range = self.shape.lang_sys_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().lang_sys_count.get()
     }
 
     /// Array of LangSysRecords, listed alphabetically by LangSys tag
+    #[inline]
     pub fn lang_sys_records(&self) -> &'a [LangSysRecord] {
         let range = self.shape.lang_sys_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -266,11 +304,13 @@ pub struct LangSysRecord {
 
 impl LangSysRecord {
     /// 4-byte LangSysTag identifier
+    #[inline]
     pub fn lang_sys_tag(&self) -> Tag {
         self.lang_sys_tag.get()
     }
 
     /// Offset to LangSys table, from beginning of Script table
+    #[inline]
     pub fn lang_sys_offset(&self) -> Offset16 {
         self.lang_sys_offset.get()
     }
@@ -279,6 +319,7 @@ impl LangSysRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    #[inline]
     pub fn lang_sys<'a>(&self, data: FontData<'a>) -> Result<LangSys<'a>, ReadError> {
         self.lang_sys_offset().resolve(data)
     }
@@ -304,6 +345,19 @@ impl<'a> SomeRecord<'a> for LangSysRecord {
             data,
         }
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct LangSysFixedFields {
+    pub lookup_order_offset: BigEndian<u16>,
+    pub required_feature_index: BigEndian<u16>,
+    pub feature_index_count: BigEndian<u16>,
+}
+
+impl FixedSize for LangSysFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// [Language System Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#language-system-table)
@@ -342,41 +396,45 @@ impl MinByteRange for LangSysMarker {
 }
 
 impl<'a> FontRead<'a> for LangSys<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let feature_index_count: u16 = cursor.read()?;
+        let fixed_fields: &'a LangSysFixedFields = cursor.read_ref()?;
+        let feature_index_count = fixed_fields.feature_index_count.get();
         let feature_indices_byte_len = (feature_index_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(feature_indices_byte_len);
-        cursor.finish(LangSysMarker {
-            feature_indices_byte_len,
-        })
+        cursor.finish(
+            LangSysMarker {
+                feature_indices_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Language System Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#language-system-table)
-pub type LangSys<'a> = TableRef<'a, LangSysMarker>;
+pub type LangSys<'a> = TableRef<'a, LangSysMarker, LangSysFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LangSys<'a> {
     /// Index of a feature required for this language system; if no
     /// required features = 0xFFFF
+    #[inline]
     pub fn required_feature_index(&self) -> u16 {
-        let range = self.shape.required_feature_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().required_feature_index.get()
     }
 
     /// Number of feature index values for this language system —
     /// excludes the required feature
+    #[inline]
     pub fn feature_index_count(&self) -> u16 {
-        let range = self.shape.feature_index_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().feature_index_count.get()
     }
 
     /// Array of indices into the FeatureList, in arbitrary order
+    #[inline]
     pub fn feature_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.feature_indices_byte_range();
         self.data.read_array(range).unwrap()
@@ -412,6 +470,17 @@ impl<'a> std::fmt::Debug for LangSys<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct FeatureListFixedFields {
+    pub feature_count: BigEndian<u16>,
+}
+
+impl FixedSize for FeatureListFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+}
+
 /// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -438,32 +507,38 @@ impl MinByteRange for FeatureListMarker {
 }
 
 impl<'a> FontRead<'a> for FeatureList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let feature_count: u16 = cursor.read()?;
+        let fixed_fields: &'a FeatureListFixedFields = cursor.read_ref()?;
+        let feature_count = fixed_fields.feature_count.get();
         let feature_records_byte_len = (feature_count as usize)
             .checked_mul(FeatureRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(feature_records_byte_len);
-        cursor.finish(FeatureListMarker {
-            feature_records_byte_len,
-        })
+        cursor.finish(
+            FeatureListMarker {
+                feature_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
-pub type FeatureList<'a> = TableRef<'a, FeatureListMarker>;
+pub type FeatureList<'a> = TableRef<'a, FeatureListMarker, FeatureListFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FeatureList<'a> {
     /// Number of FeatureRecords in this table
+    #[inline]
     pub fn feature_count(&self) -> u16 {
-        let range = self.shape.feature_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().feature_count.get()
     }
 
     /// Array of FeatureRecords — zero-based (first feature has
     /// FeatureIndex = 0), listed alphabetically by feature tag
+    #[inline]
     pub fn feature_records(&self) -> &'a [FeatureRecord] {
         let range = self.shape.feature_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -512,11 +587,13 @@ pub struct FeatureRecord {
 
 impl FeatureRecord {
     /// 4-byte feature identification tag
+    #[inline]
     pub fn feature_tag(&self) -> Tag {
         self.feature_tag.get()
     }
 
     /// Offset to Feature table, from beginning of FeatureList
+    #[inline]
     pub fn feature_offset(&self) -> Offset16 {
         self.feature_offset.get()
     }
@@ -525,6 +602,7 @@ impl FeatureRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    #[inline]
     pub fn feature<'a>(&self, data: FontData<'a>) -> Result<Feature<'a>, ReadError> {
         let args = self.feature_tag();
         self.feature_offset().resolve_with_args(data, &args)
@@ -551,6 +629,18 @@ impl<'a> SomeRecord<'a> for FeatureRecord {
             data,
         }
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct FeatureFixedFields {
+    pub feature_params_offset: BigEndian<Nullable<Offset16>>,
+    pub lookup_index_count: BigEndian<u16>,
+}
+
+impl FixedSize for FeatureFixedFields {
+    const RAW_BYTE_LEN: usize = Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
@@ -589,19 +679,23 @@ impl ReadArgs for Feature<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Feature<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &Tag) -> Result<Self, ReadError> {
         let feature_tag = *args;
         let mut cursor = data.cursor();
-        cursor.advance::<Offset16>();
-        let lookup_index_count: u16 = cursor.read()?;
+        let fixed_fields: &'a FeatureFixedFields = cursor.read_ref()?;
+        let lookup_index_count = fixed_fields.lookup_index_count.get();
         let lookup_list_indices_byte_len = (lookup_index_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(lookup_list_indices_byte_len);
-        cursor.finish(FeatureMarker {
-            feature_tag,
-            lookup_list_indices_byte_len,
-        })
+        cursor.finish(
+            FeatureMarker {
+                feature_tag,
+                lookup_list_indices_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
@@ -610,6 +704,7 @@ impl<'a> Feature<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, feature_tag: Tag) -> Result<Self, ReadError> {
         let args = feature_tag;
         Self::read_with_args(data, &args)
@@ -617,17 +712,18 @@ impl<'a> Feature<'a> {
 }
 
 /// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
-pub type Feature<'a> = TableRef<'a, FeatureMarker>;
+pub type Feature<'a> = TableRef<'a, FeatureMarker, FeatureFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Feature<'a> {
     /// Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
+    #[inline]
     pub fn feature_params_offset(&self) -> Nullable<Offset16> {
-        let range = self.shape.feature_params_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().feature_params_offset.get()
     }
 
     /// Attempt to resolve [`feature_params_offset`][Self::feature_params_offset].
+    #[inline]
     pub fn feature_params(&self) -> Option<Result<FeatureParams<'a>, ReadError>> {
         let data = self.data;
         let args = self.feature_tag();
@@ -635,13 +731,14 @@ impl<'a> Feature<'a> {
     }
 
     /// Number of LookupList indices for this feature
+    #[inline]
     pub fn lookup_index_count(&self) -> u16 {
-        let range = self.shape.lookup_index_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().lookup_index_count.get()
     }
 
     /// Array of indices into the LookupList — zero-based (first
     /// lookup is LookupListIndex = 0)
+    #[inline]
     pub fn lookup_list_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.lookup_list_indices_byte_range();
         self.data.read_array(range).unwrap()
@@ -681,6 +778,17 @@ impl<'a> std::fmt::Debug for Feature<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct LookupListFixedFields {
+    pub lookup_count: BigEndian<u16>,
+}
+
+impl FixedSize for LookupListFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+}
+
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
 #[derive(Debug)]
 #[doc(hidden)]
@@ -716,30 +824,40 @@ impl<T> Clone for LookupListMarker<T> {
 impl<T> Copy for LookupListMarker<T> {}
 
 impl<'a, T> FontRead<'a> for LookupList<'a, T> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let lookup_count: u16 = cursor.read()?;
+        let fixed_fields: &'a LookupListFixedFields = cursor.read_ref()?;
+        let lookup_count = fixed_fields.lookup_count.get();
         let lookup_offsets_byte_len = (lookup_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(lookup_offsets_byte_len);
-        cursor.finish(LookupListMarker {
-            lookup_offsets_byte_len,
-            offset_type: std::marker::PhantomData,
-        })
+        cursor.finish(
+            LookupListMarker {
+                lookup_offsets_byte_len,
+                offset_type: std::marker::PhantomData,
+            },
+            fixed_fields,
+        )
     }
 }
 
 impl<'a> LookupList<'a, ()> {
     #[allow(dead_code)]
     pub(crate) fn into_concrete<T>(self) -> LookupList<'a, T> {
-        let TableRef { data, shape } = self;
+        let TableRef {
+            data,
+            fixed_fields,
+            shape,
+        } = self;
         TableRef {
             shape: LookupListMarker {
                 lookup_offsets_byte_len: shape.lookup_offsets_byte_len,
                 offset_type: std::marker::PhantomData,
             },
             data,
+            fixed_fields,
         }
     }
 }
@@ -748,36 +866,43 @@ impl<'a, T> LookupList<'a, T> {
     #[allow(dead_code)]
     /// Replace the specific generic type on this implementation with `()`
     pub(crate) fn of_unit_type(&self) -> LookupList<'a, ()> {
-        let TableRef { data, shape } = self;
+        let TableRef {
+            data,
+            fixed_fields,
+            shape,
+        } = self;
         TableRef {
             shape: LookupListMarker {
                 lookup_offsets_byte_len: shape.lookup_offsets_byte_len,
                 offset_type: std::marker::PhantomData,
             },
             data: *data,
+            fixed_fields: *fixed_fields,
         }
     }
 }
 
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
-pub type LookupList<'a, T> = TableRef<'a, LookupListMarker<T>>;
+pub type LookupList<'a, T> = TableRef<'a, LookupListMarker<T>, LookupListFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a, T> LookupList<'a, T> {
     /// Number of lookups in this table
+    #[inline]
     pub fn lookup_count(&self) -> u16 {
-        let range = self.shape.lookup_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().lookup_count.get()
     }
 
     /// Array of offsets to Lookup tables, from beginning of LookupList
     /// — zero based (first lookup is Lookup index = 0)
+    #[inline]
     pub fn lookup_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lookup_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`lookup_offsets`][Self::lookup_offsets].
+    #[inline]
     pub fn lookups(&self) -> ArrayOfOffsets<'a, T, Offset16>
     where
         T: FontRead<'a>,
@@ -821,6 +946,17 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for LookupList<'a
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct LookupFixedFields {
+    pub lookup_type: BigEndian<u16>,
+}
+
+impl FixedSize for LookupFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
 }
 
 /// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
@@ -874,9 +1010,10 @@ impl<T> Clone for LookupMarker<T> {
 impl<T> Copy for LookupMarker<T> {}
 
 impl<'a, T> FontRead<'a> for Lookup<'a, T> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
+        let fixed_fields: &'a LookupFixedFields = cursor.read_ref()?;
         let lookup_flag: LookupFlag = cursor.read()?;
         let sub_table_count: u16 = cursor.read()?;
         let subtable_offsets_byte_len = (sub_table_count as usize)
@@ -890,18 +1027,25 @@ impl<'a, T> FontRead<'a> for Lookup<'a, T> {
         lookup_flag
             .contains(LookupFlag::USE_MARK_FILTERING_SET)
             .then(|| cursor.advance::<u16>());
-        cursor.finish(LookupMarker {
-            subtable_offsets_byte_len,
-            mark_filtering_set_byte_start,
-            offset_type: std::marker::PhantomData,
-        })
+        cursor.finish(
+            LookupMarker {
+                subtable_offsets_byte_len,
+                mark_filtering_set_byte_start,
+                offset_type: std::marker::PhantomData,
+            },
+            fixed_fields,
+        )
     }
 }
 
 impl<'a> Lookup<'a, ()> {
     #[allow(dead_code)]
     pub(crate) fn into_concrete<T>(self) -> Lookup<'a, T> {
-        let TableRef { data, shape } = self;
+        let TableRef {
+            data,
+            fixed_fields,
+            shape,
+        } = self;
         TableRef {
             shape: LookupMarker {
                 subtable_offsets_byte_len: shape.subtable_offsets_byte_len,
@@ -909,6 +1053,7 @@ impl<'a> Lookup<'a, ()> {
                 offset_type: std::marker::PhantomData,
             },
             data,
+            fixed_fields,
         }
     }
 }
@@ -917,7 +1062,11 @@ impl<'a, T> Lookup<'a, T> {
     #[allow(dead_code)]
     /// Replace the specific generic type on this implementation with `()`
     pub(crate) fn of_unit_type(&self) -> Lookup<'a, ()> {
-        let TableRef { data, shape } = self;
+        let TableRef {
+            data,
+            fixed_fields,
+            shape,
+        } = self;
         TableRef {
             shape: LookupMarker {
                 subtable_offsets_byte_len: shape.subtable_offsets_byte_len,
@@ -925,28 +1074,31 @@ impl<'a, T> Lookup<'a, T> {
                 offset_type: std::marker::PhantomData,
             },
             data: *data,
+            fixed_fields: *fixed_fields,
         }
     }
 }
 
 /// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
-pub type Lookup<'a, T> = TableRef<'a, LookupMarker<T>>;
+pub type Lookup<'a, T> = TableRef<'a, LookupMarker<T>, LookupFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a, T> Lookup<'a, T> {
     /// Different enumerations for GSUB and GPOS
+    #[inline]
     pub fn lookup_type(&self) -> u16 {
-        let range = self.shape.lookup_type_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().lookup_type.get()
     }
 
     /// Lookup qualifiers
+    #[inline]
     pub fn lookup_flag(&self) -> LookupFlag {
         let range = self.shape.lookup_flag_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of subtables for this lookup
+    #[inline]
     pub fn sub_table_count(&self) -> u16 {
         let range = self.shape.sub_table_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -954,12 +1106,14 @@ impl<'a, T> Lookup<'a, T> {
 
     /// Array of offsets to lookup subtables, from beginning of Lookup
     /// table
+    #[inline]
     pub fn subtable_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.subtable_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`subtable_offsets`][Self::subtable_offsets].
+    #[inline]
     pub fn subtables(&self) -> ArrayOfOffsets<'a, T, Offset16>
     where
         T: FontRead<'a>,
@@ -972,6 +1126,7 @@ impl<'a, T> Lookup<'a, T> {
     /// Index (base 0) into GDEF mark glyph sets structure. This field
     /// is only present if the USE_MARK_FILTERING_SET lookup flag is
     /// set.
+    #[inline]
     pub fn mark_filtering_set(&self) -> Option<u16> {
         let range = self.shape.mark_filtering_set_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -1024,6 +1179,18 @@ impl Format<u16> for CoverageFormat1Marker {
     const FORMAT: u16 = 1;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct CoverageFormat1FixedFields {
+    pub coverage_format: BigEndian<u16>,
+    pub glyph_count: BigEndian<u16>,
+}
+
+impl FixedSize for CoverageFormat1FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1055,38 +1222,43 @@ impl MinByteRange for CoverageFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for CoverageFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let glyph_count: u16 = cursor.read()?;
+        let fixed_fields: &'a CoverageFormat1FixedFields = cursor.read_ref()?;
+        let glyph_count = fixed_fields.glyph_count.get();
         let glyph_array_byte_len = (glyph_count as usize)
             .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(glyph_array_byte_len);
-        cursor.finish(CoverageFormat1Marker {
-            glyph_array_byte_len,
-        })
+        cursor.finish(
+            CoverageFormat1Marker {
+                glyph_array_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
-pub type CoverageFormat1<'a> = TableRef<'a, CoverageFormat1Marker>;
+pub type CoverageFormat1<'a> = TableRef<'a, CoverageFormat1Marker, CoverageFormat1FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CoverageFormat1<'a> {
     /// Format identifier — format = 1
+    #[inline]
     pub fn coverage_format(&self) -> u16 {
-        let range = self.shape.coverage_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().coverage_format.get()
     }
 
     /// Number of glyphs in the glyph array
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
-        let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_count.get()
     }
 
     /// Array of glyph IDs — in numerical order
+    #[inline]
     pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.glyph_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -1120,6 +1292,18 @@ impl Format<u16> for CoverageFormat2Marker {
     const FORMAT: u16 = 2;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct CoverageFormat2FixedFields {
+    pub coverage_format: BigEndian<u16>,
+    pub range_count: BigEndian<u16>,
+}
+
+impl FixedSize for CoverageFormat2FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1151,38 +1335,43 @@ impl MinByteRange for CoverageFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for CoverageFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let range_count: u16 = cursor.read()?;
+        let fixed_fields: &'a CoverageFormat2FixedFields = cursor.read_ref()?;
+        let range_count = fixed_fields.range_count.get();
         let range_records_byte_len = (range_count as usize)
             .checked_mul(RangeRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(range_records_byte_len);
-        cursor.finish(CoverageFormat2Marker {
-            range_records_byte_len,
-        })
+        cursor.finish(
+            CoverageFormat2Marker {
+                range_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
-pub type CoverageFormat2<'a> = TableRef<'a, CoverageFormat2Marker>;
+pub type CoverageFormat2<'a> = TableRef<'a, CoverageFormat2Marker, CoverageFormat2FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CoverageFormat2<'a> {
     /// Format identifier — format = 2
+    #[inline]
     pub fn coverage_format(&self) -> u16 {
-        let range = self.shape.coverage_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().coverage_format.get()
     }
 
     /// Number of RangeRecords
+    #[inline]
     pub fn range_count(&self) -> u16 {
-        let range = self.shape.range_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().range_count.get()
     }
 
     /// Array of glyph ranges — ordered by startGlyphID.
+    #[inline]
     pub fn range_records(&self) -> &'a [RangeRecord] {
         let range = self.shape.range_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -1234,16 +1423,19 @@ pub struct RangeRecord {
 
 impl RangeRecord {
     /// First glyph ID in the range
+    #[inline]
     pub fn start_glyph_id(&self) -> GlyphId16 {
         self.start_glyph_id.get()
     }
 
     /// Last glyph ID in the range
+    #[inline]
     pub fn end_glyph_id(&self) -> GlyphId16 {
         self.end_glyph_id.get()
     }
 
     /// Coverage Index of first glyph ID in range
+    #[inline]
     pub fn start_coverage_index(&self) -> u16 {
         self.start_coverage_index.get()
     }
@@ -1282,6 +1474,7 @@ pub enum CoverageTable<'a> {
 
 impl<'a> CoverageTable<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
+    #[inline]
     pub fn offset_data(&self) -> FontData<'a> {
         match self {
             Self::Format1(item) => item.offset_data(),
@@ -1290,6 +1483,7 @@ impl<'a> CoverageTable<'a> {
     }
 
     /// Format identifier — format = 1
+    #[inline]
     pub fn coverage_format(&self) -> u16 {
         match self {
             Self::Format1(item) => item.coverage_format(),
@@ -1349,6 +1543,19 @@ impl Format<u16> for ClassDefFormat1Marker {
     const FORMAT: u16 = 1;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ClassDefFormat1FixedFields {
+    pub class_format: BigEndian<u16>,
+    pub start_glyph_id: BigEndian<GlyphId16>,
+    pub glyph_count: BigEndian<u16>,
+}
+
+impl FixedSize for ClassDefFormat1FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1385,45 +1592,49 @@ impl MinByteRange for ClassDefFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for ClassDefFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<GlyphId16>();
-        let glyph_count: u16 = cursor.read()?;
+        let fixed_fields: &'a ClassDefFormat1FixedFields = cursor.read_ref()?;
+        let glyph_count = fixed_fields.glyph_count.get();
         let class_value_array_byte_len = (glyph_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(class_value_array_byte_len);
-        cursor.finish(ClassDefFormat1Marker {
-            class_value_array_byte_len,
-        })
+        cursor.finish(
+            ClassDefFormat1Marker {
+                class_value_array_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
-pub type ClassDefFormat1<'a> = TableRef<'a, ClassDefFormat1Marker>;
+pub type ClassDefFormat1<'a> = TableRef<'a, ClassDefFormat1Marker, ClassDefFormat1FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClassDefFormat1<'a> {
     /// Format identifier — format = 1
+    #[inline]
     pub fn class_format(&self) -> u16 {
-        let range = self.shape.class_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().class_format.get()
     }
 
     /// First glyph ID of the classValueArray
+    #[inline]
     pub fn start_glyph_id(&self) -> GlyphId16 {
-        let range = self.shape.start_glyph_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().start_glyph_id.get()
     }
 
     /// Size of the classValueArray
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
-        let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_count.get()
     }
 
     /// Array of Class Values — one per glyph ID
+    #[inline]
     pub fn class_value_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.class_value_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -1458,6 +1669,18 @@ impl Format<u16> for ClassDefFormat2Marker {
     const FORMAT: u16 = 2;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ClassDefFormat2FixedFields {
+    pub class_format: BigEndian<u16>,
+    pub class_range_count: BigEndian<u16>,
+}
+
+impl FixedSize for ClassDefFormat2FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// [Class Definition Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-2)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1489,38 +1712,43 @@ impl MinByteRange for ClassDefFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for ClassDefFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let class_range_count: u16 = cursor.read()?;
+        let fixed_fields: &'a ClassDefFormat2FixedFields = cursor.read_ref()?;
+        let class_range_count = fixed_fields.class_range_count.get();
         let class_range_records_byte_len = (class_range_count as usize)
             .checked_mul(ClassRangeRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(class_range_records_byte_len);
-        cursor.finish(ClassDefFormat2Marker {
-            class_range_records_byte_len,
-        })
+        cursor.finish(
+            ClassDefFormat2Marker {
+                class_range_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Class Definition Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-2)
-pub type ClassDefFormat2<'a> = TableRef<'a, ClassDefFormat2Marker>;
+pub type ClassDefFormat2<'a> = TableRef<'a, ClassDefFormat2Marker, ClassDefFormat2FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClassDefFormat2<'a> {
     /// Format identifier — format = 2
+    #[inline]
     pub fn class_format(&self) -> u16 {
-        let range = self.shape.class_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().class_format.get()
     }
 
     /// Number of ClassRangeRecords
+    #[inline]
     pub fn class_range_count(&self) -> u16 {
-        let range = self.shape.class_range_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().class_range_count.get()
     }
 
     /// Array of ClassRangeRecords — ordered by startGlyphID
+    #[inline]
     pub fn class_range_records(&self) -> &'a [ClassRangeRecord] {
         let range = self.shape.class_range_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -1572,16 +1800,19 @@ pub struct ClassRangeRecord {
 
 impl ClassRangeRecord {
     /// First glyph ID in the range
+    #[inline]
     pub fn start_glyph_id(&self) -> GlyphId16 {
         self.start_glyph_id.get()
     }
 
     /// Last glyph ID in the range
+    #[inline]
     pub fn end_glyph_id(&self) -> GlyphId16 {
         self.end_glyph_id.get()
     }
 
     /// Applied to all glyphs in the range
+    #[inline]
     pub fn class(&self) -> u16 {
         self.class.get()
     }
@@ -1617,6 +1848,7 @@ pub enum ClassDef<'a> {
 
 impl<'a> ClassDef<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
+    #[inline]
     pub fn offset_data(&self) -> FontData<'a> {
         match self {
             Self::Format1(item) => item.offset_data(),
@@ -1625,6 +1857,7 @@ impl<'a> ClassDef<'a> {
     }
 
     /// Format identifier — format = 1
+    #[inline]
     pub fn class_format(&self) -> u16 {
         match self {
             Self::Format1(item) => item.class_format(),
@@ -1693,11 +1926,13 @@ pub struct SequenceLookupRecord {
 
 impl SequenceLookupRecord {
     /// Index (zero-based) into the input glyph sequence
+    #[inline]
     pub fn sequence_index(&self) -> u16 {
         self.sequence_index.get()
     }
 
     /// Index (zero-based) into the LookupList
+    #[inline]
     pub fn lookup_list_index(&self) -> u16 {
         self.lookup_list_index.get()
     }
@@ -1724,6 +1959,19 @@ impl<'a> SomeRecord<'a> for SequenceLookupRecord {
 
 impl Format<u16> for SequenceContextFormat1Marker {
     const FORMAT: u16 = 1;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SequenceContextFormat1FixedFields {
+    pub format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset16>,
+    pub seq_rule_set_count: BigEndian<u16>,
+}
+
+impl FixedSize for SequenceContextFormat1FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// [Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-1-simple-glyph-contexts)
@@ -1762,59 +2010,66 @@ impl MinByteRange for SequenceContextFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for SequenceContextFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        let seq_rule_set_count: u16 = cursor.read()?;
+        let fixed_fields: &'a SequenceContextFormat1FixedFields = cursor.read_ref()?;
+        let seq_rule_set_count = fixed_fields.seq_rule_set_count.get();
         let seq_rule_set_offsets_byte_len = (seq_rule_set_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_rule_set_offsets_byte_len);
-        cursor.finish(SequenceContextFormat1Marker {
-            seq_rule_set_offsets_byte_len,
-        })
+        cursor.finish(
+            SequenceContextFormat1Marker {
+                seq_rule_set_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-1-simple-glyph-contexts)
-pub type SequenceContextFormat1<'a> = TableRef<'a, SequenceContextFormat1Marker>;
+pub type SequenceContextFormat1<'a> =
+    TableRef<'a, SequenceContextFormat1Marker, SequenceContextFormat1FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SequenceContextFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat1 table
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().coverage_offset.get()
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
         self.coverage_offset().resolve(data)
     }
 
     /// Number of SequenceRuleSet tables
+    #[inline]
     pub fn seq_rule_set_count(&self) -> u16 {
-        let range = self.shape.seq_rule_set_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().seq_rule_set_count.get()
     }
 
     /// Array of offsets to SequenceRuleSet tables, from beginning of
     /// SequenceContextFormat1 table (offsets may be NULL)
+    #[inline]
     pub fn seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`seq_rule_set_offsets`][Self::seq_rule_set_offsets].
+    #[inline]
     pub fn seq_rule_sets(&self) -> ArrayOfNullableOffsets<'a, SequenceRuleSet<'a>, Offset16> {
         let data = self.data;
         let offsets = self.seq_rule_set_offsets();
@@ -1862,6 +2117,17 @@ impl<'a> std::fmt::Debug for SequenceContextFormat1<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SequenceRuleSetFixedFields {
+    pub seq_rule_count: BigEndian<u16>,
+}
+
+impl FixedSize for SequenceRuleSetFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+}
+
 /// Part of [SequenceContextFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1888,38 +2154,45 @@ impl MinByteRange for SequenceRuleSetMarker {
 }
 
 impl<'a> FontRead<'a> for SequenceRuleSet<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let seq_rule_count: u16 = cursor.read()?;
+        let fixed_fields: &'a SequenceRuleSetFixedFields = cursor.read_ref()?;
+        let seq_rule_count = fixed_fields.seq_rule_count.get();
         let seq_rule_offsets_byte_len = (seq_rule_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_rule_offsets_byte_len);
-        cursor.finish(SequenceRuleSetMarker {
-            seq_rule_offsets_byte_len,
-        })
+        cursor.finish(
+            SequenceRuleSetMarker {
+                seq_rule_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// Part of [SequenceContextFormat1]
-pub type SequenceRuleSet<'a> = TableRef<'a, SequenceRuleSetMarker>;
+pub type SequenceRuleSet<'a> = TableRef<'a, SequenceRuleSetMarker, SequenceRuleSetFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SequenceRuleSet<'a> {
     /// Number of SequenceRule tables
+    #[inline]
     pub fn seq_rule_count(&self) -> u16 {
-        let range = self.shape.seq_rule_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().seq_rule_count.get()
     }
 
     /// Array of offsets to SequenceRule tables, from beginning of the
     /// SequenceRuleSet table
+    #[inline]
     pub fn seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.seq_rule_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`seq_rule_offsets`][Self::seq_rule_offsets].
+    #[inline]
     pub fn seq_rules(&self) -> ArrayOfOffsets<'a, SequenceRule<'a>, Offset16> {
         let data = self.data;
         let offsets = self.seq_rule_offsets();
@@ -1962,6 +2235,18 @@ impl<'a> std::fmt::Debug for SequenceRuleSet<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SequenceRuleFixedFields {
+    pub glyph_count: BigEndian<u16>,
+    pub seq_lookup_count: BigEndian<u16>,
+}
+
+impl FixedSize for SequenceRuleFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// Part of [SequenceContextFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1999,10 +2284,12 @@ impl MinByteRange for SequenceRuleMarker {
 }
 
 impl<'a> FontRead<'a> for SequenceRule<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let glyph_count: u16 = cursor.read()?;
-        let seq_lookup_count: u16 = cursor.read()?;
+        let fixed_fields: &'a SequenceRuleFixedFields = cursor.read_ref()?;
+        let glyph_count = fixed_fields.glyph_count.get();
+        let seq_lookup_count = fixed_fields.seq_lookup_count.get();
         let input_sequence_byte_len = (transforms::subtract(glyph_count, 1_usize))
             .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -2011,37 +2298,42 @@ impl<'a> FontRead<'a> for SequenceRule<'a> {
             .checked_mul(SequenceLookupRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_lookup_records_byte_len);
-        cursor.finish(SequenceRuleMarker {
-            input_sequence_byte_len,
-            seq_lookup_records_byte_len,
-        })
+        cursor.finish(
+            SequenceRuleMarker {
+                input_sequence_byte_len,
+                seq_lookup_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// Part of [SequenceContextFormat1]
-pub type SequenceRule<'a> = TableRef<'a, SequenceRuleMarker>;
+pub type SequenceRule<'a> = TableRef<'a, SequenceRuleMarker, SequenceRuleFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SequenceRule<'a> {
     /// Number of glyphs in the input glyph sequence
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
-        let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_count.get()
     }
 
     /// Number of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_count(&self) -> u16 {
-        let range = self.shape.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().seq_lookup_count.get()
     }
 
     /// Array of input glyph IDs—starting with the second glyph
+    #[inline]
     pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Array of Sequence lookup records
+    #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -2081,6 +2373,21 @@ impl<'a> std::fmt::Debug for SequenceRule<'a> {
 
 impl Format<u16> for SequenceContextFormat2Marker {
     const FORMAT: u16 = 2;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SequenceContextFormat2FixedFields {
+    pub format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset16>,
+    pub class_def_offset: BigEndian<Offset16>,
+    pub class_seq_rule_set_count: BigEndian<u16>,
+}
+
+impl FixedSize for SequenceContextFormat2FixedFields {
+    const RAW_BYTE_LEN: usize =
+        u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// [Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-2-class-based-glyph-contexts)
@@ -2124,41 +2431,45 @@ impl MinByteRange for SequenceContextFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for SequenceContextFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        let class_seq_rule_set_count: u16 = cursor.read()?;
+        let fixed_fields: &'a SequenceContextFormat2FixedFields = cursor.read_ref()?;
+        let class_seq_rule_set_count = fixed_fields.class_seq_rule_set_count.get();
         let class_seq_rule_set_offsets_byte_len = (class_seq_rule_set_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(class_seq_rule_set_offsets_byte_len);
-        cursor.finish(SequenceContextFormat2Marker {
-            class_seq_rule_set_offsets_byte_len,
-        })
+        cursor.finish(
+            SequenceContextFormat2Marker {
+                class_seq_rule_set_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-2-class-based-glyph-contexts)
-pub type SequenceContextFormat2<'a> = TableRef<'a, SequenceContextFormat2Marker>;
+pub type SequenceContextFormat2<'a> =
+    TableRef<'a, SequenceContextFormat2Marker, SequenceContextFormat2FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SequenceContextFormat2<'a> {
     /// Format identifier: format = 2
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat2 table
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().coverage_offset.get()
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
         self.coverage_offset().resolve(data)
@@ -2166,31 +2477,34 @@ impl<'a> SequenceContextFormat2<'a> {
 
     /// Offset to ClassDef table, from beginning of
     /// SequenceContextFormat2 table
+    #[inline]
     pub fn class_def_offset(&self) -> Offset16 {
-        let range = self.shape.class_def_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().class_def_offset.get()
     }
 
     /// Attempt to resolve [`class_def_offset`][Self::class_def_offset].
+    #[inline]
     pub fn class_def(&self) -> Result<ClassDef<'a>, ReadError> {
         let data = self.data;
         self.class_def_offset().resolve(data)
     }
 
     /// Number of ClassSequenceRuleSet tables
+    #[inline]
     pub fn class_seq_rule_set_count(&self) -> u16 {
-        let range = self.shape.class_seq_rule_set_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().class_seq_rule_set_count.get()
     }
 
     /// Array of offsets to ClassSequenceRuleSet tables, from beginning
     /// of SequenceContextFormat2 table (may be NULL)
+    #[inline]
     pub fn class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.class_seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`class_seq_rule_set_offsets`][Self::class_seq_rule_set_offsets].
+    #[inline]
     pub fn class_seq_rule_sets(
         &self,
     ) -> ArrayOfNullableOffsets<'a, ClassSequenceRuleSet<'a>, Offset16> {
@@ -2247,6 +2561,17 @@ impl<'a> std::fmt::Debug for SequenceContextFormat2<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ClassSequenceRuleSetFixedFields {
+    pub class_seq_rule_count: BigEndian<u16>,
+}
+
+impl FixedSize for ClassSequenceRuleSetFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+}
+
 /// Part of [SequenceContextFormat2]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -2273,38 +2598,46 @@ impl MinByteRange for ClassSequenceRuleSetMarker {
 }
 
 impl<'a> FontRead<'a> for ClassSequenceRuleSet<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let class_seq_rule_count: u16 = cursor.read()?;
+        let fixed_fields: &'a ClassSequenceRuleSetFixedFields = cursor.read_ref()?;
+        let class_seq_rule_count = fixed_fields.class_seq_rule_count.get();
         let class_seq_rule_offsets_byte_len = (class_seq_rule_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(class_seq_rule_offsets_byte_len);
-        cursor.finish(ClassSequenceRuleSetMarker {
-            class_seq_rule_offsets_byte_len,
-        })
+        cursor.finish(
+            ClassSequenceRuleSetMarker {
+                class_seq_rule_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// Part of [SequenceContextFormat2]
-pub type ClassSequenceRuleSet<'a> = TableRef<'a, ClassSequenceRuleSetMarker>;
+pub type ClassSequenceRuleSet<'a> =
+    TableRef<'a, ClassSequenceRuleSetMarker, ClassSequenceRuleSetFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClassSequenceRuleSet<'a> {
     /// Number of ClassSequenceRule tables
+    #[inline]
     pub fn class_seq_rule_count(&self) -> u16 {
-        let range = self.shape.class_seq_rule_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().class_seq_rule_count.get()
     }
 
     /// Array of offsets to ClassSequenceRule tables, from beginning of
     /// ClassSequenceRuleSet table
+    #[inline]
     pub fn class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.class_seq_rule_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`class_seq_rule_offsets`][Self::class_seq_rule_offsets].
+    #[inline]
     pub fn class_seq_rules(&self) -> ArrayOfOffsets<'a, ClassSequenceRule<'a>, Offset16> {
         let data = self.data;
         let offsets = self.class_seq_rule_offsets();
@@ -2350,6 +2683,18 @@ impl<'a> std::fmt::Debug for ClassSequenceRuleSet<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ClassSequenceRuleFixedFields {
+    pub glyph_count: BigEndian<u16>,
+    pub seq_lookup_count: BigEndian<u16>,
+}
+
+impl FixedSize for ClassSequenceRuleFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// Part of [SequenceContextFormat2]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -2387,10 +2732,12 @@ impl MinByteRange for ClassSequenceRuleMarker {
 }
 
 impl<'a> FontRead<'a> for ClassSequenceRule<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let glyph_count: u16 = cursor.read()?;
-        let seq_lookup_count: u16 = cursor.read()?;
+        let fixed_fields: &'a ClassSequenceRuleFixedFields = cursor.read_ref()?;
+        let glyph_count = fixed_fields.glyph_count.get();
+        let seq_lookup_count = fixed_fields.seq_lookup_count.get();
         let input_sequence_byte_len = (transforms::subtract(glyph_count, 1_usize))
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -2399,38 +2746,44 @@ impl<'a> FontRead<'a> for ClassSequenceRule<'a> {
             .checked_mul(SequenceLookupRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_lookup_records_byte_len);
-        cursor.finish(ClassSequenceRuleMarker {
-            input_sequence_byte_len,
-            seq_lookup_records_byte_len,
-        })
+        cursor.finish(
+            ClassSequenceRuleMarker {
+                input_sequence_byte_len,
+                seq_lookup_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// Part of [SequenceContextFormat2]
-pub type ClassSequenceRule<'a> = TableRef<'a, ClassSequenceRuleMarker>;
+pub type ClassSequenceRule<'a> =
+    TableRef<'a, ClassSequenceRuleMarker, ClassSequenceRuleFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClassSequenceRule<'a> {
     /// Number of glyphs to be matched
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
-        let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_count.get()
     }
 
     /// Number of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_count(&self) -> u16 {
-        let range = self.shape.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().seq_lookup_count.get()
     }
 
     /// Sequence of classes to be matched to the input glyph sequence,
     /// beginning with the second glyph position
+    #[inline]
     pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Array of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -2470,6 +2823,19 @@ impl<'a> std::fmt::Debug for ClassSequenceRule<'a> {
 
 impl Format<u16> for SequenceContextFormat3Marker {
     const FORMAT: u16 = 3;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SequenceContextFormat3FixedFields {
+    pub format: BigEndian<u16>,
+    pub glyph_count: BigEndian<u16>,
+    pub seq_lookup_count: BigEndian<u16>,
+}
+
+impl FixedSize for SequenceContextFormat3FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// [Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-3-coverage-based-glyph-contexts)
@@ -2514,11 +2880,12 @@ impl MinByteRange for SequenceContextFormat3Marker {
 }
 
 impl<'a> FontRead<'a> for SequenceContextFormat3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let glyph_count: u16 = cursor.read()?;
-        let seq_lookup_count: u16 = cursor.read()?;
+        let fixed_fields: &'a SequenceContextFormat3FixedFields = cursor.read_ref()?;
+        let glyph_count = fixed_fields.glyph_count.get();
+        let seq_lookup_count = fixed_fields.seq_lookup_count.get();
         let coverage_offsets_byte_len = (glyph_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -2527,44 +2894,50 @@ impl<'a> FontRead<'a> for SequenceContextFormat3<'a> {
             .checked_mul(SequenceLookupRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_lookup_records_byte_len);
-        cursor.finish(SequenceContextFormat3Marker {
-            coverage_offsets_byte_len,
-            seq_lookup_records_byte_len,
-        })
+        cursor.finish(
+            SequenceContextFormat3Marker {
+                coverage_offsets_byte_len,
+                seq_lookup_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-3-coverage-based-glyph-contexts)
-pub type SequenceContextFormat3<'a> = TableRef<'a, SequenceContextFormat3Marker>;
+pub type SequenceContextFormat3<'a> =
+    TableRef<'a, SequenceContextFormat3Marker, SequenceContextFormat3FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SequenceContextFormat3<'a> {
     /// Format identifier: format = 3
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Number of glyphs in the input sequence
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
-        let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_count.get()
     }
 
     /// Number of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_count(&self) -> u16 {
-        let range = self.shape.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().seq_lookup_count.get()
     }
 
     /// Array of offsets to Coverage tables, from beginning of
     /// SequenceContextFormat3 subtable
+    #[inline]
     pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.coverage_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].
+    #[inline]
     pub fn coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.coverage_offsets();
@@ -2572,6 +2945,7 @@ impl<'a> SequenceContextFormat3<'a> {
     }
 
     /// Array of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -2632,6 +3006,7 @@ pub enum SequenceContext<'a> {
 
 impl<'a> SequenceContext<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
+    #[inline]
     pub fn offset_data(&self) -> FontData<'a> {
         match self {
             Self::Format1(item) => item.offset_data(),
@@ -2641,6 +3016,7 @@ impl<'a> SequenceContext<'a> {
     }
 
     /// Format identifier: format = 1
+    #[inline]
     pub fn format(&self) -> u16 {
         match self {
             Self::Format1(item) => item.format(),
@@ -2704,6 +3080,19 @@ impl Format<u16> for ChainedSequenceContextFormat1Marker {
     const FORMAT: u16 = 1;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ChainedSequenceContextFormat1FixedFields {
+    pub format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset16>,
+    pub chained_seq_rule_set_count: BigEndian<u16>,
+}
+
+impl FixedSize for ChainedSequenceContextFormat1FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// [Chained Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-1-simple-glyph-contexts)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -2740,59 +3129,66 @@ impl MinByteRange for ChainedSequenceContextFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        let chained_seq_rule_set_count: u16 = cursor.read()?;
+        let fixed_fields: &'a ChainedSequenceContextFormat1FixedFields = cursor.read_ref()?;
+        let chained_seq_rule_set_count = fixed_fields.chained_seq_rule_set_count.get();
         let chained_seq_rule_set_offsets_byte_len = (chained_seq_rule_set_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(chained_seq_rule_set_offsets_byte_len);
-        cursor.finish(ChainedSequenceContextFormat1Marker {
-            chained_seq_rule_set_offsets_byte_len,
-        })
+        cursor.finish(
+            ChainedSequenceContextFormat1Marker {
+                chained_seq_rule_set_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Chained Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-1-simple-glyph-contexts)
-pub type ChainedSequenceContextFormat1<'a> = TableRef<'a, ChainedSequenceContextFormat1Marker>;
+pub type ChainedSequenceContextFormat1<'a> =
+    TableRef<'a, ChainedSequenceContextFormat1Marker, ChainedSequenceContextFormat1FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedSequenceContextFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Offset to Coverage table, from beginning of
     /// ChainSequenceContextFormat1 table
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().coverage_offset.get()
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
         self.coverage_offset().resolve(data)
     }
 
     /// Number of ChainedSequenceRuleSet tables
+    #[inline]
     pub fn chained_seq_rule_set_count(&self) -> u16 {
-        let range = self.shape.chained_seq_rule_set_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().chained_seq_rule_set_count.get()
     }
 
     /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
     /// ChainedSequenceContextFormat1 table (may be NULL)
+    #[inline]
     pub fn chained_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.chained_seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`chained_seq_rule_set_offsets`][Self::chained_seq_rule_set_offsets].
+    #[inline]
     pub fn chained_seq_rule_sets(
         &self,
     ) -> ArrayOfNullableOffsets<'a, ChainedSequenceRuleSet<'a>, Offset16> {
@@ -2845,6 +3241,17 @@ impl<'a> std::fmt::Debug for ChainedSequenceContextFormat1<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ChainedSequenceRuleSetFixedFields {
+    pub chained_seq_rule_count: BigEndian<u16>,
+}
+
+impl FixedSize for ChainedSequenceRuleSetFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+}
+
 /// Part of [ChainedSequenceContextFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -2871,38 +3278,46 @@ impl MinByteRange for ChainedSequenceRuleSetMarker {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceRuleSet<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let chained_seq_rule_count: u16 = cursor.read()?;
+        let fixed_fields: &'a ChainedSequenceRuleSetFixedFields = cursor.read_ref()?;
+        let chained_seq_rule_count = fixed_fields.chained_seq_rule_count.get();
         let chained_seq_rule_offsets_byte_len = (chained_seq_rule_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(chained_seq_rule_offsets_byte_len);
-        cursor.finish(ChainedSequenceRuleSetMarker {
-            chained_seq_rule_offsets_byte_len,
-        })
+        cursor.finish(
+            ChainedSequenceRuleSetMarker {
+                chained_seq_rule_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// Part of [ChainedSequenceContextFormat1]
-pub type ChainedSequenceRuleSet<'a> = TableRef<'a, ChainedSequenceRuleSetMarker>;
+pub type ChainedSequenceRuleSet<'a> =
+    TableRef<'a, ChainedSequenceRuleSetMarker, ChainedSequenceRuleSetFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedSequenceRuleSet<'a> {
     /// Number of ChainedSequenceRule tables
+    #[inline]
     pub fn chained_seq_rule_count(&self) -> u16 {
-        let range = self.shape.chained_seq_rule_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().chained_seq_rule_count.get()
     }
 
     /// Array of offsets to ChainedSequenceRule tables, from beginning
     /// of ChainedSequenceRuleSet table
+    #[inline]
     pub fn chained_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.chained_seq_rule_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`chained_seq_rule_offsets`][Self::chained_seq_rule_offsets].
+    #[inline]
     pub fn chained_seq_rules(&self) -> ArrayOfOffsets<'a, ChainedSequenceRule<'a>, Offset16> {
         let data = self.data;
         let offsets = self.chained_seq_rule_offsets();
@@ -2946,6 +3361,17 @@ impl<'a> std::fmt::Debug for ChainedSequenceRuleSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ChainedSequenceRuleFixedFields {
+    pub backtrack_glyph_count: BigEndian<u16>,
+}
+
+impl FixedSize for ChainedSequenceRuleFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
 }
 
 /// Part of [ChainedSequenceContextFormat1]
@@ -3007,9 +3433,11 @@ impl MinByteRange for ChainedSequenceRuleMarker {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let backtrack_glyph_count: u16 = cursor.read()?;
+        let fixed_fields: &'a ChainedSequenceRuleFixedFields = cursor.read_ref()?;
+        let backtrack_glyph_count = fixed_fields.backtrack_glyph_count.get();
         let backtrack_sequence_byte_len = (backtrack_glyph_count as usize)
             .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -3029,63 +3457,74 @@ impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
             .checked_mul(SequenceLookupRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_lookup_records_byte_len);
-        cursor.finish(ChainedSequenceRuleMarker {
-            backtrack_sequence_byte_len,
-            input_sequence_byte_len,
-            lookahead_sequence_byte_len,
-            seq_lookup_records_byte_len,
-        })
+        cursor.finish(
+            ChainedSequenceRuleMarker {
+                backtrack_sequence_byte_len,
+                input_sequence_byte_len,
+                lookahead_sequence_byte_len,
+                seq_lookup_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// Part of [ChainedSequenceContextFormat1]
-pub type ChainedSequenceRule<'a> = TableRef<'a, ChainedSequenceRuleMarker>;
+pub type ChainedSequenceRule<'a> =
+    TableRef<'a, ChainedSequenceRuleMarker, ChainedSequenceRuleFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedSequenceRule<'a> {
     /// Number of glyphs in the backtrack sequence
+    #[inline]
     pub fn backtrack_glyph_count(&self) -> u16 {
-        let range = self.shape.backtrack_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().backtrack_glyph_count.get()
     }
 
     /// Array of backtrack glyph IDs
+    #[inline]
     pub fn backtrack_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.backtrack_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Number of glyphs in the input sequence
+    #[inline]
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.shape.input_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of input glyph IDs—start with second glyph
+    #[inline]
     pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Number of glyphs in the lookahead sequence
+    #[inline]
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of lookahead glyph IDs
+    #[inline]
     pub fn lookahead_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.lookahead_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Number of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -3135,6 +3574,27 @@ impl<'a> std::fmt::Debug for ChainedSequenceRule<'a> {
 
 impl Format<u16> for ChainedSequenceContextFormat2Marker {
     const FORMAT: u16 = 2;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ChainedSequenceContextFormat2FixedFields {
+    pub format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset16>,
+    pub backtrack_class_def_offset: BigEndian<Offset16>,
+    pub input_class_def_offset: BigEndian<Offset16>,
+    pub lookahead_class_def_offset: BigEndian<Offset16>,
+    pub chained_class_seq_rule_set_count: BigEndian<u16>,
+}
+
+impl FixedSize for ChainedSequenceContextFormat2FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
 }
 
 /// [Chained Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-2-class-based-glyph-contexts)
@@ -3188,44 +3648,46 @@ impl MinByteRange for ChainedSequenceContextFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        let chained_class_seq_rule_set_count: u16 = cursor.read()?;
+        let fixed_fields: &'a ChainedSequenceContextFormat2FixedFields = cursor.read_ref()?;
+        let chained_class_seq_rule_set_count = fixed_fields.chained_class_seq_rule_set_count.get();
         let chained_class_seq_rule_set_offsets_byte_len = (chained_class_seq_rule_set_count
             as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(chained_class_seq_rule_set_offsets_byte_len);
-        cursor.finish(ChainedSequenceContextFormat2Marker {
-            chained_class_seq_rule_set_offsets_byte_len,
-        })
+        cursor.finish(
+            ChainedSequenceContextFormat2Marker {
+                chained_class_seq_rule_set_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Chained Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-2-class-based-glyph-contexts)
-pub type ChainedSequenceContextFormat2<'a> = TableRef<'a, ChainedSequenceContextFormat2Marker>;
+pub type ChainedSequenceContextFormat2<'a> =
+    TableRef<'a, ChainedSequenceContextFormat2Marker, ChainedSequenceContextFormat2FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Format identifier: format = 2
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Offset to Coverage table, from beginning of
     /// ChainedSequenceContextFormat2 table
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().coverage_offset.get()
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
         self.coverage_offset().resolve(data)
@@ -3233,12 +3695,13 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
 
     /// Offset to ClassDef table containing backtrack sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
+    #[inline]
     pub fn backtrack_class_def_offset(&self) -> Offset16 {
-        let range = self.shape.backtrack_class_def_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().backtrack_class_def_offset.get()
     }
 
     /// Attempt to resolve [`backtrack_class_def_offset`][Self::backtrack_class_def_offset].
+    #[inline]
     pub fn backtrack_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
         let data = self.data;
         self.backtrack_class_def_offset().resolve(data)
@@ -3246,12 +3709,13 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
 
     /// Offset to ClassDef table containing input sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
+    #[inline]
     pub fn input_class_def_offset(&self) -> Offset16 {
-        let range = self.shape.input_class_def_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().input_class_def_offset.get()
     }
 
     /// Attempt to resolve [`input_class_def_offset`][Self::input_class_def_offset].
+    #[inline]
     pub fn input_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
         let data = self.data;
         self.input_class_def_offset().resolve(data)
@@ -3259,31 +3723,34 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
 
     /// Offset to ClassDef table containing lookahead sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
+    #[inline]
     pub fn lookahead_class_def_offset(&self) -> Offset16 {
-        let range = self.shape.lookahead_class_def_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().lookahead_class_def_offset.get()
     }
 
     /// Attempt to resolve [`lookahead_class_def_offset`][Self::lookahead_class_def_offset].
+    #[inline]
     pub fn lookahead_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
         let data = self.data;
         self.lookahead_class_def_offset().resolve(data)
     }
 
     /// Number of ChainedClassSequenceRuleSet tables
+    #[inline]
     pub fn chained_class_seq_rule_set_count(&self) -> u16 {
-        let range = self.shape.chained_class_seq_rule_set_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().chained_class_seq_rule_set_count.get()
     }
 
     /// Array of offsets to ChainedClassSequenceRuleSet tables, from
     /// beginning of ChainedSequenceContextFormat2 table (may be NULL)
+    #[inline]
     pub fn chained_class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.chained_class_seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`chained_class_seq_rule_set_offsets`][Self::chained_class_seq_rule_set_offsets].
+    #[inline]
     pub fn chained_class_seq_rule_sets(
         &self,
     ) -> ArrayOfNullableOffsets<'a, ChainedClassSequenceRuleSet<'a>, Offset16> {
@@ -3354,6 +3821,17 @@ impl<'a> std::fmt::Debug for ChainedSequenceContextFormat2<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ChainedClassSequenceRuleSetFixedFields {
+    pub chained_class_seq_rule_count: BigEndian<u16>,
+}
+
+impl FixedSize for ChainedClassSequenceRuleSetFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+}
+
 /// Part of [ChainedSequenceContextFormat2]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -3380,38 +3858,46 @@ impl MinByteRange for ChainedClassSequenceRuleSetMarker {
 }
 
 impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let chained_class_seq_rule_count: u16 = cursor.read()?;
+        let fixed_fields: &'a ChainedClassSequenceRuleSetFixedFields = cursor.read_ref()?;
+        let chained_class_seq_rule_count = fixed_fields.chained_class_seq_rule_count.get();
         let chained_class_seq_rule_offsets_byte_len = (chained_class_seq_rule_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(chained_class_seq_rule_offsets_byte_len);
-        cursor.finish(ChainedClassSequenceRuleSetMarker {
-            chained_class_seq_rule_offsets_byte_len,
-        })
+        cursor.finish(
+            ChainedClassSequenceRuleSetMarker {
+                chained_class_seq_rule_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// Part of [ChainedSequenceContextFormat2]
-pub type ChainedClassSequenceRuleSet<'a> = TableRef<'a, ChainedClassSequenceRuleSetMarker>;
+pub type ChainedClassSequenceRuleSet<'a> =
+    TableRef<'a, ChainedClassSequenceRuleSetMarker, ChainedClassSequenceRuleSetFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedClassSequenceRuleSet<'a> {
     /// Number of ChainedClassSequenceRule tables
+    #[inline]
     pub fn chained_class_seq_rule_count(&self) -> u16 {
-        let range = self.shape.chained_class_seq_rule_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().chained_class_seq_rule_count.get()
     }
 
     /// Array of offsets to ChainedClassSequenceRule tables, from
     /// beginning of ChainedClassSequenceRuleSet
+    #[inline]
     pub fn chained_class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.chained_class_seq_rule_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`chained_class_seq_rule_offsets`][Self::chained_class_seq_rule_offsets].
+    #[inline]
     pub fn chained_class_seq_rules(
         &self,
     ) -> ArrayOfOffsets<'a, ChainedClassSequenceRule<'a>, Offset16> {
@@ -3457,6 +3943,17 @@ impl<'a> std::fmt::Debug for ChainedClassSequenceRuleSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ChainedClassSequenceRuleFixedFields {
+    pub backtrack_glyph_count: BigEndian<u16>,
+}
+
+impl FixedSize for ChainedClassSequenceRuleFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
 }
 
 /// Part of [ChainedSequenceContextFormat2]
@@ -3518,9 +4015,11 @@ impl MinByteRange for ChainedClassSequenceRuleMarker {
 }
 
 impl<'a> FontRead<'a> for ChainedClassSequenceRule<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let backtrack_glyph_count: u16 = cursor.read()?;
+        let fixed_fields: &'a ChainedClassSequenceRuleFixedFields = cursor.read_ref()?;
+        let backtrack_glyph_count = fixed_fields.backtrack_glyph_count.get();
         let backtrack_sequence_byte_len = (backtrack_glyph_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -3540,33 +4039,39 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRule<'a> {
             .checked_mul(SequenceLookupRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_lookup_records_byte_len);
-        cursor.finish(ChainedClassSequenceRuleMarker {
-            backtrack_sequence_byte_len,
-            input_sequence_byte_len,
-            lookahead_sequence_byte_len,
-            seq_lookup_records_byte_len,
-        })
+        cursor.finish(
+            ChainedClassSequenceRuleMarker {
+                backtrack_sequence_byte_len,
+                input_sequence_byte_len,
+                lookahead_sequence_byte_len,
+                seq_lookup_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// Part of [ChainedSequenceContextFormat2]
-pub type ChainedClassSequenceRule<'a> = TableRef<'a, ChainedClassSequenceRuleMarker>;
+pub type ChainedClassSequenceRule<'a> =
+    TableRef<'a, ChainedClassSequenceRuleMarker, ChainedClassSequenceRuleFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedClassSequenceRule<'a> {
     /// Number of glyphs in the backtrack sequence
+    #[inline]
     pub fn backtrack_glyph_count(&self) -> u16 {
-        let range = self.shape.backtrack_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().backtrack_glyph_count.get()
     }
 
     /// Array of backtrack-sequence classes
+    #[inline]
     pub fn backtrack_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.backtrack_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Total number of glyphs in the input sequence
+    #[inline]
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.shape.input_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3574,30 +4079,35 @@ impl<'a> ChainedClassSequenceRule<'a> {
 
     /// Array of input sequence classes, beginning with the second
     /// glyph position
+    #[inline]
     pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Number of glyphs in the lookahead sequence
+    #[inline]
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of lookahead-sequence classes
+    #[inline]
     pub fn lookahead_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.lookahead_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Number of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -3647,6 +4157,18 @@ impl<'a> std::fmt::Debug for ChainedClassSequenceRule<'a> {
 
 impl Format<u16> for ChainedSequenceContextFormat3Marker {
     const FORMAT: u16 = 3;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ChainedSequenceContextFormat3FixedFields {
+    pub format: BigEndian<u16>,
+    pub backtrack_glyph_count: BigEndian<u16>,
+}
+
+impl FixedSize for ChainedSequenceContextFormat3FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// [Chained Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-3-coverage-based-glyph-contexts)
@@ -3713,10 +4235,11 @@ impl MinByteRange for ChainedSequenceContextFormat3Marker {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let backtrack_glyph_count: u16 = cursor.read()?;
+        let fixed_fields: &'a ChainedSequenceContextFormat3FixedFields = cursor.read_ref()?;
+        let backtrack_glyph_count = fixed_fields.backtrack_glyph_count.get();
         let backtrack_coverage_offsets_byte_len = (backtrack_glyph_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -3736,39 +4259,45 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat3<'a> {
             .checked_mul(SequenceLookupRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(seq_lookup_records_byte_len);
-        cursor.finish(ChainedSequenceContextFormat3Marker {
-            backtrack_coverage_offsets_byte_len,
-            input_coverage_offsets_byte_len,
-            lookahead_coverage_offsets_byte_len,
-            seq_lookup_records_byte_len,
-        })
+        cursor.finish(
+            ChainedSequenceContextFormat3Marker {
+                backtrack_coverage_offsets_byte_len,
+                input_coverage_offsets_byte_len,
+                lookahead_coverage_offsets_byte_len,
+                seq_lookup_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Chained Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-3-coverage-based-glyph-contexts)
-pub type ChainedSequenceContextFormat3<'a> = TableRef<'a, ChainedSequenceContextFormat3Marker>;
+pub type ChainedSequenceContextFormat3<'a> =
+    TableRef<'a, ChainedSequenceContextFormat3Marker, ChainedSequenceContextFormat3FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Format identifier: format = 3
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Number of glyphs in the backtrack sequence
+    #[inline]
     pub fn backtrack_glyph_count(&self) -> u16 {
-        let range = self.shape.backtrack_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().backtrack_glyph_count.get()
     }
 
     /// Array of offsets to coverage tables for the backtrack sequence
+    #[inline]
     pub fn backtrack_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.backtrack_coverage_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
+    #[inline]
     pub fn backtrack_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.backtrack_coverage_offsets();
@@ -3776,18 +4305,21 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 
     /// Number of glyphs in the input sequence
+    #[inline]
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.shape.input_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to coverage tables for the input sequence
+    #[inline]
     pub fn input_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.input_coverage_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`input_coverage_offsets`][Self::input_coverage_offsets].
+    #[inline]
     pub fn input_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.input_coverage_offsets();
@@ -3795,18 +4327,21 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 
     /// Number of glyphs in the lookahead sequence
+    #[inline]
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to coverage tables for the lookahead sequence
+    #[inline]
     pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lookahead_coverage_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
+    #[inline]
     pub fn lookahead_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.lookahead_coverage_offsets();
@@ -3814,12 +4349,14 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 
     /// Number of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -3916,6 +4453,7 @@ pub enum ChainedSequenceContext<'a> {
 
 impl<'a> ChainedSequenceContext<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
+    #[inline]
     pub fn offset_data(&self) -> FontData<'a> {
         match self {
             Self::Format1(item) => item.offset_data(),
@@ -3925,6 +4463,7 @@ impl<'a> ChainedSequenceContext<'a> {
     }
 
     /// Format identifier: format = 1
+    #[inline]
     pub fn format(&self) -> u16 {
         match self {
             Self::Format1(item) => item.format(),
@@ -4038,6 +4577,18 @@ impl<'a> From<DeltaFormat> for FieldType<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct DeviceFixedFields {
+    pub start_size: BigEndian<u16>,
+    pub end_size: BigEndian<u16>,
+}
+
+impl FixedSize for DeviceFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -4074,45 +4625,52 @@ impl MinByteRange for DeviceMarker {
 }
 
 impl<'a> FontRead<'a> for Device<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let start_size: u16 = cursor.read()?;
-        let end_size: u16 = cursor.read()?;
+        let fixed_fields: &'a DeviceFixedFields = cursor.read_ref()?;
+        let start_size = fixed_fields.start_size.get();
+        let end_size = fixed_fields.end_size.get();
         let delta_format: DeltaFormat = cursor.read()?;
         let delta_value_byte_len = (DeltaFormat::value_count(delta_format, start_size, end_size))
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(delta_value_byte_len);
-        cursor.finish(DeviceMarker {
-            delta_value_byte_len,
-        })
+        cursor.finish(
+            DeviceMarker {
+                delta_value_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
-pub type Device<'a> = TableRef<'a, DeviceMarker>;
+pub type Device<'a> = TableRef<'a, DeviceMarker, DeviceFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Device<'a> {
     /// Smallest size to correct, in ppem
+    #[inline]
     pub fn start_size(&self) -> u16 {
-        let range = self.shape.start_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().start_size.get()
     }
 
     /// Largest size to correct, in ppem
+    #[inline]
     pub fn end_size(&self) -> u16 {
-        let range = self.shape.end_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().end_size.get()
     }
 
     /// Format of deltaValue array data: 0x0001, 0x0002, or 0x0003
+    #[inline]
     pub fn delta_format(&self) -> DeltaFormat {
         let range = self.shape.delta_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of compressed data
+    #[inline]
     pub fn delta_value(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.delta_value_byte_range();
         self.data.read_array(range).unwrap()
@@ -4141,6 +4699,18 @@ impl<'a> std::fmt::Debug for Device<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct VariationIndexFixedFields {
+    pub delta_set_outer_index: BigEndian<u16>,
+    pub delta_set_inner_index: BigEndian<u16>,
+}
+
+impl FixedSize for VariationIndexFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// Variation index table
@@ -4172,35 +4742,36 @@ impl MinByteRange for VariationIndexMarker {
 }
 
 impl<'a> FontRead<'a> for VariationIndex<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
+        let fixed_fields: &'a VariationIndexFixedFields = cursor.read_ref()?;
         cursor.advance::<DeltaFormat>();
-        cursor.finish(VariationIndexMarker {})
+        cursor.finish(VariationIndexMarker {}, fixed_fields)
     }
 }
 
 /// Variation index table
-pub type VariationIndex<'a> = TableRef<'a, VariationIndexMarker>;
+pub type VariationIndex<'a> = TableRef<'a, VariationIndexMarker, VariationIndexFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VariationIndex<'a> {
     /// A delta-set outer index — used to select an item variation
     /// data subtable within the item variation store.
+    #[inline]
     pub fn delta_set_outer_index(&self) -> u16 {
-        let range = self.shape.delta_set_outer_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().delta_set_outer_index.get()
     }
 
     /// A delta-set inner index — used to select a delta-set row
     /// within an item variation data subtable.
+    #[inline]
     pub fn delta_set_inner_index(&self) -> u16 {
-        let range = self.shape.delta_set_inner_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().delta_set_inner_index.get()
     }
 
     /// Format, = 0x8000
+    #[inline]
     pub fn delta_format(&self) -> DeltaFormat {
         let range = self.shape.delta_format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4245,6 +4816,7 @@ pub enum DeviceOrVariationIndex<'a> {
 
 impl<'a> DeviceOrVariationIndex<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
+    #[inline]
     pub fn offset_data(&self) -> FontData<'a> {
         match self {
             Self::Device(item) => item.offset_data(),
@@ -4306,6 +4878,18 @@ impl<'a> SomeTable<'a> for DeviceOrVariationIndex<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct FeatureVariationsFixedFields {
+    pub version: BigEndian<MajorMinor>,
+    pub feature_variation_record_count: BigEndian<u32>,
+}
+
+impl FixedSize for FeatureVariationsFixedFields {
+    const RAW_BYTE_LEN: usize = MajorMinor::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -4337,37 +4921,43 @@ impl MinByteRange for FeatureVariationsMarker {
 }
 
 impl<'a> FontRead<'a> for FeatureVariations<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        let feature_variation_record_count: u32 = cursor.read()?;
+        let fixed_fields: &'a FeatureVariationsFixedFields = cursor.read_ref()?;
+        let feature_variation_record_count = fixed_fields.feature_variation_record_count.get();
         let feature_variation_records_byte_len = (feature_variation_record_count as usize)
             .checked_mul(FeatureVariationRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(feature_variation_records_byte_len);
-        cursor.finish(FeatureVariationsMarker {
-            feature_variation_records_byte_len,
-        })
+        cursor.finish(
+            FeatureVariationsMarker {
+                feature_variation_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
-pub type FeatureVariations<'a> = TableRef<'a, FeatureVariationsMarker>;
+pub type FeatureVariations<'a> =
+    TableRef<'a, FeatureVariationsMarker, FeatureVariationsFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FeatureVariations<'a> {
+    #[inline]
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Number of feature variation records.
+    #[inline]
     pub fn feature_variation_record_count(&self) -> u32 {
-        let range = self.shape.feature_variation_record_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().feature_variation_record_count.get()
     }
 
     /// Array of feature variation records.
+    #[inline]
     pub fn feature_variation_records(&self) -> &'a [FeatureVariationRecord] {
         let range = self.shape.feature_variation_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -4423,6 +5013,7 @@ pub struct FeatureVariationRecord {
 impl FeatureVariationRecord {
     /// Offset to a condition set table, from beginning of
     /// FeatureVariations table.
+    #[inline]
     pub fn condition_set_offset(&self) -> Nullable<Offset32> {
         self.condition_set_offset.get()
     }
@@ -4432,6 +5023,7 @@ impl FeatureVariationRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    #[inline]
     pub fn condition_set<'a>(
         &self,
         data: FontData<'a>,
@@ -4441,6 +5033,7 @@ impl FeatureVariationRecord {
 
     /// Offset to a feature table substitution table, from beginning of
     /// the FeatureVariations table.
+    #[inline]
     pub fn feature_table_substitution_offset(&self) -> Nullable<Offset32> {
         self.feature_table_substitution_offset.get()
     }
@@ -4450,6 +5043,7 @@ impl FeatureVariationRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    #[inline]
     pub fn feature_table_substitution<'a>(
         &self,
         data: FontData<'a>,
@@ -4486,6 +5080,17 @@ impl<'a> SomeRecord<'a> for FeatureVariationRecord {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ConditionSetFixedFields {
+    pub condition_count: BigEndian<u16>,
+}
+
+impl FixedSize for ConditionSetFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+}
+
 /// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -4512,38 +5117,45 @@ impl MinByteRange for ConditionSetMarker {
 }
 
 impl<'a> FontRead<'a> for ConditionSet<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let condition_count: u16 = cursor.read()?;
+        let fixed_fields: &'a ConditionSetFixedFields = cursor.read_ref()?;
+        let condition_count = fixed_fields.condition_count.get();
         let condition_offsets_byte_len = (condition_count as usize)
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(condition_offsets_byte_len);
-        cursor.finish(ConditionSetMarker {
-            condition_offsets_byte_len,
-        })
+        cursor.finish(
+            ConditionSetMarker {
+                condition_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
-pub type ConditionSet<'a> = TableRef<'a, ConditionSetMarker>;
+pub type ConditionSet<'a> = TableRef<'a, ConditionSetMarker, ConditionSetFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionSet<'a> {
     /// Number of conditions for this condition set.
+    #[inline]
     pub fn condition_count(&self) -> u16 {
-        let range = self.shape.condition_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().condition_count.get()
     }
 
     /// Array of offsets to condition tables, from beginning of the
     /// ConditionSet table.
+    #[inline]
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.condition_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
+    #[inline]
     pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset32> {
         let data = self.data;
         let offsets = self.condition_offsets();
@@ -4601,6 +5213,7 @@ pub enum Condition<'a> {
 
 impl<'a> Condition<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
+    #[inline]
     pub fn offset_data(&self) -> FontData<'a> {
         match self {
             Self::Format1AxisRange(item) => item.offset_data(),
@@ -4612,6 +5225,7 @@ impl<'a> Condition<'a> {
     }
 
     /// Format, = 1
+    #[inline]
     pub fn format(&self) -> u16 {
         match self {
             Self::Format1AxisRange(item) => item.format(),
@@ -4683,6 +5297,21 @@ impl Format<u16> for ConditionFormat1Marker {
     const FORMAT: u16 = 1;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ConditionFormat1FixedFields {
+    pub format: BigEndian<u16>,
+    pub axis_index: BigEndian<u16>,
+    pub filter_range_min_value: BigEndian<F2Dot14>,
+    pub filter_range_max_value: BigEndian<F2Dot14>,
+}
+
+impl FixedSize for ConditionFormat1FixedFields {
+    const RAW_BYTE_LEN: usize =
+        u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
+}
+
 /// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -4717,46 +5346,44 @@ impl MinByteRange for ConditionFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(ConditionFormat1Marker {})
+        let fixed_fields: &'a ConditionFormat1FixedFields = cursor.read_ref()?;
+        cursor.finish(ConditionFormat1Marker {}, fixed_fields)
     }
 }
 
 /// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
-pub type ConditionFormat1<'a> = TableRef<'a, ConditionFormat1Marker>;
+pub type ConditionFormat1<'a> = TableRef<'a, ConditionFormat1Marker, ConditionFormat1FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionFormat1<'a> {
     /// Format, = 1
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Index (zero-based) for the variation axis within the 'fvar'
     /// table.
+    #[inline]
     pub fn axis_index(&self) -> u16 {
-        let range = self.shape.axis_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().axis_index.get()
     }
 
     /// Minimum value of the font variation instances that satisfy this
     /// condition.
+    #[inline]
     pub fn filter_range_min_value(&self) -> F2Dot14 {
-        let range = self.shape.filter_range_min_value_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().filter_range_min_value.get()
     }
 
     /// Maximum value of the font variation instances that satisfy this
     /// condition.
+    #[inline]
     pub fn filter_range_max_value(&self) -> F2Dot14 {
-        let range = self.shape.filter_range_max_value_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().filter_range_max_value.get()
     }
 }
 
@@ -4794,6 +5421,19 @@ impl Format<u16> for ConditionFormat2Marker {
     const FORMAT: u16 = 2;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ConditionFormat2FixedFields {
+    pub format: BigEndian<u16>,
+    pub default_value: BigEndian<i16>,
+    pub var_index: BigEndian<u32>,
+}
+
+impl FixedSize for ConditionFormat2FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
 /// [Condition Table Format 2](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3237-L3255): Variation index
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -4823,36 +5463,35 @@ impl MinByteRange for ConditionFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<i16>();
-        cursor.advance::<u32>();
-        cursor.finish(ConditionFormat2Marker {})
+        let fixed_fields: &'a ConditionFormat2FixedFields = cursor.read_ref()?;
+        cursor.finish(ConditionFormat2Marker {}, fixed_fields)
     }
 }
 
 /// [Condition Table Format 2](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3237-L3255): Variation index
-pub type ConditionFormat2<'a> = TableRef<'a, ConditionFormat2Marker>;
+pub type ConditionFormat2<'a> = TableRef<'a, ConditionFormat2Marker, ConditionFormat2FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionFormat2<'a> {
     /// Format, = 2
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Value at default instance.
+    #[inline]
     pub fn default_value(&self) -> i16 {
-        let range = self.shape.default_value_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().default_value.get()
     }
 
     /// Variation index to vary the value based on current designspace location.
+    #[inline]
     pub fn var_index(&self) -> u32 {
-        let range = self.shape.var_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().var_index.get()
     }
 }
 
@@ -4881,6 +5520,18 @@ impl<'a> std::fmt::Debug for ConditionFormat2<'a> {
 
 impl Format<u16> for ConditionFormat3Marker {
     const FORMAT: u16 = 3;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ConditionFormat3FixedFields {
+    pub format: BigEndian<u16>,
+    pub condition_count: u8,
+}
+
+impl FixedSize for ConditionFormat3FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
 }
 
 /// [Condition Table Format 3](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3257-L3275): AND
@@ -4914,44 +5565,50 @@ impl MinByteRange for ConditionFormat3Marker {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let condition_count: u8 = cursor.read()?;
+        let fixed_fields: &'a ConditionFormat3FixedFields = cursor.read_ref()?;
+        let condition_count = fixed_fields.condition_count;
         let condition_offsets_byte_len = (condition_count as usize)
             .checked_mul(Offset24::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(condition_offsets_byte_len);
-        cursor.finish(ConditionFormat3Marker {
-            condition_offsets_byte_len,
-        })
+        cursor.finish(
+            ConditionFormat3Marker {
+                condition_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Condition Table Format 3](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3257-L3275): AND
-pub type ConditionFormat3<'a> = TableRef<'a, ConditionFormat3Marker>;
+pub type ConditionFormat3<'a> = TableRef<'a, ConditionFormat3Marker, ConditionFormat3FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionFormat3<'a> {
     /// Format, = 3
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Number of conditions.
+    #[inline]
     pub fn condition_count(&self) -> u8 {
-        let range = self.shape.condition_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().condition_count
     }
 
     /// Array of condition tables for this conjunction (AND) expression.
+    #[inline]
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
         let range = self.shape.condition_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
+    #[inline]
     pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset24> {
         let data = self.data;
         let offsets = self.condition_offsets();
@@ -4999,6 +5656,18 @@ impl Format<u16> for ConditionFormat4Marker {
     const FORMAT: u16 = 4;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ConditionFormat4FixedFields {
+    pub format: BigEndian<u16>,
+    pub condition_count: u8,
+}
+
+impl FixedSize for ConditionFormat4FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
+}
+
 /// [Condition Table Format 4](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3276-L3295): OR
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -5030,44 +5699,50 @@ impl MinByteRange for ConditionFormat4Marker {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat4<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let condition_count: u8 = cursor.read()?;
+        let fixed_fields: &'a ConditionFormat4FixedFields = cursor.read_ref()?;
+        let condition_count = fixed_fields.condition_count;
         let condition_offsets_byte_len = (condition_count as usize)
             .checked_mul(Offset24::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(condition_offsets_byte_len);
-        cursor.finish(ConditionFormat4Marker {
-            condition_offsets_byte_len,
-        })
+        cursor.finish(
+            ConditionFormat4Marker {
+                condition_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Condition Table Format 4](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3276-L3295): OR
-pub type ConditionFormat4<'a> = TableRef<'a, ConditionFormat4Marker>;
+pub type ConditionFormat4<'a> = TableRef<'a, ConditionFormat4Marker, ConditionFormat4FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionFormat4<'a> {
     /// Format, = 4
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Number of conditions.
+    #[inline]
     pub fn condition_count(&self) -> u8 {
-        let range = self.shape.condition_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().condition_count
     }
 
     /// Array of condition tables for this disjunction (OR) expression.
+    #[inline]
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
         let range = self.shape.condition_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
+    #[inline]
     pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset24> {
         let data = self.data;
         let offsets = self.condition_offsets();
@@ -5115,6 +5790,18 @@ impl Format<u16> for ConditionFormat5Marker {
     const FORMAT: u16 = 5;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ConditionFormat5FixedFields {
+    pub format: BigEndian<u16>,
+    pub condition_offset: BigEndian<Offset24>,
+}
+
+impl FixedSize for ConditionFormat5FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
+}
+
 /// [Condition Table Format 5](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3296-L3308): NOT
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -5139,32 +5826,33 @@ impl MinByteRange for ConditionFormat5Marker {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat5<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset24>();
-        cursor.finish(ConditionFormat5Marker {})
+        let fixed_fields: &'a ConditionFormat5FixedFields = cursor.read_ref()?;
+        cursor.finish(ConditionFormat5Marker {}, fixed_fields)
     }
 }
 
 /// [Condition Table Format 5](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3296-L3308): NOT
-pub type ConditionFormat5<'a> = TableRef<'a, ConditionFormat5Marker>;
+pub type ConditionFormat5<'a> = TableRef<'a, ConditionFormat5Marker, ConditionFormat5FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionFormat5<'a> {
     /// Format, = 5
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Condition to negate.
+    #[inline]
     pub fn condition_offset(&self) -> Offset24 {
-        let range = self.shape.condition_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().condition_offset.get()
     }
 
     /// Attempt to resolve [`condition_offset`][Self::condition_offset].
+    #[inline]
     pub fn condition(&self) -> Result<Condition<'a>, ReadError> {
         let data = self.data;
         self.condition_offset().resolve(data)
@@ -5194,6 +5882,18 @@ impl<'a> std::fmt::Debug for ConditionFormat5<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct FeatureTableSubstitutionFixedFields {
+    pub version: BigEndian<MajorMinor>,
+    pub substitution_count: BigEndian<u16>,
+}
+
+impl FixedSize for FeatureTableSubstitutionFixedFields {
+    const RAW_BYTE_LEN: usize = MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// [FeatureTableSubstitution Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featuretablesubstitution-table)
@@ -5227,38 +5927,44 @@ impl MinByteRange for FeatureTableSubstitutionMarker {
 }
 
 impl<'a> FontRead<'a> for FeatureTableSubstitution<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        let substitution_count: u16 = cursor.read()?;
+        let fixed_fields: &'a FeatureTableSubstitutionFixedFields = cursor.read_ref()?;
+        let substitution_count = fixed_fields.substitution_count.get();
         let substitutions_byte_len = (substitution_count as usize)
             .checked_mul(FeatureTableSubstitutionRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(substitutions_byte_len);
-        cursor.finish(FeatureTableSubstitutionMarker {
-            substitutions_byte_len,
-        })
+        cursor.finish(
+            FeatureTableSubstitutionMarker {
+                substitutions_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [FeatureTableSubstitution Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featuretablesubstitution-table)
-pub type FeatureTableSubstitution<'a> = TableRef<'a, FeatureTableSubstitutionMarker>;
+pub type FeatureTableSubstitution<'a> =
+    TableRef<'a, FeatureTableSubstitutionMarker, FeatureTableSubstitutionFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FeatureTableSubstitution<'a> {
     /// Major & minor version of the table: (1, 0)
+    #[inline]
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Number of feature table substitution records.
+    #[inline]
     pub fn substitution_count(&self) -> u16 {
-        let range = self.shape.substitution_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().substitution_count.get()
     }
 
     /// Array of feature table substitution records.
+    #[inline]
     pub fn substitutions(&self) -> &'a [FeatureTableSubstitutionRecord] {
         let range = self.shape.substitutions_byte_range();
         self.data.read_array(range).unwrap()
@@ -5309,12 +6015,14 @@ pub struct FeatureTableSubstitutionRecord {
 
 impl FeatureTableSubstitutionRecord {
     /// The feature table index to match.
+    #[inline]
     pub fn feature_index(&self) -> u16 {
         self.feature_index.get()
     }
 
     /// Offset to an alternate feature table, from start of the
     /// FeatureTableSubstitution table.
+    #[inline]
     pub fn alternate_feature_offset(&self) -> Offset32 {
         self.alternate_feature_offset.get()
     }
@@ -5343,6 +6051,25 @@ impl<'a> SomeRecord<'a> for FeatureTableSubstitutionRecord {
             data,
         }
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SizeParamsFixedFields {
+    pub design_size: BigEndian<u16>,
+    pub identifier: BigEndian<u16>,
+    pub name_entry: BigEndian<u16>,
+    pub range_start: BigEndian<u16>,
+    pub range_end: BigEndian<u16>,
+}
+
+impl FixedSize for SizeParamsFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -5383,18 +6110,15 @@ impl MinByteRange for SizeParamsMarker {
 }
 
 impl<'a> FontRead<'a> for SizeParams<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.finish(SizeParamsMarker {})
+        let fixed_fields: &'a SizeParamsFixedFields = cursor.read_ref()?;
+        cursor.finish(SizeParamsMarker {}, fixed_fields)
     }
 }
 
-pub type SizeParams<'a> = TableRef<'a, SizeParamsMarker>;
+pub type SizeParams<'a> = TableRef<'a, SizeParamsMarker, SizeParamsFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SizeParams<'a> {
@@ -5402,9 +6126,9 @@ impl<'a> SizeParams<'a> {
     ///
     /// The design size entry must be non-zero. When there is a design size but
     /// no recommended size range, the rest of the array will consist of zeros.
+    #[inline]
     pub fn design_size(&self) -> u16 {
-        let range = self.shape.design_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().design_size.get()
     }
 
     /// The second value has no independent meaning, but serves as an identifier that associates fonts in a subfamily.
@@ -5413,9 +6137,9 @@ impl<'a> SizeParams<'a> {
     /// only by size range shall have the same subfamily value, and no fonts
     /// which differ in weight or style shall have the same subfamily value.
     /// If this value is zero, the remaining fields in the array will be ignored.
+    #[inline]
     pub fn identifier(&self) -> u16 {
-        let range = self.shape.identifier_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().identifier.get()
     }
 
     /// The third value enables applications to use a single name for the subfamily identified by the second value.
@@ -5428,9 +6152,9 @@ impl<'a> SizeParams<'a> {
     /// an application should use, in combination with the family name, to
     /// represent the subfamily in a menu. Applications will choose the
     /// appropriate version based on their selection criteria.
+    #[inline]
     pub fn name_entry(&self) -> u16 {
-        let range = self.shape.name_entry_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().name_entry.get()
     }
 
     /// The fourth and fifth values represent the small end of the recommended
@@ -5438,14 +6162,14 @@ impl<'a> SizeParams<'a> {
     /// (inclusive), stored in 720/inch units (decipoints).
     ///
     /// Ranges must not overlap, and should generally be contiguous.
+    #[inline]
     pub fn range_start(&self) -> u16 {
-        let range = self.shape.range_start_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().range_start.get()
     }
 
+    #[inline]
     pub fn range_end(&self) -> u16 {
-        let range = self.shape.range_end_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().range_end.get()
     }
 }
 
@@ -5474,6 +6198,18 @@ impl<'a> std::fmt::Debug for SizeParams<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct StylisticSetParamsFixedFields {
+    pub version: BigEndian<u16>,
+    pub ui_name_id: BigEndian<NameId>,
+}
+
+impl FixedSize for StylisticSetParamsFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN;
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct StylisticSetParamsMarker {}
@@ -5497,21 +6233,22 @@ impl MinByteRange for StylisticSetParamsMarker {
 }
 
 impl<'a> FontRead<'a> for StylisticSetParams<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<NameId>();
-        cursor.finish(StylisticSetParamsMarker {})
+        let fixed_fields: &'a StylisticSetParamsFixedFields = cursor.read_ref()?;
+        cursor.finish(StylisticSetParamsMarker {}, fixed_fields)
     }
 }
 
-pub type StylisticSetParams<'a> = TableRef<'a, StylisticSetParamsMarker>;
+pub type StylisticSetParams<'a> =
+    TableRef<'a, StylisticSetParamsMarker, StylisticSetParamsFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> StylisticSetParams<'a> {
+    #[inline]
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// The 'name' table name ID that specifies a string (or strings, for
@@ -5523,9 +6260,9 @@ impl<'a> StylisticSetParams<'a> {
     /// be provided in multiple languages. An English string should be included
     /// as a fallback. The string should be kept to a minimal length to fit
     /// comfortably with different application interfaces.
+    #[inline]
     pub fn ui_name_id(&self) -> NameId {
-        let range = self.shape.ui_name_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().ui_name_id.get()
     }
 }
 
@@ -5553,6 +6290,29 @@ impl<'a> std::fmt::Debug for StylisticSetParams<'a> {
 
 impl Format<u16> for CharacterVariantParamsMarker {
     const FORMAT: u16 = 0;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct CharacterVariantParamsFixedFields {
+    pub format: BigEndian<u16>,
+    pub feat_ui_label_name_id: BigEndian<NameId>,
+    pub feat_ui_tooltip_text_name_id: BigEndian<NameId>,
+    pub sample_text_name_id: BigEndian<NameId>,
+    pub num_named_parameters: BigEndian<u16>,
+    pub first_param_ui_label_name_id: BigEndian<NameId>,
+    pub char_count: BigEndian<u16>,
+}
+
+impl FixedSize for CharacterVariantParamsFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + NameId::RAW_BYTE_LEN
+        + NameId::RAW_BYTE_LEN
+        + NameId::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + NameId::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
 }
 
 /// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
@@ -5611,80 +6371,81 @@ impl MinByteRange for CharacterVariantParamsMarker {
 }
 
 impl<'a> FontRead<'a> for CharacterVariantParams<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<NameId>();
-        cursor.advance::<NameId>();
-        cursor.advance::<NameId>();
-        cursor.advance::<u16>();
-        cursor.advance::<NameId>();
-        let char_count: u16 = cursor.read()?;
+        let fixed_fields: &'a CharacterVariantParamsFixedFields = cursor.read_ref()?;
+        let char_count = fixed_fields.char_count.get();
         let character_byte_len = (char_count as usize)
             .checked_mul(Uint24::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(character_byte_len);
-        cursor.finish(CharacterVariantParamsMarker { character_byte_len })
+        cursor.finish(
+            CharacterVariantParamsMarker { character_byte_len },
+            fixed_fields,
+        )
     }
 }
 
 /// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
-pub type CharacterVariantParams<'a> = TableRef<'a, CharacterVariantParamsMarker>;
+pub type CharacterVariantParams<'a> =
+    TableRef<'a, CharacterVariantParamsMarker, CharacterVariantParamsFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CharacterVariantParams<'a> {
     /// Format number is set to 0.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// The 'name' table name ID that specifies a string (or strings,
     /// for multiple languages) for a user-interface label for this
     /// feature. (May be NULL.)
+    #[inline]
     pub fn feat_ui_label_name_id(&self) -> NameId {
-        let range = self.shape.feat_ui_label_name_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().feat_ui_label_name_id.get()
     }
 
     /// The 'name' table name ID that specifies a string (or strings,
     /// for multiple languages) that an application can use for tooltip
     /// text for this feature. (May be NULL.)
+    #[inline]
     pub fn feat_ui_tooltip_text_name_id(&self) -> NameId {
-        let range = self.shape.feat_ui_tooltip_text_name_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().feat_ui_tooltip_text_name_id.get()
     }
 
     /// The 'name' table name ID that specifies sample text that
     /// illustrates the effect of this feature. (May be NULL.)
+    #[inline]
     pub fn sample_text_name_id(&self) -> NameId {
-        let range = self.shape.sample_text_name_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().sample_text_name_id.get()
     }
 
     /// Number of named parameters. (May be zero.)
+    #[inline]
     pub fn num_named_parameters(&self) -> u16 {
-        let range = self.shape.num_named_parameters_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_named_parameters.get()
     }
 
     /// The first 'name' table name ID used to specify strings for
     /// user-interface labels for the feature parameters. (Must be zero
     /// if numParameters is zero.)
+    #[inline]
     pub fn first_param_ui_label_name_id(&self) -> NameId {
-        let range = self.shape.first_param_ui_label_name_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().first_param_ui_label_name_id.get()
     }
 
     /// The count of characters for which this feature provides glyph
     /// variants. (May be zero.)
+    #[inline]
     pub fn char_count(&self) -> u16 {
-        let range = self.shape.char_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().char_count.get()
     }
 
     /// The Unicode Scalar Value of the characters for which this
     /// feature provides glyph variants.
+    #[inline]
     pub fn character(&self) -> &'a [BigEndian<Uint24>] {
         let range = self.shape.character_byte_range();
         self.data.read_array(range).unwrap()

@@ -5,6 +5,19 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct MorxFixedFields {
+    pub version: BigEndian<u16>,
+    pub unused: BigEndian<u16>,
+    pub n_chains: BigEndian<u32>,
+}
+
+impl FixedSize for MorxFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
 /// The [morx (Extended Glyph Metamorphosis)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -46,37 +59,38 @@ impl TopLevelTable for Morx<'_> {
 }
 
 impl<'a> FontRead<'a> for Morx<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let n_chains: u32 = cursor.read()?;
+        let fixed_fields: &'a MorxFixedFields = cursor.read_ref()?;
+        let n_chains = fixed_fields.n_chains.get();
         let chains_byte_len = {
             let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
             <Chain as VarSize>::total_len_for_count(data, n_chains as usize)?
         };
         cursor.advance_by(chains_byte_len);
-        cursor.finish(MorxMarker { chains_byte_len })
+        cursor.finish(MorxMarker { chains_byte_len }, fixed_fields)
     }
 }
 
 /// The [morx (Extended Glyph Metamorphosis)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
-pub type Morx<'a> = TableRef<'a, MorxMarker>;
+pub type Morx<'a> = TableRef<'a, MorxMarker, MorxFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Morx<'a> {
     /// Version number of the extended glyph metamorphosis table (either 2 or 3).
+    #[inline]
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Number of metamorphosis chains contained in this table.
+    #[inline]
     pub fn n_chains(&self) -> u32 {
-        let range = self.shape.n_chains_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().n_chains.get()
     }
 
+    #[inline]
     pub fn chains(&self) -> VarLenArray<'a, Chain<'a>> {
         let range = self.shape.chains_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
@@ -107,6 +121,21 @@ impl<'a> std::fmt::Debug for Morx<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ChainFixedFields {
+    pub default_flags: BigEndian<u32>,
+    pub chain_length: BigEndian<u32>,
+    pub n_feature_entries: BigEndian<u32>,
+    pub n_subtables: BigEndian<u32>,
+}
+
+impl FixedSize for ChainFixedFields {
+    const RAW_BYTE_LEN: usize =
+        u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
 /// A chain in a `morx` table.
@@ -156,12 +185,12 @@ impl MinByteRange for ChainMarker {
 }
 
 impl<'a> FontRead<'a> for Chain<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let n_feature_entries: u32 = cursor.read()?;
-        let n_subtables: u32 = cursor.read()?;
+        let fixed_fields: &'a ChainFixedFields = cursor.read_ref()?;
+        let n_feature_entries = fixed_fields.n_feature_entries.get();
+        let n_subtables = fixed_fields.n_subtables.get();
         let features_byte_len = (n_feature_entries as usize)
             .checked_mul(Feature::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -171,49 +200,54 @@ impl<'a> FontRead<'a> for Chain<'a> {
             <Subtable as VarSize>::total_len_for_count(data, n_subtables as usize)?
         };
         cursor.advance_by(subtables_byte_len);
-        cursor.finish(ChainMarker {
-            features_byte_len,
-            subtables_byte_len,
-        })
+        cursor.finish(
+            ChainMarker {
+                features_byte_len,
+                subtables_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// A chain in a `morx` table.
-pub type Chain<'a> = TableRef<'a, ChainMarker>;
+pub type Chain<'a> = TableRef<'a, ChainMarker, ChainFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Chain<'a> {
     /// The default specification for subtables.
+    #[inline]
     pub fn default_flags(&self) -> u32 {
-        let range = self.shape.default_flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().default_flags.get()
     }
 
     /// Total byte count, including this header; must be a multiple of 4.
+    #[inline]
     pub fn chain_length(&self) -> u32 {
-        let range = self.shape.chain_length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().chain_length.get()
     }
 
     /// Number of feature subtable entries.
+    #[inline]
     pub fn n_feature_entries(&self) -> u32 {
-        let range = self.shape.n_feature_entries_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().n_feature_entries.get()
     }
 
     /// The number of subtables in the chain.
+    #[inline]
     pub fn n_subtables(&self) -> u32 {
-        let range = self.shape.n_subtables_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().n_subtables.get()
     }
 
     /// Feature entries for this chain.
+    #[inline]
     pub fn features(&self) -> &'a [Feature] {
         let range = self.shape.features_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Array of chain subtables.
+    #[inline]
     pub fn subtables(&self) -> VarLenArray<'a, Subtable<'a>> {
         let range = self.shape.subtables_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
@@ -273,21 +307,25 @@ pub struct Feature {
 
 impl Feature {
     /// The type of feature.
+    #[inline]
     pub fn feature_type(&self) -> u16 {
         self.feature_type.get()
     }
 
     /// The feature's setting (aka selector).
+    #[inline]
     pub fn feature_settings(&self) -> u16 {
         self.feature_settings.get()
     }
 
     /// Flags for the settings that this feature and setting enables.
+    #[inline]
     pub fn enable_flags(&self) -> u32 {
         self.enable_flags.get()
     }
 
     /// Complement of flags for the settings that this feature and setting disable.
+    #[inline]
     pub fn disable_flags(&self) -> u32 {
         self.disable_flags.get()
     }
@@ -313,6 +351,19 @@ impl<'a> SomeRecord<'a> for Feature {
             data,
         }
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SubtableFixedFields {
+    pub length: BigEndian<u32>,
+    pub coverage: BigEndian<u32>,
+    pub sub_feature_flags: BigEndian<u32>,
+}
+
+impl FixedSize for SubtableFixedFields {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
 /// A subtable in a `morx` chain.
@@ -351,41 +402,41 @@ impl MinByteRange for SubtableMarker {
 }
 
 impl<'a> FontRead<'a> for Subtable<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
+        let fixed_fields: &'a SubtableFixedFields = cursor.read_ref()?;
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(SubtableMarker { data_byte_len })
+        cursor.finish(SubtableMarker { data_byte_len }, fixed_fields)
     }
 }
 
 /// A subtable in a `morx` chain.
-pub type Subtable<'a> = TableRef<'a, SubtableMarker>;
+pub type Subtable<'a> = TableRef<'a, SubtableMarker, SubtableFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable<'a> {
     /// Total subtable length, including this header.
+    #[inline]
     pub fn length(&self) -> u32 {
-        let range = self.shape.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().length.get()
     }
 
     /// Coverage flags and subtable type.
+    #[inline]
     pub fn coverage(&self) -> u32 {
-        let range = self.shape.coverage_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().coverage.get()
     }
 
     /// The 32-bit mask identifying which subtable this is (the subtable being executed if the AND of this value and the processed defaultFlags is nonzero).
+    #[inline]
     pub fn sub_feature_flags(&self) -> u32 {
-        let range = self.shape.sub_feature_flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().sub_feature_flags.get()
     }
 
     /// Data for specific subtable.
+    #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()
@@ -432,12 +483,14 @@ pub struct ContextualEntryData {
 impl ContextualEntryData {
     /// Index of the substitution table for the marked glyph (use 0xFFFF for
     /// none).
+    #[inline]
     pub fn mark_index(&self) -> u16 {
         self.mark_index.get()
     }
 
     /// Index of the substitution table for the current glyph (use 0xFFFF for
     /// none)
+    #[inline]
     pub fn current_index(&self) -> u16 {
         self.current_index.get()
     }
@@ -482,6 +535,7 @@ impl InsertionEntryData {
     /// Zero-based index into the insertion glyph table. The number of glyphs
     /// to be inserted is contained in the currentInsertCount field in the
     /// flags (see below). A value of 0xFFFF indicates no insertion is to be done.
+    #[inline]
     pub fn current_insert_index(&self) -> u16 {
         self.current_insert_index.get()
     }
@@ -490,6 +544,7 @@ impl InsertionEntryData {
     /// to be inserted is contained in the markedInsertCount field in the
     /// flags (see below). A value of 0xFFFF indicates no insertion is to be
     /// done.
+    #[inline]
     pub fn marked_insert_index(&self) -> u16 {
         self.marked_insert_index.get()
     }

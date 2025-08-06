@@ -5,6 +5,25 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct HvarFixedFields {
+    pub version: BigEndian<MajorMinor>,
+    pub item_variation_store_offset: BigEndian<Offset32>,
+    pub advance_width_mapping_offset: BigEndian<Nullable<Offset32>>,
+    pub lsb_mapping_offset: BigEndian<Nullable<Offset32>>,
+    pub rsb_mapping_offset: BigEndian<Nullable<Offset32>>,
+}
+
+impl FixedSize for HvarFixedFields {
+    const RAW_BYTE_LEN: usize = MajorMinor::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN;
+}
+
 /// The [HVAR (Horizontal Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/hvar) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -49,72 +68,73 @@ impl TopLevelTable for Hvar<'_> {
 }
 
 impl<'a> FontRead<'a> for Hvar<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.finish(HvarMarker {})
+        let fixed_fields: &'a HvarFixedFields = cursor.read_ref()?;
+        cursor.finish(HvarMarker {}, fixed_fields)
     }
 }
 
 /// The [HVAR (Horizontal Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/hvar) table
-pub type Hvar<'a> = TableRef<'a, HvarMarker>;
+pub type Hvar<'a> = TableRef<'a, HvarMarker, HvarFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Hvar<'a> {
     /// Major version number of the horizontal metrics variations table — set to 1.
     /// Minor version number of the horizontal metrics variations table — set to 0.
+    #[inline]
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Offset in bytes from the start of this table to the item variation store table.
+    #[inline]
     pub fn item_variation_store_offset(&self) -> Offset32 {
-        let range = self.shape.item_variation_store_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().item_variation_store_offset.get()
     }
 
     /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
+    #[inline]
     pub fn item_variation_store(&self) -> Result<ItemVariationStore<'a>, ReadError> {
         let data = self.data;
         self.item_variation_store_offset().resolve(data)
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for advance widths (may be NULL).
+    #[inline]
     pub fn advance_width_mapping_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.advance_width_mapping_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().advance_width_mapping_offset.get()
     }
 
     /// Attempt to resolve [`advance_width_mapping_offset`][Self::advance_width_mapping_offset].
+    #[inline]
     pub fn advance_width_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
         self.advance_width_mapping_offset().resolve(data)
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for left side bearings (may be NULL).
+    #[inline]
     pub fn lsb_mapping_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.lsb_mapping_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().lsb_mapping_offset.get()
     }
 
     /// Attempt to resolve [`lsb_mapping_offset`][Self::lsb_mapping_offset].
+    #[inline]
     pub fn lsb_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
         self.lsb_mapping_offset().resolve(data)
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for right side bearings (may be NULL).
+    #[inline]
     pub fn rsb_mapping_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.rsb_mapping_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().rsb_mapping_offset.get()
     }
 
     /// Attempt to resolve [`rsb_mapping_offset`][Self::rsb_mapping_offset].
+    #[inline]
     pub fn rsb_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
         self.rsb_mapping_offset().resolve(data)

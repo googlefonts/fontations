@@ -13,6 +13,7 @@ pub enum Ift<'a> {
 
 impl<'a> Ift<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
+    #[inline]
     pub fn offset_data(&self) -> FontData<'a> {
         match self {
             Self::Format1(item) => item.offset_data(),
@@ -21,6 +22,7 @@ impl<'a> Ift<'a> {
     }
 
     /// Format identifier: format = 1
+    #[inline]
     pub fn format(&self) -> u8 {
         match self {
             Self::Format1(item) => item.format(),
@@ -28,6 +30,7 @@ impl<'a> Ift<'a> {
         }
     }
 
+    #[inline]
     pub fn field_flags(&self) -> PatchMapFieldPresenceFlags {
         match self {
             Self::Format1(item) => item.field_flags(),
@@ -36,6 +39,7 @@ impl<'a> Ift<'a> {
     }
 
     /// Unique ID that identifies compatible patches.
+    #[inline]
     pub fn compatibility_id(&self) -> CompatibilityId {
         match self {
             Self::Format1(item) => item.compatibility_id(),
@@ -43,6 +47,7 @@ impl<'a> Ift<'a> {
         }
     }
 
+    #[inline]
     pub fn url_template_length(&self) -> u16 {
         match self {
             Self::Format1(item) => item.url_template_length(),
@@ -50,6 +55,7 @@ impl<'a> Ift<'a> {
         }
     }
 
+    #[inline]
     pub fn url_template(&self) -> &'a [u8] {
         match self {
             Self::Format1(item) => item.url_template(),
@@ -57,6 +63,7 @@ impl<'a> Ift<'a> {
         }
     }
 
+    #[inline]
     pub fn cff_charstrings_offset(&self) -> Option<u32> {
         match self {
             Self::Format1(item) => item.cff_charstrings_offset(),
@@ -64,6 +71,7 @@ impl<'a> Ift<'a> {
         }
     }
 
+    #[inline]
     pub fn cff2_charstrings_offset(&self) -> Option<u32> {
         match self {
             Self::Format1(item) => item.cff2_charstrings_offset(),
@@ -428,6 +436,21 @@ impl Format<u8> for PatchMapFormat1Marker {
     const FORMAT: u8 = 1;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PatchMapFormat1FixedFields {
+    pub format: u8,
+    pub _reserved_0: u8,
+    pub _reserved_1: u8,
+    pub _reserved_2: u8,
+}
+
+impl FixedSize for PatchMapFormat1FixedFields {
+    const RAW_BYTE_LEN: usize =
+        u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
+}
+
 /// [Patch Map Format Format 1](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -532,12 +555,10 @@ impl MinByteRange for PatchMapFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u8>();
-        cursor.advance::<u8>();
-        cursor.advance::<u8>();
+        let fixed_fields: &'a PatchMapFormat1FixedFields = cursor.read_ref()?;
         let field_flags: PatchMapFieldPresenceFlags = cursor.read()?;
         cursor.advance::<CompatibilityId>();
         let max_entry_index: u16 = cursor.read()?;
@@ -569,61 +590,71 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
         field_flags
             .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)
             .then(|| cursor.advance::<u32>());
-        cursor.finish(PatchMapFormat1Marker {
-            applied_entries_bitmap_byte_len,
-            url_template_byte_len,
-            cff_charstrings_offset_byte_start,
-            cff2_charstrings_offset_byte_start,
-        })
+        cursor.finish(
+            PatchMapFormat1Marker {
+                applied_entries_bitmap_byte_len,
+                url_template_byte_len,
+                cff_charstrings_offset_byte_start,
+                cff2_charstrings_offset_byte_start,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Patch Map Format Format 1](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
-pub type PatchMapFormat1<'a> = TableRef<'a, PatchMapFormat1Marker>;
+pub type PatchMapFormat1<'a> = TableRef<'a, PatchMapFormat1Marker, PatchMapFormat1FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PatchMapFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
+    #[inline]
     pub fn field_flags(&self) -> PatchMapFieldPresenceFlags {
         let range = self.shape.field_flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Unique ID that identifies compatible patches.
+    #[inline]
     pub fn compatibility_id(&self) -> CompatibilityId {
         let range = self.shape.compatibility_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Largest entry index which appears in either the glyph map or feature map.
+    #[inline]
     pub fn max_entry_index(&self) -> u16 {
         let range = self.shape.max_entry_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Largest entry index which appears in the glyph map.
+    #[inline]
     pub fn max_glyph_map_entry_index(&self) -> u16 {
         let range = self.shape.max_glyph_map_entry_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn glyph_count(&self) -> Uint24 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Sub table that maps glyph ids to entry indices.
+    #[inline]
     pub fn glyph_map_offset(&self) -> Offset32 {
         let range = self.shape.glyph_map_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Attempt to resolve [`glyph_map_offset`][Self::glyph_map_offset].
+    #[inline]
     pub fn glyph_map(&self) -> Result<GlyphMap<'a>, ReadError> {
         let data = self.data;
         let args = (self.glyph_count(), self.max_entry_index());
@@ -631,44 +662,52 @@ impl<'a> PatchMapFormat1<'a> {
     }
 
     /// Sub table that maps feature and glyph ids to entry indices.
+    #[inline]
     pub fn feature_map_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.feature_map_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Attempt to resolve [`feature_map_offset`][Self::feature_map_offset].
+    #[inline]
     pub fn feature_map(&self) -> Option<Result<FeatureMap<'a>, ReadError>> {
         let data = self.data;
         let args = self.max_entry_index();
         self.feature_map_offset().resolve_with_args(data, &args)
     }
 
+    #[inline]
     pub fn applied_entries_bitmap(&self) -> &'a [u8] {
         let range = self.shape.applied_entries_bitmap_byte_range();
         self.data.read_array(range).unwrap()
     }
 
+    #[inline]
     pub fn url_template_length(&self) -> u16 {
         let range = self.shape.url_template_length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn url_template(&self) -> &'a [u8] {
         let range = self.shape.url_template_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Patch format number for patches referenced by this mapping.
+    #[inline]
     pub fn patch_format(&self) -> u8 {
         let range = self.shape.patch_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn cff_charstrings_offset(&self) -> Option<u32> {
         let range = self.shape.cff_charstrings_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    #[inline]
     pub fn cff2_charstrings_offset(&self) -> Option<u32> {
         let range = self.shape.cff2_charstrings_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -740,6 +779,17 @@ impl<'a> std::fmt::Debug for PatchMapFormat1<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct GlyphMapFixedFields {
+    pub first_mapped_glyph: BigEndian<u16>,
+}
+
+impl FixedSize for GlyphMapFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct GlyphMapMarker {
@@ -770,18 +820,23 @@ impl ReadArgs for GlyphMap<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for GlyphMap<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &(Uint24, u16)) -> Result<Self, ReadError> {
         let (glyph_count, max_entry_index) = *args;
         let mut cursor = data.cursor();
-        let first_mapped_glyph: u16 = cursor.read()?;
+        let fixed_fields: &'a GlyphMapFixedFields = cursor.read_ref()?;
+        let first_mapped_glyph = fixed_fields.first_mapped_glyph.get();
         let entry_index_byte_len = (transforms::subtract(glyph_count, first_mapped_glyph))
             .checked_mul(<U8Or16 as ComputeSize>::compute_size(&max_entry_index)?)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(entry_index_byte_len);
-        cursor.finish(GlyphMapMarker {
-            max_entry_index,
-            entry_index_byte_len,
-        })
+        cursor.finish(
+            GlyphMapMarker {
+                max_entry_index,
+                entry_index_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
@@ -790,6 +845,7 @@ impl<'a> GlyphMap<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(
         data: FontData<'a>,
         glyph_count: Uint24,
@@ -800,15 +856,16 @@ impl<'a> GlyphMap<'a> {
     }
 }
 
-pub type GlyphMap<'a> = TableRef<'a, GlyphMapMarker>;
+pub type GlyphMap<'a> = TableRef<'a, GlyphMapMarker, GlyphMapFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphMap<'a> {
+    #[inline]
     pub fn first_mapped_glyph(&self) -> u16 {
-        let range = self.shape.first_mapped_glyph_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().first_mapped_glyph.get()
     }
 
+    #[inline]
     pub fn entry_index(&self) -> ComputedArray<'a, U8Or16> {
         let range = self.shape.entry_index_byte_range();
         self.data
@@ -841,6 +898,17 @@ impl<'a> std::fmt::Debug for GlyphMap<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct FeatureMapFixedFields {
+    pub feature_count: BigEndian<u16>,
+}
+
+impl FixedSize for FeatureMapFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -879,10 +947,12 @@ impl ReadArgs for FeatureMap<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for FeatureMap<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let max_entry_index = *args;
         let mut cursor = data.cursor();
-        let feature_count: u16 = cursor.read()?;
+        let fixed_fields: &'a FeatureMapFixedFields = cursor.read_ref()?;
+        let feature_count = fixed_fields.feature_count.get();
         let feature_records_byte_len = (feature_count as usize)
             .checked_mul(<FeatureRecord as ComputeSize>::compute_size(
                 &max_entry_index,
@@ -892,11 +962,14 @@ impl<'a> FontReadWithArgs<'a> for FeatureMap<'a> {
         let entry_map_data_byte_len =
             cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(entry_map_data_byte_len);
-        cursor.finish(FeatureMapMarker {
-            max_entry_index,
-            feature_records_byte_len,
-            entry_map_data_byte_len,
-        })
+        cursor.finish(
+            FeatureMapMarker {
+                max_entry_index,
+                feature_records_byte_len,
+                entry_map_data_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
@@ -905,21 +978,23 @@ impl<'a> FeatureMap<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, max_entry_index: u16) -> Result<Self, ReadError> {
         let args = max_entry_index;
         Self::read_with_args(data, &args)
     }
 }
 
-pub type FeatureMap<'a> = TableRef<'a, FeatureMapMarker>;
+pub type FeatureMap<'a> = TableRef<'a, FeatureMapMarker, FeatureMapFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FeatureMap<'a> {
+    #[inline]
     pub fn feature_count(&self) -> u16 {
-        let range = self.shape.feature_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().feature_count.get()
     }
 
+    #[inline]
     pub fn feature_records(&self) -> ComputedArray<'a, FeatureRecord> {
         let range = self.shape.feature_records_byte_range();
         self.data
@@ -927,6 +1002,7 @@ impl<'a> FeatureMap<'a> {
             .unwrap()
     }
 
+    #[inline]
     pub fn entry_map_data(&self) -> &'a [u8] {
         let range = self.shape.entry_map_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -968,14 +1044,17 @@ pub struct FeatureRecord {
 }
 
 impl FeatureRecord {
+    #[inline]
     pub fn feature_tag(&self) -> Tag {
         self.feature_tag.get()
     }
 
+    #[inline]
     pub fn first_new_entry_index(&self) -> &U8Or16 {
         &self.first_new_entry_index
     }
 
+    #[inline]
     pub fn entry_map_count(&self) -> &U8Or16 {
         &self.entry_map_count
     }
@@ -1053,10 +1132,12 @@ pub struct EntryMapRecord {
 }
 
 impl EntryMapRecord {
+    #[inline]
     pub fn first_entry_index(&self) -> &U8Or16 {
         &self.first_entry_index
     }
 
+    #[inline]
     pub fn last_entry_index(&self) -> &U8Or16 {
         &self.last_entry_index
     }
@@ -1127,6 +1208,21 @@ impl<'a> SomeRecord<'a> for EntryMapRecord {
 
 impl Format<u8> for PatchMapFormat2Marker {
     const FORMAT: u8 = 2;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PatchMapFormat2FixedFields {
+    pub format: u8,
+    pub _reserved_0: u8,
+    pub _reserved_1: u8,
+    pub _reserved_2: u8,
+}
+
+impl FixedSize for PatchMapFormat2FixedFields {
+    const RAW_BYTE_LEN: usize =
+        u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
 }
 
 /// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-2)
@@ -1217,12 +1313,10 @@ impl MinByteRange for PatchMapFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u8>();
-        cursor.advance::<u8>();
-        cursor.advance::<u8>();
+        let fixed_fields: &'a PatchMapFormat2FixedFields = cursor.read_ref()?;
         let field_flags: PatchMapFieldPresenceFlags = cursor.read()?;
         cursor.advance::<CompatibilityId>();
         cursor.advance::<u8>();
@@ -1248,84 +1342,99 @@ impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
         field_flags
             .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)
             .then(|| cursor.advance::<u32>());
-        cursor.finish(PatchMapFormat2Marker {
-            url_template_byte_len,
-            cff_charstrings_offset_byte_start,
-            cff2_charstrings_offset_byte_start,
-        })
+        cursor.finish(
+            PatchMapFormat2Marker {
+                url_template_byte_len,
+                cff_charstrings_offset_byte_start,
+                cff2_charstrings_offset_byte_start,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-2)
-pub type PatchMapFormat2<'a> = TableRef<'a, PatchMapFormat2Marker>;
+pub type PatchMapFormat2<'a> = TableRef<'a, PatchMapFormat2Marker, PatchMapFormat2FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PatchMapFormat2<'a> {
     /// Format identifier: format = 2
+    #[inline]
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format
     }
 
+    #[inline]
     pub fn field_flags(&self) -> PatchMapFieldPresenceFlags {
         let range = self.shape.field_flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Unique ID that identifies compatible patches.
+    #[inline]
     pub fn compatibility_id(&self) -> CompatibilityId {
         let range = self.shape.compatibility_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Patch format number for patches referenced by this mapping.
+    #[inline]
     pub fn default_patch_format(&self) -> u8 {
         let range = self.shape.default_patch_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn entry_count(&self) -> Uint24 {
         let range = self.shape.entry_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn entries_offset(&self) -> Offset32 {
         let range = self.shape.entries_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Attempt to resolve [`entries_offset`][Self::entries_offset].
+    #[inline]
     pub fn entries(&self) -> Result<MappingEntries<'a>, ReadError> {
         let data = self.data;
         self.entries_offset().resolve(data)
     }
 
+    #[inline]
     pub fn entry_id_string_data_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.entry_id_string_data_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Attempt to resolve [`entry_id_string_data_offset`][Self::entry_id_string_data_offset].
+    #[inline]
     pub fn entry_id_string_data(&self) -> Option<Result<IdStringData<'a>, ReadError>> {
         let data = self.data;
         self.entry_id_string_data_offset().resolve(data)
     }
 
+    #[inline]
     pub fn url_template_length(&self) -> u16 {
         let range = self.shape.url_template_length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn url_template(&self) -> &'a [u8] {
         let range = self.shape.url_template_byte_range();
         self.data.read_array(range).unwrap()
     }
 
+    #[inline]
     pub fn cff_charstrings_offset(&self) -> Option<u32> {
         let range = self.shape.cff_charstrings_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    #[inline]
     pub fn cff2_charstrings_offset(&self) -> Option<u32> {
         let range = self.shape.cff2_charstrings_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -1394,6 +1503,15 @@ impl<'a> std::fmt::Debug for PatchMapFormat2<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct MappingEntriesFixedFields {}
+
+impl FixedSize for MappingEntriesFixedFields {
+    const RAW_BYTE_LEN: usize = 0;
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct MappingEntriesMarker {
@@ -1414,20 +1532,26 @@ impl MinByteRange for MappingEntriesMarker {
 }
 
 impl<'a> FontRead<'a> for MappingEntries<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
+        let fixed_fields: &'a MappingEntriesFixedFields = cursor.read_ref()?;
         let entry_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(entry_data_byte_len);
-        cursor.finish(MappingEntriesMarker {
-            entry_data_byte_len,
-        })
+        cursor.finish(
+            MappingEntriesMarker {
+                entry_data_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
-pub type MappingEntries<'a> = TableRef<'a, MappingEntriesMarker>;
+pub type MappingEntries<'a> = TableRef<'a, MappingEntriesMarker, MappingEntriesFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MappingEntries<'a> {
+    #[inline]
     pub fn entry_data(&self) -> &'a [u8] {
         let range = self.shape.entry_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -1453,6 +1577,15 @@ impl<'a> std::fmt::Debug for MappingEntries<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct EntryDataFixedFields {}
+
+impl FixedSize for EntryDataFixedFields {
+    const RAW_BYTE_LEN: usize = 0;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1544,8 +1677,10 @@ impl MinByteRange for EntryDataMarker {
 }
 
 impl<'a> FontRead<'a> for EntryData<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
+        let fixed_fields: &'a EntryDataFixedFields = cursor.read_ref()?;
         let format_flags: EntryFormatFlags = cursor.read()?;
         let feature_count_byte_start = format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
@@ -1618,60 +1753,71 @@ impl<'a> FontRead<'a> for EntryData<'a> {
         }
         let trailing_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(trailing_data_byte_len);
-        cursor.finish(EntryDataMarker {
-            feature_count_byte_start,
-            feature_tags_byte_start,
-            feature_tags_byte_len,
-            design_space_count_byte_start,
-            design_space_segments_byte_start,
-            design_space_segments_byte_len,
-            match_mode_and_count_byte_start,
-            child_indices_byte_start,
-            child_indices_byte_len,
-            trailing_data_byte_len,
-        })
+        cursor.finish(
+            EntryDataMarker {
+                feature_count_byte_start,
+                feature_tags_byte_start,
+                feature_tags_byte_len,
+                design_space_count_byte_start,
+                design_space_segments_byte_start,
+                design_space_segments_byte_len,
+                match_mode_and_count_byte_start,
+                child_indices_byte_start,
+                child_indices_byte_len,
+                trailing_data_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
-pub type EntryData<'a> = TableRef<'a, EntryDataMarker>;
+pub type EntryData<'a> = TableRef<'a, EntryDataMarker, EntryDataFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> EntryData<'a> {
+    #[inline]
     pub fn format_flags(&self) -> EntryFormatFlags {
         let range = self.shape.format_flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn feature_count(&self) -> Option<u8> {
         let range = self.shape.feature_count_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    #[inline]
     pub fn feature_tags(&self) -> Option<&'a [BigEndian<Tag>]> {
         let range = self.shape.feature_tags_byte_range()?;
         Some(self.data.read_array(range).unwrap())
     }
 
+    #[inline]
     pub fn design_space_count(&self) -> Option<u16> {
         let range = self.shape.design_space_count_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    #[inline]
     pub fn design_space_segments(&self) -> Option<&'a [DesignSpaceSegment]> {
         let range = self.shape.design_space_segments_byte_range()?;
         Some(self.data.read_array(range).unwrap())
     }
 
+    #[inline]
     pub fn match_mode_and_count(&self) -> Option<MatchModeAndCount> {
         let range = self.shape.match_mode_and_count_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    #[inline]
     pub fn child_indices(&self) -> Option<&'a [BigEndian<Uint24>]> {
         let range = self.shape.child_indices_byte_range()?;
         Some(self.data.read_array(range).unwrap())
     }
 
+    #[inline]
     pub fn trailing_data(&self) -> &'a [u8] {
         let range = self.shape.trailing_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -2067,14 +2213,17 @@ pub struct DesignSpaceSegment {
 }
 
 impl DesignSpaceSegment {
+    #[inline]
     pub fn axis_tag(&self) -> Tag {
         self.axis_tag.get()
     }
 
+    #[inline]
     pub fn start(&self) -> Fixed {
         self.start.get()
     }
 
+    #[inline]
     pub fn end(&self) -> Fixed {
         self.end.get()
     }
@@ -2100,6 +2249,15 @@ impl<'a> SomeRecord<'a> for DesignSpaceSegment {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct IdStringDataFixedFields {}
+
+impl FixedSize for IdStringDataFixedFields {
+    const RAW_BYTE_LEN: usize = 0;
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct IdStringDataMarker {
@@ -2120,18 +2278,21 @@ impl MinByteRange for IdStringDataMarker {
 }
 
 impl<'a> FontRead<'a> for IdStringData<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
+        let fixed_fields: &'a IdStringDataFixedFields = cursor.read_ref()?;
         let id_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(id_data_byte_len);
-        cursor.finish(IdStringDataMarker { id_data_byte_len })
+        cursor.finish(IdStringDataMarker { id_data_byte_len }, fixed_fields)
     }
 }
 
-pub type IdStringData<'a> = TableRef<'a, IdStringDataMarker>;
+pub type IdStringData<'a> = TableRef<'a, IdStringDataMarker, IdStringDataFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> IdStringData<'a> {
+    #[inline]
     pub fn id_data(&self) -> &'a [u8] {
         let range = self.shape.id_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -2157,6 +2318,18 @@ impl<'a> std::fmt::Debug for IdStringData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct TableKeyedPatchFixedFields {
+    pub format: BigEndian<Tag>,
+    pub _reserved: BigEndian<u32>,
+}
+
+impl FixedSize for TableKeyedPatchFixedFields {
+    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
 /// [Table Keyed Patch](https://w3c.github.io/IFT/Overview.html#table-keyed)
@@ -2200,49 +2373,56 @@ impl MinByteRange for TableKeyedPatchMarker {
 }
 
 impl<'a> FontRead<'a> for TableKeyedPatch<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<Tag>();
-        cursor.advance::<u32>();
+        let fixed_fields: &'a TableKeyedPatchFixedFields = cursor.read_ref()?;
         cursor.advance::<CompatibilityId>();
         let patches_count: u16 = cursor.read()?;
         let patch_offsets_byte_len = (transforms::add(patches_count, 1_usize))
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(patch_offsets_byte_len);
-        cursor.finish(TableKeyedPatchMarker {
-            patch_offsets_byte_len,
-        })
+        cursor.finish(
+            TableKeyedPatchMarker {
+                patch_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Table Keyed Patch](https://w3c.github.io/IFT/Overview.html#table-keyed)
-pub type TableKeyedPatch<'a> = TableRef<'a, TableKeyedPatchMarker>;
+pub type TableKeyedPatch<'a> = TableRef<'a, TableKeyedPatchMarker, TableKeyedPatchFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> TableKeyedPatch<'a> {
+    #[inline]
     pub fn format(&self) -> Tag {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Unique ID that identifies compatible patches.
+    #[inline]
     pub fn compatibility_id(&self) -> CompatibilityId {
         let range = self.shape.compatibility_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn patches_count(&self) -> u16 {
         let range = self.shape.patches_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn patch_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.patch_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`patch_offsets`][Self::patch_offsets].
+    #[inline]
     pub fn patches(&self) -> ArrayOfOffsets<'a, TablePatch<'a>, Offset32> {
         let data = self.data;
         let offsets = self.patch_offsets();
@@ -2290,6 +2470,17 @@ impl<'a> std::fmt::Debug for TableKeyedPatch<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct TablePatchFixedFields {
+    pub tag: BigEndian<Tag>,
+}
+
+impl FixedSize for TablePatchFixedFields {
+    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN;
+}
+
 /// [TablePatch](https://w3c.github.io/IFT/Overview.html#tablepatch)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -2326,39 +2517,46 @@ impl MinByteRange for TablePatchMarker {
 }
 
 impl<'a> FontRead<'a> for TablePatch<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<Tag>();
+        let fixed_fields: &'a TablePatchFixedFields = cursor.read_ref()?;
         cursor.advance::<TablePatchFlags>();
         cursor.advance::<u32>();
         let brotli_stream_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(brotli_stream_byte_len);
-        cursor.finish(TablePatchMarker {
-            brotli_stream_byte_len,
-        })
+        cursor.finish(
+            TablePatchMarker {
+                brotli_stream_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [TablePatch](https://w3c.github.io/IFT/Overview.html#tablepatch)
-pub type TablePatch<'a> = TableRef<'a, TablePatchMarker>;
+pub type TablePatch<'a> = TableRef<'a, TablePatchMarker, TablePatchFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> TablePatch<'a> {
+    #[inline]
     pub fn tag(&self) -> Tag {
-        let range = self.shape.tag_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().tag.get()
     }
 
+    #[inline]
     pub fn flags(&self) -> TablePatchFlags {
         let range = self.shape.flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn max_uncompressed_length(&self) -> u32 {
         let range = self.shape.max_uncompressed_length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn brotli_stream(&self) -> &'a [u8] {
         let range = self.shape.brotli_stream_byte_range();
         self.data.read_array(range).unwrap()
@@ -2697,6 +2895,18 @@ impl<'a> From<TablePatchFlags> for FieldType<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct GlyphKeyedPatchFixedFields {
+    pub format: BigEndian<Tag>,
+    pub _reserved: BigEndian<u32>,
+}
+
+impl FixedSize for GlyphKeyedPatchFixedFields {
+    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
 /// [Glyph Keyed Patch](https://w3c.github.io/IFT/Overview.html#glyph-keyed)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -2743,46 +2953,53 @@ impl MinByteRange for GlyphKeyedPatchMarker {
 }
 
 impl<'a> FontRead<'a> for GlyphKeyedPatch<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<Tag>();
-        cursor.advance::<u32>();
+        let fixed_fields: &'a GlyphKeyedPatchFixedFields = cursor.read_ref()?;
         cursor.advance::<GlyphKeyedFlags>();
         cursor.advance::<CompatibilityId>();
         cursor.advance::<u32>();
         let brotli_stream_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(brotli_stream_byte_len);
-        cursor.finish(GlyphKeyedPatchMarker {
-            brotli_stream_byte_len,
-        })
+        cursor.finish(
+            GlyphKeyedPatchMarker {
+                brotli_stream_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Glyph Keyed Patch](https://w3c.github.io/IFT/Overview.html#glyph-keyed)
-pub type GlyphKeyedPatch<'a> = TableRef<'a, GlyphKeyedPatchMarker>;
+pub type GlyphKeyedPatch<'a> = TableRef<'a, GlyphKeyedPatchMarker, GlyphKeyedPatchFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphKeyedPatch<'a> {
+    #[inline]
     pub fn format(&self) -> Tag {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
+    #[inline]
     pub fn flags(&self) -> GlyphKeyedFlags {
         let range = self.shape.flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn compatibility_id(&self) -> CompatibilityId {
         let range = self.shape.compatibility_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn max_uncompressed_length(&self) -> u32 {
         let range = self.shape.max_uncompressed_length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn brotli_stream(&self) -> &'a [u8] {
         let range = self.shape.brotli_stream_byte_range();
         self.data.read_array(range).unwrap()
@@ -3125,6 +3342,18 @@ impl<'a> From<GlyphKeyedFlags> for FieldType<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct GlyphPatchesFixedFields {
+    pub glyph_count: BigEndian<u32>,
+    pub table_count: u8,
+}
+
+impl FixedSize for GlyphPatchesFixedFields {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
+}
+
 /// [GlyphPatches](https://w3c.github.io/IFT/Overview.html#glyphpatches)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -3173,11 +3402,13 @@ impl ReadArgs for GlyphPatches<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for GlyphPatches<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &GlyphKeyedFlags) -> Result<Self, ReadError> {
         let flags = *args;
         let mut cursor = data.cursor();
-        let glyph_count: u32 = cursor.read()?;
-        let table_count: u8 = cursor.read()?;
+        let fixed_fields: &'a GlyphPatchesFixedFields = cursor.read_ref()?;
+        let glyph_count = fixed_fields.glyph_count.get();
+        let table_count = fixed_fields.table_count;
         let glyph_ids_byte_len = (glyph_count as usize)
             .checked_mul(<U16Or24 as ComputeSize>::compute_size(&flags)?)
             .ok_or(ReadError::OutOfBounds)?;
@@ -3191,12 +3422,15 @@ impl<'a> FontReadWithArgs<'a> for GlyphPatches<'a> {
                 .checked_mul(Offset32::RAW_BYTE_LEN)
                 .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(glyph_data_offsets_byte_len);
-        cursor.finish(GlyphPatchesMarker {
-            flags,
-            glyph_ids_byte_len,
-            tables_byte_len,
-            glyph_data_offsets_byte_len,
-        })
+        cursor.finish(
+            GlyphPatchesMarker {
+                flags,
+                glyph_ids_byte_len,
+                tables_byte_len,
+                glyph_data_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
@@ -3205,6 +3439,7 @@ impl<'a> GlyphPatches<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, flags: GlyphKeyedFlags) -> Result<Self, ReadError> {
         let args = flags;
         Self::read_with_args(data, &args)
@@ -3212,36 +3447,40 @@ impl<'a> GlyphPatches<'a> {
 }
 
 /// [GlyphPatches](https://w3c.github.io/IFT/Overview.html#glyphpatches)
-pub type GlyphPatches<'a> = TableRef<'a, GlyphPatchesMarker>;
+pub type GlyphPatches<'a> = TableRef<'a, GlyphPatchesMarker, GlyphPatchesFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphPatches<'a> {
+    #[inline]
     pub fn glyph_count(&self) -> u32 {
-        let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_count.get()
     }
 
+    #[inline]
     pub fn table_count(&self) -> u8 {
-        let range = self.shape.table_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().table_count
     }
 
+    #[inline]
     pub fn glyph_ids(&self) -> ComputedArray<'a, U16Or24> {
         let range = self.shape.glyph_ids_byte_range();
         self.data.read_with_args(range, &self.flags()).unwrap()
     }
 
+    #[inline]
     pub fn tables(&self) -> &'a [BigEndian<Tag>] {
         let range = self.shape.tables_byte_range();
         self.data.read_array(range).unwrap()
     }
 
+    #[inline]
     pub fn glyph_data_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.glyph_data_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`glyph_data_offsets`][Self::glyph_data_offsets].
+    #[inline]
     pub fn glyph_data(&self) -> ArrayOfOffsets<'a, GlyphData<'a>, Offset32> {
         let data = self.data;
         let offsets = self.glyph_data_offsets();
@@ -3291,6 +3530,15 @@ impl<'a> std::fmt::Debug for GlyphPatches<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct GlyphDataFixedFields {}
+
+impl FixedSize for GlyphDataFixedFields {
+    const RAW_BYTE_LEN: usize = 0;
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct GlyphDataMarker {
@@ -3311,18 +3559,21 @@ impl MinByteRange for GlyphDataMarker {
 }
 
 impl<'a> FontRead<'a> for GlyphData<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
+        let fixed_fields: &'a GlyphDataFixedFields = cursor.read_ref()?;
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(GlyphDataMarker { data_byte_len })
+        cursor.finish(GlyphDataMarker { data_byte_len }, fixed_fields)
     }
 }
 
-pub type GlyphData<'a> = TableRef<'a, GlyphDataMarker>;
+pub type GlyphData<'a> = TableRef<'a, GlyphDataMarker, GlyphDataFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphData<'a> {
+    #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()

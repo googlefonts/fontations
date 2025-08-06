@@ -5,6 +5,25 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct TrakFixedFields {
+    pub version: BigEndian<MajorMinor>,
+    pub format: BigEndian<u16>,
+    pub horiz_offset: BigEndian<Nullable<Offset16>>,
+    pub vert_offset: BigEndian<Nullable<Offset16>>,
+    pub reserved: BigEndian<u16>,
+}
+
+impl FixedSize for TrakFixedFields {
+    const RAW_BYTE_LEN: usize = MajorMinor::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
+}
+
 /// The [tracking (trak)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6trak.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -49,53 +68,52 @@ impl TopLevelTable for Trak<'_> {
 }
 
 impl<'a> FontRead<'a> for Trak<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<u16>();
-        cursor.finish(TrakMarker {})
+        let fixed_fields: &'a TrakFixedFields = cursor.read_ref()?;
+        cursor.finish(TrakMarker {}, fixed_fields)
     }
 }
 
 /// The [tracking (trak)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6trak.html) table.
-pub type Trak<'a> = TableRef<'a, TrakMarker>;
+pub type Trak<'a> = TableRef<'a, TrakMarker, TrakFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Trak<'a> {
     /// Version number of the tracking table (0x00010000 for the current version).
+    #[inline]
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Format of the tracking table (set to 0).
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Offset from start of tracking table to TrackData for horizontal text (or 0 if none).
+    #[inline]
     pub fn horiz_offset(&self) -> Nullable<Offset16> {
-        let range = self.shape.horiz_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().horiz_offset.get()
     }
 
     /// Attempt to resolve [`horiz_offset`][Self::horiz_offset].
+    #[inline]
     pub fn horiz(&self) -> Option<Result<TrackData<'a>, ReadError>> {
         let data = self.data;
         self.horiz_offset().resolve(data)
     }
 
     /// Offset from start of tracking table to TrackData for vertical text (or 0 if none).
+    #[inline]
     pub fn vert_offset(&self) -> Nullable<Offset16> {
-        let range = self.shape.vert_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().vert_offset.get()
     }
 
     /// Attempt to resolve [`vert_offset`][Self::vert_offset].
+    #[inline]
     pub fn vert(&self) -> Option<Result<TrackData<'a>, ReadError>> {
         let data = self.data;
         self.vert_offset().resolve(data)
@@ -130,6 +148,19 @@ impl<'a> std::fmt::Debug for Trak<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct TrackDataFixedFields {
+    pub n_tracks: BigEndian<u16>,
+    pub n_sizes: BigEndian<u16>,
+    pub size_table_offset: BigEndian<u32>,
+}
+
+impl FixedSize for TrackDataFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
 /// The tracking data table.
@@ -168,45 +199,49 @@ impl MinByteRange for TrackDataMarker {
 }
 
 impl<'a> FontRead<'a> for TrackData<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let n_tracks: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
+        let fixed_fields: &'a TrackDataFixedFields = cursor.read_ref()?;
+        let n_tracks = fixed_fields.n_tracks.get();
         let track_table_byte_len = (n_tracks as usize)
             .checked_mul(TrackTableEntry::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(track_table_byte_len);
-        cursor.finish(TrackDataMarker {
-            track_table_byte_len,
-        })
+        cursor.finish(
+            TrackDataMarker {
+                track_table_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// The tracking data table.
-pub type TrackData<'a> = TableRef<'a, TrackDataMarker>;
+pub type TrackData<'a> = TableRef<'a, TrackDataMarker, TrackDataFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> TrackData<'a> {
     /// Number of separate tracks included in this table.
+    #[inline]
     pub fn n_tracks(&self) -> u16 {
-        let range = self.shape.n_tracks_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().n_tracks.get()
     }
 
     /// Number of point sizes included in this table.
+    #[inline]
     pub fn n_sizes(&self) -> u16 {
-        let range = self.shape.n_sizes_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().n_sizes.get()
     }
 
     /// Offset from the start of the tracking table to the start of the size subtable.
+    #[inline]
     pub fn size_table_offset(&self) -> u32 {
-        let range = self.shape.size_table_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().size_table_offset.get()
     }
 
     /// Array of TrackTableEntry records.
+    #[inline]
     pub fn track_table(&self) -> &'a [TrackTableEntry] {
         let range = self.shape.track_table_byte_range();
         self.data.read_array(range).unwrap()
@@ -259,16 +294,19 @@ pub struct TrackTableEntry {
 
 impl TrackTableEntry {
     /// Track value for this record.
+    #[inline]
     pub fn track(&self) -> Fixed {
         self.track.get()
     }
 
     /// The 'name' table index for this track (a short word or phrase like \"loose\" or \"very tight\"). NameIndex has a value greater than 255 and less than 32768.
+    #[inline]
     pub fn name_index(&self) -> NameId {
         self.name_index.get()
     }
 
     /// Offset from the start of the tracking table to per-size tracking values for this track.
+    #[inline]
     pub fn offset(&self) -> u16 {
         self.offset.get()
     }

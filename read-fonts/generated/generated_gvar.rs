@@ -5,6 +5,25 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct GvarFixedFields {
+    pub version: BigEndian<MajorMinor>,
+    pub axis_count: BigEndian<u16>,
+    pub shared_tuple_count: BigEndian<u16>,
+    pub shared_tuples_offset: BigEndian<Offset32>,
+    pub glyph_count: BigEndian<u16>,
+}
+
+impl FixedSize for GvarFixedFields {
+    const RAW_BYTE_LEN: usize = MajorMinor::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
+}
+
 /// The ['gvar' header](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#gvar-header)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -66,59 +85,61 @@ impl TopLevelTable for Gvar<'_> {
 }
 
 impl<'a> FontRead<'a> for Gvar<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        let glyph_count: u16 = cursor.read()?;
+        let fixed_fields: &'a GvarFixedFields = cursor.read_ref()?;
+        let glyph_count = fixed_fields.glyph_count.get();
         let flags: GvarFlags = cursor.read()?;
         cursor.advance::<u32>();
         let glyph_variation_data_offsets_byte_len = (transforms::add(glyph_count, 1_usize))
             .checked_mul(<U16Or32 as ComputeSize>::compute_size(&flags)?)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(glyph_variation_data_offsets_byte_len);
-        cursor.finish(GvarMarker {
-            glyph_variation_data_offsets_byte_len,
-        })
+        cursor.finish(
+            GvarMarker {
+                glyph_variation_data_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// The ['gvar' header](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#gvar-header)
-pub type Gvar<'a> = TableRef<'a, GvarMarker>;
+pub type Gvar<'a> = TableRef<'a, GvarMarker, GvarFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Gvar<'a> {
     /// Major/minor version number of the glyph variations table — set to (1,0).
+    #[inline]
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// The number of variation axes for this font. This must be the
     /// same number as axisCount in the 'fvar' table.
+    #[inline]
     pub fn axis_count(&self) -> u16 {
-        let range = self.shape.axis_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().axis_count.get()
     }
 
     /// The number of shared tuple records. Shared tuple records can be
     /// referenced within glyph variation data tables for multiple
     /// glyphs, as opposed to other tuple records stored directly
     /// within a glyph variation data table.
+    #[inline]
     pub fn shared_tuple_count(&self) -> u16 {
-        let range = self.shape.shared_tuple_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().shared_tuple_count.get()
     }
 
     /// Offset from the start of this table to the shared tuple records.
+    #[inline]
     pub fn shared_tuples_offset(&self) -> Offset32 {
-        let range = self.shape.shared_tuples_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().shared_tuples_offset.get()
     }
 
     /// Attempt to resolve [`shared_tuples_offset`][Self::shared_tuples_offset].
+    #[inline]
     pub fn shared_tuples(&self) -> Result<SharedTuples<'a>, ReadError> {
         let data = self.data;
         let args = (self.shared_tuple_count(), self.axis_count());
@@ -127,14 +148,15 @@ impl<'a> Gvar<'a> {
 
     /// The number of glyphs in this font. This must match the number
     /// of glyphs stored elsewhere in the font.
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
-        let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_count.get()
     }
 
     /// Bit-field that gives the format of the offset array that
     /// follows. If bit 0 is clear, the offsets are uint16; if bit 0 is
     /// set, the offsets are uint32.
+    #[inline]
     pub fn flags(&self) -> GvarFlags {
         let range = self.shape.flags_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -142,6 +164,7 @@ impl<'a> Gvar<'a> {
 
     /// Offset from the start of this table to the array of
     /// GlyphVariationData tables.
+    #[inline]
     pub fn glyph_variation_data_array_offset(&self) -> u32 {
         let range = self.shape.glyph_variation_data_array_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -149,6 +172,7 @@ impl<'a> Gvar<'a> {
 
     /// Offsets from the start of the GlyphVariationData array to each
     /// GlyphVariationData table.
+    #[inline]
     pub fn glyph_variation_data_offsets(&self) -> ComputedArray<'a, U16Or32> {
         let range = self.shape.glyph_variation_data_offsets_byte_range();
         self.data.read_with_args(range, &self.flags()).unwrap()
@@ -493,6 +517,15 @@ impl<'a> From<GvarFlags> for FieldType<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SharedTuplesFixedFields {}
+
+impl FixedSize for SharedTuplesFixedFields {
+    const RAW_BYTE_LEN: usize = 0;
+}
+
 /// Array of tuple records shared across all glyph variation data tables.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -519,17 +552,22 @@ impl ReadArgs for SharedTuples<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for SharedTuples<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
         let (shared_tuple_count, axis_count) = *args;
         let mut cursor = data.cursor();
+        let fixed_fields: &'a SharedTuplesFixedFields = cursor.read_ref()?;
         let tuples_byte_len = (shared_tuple_count as usize)
             .checked_mul(<Tuple as ComputeSize>::compute_size(&axis_count)?)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(tuples_byte_len);
-        cursor.finish(SharedTuplesMarker {
-            axis_count,
-            tuples_byte_len,
-        })
+        cursor.finish(
+            SharedTuplesMarker {
+                axis_count,
+                tuples_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
@@ -538,6 +576,7 @@ impl<'a> SharedTuples<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(
         data: FontData<'a>,
         shared_tuple_count: u16,
@@ -549,10 +588,11 @@ impl<'a> SharedTuples<'a> {
 }
 
 /// Array of tuple records shared across all glyph variation data tables.
-pub type SharedTuples<'a> = TableRef<'a, SharedTuplesMarker>;
+pub type SharedTuples<'a> = TableRef<'a, SharedTuplesMarker, SharedTuplesFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SharedTuples<'a> {
+    #[inline]
     pub fn tuples(&self) -> ComputedArray<'a, Tuple<'a>> {
         let range = self.shape.tuples_byte_range();
         self.data.read_with_args(range, &self.axis_count()).unwrap()
@@ -587,6 +627,15 @@ impl<'a> std::fmt::Debug for SharedTuples<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct GlyphVariationDataHeaderFixedFields {}
+
+impl FixedSize for GlyphVariationDataHeaderFixedFields {
+    const RAW_BYTE_LEN: usize = 0;
+}
+
 /// The [GlyphVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#the-glyphvariationdata-table-array) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -618,20 +667,26 @@ impl MinByteRange for GlyphVariationDataHeaderMarker {
 }
 
 impl<'a> FontRead<'a> for GlyphVariationDataHeader<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
+        let fixed_fields: &'a GlyphVariationDataHeaderFixedFields = cursor.read_ref()?;
         cursor.advance::<TupleVariationCount>();
         cursor.advance::<Offset16>();
         let tuple_variation_headers_byte_len = cursor.remaining_bytes();
         cursor.advance_by(tuple_variation_headers_byte_len);
-        cursor.finish(GlyphVariationDataHeaderMarker {
-            tuple_variation_headers_byte_len,
-        })
+        cursor.finish(
+            GlyphVariationDataHeaderMarker {
+                tuple_variation_headers_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// The [GlyphVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#the-glyphvariationdata-table-array) table
-pub type GlyphVariationDataHeader<'a> = TableRef<'a, GlyphVariationDataHeaderMarker>;
+pub type GlyphVariationDataHeader<'a> =
+    TableRef<'a, GlyphVariationDataHeaderMarker, GlyphVariationDataHeaderFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphVariationDataHeader<'a> {
@@ -639,6 +694,7 @@ impl<'a> GlyphVariationDataHeader<'a> {
     /// are the number of tuple variation tables for this glyph. The
     /// number of tuple variation tables can be any number between 1
     /// and 4095.
+    #[inline]
     pub fn tuple_variation_count(&self) -> TupleVariationCount {
         let range = self.shape.tuple_variation_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -646,18 +702,21 @@ impl<'a> GlyphVariationDataHeader<'a> {
 
     /// Offset from the start of the GlyphVariationData table to the
     /// serialized data
+    #[inline]
     pub fn serialized_data_offset(&self) -> Offset16 {
         let range = self.shape.serialized_data_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Attempt to resolve [`serialized_data_offset`][Self::serialized_data_offset].
+    #[inline]
     pub fn serialized_data(&self) -> Result<FontData<'a>, ReadError> {
         let data = self.data;
         self.serialized_data_offset().resolve(data)
     }
 
     /// Array of tuple variation headers.
+    #[inline]
     pub fn tuple_variation_headers(&self) -> VarLenArray<'a, TupleVariationHeader> {
         let range = self.shape.tuple_variation_headers_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()

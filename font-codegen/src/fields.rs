@@ -19,9 +19,12 @@ impl Fields {
             .flat_map(Field::input_fields)
             .collect::<ReferencedFields>();
 
+        let mut is_fixed = true;
         for field in fields.iter_mut() {
             field.read_at_parse_time =
                 field.attrs.version.is_some() || referenced_fields.needs_at_parsetime(&field.name);
+            is_fixed &= field.is_zerocopy_compatible() && !field.is_conditional();
+            field.is_fixed = is_fixed;
         }
 
         Ok(Fields {
@@ -546,6 +549,13 @@ impl Field {
         }
     }
 
+    pub(crate) fn has_big_endian_wrapper(&self) -> bool {
+        match &self.typ {
+            FieldType::Scalar { typ } => typ != "u8",
+            _ => true,
+        }
+    }
+
     fn constructor_needs_into(&self) -> bool {
         match &self.typ {
             FieldType::Offset { .. } => true,
@@ -806,7 +816,27 @@ impl Field {
     }
     pub(crate) fn table_getter(&self, generic: Option<&syn::Ident>) -> Option<TokenStream> {
         let return_type = self.table_getter_return_type()?;
+        let docs = &self.attrs.docs;
         let name = &self.name;
+        let offset_getter = self.typed_offset_field_getter(generic, None);
+
+        let maybe_get = if self.has_big_endian_wrapper() {
+            quote!(.get())
+        } else {
+            quote!()
+        };
+
+        if self.is_fixed {
+            return Some(quote!(
+                #( #docs )*
+                #[inline]
+                pub fn #name(&self) -> #return_type {
+                    self.fixed_fields().#name #maybe_get
+                }
+
+                #offset_getter
+            ));
+        }
         let is_array = self.is_array();
         let is_var_array = self.is_var_array();
         let is_versioned = self.is_conditional();
@@ -826,11 +856,9 @@ impl Field {
             read_stmt = quote!(Some(#read_stmt));
         }
 
-        let docs = &self.attrs.docs;
-        let offset_getter = self.typed_offset_field_getter(generic, None);
-
         Some(quote! {
             #( #docs )*
+            #[inline]
             pub fn #name(&self) -> #return_type {
                 let range = #range_stmt;
                 #read_stmt
@@ -876,6 +904,7 @@ impl Field {
         let offset_getter = self.typed_offset_field_getter(None, Some(record));
         Some(quote! {
             #(#docs)*
+            #[inline]
             pub fn #name(&self) -> #add_borrow_just_for_record #return_type {
                 #getter_expr
             }
@@ -976,6 +1005,7 @@ impl Field {
 
             Some(quote! {
                 #docs
+                #[inline]
                 pub fn #getter_name (&self #input_data_if_needed) -> #return_type #where_read_clause  {
                     #data_alias_if_needed
                     #bind_offsets
@@ -1002,6 +1032,7 @@ impl Field {
             };
             Some(quote! {
                 #docs
+                #[inline]
                 pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type #where_read_clause {
                     #data_alias_if_needed
                     #args_if_needed
@@ -1066,6 +1097,7 @@ impl Field {
             && !self.has_computed_len()
             && !self.validate_at_parse()
             && !self.is_conditional()
+            && !self.is_fixed
         {
             let typ = self.typ.cooked_type_tokens();
             return quote!( cursor.advance::<#typ>(); );
@@ -1110,8 +1142,18 @@ impl Field {
                 }
             }
         } else if self.read_at_parse_time {
-            let typ = self.typ.cooked_type_tokens();
-            quote! ( let #name: #typ = cursor.read()?; )
+            if self.is_fixed {
+                if self.has_big_endian_wrapper() {
+                    quote! ( let #name = fixed_fields.#name.get(); )
+                } else {
+                    quote! ( let #name = fixed_fields.#name; )
+                }
+            } else {
+                let typ = self.typ.cooked_type_tokens();
+                quote! ( let #name: #typ = cursor.read()?; )
+            }
+        } else if self.is_fixed {
+            return quote!();
         } else {
             panic!("who wrote this garbage anyway?");
         };

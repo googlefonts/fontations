@@ -5,6 +5,17 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct CvarFixedFields {
+    pub version: BigEndian<MajorMinor>,
+}
+
+impl FixedSize for CvarFixedFields {
+    const RAW_BYTE_LEN: usize = MajorMinor::RAW_BYTE_LEN;
+}
+
 /// The [cvar](https://learn.microsoft.com/en-us/typography/opentype/spec/cvar) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -46,52 +57,60 @@ impl TopLevelTable for Cvar<'_> {
 }
 
 impl<'a> FontRead<'a> for Cvar<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
+        let fixed_fields: &'a CvarFixedFields = cursor.read_ref()?;
         cursor.advance::<TupleVariationCount>();
         cursor.advance::<Offset16>();
         let tuple_variation_headers_byte_len = cursor.remaining_bytes();
         cursor.advance_by(tuple_variation_headers_byte_len);
-        cursor.finish(CvarMarker {
-            tuple_variation_headers_byte_len,
-        })
+        cursor.finish(
+            CvarMarker {
+                tuple_variation_headers_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// The [cvar](https://learn.microsoft.com/en-us/typography/opentype/spec/cvar) table.
-pub type Cvar<'a> = TableRef<'a, CvarMarker>;
+pub type Cvar<'a> = TableRef<'a, CvarMarker, CvarFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cvar<'a> {
     /// Major/minor version number of the CVT variations table — set to (1,0).
+    #[inline]
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// A packed field. The high 4 bits are flags, and the low 12 bits
     /// are the number of tuple variation tables for this glyph. The
     /// number of tuple variation tables can be any number between 1
     /// and 4095.
+    #[inline]
     pub fn tuple_variation_count(&self) -> TupleVariationCount {
         let range = self.shape.tuple_variation_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset from the start of the 'cvar' table to the serialized data.
+    #[inline]
     pub fn data_offset(&self) -> Offset16 {
         let range = self.shape.data_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Attempt to resolve [`data_offset`][Self::data_offset].
+    #[inline]
     pub fn data(&self) -> Result<FontData<'a>, ReadError> {
         let data = self.data;
         self.data_offset().resolve(data)
     }
 
     /// Array of tuple variation headers.
+    #[inline]
     pub fn tuple_variation_headers(&self) -> VarLenArray<'a, TupleVariationHeader> {
         let range = self.shape.tuple_variation_headers_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()

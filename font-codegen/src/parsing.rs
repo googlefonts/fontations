@@ -175,6 +175,9 @@ pub(crate) struct Field {
     /// For instance: in a versioned table, the version must be read to determine
     /// whether to expect version-dependent fields.
     pub(crate) read_at_parse_time: bool,
+    /// `true` if this field is always present and at a fixed position relative
+    /// to its parent.
+    pub(crate) is_fixed: bool,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -770,6 +773,7 @@ impl Parse for Field {
             typ,
             // computed later
             read_at_parse_time: false,
+            is_fixed: false,
         })
     }
 }

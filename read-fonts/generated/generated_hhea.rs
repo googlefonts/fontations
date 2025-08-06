@@ -5,6 +5,49 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct HheaFixedFields {
+    pub version: BigEndian<MajorMinor>,
+    pub ascender: BigEndian<FWord>,
+    pub descender: BigEndian<FWord>,
+    pub line_gap: BigEndian<FWord>,
+    pub advance_width_max: BigEndian<UfWord>,
+    pub min_left_side_bearing: BigEndian<FWord>,
+    pub min_right_side_bearing: BigEndian<FWord>,
+    pub x_max_extent: BigEndian<FWord>,
+    pub caret_slope_rise: BigEndian<i16>,
+    pub caret_slope_run: BigEndian<i16>,
+    pub caret_offset: BigEndian<i16>,
+    pub reserved1: BigEndian<i16>,
+    pub reserved2: BigEndian<i16>,
+    pub reserved3: BigEndian<i16>,
+    pub reserved4: BigEndian<i16>,
+    pub metric_data_format: BigEndian<i16>,
+    pub number_of_h_metrics: BigEndian<u16>,
+}
+
+impl FixedSize for HheaFixedFields {
+    const RAW_BYTE_LEN: usize = MajorMinor::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + UfWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
+}
+
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -109,116 +152,101 @@ impl TopLevelTable for Hhea<'_> {
 }
 
 impl<'a> FontRead<'a> for Hhea<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<u16>();
-        cursor.finish(HheaMarker {})
+        let fixed_fields: &'a HheaFixedFields = cursor.read_ref()?;
+        cursor.finish(HheaMarker {}, fixed_fields)
     }
 }
 
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
-pub type Hhea<'a> = TableRef<'a, HheaMarker>;
+pub type Hhea<'a> = TableRef<'a, HheaMarker, HheaFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Hhea<'a> {
     /// The major/minor version (1, 0)
+    #[inline]
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Typographic ascent.
+    #[inline]
     pub fn ascender(&self) -> FWord {
-        let range = self.shape.ascender_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().ascender.get()
     }
 
     /// Typographic descent.
+    #[inline]
     pub fn descender(&self) -> FWord {
-        let range = self.shape.descender_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().descender.get()
     }
 
     /// Typographic line gap. Negative LineGap values are treated as
     /// zero in some legacy platform implementations.
+    #[inline]
     pub fn line_gap(&self) -> FWord {
-        let range = self.shape.line_gap_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().line_gap.get()
     }
 
     /// Maximum advance width value in 'hmtx' table.
+    #[inline]
     pub fn advance_width_max(&self) -> UfWord {
-        let range = self.shape.advance_width_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().advance_width_max.get()
     }
 
     /// Minimum left sidebearing value in 'hmtx' table for glyphs with
     /// contours (empty glyphs should be ignored).
+    #[inline]
     pub fn min_left_side_bearing(&self) -> FWord {
-        let range = self.shape.min_left_side_bearing_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().min_left_side_bearing.get()
     }
 
     /// Minimum right sidebearing value; calculated as min(aw - (lsb +
     /// xMax - xMin)) for glyphs with contours (empty glyphs should be ignored).
+    #[inline]
     pub fn min_right_side_bearing(&self) -> FWord {
-        let range = self.shape.min_right_side_bearing_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().min_right_side_bearing.get()
     }
 
     /// Max(lsb + (xMax-xMin))
+    #[inline]
     pub fn x_max_extent(&self) -> FWord {
-        let range = self.shape.x_max_extent_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x_max_extent.get()
     }
 
     /// Used to calculate the slope of the cursor (rise/run); 1 for
     /// vertical caret, 0 for horizontal.
+    #[inline]
     pub fn caret_slope_rise(&self) -> i16 {
-        let range = self.shape.caret_slope_rise_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().caret_slope_rise.get()
     }
 
     /// 0 for vertical caret, 1 for horizontal.
+    #[inline]
     pub fn caret_slope_run(&self) -> i16 {
-        let range = self.shape.caret_slope_run_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().caret_slope_run.get()
     }
 
     /// The amount by which a slanted highlight on a glyph needs to be
     /// shifted to produce the best appearance. Set to 0 for
     /// non-slanted fonts
+    #[inline]
     pub fn caret_offset(&self) -> i16 {
-        let range = self.shape.caret_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().caret_offset.get()
     }
 
     /// 0 for current format.
+    #[inline]
     pub fn metric_data_format(&self) -> i16 {
-        let range = self.shape.metric_data_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().metric_data_format.get()
     }
 
     /// Number of hMetric entries in 'hmtx' table
+    #[inline]
     pub fn number_of_h_metrics(&self) -> u16 {
-        let range = self.shape.number_of_h_metrics_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().number_of_h_metrics.get()
     }
 }
 
