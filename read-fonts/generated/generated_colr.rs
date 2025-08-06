@@ -1499,10 +1499,13 @@ impl<'a> SomeRecord<'a> for VarColorStop {
 #[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
-pub struct ColorLineFixedFields {}
+pub struct ColorLineFixedFields {
+    pub extend: BigEndian<Extend>,
+    pub num_stops: BigEndian<u16>,
+}
 
 impl FixedSize for ColorLineFixedFields {
-    const RAW_BYTE_LEN: usize = 0;
+    const RAW_BYTE_LEN: usize = Extend::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// [ColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
@@ -1540,8 +1543,7 @@ impl<'a> FontRead<'a> for ColorLine<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a ColorLineFixedFields = cursor.read_ref()?;
-        cursor.advance::<Extend>();
-        let num_stops: u16 = cursor.read()?;
+        let num_stops = fixed_fields.num_stops.get();
         let color_stops_byte_len = (num_stops as usize)
             .checked_mul(ColorStop::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1563,15 +1565,13 @@ impl<'a> ColorLine<'a> {
     /// An Extend enum value.
     #[inline]
     pub fn extend(&self) -> Extend {
-        let range = self.shape.extend_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().extend.get()
     }
 
     /// Number of ColorStop records.
     #[inline]
     pub fn num_stops(&self) -> u16 {
-        let range = self.shape.num_stops_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_stops.get()
     }
 
     #[inline]
@@ -1614,10 +1614,13 @@ impl<'a> std::fmt::Debug for ColorLine<'a> {
 #[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
-pub struct VarColorLineFixedFields {}
+pub struct VarColorLineFixedFields {
+    pub extend: BigEndian<Extend>,
+    pub num_stops: BigEndian<u16>,
+}
 
 impl FixedSize for VarColorLineFixedFields {
-    const RAW_BYTE_LEN: usize = 0;
+    const RAW_BYTE_LEN: usize = Extend::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// [VarColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
@@ -1655,8 +1658,7 @@ impl<'a> FontRead<'a> for VarColorLine<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a VarColorLineFixedFields = cursor.read_ref()?;
-        cursor.advance::<Extend>();
-        let num_stops: u16 = cursor.read()?;
+        let num_stops = fixed_fields.num_stops.get();
         let color_stops_byte_len = (num_stops as usize)
             .checked_mul(VarColorStop::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1678,15 +1680,13 @@ impl<'a> VarColorLine<'a> {
     /// An Extend enum value.
     #[inline]
     pub fn extend(&self) -> Extend {
-        let range = self.shape.extend_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().extend.get()
     }
 
     /// Number of ColorStop records.
     #[inline]
     pub fn num_stops(&self) -> u16 {
-        let range = self.shape.num_stops_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_stops.get()
     }
 
     /// Allows for variations.
@@ -6779,10 +6779,15 @@ impl Format<u8> for PaintCompositeMarker {
 pub struct PaintCompositeFixedFields {
     pub format: u8,
     pub source_paint_offset: BigEndian<Offset24>,
+    pub composite_mode: BigEndian<CompositeMode>,
+    pub backdrop_paint_offset: BigEndian<Offset24>,
 }
 
 impl FixedSize for PaintCompositeFixedFields {
-    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + CompositeMode::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN;
 }
 
 /// [PaintComposite](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite) table
@@ -6823,8 +6828,6 @@ impl<'a> FontRead<'a> for PaintComposite<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a PaintCompositeFixedFields = cursor.read_ref()?;
-        cursor.advance::<CompositeMode>();
-        cursor.advance::<Offset24>();
         cursor.finish(PaintCompositeMarker {}, fixed_fields)
     }
 }
@@ -6856,15 +6859,13 @@ impl<'a> PaintComposite<'a> {
     /// A CompositeMode enumeration value.
     #[inline]
     pub fn composite_mode(&self) -> CompositeMode {
-        let range = self.shape.composite_mode_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().composite_mode.get()
     }
 
     /// Offset to a backdrop Paint table.
     #[inline]
     pub fn backdrop_paint_offset(&self) -> Offset24 {
-        let range = self.shape.backdrop_paint_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().backdrop_paint_offset.get()
     }
 
     /// Attempt to resolve [`backdrop_paint_offset`][Self::backdrop_paint_offset].

@@ -1359,10 +1359,12 @@ impl Format<u16> for SinglePosFormat1Marker {
 pub struct SinglePosFormat1FixedFields {
     pub pos_format: BigEndian<u16>,
     pub coverage_offset: BigEndian<Offset16>,
+    pub value_format: BigEndian<ValueFormat>,
 }
 
 impl FixedSize for SinglePosFormat1FixedFields {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize =
+        u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + ValueFormat::RAW_BYTE_LEN;
 }
 
 /// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
@@ -1405,7 +1407,7 @@ impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a SinglePosFormat1FixedFields = cursor.read_ref()?;
-        let value_format: ValueFormat = cursor.read()?;
+        let value_format = fixed_fields.value_format.get();
         let value_record_byte_len = <ValueRecord as ComputeSize>::compute_size(&value_format)?;
         cursor.advance_by(value_record_byte_len);
         cursor.finish(
@@ -1444,8 +1446,7 @@ impl<'a> SinglePosFormat1<'a> {
     /// Defines the types of data in the ValueRecord.
     #[inline]
     pub fn value_format(&self) -> ValueFormat {
-        let range = self.shape.value_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value_format.get()
     }
 
     /// Defines positioning value(s) — applied to all glyphs in the
@@ -1499,10 +1500,13 @@ impl Format<u16> for SinglePosFormat2Marker {
 pub struct SinglePosFormat2FixedFields {
     pub pos_format: BigEndian<u16>,
     pub coverage_offset: BigEndian<Offset16>,
+    pub value_format: BigEndian<ValueFormat>,
+    pub value_count: BigEndian<u16>,
 }
 
 impl FixedSize for SinglePosFormat2FixedFields {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize =
+        u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + ValueFormat::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
@@ -1550,8 +1554,8 @@ impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a SinglePosFormat2FixedFields = cursor.read_ref()?;
-        let value_format: ValueFormat = cursor.read()?;
-        let value_count: u16 = cursor.read()?;
+        let value_format = fixed_fields.value_format.get();
+        let value_count = fixed_fields.value_count.get();
         let value_records_byte_len = (value_count as usize)
             .checked_mul(<ValueRecord as ComputeSize>::compute_size(&value_format)?)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1592,16 +1596,14 @@ impl<'a> SinglePosFormat2<'a> {
     /// Defines the types of data in the ValueRecords.
     #[inline]
     pub fn value_format(&self) -> ValueFormat {
-        let range = self.shape.value_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value_format.get()
     }
 
     /// Number of ValueRecords — must equal glyphCount in the
     /// Coverage table.
     #[inline]
     pub fn value_count(&self) -> u16 {
-        let range = self.shape.value_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value_count.get()
     }
 
     /// Array of ValueRecords — positioning values applied to glyphs.
@@ -1762,10 +1764,17 @@ impl Format<u16> for PairPosFormat1Marker {
 pub struct PairPosFormat1FixedFields {
     pub pos_format: BigEndian<u16>,
     pub coverage_offset: BigEndian<Offset16>,
+    pub value_format1: BigEndian<ValueFormat>,
+    pub value_format2: BigEndian<ValueFormat>,
+    pub pair_set_count: BigEndian<u16>,
 }
 
 impl FixedSize for PairPosFormat1FixedFields {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN
+        + ValueFormat::RAW_BYTE_LEN
+        + ValueFormat::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
 }
 
 /// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
@@ -1818,9 +1827,7 @@ impl<'a> FontRead<'a> for PairPosFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a PairPosFormat1FixedFields = cursor.read_ref()?;
-        cursor.advance::<ValueFormat>();
-        cursor.advance::<ValueFormat>();
-        let pair_set_count: u16 = cursor.read()?;
+        let pair_set_count = fixed_fields.pair_set_count.get();
         let pair_set_offsets_byte_len = (pair_set_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1862,23 +1869,20 @@ impl<'a> PairPosFormat1<'a> {
     /// glyph in the pair (may be zero).
     #[inline]
     pub fn value_format1(&self) -> ValueFormat {
-        let range = self.shape.value_format1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value_format1.get()
     }
 
     /// Defines the types of data in valueRecord2 — for the second
     /// glyph in the pair (may be zero).
     #[inline]
     pub fn value_format2(&self) -> ValueFormat {
-        let range = self.shape.value_format2_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value_format2.get()
     }
 
     /// Number of PairSet tables
     #[inline]
     pub fn pair_set_count(&self) -> u16 {
-        let range = self.shape.pair_set_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().pair_set_count.get()
     }
 
     /// Array of offsets to PairSet tables. Offsets are from beginning
@@ -2205,10 +2209,23 @@ impl Format<u16> for PairPosFormat2Marker {
 pub struct PairPosFormat2FixedFields {
     pub pos_format: BigEndian<u16>,
     pub coverage_offset: BigEndian<Offset16>,
+    pub value_format1: BigEndian<ValueFormat>,
+    pub value_format2: BigEndian<ValueFormat>,
+    pub class_def1_offset: BigEndian<Offset16>,
+    pub class_def2_offset: BigEndian<Offset16>,
+    pub class1_count: BigEndian<u16>,
+    pub class2_count: BigEndian<u16>,
 }
 
 impl FixedSize for PairPosFormat2FixedFields {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN
+        + ValueFormat::RAW_BYTE_LEN
+        + ValueFormat::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
 }
 
 /// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
@@ -2276,12 +2293,10 @@ impl<'a> FontRead<'a> for PairPosFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a PairPosFormat2FixedFields = cursor.read_ref()?;
-        let value_format1: ValueFormat = cursor.read()?;
-        let value_format2: ValueFormat = cursor.read()?;
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        let class1_count: u16 = cursor.read()?;
-        let class2_count: u16 = cursor.read()?;
+        let value_format1 = fixed_fields.value_format1.get();
+        let value_format2 = fixed_fields.value_format2.get();
+        let class1_count = fixed_fields.class1_count.get();
+        let class2_count = fixed_fields.class2_count.get();
         let class1_records_byte_len = (class1_count as usize)
             .checked_mul(<Class1Record as ComputeSize>::compute_size(&(
                 class2_count,
@@ -2327,24 +2342,21 @@ impl<'a> PairPosFormat2<'a> {
     /// be zero).
     #[inline]
     pub fn value_format1(&self) -> ValueFormat {
-        let range = self.shape.value_format1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value_format1.get()
     }
 
     /// ValueRecord definition — for the second glyph of the pair
     /// (may be zero).
     #[inline]
     pub fn value_format2(&self) -> ValueFormat {
-        let range = self.shape.value_format2_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value_format2.get()
     }
 
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the first glyph of the pair.
     #[inline]
     pub fn class_def1_offset(&self) -> Offset16 {
-        let range = self.shape.class_def1_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().class_def1_offset.get()
     }
 
     /// Attempt to resolve [`class_def1_offset`][Self::class_def1_offset].
@@ -2358,8 +2370,7 @@ impl<'a> PairPosFormat2<'a> {
     /// — for the second glyph of the pair.
     #[inline]
     pub fn class_def2_offset(&self) -> Offset16 {
-        let range = self.shape.class_def2_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().class_def2_offset.get()
     }
 
     /// Attempt to resolve [`class_def2_offset`][Self::class_def2_offset].
@@ -2372,15 +2383,13 @@ impl<'a> PairPosFormat2<'a> {
     /// Number of classes in classDef1 table — includes Class 0.
     #[inline]
     pub fn class1_count(&self) -> u16 {
-        let range = self.shape.class1_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().class1_count.get()
     }
 
     /// Number of classes in classDef2 table — includes Class 0.
     #[inline]
     pub fn class2_count(&self) -> u16 {
-        let range = self.shape.class2_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().class2_count.get()
     }
 
     /// Array of Class1 records, ordered by classes in classDef1.

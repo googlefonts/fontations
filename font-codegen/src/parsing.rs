@@ -1324,8 +1324,11 @@ impl Items {
                 Item::Table(item) => &mut item.fields.fields,
                 _ => continue,
             };
+            let mut is_fixed = true;
             for field in fields {
                 resolve_field(&known, field)?;
+                is_fixed &= field.is_zerocopy_compatible() && !field.is_conditional();
+                field.is_fixed = is_fixed;
             }
         }
         Ok(())

@@ -953,10 +953,12 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for LookupList<'a
 #[repr(packed)]
 pub struct LookupFixedFields {
     pub lookup_type: BigEndian<u16>,
+    pub lookup_flag: BigEndian<LookupFlag>,
+    pub sub_table_count: BigEndian<u16>,
 }
 
 impl FixedSize for LookupFixedFields {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + LookupFlag::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
@@ -1014,8 +1016,8 @@ impl<'a, T> FontRead<'a> for Lookup<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a LookupFixedFields = cursor.read_ref()?;
-        let lookup_flag: LookupFlag = cursor.read()?;
-        let sub_table_count: u16 = cursor.read()?;
+        let lookup_flag = fixed_fields.lookup_flag.get();
+        let sub_table_count = fixed_fields.sub_table_count.get();
         let subtable_offsets_byte_len = (sub_table_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1093,15 +1095,13 @@ impl<'a, T> Lookup<'a, T> {
     /// Lookup qualifiers
     #[inline]
     pub fn lookup_flag(&self) -> LookupFlag {
-        let range = self.shape.lookup_flag_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().lookup_flag.get()
     }
 
     /// Number of subtables for this lookup
     #[inline]
     pub fn sub_table_count(&self) -> u16 {
-        let range = self.shape.sub_table_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().sub_table_count.get()
     }
 
     /// Array of offsets to lookup subtables, from beginning of Lookup
@@ -4583,10 +4583,11 @@ impl<'a> From<DeltaFormat> for FieldType<'a> {
 pub struct DeviceFixedFields {
     pub start_size: BigEndian<u16>,
     pub end_size: BigEndian<u16>,
+    pub delta_format: BigEndian<DeltaFormat>,
 }
 
 impl FixedSize for DeviceFixedFields {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + DeltaFormat::RAW_BYTE_LEN;
 }
 
 /// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
@@ -4631,7 +4632,7 @@ impl<'a> FontRead<'a> for Device<'a> {
         let fixed_fields: &'a DeviceFixedFields = cursor.read_ref()?;
         let start_size = fixed_fields.start_size.get();
         let end_size = fixed_fields.end_size.get();
-        let delta_format: DeltaFormat = cursor.read()?;
+        let delta_format = fixed_fields.delta_format.get();
         let delta_value_byte_len = (DeltaFormat::value_count(delta_format, start_size, end_size))
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -4665,8 +4666,7 @@ impl<'a> Device<'a> {
     /// Format of deltaValue array data: 0x0001, 0x0002, or 0x0003
     #[inline]
     pub fn delta_format(&self) -> DeltaFormat {
-        let range = self.shape.delta_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().delta_format.get()
     }
 
     /// Array of compressed data
@@ -4707,10 +4707,11 @@ impl<'a> std::fmt::Debug for Device<'a> {
 pub struct VariationIndexFixedFields {
     pub delta_set_outer_index: BigEndian<u16>,
     pub delta_set_inner_index: BigEndian<u16>,
+    pub delta_format: BigEndian<DeltaFormat>,
 }
 
 impl FixedSize for VariationIndexFixedFields {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + DeltaFormat::RAW_BYTE_LEN;
 }
 
 /// Variation index table
@@ -4746,7 +4747,6 @@ impl<'a> FontRead<'a> for VariationIndex<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a VariationIndexFixedFields = cursor.read_ref()?;
-        cursor.advance::<DeltaFormat>();
         cursor.finish(VariationIndexMarker {}, fixed_fields)
     }
 }
@@ -4773,8 +4773,7 @@ impl<'a> VariationIndex<'a> {
     /// Format, = 0x8000
     #[inline]
     pub fn delta_format(&self) -> DeltaFormat {
-        let range = self.shape.delta_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().delta_format.get()
     }
 }
 

@@ -449,10 +449,11 @@ impl<'a> From<GotFlags> for FieldType<'a> {
 #[repr(packed)]
 pub struct FlagDayFixedFields {
     pub volume: BigEndian<u16>,
+    pub flags: BigEndian<GotFlags>,
 }
 
 impl FixedSize for FlagDayFixedFields {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + GotFlags::RAW_BYTE_LEN;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -501,7 +502,7 @@ impl<'a> FontRead<'a> for FlagDay<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a FlagDayFixedFields = cursor.read_ref()?;
-        let flags: GotFlags = cursor.read()?;
+        let flags = fixed_fields.flags.get();
         let foo_byte_start = flags
             .contains(GotFlags::FOO)
             .then(|| cursor.position())
@@ -545,8 +546,7 @@ impl<'a> FlagDay<'a> {
 
     #[inline]
     pub fn flags(&self) -> GotFlags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
     #[inline]
@@ -599,10 +599,12 @@ impl<'a> std::fmt::Debug for FlagDay<'a> {
 #[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
-pub struct FieldsAfterConditionalsFixedFields {}
+pub struct FieldsAfterConditionalsFixedFields {
+    pub flags: BigEndian<GotFlags>,
+}
 
 impl FixedSize for FieldsAfterConditionalsFixedFields {
-    const RAW_BYTE_LEN: usize = 0;
+    const RAW_BYTE_LEN: usize = GotFlags::RAW_BYTE_LEN;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -671,7 +673,7 @@ impl<'a> FontRead<'a> for FieldsAfterConditionals<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a FieldsAfterConditionalsFixedFields = cursor.read_ref()?;
-        let flags: GotFlags = cursor.read()?;
+        let flags = fixed_fields.flags.get();
         let foo_byte_start = flags
             .contains(GotFlags::FOO)
             .then(|| cursor.position())
@@ -714,8 +716,7 @@ pub type FieldsAfterConditionals<'a> =
 impl<'a> FieldsAfterConditionals<'a> {
     #[inline]
     pub fn flags(&self) -> GotFlags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
     #[inline]

@@ -10,10 +10,13 @@ use crate::codegen_prelude::*;
 #[repr(packed)]
 pub struct CvarFixedFields {
     pub version: BigEndian<MajorMinor>,
+    pub tuple_variation_count: BigEndian<TupleVariationCount>,
+    pub data_offset: BigEndian<Offset16>,
 }
 
 impl FixedSize for CvarFixedFields {
-    const RAW_BYTE_LEN: usize = MajorMinor::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize =
+        MajorMinor::RAW_BYTE_LEN + TupleVariationCount::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
 /// The [cvar](https://learn.microsoft.com/en-us/typography/opentype/spec/cvar) table.
@@ -61,8 +64,6 @@ impl<'a> FontRead<'a> for Cvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a CvarFixedFields = cursor.read_ref()?;
-        cursor.advance::<TupleVariationCount>();
-        cursor.advance::<Offset16>();
         let tuple_variation_headers_byte_len = cursor.remaining_bytes();
         cursor.advance_by(tuple_variation_headers_byte_len);
         cursor.finish(
@@ -91,15 +92,13 @@ impl<'a> Cvar<'a> {
     /// and 4095.
     #[inline]
     pub fn tuple_variation_count(&self) -> TupleVariationCount {
-        let range = self.shape.tuple_variation_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().tuple_variation_count.get()
     }
 
     /// Offset from the start of the 'cvar' table to the serialized data.
     #[inline]
     pub fn data_offset(&self) -> Offset16 {
-        let range = self.shape.data_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().data_offset.get()
     }
 
     /// Attempt to resolve [`data_offset`][Self::data_offset].

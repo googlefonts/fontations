@@ -444,11 +444,27 @@ pub struct PatchMapFormat1FixedFields {
     pub _reserved_0: u8,
     pub _reserved_1: u8,
     pub _reserved_2: u8,
+    pub field_flags: BigEndian<PatchMapFieldPresenceFlags>,
+    pub compatibility_id: BigEndian<CompatibilityId>,
+    pub max_entry_index: BigEndian<u16>,
+    pub max_glyph_map_entry_index: BigEndian<u16>,
+    pub glyph_count: BigEndian<Uint24>,
+    pub glyph_map_offset: BigEndian<Offset32>,
+    pub feature_map_offset: BigEndian<Nullable<Offset32>>,
 }
 
 impl FixedSize for PatchMapFormat1FixedFields {
-    const RAW_BYTE_LEN: usize =
-        u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+        + CompatibilityId::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Uint24::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN;
 }
 
 /// [Patch Map Format Format 1](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
@@ -559,13 +575,8 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a PatchMapFormat1FixedFields = cursor.read_ref()?;
-        let field_flags: PatchMapFieldPresenceFlags = cursor.read()?;
-        cursor.advance::<CompatibilityId>();
-        let max_entry_index: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<Uint24>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
+        let field_flags = fixed_fields.field_flags.get();
+        let max_entry_index = fixed_fields.max_entry_index.get();
         let applied_entries_bitmap_byte_len = (transforms::max_value_bitmap_len(max_entry_index))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -615,42 +626,36 @@ impl<'a> PatchMapFormat1<'a> {
 
     #[inline]
     pub fn field_flags(&self) -> PatchMapFieldPresenceFlags {
-        let range = self.shape.field_flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().field_flags.get()
     }
 
     /// Unique ID that identifies compatible patches.
     #[inline]
     pub fn compatibility_id(&self) -> CompatibilityId {
-        let range = self.shape.compatibility_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().compatibility_id.get()
     }
 
     /// Largest entry index which appears in either the glyph map or feature map.
     #[inline]
     pub fn max_entry_index(&self) -> u16 {
-        let range = self.shape.max_entry_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().max_entry_index.get()
     }
 
     /// Largest entry index which appears in the glyph map.
     #[inline]
     pub fn max_glyph_map_entry_index(&self) -> u16 {
-        let range = self.shape.max_glyph_map_entry_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().max_glyph_map_entry_index.get()
     }
 
     #[inline]
     pub fn glyph_count(&self) -> Uint24 {
-        let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_count.get()
     }
 
     /// Sub table that maps glyph ids to entry indices.
     #[inline]
     pub fn glyph_map_offset(&self) -> Offset32 {
-        let range = self.shape.glyph_map_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_map_offset.get()
     }
 
     /// Attempt to resolve [`glyph_map_offset`][Self::glyph_map_offset].
@@ -664,8 +669,7 @@ impl<'a> PatchMapFormat1<'a> {
     /// Sub table that maps feature and glyph ids to entry indices.
     #[inline]
     pub fn feature_map_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.feature_map_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().feature_map_offset.get()
     }
 
     /// Attempt to resolve [`feature_map_offset`][Self::feature_map_offset].
@@ -1218,11 +1222,27 @@ pub struct PatchMapFormat2FixedFields {
     pub _reserved_0: u8,
     pub _reserved_1: u8,
     pub _reserved_2: u8,
+    pub field_flags: BigEndian<PatchMapFieldPresenceFlags>,
+    pub compatibility_id: BigEndian<CompatibilityId>,
+    pub default_patch_format: u8,
+    pub entry_count: BigEndian<Uint24>,
+    pub entries_offset: BigEndian<Offset32>,
+    pub entry_id_string_data_offset: BigEndian<Nullable<Offset32>>,
+    pub url_template_length: BigEndian<u16>,
 }
 
 impl FixedSize for PatchMapFormat2FixedFields {
-    const RAW_BYTE_LEN: usize =
-        u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+        + CompatibilityId::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + Uint24::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
 }
 
 /// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-2)
@@ -1317,13 +1337,8 @@ impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a PatchMapFormat2FixedFields = cursor.read_ref()?;
-        let field_flags: PatchMapFieldPresenceFlags = cursor.read()?;
-        cursor.advance::<CompatibilityId>();
-        cursor.advance::<u8>();
-        cursor.advance::<Uint24>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        let url_template_length: u16 = cursor.read()?;
+        let field_flags = fixed_fields.field_flags.get();
+        let url_template_length = fixed_fields.url_template_length.get();
         let url_template_byte_len = (url_template_length as usize)
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1366,34 +1381,29 @@ impl<'a> PatchMapFormat2<'a> {
 
     #[inline]
     pub fn field_flags(&self) -> PatchMapFieldPresenceFlags {
-        let range = self.shape.field_flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().field_flags.get()
     }
 
     /// Unique ID that identifies compatible patches.
     #[inline]
     pub fn compatibility_id(&self) -> CompatibilityId {
-        let range = self.shape.compatibility_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().compatibility_id.get()
     }
 
     /// Patch format number for patches referenced by this mapping.
     #[inline]
     pub fn default_patch_format(&self) -> u8 {
-        let range = self.shape.default_patch_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().default_patch_format
     }
 
     #[inline]
     pub fn entry_count(&self) -> Uint24 {
-        let range = self.shape.entry_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().entry_count.get()
     }
 
     #[inline]
     pub fn entries_offset(&self) -> Offset32 {
-        let range = self.shape.entries_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().entries_offset.get()
     }
 
     /// Attempt to resolve [`entries_offset`][Self::entries_offset].
@@ -1405,8 +1415,7 @@ impl<'a> PatchMapFormat2<'a> {
 
     #[inline]
     pub fn entry_id_string_data_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.entry_id_string_data_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().entry_id_string_data_offset.get()
     }
 
     /// Attempt to resolve [`entry_id_string_data_offset`][Self::entry_id_string_data_offset].
@@ -1418,8 +1427,7 @@ impl<'a> PatchMapFormat2<'a> {
 
     #[inline]
     pub fn url_template_length(&self) -> u16 {
-        let range = self.shape.url_template_length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().url_template_length.get()
     }
 
     #[inline]
@@ -1582,10 +1590,12 @@ impl<'a> std::fmt::Debug for MappingEntries<'a> {
 #[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
-pub struct EntryDataFixedFields {}
+pub struct EntryDataFixedFields {
+    pub format_flags: BigEndian<EntryFormatFlags>,
+}
 
 impl FixedSize for EntryDataFixedFields {
-    const RAW_BYTE_LEN: usize = 0;
+    const RAW_BYTE_LEN: usize = EntryFormatFlags::RAW_BYTE_LEN;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1681,7 +1691,7 @@ impl<'a> FontRead<'a> for EntryData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a EntryDataFixedFields = cursor.read_ref()?;
-        let format_flags: EntryFormatFlags = cursor.read()?;
+        let format_flags = fixed_fields.format_flags.get();
         let feature_count_byte_start = format_flags
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
             .then(|| cursor.position())
@@ -1777,8 +1787,7 @@ pub type EntryData<'a> = TableRef<'a, EntryDataMarker, EntryDataFixedFields>;
 impl<'a> EntryData<'a> {
     #[inline]
     pub fn format_flags(&self) -> EntryFormatFlags {
-        let range = self.shape.format_flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format_flags.get()
     }
 
     #[inline]
@@ -2326,10 +2335,13 @@ impl<'a> std::fmt::Debug for IdStringData<'a> {
 pub struct TableKeyedPatchFixedFields {
     pub format: BigEndian<Tag>,
     pub _reserved: BigEndian<u32>,
+    pub compatibility_id: BigEndian<CompatibilityId>,
+    pub patches_count: BigEndian<u16>,
 }
 
 impl FixedSize for TableKeyedPatchFixedFields {
-    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize =
+        Tag::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + CompatibilityId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// [Table Keyed Patch](https://w3c.github.io/IFT/Overview.html#table-keyed)
@@ -2377,8 +2389,7 @@ impl<'a> FontRead<'a> for TableKeyedPatch<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a TableKeyedPatchFixedFields = cursor.read_ref()?;
-        cursor.advance::<CompatibilityId>();
-        let patches_count: u16 = cursor.read()?;
+        let patches_count = fixed_fields.patches_count.get();
         let patch_offsets_byte_len = (transforms::add(patches_count, 1_usize))
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -2405,14 +2416,12 @@ impl<'a> TableKeyedPatch<'a> {
     /// Unique ID that identifies compatible patches.
     #[inline]
     pub fn compatibility_id(&self) -> CompatibilityId {
-        let range = self.shape.compatibility_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().compatibility_id.get()
     }
 
     #[inline]
     pub fn patches_count(&self) -> u16 {
-        let range = self.shape.patches_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().patches_count.get()
     }
 
     #[inline]
@@ -2475,10 +2484,13 @@ impl<'a> std::fmt::Debug for TableKeyedPatch<'a> {
 #[repr(packed)]
 pub struct TablePatchFixedFields {
     pub tag: BigEndian<Tag>,
+    pub flags: BigEndian<TablePatchFlags>,
+    pub max_uncompressed_length: BigEndian<u32>,
 }
 
 impl FixedSize for TablePatchFixedFields {
-    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize =
+        Tag::RAW_BYTE_LEN + TablePatchFlags::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
 /// [TablePatch](https://w3c.github.io/IFT/Overview.html#tablepatch)
@@ -2521,8 +2533,6 @@ impl<'a> FontRead<'a> for TablePatch<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a TablePatchFixedFields = cursor.read_ref()?;
-        cursor.advance::<TablePatchFlags>();
-        cursor.advance::<u32>();
         let brotli_stream_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(brotli_stream_byte_len);
         cursor.finish(
@@ -2546,14 +2556,12 @@ impl<'a> TablePatch<'a> {
 
     #[inline]
     pub fn flags(&self) -> TablePatchFlags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
     #[inline]
     pub fn max_uncompressed_length(&self) -> u32 {
-        let range = self.shape.max_uncompressed_length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().max_uncompressed_length.get()
     }
 
     #[inline]
@@ -2901,10 +2909,17 @@ impl<'a> From<TablePatchFlags> for FieldType<'a> {
 pub struct GlyphKeyedPatchFixedFields {
     pub format: BigEndian<Tag>,
     pub _reserved: BigEndian<u32>,
+    pub flags: BigEndian<GlyphKeyedFlags>,
+    pub compatibility_id: BigEndian<CompatibilityId>,
+    pub max_uncompressed_length: BigEndian<u32>,
 }
 
 impl FixedSize for GlyphKeyedPatchFixedFields {
-    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN
+        + GlyphKeyedFlags::RAW_BYTE_LEN
+        + CompatibilityId::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [Glyph Keyed Patch](https://w3c.github.io/IFT/Overview.html#glyph-keyed)
@@ -2957,9 +2972,6 @@ impl<'a> FontRead<'a> for GlyphKeyedPatch<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a GlyphKeyedPatchFixedFields = cursor.read_ref()?;
-        cursor.advance::<GlyphKeyedFlags>();
-        cursor.advance::<CompatibilityId>();
-        cursor.advance::<u32>();
         let brotli_stream_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(brotli_stream_byte_len);
         cursor.finish(
@@ -2983,20 +2995,17 @@ impl<'a> GlyphKeyedPatch<'a> {
 
     #[inline]
     pub fn flags(&self) -> GlyphKeyedFlags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
     #[inline]
     pub fn compatibility_id(&self) -> CompatibilityId {
-        let range = self.shape.compatibility_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().compatibility_id.get()
     }
 
     #[inline]
     pub fn max_uncompressed_length(&self) -> u32 {
-        let range = self.shape.max_uncompressed_length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().max_uncompressed_length.get()
     }
 
     #[inline]

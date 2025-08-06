@@ -318,10 +318,12 @@ impl<'a> From<HeaderFlags> for FieldType<'a> {
 #[repr(packed)]
 pub struct SbixFixedFields {
     pub version: BigEndian<u16>,
+    pub flags: BigEndian<HeaderFlags>,
+    pub num_strikes: BigEndian<u32>,
 }
 
 impl FixedSize for SbixFixedFields {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + HeaderFlags::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
 /// The [sbix (Standard Bitmap Graphics)](https://docs.microsoft.com/en-us/typography/opentype/spec/sbix) table
@@ -375,8 +377,7 @@ impl<'a> FontReadWithArgs<'a> for Sbix<'a> {
         let num_glyphs = *args;
         let mut cursor = data.cursor();
         let fixed_fields: &'a SbixFixedFields = cursor.read_ref()?;
-        cursor.advance::<HeaderFlags>();
-        let num_strikes: u32 = cursor.read()?;
+        let num_strikes = fixed_fields.num_strikes.get();
         let strike_offsets_byte_len = (num_strikes as usize)
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -419,15 +420,13 @@ impl<'a> Sbix<'a> {
     /// Bits 2 to 15: reserved (set to 0).
     #[inline]
     pub fn flags(&self) -> HeaderFlags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
     /// Number of bitmap strikes.
     #[inline]
     pub fn num_strikes(&self) -> u32 {
-        let range = self.shape.num_strikes_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_strikes.get()
     }
 
     /// Offsets from the beginning of the 'sbix' table to data for each individual bitmap strike.

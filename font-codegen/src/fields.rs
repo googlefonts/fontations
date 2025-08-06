@@ -19,12 +19,9 @@ impl Fields {
             .flat_map(Field::input_fields)
             .collect::<ReferencedFields>();
 
-        let mut is_fixed = true;
         for field in fields.iter_mut() {
             field.read_at_parse_time =
                 field.attrs.version.is_some() || referenced_fields.needs_at_parsetime(&field.name);
-            is_fixed &= field.is_zerocopy_compatible() && !field.is_conditional();
-            field.is_fixed = is_fixed;
         }
 
         Ok(Fields {

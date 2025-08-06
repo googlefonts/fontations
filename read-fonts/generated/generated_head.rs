@@ -700,11 +700,39 @@ pub struct HeadFixedFields {
     pub font_revision: BigEndian<Fixed>,
     pub checksum_adjustment: BigEndian<u32>,
     pub magic_number: BigEndian<u32>,
+    pub flags: BigEndian<Flags>,
+    pub units_per_em: BigEndian<u16>,
+    pub created: BigEndian<LongDateTime>,
+    pub modified: BigEndian<LongDateTime>,
+    pub x_min: BigEndian<i16>,
+    pub y_min: BigEndian<i16>,
+    pub x_max: BigEndian<i16>,
+    pub y_max: BigEndian<i16>,
+    pub mac_style: BigEndian<MacStyle>,
+    pub lowest_rec_ppem: BigEndian<u16>,
+    pub font_direction_hint: BigEndian<i16>,
+    pub index_to_loc_format: BigEndian<i16>,
+    pub glyph_data_format: BigEndian<i16>,
 }
 
 impl FixedSize for HeadFixedFields {
-    const RAW_BYTE_LEN: usize =
-        MajorMinor::RAW_BYTE_LEN + Fixed::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = MajorMinor::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN
+        + Flags::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + LongDateTime::RAW_BYTE_LEN
+        + LongDateTime::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + MacStyle::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN;
 }
 
 /// The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head)
@@ -816,19 +844,6 @@ impl<'a> FontRead<'a> for Head<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a HeadFixedFields = cursor.read_ref()?;
-        cursor.advance::<Flags>();
-        cursor.advance::<u16>();
-        cursor.advance::<LongDateTime>();
-        cursor.advance::<LongDateTime>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<MacStyle>();
-        cursor.advance::<u16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
         cursor.finish(HeadMarker {}, fixed_fields)
     }
 }
@@ -870,8 +885,7 @@ impl<'a> Head<'a> {
     /// See the flags enum.
     #[inline]
     pub fn flags(&self) -> Flags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
     /// Set to a value from 16 to 16384. Any value in this range is
@@ -880,87 +894,75 @@ impl<'a> Head<'a> {
     /// rasterizers.
     #[inline]
     pub fn units_per_em(&self) -> u16 {
-        let range = self.shape.units_per_em_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().units_per_em.get()
     }
 
     /// Number of seconds since 12:00 midnight that started January 1st
     /// 1904 in GMT/UTC time zone.
     #[inline]
     pub fn created(&self) -> LongDateTime {
-        let range = self.shape.created_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().created.get()
     }
 
     /// Number of seconds since 12:00 midnight that started January 1st
     /// 1904 in GMT/UTC time zone.
     #[inline]
     pub fn modified(&self) -> LongDateTime {
-        let range = self.shape.modified_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().modified.get()
     }
 
     /// Minimum x coordinate across all glyph bounding boxes.
     #[inline]
     pub fn x_min(&self) -> i16 {
-        let range = self.shape.x_min_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x_min.get()
     }
 
     /// Minimum y coordinate across all glyph bounding boxes.
     #[inline]
     pub fn y_min(&self) -> i16 {
-        let range = self.shape.y_min_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y_min.get()
     }
 
     /// Maximum x coordinate across all glyph bounding boxes.
     #[inline]
     pub fn x_max(&self) -> i16 {
-        let range = self.shape.x_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().x_max.get()
     }
 
     /// Maximum y coordinate across all glyph bounding boxes.
     #[inline]
     pub fn y_max(&self) -> i16 {
-        let range = self.shape.y_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().y_max.get()
     }
 
     /// Bits identifying the font's style; see [MacStyle]
     #[inline]
     pub fn mac_style(&self) -> MacStyle {
-        let range = self.shape.mac_style_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().mac_style.get()
     }
 
     /// Smallest readable size in pixels.
     #[inline]
     pub fn lowest_rec_ppem(&self) -> u16 {
-        let range = self.shape.lowest_rec_ppem_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().lowest_rec_ppem.get()
     }
 
     /// Deprecated (Set to 2).
     #[inline]
     pub fn font_direction_hint(&self) -> i16 {
-        let range = self.shape.font_direction_hint_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().font_direction_hint.get()
     }
 
     /// 0 for short offsets (Offset16), 1 for long (Offset32).
     #[inline]
     pub fn index_to_loc_format(&self) -> i16 {
-        let range = self.shape.index_to_loc_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().index_to_loc_format.get()
     }
 
     /// 0 for current format.
     #[inline]
     pub fn glyph_data_format(&self) -> i16 {
-        let range = self.shape.glyph_data_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_data_format.get()
     }
 }
 

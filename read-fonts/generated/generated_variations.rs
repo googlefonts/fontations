@@ -10,10 +10,11 @@ use crate::codegen_prelude::*;
 #[repr(packed)]
 pub struct TupleVariationHeaderFixedFields {
     pub variation_data_size: BigEndian<u16>,
+    pub tuple_index: BigEndian<TupleIndex>,
 }
 
 impl FixedSize for TupleVariationHeaderFixedFields {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + TupleIndex::RAW_BYTE_LEN;
 }
 
 /// [TupleVariationHeader](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuplevariationheader)
@@ -68,7 +69,7 @@ impl<'a> FontReadWithArgs<'a> for TupleVariationHeader<'a> {
         let axis_count = *args;
         let mut cursor = data.cursor();
         let fixed_fields: &'a TupleVariationHeaderFixedFields = cursor.read_ref()?;
-        let tuple_index: TupleIndex = cursor.read()?;
+        let tuple_index = fixed_fields.tuple_index.get();
         let peak_tuple_byte_len = (TupleIndex::tuple_len(tuple_index, axis_count, 0_usize))
             .checked_mul(F2Dot14::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -123,8 +124,7 @@ impl<'a> TupleVariationHeader<'a> {
     /// 12 bits are an index into a shared tuple records array.
     #[inline]
     pub fn tuple_index(&self) -> TupleIndex {
-        let range = self.shape.tuple_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().tuple_index.get()
     }
 }
 
@@ -237,10 +237,12 @@ impl Format<u8> for DeltaSetIndexMapFormat0Marker {
 #[repr(packed)]
 pub struct DeltaSetIndexMapFormat0FixedFields {
     pub format: u8,
+    pub entry_format: BigEndian<EntryFormat>,
+    pub map_count: BigEndian<u16>,
 }
 
 impl FixedSize for DeltaSetIndexMapFormat0FixedFields {
-    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + EntryFormat::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table format 0
@@ -283,8 +285,8 @@ impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a DeltaSetIndexMapFormat0FixedFields = cursor.read_ref()?;
-        let entry_format: EntryFormat = cursor.read()?;
-        let map_count: u16 = cursor.read()?;
+        let entry_format = fixed_fields.entry_format.get();
+        let map_count = fixed_fields.map_count.get();
         let map_data_byte_len = (EntryFormat::map_size(entry_format, map_count))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -312,15 +314,13 @@ impl<'a> DeltaSetIndexMapFormat0<'a> {
     /// delta-set indices. See details below.
     #[inline]
     pub fn entry_format(&self) -> EntryFormat {
-        let range = self.shape.entry_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().entry_format.get()
     }
 
     /// The number of mapping entries.
     #[inline]
     pub fn map_count(&self) -> u16 {
-        let range = self.shape.map_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().map_count.get()
     }
 
     /// The delta-set index mapping data. See details below.
@@ -364,10 +364,12 @@ impl Format<u8> for DeltaSetIndexMapFormat1Marker {
 #[repr(packed)]
 pub struct DeltaSetIndexMapFormat1FixedFields {
     pub format: u8,
+    pub entry_format: BigEndian<EntryFormat>,
+    pub map_count: BigEndian<u32>,
 }
 
 impl FixedSize for DeltaSetIndexMapFormat1FixedFields {
-    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + EntryFormat::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
 /// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table format 1
@@ -410,8 +412,8 @@ impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a DeltaSetIndexMapFormat1FixedFields = cursor.read_ref()?;
-        let entry_format: EntryFormat = cursor.read()?;
-        let map_count: u32 = cursor.read()?;
+        let entry_format = fixed_fields.entry_format.get();
+        let map_count = fixed_fields.map_count.get();
         let map_data_byte_len = (EntryFormat::map_size(entry_format, map_count))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -439,15 +441,13 @@ impl<'a> DeltaSetIndexMapFormat1<'a> {
     /// delta-set indices. See details below.
     #[inline]
     pub fn entry_format(&self) -> EntryFormat {
-        let range = self.shape.entry_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().entry_format.get()
     }
 
     /// The number of mapping entries.
     #[inline]
     pub fn map_count(&self) -> u32 {
-        let range = self.shape.map_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().map_count.get()
     }
 
     /// The delta-set index mapping data. See details below.

@@ -14,6 +14,8 @@ pub struct GvarFixedFields {
     pub shared_tuple_count: BigEndian<u16>,
     pub shared_tuples_offset: BigEndian<Offset32>,
     pub glyph_count: BigEndian<u16>,
+    pub flags: BigEndian<GvarFlags>,
+    pub glyph_variation_data_array_offset: BigEndian<u32>,
 }
 
 impl FixedSize for GvarFixedFields {
@@ -21,7 +23,9 @@ impl FixedSize for GvarFixedFields {
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + Offset32::RAW_BYTE_LEN
-        + u16::RAW_BYTE_LEN;
+        + u16::RAW_BYTE_LEN
+        + GvarFlags::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// The ['gvar' header](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#gvar-header)
@@ -90,8 +94,7 @@ impl<'a> FontRead<'a> for Gvar<'a> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a GvarFixedFields = cursor.read_ref()?;
         let glyph_count = fixed_fields.glyph_count.get();
-        let flags: GvarFlags = cursor.read()?;
-        cursor.advance::<u32>();
+        let flags = fixed_fields.flags.get();
         let glyph_variation_data_offsets_byte_len = (transforms::add(glyph_count, 1_usize))
             .checked_mul(<U16Or32 as ComputeSize>::compute_size(&flags)?)
             .ok_or(ReadError::OutOfBounds)?;
@@ -158,16 +161,14 @@ impl<'a> Gvar<'a> {
     /// set, the offsets are uint32.
     #[inline]
     pub fn flags(&self) -> GvarFlags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
     /// Offset from the start of this table to the array of
     /// GlyphVariationData tables.
     #[inline]
     pub fn glyph_variation_data_array_offset(&self) -> u32 {
-        let range = self.shape.glyph_variation_data_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_variation_data_array_offset.get()
     }
 
     /// Offsets from the start of the GlyphVariationData array to each
@@ -630,10 +631,13 @@ impl<'a> std::fmt::Debug for SharedTuples<'a> {
 #[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
-pub struct GlyphVariationDataHeaderFixedFields {}
+pub struct GlyphVariationDataHeaderFixedFields {
+    pub tuple_variation_count: BigEndian<TupleVariationCount>,
+    pub serialized_data_offset: BigEndian<Offset16>,
+}
 
 impl FixedSize for GlyphVariationDataHeaderFixedFields {
-    const RAW_BYTE_LEN: usize = 0;
+    const RAW_BYTE_LEN: usize = TupleVariationCount::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
 /// The [GlyphVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#the-glyphvariationdata-table-array) table
@@ -671,8 +675,6 @@ impl<'a> FontRead<'a> for GlyphVariationDataHeader<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let fixed_fields: &'a GlyphVariationDataHeaderFixedFields = cursor.read_ref()?;
-        cursor.advance::<TupleVariationCount>();
-        cursor.advance::<Offset16>();
         let tuple_variation_headers_byte_len = cursor.remaining_bytes();
         cursor.advance_by(tuple_variation_headers_byte_len);
         cursor.finish(
@@ -696,16 +698,14 @@ impl<'a> GlyphVariationDataHeader<'a> {
     /// and 4095.
     #[inline]
     pub fn tuple_variation_count(&self) -> TupleVariationCount {
-        let range = self.shape.tuple_variation_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().tuple_variation_count.get()
     }
 
     /// Offset from the start of the GlyphVariationData table to the
     /// serialized data
     #[inline]
     pub fn serialized_data_offset(&self) -> Offset16 {
-        let range = self.shape.serialized_data_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().serialized_data_offset.get()
     }
 
     /// Attempt to resolve [`serialized_data_offset`][Self::serialized_data_offset].
