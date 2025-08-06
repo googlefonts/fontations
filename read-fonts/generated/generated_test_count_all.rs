@@ -5,6 +5,17 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct CountAll16FixedFields {
+    pub some_field: BigEndian<u16>,
+}
+
+impl FixedSize for CountAll16FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct CountAll16Marker {
@@ -30,24 +41,26 @@ impl MinByteRange for CountAll16Marker {
 }
 
 impl<'a> FontRead<'a> for CountAll16<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
+        let fixed_fields: &'a CountAll16FixedFields = cursor.read_ref()?;
         let remainder_byte_len = cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
         cursor.advance_by(remainder_byte_len);
-        cursor.finish(CountAll16Marker { remainder_byte_len })
+        cursor.finish(CountAll16Marker { remainder_byte_len }, fixed_fields)
     }
 }
 
-pub type CountAll16<'a> = TableRef<'a, CountAll16Marker>;
+pub type CountAll16<'a> = TableRef<'a, CountAll16Marker, CountAll16FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CountAll16<'a> {
+    #[inline]
     pub fn some_field(&self) -> u16 {
-        let range = self.shape.some_field_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().some_field.get()
     }
 
+    #[inline]
     pub fn remainder(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.remainder_byte_range();
         self.data.read_array(range).unwrap()
@@ -76,6 +89,17 @@ impl<'a> std::fmt::Debug for CountAll16<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct CountAll32FixedFields {
+    pub some_field: BigEndian<u16>,
+}
+
+impl FixedSize for CountAll32FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct CountAll32Marker {
@@ -101,24 +125,26 @@ impl MinByteRange for CountAll32Marker {
 }
 
 impl<'a> FontRead<'a> for CountAll32<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
+        let fixed_fields: &'a CountAll32FixedFields = cursor.read_ref()?;
         let remainder_byte_len = cursor.remaining_bytes() / u32::RAW_BYTE_LEN * u32::RAW_BYTE_LEN;
         cursor.advance_by(remainder_byte_len);
-        cursor.finish(CountAll32Marker { remainder_byte_len })
+        cursor.finish(CountAll32Marker { remainder_byte_len }, fixed_fields)
     }
 }
 
-pub type CountAll32<'a> = TableRef<'a, CountAll32Marker>;
+pub type CountAll32<'a> = TableRef<'a, CountAll32Marker, CountAll32FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CountAll32<'a> {
+    #[inline]
     pub fn some_field(&self) -> u16 {
-        let range = self.shape.some_field_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().some_field.get()
     }
 
+    #[inline]
     pub fn remainder(&self) -> &'a [BigEndian<u32>] {
         let range = self.shape.remainder_byte_range();
         self.data.read_array(range).unwrap()

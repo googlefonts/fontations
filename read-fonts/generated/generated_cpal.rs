@@ -5,6 +5,25 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct CpalFixedFields {
+    pub version: BigEndian<u16>,
+    pub num_palette_entries: BigEndian<u16>,
+    pub num_palettes: BigEndian<u16>,
+    pub num_color_records: BigEndian<u16>,
+    pub color_records_array_offset: BigEndian<Nullable<Offset32>>,
+}
+
+impl FixedSize for CpalFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN;
+}
+
 /// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -74,13 +93,12 @@ impl TopLevelTable for Cpal<'_> {
 }
 
 impl<'a> FontRead<'a> for Cpal<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let version: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        let num_palettes: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
+        let fixed_fields: &'a CpalFixedFields = cursor.read_ref()?;
+        let version = fixed_fields.version.get();
+        let num_palettes = fixed_fields.num_palettes.get();
         let color_record_indices_byte_len = (num_palettes as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -106,52 +124,56 @@ impl<'a> FontRead<'a> for Cpal<'a> {
         version
             .compatible(1u16)
             .then(|| cursor.advance::<Offset32>());
-        cursor.finish(CpalMarker {
-            color_record_indices_byte_len,
-            palette_types_array_offset_byte_start,
-            palette_labels_array_offset_byte_start,
-            palette_entry_labels_array_offset_byte_start,
-        })
+        cursor.finish(
+            CpalMarker {
+                color_record_indices_byte_len,
+                palette_types_array_offset_byte_start,
+                palette_labels_array_offset_byte_start,
+                palette_entry_labels_array_offset_byte_start,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
-pub type Cpal<'a> = TableRef<'a, CpalMarker>;
+pub type Cpal<'a> = TableRef<'a, CpalMarker, CpalFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cpal<'a> {
     /// Table version number (=0).
+    #[inline]
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Number of palette entries in each palette.
+    #[inline]
     pub fn num_palette_entries(&self) -> u16 {
-        let range = self.shape.num_palette_entries_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_palette_entries.get()
     }
 
     /// Number of palettes in the table.
+    #[inline]
     pub fn num_palettes(&self) -> u16 {
-        let range = self.shape.num_palettes_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_palettes.get()
     }
 
     /// Total number of color records, combined for all palettes.
+    #[inline]
     pub fn num_color_records(&self) -> u16 {
-        let range = self.shape.num_color_records_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_color_records.get()
     }
 
     /// Offset from the beginning of CPAL table to the first
     /// ColorRecord.
+    #[inline]
     pub fn color_records_array_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.color_records_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().color_records_array_offset.get()
     }
 
     /// Attempt to resolve [`color_records_array_offset`][Self::color_records_array_offset].
+    #[inline]
     pub fn color_records_array(&self) -> Option<Result<&'a [ColorRecord], ReadError>> {
         let data = self.data;
         let args = self.num_color_records();
@@ -161,6 +183,7 @@ impl<'a> Cpal<'a> {
 
     /// Index of each palette’s first color record in the combined
     /// color record array.
+    #[inline]
     pub fn color_record_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.color_record_indices_byte_range();
         self.data.read_array(range).unwrap()
@@ -171,12 +194,14 @@ impl<'a> Cpal<'a> {
     /// This is an array of 32-bit flag fields that describe properties of each palette.
     ///
     /// [Palette Types Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array
+    #[inline]
     pub fn palette_types_array_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.palette_types_array_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`palette_types_array_offset`][Self::palette_types_array_offset].
+    #[inline]
     pub fn palette_types_array(&self) -> Option<Result<&'a [BigEndian<PaletteType>], ReadError>> {
         let data = self.data;
         let args = self.num_palettes();
@@ -191,12 +216,14 @@ impl<'a> Cpal<'a> {
     /// Use 0xFFFF if no name ID is provided for a palette.
     ///
     /// [Palette Labels Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-labels-array
+    #[inline]
     pub fn palette_labels_array_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.palette_labels_array_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`palette_labels_array_offset`][Self::palette_labels_array_offset].
+    #[inline]
     pub fn palette_labels_array(&self) -> Option<Result<&'a [BigEndian<u16>], ReadError>> {
         let data = self.data;
         let args = self.num_palettes();
@@ -213,12 +240,14 @@ impl<'a> Cpal<'a> {
     /// palette entry.
     ///
     /// [Palette Entry Labels Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entry-label-array
+    #[inline]
     pub fn palette_entry_labels_array_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.palette_entry_labels_array_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`palette_entry_labels_array_offset`][Self::palette_entry_labels_array_offset].
+    #[inline]
     pub fn palette_entry_labels_array(&self) -> Option<Result<&'a [BigEndian<NameId>], ReadError>> {
         let data = self.data;
         let args = self.num_palette_entries();
@@ -620,21 +649,25 @@ pub struct ColorRecord {
 
 impl ColorRecord {
     /// Blue value (B0).
+    #[inline]
     pub fn blue(&self) -> u8 {
         self.blue
     }
 
     /// Green value (B1).
+    #[inline]
     pub fn green(&self) -> u8 {
         self.green
     }
 
     ///     Red value (B2).
+    #[inline]
     pub fn red(&self) -> u8 {
         self.red
     }
 
     /// Alpha value (B3).
+    #[inline]
     pub fn alpha(&self) -> u8 {
         self.alpha
     }

@@ -5,6 +5,19 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SvgFixedFields {
+    pub version: BigEndian<u16>,
+    pub svg_document_list_offset: BigEndian<Offset32>,
+    pub _reserved: BigEndian<u16>,
+}
+
+impl FixedSize for SvgFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// The [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -39,34 +52,34 @@ impl TopLevelTable for Svg<'_> {
 }
 
 impl<'a> FontRead<'a> for Svg<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<u16>();
-        cursor.finish(SvgMarker {})
+        let fixed_fields: &'a SvgFixedFields = cursor.read_ref()?;
+        cursor.finish(SvgMarker {}, fixed_fields)
     }
 }
 
 /// The [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg) table
-pub type Svg<'a> = TableRef<'a, SvgMarker>;
+pub type Svg<'a> = TableRef<'a, SvgMarker, SvgFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Svg<'a> {
     /// Table version (starting at 0). Set to 0.
+    #[inline]
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Offset to the SVGDocumentList, from the start of the SVG table.
     /// Must be non-zero.
+    #[inline]
     pub fn svg_document_list_offset(&self) -> Offset32 {
-        let range = self.shape.svg_document_list_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().svg_document_list_offset.get()
     }
 
     /// Attempt to resolve [`svg_document_list_offset`][Self::svg_document_list_offset].
+    #[inline]
     pub fn svg_document_list(&self) -> Result<SVGDocumentList<'a>, ReadError> {
         let data = self.data;
         self.svg_document_list_offset().resolve(data)
@@ -98,6 +111,17 @@ impl<'a> std::fmt::Debug for Svg<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SVGDocumentListFixedFields {
+    pub num_entries: BigEndian<u16>,
+}
+
+impl FixedSize for SVGDocumentListFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+}
+
 /// [SVGDocumentList](https://learn.microsoft.com/en-us/typography/opentype/spec/svg)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -124,31 +148,37 @@ impl MinByteRange for SVGDocumentListMarker {
 }
 
 impl<'a> FontRead<'a> for SVGDocumentList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let num_entries: u16 = cursor.read()?;
+        let fixed_fields: &'a SVGDocumentListFixedFields = cursor.read_ref()?;
+        let num_entries = fixed_fields.num_entries.get();
         let document_records_byte_len = (num_entries as usize)
             .checked_mul(SVGDocumentRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(document_records_byte_len);
-        cursor.finish(SVGDocumentListMarker {
-            document_records_byte_len,
-        })
+        cursor.finish(
+            SVGDocumentListMarker {
+                document_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [SVGDocumentList](https://learn.microsoft.com/en-us/typography/opentype/spec/svg)
-pub type SVGDocumentList<'a> = TableRef<'a, SVGDocumentListMarker>;
+pub type SVGDocumentList<'a> = TableRef<'a, SVGDocumentListMarker, SVGDocumentListFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SVGDocumentList<'a> {
     /// Number of SVGDocumentRecords. Must be non-zero.
+    #[inline]
     pub fn num_entries(&self) -> u16 {
-        let range = self.shape.num_entries_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_entries.get()
     }
 
     /// Array of SVGDocumentRecords.
+    #[inline]
     pub fn document_records(&self) -> &'a [SVGDocumentRecord] {
         let range = self.shape.document_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -202,22 +232,26 @@ pub struct SVGDocumentRecord {
 
 impl SVGDocumentRecord {
     /// The first glyph ID for the range covered by this record.
+    #[inline]
     pub fn start_glyph_id(&self) -> GlyphId16 {
         self.start_glyph_id.get()
     }
 
     /// The last glyph ID for the range covered by this record.
+    #[inline]
     pub fn end_glyph_id(&self) -> GlyphId16 {
         self.end_glyph_id.get()
     }
 
     /// Offset from the beginning of the SVGDocumentList to an SVG
     /// document. Must be non-zero.
+    #[inline]
     pub fn svg_doc_offset(&self) -> u32 {
         self.svg_doc_offset.get()
     }
 
     /// Length of the SVG document data. Must be non-zero.
+    #[inline]
     pub fn svg_doc_length(&self) -> u32 {
         self.svg_doc_length.get()
     }

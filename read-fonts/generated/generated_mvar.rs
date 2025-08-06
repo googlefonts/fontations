@@ -5,6 +5,25 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct MvarFixedFields {
+    pub version: BigEndian<MajorMinor>,
+    pub _reserved: BigEndian<u16>,
+    pub value_record_size: BigEndian<u16>,
+    pub value_record_count: BigEndian<u16>,
+    pub item_variation_store_offset: BigEndian<Nullable<Offset16>>,
+}
+
+impl FixedSize for MvarFixedFields {
+    const RAW_BYTE_LEN: usize = MajorMinor::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN;
+}
+
 /// The [MVAR (Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/mvar) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -56,60 +75,63 @@ impl TopLevelTable for Mvar<'_> {
 }
 
 impl<'a> FontRead<'a> for Mvar<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let value_record_count: u16 = cursor.read()?;
-        cursor.advance::<Offset16>();
+        let fixed_fields: &'a MvarFixedFields = cursor.read_ref()?;
+        let value_record_count = fixed_fields.value_record_count.get();
         let value_records_byte_len = (value_record_count as usize)
             .checked_mul(ValueRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(value_records_byte_len);
-        cursor.finish(MvarMarker {
-            value_records_byte_len,
-        })
+        cursor.finish(
+            MvarMarker {
+                value_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// The [MVAR (Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/mvar) table
-pub type Mvar<'a> = TableRef<'a, MvarMarker>;
+pub type Mvar<'a> = TableRef<'a, MvarMarker, MvarFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Mvar<'a> {
     /// Major version number of the horizontal metrics variations table — set to 1.
     /// Minor version number of the horizontal metrics variations table — set to 0.
+    #[inline]
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// The size in bytes of each value record — must be greater than zero.
+    #[inline]
     pub fn value_record_size(&self) -> u16 {
-        let range = self.shape.value_record_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value_record_size.get()
     }
 
     /// The number of value records — may be zero.
+    #[inline]
     pub fn value_record_count(&self) -> u16 {
-        let range = self.shape.value_record_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value_record_count.get()
     }
 
     /// Offset in bytes from the start of this table to the item variation store table. If valueRecordCount is zero, set to zero; if valueRecordCount is greater than zero, must be greater than zero.
+    #[inline]
     pub fn item_variation_store_offset(&self) -> Nullable<Offset16> {
-        let range = self.shape.item_variation_store_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().item_variation_store_offset.get()
     }
 
     /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
+    #[inline]
     pub fn item_variation_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
         let data = self.data;
         self.item_variation_store_offset().resolve(data)
     }
 
     /// Array of value records that identify target items and the associated delta-set index for each. The valueTag records must be in binary order of their valueTag field.
+    #[inline]
     pub fn value_records(&self) -> &'a [ValueRecord] {
         let range = self.shape.value_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -169,16 +191,19 @@ pub struct ValueRecord {
 
 impl ValueRecord {
     /// Four-byte tag identifying a font-wide measure.
+    #[inline]
     pub fn value_tag(&self) -> Tag {
         self.value_tag.get()
     }
 
     /// A delta-set outer index — used to select an item variation data subtable within the item variation store.
+    #[inline]
     pub fn delta_set_outer_index(&self) -> u16 {
         self.delta_set_outer_index.get()
     }
 
     /// A delta-set inner index — used to select a delta-set row within an item variation data subtable.
+    #[inline]
     pub fn delta_set_inner_index(&self) -> u16 {
         self.delta_set_inner_index.get()
     }

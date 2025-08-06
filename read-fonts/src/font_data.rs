@@ -239,6 +239,12 @@ impl<'a> Cursor<'a> {
         temp
     }
 
+    pub fn read_ref<T: AnyBitPattern + FixedSize>(&mut self) -> Result<&'a T, ReadError> {
+        let val = self.data.read_ref_at(self.pos)?;
+        self.advance_by(T::RAW_BYTE_LEN);
+        Ok(val)
+    }
+
     // only used in records that contain arrays :/
     pub(crate) fn read_computed_array<T>(
         &mut self,
@@ -289,10 +295,18 @@ impl<'a> Cursor<'a> {
         self.pos >= self.data.len()
     }
 
-    pub(crate) fn finish<T>(self, shape: T) -> Result<TableRef<'a, T>, ReadError> {
+    pub(crate) fn finish<T, F>(
+        self,
+        shape: T,
+        fixed_fields: &'a F,
+    ) -> Result<TableRef<'a, T, F>, ReadError> {
         let data = self.data;
         data.check_in_bounds(self.pos)?;
-        Ok(TableRef { data, shape })
+        Ok(TableRef {
+            data,
+            shape,
+            fixed_fields,
+        })
     }
 }
 

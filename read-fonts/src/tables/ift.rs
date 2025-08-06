@@ -63,7 +63,7 @@ impl types::Scalar for MatchModeAndCount {
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Clone, Debug, PartialEq, Eq, Default, Ord, PartialOrd, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Ord, PartialOrd, Hash)]
 pub struct CompatibilityId([u8; 16]);
 
 impl CompatibilityId {

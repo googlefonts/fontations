@@ -5,6 +5,27 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct StatFixedFields {
+    pub version: BigEndian<MajorMinor>,
+    pub design_axis_size: BigEndian<u16>,
+    pub design_axis_count: BigEndian<u16>,
+    pub design_axes_offset: BigEndian<Offset32>,
+    pub axis_value_count: BigEndian<u16>,
+    pub offset_to_axis_value_offsets: BigEndian<Nullable<Offset32>>,
+}
+
+impl FixedSize for StatFixedFields {
+    const RAW_BYTE_LEN: usize = MajorMinor::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN;
+}
+
 /// [STAT](https://docs.microsoft.com/en-us/typography/opentype/spec/stat) (Style Attributes Table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -61,14 +82,11 @@ impl TopLevelTable for Stat<'_> {
 }
 
 impl<'a> FontRead<'a> for Stat<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let version: MajorMinor = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
+        let fixed_fields: &'a StatFixedFields = cursor.read_ref()?;
+        let version = fixed_fields.version.get();
         let elided_fallback_name_id_byte_start = version
             .compatible((1u16, 1u16))
             .then(|| cursor.position())
@@ -76,48 +94,52 @@ impl<'a> FontRead<'a> for Stat<'a> {
         version
             .compatible((1u16, 1u16))
             .then(|| cursor.advance::<NameId>());
-        cursor.finish(StatMarker {
-            elided_fallback_name_id_byte_start,
-        })
+        cursor.finish(
+            StatMarker {
+                elided_fallback_name_id_byte_start,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [STAT](https://docs.microsoft.com/en-us/typography/opentype/spec/stat) (Style Attributes Table)
-pub type Stat<'a> = TableRef<'a, StatMarker>;
+pub type Stat<'a> = TableRef<'a, StatMarker, StatFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Stat<'a> {
     /// Major/minor version number. Set to 1.2 for new fonts.
+    #[inline]
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// The size in bytes of each axis record.
+    #[inline]
     pub fn design_axis_size(&self) -> u16 {
-        let range = self.shape.design_axis_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().design_axis_size.get()
     }
 
     /// The number of axis records. In a font with an 'fvar' table,
     /// this value must be greater than or equal to the axisCount value
     /// in the 'fvar' table. In all fonts, must be greater than zero if
     /// axisValueCount is greater than zero.
+    #[inline]
     pub fn design_axis_count(&self) -> u16 {
-        let range = self.shape.design_axis_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().design_axis_count.get()
     }
 
     /// Offset in bytes from the beginning of the STAT table to the
     /// start of the design axes array. If designAxisCount is zero, set
     /// to zero; if designAxisCount is greater than zero, must be
     /// greater than zero.
+    #[inline]
     pub fn design_axes_offset(&self) -> Offset32 {
-        let range = self.shape.design_axes_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().design_axes_offset.get()
     }
 
     /// Attempt to resolve [`design_axes_offset`][Self::design_axes_offset].
+    #[inline]
     pub fn design_axes(&self) -> Result<&'a [AxisRecord], ReadError> {
         let data = self.data;
         let args = self.design_axis_count();
@@ -125,21 +147,22 @@ impl<'a> Stat<'a> {
     }
 
     /// The number of axis value tables.
+    #[inline]
     pub fn axis_value_count(&self) -> u16 {
-        let range = self.shape.axis_value_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().axis_value_count.get()
     }
 
     /// Offset in bytes from the beginning of the STAT table to the
     /// start of the design axes value offsets array. If axisValueCount
     /// is zero, set to zero; if axisValueCount is greater than zero,
     /// must be greater than zero.
+    #[inline]
     pub fn offset_to_axis_value_offsets(&self) -> Nullable<Offset32> {
-        let range = self.shape.offset_to_axis_value_offsets_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().offset_to_axis_value_offsets.get()
     }
 
     /// Attempt to resolve [`offset_to_axis_value_offsets`][Self::offset_to_axis_value_offsets].
+    #[inline]
     pub fn offset_to_axis_values(&self) -> Option<Result<AxisValueArray<'a>, ReadError>> {
         let data = self.data;
         let args = self.axis_value_count();
@@ -150,6 +173,7 @@ impl<'a> Stat<'a> {
     /// Name ID used as fallback when projection of names into a
     /// particular font model produces a subfamily name containing only
     /// elidable elements.
+    #[inline]
     pub fn elided_fallback_name_id(&self) -> Option<NameId> {
         let range = self.shape.elided_fallback_name_id_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -219,12 +243,14 @@ pub struct AxisRecord {
 
 impl AxisRecord {
     /// A tag identifying the axis of design variation.
+    #[inline]
     pub fn axis_tag(&self) -> Tag {
         self.axis_tag.get()
     }
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this axis.
+    #[inline]
     pub fn axis_name_id(&self) -> NameId {
         self.axis_name_id.get()
     }
@@ -232,6 +258,7 @@ impl AxisRecord {
     /// A value that applications can use to determine primary sorting
     /// of face names, or for ordering of labels when composing family
     /// or face names.
+    #[inline]
     pub fn axis_ordering(&self) -> u16 {
         self.axis_ordering.get()
     }
@@ -255,6 +282,15 @@ impl<'a> SomeRecord<'a> for AxisRecord {
             data,
         }
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct AxisValueArrayFixedFields {}
+
+impl FixedSize for AxisValueArrayFixedFields {
+    const RAW_BYTE_LEN: usize = 0;
 }
 
 /// An array of [AxisValue] tables.
@@ -282,16 +318,21 @@ impl ReadArgs for AxisValueArray<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for AxisValueArray<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let axis_value_count = *args;
         let mut cursor = data.cursor();
+        let fixed_fields: &'a AxisValueArrayFixedFields = cursor.read_ref()?;
         let axis_value_offsets_byte_len = (axis_value_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(axis_value_offsets_byte_len);
-        cursor.finish(AxisValueArrayMarker {
-            axis_value_offsets_byte_len,
-        })
+        cursor.finish(
+            AxisValueArrayMarker {
+                axis_value_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
@@ -300,6 +341,7 @@ impl<'a> AxisValueArray<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, axis_value_count: u16) -> Result<Self, ReadError> {
         let args = axis_value_count;
         Self::read_with_args(data, &args)
@@ -307,18 +349,20 @@ impl<'a> AxisValueArray<'a> {
 }
 
 /// An array of [AxisValue] tables.
-pub type AxisValueArray<'a> = TableRef<'a, AxisValueArrayMarker>;
+pub type AxisValueArray<'a> = TableRef<'a, AxisValueArrayMarker, AxisValueArrayFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueArray<'a> {
     /// Array of offsets to axis value tables, in bytes from the start
     /// of the axis value offsets array.
+    #[inline]
     pub fn axis_value_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.axis_value_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`axis_value_offsets`][Self::axis_value_offsets].
+    #[inline]
     pub fn axis_values(&self) -> ArrayOfOffsets<'a, AxisValue<'a>, Offset16> {
         let data = self.data;
         let offsets = self.axis_value_offsets();
@@ -371,6 +415,7 @@ pub enum AxisValue<'a> {
 
 impl<'a> AxisValue<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
+    #[inline]
     pub fn offset_data(&self) -> FontData<'a> {
         match self {
             Self::Format1(item) => item.offset_data(),
@@ -381,6 +426,7 @@ impl<'a> AxisValue<'a> {
     }
 
     /// Format identifier — set to 1.
+    #[inline]
     pub fn format(&self) -> u16 {
         match self {
             Self::Format1(item) => item.format(),
@@ -391,6 +437,7 @@ impl<'a> AxisValue<'a> {
     }
 
     /// Flags — see below for details.
+    #[inline]
     pub fn flags(&self) -> AxisValueTableFlags {
         match self {
             Self::Format1(item) => item.flags(),
@@ -402,6 +449,7 @@ impl<'a> AxisValue<'a> {
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
+    #[inline]
     pub fn value_name_id(&self) -> NameId {
         match self {
             Self::Format1(item) => item.value_name_id(),
@@ -469,6 +517,25 @@ impl Format<u16> for AxisValueFormat1Marker {
     const FORMAT: u16 = 1;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct AxisValueFormat1FixedFields {
+    pub format: BigEndian<u16>,
+    pub axis_index: BigEndian<u16>,
+    pub flags: BigEndian<AxisValueTableFlags>,
+    pub value_name_id: BigEndian<NameId>,
+    pub value: BigEndian<Fixed>,
+}
+
+impl FixedSize for AxisValueFormat1FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + AxisValueTableFlags::RAW_BYTE_LEN
+        + NameId::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN;
+}
+
 /// [Axis value table format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-1)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -508,53 +575,50 @@ impl MinByteRange for AxisValueFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<AxisValueTableFlags>();
-        cursor.advance::<NameId>();
-        cursor.advance::<Fixed>();
-        cursor.finish(AxisValueFormat1Marker {})
+        let fixed_fields: &'a AxisValueFormat1FixedFields = cursor.read_ref()?;
+        cursor.finish(AxisValueFormat1Marker {}, fixed_fields)
     }
 }
 
 /// [Axis value table format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-1)
-pub type AxisValueFormat1<'a> = TableRef<'a, AxisValueFormat1Marker>;
+pub type AxisValueFormat1<'a> = TableRef<'a, AxisValueFormat1Marker, AxisValueFormat1FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat1<'a> {
     /// Format identifier — set to 1.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Zero-base index into the axis record array identifying the axis
     /// of design variation to which the axis value table applies. Must
     /// be less than designAxisCount.
+    #[inline]
     pub fn axis_index(&self) -> u16 {
-        let range = self.shape.axis_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().axis_index.get()
     }
 
     /// Flags — see below for details.
+    #[inline]
     pub fn flags(&self) -> AxisValueTableFlags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
+    #[inline]
     pub fn value_name_id(&self) -> NameId {
-        let range = self.shape.value_name_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value_name_id.get()
     }
 
     /// A numeric value for this attribute value.
+    #[inline]
     pub fn value(&self) -> Fixed {
-        let range = self.shape.value_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value.get()
     }
 }
 
@@ -585,6 +649,29 @@ impl<'a> std::fmt::Debug for AxisValueFormat1<'a> {
 
 impl Format<u16> for AxisValueFormat2Marker {
     const FORMAT: u16 = 2;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct AxisValueFormat2FixedFields {
+    pub format: BigEndian<u16>,
+    pub axis_index: BigEndian<u16>,
+    pub flags: BigEndian<AxisValueTableFlags>,
+    pub value_name_id: BigEndian<NameId>,
+    pub nominal_value: BigEndian<Fixed>,
+    pub range_min_value: BigEndian<Fixed>,
+    pub range_max_value: BigEndian<Fixed>,
+}
+
+impl FixedSize for AxisValueFormat2FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + AxisValueTableFlags::RAW_BYTE_LEN
+        + NameId::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN;
 }
 
 /// [Axis value table format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-2)
@@ -636,69 +723,64 @@ impl MinByteRange for AxisValueFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<AxisValueTableFlags>();
-        cursor.advance::<NameId>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.finish(AxisValueFormat2Marker {})
+        let fixed_fields: &'a AxisValueFormat2FixedFields = cursor.read_ref()?;
+        cursor.finish(AxisValueFormat2Marker {}, fixed_fields)
     }
 }
 
 /// [Axis value table format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-2)
-pub type AxisValueFormat2<'a> = TableRef<'a, AxisValueFormat2Marker>;
+pub type AxisValueFormat2<'a> = TableRef<'a, AxisValueFormat2Marker, AxisValueFormat2FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat2<'a> {
     /// Format identifier — set to 2.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Zero-base index into the axis record array identifying the axis
     /// of design variation to which the axis value table applies. Must
     /// be less than designAxisCount.
+    #[inline]
     pub fn axis_index(&self) -> u16 {
-        let range = self.shape.axis_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().axis_index.get()
     }
 
     /// Flags — see below for details.
+    #[inline]
     pub fn flags(&self) -> AxisValueTableFlags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
+    #[inline]
     pub fn value_name_id(&self) -> NameId {
-        let range = self.shape.value_name_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value_name_id.get()
     }
 
     /// A nominal numeric value for this attribute value.
+    #[inline]
     pub fn nominal_value(&self) -> Fixed {
-        let range = self.shape.nominal_value_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().nominal_value.get()
     }
 
     /// The minimum value for a range associated with the specified
     /// name ID.
+    #[inline]
     pub fn range_min_value(&self) -> Fixed {
-        let range = self.shape.range_min_value_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().range_min_value.get()
     }
 
     /// The maximum value for a range associated with the specified
     /// name ID.
+    #[inline]
     pub fn range_max_value(&self) -> Fixed {
-        let range = self.shape.range_max_value_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().range_max_value.get()
     }
 }
 
@@ -731,6 +813,27 @@ impl<'a> std::fmt::Debug for AxisValueFormat2<'a> {
 
 impl Format<u16> for AxisValueFormat3Marker {
     const FORMAT: u16 = 3;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct AxisValueFormat3FixedFields {
+    pub format: BigEndian<u16>,
+    pub axis_index: BigEndian<u16>,
+    pub flags: BigEndian<AxisValueTableFlags>,
+    pub value_name_id: BigEndian<NameId>,
+    pub value: BigEndian<Fixed>,
+    pub linked_value: BigEndian<Fixed>,
+}
+
+impl FixedSize for AxisValueFormat3FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + AxisValueTableFlags::RAW_BYTE_LEN
+        + NameId::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN;
 }
 
 /// [Axis value table format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-3)
@@ -777,60 +880,56 @@ impl MinByteRange for AxisValueFormat3Marker {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<AxisValueTableFlags>();
-        cursor.advance::<NameId>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.finish(AxisValueFormat3Marker {})
+        let fixed_fields: &'a AxisValueFormat3FixedFields = cursor.read_ref()?;
+        cursor.finish(AxisValueFormat3Marker {}, fixed_fields)
     }
 }
 
 /// [Axis value table format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-3)
-pub type AxisValueFormat3<'a> = TableRef<'a, AxisValueFormat3Marker>;
+pub type AxisValueFormat3<'a> = TableRef<'a, AxisValueFormat3Marker, AxisValueFormat3FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat3<'a> {
     /// Format identifier — set to 3.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Zero-base index into the axis record array identifying the axis
     /// of design variation to which the axis value table applies. Must
     /// be less than designAxisCount.
+    #[inline]
     pub fn axis_index(&self) -> u16 {
-        let range = self.shape.axis_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().axis_index.get()
     }
 
     /// Flags — see below for details.
+    #[inline]
     pub fn flags(&self) -> AxisValueTableFlags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
+    #[inline]
     pub fn value_name_id(&self) -> NameId {
-        let range = self.shape.value_name_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value_name_id.get()
     }
 
     /// A numeric value for this attribute value.
+    #[inline]
     pub fn value(&self) -> Fixed {
-        let range = self.shape.value_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value.get()
     }
 
     /// The numeric value for a style-linked mapping from this value.
+    #[inline]
     pub fn linked_value(&self) -> Fixed {
-        let range = self.shape.linked_value_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().linked_value.get()
     }
 }
 
@@ -862,6 +961,23 @@ impl<'a> std::fmt::Debug for AxisValueFormat3<'a> {
 
 impl Format<u16> for AxisValueFormat4Marker {
     const FORMAT: u16 = 4;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct AxisValueFormat4FixedFields {
+    pub format: BigEndian<u16>,
+    pub axis_count: BigEndian<u16>,
+    pub flags: BigEndian<AxisValueTableFlags>,
+    pub value_name_id: BigEndian<NameId>,
+}
+
+impl FixedSize for AxisValueFormat4FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + AxisValueTableFlags::RAW_BYTE_LEN
+        + NameId::RAW_BYTE_LEN;
 }
 
 /// [Axis value table format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-4)
@@ -905,55 +1021,58 @@ impl MinByteRange for AxisValueFormat4Marker {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat4<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let axis_count: u16 = cursor.read()?;
-        cursor.advance::<AxisValueTableFlags>();
-        cursor.advance::<NameId>();
+        let fixed_fields: &'a AxisValueFormat4FixedFields = cursor.read_ref()?;
+        let axis_count = fixed_fields.axis_count.get();
         let axis_values_byte_len = (axis_count as usize)
             .checked_mul(AxisValueRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(axis_values_byte_len);
-        cursor.finish(AxisValueFormat4Marker {
-            axis_values_byte_len,
-        })
+        cursor.finish(
+            AxisValueFormat4Marker {
+                axis_values_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Axis value table format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-4)
-pub type AxisValueFormat4<'a> = TableRef<'a, AxisValueFormat4Marker>;
+pub type AxisValueFormat4<'a> = TableRef<'a, AxisValueFormat4Marker, AxisValueFormat4FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat4<'a> {
     /// Format identifier — set to 4.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// The total number of axes contributing to this axis-values
     /// combination.
+    #[inline]
     pub fn axis_count(&self) -> u16 {
-        let range = self.shape.axis_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().axis_count.get()
     }
 
     /// Flags — see below for details.
+    #[inline]
     pub fn flags(&self) -> AxisValueTableFlags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this combination of axis values.
+    #[inline]
     pub fn value_name_id(&self) -> NameId {
-        let range = self.shape.value_name_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().value_name_id.get()
     }
 
     /// Array of AxisValue records that provide the combination of axis
     /// values, one for each contributing axis.
+    #[inline]
     pub fn axis_values(&self) -> &'a [AxisValueRecord] {
         let range = self.shape.axis_values_byte_range();
         self.data.read_array(range).unwrap()
@@ -1007,11 +1126,13 @@ pub struct AxisValueRecord {
 impl AxisValueRecord {
     /// Zero-base index into the axis record array identifying the axis
     /// to which this value applies. Must be less than designAxisCount.
+    #[inline]
     pub fn axis_index(&self) -> u16 {
         self.axis_index.get()
     }
 
     /// A numeric value for this attribute value.
+    #[inline]
     pub fn value(&self) -> Fixed {
         self.value.get()
     }

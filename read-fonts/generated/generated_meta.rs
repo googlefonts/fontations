@@ -5,6 +5,21 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct MetaFixedFields {
+    pub version: BigEndian<u32>,
+    pub flags: BigEndian<u32>,
+    pub reserved: BigEndian<u32>,
+    pub data_maps_count: BigEndian<u32>,
+}
+
+impl FixedSize for MetaFixedFields {
+    const RAW_BYTE_LEN: usize =
+        u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
 /// [`meta`](https://docs.microsoft.com/en-us/typography/opentype/spec/meta)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -51,44 +66,44 @@ impl TopLevelTable for Meta<'_> {
 }
 
 impl<'a> FontRead<'a> for Meta<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let data_maps_count: u32 = cursor.read()?;
+        let fixed_fields: &'a MetaFixedFields = cursor.read_ref()?;
+        let data_maps_count = fixed_fields.data_maps_count.get();
         let data_maps_byte_len = (data_maps_count as usize)
             .checked_mul(DataMapRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(data_maps_byte_len);
-        cursor.finish(MetaMarker { data_maps_byte_len })
+        cursor.finish(MetaMarker { data_maps_byte_len }, fixed_fields)
     }
 }
 
 /// [`meta`](https://docs.microsoft.com/en-us/typography/opentype/spec/meta)
-pub type Meta<'a> = TableRef<'a, MetaMarker>;
+pub type Meta<'a> = TableRef<'a, MetaMarker, MetaFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Meta<'a> {
     /// Version number of the metadata table — set to 1.
+    #[inline]
     pub fn version(&self) -> u32 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Flags — currently unused; set to 0.
+    #[inline]
     pub fn flags(&self) -> u32 {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
     /// The number of data maps in the table.
+    #[inline]
     pub fn data_maps_count(&self) -> u32 {
-        let range = self.shape.data_maps_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().data_maps_count.get()
     }
 
     /// Array of data map records.
+    #[inline]
     pub fn data_maps(&self) -> &'a [DataMapRecord] {
         let range = self.shape.data_maps_byte_range();
         self.data.read_array(range).unwrap()
@@ -141,11 +156,13 @@ pub struct DataMapRecord {
 
 impl DataMapRecord {
     /// A tag indicating the type of metadata.
+    #[inline]
     pub fn tag(&self) -> Tag {
         self.tag.get()
     }
 
     /// Offset in bytes from the beginning of the metadata table to the data for this tag.
+    #[inline]
     pub fn data_offset(&self) -> Offset32 {
         self.data_offset.get()
     }
@@ -154,12 +171,14 @@ impl DataMapRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    #[inline]
     pub fn data<'a>(&self, data: FontData<'a>) -> Result<Metadata<'a>, ReadError> {
         let args = (self.tag(), self.data_length());
         self.data_offset().resolve_with_args(data, &args)
     }
 
     /// Length of the data, in bytes. The data is not required to be padded to any byte boundary.
+    #[inline]
     pub fn data_length(&self) -> u32 {
         self.data_length.get()
     }

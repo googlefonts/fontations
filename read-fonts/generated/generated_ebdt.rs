@@ -5,6 +5,18 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct EbdtFixedFields {
+    pub major_version: BigEndian<u16>,
+    pub minor_version: BigEndian<u16>,
+}
+
+impl FixedSize for EbdtFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// The [Embedded Bitmap Data](https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -34,29 +46,29 @@ impl TopLevelTable for Ebdt<'_> {
 }
 
 impl<'a> FontRead<'a> for Ebdt<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.finish(EbdtMarker {})
+        let fixed_fields: &'a EbdtFixedFields = cursor.read_ref()?;
+        cursor.finish(EbdtMarker {}, fixed_fields)
     }
 }
 
 /// The [Embedded Bitmap Data](https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt) table
-pub type Ebdt<'a> = TableRef<'a, EbdtMarker>;
+pub type Ebdt<'a> = TableRef<'a, EbdtMarker, EbdtFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ebdt<'a> {
     /// Major version of the EBDT table, = 2.
+    #[inline]
     pub fn major_version(&self) -> u16 {
-        let range = self.shape.major_version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().major_version.get()
     }
 
     /// Minor version of EBDT table, = 0.
+    #[inline]
     pub fn minor_version(&self) -> u16 {
-        let range = self.shape.minor_version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().minor_version.get()
     }
 }
 

@@ -5,6 +5,21 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Cff2HeaderFixedFields {
+    pub major_version: u8,
+    pub minor_version: u8,
+    pub header_size: u8,
+    pub top_dict_length: BigEndian<u16>,
+}
+
+impl FixedSize for Cff2HeaderFixedFields {
+    const RAW_BYTE_LEN: usize =
+        u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table header
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -58,12 +73,12 @@ impl MinByteRange for Cff2HeaderMarker {
 }
 
 impl<'a> FontRead<'a> for Cff2Header<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u8>();
-        let header_size: u8 = cursor.read()?;
-        let top_dict_length: u16 = cursor.read()?;
+        let fixed_fields: &'a Cff2HeaderFixedFields = cursor.read_ref()?;
+        let header_size = fixed_fields.header_size;
+        let top_dict_length = fixed_fields.top_dict_length.get();
         let _padding_byte_len = (transforms::subtract(header_size, 5_usize))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -74,56 +89,62 @@ impl<'a> FontRead<'a> for Cff2Header<'a> {
         cursor.advance_by(top_dict_data_byte_len);
         let trailing_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(trailing_data_byte_len);
-        cursor.finish(Cff2HeaderMarker {
-            _padding_byte_len,
-            top_dict_data_byte_len,
-            trailing_data_byte_len,
-        })
+        cursor.finish(
+            Cff2HeaderMarker {
+                _padding_byte_len,
+                top_dict_data_byte_len,
+                trailing_data_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table header
-pub type Cff2Header<'a> = TableRef<'a, Cff2HeaderMarker>;
+pub type Cff2Header<'a> = TableRef<'a, Cff2HeaderMarker, Cff2HeaderFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cff2Header<'a> {
     /// Format major version (set to 2).
+    #[inline]
     pub fn major_version(&self) -> u8 {
-        let range = self.shape.major_version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().major_version
     }
 
     /// Format minor version (set to 0).
+    #[inline]
     pub fn minor_version(&self) -> u8 {
-        let range = self.shape.minor_version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().minor_version
     }
 
     /// Header size (bytes).
+    #[inline]
     pub fn header_size(&self) -> u8 {
-        let range = self.shape.header_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().header_size
     }
 
     /// Length of Top DICT structure in bytes.
+    #[inline]
     pub fn top_dict_length(&self) -> u16 {
-        let range = self.shape.top_dict_length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().top_dict_length.get()
     }
 
     /// Padding bytes before the start of the Top DICT.
+    #[inline]
     pub fn _padding(&self) -> &'a [u8] {
         let range = self.shape._padding_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Data containing the Top DICT.
+    #[inline]
     pub fn top_dict_data(&self) -> &'a [u8] {
         let range = self.shape.top_dict_data_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Remaining table data.
+    #[inline]
     pub fn trailing_data(&self) -> &'a [u8] {
         let range = self.shape.trailing_data_byte_range();
         self.data.read_array(range).unwrap()

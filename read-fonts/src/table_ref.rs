@@ -15,12 +15,13 @@ pub trait MinByteRange {
 
 #[derive(Clone)]
 /// Typed access to raw table data.
-pub struct TableRef<'a, T> {
+pub struct TableRef<'a, T, F> {
     pub(crate) shape: T,
+    pub(crate) fixed_fields: &'a F,
     pub(crate) data: FontData<'a>,
 }
 
-impl<'a, T> TableRef<'a, T> {
+impl<'a, T, F> TableRef<'a, T, F> {
     /// Resolve the provided offset from the start of this table.
     pub fn resolve_offset<O: Offset, R: FontRead<'a>>(&self, offset: O) -> Result<R, ReadError> {
         offset.resolve(self.data)
@@ -41,14 +42,20 @@ impl<'a, T> TableRef<'a, T> {
     pub fn shape(&self) -> &T {
         &self.shape
     }
+
+    /// Returns a reference to a structure containing all of the fixed size
+    /// fields at the start of the table.
+    pub fn fixed_fields(&self) -> &'a F {
+        self.fixed_fields
+    }
 }
 
 // a blanket impl so that the format is available through a TableRef
-impl<U, T: Format<U>> Format<U> for TableRef<'_, T> {
+impl<U, T: Format<U>, F> Format<U> for TableRef<'_, T, F> {
     const FORMAT: U = T::FORMAT;
 }
 
-impl<'a, T: MinByteRange> TableRef<'a, T> {
+impl<'a, T: MinByteRange, F> TableRef<'a, T, F> {
     /// Return the minimum byte range of this table
     pub fn min_byte_range(&self) -> Range<usize> {
         self.shape.min_byte_range()

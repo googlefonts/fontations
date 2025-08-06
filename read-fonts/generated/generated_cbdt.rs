@@ -5,6 +5,18 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct CbdtFixedFields {
+    pub major_version: BigEndian<u16>,
+    pub minor_version: BigEndian<u16>,
+}
+
+impl FixedSize for CbdtFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// The [Color Bitmap Data](https://learn.microsoft.com/en-us/typography/opentype/spec/cbdt) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -34,29 +46,29 @@ impl TopLevelTable for Cbdt<'_> {
 }
 
 impl<'a> FontRead<'a> for Cbdt<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.finish(CbdtMarker {})
+        let fixed_fields: &'a CbdtFixedFields = cursor.read_ref()?;
+        cursor.finish(CbdtMarker {}, fixed_fields)
     }
 }
 
 /// The [Color Bitmap Data](https://learn.microsoft.com/en-us/typography/opentype/spec/cbdt) table
-pub type Cbdt<'a> = TableRef<'a, CbdtMarker>;
+pub type Cbdt<'a> = TableRef<'a, CbdtMarker, CbdtFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cbdt<'a> {
     /// Major version of the CBDT table, = 3.
+    #[inline]
     pub fn major_version(&self) -> u16 {
-        let range = self.shape.major_version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().major_version.get()
     }
 
     /// Minor version of CBDT table, = 0.
+    #[inline]
     pub fn minor_version(&self) -> u16 {
-        let range = self.shape.minor_version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().minor_version.get()
     }
 }
 

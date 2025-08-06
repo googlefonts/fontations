@@ -5,6 +5,18 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct CmapFixedFields {
+    pub version: BigEndian<u16>,
+    pub num_tables: BigEndian<u16>,
+}
+
+impl FixedSize for CmapFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -41,37 +53,42 @@ impl TopLevelTable for Cmap<'_> {
 }
 
 impl<'a> FontRead<'a> for Cmap<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let num_tables: u16 = cursor.read()?;
+        let fixed_fields: &'a CmapFixedFields = cursor.read_ref()?;
+        let num_tables = fixed_fields.num_tables.get();
         let encoding_records_byte_len = (num_tables as usize)
             .checked_mul(EncodingRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(encoding_records_byte_len);
-        cursor.finish(CmapMarker {
-            encoding_records_byte_len,
-        })
+        cursor.finish(
+            CmapMarker {
+                encoding_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
-pub type Cmap<'a> = TableRef<'a, CmapMarker>;
+pub type Cmap<'a> = TableRef<'a, CmapMarker, CmapFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap<'a> {
     /// Table version number (0).
+    #[inline]
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Number of encoding tables that follow.
+    #[inline]
     pub fn num_tables(&self) -> u16 {
-        let range = self.shape.num_tables_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_tables.get()
     }
 
+    #[inline]
     pub fn encoding_records(&self) -> &'a [EncodingRecord] {
         let range = self.shape.encoding_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -124,17 +141,20 @@ pub struct EncodingRecord {
 
 impl EncodingRecord {
     /// Platform ID.
+    #[inline]
     pub fn platform_id(&self) -> PlatformId {
         self.platform_id.get()
     }
 
     /// Platform-specific encoding ID.
+    #[inline]
     pub fn encoding_id(&self) -> u16 {
         self.encoding_id.get()
     }
 
     /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
     /// encoding.
+    #[inline]
     pub fn subtable_offset(&self) -> Offset32 {
         self.subtable_offset.get()
     }
@@ -144,6 +164,7 @@ impl EncodingRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    #[inline]
     pub fn subtable<'a>(&self, data: FontData<'a>) -> Result<CmapSubtable<'a>, ReadError> {
         self.subtable_offset().resolve(data)
     }
@@ -240,6 +261,7 @@ pub enum CmapSubtable<'a> {
 
 impl<'a> CmapSubtable<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
+    #[inline]
     pub fn offset_data(&self) -> FontData<'a> {
         match self {
             Self::Format0(item) => item.offset_data(),
@@ -255,6 +277,7 @@ impl<'a> CmapSubtable<'a> {
     }
 
     /// Format number is set to 0.
+    #[inline]
     pub fn format(&self) -> u16 {
         match self {
             Self::Format0(item) => item.format(),
@@ -342,6 +365,19 @@ impl Format<u16> for Cmap0Marker {
     const FORMAT: u16 = 0;
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Cmap0FixedFields {
+    pub format: BigEndian<u16>,
+    pub length: BigEndian<u16>,
+    pub language: BigEndian<u16>,
+}
+
+impl FixedSize for Cmap0FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -378,46 +414,49 @@ impl MinByteRange for Cmap0Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap0<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
+        let fixed_fields: &'a Cmap0FixedFields = cursor.read_ref()?;
         let glyph_id_array_byte_len = (256_usize)
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(glyph_id_array_byte_len);
-        cursor.finish(Cmap0Marker {
-            glyph_id_array_byte_len,
-        })
+        cursor.finish(
+            Cmap0Marker {
+                glyph_id_array_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
-pub type Cmap0<'a> = TableRef<'a, Cmap0Marker>;
+pub type Cmap0<'a> = TableRef<'a, Cmap0Marker, Cmap0FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap0<'a> {
     /// Format number is set to 0.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// This is the length in bytes of the subtable.
+    #[inline]
     pub fn length(&self) -> u16 {
-        let range = self.shape.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().length.get()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u16 {
-        let range = self.shape.language_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().language.get()
     }
 
     /// An array that maps character codes to glyph index values.
+    #[inline]
     pub fn glyph_id_array(&self) -> &'a [u8] {
         let range = self.shape.glyph_id_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -450,6 +489,19 @@ impl<'a> std::fmt::Debug for Cmap0<'a> {
 
 impl Format<u16> for Cmap2Marker {
     const FORMAT: u16 = 2;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Cmap2FixedFields {
+    pub format: BigEndian<u16>,
+    pub length: BigEndian<u16>,
+    pub language: BigEndian<u16>,
+}
+
+impl FixedSize for Cmap2FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// [cmap Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-2-high-byte-mapping-through-table): High-byte mapping through table
@@ -488,47 +540,50 @@ impl MinByteRange for Cmap2Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
+        let fixed_fields: &'a Cmap2FixedFields = cursor.read_ref()?;
         let sub_header_keys_byte_len = (256_usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(sub_header_keys_byte_len);
-        cursor.finish(Cmap2Marker {
-            sub_header_keys_byte_len,
-        })
+        cursor.finish(
+            Cmap2Marker {
+                sub_header_keys_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [cmap Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-2-high-byte-mapping-through-table): High-byte mapping through table
-pub type Cmap2<'a> = TableRef<'a, Cmap2Marker>;
+pub type Cmap2<'a> = TableRef<'a, Cmap2Marker, Cmap2FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap2<'a> {
     /// Format number is set to 2.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// This is the length in bytes of the subtable.
+    #[inline]
     pub fn length(&self) -> u16 {
-        let range = self.shape.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().length.get()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u16 {
-        let range = self.shape.language_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().language.get()
     }
 
     /// Array that maps high bytes to subHeaders: value is subHeader
     /// index × 8.
+    #[inline]
     pub fn sub_header_keys(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.sub_header_keys_byte_range();
         self.data.read_array(range).unwrap()
@@ -576,21 +631,25 @@ pub struct SubHeader {
 
 impl SubHeader {
     /// First valid low byte for this SubHeader.
+    #[inline]
     pub fn first_code(&self) -> u16 {
         self.first_code.get()
     }
 
     /// Number of valid low bytes for this SubHeader.
+    #[inline]
     pub fn entry_count(&self) -> u16 {
         self.entry_count.get()
     }
 
     /// See text below.
+    #[inline]
     pub fn id_delta(&self) -> i16 {
         self.id_delta.get()
     }
 
     /// See text below.
+    #[inline]
     pub fn id_range_offset(&self) -> u16 {
         self.id_range_offset.get()
     }
@@ -620,6 +679,29 @@ impl<'a> SomeRecord<'a> for SubHeader {
 
 impl Format<u16> for Cmap4Marker {
     const FORMAT: u16 = 4;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Cmap4FixedFields {
+    pub format: BigEndian<u16>,
+    pub length: BigEndian<u16>,
+    pub language: BigEndian<u16>,
+    pub seg_count_x2: BigEndian<u16>,
+    pub search_range: BigEndian<u16>,
+    pub entry_selector: BigEndian<u16>,
+    pub range_shift: BigEndian<u16>,
+}
+
+impl FixedSize for Cmap4FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
 }
 
 /// [cmap Format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values): Segment mapping to delta values
@@ -707,15 +789,11 @@ impl MinByteRange for Cmap4Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap4<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let seg_count_x2: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
+        let fixed_fields: &'a Cmap4FixedFields = cursor.read_ref()?;
+        let seg_count_x2 = fixed_fields.seg_count_x2.get();
         let end_code_byte_len = (transforms::half(seg_count_x2))
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -736,93 +814,101 @@ impl<'a> FontRead<'a> for Cmap4<'a> {
         let glyph_id_array_byte_len =
             cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
         cursor.advance_by(glyph_id_array_byte_len);
-        cursor.finish(Cmap4Marker {
-            end_code_byte_len,
-            start_code_byte_len,
-            id_delta_byte_len,
-            id_range_offsets_byte_len,
-            glyph_id_array_byte_len,
-        })
+        cursor.finish(
+            Cmap4Marker {
+                end_code_byte_len,
+                start_code_byte_len,
+                id_delta_byte_len,
+                id_range_offsets_byte_len,
+                glyph_id_array_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [cmap Format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values): Segment mapping to delta values
-pub type Cmap4<'a> = TableRef<'a, Cmap4Marker>;
+pub type Cmap4<'a> = TableRef<'a, Cmap4Marker, Cmap4FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap4<'a> {
     /// Format number is set to 4.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// This is the length in bytes of the subtable.
+    #[inline]
     pub fn length(&self) -> u16 {
-        let range = self.shape.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().length.get()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u16 {
-        let range = self.shape.language_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().language.get()
     }
 
     /// 2 × segCount.
+    #[inline]
     pub fn seg_count_x2(&self) -> u16 {
-        let range = self.shape.seg_count_x2_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().seg_count_x2.get()
     }
 
     /// Maximum power of 2 less than or equal to segCount, times 2
     /// ((2**floor(log2(segCount))) * 2, where “**” is an
     /// exponentiation operator)
+    #[inline]
     pub fn search_range(&self) -> u16 {
-        let range = self.shape.search_range_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().search_range.get()
     }
 
     /// Log2 of the maximum power of 2 less than or equal to numTables
     /// (log2(searchRange/2), which is equal to floor(log2(segCount)))
+    #[inline]
     pub fn entry_selector(&self) -> u16 {
-        let range = self.shape.entry_selector_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().entry_selector.get()
     }
 
     /// segCount times 2, minus searchRange ((segCount * 2) -
     /// searchRange)
+    #[inline]
     pub fn range_shift(&self) -> u16 {
-        let range = self.shape.range_shift_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().range_shift.get()
     }
 
     /// End characterCode for each segment, last=0xFFFF.
+    #[inline]
     pub fn end_code(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.end_code_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Start character code for each segment.
+    #[inline]
     pub fn start_code(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.start_code_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Delta for all character codes in segment.
+    #[inline]
     pub fn id_delta(&self) -> &'a [BigEndian<i16>] {
         let range = self.shape.id_delta_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Offsets into glyphIdArray or 0
+    #[inline]
     pub fn id_range_offsets(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.id_range_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Glyph index array (arbitrary length)
+    #[inline]
     pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.glyph_id_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -863,6 +949,25 @@ impl<'a> std::fmt::Debug for Cmap4<'a> {
 
 impl Format<u16> for Cmap6Marker {
     const FORMAT: u16 = 6;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Cmap6FixedFields {
+    pub format: BigEndian<u16>,
+    pub length: BigEndian<u16>,
+    pub language: BigEndian<u16>,
+    pub first_code: BigEndian<u16>,
+    pub entry_count: BigEndian<u16>,
+}
+
+impl FixedSize for Cmap6FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
 }
 
 /// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
@@ -911,60 +1016,62 @@ impl MinByteRange for Cmap6Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap6<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let entry_count: u16 = cursor.read()?;
+        let fixed_fields: &'a Cmap6FixedFields = cursor.read_ref()?;
+        let entry_count = fixed_fields.entry_count.get();
         let glyph_id_array_byte_len = (entry_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(glyph_id_array_byte_len);
-        cursor.finish(Cmap6Marker {
-            glyph_id_array_byte_len,
-        })
+        cursor.finish(
+            Cmap6Marker {
+                glyph_id_array_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
-pub type Cmap6<'a> = TableRef<'a, Cmap6Marker>;
+pub type Cmap6<'a> = TableRef<'a, Cmap6Marker, Cmap6FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap6<'a> {
     /// Format number is set to 6.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// This is the length in bytes of the subtable.
+    #[inline]
     pub fn length(&self) -> u16 {
-        let range = self.shape.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().length.get()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u16 {
-        let range = self.shape.language_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().language.get()
     }
 
     /// First character code of subrange.
+    #[inline]
     pub fn first_code(&self) -> u16 {
-        let range = self.shape.first_code_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().first_code.get()
     }
 
     /// Number of character codes in subrange.
+    #[inline]
     pub fn entry_count(&self) -> u16 {
-        let range = self.shape.entry_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().entry_count.get()
     }
 
     /// Array of glyph index values for character codes in the range.
+    #[inline]
     pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.glyph_id_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -999,6 +1106,21 @@ impl<'a> std::fmt::Debug for Cmap6<'a> {
 
 impl Format<u16> for Cmap8Marker {
     const FORMAT: u16 = 8;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Cmap8FixedFields {
+    pub format: BigEndian<u16>,
+    pub reserved: BigEndian<u16>,
+    pub length: BigEndian<u32>,
+    pub language: BigEndian<u32>,
+}
+
+impl FixedSize for Cmap8FixedFields {
+    const RAW_BYTE_LEN: usize =
+        u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
 /// [cmap Format 8](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-8-mixed-16-bit-and-32-bit-coverage): mixed 16-bit and 32-bit coverage
@@ -1053,12 +1175,10 @@ impl MinByteRange for Cmap8Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap8<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
+        let fixed_fields: &'a Cmap8FixedFields = cursor.read_ref()?;
         let is32_byte_len = (8192_usize)
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1068,52 +1188,58 @@ impl<'a> FontRead<'a> for Cmap8<'a> {
             .checked_mul(SequentialMapGroup::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(groups_byte_len);
-        cursor.finish(Cmap8Marker {
-            is32_byte_len,
-            groups_byte_len,
-        })
+        cursor.finish(
+            Cmap8Marker {
+                is32_byte_len,
+                groups_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [cmap Format 8](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-8-mixed-16-bit-and-32-bit-coverage): mixed 16-bit and 32-bit coverage
-pub type Cmap8<'a> = TableRef<'a, Cmap8Marker>;
+pub type Cmap8<'a> = TableRef<'a, Cmap8Marker, Cmap8FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap8<'a> {
     /// Subtable format; set to 8.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Byte length of this subtable (including the header)
+    #[inline]
     pub fn length(&self) -> u32 {
-        let range = self.shape.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().length.get()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u32 {
-        let range = self.shape.language_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().language.get()
     }
 
     /// Tightly packed array of bits (8K bytes total) indicating
     /// whether the particular 16-bit (index) value is the start of a
     /// 32-bit character code
+    #[inline]
     pub fn is32(&self) -> &'a [u8] {
         let range = self.shape.is32_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Number of groupings which follow
+    #[inline]
     pub fn num_groups(&self) -> u32 {
         let range = self.shape.num_groups_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SequentialMapGroup records.
+    #[inline]
     pub fn groups(&self) -> &'a [SequentialMapGroup] {
         let range = self.shape.groups_byte_range();
         self.data.read_array(range).unwrap()
@@ -1175,17 +1301,20 @@ impl SequentialMapGroup {
     /// for one or more 16-bit character codes (which is determined
     /// from the is32 array), this 32-bit value will have the high
     /// 16-bits set to zero
+    #[inline]
     pub fn start_char_code(&self) -> u32 {
         self.start_char_code.get()
     }
 
     /// Last character code in this group; same condition as listed
     /// above for the startCharCode
+    #[inline]
     pub fn end_char_code(&self) -> u32 {
         self.end_char_code.get()
     }
 
     /// Glyph index corresponding to the starting character code
+    #[inline]
     pub fn start_glyph_id(&self) -> u32 {
         self.start_glyph_id.get()
     }
@@ -1213,6 +1342,27 @@ impl<'a> SomeRecord<'a> for SequentialMapGroup {
 
 impl Format<u16> for Cmap10Marker {
     const FORMAT: u16 = 10;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Cmap10FixedFields {
+    pub format: BigEndian<u16>,
+    pub reserved: BigEndian<u16>,
+    pub length: BigEndian<u32>,
+    pub language: BigEndian<u32>,
+    pub start_char_code: BigEndian<u32>,
+    pub num_chars: BigEndian<u32>,
+}
+
+impl FixedSize for Cmap10FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [cmap Format 10](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array): Tr
@@ -1266,60 +1416,60 @@ impl MinByteRange for Cmap10Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap10<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
+        let fixed_fields: &'a Cmap10FixedFields = cursor.read_ref()?;
         let glyph_id_array_byte_len =
             cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
         cursor.advance_by(glyph_id_array_byte_len);
-        cursor.finish(Cmap10Marker {
-            glyph_id_array_byte_len,
-        })
+        cursor.finish(
+            Cmap10Marker {
+                glyph_id_array_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [cmap Format 10](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array): Tr
-pub type Cmap10<'a> = TableRef<'a, Cmap10Marker>;
+pub type Cmap10<'a> = TableRef<'a, Cmap10Marker, Cmap10FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap10<'a> {
     /// Subtable format; set to 10.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Byte length of this subtable (including the header)
+    #[inline]
     pub fn length(&self) -> u32 {
-        let range = self.shape.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().length.get()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u32 {
-        let range = self.shape.language_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().language.get()
     }
 
     /// First character code covered
+    #[inline]
     pub fn start_char_code(&self) -> u32 {
-        let range = self.shape.start_char_code_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().start_char_code.get()
     }
 
     /// Number of character codes covered
+    #[inline]
     pub fn num_chars(&self) -> u32 {
-        let range = self.shape.num_chars_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_chars.get()
     }
 
     /// Array of glyph indices for the character codes covered
+    #[inline]
     pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.glyph_id_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -1354,6 +1504,25 @@ impl<'a> std::fmt::Debug for Cmap10<'a> {
 
 impl Format<u16> for Cmap12Marker {
     const FORMAT: u16 = 12;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Cmap12FixedFields {
+    pub format: BigEndian<u16>,
+    pub reserved: BigEndian<u16>,
+    pub length: BigEndian<u32>,
+    pub language: BigEndian<u32>,
+    pub num_groups: BigEndian<u32>,
+}
+
+impl FixedSize for Cmap12FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [cmap Format 12](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage): Segmented coverage
@@ -1402,52 +1571,51 @@ impl MinByteRange for Cmap12Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap12<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let num_groups: u32 = cursor.read()?;
+        let fixed_fields: &'a Cmap12FixedFields = cursor.read_ref()?;
+        let num_groups = fixed_fields.num_groups.get();
         let groups_byte_len = (num_groups as usize)
             .checked_mul(SequentialMapGroup::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(groups_byte_len);
-        cursor.finish(Cmap12Marker { groups_byte_len })
+        cursor.finish(Cmap12Marker { groups_byte_len }, fixed_fields)
     }
 }
 
 /// [cmap Format 12](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage): Segmented coverage
-pub type Cmap12<'a> = TableRef<'a, Cmap12Marker>;
+pub type Cmap12<'a> = TableRef<'a, Cmap12Marker, Cmap12FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap12<'a> {
     /// Subtable format; set to 12.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Byte length of this subtable (including the header)
+    #[inline]
     pub fn length(&self) -> u32 {
-        let range = self.shape.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().length.get()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u32 {
-        let range = self.shape.language_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().language.get()
     }
 
     /// Number of groupings which follow
+    #[inline]
     pub fn num_groups(&self) -> u32 {
-        let range = self.shape.num_groups_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_groups.get()
     }
 
     /// Array of SequentialMapGroup records.
+    #[inline]
     pub fn groups(&self) -> &'a [SequentialMapGroup] {
         let range = self.shape.groups_byte_range();
         self.data.read_array(range).unwrap()
@@ -1488,6 +1656,25 @@ impl<'a> std::fmt::Debug for Cmap12<'a> {
 
 impl Format<u16> for Cmap13Marker {
     const FORMAT: u16 = 13;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Cmap13FixedFields {
+    pub format: BigEndian<u16>,
+    pub reserved: BigEndian<u16>,
+    pub length: BigEndian<u32>,
+    pub language: BigEndian<u32>,
+    pub num_groups: BigEndian<u32>,
+}
+
+impl FixedSize for Cmap13FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN;
 }
 
 /// [cmap Format 13](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-13-many-to-one-range-mappings): Many-to-one range mappings
@@ -1536,52 +1723,51 @@ impl MinByteRange for Cmap13Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap13<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let num_groups: u32 = cursor.read()?;
+        let fixed_fields: &'a Cmap13FixedFields = cursor.read_ref()?;
+        let num_groups = fixed_fields.num_groups.get();
         let groups_byte_len = (num_groups as usize)
             .checked_mul(ConstantMapGroup::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(groups_byte_len);
-        cursor.finish(Cmap13Marker { groups_byte_len })
+        cursor.finish(Cmap13Marker { groups_byte_len }, fixed_fields)
     }
 }
 
 /// [cmap Format 13](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-13-many-to-one-range-mappings): Many-to-one range mappings
-pub type Cmap13<'a> = TableRef<'a, Cmap13Marker>;
+pub type Cmap13<'a> = TableRef<'a, Cmap13Marker, Cmap13FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap13<'a> {
     /// Subtable format; set to 13.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Byte length of this subtable (including the header)
+    #[inline]
     pub fn length(&self) -> u32 {
-        let range = self.shape.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().length.get()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
+    #[inline]
     pub fn language(&self) -> u32 {
-        let range = self.shape.language_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().language.get()
     }
 
     /// Number of groupings which follow
+    #[inline]
     pub fn num_groups(&self) -> u32 {
-        let range = self.shape.num_groups_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_groups.get()
     }
 
     /// Array of ConstantMapGroup records.
+    #[inline]
     pub fn groups(&self) -> &'a [ConstantMapGroup] {
         let range = self.shape.groups_byte_range();
         self.data.read_array(range).unwrap()
@@ -1636,17 +1822,20 @@ pub struct ConstantMapGroup {
 
 impl ConstantMapGroup {
     /// First character code in this group
+    #[inline]
     pub fn start_char_code(&self) -> u32 {
         self.start_char_code.get()
     }
 
     /// Last character code in this group
+    #[inline]
     pub fn end_char_code(&self) -> u32 {
         self.end_char_code.get()
     }
 
     /// Glyph index to be used for all the characters in the group’s
     /// range.
+    #[inline]
     pub fn glyph_id(&self) -> u32 {
         self.glyph_id.get()
     }
@@ -1674,6 +1863,19 @@ impl<'a> SomeRecord<'a> for ConstantMapGroup {
 
 impl Format<u16> for Cmap14Marker {
     const FORMAT: u16 = 14;
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Cmap14FixedFields {
+    pub format: BigEndian<u16>,
+    pub length: BigEndian<u32>,
+    pub num_var_selector_records: BigEndian<u32>,
+}
+
+impl FixedSize for Cmap14FixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
 /// [cmap Format 14](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences): Unicode Variation Sequences
@@ -1712,45 +1914,49 @@ impl MinByteRange for Cmap14Marker {
 }
 
 impl<'a> FontRead<'a> for Cmap14<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        let num_var_selector_records: u32 = cursor.read()?;
+        let fixed_fields: &'a Cmap14FixedFields = cursor.read_ref()?;
+        let num_var_selector_records = fixed_fields.num_var_selector_records.get();
         let var_selector_byte_len = (num_var_selector_records as usize)
             .checked_mul(VariationSelector::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(var_selector_byte_len);
-        cursor.finish(Cmap14Marker {
-            var_selector_byte_len,
-        })
+        cursor.finish(
+            Cmap14Marker {
+                var_selector_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [cmap Format 14](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences): Unicode Variation Sequences
-pub type Cmap14<'a> = TableRef<'a, Cmap14Marker>;
+pub type Cmap14<'a> = TableRef<'a, Cmap14Marker, Cmap14FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap14<'a> {
     /// Subtable format. Set to 14.
+    #[inline]
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().format.get()
     }
 
     /// Byte length of this subtable (including this header)
+    #[inline]
     pub fn length(&self) -> u32 {
-        let range = self.shape.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().length.get()
     }
 
     /// Number of variation Selector Records
+    #[inline]
     pub fn num_var_selector_records(&self) -> u32 {
-        let range = self.shape.num_var_selector_records_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_var_selector_records.get()
     }
 
     /// Array of VariationSelector records.
+    #[inline]
     pub fn var_selector(&self) -> &'a [VariationSelector] {
         let range = self.shape.var_selector_byte_range();
         self.data.read_array(range).unwrap()
@@ -1808,12 +2014,14 @@ pub struct VariationSelector {
 
 impl VariationSelector {
     /// Variation selector
+    #[inline]
     pub fn var_selector(&self) -> Uint24 {
         self.var_selector.get()
     }
 
     /// Offset from the start of the [`Cmap14`] subtable to Default UVS
     /// Table. May be NULL.
+    #[inline]
     pub fn default_uvs_offset(&self) -> Nullable<Offset32> {
         self.default_uvs_offset.get()
     }
@@ -1823,12 +2031,14 @@ impl VariationSelector {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    #[inline]
     pub fn default_uvs<'a>(&self, data: FontData<'a>) -> Option<Result<DefaultUvs<'a>, ReadError>> {
         self.default_uvs_offset().resolve(data)
     }
 
     /// Offset from the start of the [`Cmap14`] subtable to Non-Default
     /// UVS Table. May be NULL.
+    #[inline]
     pub fn non_default_uvs_offset(&self) -> Nullable<Offset32> {
         self.non_default_uvs_offset.get()
     }
@@ -1838,6 +2048,7 @@ impl VariationSelector {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    #[inline]
     pub fn non_default_uvs<'a>(
         &self,
         data: FontData<'a>,
@@ -1873,6 +2084,17 @@ impl<'a> SomeRecord<'a> for VariationSelector {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct DefaultUvsFixedFields {
+    pub num_unicode_value_ranges: BigEndian<u32>,
+}
+
+impl FixedSize for DefaultUvsFixedFields {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN;
+}
+
 /// [Default UVS table](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1899,29 +2121,32 @@ impl MinByteRange for DefaultUvsMarker {
 }
 
 impl<'a> FontRead<'a> for DefaultUvs<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let num_unicode_value_ranges: u32 = cursor.read()?;
+        let fixed_fields: &'a DefaultUvsFixedFields = cursor.read_ref()?;
+        let num_unicode_value_ranges = fixed_fields.num_unicode_value_ranges.get();
         let ranges_byte_len = (num_unicode_value_ranges as usize)
             .checked_mul(UnicodeRange::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(ranges_byte_len);
-        cursor.finish(DefaultUvsMarker { ranges_byte_len })
+        cursor.finish(DefaultUvsMarker { ranges_byte_len }, fixed_fields)
     }
 }
 
 /// [Default UVS table](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table)
-pub type DefaultUvs<'a> = TableRef<'a, DefaultUvsMarker>;
+pub type DefaultUvs<'a> = TableRef<'a, DefaultUvsMarker, DefaultUvsFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> DefaultUvs<'a> {
     /// Number of Unicode character ranges.
+    #[inline]
     pub fn num_unicode_value_ranges(&self) -> u32 {
-        let range = self.shape.num_unicode_value_ranges_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_unicode_value_ranges.get()
     }
 
     /// Array of UnicodeRange records.
+    #[inline]
     pub fn ranges(&self) -> &'a [UnicodeRange] {
         let range = self.shape.ranges_byte_range();
         self.data.read_array(range).unwrap()
@@ -1960,6 +2185,17 @@ impl<'a> std::fmt::Debug for DefaultUvs<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct NonDefaultUvsFixedFields {
+    pub num_uvs_mappings: BigEndian<u32>,
+}
+
+impl FixedSize for NonDefaultUvsFixedFields {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN;
+}
+
 /// [Non-Default UVS table](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#non-default-uvs-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1986,29 +2222,35 @@ impl MinByteRange for NonDefaultUvsMarker {
 }
 
 impl<'a> FontRead<'a> for NonDefaultUvs<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let num_uvs_mappings: u32 = cursor.read()?;
+        let fixed_fields: &'a NonDefaultUvsFixedFields = cursor.read_ref()?;
+        let num_uvs_mappings = fixed_fields.num_uvs_mappings.get();
         let uvs_mapping_byte_len = (num_uvs_mappings as usize)
             .checked_mul(UvsMapping::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(uvs_mapping_byte_len);
-        cursor.finish(NonDefaultUvsMarker {
-            uvs_mapping_byte_len,
-        })
+        cursor.finish(
+            NonDefaultUvsMarker {
+                uvs_mapping_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [Non-Default UVS table](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#non-default-uvs-table)
-pub type NonDefaultUvs<'a> = TableRef<'a, NonDefaultUvsMarker>;
+pub type NonDefaultUvs<'a> = TableRef<'a, NonDefaultUvsMarker, NonDefaultUvsFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> NonDefaultUvs<'a> {
+    #[inline]
     pub fn num_uvs_mappings(&self) -> u32 {
-        let range = self.shape.num_uvs_mappings_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_uvs_mappings.get()
     }
 
+    #[inline]
     pub fn uvs_mapping(&self) -> &'a [UvsMapping] {
         let range = self.shape.uvs_mapping_byte_range();
         self.data.read_array(range).unwrap()
@@ -2057,11 +2299,13 @@ pub struct UvsMapping {
 
 impl UvsMapping {
     /// Base Unicode value of the UVS
+    #[inline]
     pub fn unicode_value(&self) -> Uint24 {
         self.unicode_value.get()
     }
 
     /// Glyph ID of the UVS
+    #[inline]
     pub fn glyph_id(&self) -> u16 {
         self.glyph_id.get()
     }
@@ -2099,11 +2343,13 @@ pub struct UnicodeRange {
 
 impl UnicodeRange {
     /// First value in this range
+    #[inline]
     pub fn start_unicode_value(&self) -> Uint24 {
         self.start_unicode_value.get()
     }
 
     /// Number of additional values in this range
+    #[inline]
     pub fn additional_count(&self) -> u8 {
         self.additional_count
     }

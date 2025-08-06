@@ -5,6 +5,29 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct FvarFixedFields {
+    pub version: BigEndian<MajorMinor>,
+    pub axis_instance_arrays_offset: BigEndian<Offset16>,
+    pub _reserved: BigEndian<u16>,
+    pub axis_count: BigEndian<u16>,
+    pub axis_size: BigEndian<u16>,
+    pub instance_count: BigEndian<u16>,
+    pub instance_size: BigEndian<u16>,
+}
+
+impl FixedSize for FvarFixedFields {
+    const RAW_BYTE_LEN: usize = MajorMinor::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN;
+}
+
 /// The [fvar (Font Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/fvar) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -59,39 +82,35 @@ impl TopLevelTable for Fvar<'_> {
 }
 
 impl<'a> FontRead<'a> for Fvar<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.finish(FvarMarker {})
+        let fixed_fields: &'a FvarFixedFields = cursor.read_ref()?;
+        cursor.finish(FvarMarker {}, fixed_fields)
     }
 }
 
 /// The [fvar (Font Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/fvar) table
-pub type Fvar<'a> = TableRef<'a, FvarMarker>;
+pub type Fvar<'a> = TableRef<'a, FvarMarker, FvarFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Fvar<'a> {
     /// Major version number of the font variations table — set to 1.
     /// Minor version number of the font variations table — set to 0.
+    #[inline]
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Offset in bytes from the beginning of the table to the start of the VariationAxisRecord array. The
     /// InstanceRecord array directly follows.
+    #[inline]
     pub fn axis_instance_arrays_offset(&self) -> Offset16 {
-        let range = self.shape.axis_instance_arrays_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().axis_instance_arrays_offset.get()
     }
 
     /// Attempt to resolve [`axis_instance_arrays_offset`][Self::axis_instance_arrays_offset].
+    #[inline]
     pub fn axis_instance_arrays(&self) -> Result<AxisInstanceArrays<'a>, ReadError> {
         let data = self.data;
         let args = (
@@ -104,27 +123,27 @@ impl<'a> Fvar<'a> {
     }
 
     /// The number of variation axes in the font (the number of records in the axes array).
+    #[inline]
     pub fn axis_count(&self) -> u16 {
-        let range = self.shape.axis_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().axis_count.get()
     }
 
     /// The size in bytes of each VariationAxisRecord — set to 20 (0x0014) for this version.
+    #[inline]
     pub fn axis_size(&self) -> u16 {
-        let range = self.shape.axis_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().axis_size.get()
     }
 
     /// The number of named instances defined in the font (the number of records in the instances array).
+    #[inline]
     pub fn instance_count(&self) -> u16 {
-        let range = self.shape.instance_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().instance_count.get()
     }
 
     /// The size in bytes of each InstanceRecord — set to either axisCount * sizeof(Fixed) + 4, or to axisCount * sizeof(Fixed) + 6.
+    #[inline]
     pub fn instance_size(&self) -> u16 {
-        let range = self.shape.instance_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().instance_size.get()
     }
 }
 
@@ -160,6 +179,15 @@ impl<'a> std::fmt::Debug for Fvar<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct AxisInstanceArraysFixedFields {}
+
+impl FixedSize for AxisInstanceArraysFixedFields {
+    const RAW_BYTE_LEN: usize = 0;
+}
+
 /// Shim table to handle combined axis and instance arrays.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -193,9 +221,11 @@ impl ReadArgs for AxisInstanceArrays<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for AxisInstanceArrays<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &(u16, u16, u16)) -> Result<Self, ReadError> {
         let (axis_count, instance_count, instance_size) = *args;
         let mut cursor = data.cursor();
+        let fixed_fields: &'a AxisInstanceArraysFixedFields = cursor.read_ref()?;
         let axes_byte_len = (axis_count as usize)
             .checked_mul(VariationAxisRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -207,12 +237,15 @@ impl<'a> FontReadWithArgs<'a> for AxisInstanceArrays<'a> {
             ))?)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(instances_byte_len);
-        cursor.finish(AxisInstanceArraysMarker {
-            axis_count,
-            instance_size,
-            axes_byte_len,
-            instances_byte_len,
-        })
+        cursor.finish(
+            AxisInstanceArraysMarker {
+                axis_count,
+                instance_size,
+                axes_byte_len,
+                instances_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
@@ -221,6 +254,7 @@ impl<'a> AxisInstanceArrays<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(
         data: FontData<'a>,
         axis_count: u16,
@@ -233,17 +267,20 @@ impl<'a> AxisInstanceArrays<'a> {
 }
 
 /// Shim table to handle combined axis and instance arrays.
-pub type AxisInstanceArrays<'a> = TableRef<'a, AxisInstanceArraysMarker>;
+pub type AxisInstanceArrays<'a> =
+    TableRef<'a, AxisInstanceArraysMarker, AxisInstanceArraysFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisInstanceArrays<'a> {
     /// Variation axis record array.
+    #[inline]
     pub fn axes(&self) -> &'a [VariationAxisRecord] {
         let range = self.shape.axes_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Instance record array.
+    #[inline]
     pub fn instances(&self) -> ComputedArray<'a, InstanceRecord<'a>> {
         let range = self.shape.instances_byte_range();
         self.data
@@ -317,31 +354,37 @@ pub struct VariationAxisRecord {
 
 impl VariationAxisRecord {
     /// Tag identifying the design variation for the axis.
+    #[inline]
     pub fn axis_tag(&self) -> Tag {
         self.axis_tag.get()
     }
 
     /// The minimum coordinate value for the axis.
+    #[inline]
     pub fn min_value(&self) -> Fixed {
         self.min_value.get()
     }
 
     /// The default coordinate value for the axis.
+    #[inline]
     pub fn default_value(&self) -> Fixed {
         self.default_value.get()
     }
 
     /// The maximum coordinate value for the axis.
+    #[inline]
     pub fn max_value(&self) -> Fixed {
         self.max_value.get()
     }
 
     /// Axis qualifiers — see details below.
+    #[inline]
     pub fn flags(&self) -> u16 {
         self.flags.get()
     }
 
     /// The name ID for entries in the 'name' table that provide a display name for this axis.
+    #[inline]
     pub fn axis_name_id(&self) -> NameId {
         self.axis_name_id.get()
     }

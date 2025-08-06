@@ -5,6 +5,18 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct GaspFixedFields {
+    pub version: BigEndian<u16>,
+    pub num_ranges: BigEndian<u16>,
+}
+
+impl FixedSize for GaspFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// [gasp](https://learn.microsoft.com/en-us/typography/opentype/spec/gasp#gasp-table-formats)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -41,38 +53,43 @@ impl TopLevelTable for Gasp<'_> {
 }
 
 impl<'a> FontRead<'a> for Gasp<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let num_ranges: u16 = cursor.read()?;
+        let fixed_fields: &'a GaspFixedFields = cursor.read_ref()?;
+        let num_ranges = fixed_fields.num_ranges.get();
         let gasp_ranges_byte_len = (num_ranges as usize)
             .checked_mul(GaspRange::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(gasp_ranges_byte_len);
-        cursor.finish(GaspMarker {
-            gasp_ranges_byte_len,
-        })
+        cursor.finish(
+            GaspMarker {
+                gasp_ranges_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// [gasp](https://learn.microsoft.com/en-us/typography/opentype/spec/gasp#gasp-table-formats)
-pub type Gasp<'a> = TableRef<'a, GaspMarker>;
+pub type Gasp<'a> = TableRef<'a, GaspMarker, GaspFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Gasp<'a> {
     /// Version number (set to 1)
+    #[inline]
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Number of records to follow
+    #[inline]
     pub fn num_ranges(&self) -> u16 {
-        let range = self.shape.num_ranges_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_ranges.get()
     }
 
     /// Sorted by ppem
+    #[inline]
     pub fn gasp_ranges(&self) -> &'a [GaspRange] {
         let range = self.shape.gasp_ranges_byte_range();
         self.data.read_array(range).unwrap()
@@ -121,11 +138,13 @@ pub struct GaspRange {
 
 impl GaspRange {
     /// Upper limit of range, in PPEM
+    #[inline]
     pub fn range_max_ppem(&self) -> u16 {
         self.range_max_ppem.get()
     }
 
     /// Flags describing desired rasterizer behavior.
+    #[inline]
     pub fn range_gasp_behavior(&self) -> GaspRangeBehavior {
         self.range_gasp_behavior.get()
     }

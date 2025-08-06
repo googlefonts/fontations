@@ -5,6 +5,27 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct VvarFixedFields {
+    pub version: BigEndian<MajorMinor>,
+    pub item_variation_store_offset: BigEndian<Offset32>,
+    pub advance_height_mapping_offset: BigEndian<Nullable<Offset32>>,
+    pub tsb_mapping_offset: BigEndian<Nullable<Offset32>>,
+    pub bsb_mapping_offset: BigEndian<Nullable<Offset32>>,
+    pub v_org_mapping_offset: BigEndian<Nullable<Offset32>>,
+}
+
+impl FixedSize for VvarFixedFields {
+    const RAW_BYTE_LEN: usize = MajorMinor::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN;
+}
+
 /// The [VVAR (Vertical Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/vvar) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -54,85 +75,86 @@ impl TopLevelTable for Vvar<'_> {
 }
 
 impl<'a> FontRead<'a> for Vvar<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.finish(VvarMarker {})
+        let fixed_fields: &'a VvarFixedFields = cursor.read_ref()?;
+        cursor.finish(VvarMarker {}, fixed_fields)
     }
 }
 
 /// The [VVAR (Vertical Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/vvar) table
-pub type Vvar<'a> = TableRef<'a, VvarMarker>;
+pub type Vvar<'a> = TableRef<'a, VvarMarker, VvarFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vvar<'a> {
     /// Major version number of the horizontal metrics variations table — set to 1.
     /// Minor version number of the horizontal metrics variations table — set to 0.
+    #[inline]
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Offset in bytes from the start of this table to the item variation store table.
+    #[inline]
     pub fn item_variation_store_offset(&self) -> Offset32 {
-        let range = self.shape.item_variation_store_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().item_variation_store_offset.get()
     }
 
     /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
+    #[inline]
     pub fn item_variation_store(&self) -> Result<ItemVariationStore<'a>, ReadError> {
         let data = self.data;
         self.item_variation_store_offset().resolve(data)
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for advance heights (may be NULL).
+    #[inline]
     pub fn advance_height_mapping_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.advance_height_mapping_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().advance_height_mapping_offset.get()
     }
 
     /// Attempt to resolve [`advance_height_mapping_offset`][Self::advance_height_mapping_offset].
+    #[inline]
     pub fn advance_height_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
         self.advance_height_mapping_offset().resolve(data)
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for top side bearings (may be NULL).
+    #[inline]
     pub fn tsb_mapping_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.tsb_mapping_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().tsb_mapping_offset.get()
     }
 
     /// Attempt to resolve [`tsb_mapping_offset`][Self::tsb_mapping_offset].
+    #[inline]
     pub fn tsb_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
         self.tsb_mapping_offset().resolve(data)
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for bottom side bearings (may be NULL).
+    #[inline]
     pub fn bsb_mapping_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.bsb_mapping_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().bsb_mapping_offset.get()
     }
 
     /// Attempt to resolve [`bsb_mapping_offset`][Self::bsb_mapping_offset].
+    #[inline]
     pub fn bsb_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
         self.bsb_mapping_offset().resolve(data)
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for Y coordinates of vertical origins (may be NULL).
+    #[inline]
     pub fn v_org_mapping_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.v_org_mapping_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().v_org_mapping_offset.get()
     }
 
     /// Attempt to resolve [`v_org_mapping_offset`][Self::v_org_mapping_offset].
+    #[inline]
     pub fn v_org_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
         self.v_org_mapping_offset().resolve(data)

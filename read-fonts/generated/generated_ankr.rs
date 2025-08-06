@@ -5,6 +5,21 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct AnkrFixedFields {
+    pub version: BigEndian<u16>,
+    pub flags: BigEndian<u16>,
+    pub lookup_table_offset: BigEndian<Offset32>,
+    pub glyph_data_table_offset: BigEndian<u32>,
+}
+
+impl FixedSize for AnkrFixedFields {
+    const RAW_BYTE_LEN: usize =
+        u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
 /// The [anchor point](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ankr.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -44,51 +59,50 @@ impl TopLevelTable for Ankr<'_> {
 }
 
 impl<'a> FontRead<'a> for Ankr<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<u32>();
-        cursor.finish(AnkrMarker {})
+        let fixed_fields: &'a AnkrFixedFields = cursor.read_ref()?;
+        cursor.finish(AnkrMarker {}, fixed_fields)
     }
 }
 
 /// The [anchor point](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ankr.html) table.
-pub type Ankr<'a> = TableRef<'a, AnkrMarker>;
+pub type Ankr<'a> = TableRef<'a, AnkrMarker, AnkrFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ankr<'a> {
     /// Version number (set to zero).
+    #[inline]
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Flags (currently unused; set to zero).
+    #[inline]
     pub fn flags(&self) -> u16 {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
     /// Offset to the table's lookup table; currently this is always `0x0000000C`.
     ///
     /// Lookup values are two byte offsets into the glyph data table.
+    #[inline]
     pub fn lookup_table_offset(&self) -> Offset32 {
-        let range = self.shape.lookup_table_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().lookup_table_offset.get()
     }
 
     /// Attempt to resolve [`lookup_table_offset`][Self::lookup_table_offset].
+    #[inline]
     pub fn lookup_table(&self) -> Result<LookupU16<'a>, ReadError> {
         let data = self.data;
         self.lookup_table_offset().resolve(data)
     }
 
     /// Offset to the glyph data table.
+    #[inline]
     pub fn glyph_data_table_offset(&self) -> u32 {
-        let range = self.shape.glyph_data_table_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().glyph_data_table_offset.get()
     }
 }
 
@@ -122,6 +136,17 @@ impl<'a> std::fmt::Debug for Ankr<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct GlyphDataEntryFixedFields {
+    pub num_points: BigEndian<u32>,
+}
+
+impl FixedSize for GlyphDataEntryFixedFields {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN;
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct GlyphDataEntryMarker {
@@ -147,30 +172,36 @@ impl MinByteRange for GlyphDataEntryMarker {
 }
 
 impl<'a> FontRead<'a> for GlyphDataEntry<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let num_points: u32 = cursor.read()?;
+        let fixed_fields: &'a GlyphDataEntryFixedFields = cursor.read_ref()?;
+        let num_points = fixed_fields.num_points.get();
         let anchor_points_byte_len = (num_points as usize)
             .checked_mul(AnchorPoint::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(anchor_points_byte_len);
-        cursor.finish(GlyphDataEntryMarker {
-            anchor_points_byte_len,
-        })
+        cursor.finish(
+            GlyphDataEntryMarker {
+                anchor_points_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
-pub type GlyphDataEntry<'a> = TableRef<'a, GlyphDataEntryMarker>;
+pub type GlyphDataEntry<'a> = TableRef<'a, GlyphDataEntryMarker, GlyphDataEntryFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphDataEntry<'a> {
     /// Number of anchor points for this glyph.
+    #[inline]
     pub fn num_points(&self) -> u32 {
-        let range = self.shape.num_points_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_points.get()
     }
 
     /// Individual anchor points.
+    #[inline]
     pub fn anchor_points(&self) -> &'a [AnchorPoint] {
         let range = self.shape.anchor_points_byte_range();
         self.data.read_array(range).unwrap()
@@ -216,10 +247,12 @@ pub struct AnchorPoint {
 }
 
 impl AnchorPoint {
+    #[inline]
     pub fn x(&self) -> i16 {
         self.x.get()
     }
 
+    #[inline]
     pub fn y(&self) -> i16 {
         self.y.get()
     }

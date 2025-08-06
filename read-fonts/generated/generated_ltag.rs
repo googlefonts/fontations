@@ -5,6 +5,19 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct LtagFixedFields {
+    pub version: BigEndian<u32>,
+    pub flags: BigEndian<u32>,
+    pub num_tags: BigEndian<u32>,
+}
+
+impl FixedSize for LtagFixedFields {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
 /// The [language tag](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ltag.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -46,45 +59,49 @@ impl TopLevelTable for Ltag<'_> {
 }
 
 impl<'a> FontRead<'a> for Ltag<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let num_tags: u32 = cursor.read()?;
+        let fixed_fields: &'a LtagFixedFields = cursor.read_ref()?;
+        let num_tags = fixed_fields.num_tags.get();
         let tag_ranges_byte_len = (num_tags as usize)
             .checked_mul(FTStringRange::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(tag_ranges_byte_len);
-        cursor.finish(LtagMarker {
-            tag_ranges_byte_len,
-        })
+        cursor.finish(
+            LtagMarker {
+                tag_ranges_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// The [language tag](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ltag.html) table.
-pub type Ltag<'a> = TableRef<'a, LtagMarker>;
+pub type Ltag<'a> = TableRef<'a, LtagMarker, LtagFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ltag<'a> {
     /// Table version; currently 1.
+    #[inline]
     pub fn version(&self) -> u32 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Table flags; currently none defined.
+    #[inline]
     pub fn flags(&self) -> u32 {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
     /// Number of language tags which follow.
+    #[inline]
     pub fn num_tags(&self) -> u32 {
-        let range = self.shape.num_tags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_tags.get()
     }
 
     /// Range of each tag's string.
+    #[inline]
     pub fn tag_ranges(&self) -> &'a [FTStringRange] {
         let range = self.shape.tag_ranges_byte_range();
         self.data.read_array(range).unwrap()
@@ -135,11 +152,13 @@ pub struct FTStringRange {
 
 impl FTStringRange {
     /// Offset from the start of the table to the beginning of the string.
+    #[inline]
     pub fn offset(&self) -> u16 {
         self.offset.get()
     }
 
     /// String length (in bytes).
+    #[inline]
     pub fn length(&self) -> u16 {
         self.length.get()
     }
