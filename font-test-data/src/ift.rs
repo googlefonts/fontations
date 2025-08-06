@@ -487,7 +487,7 @@ pub fn child_indices_format2() -> BeBuffer {
 
       [1, 2, 3, 4u32],          // compat id
 
-      3u8,                      // default patch encoding = glyph keyed
+      {3u8: "encoding"},          // default patch encoding = glyph keyed
       (Uint24::new(9)),         // entry count
       {0u32: "entries_offset"}, // entries offset
       0u32,                     // entry id string data offset

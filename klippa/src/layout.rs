@@ -1,25 +1,38 @@
 //! impl subset() for layout common tables
 
-use std::cmp::Ordering;
+use std::{cmp::Ordering, mem};
 
 use crate::{
-    serialize::{SerializeErrorFlags, Serializer},
-    CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetTable,
+    offset::SerializeSubset,
+    serialize::{OffsetWhence, SerializeErrorFlags, Serializer},
+    CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
-        tables::layout::{
-            CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2, ClassRangeRecord,
-            CoverageFormat1, CoverageFormat2, CoverageTable, DeltaFormat, Device,
-            DeviceOrVariationIndex, Feature, FeatureParams, RangeRecord, SizeParams,
-            StylisticSetParams, VariationIndex,
+        tables::{
+            gsub::Gsub,
+            layout::{
+                CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2,
+                ClassRangeRecord, CoverageFormat1, CoverageFormat2, CoverageTable, DeltaFormat,
+                Device, DeviceOrVariationIndex, ExtensionLookup, Feature, FeatureList,
+                FeatureParams, FeatureRecord, FeatureVariations, Intersect, LangSys, LangSysRecord,
+                RangeRecord, Script, ScriptList, ScriptRecord, SizeParams, StylisticSetParams,
+                Subtables, VariationIndex,
+            },
         },
         types::{GlyphId, GlyphId16, NameId},
+        FontData, FontRead, FontRef, TopLevelTable,
     },
-    types::FixedSize,
+    types::{FixedSize, Offset16, Tag},
 };
+
+const MAX_SCRIPTS: u16 = 500;
+const MAX_LANGSYS: u16 = 2000;
+const MAX_FEATURE_INDICES: u16 = 1500;
+const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;
+const MAX_LANGSYS_FEATURE_COUNT: u16 = 5000;
 
 impl NameIdClosure for StylisticSetParams<'_> {
     fn collect_name_ids(&self, plan: &mut Plan) {
@@ -543,7 +556,7 @@ impl<'a> SubsetTable<'a> for CoverageFormat1<'a> {
         let num_bits = 16 - (glyph_count as u16).leading_zeros() as usize;
         // if/else branches return the same result, it's just an optimization that
         // we pick the faster approach depending on the number of glyphs
-        let retained_glyphs: Vec<u32> =
+        let retained_glyphs: Vec<GlyphId> =
             if glyph_count > (plan.glyphset_gsub.len() as usize) * num_bits {
                 plan.glyphset_gsub
                     .iter()
@@ -552,17 +565,14 @@ impl<'a> SubsetTable<'a> for CoverageFormat1<'a> {
                             .binary_search_by(|g| g.get().to_u32().cmp(&old_gid.to_u32()))
                             .ok()
                             .and_then(|_| plan.glyph_map_gsub.get(&old_gid))
-                            .map(|g| g.to_u32())
+                            .copied()
                     })
                     .collect()
             } else {
                 glyph_array
                     .iter()
-                    .filter_map(|g| {
-                        plan.glyph_map_gsub
-                            .get(&GlyphId::from(g.get()))
-                            .map(|g| g.to_u32())
-                    })
+                    .filter_map(|g| plan.glyph_map_gsub.get(&GlyphId::from(g.get())))
+                    .copied()
                     .collect()
             };
 
@@ -589,39 +599,37 @@ impl<'a> SubsetTable<'a> for CoverageFormat2<'a> {
         let num_bits = 16 - range_count.leading_zeros() as usize;
         // if/else branches return the same result, it's just an optimization that
         // we pick the faster approach depending on the number of glyphs
-        let retained_glyphs: Vec<u32> = if self.population() > plan.glyph_map_gsub.len() * num_bits
-        {
-            let range_records = self.range_records();
-            plan.glyphset_gsub
-                .iter()
-                .filter_map(|g| {
-                    range_records
-                        .binary_search_by(|rec| {
-                            if rec.end_glyph_id().to_u32() < g.to_u32() {
-                                Ordering::Less
-                            } else if rec.start_glyph_id().to_u32() > g.to_u32() {
-                                Ordering::Greater
-                            } else {
-                                Ordering::Equal
-                            }
-                        })
-                        .ok()
-                        .and_then(|_| plan.glyph_map_gsub.get(&g))
-                        .map(|gid| gid.to_u32())
-                })
-                .collect()
-        } else {
-            self.range_records()
-                .iter()
-                .flat_map(|r| {
-                    r.iter().filter_map(|g| {
-                        plan.glyph_map_gsub
-                            .get(&GlyphId::from(g))
-                            .map(|gid| gid.to_u32())
+        let retained_glyphs: Vec<GlyphId> =
+            if self.population() > plan.glyph_map_gsub.len() * num_bits {
+                let range_records = self.range_records();
+                plan.glyphset_gsub
+                    .iter()
+                    .filter_map(|g| {
+                        range_records
+                            .binary_search_by(|rec| {
+                                if rec.end_glyph_id().to_u32() < g.to_u32() {
+                                    Ordering::Less
+                                } else if rec.start_glyph_id().to_u32() > g.to_u32() {
+                                    Ordering::Greater
+                                } else {
+                                    Ordering::Equal
+                                }
+                            })
+                            .ok()
+                            .and_then(|_| plan.glyph_map_gsub.get(&g))
                     })
-                })
-                .collect()
-        };
+                    .copied()
+                    .collect()
+            } else {
+                self.range_records()
+                    .iter()
+                    .flat_map(|r| {
+                        r.iter()
+                            .filter_map(|g| plan.glyph_map_gsub.get(&GlyphId::from(g)))
+                    })
+                    .copied()
+                    .collect()
+            };
 
         if retained_glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
@@ -632,22 +640,23 @@ impl<'a> SubsetTable<'a> for CoverageFormat2<'a> {
 }
 
 impl<'a> Serialize<'a> for CoverageTable<'a> {
-    type Args = &'a [u32];
-    fn serialize(s: &mut Serializer, glyphs: &[u32]) -> Result<(), SerializeErrorFlags> {
+    type Args = &'a [GlyphId];
+    fn serialize(s: &mut Serializer, glyphs: &[GlyphId]) -> Result<(), SerializeErrorFlags> {
         if glyphs.is_empty() {
             return CoverageFormat1::serialize(s, glyphs);
         }
 
         let glyph_count = glyphs.len();
         let mut num_ranges = 1_u16;
-        let mut last = glyphs[0];
+        let mut last = glyphs[0].to_u32();
 
         for g in glyphs.iter().skip(1) {
-            if last + 1 != *g {
+            let gid = g.to_u32();
+            if last + 1 != gid {
                 num_ranges += 1;
             }
 
-            last = *g;
+            last = gid;
         }
 
         // TODO: add support for unsorted glyph list??
@@ -661,8 +670,8 @@ impl<'a> Serialize<'a> for CoverageTable<'a> {
 }
 
 impl<'a> Serialize<'a> for CoverageFormat1<'a> {
-    type Args = &'a [u32];
-    fn serialize(s: &mut Serializer, glyphs: &[u32]) -> Result<(), SerializeErrorFlags> {
+    type Args = &'a [GlyphId];
+    fn serialize(s: &mut Serializer, glyphs: &[GlyphId]) -> Result<(), SerializeErrorFlags> {
         //format
         s.embed(1_u16)?;
 
@@ -672,14 +681,14 @@ impl<'a> Serialize<'a> for CoverageFormat1<'a> {
 
         let pos = s.allocate_size(count * 2, true)?;
         for (idx, g) in glyphs.iter().enumerate() {
-            s.copy_assign(pos + idx * 2, *g as u16);
+            s.copy_assign(pos + idx * 2, g.to_u32() as u16);
         }
         Ok(())
     }
 }
 
 impl<'a> Serialize<'a> for CoverageFormat2<'a> {
-    type Args = (&'a [u32], u16);
+    type Args = (&'a [GlyphId], u16);
     fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags> {
         let (glyphs, range_count) = args;
         //format
@@ -691,10 +700,10 @@ impl<'a> Serialize<'a> for CoverageFormat2<'a> {
         // range records
         let pos = s.allocate_size((range_count as usize) * RangeRecord::RAW_BYTE_LEN, true)?;
 
-        let mut last = glyphs[0] as u16;
+        let mut last = glyphs[0].to_u32() as u16;
         let mut range = 0;
         for (idx, g) in glyphs.iter().enumerate() {
-            let g = *g as u16;
+            let g = g.to_u32() as u16;
             let range_pos = pos + range * RangeRecord::RAW_BYTE_LEN;
             if last + 1 != g {
                 if range == 0 {
@@ -719,7 +728,780 @@ impl<'a> Serialize<'a> for CoverageFormat2<'a> {
         }
 
         let last_range_pos = pos + range * RangeRecord::RAW_BYTE_LEN;
-        s.copy_assign(last_range_pos, last);
+        // end glyph
+        s.copy_assign(last_range_pos + 2, last);
+        Ok(())
+    }
+}
+
+/// Return glyphs and their indices in the input Coverage table that intersect with the input glyph set
+/// returned glyphs are mapped into new glyph ids
+pub(crate) fn intersected_glyphs_and_indices(
+    coverage: &CoverageTable,
+    glyph_set: &IntSet<GlyphId>,
+    glyph_map: &FnvHashMap<GlyphId, GlyphId>,
+) -> (Vec<GlyphId>, IntSet<u16>) {
+    let count = match coverage {
+        CoverageTable::Format1(t) => t.glyph_count(),
+        CoverageTable::Format2(t) => t.range_count(),
+    };
+    let num_bits = 32 - count.leading_zeros();
+
+    let coverage_population = coverage.population();
+    let glyph_set_len = glyph_set.len();
+    let cap = coverage_population.min(glyph_set_len as usize);
+    let mut glyphs = Vec::with_capacity(cap);
+    let mut indices = IntSet::empty();
+
+    if coverage_population as u32 > (glyph_set_len as u32) * num_bits {
+        for (idx, g) in glyph_set
+            .iter()
+            .filter_map(|g| coverage.get(g).map(|idx| (idx, g)))
+            .filter_map(|(idx, g)| glyph_map.get(&g).map(|new_g| (idx, *new_g)))
+        {
+            glyphs.push(g);
+            indices.insert(idx);
+        }
+    } else {
+        for (i, g) in coverage
+            .iter()
+            .enumerate()
+            .filter_map(|(i, g)| glyph_map.get(&GlyphId::from(g)).map(|&new_g| (i, new_g)))
+        {
+            glyphs.push(g);
+            indices.insert(i as u16);
+        }
+    }
+    (glyphs, indices)
+}
+
+/// Return indices of glyphs in the input Coverage table that intersect with the input glyph set
+pub(crate) fn intersected_coverage_indices(
+    coverage: &CoverageTable,
+    glyph_set: &IntSet<GlyphId>,
+) -> IntSet<u16> {
+    let count = match coverage {
+        CoverageTable::Format1(t) => t.glyph_count(),
+        CoverageTable::Format2(t) => t.range_count(),
+    };
+    let num_bits = 32 - count.leading_zeros();
+
+    let coverage_population = coverage.population();
+    let glyph_set_len = glyph_set.len();
+
+    if coverage_population as u32 > (glyph_set_len as u32) * num_bits {
+        glyph_set.iter().filter_map(|g| coverage.get(g)).collect()
+    } else {
+        coverage
+            .iter()
+            .enumerate()
+            .filter_map(|(i, g)| glyph_set.contains(GlyphId::from(g)).then_some(i as u16))
+            .collect()
+    }
+}
+
+/// Return a set of feature indices that have alternate features defined in FeatureVariations table
+/// and the alternate version(s) intersect the set of lookup indices
+pub(crate) fn collect_features_with_retained_subs(
+    feature_variations: &FeatureVariations,
+    lookup_indices: &IntSet<u16>,
+) -> IntSet<u16> {
+    let font_data = feature_variations.offset_data();
+    let mut out = IntSet::empty();
+    for subs in feature_variations
+        .feature_variation_records()
+        .iter()
+        .filter_map(|rec| rec.feature_table_substitution(font_data))
+    {
+        let Ok(subs) = subs else {
+            return IntSet::empty();
+        };
+
+        for rec in subs.substitutions() {
+            let Ok(sub_f) = rec.alternate_feature(subs.offset_data()) else {
+                return IntSet::empty();
+            };
+            if !feature_intersects_lookups(&sub_f, lookup_indices) {
+                continue;
+            }
+            out.insert(rec.feature_index());
+        }
+    }
+    out
+}
+
+fn feature_intersects_lookups(f: &Feature, lookup_indices: &IntSet<u16>) -> bool {
+    f.lookup_list_indices()
+        .iter()
+        .any(|i| lookup_indices.contains(i.get()))
+}
+
+pub(crate) fn prune_features(
+    feature_list: &FeatureList,
+    alternate_features: &IntSet<u16>,
+    lookup_indices: &IntSet<u16>,
+    feature_indices: IntSet<u16>,
+) -> IntSet<u16> {
+    let mut out = IntSet::empty();
+    let feature_records = feature_list.feature_records();
+    for i in feature_indices.iter() {
+        let Some(feature_rec) = feature_records.get(i as usize) else {
+            continue;
+        };
+        let feature_tag = feature_rec.feature_tag();
+        // never drop feature "pref"
+        // ref: https://github.com/harfbuzz/harfbuzz/blob/fc6231726e514f96bfbb098283aab332fc6b45fb/src/hb-ot-layout-gsubgpos.hh#L4822
+        if feature_tag == Tag::new(b"pref") {
+            out.insert(i);
+            continue;
+        }
+
+        let Ok(feature) = feature_rec.feature(feature_list.offset_data()) else {
+            return out;
+        };
+        // always keep "size" feature even if it's empty
+        // ref: https://github.com/fonttools/fonttools/blob/e857fe5ef7b25e92fd829a445357e45cde16eb04/Lib/fontTools/subset/__init__.py#L1627
+        if !feature.feature_params_offset().is_null() && feature_tag == Tag::new(b"size") {
+            out.insert(i);
+            continue;
+        }
+
+        if !feature_intersects_lookups(&feature, lookup_indices) && !alternate_features.contains(i)
+        {
+            continue;
+        }
+        out.insert(i);
+    }
+    out
+}
+
+pub(crate) fn find_duplicate_features(
+    feature_list: &FeatureList,
+    lookup_indices: &IntSet<u16>,
+    feature_indices: IntSet<u16>,
+) -> FnvHashMap<u16, u16> {
+    let mut out = FnvHashMap::default();
+    if lookup_indices.is_empty() {
+        return out;
+    }
+
+    let feature_recs = feature_list.feature_records();
+    let mut unique_features = FnvHashMap::default();
+    for i in feature_indices.iter() {
+        let Some(rec) = feature_recs.get(i as usize) else {
+            continue;
+        };
+
+        let Ok(f) = rec.feature(feature_list.offset_data()) else {
+            return out;
+        };
+
+        let t = u32::from_be_bytes(rec.feature_tag().to_be_bytes());
+
+        let same_tag_features = unique_features.entry(t).or_insert(IntSet::empty());
+        if same_tag_features.is_empty() {
+            same_tag_features.insert(i);
+            out.insert(i, i);
+            continue;
+        }
+
+        for other_f_idx in same_tag_features.iter() {
+            let Some(other_rec) = feature_recs.get(other_f_idx as usize) else {
+                continue;
+            };
+
+            let Ok(other_f) = other_rec.feature(feature_list.offset_data()) else {
+                return out;
+            };
+
+            let f_iter = f
+                .lookup_list_indices()
+                .iter()
+                .filter_map(|i| lookup_indices.contains(i.get()).then_some(i.get()));
+            let other_f_iter = other_f
+                .lookup_list_indices()
+                .iter()
+                .filter_map(|i| lookup_indices.contains(i.get()).then_some(i.get()));
+            if !f_iter.eq(other_f_iter) {
+                continue;
+            } else {
+                out.insert(i, other_f_idx);
+                break;
+            }
+        }
+
+        let o = out.entry(i).or_insert(i);
+        // no duplicate for this index
+        if *o == i {
+            same_tag_features.insert(i);
+        }
+    }
+    out
+}
+
+pub(crate) struct PruneLangSysContext<'a> {
+    script_count: u16,
+    langsys_feature_count: u16,
+    // IN: retained feature indices map: old->new
+    // duplicate features will be mapped to the same value
+    feature_index_map: &'a FnvHashMap<u16, u16>,
+    // OUT: retained feature indices after pruning
+    feature_indices: IntSet<u16>,
+    // OUT: retained script->langsys map after pruning
+    script_langsys_map: FnvHashMap<u16, IntSet<u16>>,
+}
+
+impl<'a> PruneLangSysContext<'a> {
+    pub(crate) fn new(feature_index_map: &'a FnvHashMap<u16, u16>) -> Self {
+        Self {
+            script_count: 0,
+            langsys_feature_count: 0,
+            feature_index_map,
+            feature_indices: IntSet::empty(),
+            script_langsys_map: FnvHashMap::default(),
+        }
+    }
+
+    fn visit_script(&mut self) -> bool {
+        let ret = self.script_count < MAX_SCRIPTS;
+        self.script_count += 1;
+        ret
+    }
+
+    fn visit_langsys(&mut self, feature_count: u16) -> bool {
+        self.langsys_feature_count += feature_count;
+        self.langsys_feature_count < MAX_LANGSYS_FEATURE_COUNT
+    }
+
+    fn collect_langsys_features(&mut self, langsys: &LangSys) {
+        let required_feature_index = langsys.required_feature_index();
+        if required_feature_index == 0xFFFF_u16 && langsys.feature_index_count() == 0 {
+            return;
+        }
+
+        if required_feature_index != 0xFFFF_u16
+            && self.feature_index_map.contains_key(&required_feature_index)
+        {
+            self.feature_indices.insert(required_feature_index);
+        }
+
+        self.feature_indices.extend_unsorted(
+            langsys
+                .feature_indices()
+                .iter()
+                .filter_map(|i| self.feature_index_map.get(&i.get()).copied()),
+        );
+    }
+
+    fn check_equal(&self, la: &LangSys, lb: &LangSys) -> bool {
+        if la.required_feature_index() != lb.required_feature_index() {
+            return false;
+        }
+
+        let iter_a = la
+            .feature_indices()
+            .iter()
+            .filter_map(|i| self.feature_index_map.get(&i.get()));
+        let iter_b = lb
+            .feature_indices()
+            .iter()
+            .filter_map(|i| self.feature_index_map.get(&i.get()));
+
+        iter_a.eq(iter_b)
+    }
+
+    fn add_script_langsys(&mut self, script_index: u16, langsys_index: u16) {
+        let langsys_indices = self
+            .script_langsys_map
+            .entry(script_index)
+            .or_insert(IntSet::empty());
+        langsys_indices.insert(langsys_index);
+    }
+
+    pub(crate) fn prune_script_langsys(&mut self, script_index: u16, script: &Script) {
+        if script.lang_sys_count() == 0 && script.default_lang_sys_offset().is_null() {
+            return;
+        }
+
+        if !self.visit_script() {
+            return;
+        }
+
+        if let Some(Ok(default_langsys)) = script.default_lang_sys() {
+            if self.visit_langsys(default_langsys.feature_index_count()) {
+                self.collect_langsys_features(&default_langsys);
+            }
+
+            for (i, langsys_rec) in script.lang_sys_records().iter().enumerate() {
+                let Ok(l) = langsys_rec.lang_sys(script.offset_data()) else {
+                    return;
+                };
+                if !self.visit_langsys(l.feature_index_count()) {
+                    return;
+                }
+
+                if self.check_equal(&l, &default_langsys) {
+                    continue;
+                }
+                self.collect_langsys_features(&l);
+                self.add_script_langsys(script_index, i as u16);
+            }
+        } else {
+            for (i, langsys_rec) in script.lang_sys_records().iter().enumerate() {
+                let Ok(l) = langsys_rec.lang_sys(script.offset_data()) else {
+                    return;
+                };
+                if !self.visit_langsys(l.feature_index_count()) {
+                    return;
+                }
+                self.collect_langsys_features(&l);
+                self.add_script_langsys(script_index, i as u16);
+            }
+        }
+    }
+
+    pub(crate) fn script_langsys_map(&mut self) -> FnvHashMap<u16, IntSet<u16>> {
+        mem::take(&mut self.script_langsys_map)
+    }
+
+    pub(crate) fn feature_indices(&mut self) -> IntSet<u16> {
+        mem::take(&mut self.feature_indices)
+    }
+
+    pub(crate) fn prune_langsys(
+        &mut self,
+        script_list: &ScriptList,
+        layout_scripts: &IntSet<Tag>,
+    ) -> (FnvHashMap<u16, IntSet<u16>>, IntSet<u16>) {
+        for (i, script_rec) in script_list.script_records().iter().enumerate() {
+            let script_tag = script_rec.script_tag();
+            if !layout_scripts.contains(script_tag) {
+                continue;
+            }
+
+            let Ok(script) = script_rec.script(script_list.offset_data()) else {
+                return (self.script_langsys_map(), self.feature_indices());
+            };
+            self.prune_script_langsys(i as u16, &script);
+        }
+        (self.script_langsys_map(), self.feature_indices())
+    }
+}
+
+pub(crate) struct SubsetLayoutContext {
+    script_count: u16,
+    langsys_count: u16,
+    feature_index_count: u16,
+    lookup_count: u16,
+    table_tag: Tag,
+}
+
+impl SubsetLayoutContext {
+    pub(crate) fn new(table_tag: Tag) -> Self {
+        Self {
+            script_count: 0,
+            langsys_count: 0,
+            feature_index_count: 0,
+            lookup_count: 0,
+            table_tag,
+        }
+    }
+
+    fn visit_script(&mut self) -> bool {
+        if self.script_count >= MAX_SCRIPTS {
+            return false;
+        }
+        self.script_count += 1;
+        true
+    }
+
+    fn visit_langsys(&mut self) -> bool {
+        if self.langsys_count >= MAX_LANGSYS {
+            return false;
+        }
+        self.langsys_count += 1;
+        true
+    }
+
+    fn visit_feature_index(&mut self, count: u16) -> bool {
+        let Some(sum) = self.feature_index_count.checked_add(count) else {
+            return false;
+        };
+        self.feature_index_count = sum;
+        self.feature_index_count < MAX_FEATURE_INDICES
+    }
+
+    fn visit_lookup(&mut self) -> bool {
+        if self.lookup_count >= MAX_LOOKUP_VISIT_COUNT {
+            return false;
+        }
+        self.lookup_count += 1;
+        true
+    }
+}
+
+impl<'a> SubsetTable<'a> for ScriptList<'_> {
+    type ArgsForSubset = &'a mut SubsetLayoutContext;
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        c: &mut SubsetLayoutContext,
+    ) -> Result<(), SerializeErrorFlags> {
+        let script_count_pos = s.embed(0_u16)?;
+        let mut num_records = 0_u16;
+        let font_data = self.offset_data();
+        for (i, script_record) in self.script_records().iter().enumerate() {
+            let tag = script_record.script_tag();
+            if !plan.layout_scripts.contains(tag) {
+                continue;
+            }
+
+            if !c.visit_script() {
+                break;
+            }
+
+            let snap = s.snapshot();
+            match script_record.subset(plan, s, (c, font_data, i)) {
+                Ok(()) => num_records += 1,
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => s.revert_snapshot(snap),
+                Err(e) => return Err(e),
+            }
+        }
+        if num_records != 0 {
+            s.copy_assign(script_count_pos, num_records);
+        }
+        Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for ScriptRecord {
+    type ArgsForSubset = (&'a mut SubsetLayoutContext, FontData<'a>, usize);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        let tag = self.script_tag();
+        s.embed(tag)?;
+        let script_offset_pos = s.embed(0_u16)?;
+
+        let (c, font_data, script_index) = args;
+        let Ok(script) = self.script(font_data) else {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        };
+
+        Offset16::serialize_subset(&script, s, plan, (c, script_index, tag), script_offset_pos)
+    }
+}
+
+impl<'a> SubsetTable<'a> for Script<'_> {
+    type ArgsForSubset = (&'a mut SubsetLayoutContext, usize, Tag);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        let default_langsys_offset_pos = s.embed(0_u16)?;
+        let langsys_count_pos = s.embed(0_u16)?;
+        let mut langsys_count = 0_u16;
+
+        let (c, script_index, script_tag) = args;
+        let has_default_langsys = if let Some(default_langsys) = self
+            .default_lang_sys()
+            .transpose()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+        {
+            s.push()?;
+            let ret = default_langsys.subset(plan, s, c);
+            if s.in_error() {
+                return Err(s.error());
+            }
+
+            // harfbuzz ref: <https://github.com/harfbuzz/harfbuzz/blob/567a0307fa65db03d51a3bcf19d995e57ffc1d24/src/hb-ot-layout-common.hh#L1200>
+            // If there is a DFLT script table, it must have a default language system table
+            if ret.is_err() && script_tag != Tag::new(b"DFLT") {
+                s.pop_discard();
+                false
+            } else {
+                let Some(obj_idx) = s.pop_pack(true) else {
+                    return Err(s.error());
+                };
+                s.add_link(
+                    default_langsys_offset_pos..default_langsys_offset_pos + Offset16::RAW_BYTE_LEN,
+                    obj_idx,
+                    OffsetWhence::Head,
+                    0,
+                    false,
+                )?;
+                true
+            }
+        } else {
+            false
+        };
+
+        let script_langsys_map = if c.table_tag == Gsub::TAG {
+            &plan.gsub_script_langsys
+        } else {
+            &plan.gpos_script_langsys
+        };
+
+        if let Some(retained_langsys_idxes) = script_langsys_map.get(&(script_index as u16)) {
+            let langsys_records = self.lang_sys_records();
+            for i in retained_langsys_idxes.iter() {
+                let Some(langsys_rec) = langsys_records.get(i as usize) else {
+                    continue;
+                };
+
+                if !c.visit_langsys() {
+                    break;
+                }
+
+                let snap = s.snapshot();
+                match langsys_rec.subset(plan, s, (c, self.offset_data())) {
+                    Ok(()) => langsys_count += 1,
+                    Err(e) => {
+                        if s.in_error() {
+                            return Err(e);
+                        }
+                        s.revert_snapshot(snap);
+                        continue;
+                    }
+                };
+            }
+        }
+
+        if has_default_langsys || langsys_count != 0 || c.table_tag == Gsub::TAG {
+            s.copy_assign(langsys_count_pos, langsys_count);
+            Ok(())
+        } else {
+            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY)
+        }
+    }
+}
+
+impl<'a> SubsetTable<'a> for LangSysRecord {
+    type ArgsForSubset = (&'a mut SubsetLayoutContext, FontData<'a>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        let tag = self.lang_sys_tag();
+        s.embed(tag)?;
+        let langsys_offset_pos = s.embed(0_u16)?;
+
+        let (c, font_data) = args;
+        let Ok(langsys) = self.lang_sys(font_data) else {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        };
+
+        Offset16::serialize_subset(&langsys, s, plan, c, langsys_offset_pos)
+    }
+}
+
+impl<'a> SubsetTable<'a> for LangSys<'a> {
+    type ArgsForSubset = &'a mut SubsetLayoutContext;
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        c: &mut SubsetLayoutContext,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        // reserved field
+        s.embed(0_u16)?;
+
+        let feature_index_map = if c.table_tag == Gsub::TAG {
+            &plan.gsub_features
+        } else {
+            &plan.gpos_features
+        };
+        // required feature index
+        let required_feature_idx = self.required_feature_index();
+        let new_required_idx = *feature_index_map
+            .get(&required_feature_idx)
+            .unwrap_or(&0xFFFF_u16);
+        s.embed(new_required_idx)?;
+
+        let mut index_count = 0_u16;
+        let index_count_pos = s.embed(index_count)?;
+
+        if !c.visit_feature_index(self.feature_index_count()) {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+        }
+        for new_idx in self
+            .feature_indices()
+            .iter()
+            .filter_map(|i| feature_index_map.get(&i.get()))
+        {
+            s.embed(*new_idx)?;
+            index_count += 1;
+        }
+
+        if index_count == 0 && new_required_idx == 0xFFFF {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        s.copy_assign(index_count_pos, index_count);
+        Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for FeatureList<'_> {
+    type ArgsForSubset = &'a mut SubsetLayoutContext;
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        c: &mut SubsetLayoutContext,
+    ) -> Result<(), SerializeErrorFlags> {
+        let feature_count_pos = s.embed(0_u16)?;
+        let mut num_records = 0_u16;
+        let font_data = self.offset_data();
+        let feature_index_map = if c.table_tag == Gsub::TAG {
+            &plan.gsub_features
+        } else {
+            &plan.gpos_features
+        };
+        for (_, feature_record) in self
+            .feature_records()
+            .iter()
+            .enumerate()
+            .filter(|&(i, _)| feature_index_map.contains_key(&(i as u16)))
+        {
+            feature_record.subset(plan, s, (c, font_data))?;
+            num_records += 1;
+        }
+        if num_records != 0 {
+            s.copy_assign(feature_count_pos, num_records);
+        }
+        Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for FeatureRecord {
+    type ArgsForSubset = (&'a mut SubsetLayoutContext, FontData<'a>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        let tag = self.feature_tag();
+        s.embed(tag)?;
+        let feature_offset_pos = s.embed(0_u16)?;
+
+        let (c, font_data) = args;
+        let Ok(feature) = self.feature(font_data) else {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        };
+
+        Offset16::serialize_subset(&feature, s, plan, c, feature_offset_pos)
+    }
+}
+
+impl<'a> SubsetTable<'a> for Feature<'_> {
+    type ArgsForSubset = &'a mut SubsetLayoutContext;
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        c: &mut SubsetLayoutContext,
+    ) -> Result<(), SerializeErrorFlags> {
+        //FeatureParams offset
+        let feature_params_offset_pos = s.embed(0_u16)?;
+        let lookup_count_pos = s.embed(0_u16)?;
+        let mut lookup_count = 0_u16;
+        let lookup_index_map = if c.table_tag == Gsub::TAG {
+            &plan.gsub_lookups
+        } else {
+            &plan.gpos_lookups
+        };
+
+        for idx in self
+            .lookup_list_indices()
+            .iter()
+            .filter_map(|i| lookup_index_map.get(&i.get()))
+        {
+            if !c.visit_lookup() {
+                break;
+            }
+            s.embed(*idx)?;
+            lookup_count += 1;
+        }
+
+        if lookup_count != 0 {
+            s.copy_assign(lookup_count_pos, lookup_count);
+        }
+
+        if let Some(feature_params) = self
+            .feature_params()
+            .transpose()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+        {
+            Offset16::serialize_subset(&feature_params, s, plan, (), feature_params_offset_pos)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for FeatureParams<'_> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        _plan: &Plan,
+        s: &mut Serializer,
+        _args: (),
+    ) -> Result<(), SerializeErrorFlags> {
+        let ret = match self {
+            FeatureParams::StylisticSet(table) => s.embed_bytes(table.min_table_bytes()),
+            FeatureParams::Size(table) => s.embed_bytes(table.min_table_bytes()),
+            FeatureParams::CharacterVariant(table) => s.embed_bytes(table.min_table_bytes()),
+        };
+        ret.map(|_| ())
+    }
+}
+
+// TODO: serialize offset array and num of subtables
+impl<'a, T, Ext> SubsetTable<'a> for Subtables<'a, T, Ext>
+where
+    T: SubsetTable<'a, ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>)>
+        + Intersect
+        + FontRead<'a>
+        + 'a,
+    Ext: ExtensionLookup<'a, T> + 'a,
+{
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        for sub in self.iter() {
+            let sub =
+                sub.map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+            if !sub
+                .intersects(&plan.glyphset_gsub)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            {
+                continue;
+            }
+            sub.subset(plan, s, args)?;
+        }
         Ok(())
     }
 }
@@ -1090,5 +1872,67 @@ mod test {
         assert_eq!(lookup_indices.len(), 3);
         assert!(lookup_indices.contains(3_u16));
         assert!(lookup_indices.contains(4_u16));
+    }
+
+    #[test]
+    fn test_subset_script_list() {
+        use write_fonts::read::tables::gpos::Gpos;
+        let font = FontRef::new(include_bytes!("../test-data/fonts/Amiri-Regular.ttf")).unwrap();
+        let gpos_script_list = font.gpos().unwrap().script_list().unwrap();
+
+        let mut plan = Plan::default();
+        plan.gpos_features.insert(0_u16, 0_u16);
+        plan.gpos_features.insert(2_u16, 1_u16);
+
+        plan.layout_scripts.invert();
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+
+        let mut c = SubsetLayoutContext::new(Gpos::TAG);
+        gpos_script_list.subset(&plan, &mut s, &mut c).unwrap();
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let subsetted_data = s.copy_bytes();
+        let expected_data: [u8; 58] = [
+            0x00, 0x03, 0x44, 0x46, 0x4c, 0x54, 0x00, 0x2c, 0x61, 0x72, 0x61, 0x62, 0x00, 0x20,
+            0x6c, 0x61, 0x74, 0x6e, 0x00, 0x14, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff,
+            0x00, 0x01, 0x00, 0x01, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0x00, 0x01,
+            0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0x00, 0x02, 0x00, 0x00,
+            0x00, 0x01,
+        ];
+
+        assert_eq!(subsetted_data, expected_data);
+    }
+
+    #[test]
+    fn test_subset_feature_list() {
+        use write_fonts::read::tables::gpos::Gpos;
+        let font = FontRef::new(include_bytes!("../test-data/fonts/Amiri-Regular.ttf")).unwrap();
+        let gpos_feature_list = font.gpos().unwrap().feature_list().unwrap();
+
+        let mut plan = Plan::default();
+        plan.gpos_features.insert(0_u16, 0_u16);
+        plan.gpos_features.insert(2_u16, 1_u16);
+
+        plan.gpos_lookups.insert(82, 1);
+        plan.gpos_lookups.insert(57, 0);
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+
+        let mut c = SubsetLayoutContext::new(Gpos::TAG);
+        gpos_feature_list.subset(&plan, &mut s, &mut c).unwrap();
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let subsetted_data = s.copy_bytes();
+        let expected_data: [u8; 26] = [
+            0x00, 0x02, 0x63, 0x75, 0x72, 0x73, 0x00, 0x14, 0x6b, 0x65, 0x72, 0x6e, 0x00, 0x0e,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+        ];
+
+        assert_eq!(subsetted_data, expected_data);
     }
 }

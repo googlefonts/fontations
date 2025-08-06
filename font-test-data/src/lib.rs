@@ -99,6 +99,8 @@ pub static TINOS_SUBSET: &[u8] = include_bytes!("../test_data/ttf/tinos_subset.t
 pub static NOTO_HANDWRITING_SBIX: &[u8] =
     include_bytes!("../test_data/ttf/noto_handwriting-sbix.ttf");
 
+pub static COUSINE_HINT_SUBSET: &[u8] = include_bytes!("../test_data/ttf/cousine_hint_subset.ttf");
+
 pub mod morx {
     // The following taken from the Unicode text rendering test fonts:
     // <https://github.com/unicode-org/text-rendering-tests/tree/main/fonts>

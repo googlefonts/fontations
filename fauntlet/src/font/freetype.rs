@@ -27,17 +27,22 @@ impl FreeTypeInstance {
         // Ignore hinting settings for tricky fonts. Let FreeType do its own
         // thing
         if !face.is_tricky() {
-            match options.hinting {
-                None => load_flags |= LoadFlag::NO_HINTING,
-                Some(hinting) => load_flags |= hinting.freetype_load_flags(),
-            };
+            load_flags |= options.hinting.freetype_load_flags();
         }
-        if options.ppem != 0 {
-            face.set_pixel_sizes(options.ppem, options.ppem).ok()?;
+        if options.ppem != 0.0 {
+            // Set a fractional size using the same code as Skia:
+            // <https://github.com/google/skia/blob/a462e701b493d8f30b3130af3bbd4440c7946ccd/src/ports/SkFontHost_FreeType.cpp#L1034>
+            let size = (options.ppem * 64.0) as isize;
+            face.set_char_size(size, size, 72, 72).ok()?;
         } else {
             load_flags |= LoadFlag::NO_SCALE | LoadFlag::NO_HINTING | LoadFlag::NO_AUTOHINT;
         }
-        if !options.coords.is_empty() {
+        // Skrifa has an optimization path that disables variation processing when
+        // all coords are zero. FreeType has been updated to do the same
+        // (https://gitlab.freedesktop.org/freetype/freetype/-/commit/fa412cf5c58256a0dafdb912c7252a16229f5140)
+        // but this isn't yet available in our freetype-sys crate so avoid setting
+        // variations for all zero coords.
+        if !options.coords.is_empty() && !options.coords.iter().all(|coord| coord.to_bits() == 0) {
             let mut ft_coords = vec![];
             ft_coords.extend(
                 options

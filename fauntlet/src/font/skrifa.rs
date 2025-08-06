@@ -20,24 +20,14 @@ pub struct SkrifaInstance<'a> {
 impl<'a> SkrifaInstance<'a> {
     pub fn new(data: &'a SharedFontData, options: &InstanceOptions) -> Option<Self> {
         let font = FontRef::from_index(data.0.as_ref(), options.index as u32).ok()?;
-        let size = if options.ppem != 0 {
-            Size::new(options.ppem as f32)
+        let size = if options.ppem != 0.0 {
+            Size::new(options.ppem)
         } else {
             Size::unscaled()
         };
         let outlines = font.outline_glyphs();
-        let hinter = if options.ppem != 0 {
-            if options.hinting.is_some() {
-                Some(
-                    HintingInstance::new(
-                        &outlines,
-                        size,
-                        options.coords,
-                        options.hinting.unwrap().skrifa_options(),
-                    )
-                    .ok()?,
-                )
-            } else if outlines.require_interpreter() {
+        let hinter = if options.ppem != 0.0 {
+            if outlines.require_interpreter() {
                 // In this case, we must use the interpreter to match FreeType
                 Some(
                     HintingInstance::new(
@@ -51,6 +41,8 @@ impl<'a> SkrifaInstance<'a> {
                     )
                     .ok()?,
                 )
+            } else if let Some(hinting_options) = options.hinting.skrifa_options() {
+                Some(HintingInstance::new(&outlines, size, options.coords, hinting_options).ok()?)
             } else {
                 None
             }

@@ -32,6 +32,10 @@ mod vorg;
 mod vvar;
 use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
+use layout::{
+    collect_features_with_retained_subs, find_duplicate_features, prune_features,
+    PruneLangSysContext, SubsetLayoutContext,
+};
 pub use parsing_util::{
     parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
 };
@@ -301,9 +305,17 @@ pub struct Plan {
     layout_scripts: IntSet<Tag>,
     layout_features: IntSet<Tag>,
 
-    //old->new feature index map
+    //active old->new feature index map after removing redundant langsys and prune_features
     gsub_features: FnvHashMap<u16, u16>,
     gpos_features: FnvHashMap<u16, u16>,
+
+    // active old->new lookup index map
+    gsub_lookups: FnvHashMap<u16, u16>,
+    gpos_lookups: FnvHashMap<u16, u16>,
+
+    // active script-langsys
+    gsub_script_langsys: FnvHashMap<u16, IntSet<u16>>,
+    gpos_script_langsys: FnvHashMap<u16, IntSet<u16>>,
 
     // used_mark_sets mapping: old->new
     used_mark_sets_map: FnvHashMap<u16, u16>,
@@ -501,6 +513,9 @@ impl Plan {
         cmap.closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
         remove_invalid_gids(&mut self.glyphset_gsub, self.font_num_glyphs);
 
+        // layout closure
+        self.layout_populate_gids_to_retain(font);
+
         //skip glyph closure for MATH table, it's not supported yet
 
         //glyph closure for COLR
@@ -533,6 +548,20 @@ impl Plan {
 
         self.nameid_closure(font);
         self.collect_layout_var_indices(font);
+    }
+
+    fn layout_populate_gids_to_retain(&mut self, font: &FontRef) {
+        if !self.drop_tables.contains(Tag::new(b"GSUB")) {
+            if let Ok(gsub) = font.gsub() {
+                gsub.closure_glyphs_lookups_features(self);
+            }
+        }
+
+        if !self.drop_tables.contains(Tag::new(b"GPOS")) {
+            if let Ok(gpos) = font.gpos() {
+                gpos.closure_glyphs_lookups_features(self);
+            }
+        }
     }
 
     fn create_old_gid_to_new_gid_map(&mut self) {
@@ -890,7 +919,7 @@ fn get_font_num_glyphs(font: &FontRef) -> usize {
     ret.max(maxp.num_glyphs() as usize)
 }
 
-fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash + From<u16>>(
+pub(crate) fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash + From<u16>>(
     indices: IntSet<T>,
 ) -> FnvHashMap<T, T> {
     indices
@@ -912,6 +941,14 @@ fn remap_palette_indices(indices: IntSet<u16>) -> FnvHashMap<u16, u16> {
             }
         })
         .collect()
+}
+
+/// mutable struct, updated during table subsetting
+/// some tables depend on other tables' subset output
+#[derive(Default)]
+pub struct SubsetState {
+    // whether GDEF ItemVariationStore is retained after subsetting
+    has_gdef_varstore: bool,
 }
 
 #[derive(Debug, Error)]
@@ -947,6 +984,32 @@ pub(crate) trait CollectVariationIndices {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>);
 }
 
+pub(crate) trait LayoutClosure {
+    /// Remove unreferenced features
+    fn prune_features(
+        &self,
+        lookup_indices: &IntSet<u16>,
+        feature_indices: IntSet<u16>,
+    ) -> IntSet<u16>;
+
+    /// Return a duplicate feature(after subsetting) index map
+    /// feature index -> the first index of all duplicates for this feature
+    fn find_duplicate_features(
+        &self,
+        lookup_indices: &IntSet<u16>,
+        feature_indices: IntSet<u16>,
+    ) -> FnvHashMap<u16, u16>;
+
+    //remove unreferenced langsys and return (script->langsys mapping, retained feature indices)
+    fn prune_langsys(
+        &self,
+        duplicate_feature_index_map: &FnvHashMap<u16, u16>,
+        layout_scripts: &IntSet<Tag>,
+    ) -> (FnvHashMap<u16, IntSet<u16>>, IntSet<u16>);
+
+    fn closure_glyphs_lookups_features(&self, plan: &mut Plan);
+}
+
 pub const CVT: Tag = Tag::new(b"cvt ");
 pub const DSIG: Tag = Tag::new(b"DSIG");
 pub const EBSC: Tag = Tag::new(b"EBSC");
@@ -969,11 +1032,26 @@ pub trait Subset {
     /// Subset this table, if successful a subset version of this table will be added to builder
     fn subset(
         &self,
-        plan: &Plan,
-        font: &FontRef,
-        s: &mut Serializer,
-        builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError>;
+        _plan: &Plan,
+        _font: &FontRef,
+        _s: &mut Serializer,
+        _builder: &mut FontBuilder,
+    ) -> Result<(), SubsetError> {
+        Ok(())
+    }
+
+    /// Subset this table with a mutable Subsetstate
+    /// This is needed when some tables have dependencies on other table's subset output
+    fn subset_with_state(
+        &self,
+        _plan: &Plan,
+        _font: &FontRef,
+        _state: &mut SubsetState,
+        _s: &mut Serializer,
+        _builder: &mut FontBuilder,
+    ) -> Result<(), SubsetError> {
+        Ok(())
+    }
 }
 
 // A helper trait providing a 'subset' method for various subtables that have no associated tag
@@ -999,12 +1077,23 @@ trait Serialize<'a> {
 pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
     let mut builder = FontBuilder::default();
 
+    let mut state = SubsetState::default();
+    let mut tags_with_dependencies = Vec::with_capacity(5);
     for record in font.table_directory().table_records() {
         let tag = record.tag();
         if should_drop_table(tag, plan) {
             continue;
         }
-        subset(tag, font, plan, &mut builder, record.length())?;
+
+        // TODO: add more tags with dependencies for instancing
+        match tag {
+            Gpos::TAG => tags_with_dependencies.push((tag, record.length())),
+            _ => subset(tag, font, plan, &mut builder, record.length(), &mut state)?,
+        }
+    }
+
+    for (tag, table_len) in tags_with_dependencies {
+        subset(tag, font, plan, &mut builder, table_len, &mut state)?;
     }
     Ok(builder.build())
 }
@@ -1032,10 +1121,11 @@ fn subset<'a>(
     plan: &Plan,
     builder: &mut FontBuilder<'a>,
     table_len: u32,
+    state: &mut SubsetState,
 ) -> Result<(), SubsetError> {
     let buf_size = estimate_subset_table_size(font, table_tag, plan);
     let mut s = Serializer::new(buf_size);
-    let needed = try_subset(table_tag, font, plan, builder, &mut s, table_len);
+    let needed = try_subset(table_tag, font, plan, builder, &mut s, table_len, state);
     if s.in_error() && !s.only_offset_overflow() {
         return Err(SubsetError::SubsetTableError(table_tag));
     }
@@ -1060,11 +1150,12 @@ fn try_subset<'a>(
     builder: &mut FontBuilder<'a>,
     s: &mut Serializer,
     table_len: u32,
+    state: &mut SubsetState,
 ) -> Result<(), SubsetError> {
     s.start_serialize()
         .map_err(|_| SubsetError::SubsetTableError(table_tag))?;
 
-    let ret = subset_table(table_tag, font, plan, builder, s);
+    let ret = subset_table(table_tag, font, plan, builder, s, state);
     if !s.ran_out_of_room() {
         s.end_serialize();
         return ret;
@@ -1076,7 +1167,7 @@ fn try_subset<'a>(
         return ret;
     }
     s.reset_size(buf_size);
-    try_subset(table_tag, font, plan, builder, s, table_len)
+    try_subset(table_tag, font, plan, builder, s, table_len, state)
 }
 
 fn subset_table<'a>(
@@ -1085,6 +1176,7 @@ fn subset_table<'a>(
     plan: &Plan,
     builder: &mut FontBuilder<'a>,
     s: &mut Serializer,
+    state: &mut SubsetState,
 ) -> Result<(), SubsetError> {
     if plan.no_subset_tables.contains(tag) {
         return passthrough_table(tag, font, s);
@@ -1124,7 +1216,7 @@ fn subset_table<'a>(
         Gdef::TAG => font
             .gdef()
             .map_err(|_| SubsetError::SubsetTableError(Gdef::TAG))?
-            .subset(plan, font, s, builder),
+            .subset_with_state(plan, font, state, s, builder),
 
         Glyf::TAG => font
             .glyf()

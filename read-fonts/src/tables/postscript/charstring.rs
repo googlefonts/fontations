@@ -240,7 +240,7 @@ where
                 };
                 let is_horizontal = matches!(operator, HStem | HStemHm);
                 let mut u = Fixed::ZERO;
-                while (i + 2) < self.stack.len() {
+                while i < self.stack.len() {
                     let args = self.stack.fixed_array::<2>(i)?;
                     u += args[0];
                     let w = args[1];

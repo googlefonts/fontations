@@ -50,26 +50,29 @@ impl HintingTarget {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Hinting {
+    None,
     Interpreter(HintingTarget),
     Auto(HintingTarget),
 }
 
 impl Hinting {
-    pub fn skrifa_options(self) -> HintingOptions {
+    pub fn skrifa_options(self) -> Option<HintingOptions> {
         match self {
-            Self::Interpreter(target) => HintingOptions {
+            Self::None => None,
+            Self::Interpreter(target) => Some(HintingOptions {
                 engine: ::skrifa::outline::Engine::Interpreter,
                 target: target.to_skrifa_target(),
-            },
-            Self::Auto(target) => HintingOptions {
+            }),
+            Self::Auto(target) => Some(HintingOptions {
                 engine: ::skrifa::outline::Engine::Auto(None),
                 target: target.to_skrifa_target(),
-            },
+            }),
         }
     }
 
     pub fn freetype_load_flags(self) -> LoadFlag {
         match self {
+            Self::None => LoadFlag::NO_HINTING,
             Self::Interpreter(target) => LoadFlag::NO_AUTOHINT | target.to_freetype_load_flags(),
             Self::Auto(target) => LoadFlag::FORCE_AUTOHINT | target.to_freetype_load_flags(),
         }
@@ -79,13 +82,13 @@ impl Hinting {
 #[derive(Copy, Clone, Debug)]
 pub struct InstanceOptions<'a> {
     pub index: usize,
-    pub ppem: u32,
+    pub ppem: f32,
     pub coords: &'a [F2Dot14],
-    pub hinting: Option<Hinting>,
+    pub hinting: Hinting,
 }
 
 impl<'a> InstanceOptions<'a> {
-    pub fn new(index: usize, ppem: u32, coords: &'a [F2Dot14], hinting: Option<Hinting>) -> Self {
+    pub fn new(index: usize, ppem: f32, coords: &'a [F2Dot14], hinting: Hinting) -> Self {
         Self {
             index,
             ppem,

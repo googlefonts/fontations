@@ -54,11 +54,18 @@ pub struct Outlines<'a> {
     units_per_em: u16,
     os2_vmetrics: [i16; 2],
     prefer_interpreter: bool,
+    pub(crate) fractional_size_hinting: bool,
 }
 
 impl<'a> Outlines<'a> {
     pub fn new(font: &FontRef<'a>) -> Option<Self> {
-        let loca = font.loca(None).ok()?;
+        let head = font.head().ok()?;
+        // If bit 3 of head.flags is set, then we round ppems when
+        // scaling
+        let fractional_size_hinting = !head
+            .flags()
+            .contains(read_fonts::tables::head::Flags::FORCE_INTEGER_PPEM);
+        let loca = font.loca(Some(head.index_to_loc_format() == 1)).ok()?;
         let glyf = font.glyf().ok()?;
         let glyph_metrics = GlyphHMetrics::new(font)?;
         let (
@@ -126,6 +133,7 @@ impl<'a> Outlines<'a> {
             units_per_em: font.head().ok()?.units_per_em(),
             os2_vmetrics,
             prefer_interpreter,
+            fractional_size_hinting,
         })
     }
 
@@ -171,6 +179,19 @@ impl<'a> Outlines<'a> {
             }
         }
         (false, F26Dot6::from_bits(0x10000))
+    }
+
+    pub fn compute_hinted_scale(&self, ppem: Option<f32>) -> (bool, F26Dot6) {
+        if let Some(ppem) = ppem {
+            if !self.fractional_size_hinting {
+                // Apply a fixed point round to ppem if the font doesn't
+                // support fractional scaling and hinting was requested.
+                // FreeType does the same.
+                // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttobjs.c#L1424>
+                return self.compute_scale(Some(F26Dot6::from_f64(ppem as f64).round().to_f32()));
+            }
+        }
+        self.compute_scale(ppem)
     }
 }
 
@@ -417,7 +438,7 @@ impl<'a> FreeTypeScaler<'a> {
         pedantic_hinting: bool,
     ) -> Result<Self, DrawError> {
         outline.ensure_point_count_limit()?;
-        let (is_scaled, scale) = outlines.compute_scale(ppem);
+        let (is_scaled, scale) = outlines.compute_hinted_scale(ppem);
         let memory = FreeTypeOutlineMemory::new(outline, buf, Hinting::Embedded)
             .ok_or(DrawError::InsufficientMemory)?;
         Ok(Self {
@@ -1397,5 +1418,21 @@ mod tests {
         let result = FreeTypeScaler::unhinted(&outlines, &outline, &mut mem_buf, None, &[]);
         // And we get an error instead of an overflow panic
         assert!(matches!(result, Err(DrawError::TooManyPoints(_))));
+    }
+
+    #[test]
+    fn fractional_size_hinting() {
+        let font = FontRef::from_index(font_test_data::TINOS_SUBSET, 0).unwrap();
+        let outlines = Outlines::new(&font).unwrap();
+        // Make sure we capture the correct bit
+        assert!(!outlines.fractional_size_hinting);
+        // Check proper rounding when computing scale for fractional ppem
+        // values
+        for size in [10.0, 10.2, 10.5, 10.8, 11.0] {
+            assert_eq!(
+                outlines.compute_hinted_scale(Some(size)),
+                outlines.compute_hinted_scale(Some(size.round()))
+            );
+        }
     }
 }

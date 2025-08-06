@@ -147,8 +147,12 @@ impl Operator {
 /// Either a PostScript DICT operator or a (numeric) operand.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Token {
+    /// An operator parsed from a DICT.
     Operator(Operator),
-    Operand(Number),
+    /// A number parsed from a DICT. If the source was in
+    /// binary coded decimal format, then the second field
+    /// contains the parsed components.
+    Operand(Number, Option<BcdComponents>),
 }
 
 impl From<Operator> for Token {
@@ -162,7 +166,7 @@ where
     T: Into<Number>,
 {
     fn from(value: T) -> Self {
-        Self::Operand(value.into())
+        Self::Operand(value.into(), None)
     }
 }
 
@@ -192,8 +196,11 @@ fn parse_token(cursor: &mut Cursor) -> Result<Token, Error> {
     } else {
         // See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-3-operand-encoding>
         match b0 {
-            28 | 29 | 32..=254 => Token::Operand(parse_int(cursor, b0)?.into()),
-            30 => Token::Operand(parse_bcd(cursor)?.into()),
+            28 | 29 | 32..=254 => Token::Operand(parse_int(cursor, b0)?.into(), None),
+            30 => {
+                let components = BcdComponents::parse(cursor)?;
+                Token::Operand(components.value(false).into(), Some(components))
+            }
             _ => Token::Operator(Operator::from_opcode(b0).ok_or(Error::InvalidDictOperator(b0))?),
         }
     })
@@ -276,16 +283,20 @@ pub fn entries<'a>(
 ) -> impl Iterator<Item = Result<Entry, Error>> + 'a {
     let mut stack = Stack::new();
     let mut token_iter = tokens(dict_data);
+    let mut last_bcd_components = None;
     std::iter::from_fn(move || loop {
         let token = match token_iter.next()? {
             Ok(token) => token,
             Err(e) => return Some(Err(e)),
         };
         match token {
-            Token::Operand(number) => match stack.push(number) {
-                Ok(_) => continue,
-                Err(e) => return Some(Err(e)),
-            },
+            Token::Operand(number, bcd_components) => {
+                last_bcd_components = bcd_components;
+                match stack.push(number) {
+                    Ok(_) => continue,
+                    Err(e) => return Some(Err(e)),
+                }
+            }
             Token::Operator(op) => {
                 if op == Operator::Blend || op == Operator::VariationStoreIndex {
                     let state = match blend_state.as_mut() {
@@ -308,6 +319,20 @@ pub fn entries<'a>(
                         }
                     }
                 }
+                if op == Operator::BlueScale {
+                    // FreeType parses BlueScale using a scaling factor of
+                    // 1000, presumably to capture more precision in the
+                    // fractional part. We do the same.
+                    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/master/src/cff/cfftoken.h?ref_type=heads#L87>
+                    if let Some(bcd_components) = last_bcd_components.take() {
+                        // If the most recent numeric value was parsed as a
+                        // binary coded decimal then recompute the value using
+                        // the desired scaling and replace it on the stack
+                        stack.pop_fixed().ok()?;
+                        stack.push(bcd_components.value(true)).ok()?;
+                    }
+                }
+                last_bcd_components = None;
                 let entry = parse_entry(op, &mut stack);
                 stack.clear();
                 return Some(entry);
@@ -479,6 +504,7 @@ impl StemSnaps {
     }
 }
 
+#[inline]
 pub(crate) fn parse_int(cursor: &mut Cursor, b0: u8) -> Result<i32, Error> {
     // Size   b0 range     Value range              Value calculation
     //--------------------------------------------------------------------------------
@@ -500,149 +526,213 @@ pub(crate) fn parse_int(cursor: &mut Cursor, b0: u8) -> Result<i32, Error> {
     })
 }
 
-/// Parse a binary coded decimal number.
-/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/82090e67c24259c343c83fd9cefe6ff0be7a7eca/src/cff/cffparse.c#L183>
-fn parse_bcd(cursor: &mut Cursor) -> Result<Fixed, Error> {
-    // Value returned on overflow
-    const OVERFLOW: Fixed = Fixed::from_bits(0x7FFFFFFF);
-    // Value returned on underflow
-    const UNDERFLOW: Fixed = Fixed::ZERO;
-    // Limit at which we stop accumulating `number` and increase
-    // the exponent instead
-    const NUMBER_LIMIT: i32 = 0xCCCCCCC;
-    // Limit for the integral part of the result
-    const INTEGER_LIMIT: i32 = 0x7FFF;
-    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/82090e67c24259c343c83fd9cefe6ff0be7a7eca/src/cff/cffparse.c#L150>
-    const POWER_TENS: [i32; 10] = [
-        1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000,
-    ];
-    enum Phase {
-        Integer,
-        Fraction,
-        Exponent,
-    }
-    let mut phase = Phase::Integer;
-    let mut sign = 1i32;
-    let mut exponent_sign = 1i32;
-    let mut number = 0i32;
-    let mut exponent = 0i32;
-    let mut exponent_add = 0i32;
-    let mut integer_len = 0;
-    let mut fraction_len = 0;
-    // Nibble value    Represents
-    //----------------------------------
-    // 0 to 9          0 to 9
-    // a               . (decimal point)
-    // b               E
-    // c               E-
-    // d               <reserved>
-    // e               - (minus)
-    // f               end of number
-    // <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-5-nibble-definitions>
-    'outer: loop {
-        let b = cursor.read::<u8>()?;
-        for nibble in [(b >> 4) & 0xF, b & 0xF] {
-            match phase {
-                Phase::Integer => match nibble {
-                    0x0..=0x9 => {
-                        if number >= NUMBER_LIMIT {
-                            exponent_add += 1;
-                        } else if nibble != 0 || number != 0 {
-                            number = number * 10 + nibble as i32;
-                            integer_len += 1;
-                        }
-                    }
-                    0xE => sign = -1,
-                    0xA => {
-                        phase = Phase::Fraction;
-                    }
-                    0xB => {
-                        phase = Phase::Exponent;
-                    }
-                    0xC => {
-                        phase = Phase::Exponent;
-                        exponent_sign = -1;
-                    }
-                    _ => break 'outer,
-                },
-                Phase::Fraction => match nibble {
-                    0x0..=0x9 => {
-                        if nibble == 0 && number == 0 {
-                            exponent_add -= 1;
-                        } else if number < NUMBER_LIMIT && fraction_len < 9 {
-                            number = number * 10 + nibble as i32;
-                            fraction_len += 1;
-                        }
-                    }
-                    0xB => {
-                        phase = Phase::Exponent;
-                    }
-                    0xC => {
-                        phase = Phase::Exponent;
-                        exponent_sign = -1;
-                    }
-                    _ => break 'outer,
-                },
-                Phase::Exponent => {
-                    match nibble {
+// Various unnamed constants inlined in FreeType's cff_parse_real function
+// <<https://gitlab.freedesktop.org/freetype/freetype/-/blob/82090e67c24259c343c83fd9cefe6ff0be7a7eca/src/cff/cffparse.c#L183>>
+
+// Value returned on overflow
+const BCD_OVERFLOW: Fixed = Fixed::from_bits(0x7FFFFFFF);
+// Value returned on underflow
+const BCD_UNDERFLOW: Fixed = Fixed::ZERO;
+// Limit at which we stop accumulating `number` and increase
+// the exponent instead
+const BCD_NUMBER_LIMIT: i32 = 0xCCCCCCC;
+// Limit for the integral part of the result
+const BCD_INTEGER_LIMIT: i32 = 0x7FFF;
+
+// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/82090e67c24259c343c83fd9cefe6ff0be7a7eca/src/cff/cffparse.c#L150>
+const BCD_POWER_TENS: [i32; 10] = [
+    1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000,
+];
+
+/// Components for computing a fixed point value for a binary coded decimal
+/// number.
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+pub struct BcdComponents {
+    /// If overflow or underflow is detected early, then this
+    /// contains the resulting value and we skip further
+    /// processing.
+    error: Option<Fixed>,
+    number: i32,
+    sign: i32,
+    exponent: i32,
+    exponent_add: i32,
+    integer_len: i32,
+    fraction_len: i32,
+}
+
+impl BcdComponents {
+    /// Parse a binary coded decimal number.
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/82090e67c24259c343c83fd9cefe6ff0be7a7eca/src/cff/cffparse.c#L183>
+    fn parse(cursor: &mut Cursor) -> Result<Self, Error> {
+        enum Phase {
+            Integer,
+            Fraction,
+            Exponent,
+        }
+        let mut phase = Phase::Integer;
+        let mut sign = 1i32;
+        let mut exponent_sign = 1i32;
+        let mut number = 0i32;
+        let mut exponent = 0i32;
+        let mut exponent_add = 0i32;
+        let mut integer_len = 0;
+        let mut fraction_len = 0;
+        // Nibble value    Represents
+        //----------------------------------
+        // 0 to 9          0 to 9
+        // a               . (decimal point)
+        // b               E
+        // c               E-
+        // d               <reserved>
+        // e               - (minus)
+        // f               end of number
+        // <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-5-nibble-definitions>
+        'outer: loop {
+            let b = cursor.read::<u8>()?;
+            for nibble in [(b >> 4) & 0xF, b & 0xF] {
+                match phase {
+                    Phase::Integer => match nibble {
                         0x0..=0x9 => {
-                            // Arbitrarily limit exponent
-                            if exponent > 1000 {
-                                return if exponent_sign == -1 {
-                                    Ok(UNDERFLOW)
-                                } else {
-                                    Ok(OVERFLOW)
-                                };
-                            } else {
-                                exponent = exponent * 10 + nibble as i32;
+                            if number >= BCD_NUMBER_LIMIT {
+                                exponent_add += 1;
+                            } else if nibble != 0 || number != 0 {
+                                number = number * 10 + nibble as i32;
+                                integer_len += 1;
                             }
                         }
+                        0xE => sign = -1,
+                        0xA => {
+                            phase = Phase::Fraction;
+                        }
+                        0xB => {
+                            phase = Phase::Exponent;
+                        }
+                        0xC => {
+                            phase = Phase::Exponent;
+                            exponent_sign = -1;
+                        }
                         _ => break 'outer,
+                    },
+                    Phase::Fraction => match nibble {
+                        0x0..=0x9 => {
+                            if nibble == 0 && number == 0 {
+                                exponent_add -= 1;
+                            } else if number < BCD_NUMBER_LIMIT && fraction_len < 9 {
+                                number = number * 10 + nibble as i32;
+                                fraction_len += 1;
+                            }
+                        }
+                        0xB => {
+                            phase = Phase::Exponent;
+                        }
+                        0xC => {
+                            phase = Phase::Exponent;
+                            exponent_sign = -1;
+                        }
+                        _ => break 'outer,
+                    },
+                    Phase::Exponent => {
+                        match nibble {
+                            0x0..=0x9 => {
+                                // Arbitrarily limit exponent
+                                if exponent > 1000 {
+                                    return if exponent_sign == -1 {
+                                        Ok(BCD_UNDERFLOW.into())
+                                    } else {
+                                        Ok(BCD_OVERFLOW.into())
+                                    };
+                                } else {
+                                    exponent = exponent * 10 + nibble as i32;
+                                }
+                            }
+                            _ => break 'outer,
+                        }
                     }
                 }
             }
         }
+        exponent *= exponent_sign;
+        Ok(Self {
+            error: None,
+            number,
+            sign,
+            exponent,
+            exponent_add,
+            integer_len,
+            fraction_len,
+        })
     }
-    if number == 0 {
-        return Ok(Fixed::ZERO);
-    }
-    exponent *= exponent_sign;
-    exponent += exponent_add;
-    integer_len += exponent;
-    fraction_len -= exponent;
-    if integer_len > 5 {
-        return Ok(OVERFLOW);
-    }
-    if integer_len < -5 {
-        return Ok(UNDERFLOW);
-    }
-    // Remove non-significant digits
-    if integer_len < 0 {
-        number /= POWER_TENS[(-integer_len) as usize];
-        fraction_len += integer_len;
-    }
-    // Can only happen if exponent was non-zero
-    if fraction_len == 10 {
-        number /= 10;
-        fraction_len -= 1;
-    }
-    // Convert to fixed
-    let result = if fraction_len > 0 {
-        let b = POWER_TENS[fraction_len as usize];
-        if number / b > INTEGER_LIMIT {
-            0
-        } else {
-            (Fixed::from_bits(number) / Fixed::from_bits(b)).to_bits()
+
+    /// Returns the fixed point value for the precomputed components,
+    /// optionally using an internal scale factor of 1000 to
+    /// increase fractional precision.
+    pub fn value(&self, scale_by_1000: bool) -> Fixed {
+        if let Some(error) = self.error {
+            return error;
         }
-    } else {
-        number = number.wrapping_mul(-fraction_len);
-        if number > INTEGER_LIMIT {
-            return Ok(OVERFLOW);
-        } else {
-            number << 16
+        let mut number = self.number;
+        if number == 0 {
+            return Fixed::ZERO;
         }
-    };
-    Ok(Fixed::from_bits(result * sign))
+        let mut exponent = self.exponent;
+        let mut integer_len = self.integer_len;
+        let mut fraction_len = self.fraction_len;
+        if scale_by_1000 {
+            exponent += 3 + self.exponent_add;
+        } else {
+            exponent += self.exponent_add;
+        }
+        integer_len += exponent;
+        fraction_len -= exponent;
+        if integer_len > 5 {
+            return BCD_OVERFLOW;
+        }
+        if integer_len < -5 {
+            return BCD_UNDERFLOW;
+        }
+        // Remove non-significant digits
+        if integer_len < 0 {
+            number /= BCD_POWER_TENS[(-integer_len) as usize];
+            fraction_len += integer_len;
+        }
+        // Can only happen if exponent was non-zero
+        if fraction_len == 10 {
+            number /= 10;
+            fraction_len -= 1;
+        }
+        // Convert to fixed
+        let mut result = if fraction_len > 0 {
+            let b = BCD_POWER_TENS[fraction_len as usize];
+            if number / b > BCD_INTEGER_LIMIT {
+                0
+            } else {
+                (Fixed::from_bits(number) / Fixed::from_bits(b)).to_bits()
+            }
+        } else {
+            number = number.wrapping_mul(-fraction_len);
+            if number > BCD_INTEGER_LIMIT {
+                return BCD_OVERFLOW;
+            } else {
+                number << 16
+            }
+        };
+        if scale_by_1000 {
+            // FreeType stores the scaled value and does a fixed division by
+            // 1000 when the blue metrics are requested. We just do it here
+            // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/psaux/psft.c#L554>
+            result = (Fixed::from_bits(result) / Fixed::from_i32(1000)).to_bits();
+        }
+        Fixed::from_bits(result * self.sign)
+    }
+}
+
+impl From<Fixed> for BcdComponents {
+    fn from(value: Fixed) -> Self {
+        Self {
+            error: Some(value),
+            ..Default::default()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -684,12 +774,16 @@ mod tests {
         // parsing of BCD so it is dropped in the tests here.
         let bytes = FontData::new(&[0xe2, 0xa2, 0x5f]);
         assert_eq!(
-            parse_bcd(&mut bytes.cursor()).unwrap(),
+            BcdComponents::parse(&mut bytes.cursor())
+                .unwrap()
+                .value(false),
             Fixed::from_f64(-2.25)
         );
         let bytes = FontData::new(&[0x0a, 0x14, 0x05, 0x41, 0xc3, 0xff]);
         assert_eq!(
-            parse_bcd(&mut bytes.cursor()).unwrap(),
+            BcdComponents::parse(&mut bytes.cursor())
+                .unwrap()
+                .value(false),
             Fixed::from_f64(0.140541E-3)
         );
         // Check that we match FreeType for 375e-4.
@@ -697,8 +791,32 @@ mod tests {
         // has less precision
         let bytes = FontData::new(&[0x37, 0x5c, 0x4f]);
         assert_eq!(
-            parse_bcd(&mut bytes.cursor()).unwrap(),
+            BcdComponents::parse(&mut bytes.cursor())
+                .unwrap()
+                .value(false),
             Fixed::from_f64(0.0370025634765625)
+        );
+    }
+
+    #[test]
+    fn scaled_binary_coded_decimal_operands() {
+        // For blue scale, we compute values with an internal factor of 1000 to match
+        // FreeType, which gives us more precision for fractional bits
+        let bytes = FontData::new(&[0xA, 0x06, 0x25, 0xf]);
+        assert_eq!(
+            BcdComponents::parse(&mut bytes.cursor())
+                .unwrap()
+                .value(true),
+            Fixed::from_f64(0.0625)
+        );
+        // Just an additional check to test increased precision. Compare to
+        // the test above where this value generates 0.0370...
+        let bytes = FontData::new(&[0x37, 0x5c, 0x4f]);
+        assert_eq!(
+            BcdComponents::parse(&mut bytes.cursor())
+                .unwrap()
+                .value(true),
+            Fixed::from_f64(0.037506103515625)
         );
     }
 
@@ -759,7 +877,7 @@ mod tests {
                 -20.0, 0.0, 473.0, 491.0, 525.0, 540.0, 644.0, 659.0, 669.0, 689.0, 729.0, 749.0,
             ])),
             FamilyOtherBlues(make_blues(&[-249.0, -239.0])),
-            BlueScale(Fixed::from_f64(0.0370025634765625)),
+            BlueScale(Fixed::from_f64(0.037506103515625)),
             BlueFuzz(Fixed::ZERO),
             StdHw(Fixed::from_f64(55.0)),
             StdVw(Fixed::from_f64(80.0)),

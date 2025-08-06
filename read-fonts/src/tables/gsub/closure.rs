@@ -19,7 +19,7 @@ use super::{
 
 #[cfg(feature = "std")]
 use crate::tables::layout::{
-    ContextFormat1, ContextFormat2, ContextFormat3, LayoutLookupList, LookupClosure,
+    ContextFormat1, ContextFormat2, ContextFormat3, Intersect, LayoutLookupList, LookupClosure,
     LookupClosureCtx,
 };
 
@@ -192,13 +192,13 @@ impl Gsub<'_> {
     pub fn closure_glyphs(
         &self,
         lookups: &IntSet<u16>,
-        mut glyphs: IntSet<GlyphId>,
-    ) -> Result<IntSet<GlyphId>, ReadError> {
+        glyphs: &mut IntSet<GlyphId>,
+    ) -> Result<(), ReadError> {
         let lookup_list = self.lookup_list()?;
         let num_lookups = lookup_list.lookup_count();
         let lookup_offsets = lookup_list.lookups();
 
-        let mut ctx = ClosureCtx::new(&mut glyphs);
+        let mut ctx = ClosureCtx::new(glyphs);
         let mut iteration_count = 0;
         let mut glyphs_length;
         loop {
@@ -226,62 +226,21 @@ impl Gsub<'_> {
             }
             iteration_count += 1;
         }
-        Ok(glyphs)
+        Ok(())
     }
 
+    /// Return a set of lookups referenced by the specified features
+    ///
+    /// Pass `&IntSet::all()` to get the lookups referenced by all features.
     pub fn collect_lookups(&self, feature_indices: &IntSet<u16>) -> Result<IntSet<u16>, ReadError> {
         let feature_list = self.feature_list()?;
-        let features_records = feature_list.feature_records();
-        let num_features = feature_list.feature_count();
-        let mut lookup_idxes = IntSet::empty();
-
-        if feature_indices.is_inverted() {
-            for feature_rec in (0..num_features).filter_map(|i| {
-                feature_indices
-                    .contains(i)
-                    .then(|| features_records.get(i as usize))
-                    .flatten()
-            }) {
-                lookup_idxes.extend_unsorted(
-                    feature_rec
-                        .feature(feature_list.offset_data())?
-                        .collect_lookups(),
-                );
-            }
-        } else {
-            for feature_rec in feature_indices
-                .iter()
-                .filter_map(|i| features_records.get(i as usize))
-            {
-                lookup_idxes.extend_unsorted(
-                    feature_rec
-                        .feature(feature_list.offset_data())?
-                        .collect_lookups(),
-                );
-            }
-        }
+        let mut lookup_indices = feature_list.collect_lookups(feature_indices)?;
 
         if let Some(feature_variations) = self.feature_variations().transpose()? {
-            for feature_sub in feature_variations
-                .feature_variation_records()
-                .iter()
-                .filter_map(move |rec| {
-                    rec.feature_table_substitution(feature_variations.offset_data())
-                        .transpose()
-                        .ok()
-                        .flatten()
-                })
-                .flat_map(|subs| {
-                    subs.substitutions()
-                        .iter()
-                        .filter(|sub_rec| feature_indices.contains(sub_rec.feature_index()))
-                        .map(move |sub| sub.alternate_feature(subs.offset_data()))
-                })
-            {
-                lookup_idxes.extend_unsorted(feature_sub?.collect_lookups());
-            }
+            let subs_lookup_indices = feature_variations.collect_lookups(feature_indices)?;
+            lookup_indices.union(&subs_lookup_indices);
         }
-        Ok(lookup_idxes)
+        Ok(lookup_indices)
     }
 
     /// Return a set of all feature indices underneath the specified scripts, languages and features
@@ -295,6 +254,16 @@ impl Gsub<'_> {
         let script_list = self.script_list()?;
         let head_ptr = self.offset_data().as_bytes().as_ptr() as usize;
         script_list.collect_features(head_ptr, &feature_list, scripts, languages, features)
+    }
+
+    /// Update the set of lookup indices with all lookups reachable from specified glyph set and lookup_indices.
+    pub fn closure_lookups(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        lookup_indices: &mut IntSet<u16>,
+    ) -> Result<(), ReadError> {
+        let lookup_list = self.lookup_list()?;
+        lookup_list.closure_lookups(glyphs, lookup_indices)
     }
 }
 
@@ -915,7 +884,9 @@ impl LookupClosure for SubstitutionLookup<'_> {
 
         self.subtables()?.closure_lookups(c, lookup_index)
     }
+}
 
+impl Intersect for SubstitutionLookup<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         self.subtables()?.intersects(glyph_set)
     }
@@ -929,7 +900,9 @@ impl LookupClosure for SubstitutionSubtables<'_> {
             _ => Ok(()),
         }
     }
+}
 
+impl Intersect for SubstitutionSubtables<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             SubstitutionSubtables::Single(subtables) => subtables.intersects(glyph_set),
@@ -943,7 +916,7 @@ impl LookupClosure for SubstitutionSubtables<'_> {
     }
 }
 
-impl LookupClosure for SingleSubst<'_> {
+impl Intersect for SingleSubst<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Format1(item) => item.intersects(glyph_set),
@@ -952,31 +925,31 @@ impl LookupClosure for SingleSubst<'_> {
     }
 }
 
-impl LookupClosure for SingleSubstFormat1<'_> {
+impl Intersect for SingleSubstFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         Ok(self.coverage()?.intersects(glyph_set))
     }
 }
 
-impl LookupClosure for SingleSubstFormat2<'_> {
+impl Intersect for SingleSubstFormat2<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         Ok(self.coverage()?.intersects(glyph_set))
     }
 }
 
-impl LookupClosure for MultipleSubstFormat1<'_> {
+impl Intersect for MultipleSubstFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         Ok(self.coverage()?.intersects(glyph_set))
     }
 }
 
-impl LookupClosure for AlternateSubstFormat1<'_> {
+impl Intersect for AlternateSubstFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         Ok(self.coverage()?.intersects(glyph_set))
     }
 }
 
-impl LookupClosure for LigatureSubstFormat1<'_> {
+impl Intersect for LigatureSubstFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         let coverage = self.coverage()?;
         let lig_sets = self.ligature_sets();
@@ -993,7 +966,7 @@ impl LookupClosure for LigatureSubstFormat1<'_> {
     }
 }
 
-impl LookupClosure for LigatureSet<'_> {
+impl Intersect for LigatureSet<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         let ligs = self.ligatures();
         for lig in ligs.iter() {
@@ -1005,7 +978,7 @@ impl LookupClosure for LigatureSet<'_> {
     }
 }
 
-impl LookupClosure for Ligature<'_> {
+impl Intersect for Ligature<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         let ret = self
             .component_glyph_ids()
@@ -1015,7 +988,7 @@ impl LookupClosure for Ligature<'_> {
     }
 }
 
-impl LookupClosure for ReverseChainSingleSubstFormat1<'_> {
+impl Intersect for ReverseChainSingleSubstFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         if !self.coverage()?.intersects(glyph_set) {
             return Ok(false);
@@ -1079,11 +1052,13 @@ mod tests {
 
     fn compute_closure(gsub: &Gsub, glyph_map: &GlyphMap, input: &[&str]) -> IntSet<GlyphId> {
         let lookup_indices = gsub.collect_lookups(&IntSet::all()).unwrap();
-        let input_glyphs = input
+        let mut input_glyphs = input
             .iter()
             .map(|name| glyph_map.get_gid(name).unwrap())
             .collect();
-        gsub.closure_glyphs(&lookup_indices, input_glyphs).unwrap()
+        gsub.closure_glyphs(&lookup_indices, &mut input_glyphs)
+            .unwrap();
+        input_glyphs
     }
 
     /// assert a set of glyph ids matches a slice of names
