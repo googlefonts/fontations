@@ -58,8 +58,7 @@ table SignatureBlockFormat1 {
     _reserved2: u16,
 
     /// Length (in bytes) of the PKCS#7 packet in the signature field.
-    // TODO: Can this be derived automatically?
-    #[compile(self.compute_signature_len())]
+    #[compile(array_len($signature))]
     signature_length: u32,
 
     /// PKCS#7 packet

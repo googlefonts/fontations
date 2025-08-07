@@ -16,13 +16,6 @@ impl SignatureBlockFormat1 {
             .try_into()
             .expect("DSIG signature block overflow")
     }
-
-    fn compute_signature_len(&self) -> u32 {
-        self.signature
-            .len()
-            .try_into()
-            .expect("DSIG signature format 1 overflow")
-    }
 }
 
 #[cfg(test)]

@@ -152,7 +152,7 @@ impl FontWrite for SignatureBlockFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (0 as u16).write_into(writer);
         (0 as u16).write_into(writer);
-        (self.compute_signature_len() as u32).write_into(writer);
+        (u32::try_from(array_len(&self.signature)).unwrap()).write_into(writer);
         self.signature.write_into(writer);
     }
     fn table_type(&self) -> TableType {
