@@ -186,10 +186,12 @@ impl<'a> FontData<'a> {
 }
 
 impl<'a> Cursor<'a> {
+    #[inline(always)]    
     pub(crate) fn advance<T: Scalar>(&mut self) {
         self.pos = self.pos.saturating_add(T::RAW_BYTE_LEN);
     }
 
+    #[inline(always)]
     pub(crate) fn advance_by(&mut self, n_bytes: usize) {
         self.pos = self.pos.saturating_add(n_bytes);
     }

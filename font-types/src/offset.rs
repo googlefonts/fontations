@@ -17,7 +17,7 @@ trait NullValue {
 impl<T: Scalar> Scalar for Nullable<T> {
     type Raw = T::Raw;
 
-    #[inline]
+    #[inline(always)]
     fn from_raw(raw: Self::Raw) -> Self {
         Self(T::from_raw(raw))
     }
@@ -90,6 +90,7 @@ macro_rules! impl_offset {
 
         impl crate::raw::Scalar for $name {
             type Raw = <$rawty as crate::raw::Scalar>::Raw;
+            #[inline(always)]
             fn from_raw(raw: Self::Raw) -> Self {
                 let raw = <$rawty>::from_raw(raw);
                 $name::new(raw)
