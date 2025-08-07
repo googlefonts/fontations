@@ -77,9 +77,7 @@ impl<'a> FontData<'a> {
 
     /// Read a scalar at the provided location in the data.
     pub fn read_at<T: Scalar>(&self, offset: usize) -> Result<T, ReadError> {
-        let end = offset
-            .checked_add(T::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
+        let end = offset.wrapping_add(T::RAW_BYTE_LEN);
         self.bytes
             .get(offset..end)
             .and_then(T::read)
@@ -88,9 +86,7 @@ impl<'a> FontData<'a> {
 
     /// Read a big-endian value at the provided location in the data.
     pub fn read_be_at<T: Scalar>(&self, offset: usize) -> Result<BigEndian<T>, ReadError> {
-        let end = offset
-            .checked_add(T::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
+        let end = offset.wrapping_add(T::RAW_BYTE_LEN);
         self.bytes
             .get(offset..end)
             .and_then(BigEndian::from_slice)
@@ -130,9 +126,7 @@ impl<'a> FontData<'a> {
         &self,
         offset: usize,
     ) -> Result<&'a T, ReadError> {
-        let end = offset
-            .checked_add(T::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
+        let end = offset.wrapping_add(T::RAW_BYTE_LEN);
         self.bytes
             .get(offset..end)
             .ok_or(ReadError::OutOfBounds)
