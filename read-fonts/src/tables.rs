@@ -13,6 +13,7 @@ pub mod cmap;
 pub mod colr;
 pub mod cpal;
 pub mod cvar;
+pub mod dsig;
 pub mod ebdt;
 pub mod eblc;
 pub mod feat;
