@@ -1138,7 +1138,21 @@ impl MarkRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_mark_anchor`][Self::read_mark_anchor],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn mark_anchor<'a>(&self, data: FontData<'a>) -> Result<AnchorTable<'a>, ReadError> {
+        self.mark_anchor_offset().resolve(data)
+    }
+
+    /// Offset to Anchor table, from beginning of MarkArray table.
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_mark_anchor<'a>(
+        &self,
+        source: &MarkArray<'a>,
+    ) -> Result<AnchorTable<'a>, ReadError> {
+        let data = source.offset_data();
         self.mark_anchor_offset().resolve(data)
     }
 }
@@ -2564,10 +2578,25 @@ impl EntryExitRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_entry_anchor`][Self::read_entry_anchor],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn entry_anchor<'a>(
         &self,
         data: FontData<'a>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
+        self.entry_anchor_offset().resolve(data)
+    }
+
+    /// Offset to entryAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_entry_anchor<'a>(
+        &self,
+        source: &CursivePosFormat1<'a>,
+    ) -> Option<Result<AnchorTable<'a>, ReadError>> {
+        let data = source.offset_data();
         self.entry_anchor_offset().resolve(data)
     }
 
@@ -2582,10 +2611,25 @@ impl EntryExitRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_exit_anchor`][Self::read_exit_anchor],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn exit_anchor<'a>(
         &self,
         data: FontData<'a>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
+        self.exit_anchor_offset().resolve(data)
+    }
+
+    /// Offset to exitAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_exit_anchor<'a>(
+        &self,
+        source: &CursivePosFormat1<'a>,
+    ) -> Option<Result<AnchorTable<'a>, ReadError>> {
+        let data = source.offset_data();
         self.exit_anchor_offset().resolve(data)
     }
 }
@@ -2919,10 +2963,27 @@ impl<'a> BaseRecord<'a> {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_base_anchors`][Self::read_base_anchors],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn base_anchors(
         &self,
         data: FontData<'a>,
     ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset16> {
+        let offsets = self.base_anchor_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
+    }
+
+    /// Array of offsets (one per mark class) to Anchor tables. Offsets
+    /// are from beginning of BaseArray table, ordered by class
+    /// (offsets may be NULL).
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_base_anchors(
+        &self,
+        source: &BaseArray<'a>,
+    ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset16> {
+        let data = source.offset_data();
         let offsets = self.base_anchor_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -3419,10 +3480,27 @@ impl<'a> ComponentRecord<'a> {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_ligature_anchors`][Self::read_ligature_anchors],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn ligature_anchors(
         &self,
         data: FontData<'a>,
     ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset16> {
+        let offsets = self.ligature_anchor_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
+    }
+
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of LigatureAttach table, ordered by class
+    /// (offsets may be NULL).
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_ligature_anchors(
+        &self,
+        source: &LigatureAttach<'a>,
+    ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset16> {
+        let data = source.offset_data();
         let offsets = self.ligature_anchor_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -3794,10 +3872,27 @@ impl<'a> Mark2Record<'a> {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_mark2_anchors`][Self::read_mark2_anchors],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn mark2_anchors(
         &self,
         data: FontData<'a>,
     ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset16> {
+        let offsets = self.mark2_anchor_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
+    }
+
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of Mark2Array table, in class order (offsets may
+    /// be NULL).
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_mark2_anchors(
+        &self,
+        source: &Mark2Array<'a>,
+    ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset16> {
+        let data = source.offset_data();
         let offsets = self.mark2_anchor_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
