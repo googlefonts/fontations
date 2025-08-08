@@ -8,12 +8,16 @@ use crate::{
 };
 use fnv::FnvHashMap;
 use write_fonts::{
-    read::tables::layout::{
-        ChainedClassSequenceRule, ChainedClassSequenceRuleSet, ChainedSequenceContext,
-        ChainedSequenceContextFormat1, ChainedSequenceContextFormat2, ChainedSequenceRule,
-        ChainedSequenceRuleSet, ClassSequenceRule, ClassSequenceRuleSet, CoverageTable,
-        SequenceContext, SequenceContextFormat1, SequenceContextFormat2, SequenceLookupRecord,
-        SequenceRule, SequenceRuleSet,
+    read::{
+        tables::layout::{
+            ChainedClassSequenceRule, ChainedClassSequenceRuleSet, ChainedSequenceContext,
+            ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
+            ChainedSequenceContextFormat3, ChainedSequenceRule, ChainedSequenceRuleSet,
+            ClassSequenceRule, ClassSequenceRuleSet, CoverageTable, SequenceContext,
+            SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3,
+            SequenceLookupRecord, SequenceRule, SequenceRuleSet,
+        },
+        ArrayOfOffsets,
     },
     types::{BigEndian, FixedSize, GlyphId, GlyphId16, Offset16},
 };
@@ -29,9 +33,8 @@ impl<'a> SubsetTable<'a> for SequenceContext<'_> {
     ) -> Result<Self::Output, SerializeErrorFlags> {
         match self {
             Self::Format1(item) => item.subset(plan, s, lookup_map),
-            // TODO: support format 2 and 3
             Self::Format2(item) => item.subset(plan, s, lookup_map),
-            Self::Format3(_item) => Ok(()),
+            Self::Format3(item) => item.subset(plan, s, lookup_map),
         }
     }
 }
@@ -384,6 +387,56 @@ impl<'a> SubsetTable<'a> for ClassSequenceRule<'_> {
     }
 }
 
+impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        for cov in self.iter() {
+            let cov =
+                cov.map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+            let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
+            Offset16::serialize_subset(&cov, s, plan, (), offset_pos)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for SequenceContextFormat3<'_> {
+    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        lookup_map: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        // format
+        s.embed(self.format())?;
+        // glyph count
+        s.embed(self.glyph_count())?;
+
+        // seq lookup count
+        let seq_lookup_count_pos = s.embed(0_u16)?;
+
+        // coverage offsets
+        self.coverages().subset(plan, s, ())?;
+
+        // seq lookup records
+        let seq_lookup_count =
+            serialize_lookup_records(self.seq_lookup_records(), plan, lookup_map, s)?;
+        if seq_lookup_count == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        s.copy_assign(seq_lookup_count_pos, seq_lookup_count);
+        Ok(())
+    }
+}
+
 impl<'a> SubsetTable<'a> for ChainedSequenceContext<'_> {
     type ArgsForSubset = &'a FnvHashMap<u16, u16>;
     type Output = ();
@@ -395,9 +448,8 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContext<'_> {
     ) -> Result<Self::Output, SerializeErrorFlags> {
         match self {
             Self::Format1(item) => item.subset(plan, s, lookup_map),
-            // TODO: support format 2 and 3
             Self::Format2(item) => item.subset(plan, s, lookup_map),
-            Self::Format3(_item) => Ok(()),
+            Self::Format3(item) => item.subset(plan, s, lookup_map),
         }
     }
 }
@@ -743,6 +795,47 @@ impl<'a> SubsetTable<'a> for ChainedClassSequenceRule<'_> {
 
         // seq lookup count
         let seq_lookup_count_pos = s.embed(0_u16)?;
+        // seq lookup records
+        let seq_lookup_count =
+            serialize_lookup_records(self.seq_lookup_records(), plan, lookup_map, s)?;
+        if seq_lookup_count == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        s.copy_assign(seq_lookup_count_pos, seq_lookup_count);
+        Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat3<'_> {
+    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        lookup_map: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        // format
+        s.embed(self.format())?;
+
+        // backtrack glyph count
+        s.embed(self.backtrack_glyph_count())?;
+        // backtrack coverage offsets
+        self.backtrack_coverages().subset(plan, s, ())?;
+
+        // input glyph count
+        s.embed(self.input_glyph_count())?;
+        // input coverage offsets
+        self.input_coverages().subset(plan, s, ())?;
+
+        // lookahead glyph count
+        s.embed(self.lookahead_glyph_count())?;
+        // lookahead coverage offsets
+        self.lookahead_coverages().subset(plan, s, ())?;
+
+        // seq lookup count
+        let seq_lookup_count_pos = s.embed(0_u16)?;
+
         // seq lookup records
         let seq_lookup_count =
             serialize_lookup_records(self.seq_lookup_records(), plan, lookup_map, s)?;
