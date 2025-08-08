@@ -206,6 +206,40 @@ fn parse_token(cursor: &mut Cursor) -> Result<Token, Error> {
     })
 }
 
+/// Parse a fixed point value with a dynamic scaling factor.
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffparse.c#L580>
+fn parse_fixed_dynamic(cursor: &mut Cursor) -> Result<(Fixed, i32), Error> {
+    let b0 = cursor.read::<u8>()?;
+    match b0 {
+        30 => Ok(BcdComponents::parse(cursor)?.dynamically_scaled_value()),
+        28 | 29 | 32..=254 => {
+            let num = parse_int(cursor, b0)?;
+            let mut int_len = 10;
+            if num > BCD_INTEGER_LIMIT {
+                for (i, power_ten) in BCD_POWER_TENS.iter().enumerate().skip(5) {
+                    if num < *power_ten {
+                        int_len = i;
+                        break;
+                    }
+                }
+                let scaling = if (num - BCD_POWER_TENS[int_len - 5]) > BCD_INTEGER_LIMIT {
+                    int_len - 4
+                } else {
+                    int_len - 5
+                };
+                Ok((
+                    Fixed::from_bits(num) / Fixed::from_bits(BCD_POWER_TENS[scaling]),
+                    scaling as i32,
+                ))
+            } else {
+                Ok((Fixed::from_bits(num << 16), 0))
+            }
+        }
+        _ => Err(Error::InvalidNumber),
+    }
+}
+
 /// PostScript DICT Operator with its associated operands.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Entry {
@@ -282,10 +316,14 @@ pub fn entries<'a>(
     mut blend_state: Option<BlendState<'a>>,
 ) -> impl Iterator<Item = Result<Entry, Error>> + 'a {
     let mut stack = Stack::new();
-    let mut token_iter = tokens(dict_data);
     let mut last_bcd_components = None;
+    let mut cursor = crate::FontData::new(dict_data).cursor();
+    let mut cursor_pos = 0;
     std::iter::from_fn(move || loop {
-        let token = match token_iter.next()? {
+        if cursor.remaining_bytes() == 0 {
+            return None;
+        }
+        let token = match parse_token(&mut cursor) {
             Ok(token) => token,
             Err(e) => return Some(Err(e)),
         };
@@ -332,9 +370,98 @@ pub fn entries<'a>(
                         stack.push(bcd_components.value(true)).ok()?;
                     }
                 }
+                if op == Operator::FontMatrix {
+                    // FontMatrix is also parsed specially... *sigh*
+                    // Redo the entire thing with special scaling factors
+                    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffparse.c#L623>
+                    let mut cursor = crate::FontData::new(dict_data).cursor();
+                    cursor.advance_by(cursor_pos);
+                    // Dump the current values
+                    stack.clear();
+                    // Now reparse with dynamic scaling
+                    let mut values = [Fixed::ZERO; 6];
+                    let mut scalings = [0i32; 6];
+                    let mut max_scaling = i32::MIN;
+                    let mut min_scaling = i32::MAX;
+                    for (value, scaling) in values.iter_mut().zip(&mut scalings) {
+                        let (v, s) = match parse_fixed_dynamic(&mut cursor) {
+                            Ok(value) => value,
+                            Err(e) => return Some(Err(e)),
+                        };
+                        if v != Fixed::ZERO {
+                            max_scaling = max_scaling.max(s);
+                            min_scaling = min_scaling.min(s);
+                        }
+                        *value = v;
+                        *scaling = s;
+                    }
+                    if !(-9..=0).contains(&max_scaling)
+                        || (max_scaling - min_scaling < 0)
+                        || (max_scaling - min_scaling) > 9
+                    {
+                        last_bcd_components = None;
+                        cursor_pos = cursor.position().unwrap_or_default();
+                        continue;
+                    }
+                    for (value, scaling) in values.iter_mut().zip(scalings) {
+                        if *value == Fixed::ZERO {
+                            continue;
+                        }
+                        let divisor = BCD_POWER_TENS[(max_scaling - scaling) as usize];
+                        let half_divisor = divisor >> 1;
+                        if *value < Fixed::ZERO {
+                            if i32::MIN + half_divisor < value.to_bits() {
+                                *value =
+                                    Fixed::from_bits((value.to_bits() - half_divisor) / divisor);
+                            } else {
+                                *value = Fixed::from_bits(i32::MIN / divisor);
+                            }
+                        } else if i32::MAX - half_divisor > value.to_bits() {
+                            *value = Fixed::from_bits((value.to_bits() + half_divisor) / divisor);
+                        } else {
+                            *value = Fixed::from_bits(i32::MAX / divisor);
+                        }
+                    }
+                    // Make sure the matrix isn't degenerate. Convert
+                    // to i64 to avoid overflows below
+                    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/base/ftcalc.c#L725>
+                    let [xx, yx, xy, yy, ..] = values.map(|x| x.to_bits() as i64);
+                    let val = xx.abs() | yx.abs() | xy.abs() | yy.abs();
+                    let temp1 = 32 * (xx * yy - xy * yx).abs();
+                    let temp2 = (xx * xx) + (xy * xy) + (yx * yx) + (yy * yy);
+                    if val == 0 || val > 0x7FFFFFFF || temp1 <= temp2 {
+                        last_bcd_components = None;
+                        cursor_pos = cursor.position().unwrap_or_default();
+                        continue;
+                    }
+                    // FT doesn't seem toa actually use this anywhere
+                    let _upem = BCD_POWER_TENS[(-max_scaling) as usize];
+                    // Now normalize the matrix so that the y scale factor is 1
+                    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffobjs.c#L727>
+                    let factor = if values[3] != Fixed::ZERO {
+                        values[3].abs()
+                    } else {
+                        // Use yx if yy is zero
+                        values[1].abs()
+                    };
+                    if factor != Fixed::ONE {
+                        for value in &mut values {
+                            *value /= factor;
+                        }
+                    }
+                    // FT shifts off the fractional parts of the translation?
+                    for offset in values[4..6].iter_mut() {
+                        *offset = Fixed::from_bits(offset.to_bits() >> 16);
+                    }
+                    // FreeType doesn't seem to actually use this value
+                    last_bcd_components = None;
+                    cursor_pos = cursor.position().unwrap_or_default();
+                    return Some(Ok(Entry::FontMatrix(values)));
+                }
                 last_bcd_components = None;
                 let entry = parse_entry(op, &mut stack);
                 stack.clear();
+                cursor_pos = cursor.position().unwrap_or_default();
                 return Some(entry);
             }
         }
@@ -370,14 +497,7 @@ fn parse_entry(op: Operator, stack: &mut Stack) -> Result<Entry, Error> {
         UnderlineThickness => Entry::UnderlineThickness(stack.pop_fixed()?),
         PaintType => Entry::PaintType(stack.pop_i32()?),
         CharstringType => Entry::CharstringType(stack.pop_i32()?),
-        FontMatrix => Entry::FontMatrix([
-            stack.get_fixed(0)?,
-            stack.get_fixed(1)?,
-            stack.get_fixed(2)?,
-            stack.get_fixed(3)?,
-            stack.get_fixed(4)?,
-            stack.get_fixed(5)?,
-        ]),
+        FontMatrix => unreachable!(),
         StrokeWidth => Entry::StrokeWidth(stack.pop_fixed()?),
         FdArrayOffset => Entry::FdArrayOffset(stack.pop_i32()? as usize),
         FdSelectOffset => Entry::FdSelectOffset(stack.pop_i32()? as usize),
@@ -724,6 +844,61 @@ impl BcdComponents {
         }
         Fixed::from_bits(result * self.sign)
     }
+
+    /// Returns the fixed point value for the components along with a
+    /// dynamically determined scale factor.
+    ///
+    /// Use for processing FontMatrix components.
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffparse.c#L332>
+    fn dynamically_scaled_value(&self) -> (Fixed, i32) {
+        if let Some(error) = self.error {
+            return (error, 0);
+        }
+        let mut number = self.number;
+        if number == 0 {
+            return (Fixed::ZERO, 0);
+        }
+        let mut exponent = self.exponent;
+        let integer_len = self.integer_len;
+        let mut fraction_len = self.fraction_len;
+        exponent += self.exponent_add;
+        fraction_len += integer_len;
+        exponent += integer_len;
+        let mut result = Fixed::ONE;
+        let mut scaling = 0;
+        if fraction_len <= 5 {
+            if number > BCD_INTEGER_LIMIT {
+                result = Fixed::from_bits(number) / Fixed::from_bits(10);
+                scaling = exponent - fraction_len + 1;
+            } else {
+                if exponent > 0 {
+                    // Make scaling as small as possible
+                    let new_fraction_len = exponent.min(5);
+                    let shift = new_fraction_len - fraction_len;
+                    if shift > 0 {
+                        exponent -= new_fraction_len;
+                        number *= BCD_POWER_TENS[shift as usize];
+                        if number > BCD_INTEGER_LIMIT {
+                            number /= 10;
+                            exponent += 1;
+                        }
+                    } else {
+                        exponent -= fraction_len;
+                    }
+                } else {
+                    exponent -= fraction_len;
+                }
+                result = Fixed::from_bits(number << 16);
+                scaling = exponent;
+            }
+        } else if (number / BCD_POWER_TENS[fraction_len as usize - 5]) > BCD_INTEGER_LIMIT {
+            result = Fixed::from_bits(number)
+                / Fixed::from_bits(BCD_POWER_TENS[fraction_len as usize - 4]);
+            scaling = exponent - 4;
+        }
+        (Fixed::from_bits(result.to_bits() * self.sign), scaling)
+    }
 }
 
 impl From<Fixed> for BcdComponents {
@@ -932,5 +1107,57 @@ mod tests {
             .to_vec();
         // Just don't panic
         let _ = entries(&private_dict, None).count();
+    }
+
+    #[test]
+    fn dynamically_scaled_binary_coded_decimal_operands() {
+        // 0.0625
+        let bytes = FontData::new(&[0xA, 0x06, 0x25, 0xf]);
+        assert_eq!(
+            BcdComponents::parse(&mut bytes.cursor())
+                .unwrap()
+                .dynamically_scaled_value(),
+            (Fixed::from_f64(6250.0), -5)
+        );
+        // 0.0375
+        let bytes = FontData::new(&[0x37, 0x5c, 0x4f]);
+        assert_eq!(
+            BcdComponents::parse(&mut bytes.cursor())
+                .unwrap()
+                .dynamically_scaled_value(),
+            (Fixed::from_f64(375.0), -4)
+        );
+    }
+
+    #[test]
+    fn parse_font_matrix() {
+        let dict_data = [
+            30u8, 10, 0, 31, 139, 30, 10, 0, 1, 103, 255, 30, 10, 0, 31, 139, 139, 12, 7,
+        ];
+        let Entry::FontMatrix(matrix) = entries(&dict_data, None).next().unwrap().unwrap() else {
+            panic!("This was totally a font matrix");
+        };
+        // From ttx: <FontMatrix value="0.001 0 0.000167 0.001 0 0"/>
+        // But scaled by 1000 because that's how FreeType does it
+        assert_eq!(
+            matrix,
+            [
+                Fixed::ONE,
+                Fixed::ZERO,
+                Fixed::from_f64(0.167007446289062),
+                Fixed::ONE,
+                Fixed::ZERO,
+                Fixed::ZERO,
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_degenerate_font_matrix() {
+        let dict_data = [
+            30u8, 0x0F, 30, 0x0F, 30, 0x0F, 30, 0x0F, 30, 0x0F, 30, 0x0F, 12, 7,
+        ];
+        // Don't return a degenerate matrix at all
+        assert!(entries(&dict_data, None).next().is_none());
     }
 }
