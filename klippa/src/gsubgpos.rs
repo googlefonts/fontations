@@ -8,12 +8,16 @@ use crate::{
 };
 use fnv::FnvHashMap;
 use write_fonts::{
-    read::tables::layout::{
-        ChainedClassSequenceRule, ChainedClassSequenceRuleSet, ChainedSequenceContext,
-        ChainedSequenceContextFormat1, ChainedSequenceContextFormat2, ChainedSequenceRule,
-        ChainedSequenceRuleSet, ClassSequenceRule, ClassSequenceRuleSet, CoverageTable,
-        SequenceContext, SequenceContextFormat1, SequenceContextFormat2, SequenceLookupRecord,
-        SequenceRule, SequenceRuleSet,
+    read::{
+        tables::layout::{
+            ChainedClassSequenceRule, ChainedClassSequenceRuleSet, ChainedSequenceContext,
+            ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
+            ChainedSequenceContextFormat3, ChainedSequenceRule, ChainedSequenceRuleSet,
+            ClassSequenceRule, ClassSequenceRuleSet, CoverageTable, SequenceContext,
+            SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3,
+            SequenceLookupRecord, SequenceRule, SequenceRuleSet,
+        },
+        ArrayOfOffsets,
     },
     types::{BigEndian, FixedSize, GlyphId, GlyphId16, Offset16},
 };
@@ -29,9 +33,8 @@ impl<'a> SubsetTable<'a> for SequenceContext<'_> {
     ) -> Result<Self::Output, SerializeErrorFlags> {
         match self {
             Self::Format1(item) => item.subset(plan, s, lookup_map),
-            // TODO: support format 2 and 3
             Self::Format2(item) => item.subset(plan, s, lookup_map),
-            Self::Format3(_item) => Ok(()),
+            Self::Format3(item) => item.subset(plan, s, lookup_map),
         }
     }
 }
@@ -383,6 +386,56 @@ impl<'a> SubsetTable<'a> for ClassSequenceRule<'_> {
     }
 }
 
+impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        for cov in self.iter() {
+            let cov =
+                cov.map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+            let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
+            Offset16::serialize_subset(&cov, s, plan, (), offset_pos)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for SequenceContextFormat3<'_> {
+    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        lookup_map: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        // format
+        s.embed(self.format())?;
+        // glyph count
+        s.embed(self.glyph_count())?;
+
+        // seq lookup count
+        let seq_lookup_count_pos = s.embed(0_u16)?;
+
+        // coverage offsets
+        self.coverages().subset(plan, s, ())?;
+
+        // seq lookup records
+        let seq_lookup_count =
+            serialize_lookup_records(self.seq_lookup_records(), plan, lookup_map, s)?;
+        if seq_lookup_count == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        s.copy_assign(seq_lookup_count_pos, seq_lookup_count);
+        Ok(())
+    }
+}
+
 impl<'a> SubsetTable<'a> for ChainedSequenceContext<'_> {
     type ArgsForSubset = &'a FnvHashMap<u16, u16>;
     type Output = ();
@@ -394,9 +447,8 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContext<'_> {
     ) -> Result<Self::Output, SerializeErrorFlags> {
         match self {
             Self::Format1(item) => item.subset(plan, s, lookup_map),
-            // TODO: support format 2 and 3
             Self::Format2(item) => item.subset(plan, s, lookup_map),
-            Self::Format3(_item) => Ok(()),
+            Self::Format3(item) => item.subset(plan, s, lookup_map),
         }
     }
 }
@@ -738,6 +790,47 @@ impl<'a> SubsetTable<'a> for ChainedClassSequenceRule<'_> {
     }
 }
 
+impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat3<'_> {
+    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        lookup_map: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        // format
+        s.embed(self.format())?;
+
+        // backtrack glyph count
+        s.embed(self.backtrack_glyph_count())?;
+        // backtrack coverage offsets
+        self.backtrack_coverages().subset(plan, s, ())?;
+
+        // input glyph count
+        s.embed(self.input_glyph_count())?;
+        // input coverage offsets
+        self.input_coverages().subset(plan, s, ())?;
+
+        // lookahead glyph count
+        s.embed(self.lookahead_glyph_count())?;
+        // lookahead coverage offsets
+        self.lookahead_coverages().subset(plan, s, ())?;
+
+        // seq lookup count
+        let seq_lookup_count_pos = s.embed(0_u16)?;
+
+        // seq lookup records
+        let seq_lookup_count =
+            serialize_lookup_records(self.seq_lookup_records(), plan, lookup_map, s)?;
+        if seq_lookup_count == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        s.copy_assign(seq_lookup_count_pos, seq_lookup_count);
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -978,6 +1071,122 @@ mod test {
             0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01,
             0x00, 0x02, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x06, 0x00, 0x02, 0x00, 0x01,
             0x00, 0x01, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x02,
+        ];
+
+        assert_eq!(subsetted_data, expected_data);
+    }
+
+    #[test]
+    fn test_subset_context_format3() {
+        use write_fonts::read::tables::gsub::SubstitutionSubtables;
+
+        let font = FontRef::new(include_bytes!(
+            "../test-data/fonts/NotoNastaliqUrdu-Regular.ttf"
+        ))
+        .unwrap();
+        let gsub_lookups = font.gsub().unwrap().lookup_list().unwrap();
+        let lookup = gsub_lookups.lookups().get(154).unwrap();
+
+        let SubstitutionSubtables::Contextual(sub_tables) = lookup.subtables().unwrap() else {
+            panic!("Wrong type of lookup table!");
+        };
+        let contextsubst_table = sub_tables.get(1).unwrap();
+        let mut plan = Plan {
+            font_num_glyphs: 1398,
+            ..Default::default()
+        };
+
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(0_u32), GlyphId::from(0_u32));
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(277_u32), GlyphId::from(2_u32));
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(966_u32), GlyphId::from(3_u32));
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(1383_u32), GlyphId::from(4_u32));
+
+        plan.glyphset_gsub.insert(GlyphId::from(0_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(277_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(966_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(1383_u32));
+
+        let mut lookup_map = FnvHashMap::default();
+        lookup_map.insert(152_u16, 0_u16);
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+
+        contextsubst_table
+            .subset(&plan, &mut s, &lookup_map)
+            .unwrap();
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let subsetted_data = s.copy_bytes();
+        let expected_data: [u8; 30] = [
+            0x00, 0x03, 0x00, 0x02, 0x00, 0x01, 0x00, 0x18, 0x00, 0x0e, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x01, 0x00, 0x03, 0x00, 0x00, 0x00, 0x03, 0x00, 0x04, 0x00, 0x01, 0x00, 0x01,
+            0x00, 0x02,
+        ];
+
+        assert_eq!(subsetted_data, expected_data);
+    }
+
+    #[test]
+    fn test_subset_chain_context_format3() {
+        use write_fonts::read::tables::gpos::PositionSubtables;
+
+        let font = FontRef::new(include_bytes!(
+            "../test-data/fonts/NotoNastaliqUrdu-Regular.ttf"
+        ))
+        .unwrap();
+        let gpos_lookups = font.gpos().unwrap().lookup_list().unwrap();
+        let lookup = gpos_lookups.lookups().get(0).unwrap();
+
+        let PositionSubtables::ChainContextual(sub_tables) = lookup.subtables().unwrap() else {
+            panic!("Wrong type of lookup table!");
+        };
+        let contextsubst_table = sub_tables.get(1).unwrap();
+        let mut plan = Plan {
+            font_num_glyphs: 1398,
+            ..Default::default()
+        };
+
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(0_u32), GlyphId::from(0_u32));
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(31_u32), GlyphId::from(1_u32));
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(38_u32), GlyphId::from(2_u32));
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(218_u32), GlyphId::from(3_u32));
+        plan.glyph_map_gsub
+            .insert(GlyphId::from(275_u32), GlyphId::from(4_u32));
+
+        plan.glyphset_gsub.insert(GlyphId::from(0_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(31_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(38_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(218_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(275_u32));
+
+        let mut lookup_map = FnvHashMap::default();
+        lookup_map.insert(1_u16, 1_u16);
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+
+        contextsubst_table
+            .subset(&plan, &mut s, &lookup_map)
+            .unwrap();
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let subsetted_data = s.copy_bytes();
+        let expected_data: [u8; 50] = [
+            0x00, 0x03, 0x00, 0x03, 0x00, 0x2c, 0x00, 0x26, 0x00, 0x1e, 0x00, 0x01, 0x00, 0x18,
+            0x00, 0x01, 0x00, 0x26, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01,
+            0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x04, 0x00, 0x01, 0x00, 0x01,
+            0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x02,
         ];
 
         assert_eq!(subsetted_data, expected_data);
