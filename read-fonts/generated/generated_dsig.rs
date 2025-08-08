@@ -454,17 +454,6 @@ impl SignatureRecord {
     pub fn signature_block_offset(&self) -> Offset32 {
         self.signature_block_offset.get()
     }
-
-    /// Offset to the signature block from the beginning of the table
-    ///
-    /// The `data` argument should be retrieved from the parent table
-    /// By calling its `offset_data` method.
-    pub fn signature_block<'a>(
-        &self,
-        data: FontData<'a>,
-    ) -> Result<SignatureBlockFormat1<'a>, ReadError> {
-        self.signature_block_offset().resolve(data)
-    }
 }
 
 impl FixedSize for SignatureRecord {

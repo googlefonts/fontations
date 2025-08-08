@@ -28,8 +28,6 @@ flags u16 PermissionFlags {
 /// [Signature Record](https://learn.microsoft.com/en-us/typography/opentype/spec/dsig#table-structure)
 record SignatureRecord {
     /// Format of the signature
-    // TODO: How do we validate?
-    // TODO: Can we use an enum, even though the format is on the 'outside'?
     #[compile(1)]
     format: u32,
 
@@ -40,6 +38,7 @@ record SignatureRecord {
     
     /// Offset to the signature block from the beginning of the table
     // TODO: Do we need to factor in the outer length?
+    #[offset_getter(signature_block)]
     signature_block_offset: Offset32<SignatureBlockFormat1>,
 }
 

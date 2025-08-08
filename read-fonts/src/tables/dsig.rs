@@ -2,12 +2,30 @@
 
 include!("../../generated/generated_dsig.rs");
 
+impl SignatureRecord {
+    /// The signature block enclosed within this record.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    ///
+    /// Only format 1 is recognised and read successfully.
+    pub fn signature_block<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Result<SignatureBlockFormat1<'a>, ReadError> {
+        match self.format() {
+            1 => self.signature_block_offset().resolve(data),
+            unknown => Err(ReadError::InvalidFormat(unknown.into())),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use font_test_data::bebuffer::BeBuffer;
 
     use super::{Dsig, PermissionFlags};
-    use crate::{FontData, FontRead};
+    use crate::{FontData, FontRead, ReadError};
 
     /// An empty, dummy DSIG, as inserted by fonttools.
     /// See <https://github.com/fonttools/fonttools/blob/ec716f11851f8d5a04e3f535b53219d97001482a/Lib/fontTools/fontBuilder.py#L823-L833>.
@@ -54,5 +72,36 @@ mod tests {
 
         let block = record.signature_block(data).unwrap();
         assert_eq!(block.signature(), &[0xDE, 0xAD, 0xBE, 0xEF]);
+    }
+
+    // A DSIG with a single entry, but in a format we do not recognise; this
+    // should fail to read.
+    #[test]
+    fn test_unknown_format() {
+        let buf = BeBuffer::new()
+            .push(0x1_u32) // DsigHeader.version
+            .push(0x1_u16) // DsigHeader.numSignatures
+            .push(0x1_u16) // DsigHeader.flags
+            .push(0x2_u32) // SignatureRecord.format, BUT AN UNRECOGNISED ONE
+            .push(0xC_u32) // SignatureRecord.length
+            .push(0x14_u32) // SignatureRecord.signatureBlockOffset
+            .push(0x0_u16) // SignatureBlockFormat1.reserved1
+            .push(0x0_u16) // SignatureBlockFormat1.reserved2
+            .push(0x4_u32) // SignatureBlockFormat1.signatureLength
+            .push(0xDEADBEEF_u32); // SignatureBlockFormat1.signature
+
+        let data = FontData::new(buf.data());
+
+        // Load the first record.
+        let dsig = Dsig::read(data).unwrap();
+
+        assert_eq!(dsig.signature_records().len(), 1);
+        let record = dsig.signature_records()[0];
+
+        // Assert that it is the unknown format '2', and that it fails to be read.
+        assert_eq!(record.format(), 2);
+
+        let block_attempt = record.signature_block(data);
+        assert_eq!(block_attempt.err(), Some(ReadError::InvalidFormat(2)));
     }
 }
