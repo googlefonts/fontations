@@ -39,9 +39,7 @@ record SignatureRecord {
     length: u32,
     
     /// Offset to the signature block from the beginning of the table
-    // TODO: Do we still need the traverse skip?
     // TODO: Do we need to factor in the outer length?
-    #[traverse_with(skip)]
     signature_block_offset: Offset32<SignatureBlockFormat1>,
 }
 

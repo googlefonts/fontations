@@ -481,7 +481,7 @@ impl<'a> SomeRecord<'a> for SignatureRecord {
                 1usize => Some(Field::new("length", self.length())),
                 2usize => Some(Field::new(
                     "signature_block_offset",
-                    traversal::FieldType::Unknown,
+                    FieldType::offset(self.signature_block_offset(), self.signature_block(_data)),
                 )),
                 _ => None,
             }),
