@@ -374,89 +374,18 @@ pub fn entries<'a>(
                     // FontMatrix is also parsed specially... *sigh*
                     // Redo the entire thing with special scaling factors
                     // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffparse.c#L623>
-                    let mut cursor = crate::FontData::new(dict_data).cursor();
-                    cursor.advance_by(cursor_pos);
                     // Dump the current values
                     stack.clear();
-                    // Now reparse with dynamic scaling
-                    let mut values = [Fixed::ZERO; 6];
-                    let mut scalings = [0i32; 6];
-                    let mut max_scaling = i32::MIN;
-                    let mut min_scaling = i32::MAX;
-                    for (value, scaling) in values.iter_mut().zip(&mut scalings) {
-                        let (v, s) = match parse_fixed_dynamic(&mut cursor) {
-                            Ok(value) => value,
-                            Err(e) => return Some(Err(e)),
-                        };
-                        if v != Fixed::ZERO {
-                            max_scaling = max_scaling.max(s);
-                            min_scaling = min_scaling.min(s);
-                        }
-                        *value = v;
-                        *scaling = s;
-                    }
-                    if !(-9..=0).contains(&max_scaling)
-                        || (max_scaling - min_scaling < 0)
-                        || (max_scaling - min_scaling) > 9
-                    {
-                        last_bcd_components = None;
-                        cursor_pos = cursor.position().unwrap_or_default();
-                        continue;
-                    }
-                    for (value, scaling) in values.iter_mut().zip(scalings) {
-                        if *value == Fixed::ZERO {
-                            continue;
-                        }
-                        let divisor = BCD_POWER_TENS[(max_scaling - scaling) as usize];
-                        let half_divisor = divisor >> 1;
-                        if *value < Fixed::ZERO {
-                            if i32::MIN + half_divisor < value.to_bits() {
-                                *value =
-                                    Fixed::from_bits((value.to_bits() - half_divisor) / divisor);
-                            } else {
-                                *value = Fixed::from_bits(i32::MIN / divisor);
-                            }
-                        } else if i32::MAX - half_divisor > value.to_bits() {
-                            *value = Fixed::from_bits((value.to_bits() + half_divisor) / divisor);
-                        } else {
-                            *value = Fixed::from_bits(i32::MAX / divisor);
-                        }
-                    }
-                    // Make sure the matrix isn't degenerate. Convert
-                    // to i64 to avoid overflows below
-                    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/base/ftcalc.c#L725>
-                    let [xx, yx, xy, yy, ..] = values.map(|x| x.to_bits() as i64);
-                    let val = xx.abs() | yx.abs() | xy.abs() | yy.abs();
-                    let temp1 = 32 * (xx * yy - xy * yx).abs();
-                    let temp2 = (xx * xx) + (xy * xy) + (yx * yx) + (yy * yy);
-                    if val == 0 || val > 0x7FFFFFFF || temp1 <= temp2 {
-                        last_bcd_components = None;
-                        cursor_pos = cursor.position().unwrap_or_default();
-                        continue;
-                    }
-                    // FT doesn't seem toa actually use this anywhere
-                    let _upem = BCD_POWER_TENS[(-max_scaling) as usize];
-                    // Now normalize the matrix so that the y scale factor is 1
-                    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffobjs.c#L727>
-                    let factor = if values[3] != Fixed::ZERO {
-                        values[3].abs()
-                    } else {
-                        // Use yx if yy is zero
-                        values[1].abs()
-                    };
-                    if factor != Fixed::ONE {
-                        for value in &mut values {
-                            *value /= factor;
-                        }
-                    }
-                    // FT shifts off the fractional parts of the translation?
-                    for offset in values[4..6].iter_mut() {
-                        *offset = Fixed::from_bits(offset.to_bits() >> 16);
-                    }
-                    // FreeType doesn't seem to actually use this value
                     last_bcd_components = None;
-                    cursor_pos = cursor.position().unwrap_or_default();
-                    return Some(Ok(Entry::FontMatrix(values)));
+                    // Now reparse with dynamic scaling
+                    let mut cursor = crate::FontData::new(dict_data).cursor();
+                    cursor.advance_by(cursor_pos);
+                    if let Some((matrix, _upem)) = parse_font_matrix(&mut cursor) {
+                        // FreeType doesn't seem to make use of the upem
+                        // conversion factor. Seems like a bug?
+                        return Some(Ok(Entry::FontMatrix(matrix)));
+                    }
+                    continue;
                 }
                 last_bcd_components = None;
                 let entry = parse_entry(op, &mut stack);
@@ -560,6 +489,87 @@ fn parse_entry(op: Operator, stack: &mut Stack) -> Result<Entry, Error> {
         // Blend is handled at the layer above
         Blend => unreachable!(),
     })
+}
+
+/// Parses a font matrix using dynamic scaling factors.
+///
+/// Returns the matrix and an adjusted upem factor.
+fn parse_font_matrix(cursor: &mut Cursor) -> Option<([Fixed; 6], i32)> {
+    let mut values = [Fixed::ZERO; 6];
+    let mut scalings = [0i32; 6];
+    let mut max_scaling = i32::MIN;
+    let mut min_scaling = i32::MAX;
+    for (value, scaling) in values.iter_mut().zip(&mut scalings) {
+        let (v, s) = parse_fixed_dynamic(cursor).ok()?;
+        if v != Fixed::ZERO {
+            max_scaling = max_scaling.max(s);
+            min_scaling = min_scaling.min(s);
+        }
+        *value = v;
+        *scaling = s;
+    }
+    if !(-9..=0).contains(&max_scaling)
+        || (max_scaling - min_scaling < 0)
+        || (max_scaling - min_scaling) > 9
+    {
+        return None;
+    }
+    for (value, scaling) in values.iter_mut().zip(scalings) {
+        if *value == Fixed::ZERO {
+            continue;
+        }
+        let divisor = BCD_POWER_TENS[(max_scaling - scaling) as usize];
+        let half_divisor = divisor >> 1;
+        if *value < Fixed::ZERO {
+            if i32::MIN + half_divisor < value.to_bits() {
+                *value = Fixed::from_bits((value.to_bits() - half_divisor) / divisor);
+            } else {
+                *value = Fixed::from_bits(i32::MIN / divisor);
+            }
+        } else if i32::MAX - half_divisor > value.to_bits() {
+            *value = Fixed::from_bits((value.to_bits() + half_divisor) / divisor);
+        } else {
+            *value = Fixed::from_bits(i32::MAX / divisor);
+        }
+    }
+    // Check for a degenerate matrix
+    if is_degenerate(&values) {
+        return None;
+    }
+    let mut upem = BCD_POWER_TENS[(-max_scaling) as usize];
+    // Now normalize the matrix so that the y scale factor is 1
+    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffobjs.c#L727>
+    let factor = if values[3] != Fixed::ZERO {
+        values[3].abs()
+    } else {
+        // Use yx if yy is zero
+        values[1].abs()
+    };
+    if factor != Fixed::ONE {
+        upem = (Fixed::from_bits(upem) / factor).to_bits();
+        for value in &mut values {
+            *value /= factor;
+        }
+    }
+    // FT shifts off the fractional parts of the translation?
+    for offset in values[4..6].iter_mut() {
+        *offset = Fixed::from_bits(offset.to_bits() >> 16);
+    }
+    Some((values, upem))
+}
+
+/// Check for a degenerate matrix.
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/base/ftcalc.c#L725>
+fn is_degenerate(matrix: &[Fixed; 6]) -> bool {
+    // Convert to i64 to avoid overflows below
+    let [xx, yx, xy, yy, ..] = matrix.map(|x| x.to_bits() as i64);
+    let val = xx.abs() | yx.abs() | xy.abs() | yy.abs();
+    let temp1 = 32 * (xx * yy - xy * yx).abs();
+    let temp2 = (xx * xx) + (xy * xy) + (yx * yx) + (yy * yy);
+    if val == 0 || val > 0x7FFFFFFF || temp1 <= temp2 {
+        return true;
+    }
+    false
 }
 
 /// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psblues.h#L141>
@@ -1130,7 +1140,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_font_matrix() {
+    fn read_font_matrix() {
         let dict_data = [
             30u8, 10, 0, 31, 139, 30, 10, 0, 1, 103, 255, 30, 10, 0, 31, 139, 139, 12, 7,
         ];
