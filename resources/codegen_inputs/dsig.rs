@@ -32,7 +32,6 @@ record SignatureRecord {
     format: u32,
 
     /// Length of signature in bytes
-    // TODO: Can this be derived automatically?
     #[compile(self.compute_signature_block_len())]
     length: u32,
     
