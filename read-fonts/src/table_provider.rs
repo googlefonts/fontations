@@ -243,6 +243,10 @@ pub trait TableProvider<'a> {
     fn base(&self) -> Result<tables::base::Base<'a>, ReadError> {
         self.expect_table()
     }
+
+    fn dsig(&self) -> Result<tables::dsig::Dsig<'a>, ReadError> {
+        self.expect_table()
+    }
 }
 
 #[cfg(test)]
