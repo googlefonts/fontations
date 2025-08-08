@@ -37,7 +37,6 @@ record SignatureRecord {
     length: u32,
     
     /// Offset to the signature block from the beginning of the table
-    // TODO: Do we need to factor in the outer length?
     #[offset_getter(signature_block)]
     signature_block_offset: Offset32<SignatureBlockFormat1>,
 }

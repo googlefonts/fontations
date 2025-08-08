@@ -14,9 +14,32 @@ impl SignatureRecord {
         data: FontData<'a>,
     ) -> Result<SignatureBlockFormat1<'a>, ReadError> {
         match self.format() {
-            1 => self.signature_block_offset().resolve(data),
+            1 => {
+                let signature = self
+                    .signature_block_offset()
+                    .resolve::<SignatureBlockFormat1>(data)?;
+
+                // Check that the inner block fits within the size denoted by
+                // our length field.
+                let actual_len = u32::try_from(signature.byte_range().len())
+                    .map_err(|_| ReadError::OutOfBounds)?;
+
+                if actual_len <= self.length() {
+                    Ok(signature)
+                } else {
+                    Err(ReadError::OutOfBounds)
+                }
+            }
             unknown => Err(ReadError::InvalidFormat(unknown.into())),
         }
+    }
+}
+
+impl SignatureBlockFormat1<'_> {
+    /// Return the exact byte range of this table.
+    fn byte_range(&self) -> Range<usize> {
+        // This format includes no trailing data.
+        self.min_byte_range()
     }
 }
 
@@ -103,5 +126,36 @@ mod tests {
 
         let block_attempt = record.signature_block(data);
         assert_eq!(block_attempt.err(), Some(ReadError::InvalidFormat(2)));
+    }
+
+    // A DSIG with a single entry, whose inner block requires a greater length
+    // than its outer record's length field prescribes; this should fail to
+    // read.
+    #[test]
+    fn test_lying_length() {
+        let buf = BeBuffer::new()
+            .push(0x1_u32) // DsigHeader.version
+            .push(0x1_u16) // DsigHeader.numSignatures
+            .push(0x1_u16) // DsigHeader.flags
+            .push(0x1_u32) // SignatureRecord.format
+            .push(0xB_u32) // SignatureRecord.length, BUT ONE LESS THAN THE INNER LENGTH REQUIRES
+            .push(0x14_u32) // SignatureRecord.signatureBlockOffset
+            .push(0x0_u16) // SignatureBlockFormat1.reserved1
+            .push(0x0_u16) // SignatureBlockFormat1.reserved2
+            .push(0x4_u32) // SignatureBlockFormat1.signatureLength
+            .push(0xDEADBEEF_u32); // SignatureBlockFormat1.signature
+
+        let data = FontData::new(buf.data());
+
+        // Load the first record.
+        let dsig = Dsig::read(data).unwrap();
+
+        assert_eq!(dsig.signature_records().len(), 1);
+        let record = dsig.signature_records()[0];
+
+        // Assert that we yield an error, because the inner length requires more
+        // bytes than the outer length prescribes.
+        let block_attempt = record.signature_block(data);
+        assert_eq!(block_attempt.err(), Some(ReadError::OutOfBounds));
     }
 }
