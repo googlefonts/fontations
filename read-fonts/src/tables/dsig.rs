@@ -19,15 +19,14 @@ impl SignatureRecord {
                     .signature_block_offset()
                     .resolve::<SignatureBlockFormat1>(data)?;
 
-                // Check that the inner block fits within the size denoted by
-                // our length field.
+                // Check that the inner block's size matches our length field.
                 let actual_len =
                     u32::try_from(signature.compute_len()).map_err(|_| ReadError::OutOfBounds)?;
 
-                if actual_len <= self.length() {
+                if self.length() == actual_len {
                     Ok(signature)
                 } else {
-                    Err(ReadError::OutOfBounds)
+                    Err(ReadError::MalformedData("ambiguous DSIG signature length"))
                 }
             }
             unknown => Err(ReadError::InvalidFormat(unknown.into())),
@@ -128,9 +127,9 @@ mod tests {
         assert_eq!(block_attempt.err(), Some(ReadError::InvalidFormat(2)));
     }
 
-    // A DSIG with a single entry, whose inner block requires a greater length
-    // than its outer record's length field prescribes; this should fail to
-    // read.
+    // A DSIG with a single entry, whose inner block has a different length to
+    // that which the outer record's length field prescribes; this is ambiguous,
+    // and so should fail to read.
     #[test]
     fn test_lying_length() {
         let buf = BeBuffer::new()
@@ -156,6 +155,9 @@ mod tests {
         // Assert that we yield an error, because the inner length requires more
         // bytes than the outer length prescribes.
         let block_attempt = record.signature_block(data);
-        assert_eq!(block_attempt.err(), Some(ReadError::OutOfBounds));
+        assert_eq!(
+            block_attempt.err(),
+            Some(ReadError::MalformedData("ambiguous DSIG signature length"))
+        );
     }
 }
