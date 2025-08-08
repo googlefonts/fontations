@@ -11,6 +11,12 @@ include!("../../generated/generated_post.rs");
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PString(String);
 
+impl<I : Into<String>> From<I> for PString {
+    fn from(value: I) -> Self {
+        Self(value.into())
+    }
+}
+
 impl Post {
     /// Construct a new version 2.0 table from a glyph order.
     pub fn new_v2<'a>(order: impl IntoIterator<Item = &'a str>) -> Self {
@@ -132,5 +138,11 @@ mod tests {
         assert_eq!(loaded.glyph_name(GlyphId16::new(3)), Some("C"));
         assert_eq!(loaded.glyph_name(GlyphId16::new(4)), Some("A"));
         assert_eq!(loaded.glyph_name(GlyphId16::new(5)), Some("flarb"));
+    }
+    
+    #[test]
+    fn test_pstring_dref() {
+        let string = PString::from("Hello");
+        assert_eq!("Hello", std::ops::Deref::deref(&string));
     }
 }
