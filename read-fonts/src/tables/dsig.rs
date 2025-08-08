@@ -21,8 +21,8 @@ impl SignatureRecord {
 
                 // Check that the inner block fits within the size denoted by
                 // our length field.
-                let actual_len = u32::try_from(signature.byte_range().len())
-                    .map_err(|_| ReadError::OutOfBounds)?;
+                let actual_len =
+                    u32::try_from(signature.compute_len()).map_err(|_| ReadError::OutOfBounds)?;
 
                 if actual_len <= self.length() {
                     Ok(signature)
@@ -36,10 +36,10 @@ impl SignatureRecord {
 }
 
 impl SignatureBlockFormat1<'_> {
-    /// Return the exact byte range of this table.
-    fn byte_range(&self) -> Range<usize> {
-        // This format includes no trailing data.
-        self.min_byte_range()
+    /// Return the exact byte length of this table.
+    fn compute_len(&self) -> usize {
+        // This format is contiguous, and includes no trailing data.
+        self.min_byte_range().len()
     }
 }
 
