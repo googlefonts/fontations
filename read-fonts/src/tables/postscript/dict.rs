@@ -561,12 +561,23 @@ fn parse_font_matrix(cursor: &mut Cursor) -> Option<([Fixed; 6], i32)> {
 /// Check for a degenerate matrix.
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/base/ftcalc.c#L725>
 fn is_degenerate(matrix: &[Fixed; 6]) -> bool {
-    // Convert to i64 to avoid overflows below
-    let [xx, yx, xy, yy, ..] = matrix.map(|x| x.to_bits() as i64);
+    let [mut xx, mut yx, mut xy, mut yy, ..] = matrix.map(|x| x.to_bits() as i64);
     let val = xx.abs() | yx.abs() | xy.abs() | yy.abs();
+    if val == 0 || val > 0x7FFFFFFF {
+        return true;
+    }
+    // Scale the matrix to avoid temp1 overflow
+    let msb = 32 - (val as i32).leading_zeros() - 1;
+    let shift = msb as i32 - 12;
+    if shift > 0 {
+        xx >>= shift;
+        xy >>= shift;
+        yx >>= shift;
+        yy >>= shift;
+    }
     let temp1 = 32 * (xx * yy - xy * yx).abs();
     let temp2 = (xx * xx) + (xy * xy) + (yx * yx) + (yy * yy);
-    if val == 0 || val > 0x7FFFFFFF || temp1 <= temp2 {
+    if temp1 <= temp2 {
         return true;
     }
     false
@@ -1169,5 +1180,25 @@ mod tests {
         ];
         // Don't return a degenerate matrix at all
         assert!(entries(&dict_data, None).next().is_none());
+    }
+
+    /// See <https://github.com/googlefonts/fontations/issues/1595>
+    #[test]
+    fn degenerate_matrix_check_doesnt_overflow() {
+        // Values taken from font in the above issue
+        let matrix = [
+            Fixed::from_bits(639999672),
+            Fixed::ZERO,
+            Fixed::ZERO,
+            Fixed::from_bits(639999672),
+            Fixed::ZERO,
+            Fixed::ZERO,
+        ];
+        // Just don't panic with overflow
+        is_degenerate(&matrix);
+        // Try again with all max values
+        is_degenerate(&[Fixed::MAX; 6]);
+        // And all min values
+        is_degenerate(&[Fixed::MIN; 6]);
     }
 }
