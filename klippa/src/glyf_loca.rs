@@ -20,6 +20,7 @@ use write_fonts::{
         types::GlyphId,
         FontRef, TableProvider, TopLevelTable,
     },
+    types::BytesWrapper,
     FontBuilder,
 };
 

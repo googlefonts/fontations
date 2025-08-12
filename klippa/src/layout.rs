@@ -25,7 +25,7 @@ use write_fonts::{
         types::{GlyphId, GlyphId16, NameId},
         FontData, FontRead, FontRef, TopLevelTable,
     },
-    types::{FixedSize, Offset16, Tag},
+    types::{BytesWrapper, FixedSize, Offset16, Tag},
 };
 
 const MAX_SCRIPTS: u16 = 500;

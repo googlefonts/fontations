@@ -2243,7 +2243,7 @@ impl<'a> TableKeyedPatch<'a> {
     }
 
     /// A dynamically resolving wrapper for [`patch_offsets`][Self::patch_offsets].
-    pub fn patches(&self) -> ArrayOfOffsets<'a, TablePatch<'a>, Offset32> {
+    pub fn patches(&self) -> ArrayOfOffsets<'a, TablePatch<'a>, BigEndian<Offset32>> {
         let data = self.data;
         let offsets = self.patch_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -3242,7 +3242,7 @@ impl<'a> GlyphPatches<'a> {
     }
 
     /// A dynamically resolving wrapper for [`glyph_data_offsets`][Self::glyph_data_offsets].
-    pub fn glyph_data(&self) -> ArrayOfOffsets<'a, GlyphData<'a>, Offset32> {
+    pub fn glyph_data(&self) -> ArrayOfOffsets<'a, GlyphData<'a>, BigEndian<Offset32>> {
         let data = self.data;
         let offsets = self.glyph_data_offsets();
         ArrayOfOffsets::new(offsets, data, ())

@@ -11,6 +11,7 @@ use std::io::Cursor;
 use std::io::Read;
 use std::ops::RangeInclusive;
 
+use font_types::BytesWrapper;
 use font_types::Fixed;
 use font_types::Int24;
 use font_types::Tag;

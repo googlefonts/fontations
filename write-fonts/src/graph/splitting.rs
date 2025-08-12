@@ -11,7 +11,7 @@
 
 use std::collections::HashMap;
 
-use font_types::GlyphId16;
+use font_types::{BytesWrapper, GlyphId16};
 use read_fonts::tables::{
     gpos::{self as rgpos},
     layout as rlayout,

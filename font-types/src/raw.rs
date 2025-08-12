@@ -43,7 +43,7 @@ pub trait FixedSize: Sized {
 
 /// we hide this trait; it isn't part of the public API, and this clarifies
 /// the guarantee that it is only implemented for [u8; N]
-mod sealed {
+pub(super) mod sealed {
     /// A trait representing any fixed-size big-endian byte array.
     ///
     /// This is only used in `Scalar`, as a way of expressing the condition that the
@@ -68,6 +68,21 @@ mod sealed {
     }
 }
 
+/// A trait for types that contain a byte slice which can be decoded to a scalar value.
+pub trait BytesWrapper: Sized {
+    type Inner: Sized;
+    /// Attempt to construct a new raw value from this slice.
+    ///
+    /// This will fail if `slice.len() != T::RAW_BYTE_LEN`.
+    fn from_slice(slice: &[u8]) -> Option<Self>;
+
+    /// Get the scalar value of the bytes contained in this byte wrapper.
+    fn get(&self) -> Self::Inner;
+
+    /// Set the value, overwriting the bytes.
+    fn set(&mut self, value: Self::Inner);
+}
+
 /// A wrapper around raw big-endian bytes for some type.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -83,28 +98,31 @@ unsafe impl<T> bytemuck::Zeroable for BigEndian<T> where T: Scalar + Copy {}
 #[cfg(feature = "bytemuck")]
 unsafe impl<T> bytemuck::AnyBitPattern for BigEndian<T> where T: Scalar + Copy + 'static {}
 
-impl<T: Scalar> BigEndian<T> {
-    /// construct a new `BigEndian<T>` from raw bytes
-    pub fn new(raw: T::Raw) -> BigEndian<T> {
-        BigEndian(raw)
-    }
-
+impl<T: Scalar> BytesWrapper for BigEndian<T> {
+    type Inner = T;
     /// Attempt to construct a new raw value from this slice.
     ///
     /// This will fail if `slice.len() != T::RAW_BYTE_LEN`.
-    pub fn from_slice(slice: &[u8]) -> Option<Self> {
+    fn from_slice(slice: &[u8]) -> Option<Self> {
         sealed::BeByteArray::from_slice(slice).map(Self)
     }
 
     /// Convert this raw type to its native representation.
     #[inline(always)]
-    pub fn get(&self) -> T {
+    fn get(&self) -> T {
         T::from_raw(self.0)
     }
 
     /// Set the value, overwriting the bytes.
-    pub fn set(&mut self, value: T) {
+    fn set(&mut self, value: T) {
         self.0 = value.to_raw();
+    }
+}
+
+impl<T: Scalar> BigEndian<T> {
+    /// construct a new `BigEndian<T>` from raw bytes
+    pub fn new(raw: T::Raw) -> BigEndian<T> {
+        BigEndian(raw)
     }
 
     /// Get the raw big-endian bytes.

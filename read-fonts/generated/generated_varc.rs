@@ -270,7 +270,9 @@ impl<'a> MultiItemVariationStore<'a> {
     }
 
     /// A dynamically resolving wrapper for [`variation_data_offsets`][Self::variation_data_offsets].
-    pub fn variation_data(&self) -> ArrayOfOffsets<'a, MultiItemVariationData<'a>, Offset32> {
+    pub fn variation_data(
+        &self,
+    ) -> ArrayOfOffsets<'a, MultiItemVariationData<'a>, BigEndian<Offset32>> {
         let data = self.data;
         let offsets = self.variation_data_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -373,7 +375,7 @@ impl<'a> SparseVariationRegionList<'a> {
     }
 
     /// A dynamically resolving wrapper for [`region_offsets`][Self::region_offsets].
-    pub fn regions(&self) -> ArrayOfOffsets<'a, SparseVariationRegion<'a>, Offset32> {
+    pub fn regions(&self) -> ArrayOfOffsets<'a, SparseVariationRegion<'a>, BigEndian<Offset32>> {
         let data = self.data;
         let offsets = self.region_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -707,7 +709,7 @@ impl<'a> ConditionList<'a> {
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
-    pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset32> {
+    pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, BigEndian<Offset32>> {
         let data = self.data;
         let offsets = self.condition_offsets();
         ArrayOfOffsets::new(offsets, data, ())

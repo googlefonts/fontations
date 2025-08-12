@@ -1,8 +1,9 @@
 //! Subset arrays of offsets
 use crate::{offset::SerializeSubset, Plan, SerializeErrorFlags, Serializer, SubsetTable};
+use skrifa::raw::ResolveNullableOffset;
 use write_fonts::{
     read::{ArrayOfNullableOffsets, ArrayOfOffsets, FontReadWithArgs, Offset, ReadArgs},
-    types::{FixedSize, Scalar},
+    types::{BytesWrapper, FixedSize},
 };
 
 pub(crate) trait SubsetOffsetArray<'a, T: SubsetTable<'a>> {
@@ -17,7 +18,8 @@ pub(crate) trait SubsetOffsetArray<'a, T: SubsetTable<'a>> {
 
 impl<'a, T, O> SubsetOffsetArray<'a, T> for ArrayOfOffsets<'a, T, O>
 where
-    O: Scalar + Offset + FixedSize + SerializeSubset,
+    O: BytesWrapper,
+    O::Inner: Offset + FixedSize + SerializeSubset,
     T: ReadArgs + FontReadWithArgs<'a> + SubsetTable<'a>,
     T::Args: Copy + 'static,
 {
@@ -32,9 +34,9 @@ where
             .get(idx)
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
         let snap = s.snapshot();
-        let offset_pos = s.allocate_size(O::RAW_BYTE_LEN, true)?;
+        let offset_pos = s.allocate_size(O::Inner::RAW_BYTE_LEN, true)?;
 
-        if let Err(e) = O::serialize_subset(&t, s, plan, args, offset_pos) {
+        if let Err(e) = O::Inner::serialize_subset(&t, s, plan, args, offset_pos) {
             s.revert_snapshot(snap);
             return Err(e);
         }
@@ -45,7 +47,8 @@ where
 
 impl<'a, T, O> SubsetOffsetArray<'a, T> for ArrayOfNullableOffsets<'a, T, O>
 where
-    O: Scalar + Offset + FixedSize + SerializeSubset,
+    O: BytesWrapper,
+    O::Inner: ResolveNullableOffset + FixedSize + SerializeSubset,
     T: ReadArgs + FontReadWithArgs<'a> + SubsetTable<'a>,
     T::Args: Copy + 'static,
 {
@@ -59,9 +62,9 @@ where
         match self.get(idx) {
             Some(Ok(t)) => {
                 let snap = s.snapshot();
-                let offset_pos = s.allocate_size(O::RAW_BYTE_LEN, true)?;
+                let offset_pos = s.allocate_size(O::Inner::RAW_BYTE_LEN, true)?;
 
-                match O::serialize_subset(&t, s, plan, args, offset_pos) {
+                match O::Inner::serialize_subset(&t, s, plan, args, offset_pos) {
                     Ok(_) => Ok(()),
                     Err(e) => {
                         s.revert_snapshot(snap);

@@ -98,7 +98,7 @@ pub struct ContextualSubtable<'a> {
     pub state_table: ExtendedStateTable<'a, ContextualEntryData>,
     /// List of lookups specifying substitutions. The index into this array
     /// is specified by the action in the state table.
-    pub lookups: ArrayOfOffsets<'a, LookupU16<'a>, Offset32>,
+    pub lookups: ArrayOfOffsets<'a, LookupU16<'a>, BigEndian<Offset32>>,
 }
 
 impl<'a> FontRead<'a> for ContextualSubtable<'a> {

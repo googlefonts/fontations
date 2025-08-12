@@ -22,6 +22,7 @@
 //!   as an argument for this parameter.
 //!
 
+use raw::types::BytesWrapper;
 use read_fonts::{
     tables::{
         glyf::Glyf, gvar::Gvar, hmtx::LongMetric, hvar::Hvar, loca::Loca, os2::SelectionFlags,

@@ -143,7 +143,7 @@ impl VariationAxisRecord {
 #[cfg(test)]
 mod tests {
     use crate::{FontRef, TableProvider};
-    use types::{F2Dot14, Fixed, NameId, Tag};
+    use types::{BytesWrapper, F2Dot14, Fixed, NameId, Tag};
 
     #[test]
     fn axes() {
