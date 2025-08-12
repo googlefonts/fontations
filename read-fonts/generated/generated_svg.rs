@@ -54,9 +54,9 @@ impl TopLevelTable for Svg<'_> {
 impl<'a> FontRead<'a> for Svg<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SvgFixedFields = cursor.read_ref()?;
-        cursor.finish(SvgMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<SvgFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(SvgMarker {}, table_data)
     }
 }
 
@@ -81,7 +81,7 @@ impl<'a> Svg<'a> {
     /// Attempt to resolve [`svg_document_list_offset`][Self::svg_document_list_offset].
     #[inline]
     pub fn svg_document_list(&self) -> Result<SVGDocumentList<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.svg_document_list_offset().resolve(data)
     }
 }
@@ -150,9 +150,9 @@ impl MinByteRange for SVGDocumentListMarker {
 impl<'a> FontRead<'a> for SVGDocumentList<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SVGDocumentListFixedFields = cursor.read_ref()?;
-        let num_entries = fixed_fields.num_entries.get();
+        let (mut cursor, table_data) = Cursor::start::<SVGDocumentListFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_entries = _header.num_entries.get();
         let document_records_byte_len = (num_entries as usize)
             .checked_mul(SVGDocumentRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -161,7 +161,7 @@ impl<'a> FontRead<'a> for SVGDocumentList<'a> {
             SVGDocumentListMarker {
                 document_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -181,7 +181,7 @@ impl<'a> SVGDocumentList<'a> {
     #[inline]
     pub fn document_records(&self) -> &'a [SVGDocumentRecord] {
         let range = self.shape.document_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

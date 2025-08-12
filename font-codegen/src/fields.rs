@@ -431,7 +431,7 @@ fn traversal_arm_for_field(
                 target: OffsetTarget::Table(target),
                 ..
             } => {
-                let maybe_data = pass_data.is_none().then(|| quote!(let data = self.data;));
+                let maybe_data = pass_data.is_none().then(|| quote!(let data = self.offset_data();));
                 let args_if_needed = fld.attrs.read_offset_args.as_ref().map(|args| {
                     let args = args.to_tokens_for_table_getter();
                     quote!(let args = #args;)
@@ -841,13 +841,13 @@ impl Field {
         let range_stmt = self.getter_range_stmt();
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
             let get_args = args.to_tokens_for_table_getter();
-            quote!( self.data.read_with_args(range, &#get_args).unwrap() )
+            quote!( self.offset_data().read_with_args(range, &#get_args).unwrap() )
         } else if is_var_array {
-            quote!(VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap())
+            quote!(VarLenArray::read(self.offset_data().split_off(range.start).unwrap()).unwrap())
         } else if is_array {
-            quote!(self.data.read_array(range).unwrap())
+            quote!(self.offset_data().read_array(range).unwrap())
         } else {
-            quote!(self.data.read_at(range.start).unwrap())
+            quote!(self.offset_data().read_at(range.start).unwrap())
         };
         if is_versioned {
             read_stmt = quote!(Some(#read_stmt));
@@ -965,7 +965,9 @@ impl Field {
             record.and_then(|x| x.lifetime.is_none().then(|| quote!(<'a>)));
 
         // if a table, data is self.data, else it is passed as an argument
-        let data_alias_if_needed = record.is_none().then(|| quote!(let data = self.data;));
+        let data_alias_if_needed = record
+            .is_none()
+            .then(|| quote!(let data = self.offset_data();));
 
         let args_if_needed = self.attrs.read_offset_args.as_ref().map(|args| {
             let args = args.to_tokens_for_table_getter();
@@ -1141,9 +1143,9 @@ impl Field {
         } else if self.read_at_parse_time {
             if self.is_fixed {
                 if self.has_big_endian_wrapper() {
-                    quote! ( let #name = fixed_fields.#name.get(); )
+                    quote! ( let #name = _header.#name.get(); )
                 } else {
-                    quote! ( let #name = fixed_fields.#name; )
+                    quote! ( let #name = _header.#name; )
                 }
             } else {
                 let typ = self.typ.cooked_type_tokens();

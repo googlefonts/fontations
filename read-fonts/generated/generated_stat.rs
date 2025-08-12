@@ -84,9 +84,9 @@ impl TopLevelTable for Stat<'_> {
 impl<'a> FontRead<'a> for Stat<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a StatFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
+        let (mut cursor, table_data) = Cursor::start::<StatFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
         let elided_fallback_name_id_byte_start = version
             .compatible((1u16, 1u16))
             .then(|| cursor.position())
@@ -98,7 +98,7 @@ impl<'a> FontRead<'a> for Stat<'a> {
             StatMarker {
                 elided_fallback_name_id_byte_start,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -141,7 +141,7 @@ impl<'a> Stat<'a> {
     /// Attempt to resolve [`design_axes_offset`][Self::design_axes_offset].
     #[inline]
     pub fn design_axes(&self) -> Result<&'a [AxisRecord], ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.design_axis_count();
         self.design_axes_offset().resolve_with_args(data, &args)
     }
@@ -164,7 +164,7 @@ impl<'a> Stat<'a> {
     /// Attempt to resolve [`offset_to_axis_value_offsets`][Self::offset_to_axis_value_offsets].
     #[inline]
     pub fn offset_to_axis_values(&self) -> Option<Result<AxisValueArray<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.axis_value_count();
         self.offset_to_axis_value_offsets()
             .resolve_with_args(data, &args)
@@ -176,7 +176,7 @@ impl<'a> Stat<'a> {
     #[inline]
     pub fn elided_fallback_name_id(&self) -> Option<NameId> {
         let range = self.shape.elided_fallback_name_id_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 }
 
@@ -321,8 +321,8 @@ impl<'a> FontReadWithArgs<'a> for AxisValueArray<'a> {
     #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let axis_value_count = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AxisValueArrayFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<AxisValueArrayFixedFields>(data)?;
+        let _header = table_data.header();
         let axis_value_offsets_byte_len = (axis_value_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -331,7 +331,7 @@ impl<'a> FontReadWithArgs<'a> for AxisValueArray<'a> {
             AxisValueArrayMarker {
                 axis_value_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -358,13 +358,13 @@ impl<'a> AxisValueArray<'a> {
     #[inline]
     pub fn axis_value_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.axis_value_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`axis_value_offsets`][Self::axis_value_offsets].
     #[inline]
     pub fn axis_values(&self) -> ArrayOfOffsets<'a, AxisValue<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.axis_value_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -378,7 +378,7 @@ impl<'a> SomeTable<'a> for AxisValueArray<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "axis_value_offsets",
                     FieldType::array_of_offsets(
@@ -577,9 +577,9 @@ impl MinByteRange for AxisValueFormat1Marker {
 impl<'a> FontRead<'a> for AxisValueFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AxisValueFormat1FixedFields = cursor.read_ref()?;
-        cursor.finish(AxisValueFormat1Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<AxisValueFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(AxisValueFormat1Marker {}, table_data)
     }
 }
 
@@ -725,9 +725,9 @@ impl MinByteRange for AxisValueFormat2Marker {
 impl<'a> FontRead<'a> for AxisValueFormat2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AxisValueFormat2FixedFields = cursor.read_ref()?;
-        cursor.finish(AxisValueFormat2Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<AxisValueFormat2FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(AxisValueFormat2Marker {}, table_data)
     }
 }
 
@@ -882,9 +882,9 @@ impl MinByteRange for AxisValueFormat3Marker {
 impl<'a> FontRead<'a> for AxisValueFormat3<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AxisValueFormat3FixedFields = cursor.read_ref()?;
-        cursor.finish(AxisValueFormat3Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<AxisValueFormat3FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(AxisValueFormat3Marker {}, table_data)
     }
 }
 
@@ -1023,9 +1023,9 @@ impl MinByteRange for AxisValueFormat4Marker {
 impl<'a> FontRead<'a> for AxisValueFormat4<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AxisValueFormat4FixedFields = cursor.read_ref()?;
-        let axis_count = fixed_fields.axis_count.get();
+        let (mut cursor, table_data) = Cursor::start::<AxisValueFormat4FixedFields>(data)?;
+        let _header = table_data.header();
+        let axis_count = _header.axis_count.get();
         let axis_values_byte_len = (axis_count as usize)
             .checked_mul(AxisValueRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1034,7 +1034,7 @@ impl<'a> FontRead<'a> for AxisValueFormat4<'a> {
             AxisValueFormat4Marker {
                 axis_values_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1075,7 +1075,7 @@ impl<'a> AxisValueFormat4<'a> {
     #[inline]
     pub fn axis_values(&self) -> &'a [AxisValueRecord] {
         let range = self.shape.axis_values_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

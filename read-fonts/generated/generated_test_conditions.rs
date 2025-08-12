@@ -55,9 +55,9 @@ impl MinByteRange for MajorMinorVersionMarker {
 impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a MajorMinorVersionFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
+        let (mut cursor, table_data) = Cursor::start::<MajorMinorVersionFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
         let if_11_byte_start = version
             .compatible((1u16, 1u16))
             .then(|| cursor.position())
@@ -77,7 +77,7 @@ impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
                 if_11_byte_start,
                 if_20_byte_start,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -100,13 +100,13 @@ impl<'a> MajorMinorVersion<'a> {
     #[inline]
     pub fn if_11(&self) -> Option<u16> {
         let range = self.shape.if_11_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     #[inline]
     pub fn if_20(&self) -> Option<u32> {
         let range = self.shape.if_20_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 }
 
@@ -500,9 +500,9 @@ impl MinByteRange for FlagDayMarker {
 impl<'a> FontRead<'a> for FlagDay<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a FlagDayFixedFields = cursor.read_ref()?;
-        let flags = fixed_fields.flags.get();
+        let (mut cursor, table_data) = Cursor::start::<FlagDayFixedFields>(data)?;
+        let _header = table_data.header();
+        let flags = _header.flags.get();
         let foo_byte_start = flags
             .contains(GotFlags::FOO)
             .then(|| cursor.position())
@@ -530,7 +530,7 @@ impl<'a> FontRead<'a> for FlagDay<'a> {
                 bar_byte_start,
                 baz_byte_start,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -552,19 +552,19 @@ impl<'a> FlagDay<'a> {
     #[inline]
     pub fn foo(&self) -> Option<u16> {
         let range = self.shape.foo_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     #[inline]
     pub fn bar(&self) -> Option<u16> {
         let range = self.shape.bar_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     #[inline]
     pub fn baz(&self) -> Option<u16> {
         let range = self.shape.baz_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 }
 
@@ -671,9 +671,9 @@ impl MinByteRange for FieldsAfterConditionalsMarker {
 impl<'a> FontRead<'a> for FieldsAfterConditionals<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a FieldsAfterConditionalsFixedFields = cursor.read_ref()?;
-        let flags = fixed_fields.flags.get();
+        let (mut cursor, table_data) = Cursor::start::<FieldsAfterConditionalsFixedFields>(data)?;
+        let _header = table_data.header();
+        let flags = _header.flags.get();
         let foo_byte_start = flags
             .contains(GotFlags::FOO)
             .then(|| cursor.position())
@@ -704,7 +704,7 @@ impl<'a> FontRead<'a> for FieldsAfterConditionals<'a> {
                 bar_byte_start,
                 baz_byte_start,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -722,37 +722,37 @@ impl<'a> FieldsAfterConditionals<'a> {
     #[inline]
     pub fn foo(&self) -> Option<u16> {
         let range = self.shape.foo_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     #[inline]
     pub fn always_here(&self) -> u16 {
         let range = self.shape.always_here_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     #[inline]
     pub fn bar(&self) -> Option<u16> {
         let range = self.shape.bar_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     #[inline]
     pub fn baz(&self) -> Option<u16> {
         let range = self.shape.baz_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     #[inline]
     pub fn also_always_here(&self) -> u16 {
         let range = self.shape.also_always_here_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     #[inline]
     pub fn and_me_too(&self) -> u16 {
         let range = self.shape.and_me_too_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 }
 

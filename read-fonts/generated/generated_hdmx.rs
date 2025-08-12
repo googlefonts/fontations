@@ -67,10 +67,10 @@ impl<'a> FontReadWithArgs<'a> for Hdmx<'a> {
     #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let num_glyphs = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a HdmxFixedFields = cursor.read_ref()?;
-        let num_records = fixed_fields.num_records.get();
-        let size_device_record = fixed_fields.size_device_record.get();
+        let (mut cursor, table_data) = Cursor::start::<HdmxFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_records = _header.num_records.get();
+        let size_device_record = _header.size_device_record.get();
         let records_byte_len = (num_records as usize)
             .checked_mul(<DeviceRecord as ComputeSize>::compute_size(&(
                 num_glyphs,
@@ -83,7 +83,7 @@ impl<'a> FontReadWithArgs<'a> for Hdmx<'a> {
                 num_glyphs,
                 records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -127,7 +127,7 @@ impl<'a> Hdmx<'a> {
     #[inline]
     pub fn records(&self) -> ComputedArray<'a, DeviceRecord<'a>> {
         let range = self.shape.records_byte_range();
-        self.data
+        self.offset_data()
             .read_with_args(range, &(self.num_glyphs(), self.size_device_record()))
             .unwrap()
     }

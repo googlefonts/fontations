@@ -90,9 +90,9 @@ impl MinByteRange for KindsOfOffsetsMarker {
 impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a KindsOfOffsetsFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
+        let (mut cursor, table_data) = Cursor::start::<KindsOfOffsetsFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
         let versioned_nullable_record_array_offset_byte_start = version
             .compatible((1u16, 1u16))
             .then(|| cursor.position())
@@ -120,7 +120,7 @@ impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
                 versioned_nonnullable_offset_byte_start,
                 versioned_nullable_offset_byte_start,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -144,7 +144,7 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`nonnullable_offset`][Self::nonnullable_offset].
     #[inline]
     pub fn nonnullable(&self) -> Result<Dummy<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.nonnullable_offset().resolve(data)
     }
 
@@ -157,7 +157,7 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`nullable_offset`][Self::nullable_offset].
     #[inline]
     pub fn nullable(&self) -> Option<Result<Dummy<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.nullable_offset().resolve(data)
     }
 
@@ -176,7 +176,7 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`array_offset`][Self::array_offset].
     #[inline]
     pub fn array(&self) -> Result<&'a [BigEndian<u16>], ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.array_offset_count();
         self.array_offset().resolve_with_args(data, &args)
     }
@@ -190,7 +190,7 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`record_array_offset`][Self::record_array_offset].
     #[inline]
     pub fn record_array(&self) -> Result<&'a [Shmecord], ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.array_offset_count();
         self.record_array_offset().resolve_with_args(data, &args)
     }
@@ -201,13 +201,13 @@ impl<'a> KindsOfOffsets<'a> {
         let range = self
             .shape
             .versioned_nullable_record_array_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`versioned_nullable_record_array_offset`][Self::versioned_nullable_record_array_offset].
     #[inline]
     pub fn versioned_nullable_record_array(&self) -> Option<Result<&'a [Shmecord], ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.array_offset_count();
         self.versioned_nullable_record_array_offset()
             .map(|x| x.resolve_with_args(data, &args))?
@@ -217,13 +217,13 @@ impl<'a> KindsOfOffsets<'a> {
     #[inline]
     pub fn versioned_nonnullable_offset(&self) -> Option<Offset16> {
         let range = self.shape.versioned_nonnullable_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`versioned_nonnullable_offset`][Self::versioned_nonnullable_offset].
     #[inline]
     pub fn versioned_nonnullable(&self) -> Option<Result<Dummy<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.versioned_nonnullable_offset().map(|x| x.resolve(data))
     }
 
@@ -231,13 +231,13 @@ impl<'a> KindsOfOffsets<'a> {
     #[inline]
     pub fn versioned_nullable_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.versioned_nullable_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`versioned_nullable_offset`][Self::versioned_nullable_offset].
     #[inline]
     pub fn versioned_nullable(&self) -> Option<Result<Dummy<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.versioned_nullable_offset().map(|x| x.resolve(data))?
     }
 }
@@ -373,10 +373,10 @@ impl MinByteRange for KindsOfArraysOfOffsetsMarker {
 impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a KindsOfArraysOfOffsetsFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
-        let count = fixed_fields.count.get();
+        let (mut cursor, table_data) = Cursor::start::<KindsOfArraysOfOffsetsFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
+        let count = _header.count.get();
         let nonnullable_offsets_byte_len = (count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -418,7 +418,7 @@ impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
                 versioned_nullable_offsets_byte_start,
                 versioned_nullable_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -444,13 +444,13 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     #[inline]
     pub fn nonnullable_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.nonnullable_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`nonnullable_offsets`][Self::nonnullable_offsets].
     #[inline]
     pub fn nonnullables(&self) -> ArrayOfOffsets<'a, Dummy<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.nonnullable_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -459,13 +459,13 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     #[inline]
     pub fn nullable_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.nullable_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`nullable_offsets`][Self::nullable_offsets].
     #[inline]
     pub fn nullables(&self) -> ArrayOfNullableOffsets<'a, Dummy<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.nullable_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -474,13 +474,13 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     #[inline]
     pub fn versioned_nonnullable_offsets(&self) -> Option<&'a [BigEndian<Offset16>]> {
         let range = self.shape.versioned_nonnullable_offsets_byte_range()?;
-        Some(self.data.read_array(range).unwrap())
+        Some(self.offset_data().read_array(range).unwrap())
     }
 
     /// A dynamically resolving wrapper for [`versioned_nonnullable_offsets`][Self::versioned_nonnullable_offsets].
     #[inline]
     pub fn versioned_nonnullables(&self) -> Option<ArrayOfOffsets<'a, Dummy<'a>, Offset16>> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.versioned_nonnullable_offsets();
         offsets.map(|offsets| ArrayOfOffsets::new(offsets, data, ()))
     }
@@ -489,13 +489,13 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     #[inline]
     pub fn versioned_nullable_offsets(&self) -> Option<&'a [BigEndian<Nullable<Offset16>>]> {
         let range = self.shape.versioned_nullable_offsets_byte_range()?;
-        Some(self.data.read_array(range).unwrap())
+        Some(self.offset_data().read_array(range).unwrap())
     }
 
     /// A dynamically resolving wrapper for [`versioned_nullable_offsets`][Self::versioned_nullable_offsets].
     #[inline]
     pub fn versioned_nullables(&self) -> Option<ArrayOfNullableOffsets<'a, Dummy<'a>, Offset16>> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.versioned_nullable_offsets();
         offsets.map(|offsets| ArrayOfNullableOffsets::new(offsets, data, ()))
     }
@@ -512,7 +512,7 @@ impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new("count", self.count())),
             2usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "nonnullable_offsets",
                     FieldType::array_of_offsets(
@@ -526,7 +526,7 @@ impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
                 )
             }),
             3usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "nullable_offsets",
                     FieldType::array_of_offsets(
@@ -540,7 +540,7 @@ impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
                 )
             }),
             4usize if version.compatible((1u16, 1u16)) => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "versioned_nonnullable_offsets",
                     FieldType::array_of_offsets(
@@ -554,7 +554,7 @@ impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
                 )
             }),
             5usize if version.compatible((1u16, 1u16)) => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "versioned_nullable_offsets",
                     FieldType::array_of_offsets(
@@ -644,10 +644,10 @@ impl MinByteRange for KindsOfArraysMarker {
 impl<'a> FontRead<'a> for KindsOfArrays<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a KindsOfArraysFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
-        let count = fixed_fields.count.get();
+        let (mut cursor, table_data) = Cursor::start::<KindsOfArraysFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
+        let count = _header.count.get();
         let scalars_byte_len = (count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -689,7 +689,7 @@ impl<'a> FontRead<'a> for KindsOfArrays<'a> {
                 versioned_records_byte_start,
                 versioned_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -713,28 +713,28 @@ impl<'a> KindsOfArrays<'a> {
     #[inline]
     pub fn scalars(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.scalars_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// an array of records
     #[inline]
     pub fn records(&self) -> &'a [Shmecord] {
         let range = self.shape.records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// a versioned array of scalars
     #[inline]
     pub fn versioned_scalars(&self) -> Option<&'a [BigEndian<u16>]> {
         let range = self.shape.versioned_scalars_byte_range()?;
-        Some(self.data.read_array(range).unwrap())
+        Some(self.offset_data().read_array(range).unwrap())
     }
 
     /// a versioned array of scalars
     #[inline]
     pub fn versioned_records(&self) -> Option<&'a [Shmecord]> {
         let range = self.shape.versioned_records_byte_range()?;
-        Some(self.data.read_array(range).unwrap())
+        Some(self.offset_data().read_array(range).unwrap())
     }
 }
 
@@ -825,16 +825,16 @@ impl MinByteRange for VarLenHaverMarker {
 impl<'a> FontRead<'a> for VarLenHaver<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a VarLenHaverFixedFields = cursor.read_ref()?;
-        let count = fixed_fields.count.get();
+        let (mut cursor, table_data) = Cursor::start::<VarLenHaverFixedFields>(data)?;
+        let _header = table_data.header();
+        let count = _header.count.get();
         let var_len_byte_len = {
             let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
             <VarSizeDummy as VarSize>::total_len_for_count(data, count as usize)?
         };
         cursor.advance_by(var_len_byte_len);
         cursor.advance::<u32>();
-        cursor.finish(VarLenHaverMarker { var_len_byte_len }, fixed_fields)
+        cursor.finish(VarLenHaverMarker { var_len_byte_len }, table_data)
     }
 }
 
@@ -850,13 +850,13 @@ impl<'a> VarLenHaver<'a> {
     #[inline]
     pub fn var_len(&self) -> VarLenArray<'a, VarSizeDummy> {
         let range = self.shape.var_len_byte_range();
-        VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
+        VarLenArray::read(self.offset_data().split_off(range.start).unwrap()).unwrap()
     }
 
     #[inline]
     pub fn other_field(&self) -> u32 {
         let range = self.shape.other_field_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 }
 
@@ -920,9 +920,9 @@ impl MinByteRange for DummyMarker {
 impl<'a> FontRead<'a> for Dummy<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a DummyFixedFields = cursor.read_ref()?;
-        cursor.finish(DummyMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<DummyFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(DummyMarker {}, table_data)
     }
 }
 

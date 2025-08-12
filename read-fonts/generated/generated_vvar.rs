@@ -77,9 +77,9 @@ impl TopLevelTable for Vvar<'_> {
 impl<'a> FontRead<'a> for Vvar<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a VvarFixedFields = cursor.read_ref()?;
-        cursor.finish(VvarMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<VvarFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(VvarMarker {}, table_data)
     }
 }
 
@@ -104,7 +104,7 @@ impl<'a> Vvar<'a> {
     /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
     #[inline]
     pub fn item_variation_store(&self) -> Result<ItemVariationStore<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.item_variation_store_offset().resolve(data)
     }
 
@@ -117,7 +117,7 @@ impl<'a> Vvar<'a> {
     /// Attempt to resolve [`advance_height_mapping_offset`][Self::advance_height_mapping_offset].
     #[inline]
     pub fn advance_height_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.advance_height_mapping_offset().resolve(data)
     }
 
@@ -130,7 +130,7 @@ impl<'a> Vvar<'a> {
     /// Attempt to resolve [`tsb_mapping_offset`][Self::tsb_mapping_offset].
     #[inline]
     pub fn tsb_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.tsb_mapping_offset().resolve(data)
     }
 
@@ -143,7 +143,7 @@ impl<'a> Vvar<'a> {
     /// Attempt to resolve [`bsb_mapping_offset`][Self::bsb_mapping_offset].
     #[inline]
     pub fn bsb_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.bsb_mapping_offset().resolve(data)
     }
 
@@ -156,7 +156,7 @@ impl<'a> Vvar<'a> {
     /// Attempt to resolve [`v_org_mapping_offset`][Self::v_org_mapping_offset].
     #[inline]
     pub fn v_org_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.v_org_mapping_offset().resolve(data)
     }
 }

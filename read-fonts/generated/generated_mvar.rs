@@ -77,9 +77,9 @@ impl TopLevelTable for Mvar<'_> {
 impl<'a> FontRead<'a> for Mvar<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a MvarFixedFields = cursor.read_ref()?;
-        let value_record_count = fixed_fields.value_record_count.get();
+        let (mut cursor, table_data) = Cursor::start::<MvarFixedFields>(data)?;
+        let _header = table_data.header();
+        let value_record_count = _header.value_record_count.get();
         let value_records_byte_len = (value_record_count as usize)
             .checked_mul(ValueRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -88,7 +88,7 @@ impl<'a> FontRead<'a> for Mvar<'a> {
             MvarMarker {
                 value_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -126,7 +126,7 @@ impl<'a> Mvar<'a> {
     /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
     #[inline]
     pub fn item_variation_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.item_variation_store_offset().resolve(data)
     }
 
@@ -134,7 +134,7 @@ impl<'a> Mvar<'a> {
     #[inline]
     pub fn value_records(&self) -> &'a [ValueRecord] {
         let range = self.shape.value_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

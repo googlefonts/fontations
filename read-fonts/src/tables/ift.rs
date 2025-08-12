@@ -314,7 +314,7 @@ where
 
         let data: Result<GlyphData<'a>, ReadError> = self.patches.resolve_offset(start);
         let data = match data {
-            Ok(data) => data.data,
+            Ok(data) => data.offset_data(),
             Err(err) => {
                 self.failed = true;
                 return Some(Err(err));

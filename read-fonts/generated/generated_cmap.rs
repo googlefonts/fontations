@@ -55,9 +55,9 @@ impl TopLevelTable for Cmap<'_> {
 impl<'a> FontRead<'a> for Cmap<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CmapFixedFields = cursor.read_ref()?;
-        let num_tables = fixed_fields.num_tables.get();
+        let (mut cursor, table_data) = Cursor::start::<CmapFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_tables = _header.num_tables.get();
         let encoding_records_byte_len = (num_tables as usize)
             .checked_mul(EncodingRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -66,7 +66,7 @@ impl<'a> FontRead<'a> for Cmap<'a> {
             CmapMarker {
                 encoding_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -91,7 +91,7 @@ impl<'a> Cmap<'a> {
     #[inline]
     pub fn encoding_records(&self) -> &'a [EncodingRecord] {
         let range = self.shape.encoding_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -416,8 +416,8 @@ impl MinByteRange for Cmap0Marker {
 impl<'a> FontRead<'a> for Cmap0<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Cmap0FixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<Cmap0FixedFields>(data)?;
+        let _header = table_data.header();
         let glyph_id_array_byte_len = (256_usize)
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -426,7 +426,7 @@ impl<'a> FontRead<'a> for Cmap0<'a> {
             Cmap0Marker {
                 glyph_id_array_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -459,7 +459,7 @@ impl<'a> Cmap0<'a> {
     #[inline]
     pub fn glyph_id_array(&self) -> &'a [u8] {
         let range = self.shape.glyph_id_array_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -542,8 +542,8 @@ impl MinByteRange for Cmap2Marker {
 impl<'a> FontRead<'a> for Cmap2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Cmap2FixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<Cmap2FixedFields>(data)?;
+        let _header = table_data.header();
         let sub_header_keys_byte_len = (256_usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -552,7 +552,7 @@ impl<'a> FontRead<'a> for Cmap2<'a> {
             Cmap2Marker {
                 sub_header_keys_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -586,7 +586,7 @@ impl<'a> Cmap2<'a> {
     #[inline]
     pub fn sub_header_keys(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.sub_header_keys_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -791,9 +791,9 @@ impl MinByteRange for Cmap4Marker {
 impl<'a> FontRead<'a> for Cmap4<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Cmap4FixedFields = cursor.read_ref()?;
-        let seg_count_x2 = fixed_fields.seg_count_x2.get();
+        let (mut cursor, table_data) = Cursor::start::<Cmap4FixedFields>(data)?;
+        let _header = table_data.header();
+        let seg_count_x2 = _header.seg_count_x2.get();
         let end_code_byte_len = (transforms::half(seg_count_x2))
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -822,7 +822,7 @@ impl<'a> FontRead<'a> for Cmap4<'a> {
                 id_range_offsets_byte_len,
                 glyph_id_array_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -883,35 +883,35 @@ impl<'a> Cmap4<'a> {
     #[inline]
     pub fn end_code(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.end_code_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Start character code for each segment.
     #[inline]
     pub fn start_code(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.start_code_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Delta for all character codes in segment.
     #[inline]
     pub fn id_delta(&self) -> &'a [BigEndian<i16>] {
         let range = self.shape.id_delta_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Offsets into glyphIdArray or 0
     #[inline]
     pub fn id_range_offsets(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.id_range_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Glyph index array (arbitrary length)
     #[inline]
     pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.glyph_id_array_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1018,9 +1018,9 @@ impl MinByteRange for Cmap6Marker {
 impl<'a> FontRead<'a> for Cmap6<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Cmap6FixedFields = cursor.read_ref()?;
-        let entry_count = fixed_fields.entry_count.get();
+        let (mut cursor, table_data) = Cursor::start::<Cmap6FixedFields>(data)?;
+        let _header = table_data.header();
+        let entry_count = _header.entry_count.get();
         let glyph_id_array_byte_len = (entry_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1029,7 +1029,7 @@ impl<'a> FontRead<'a> for Cmap6<'a> {
             Cmap6Marker {
                 glyph_id_array_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1074,7 +1074,7 @@ impl<'a> Cmap6<'a> {
     #[inline]
     pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.glyph_id_array_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1177,8 +1177,8 @@ impl MinByteRange for Cmap8Marker {
 impl<'a> FontRead<'a> for Cmap8<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Cmap8FixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<Cmap8FixedFields>(data)?;
+        let _header = table_data.header();
         let is32_byte_len = (8192_usize)
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1193,7 +1193,7 @@ impl<'a> FontRead<'a> for Cmap8<'a> {
                 is32_byte_len,
                 groups_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1228,21 +1228,21 @@ impl<'a> Cmap8<'a> {
     #[inline]
     pub fn is32(&self) -> &'a [u8] {
         let range = self.shape.is32_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Number of groupings which follow
     #[inline]
     pub fn num_groups(&self) -> u32 {
         let range = self.shape.num_groups_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Array of SequentialMapGroup records.
     #[inline]
     pub fn groups(&self) -> &'a [SequentialMapGroup] {
         let range = self.shape.groups_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1418,8 +1418,8 @@ impl MinByteRange for Cmap10Marker {
 impl<'a> FontRead<'a> for Cmap10<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Cmap10FixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<Cmap10FixedFields>(data)?;
+        let _header = table_data.header();
         let glyph_id_array_byte_len =
             cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
         cursor.advance_by(glyph_id_array_byte_len);
@@ -1427,7 +1427,7 @@ impl<'a> FontRead<'a> for Cmap10<'a> {
             Cmap10Marker {
                 glyph_id_array_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1472,7 +1472,7 @@ impl<'a> Cmap10<'a> {
     #[inline]
     pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.glyph_id_array_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1573,14 +1573,14 @@ impl MinByteRange for Cmap12Marker {
 impl<'a> FontRead<'a> for Cmap12<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Cmap12FixedFields = cursor.read_ref()?;
-        let num_groups = fixed_fields.num_groups.get();
+        let (mut cursor, table_data) = Cursor::start::<Cmap12FixedFields>(data)?;
+        let _header = table_data.header();
+        let num_groups = _header.num_groups.get();
         let groups_byte_len = (num_groups as usize)
             .checked_mul(SequentialMapGroup::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(groups_byte_len);
-        cursor.finish(Cmap12Marker { groups_byte_len }, fixed_fields)
+        cursor.finish(Cmap12Marker { groups_byte_len }, table_data)
     }
 }
 
@@ -1618,7 +1618,7 @@ impl<'a> Cmap12<'a> {
     #[inline]
     pub fn groups(&self) -> &'a [SequentialMapGroup] {
         let range = self.shape.groups_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1725,14 +1725,14 @@ impl MinByteRange for Cmap13Marker {
 impl<'a> FontRead<'a> for Cmap13<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Cmap13FixedFields = cursor.read_ref()?;
-        let num_groups = fixed_fields.num_groups.get();
+        let (mut cursor, table_data) = Cursor::start::<Cmap13FixedFields>(data)?;
+        let _header = table_data.header();
+        let num_groups = _header.num_groups.get();
         let groups_byte_len = (num_groups as usize)
             .checked_mul(ConstantMapGroup::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(groups_byte_len);
-        cursor.finish(Cmap13Marker { groups_byte_len }, fixed_fields)
+        cursor.finish(Cmap13Marker { groups_byte_len }, table_data)
     }
 }
 
@@ -1770,7 +1770,7 @@ impl<'a> Cmap13<'a> {
     #[inline]
     pub fn groups(&self) -> &'a [ConstantMapGroup] {
         let range = self.shape.groups_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1916,9 +1916,9 @@ impl MinByteRange for Cmap14Marker {
 impl<'a> FontRead<'a> for Cmap14<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Cmap14FixedFields = cursor.read_ref()?;
-        let num_var_selector_records = fixed_fields.num_var_selector_records.get();
+        let (mut cursor, table_data) = Cursor::start::<Cmap14FixedFields>(data)?;
+        let _header = table_data.header();
+        let num_var_selector_records = _header.num_var_selector_records.get();
         let var_selector_byte_len = (num_var_selector_records as usize)
             .checked_mul(VariationSelector::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1927,7 +1927,7 @@ impl<'a> FontRead<'a> for Cmap14<'a> {
             Cmap14Marker {
                 var_selector_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1959,7 +1959,7 @@ impl<'a> Cmap14<'a> {
     #[inline]
     pub fn var_selector(&self) -> &'a [VariationSelector] {
         let range = self.shape.var_selector_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -2123,14 +2123,14 @@ impl MinByteRange for DefaultUvsMarker {
 impl<'a> FontRead<'a> for DefaultUvs<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a DefaultUvsFixedFields = cursor.read_ref()?;
-        let num_unicode_value_ranges = fixed_fields.num_unicode_value_ranges.get();
+        let (mut cursor, table_data) = Cursor::start::<DefaultUvsFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_unicode_value_ranges = _header.num_unicode_value_ranges.get();
         let ranges_byte_len = (num_unicode_value_ranges as usize)
             .checked_mul(UnicodeRange::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(ranges_byte_len);
-        cursor.finish(DefaultUvsMarker { ranges_byte_len }, fixed_fields)
+        cursor.finish(DefaultUvsMarker { ranges_byte_len }, table_data)
     }
 }
 
@@ -2149,7 +2149,7 @@ impl<'a> DefaultUvs<'a> {
     #[inline]
     pub fn ranges(&self) -> &'a [UnicodeRange] {
         let range = self.shape.ranges_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -2224,9 +2224,9 @@ impl MinByteRange for NonDefaultUvsMarker {
 impl<'a> FontRead<'a> for NonDefaultUvs<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a NonDefaultUvsFixedFields = cursor.read_ref()?;
-        let num_uvs_mappings = fixed_fields.num_uvs_mappings.get();
+        let (mut cursor, table_data) = Cursor::start::<NonDefaultUvsFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_uvs_mappings = _header.num_uvs_mappings.get();
         let uvs_mapping_byte_len = (num_uvs_mappings as usize)
             .checked_mul(UvsMapping::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -2235,7 +2235,7 @@ impl<'a> FontRead<'a> for NonDefaultUvs<'a> {
             NonDefaultUvsMarker {
                 uvs_mapping_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -2253,7 +2253,7 @@ impl<'a> NonDefaultUvs<'a> {
     #[inline]
     pub fn uvs_mapping(&self) -> &'a [UvsMapping] {
         let range = self.shape.uvs_mapping_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

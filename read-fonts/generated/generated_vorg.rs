@@ -61,9 +61,9 @@ impl TopLevelTable for Vorg<'_> {
 impl<'a> FontRead<'a> for Vorg<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a VorgFixedFields = cursor.read_ref()?;
-        let num_vert_origin_y_metrics = fixed_fields.num_vert_origin_y_metrics.get();
+        let (mut cursor, table_data) = Cursor::start::<VorgFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_vert_origin_y_metrics = _header.num_vert_origin_y_metrics.get();
         let vert_origin_y_metrics_byte_len = (num_vert_origin_y_metrics as usize)
             .checked_mul(VertOriginYMetrics::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -72,7 +72,7 @@ impl<'a> FontRead<'a> for Vorg<'a> {
             VorgMarker {
                 vert_origin_y_metrics_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -106,7 +106,7 @@ impl<'a> Vorg<'a> {
     #[inline]
     pub fn vert_origin_y_metrics(&self) -> &'a [VertOriginYMetrics] {
         let range = self.shape.vert_origin_y_metrics_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

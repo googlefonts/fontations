@@ -70,9 +70,9 @@ impl TopLevelTable for Hvar<'_> {
 impl<'a> FontRead<'a> for Hvar<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a HvarFixedFields = cursor.read_ref()?;
-        cursor.finish(HvarMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<HvarFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(HvarMarker {}, table_data)
     }
 }
 
@@ -97,7 +97,7 @@ impl<'a> Hvar<'a> {
     /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
     #[inline]
     pub fn item_variation_store(&self) -> Result<ItemVariationStore<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.item_variation_store_offset().resolve(data)
     }
 
@@ -110,7 +110,7 @@ impl<'a> Hvar<'a> {
     /// Attempt to resolve [`advance_width_mapping_offset`][Self::advance_width_mapping_offset].
     #[inline]
     pub fn advance_width_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.advance_width_mapping_offset().resolve(data)
     }
 
@@ -123,7 +123,7 @@ impl<'a> Hvar<'a> {
     /// Attempt to resolve [`lsb_mapping_offset`][Self::lsb_mapping_offset].
     #[inline]
     pub fn lsb_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.lsb_mapping_offset().resolve(data)
     }
 
@@ -136,7 +136,7 @@ impl<'a> Hvar<'a> {
     /// Attempt to resolve [`rsb_mapping_offset`][Self::rsb_mapping_offset].
     #[inline]
     pub fn rsb_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.rsb_mapping_offset().resolve(data)
     }
 }

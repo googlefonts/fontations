@@ -61,9 +61,9 @@ impl TopLevelTable for Ankr<'_> {
 impl<'a> FontRead<'a> for Ankr<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AnkrFixedFields = cursor.read_ref()?;
-        cursor.finish(AnkrMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<AnkrFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(AnkrMarker {}, table_data)
     }
 }
 
@@ -95,7 +95,7 @@ impl<'a> Ankr<'a> {
     /// Attempt to resolve [`lookup_table_offset`][Self::lookup_table_offset].
     #[inline]
     pub fn lookup_table(&self) -> Result<LookupU16<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.lookup_table_offset().resolve(data)
     }
 
@@ -174,9 +174,9 @@ impl MinByteRange for GlyphDataEntryMarker {
 impl<'a> FontRead<'a> for GlyphDataEntry<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a GlyphDataEntryFixedFields = cursor.read_ref()?;
-        let num_points = fixed_fields.num_points.get();
+        let (mut cursor, table_data) = Cursor::start::<GlyphDataEntryFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_points = _header.num_points.get();
         let anchor_points_byte_len = (num_points as usize)
             .checked_mul(AnchorPoint::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -185,7 +185,7 @@ impl<'a> FontRead<'a> for GlyphDataEntry<'a> {
             GlyphDataEntryMarker {
                 anchor_points_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -204,7 +204,7 @@ impl<'a> GlyphDataEntry<'a> {
     #[inline]
     pub fn anchor_points(&self) -> &'a [AnchorPoint] {
         let range = self.shape.anchor_points_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

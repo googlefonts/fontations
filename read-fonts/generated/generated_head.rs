@@ -842,9 +842,9 @@ impl TopLevelTable for Head<'_> {
 impl<'a> FontRead<'a> for Head<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a HeadFixedFields = cursor.read_ref()?;
-        cursor.finish(HeadMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<HeadFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(HeadMarker {}, table_data)
     }
 }
 

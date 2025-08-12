@@ -68,14 +68,14 @@ impl TopLevelTable for Meta<'_> {
 impl<'a> FontRead<'a> for Meta<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a MetaFixedFields = cursor.read_ref()?;
-        let data_maps_count = fixed_fields.data_maps_count.get();
+        let (mut cursor, table_data) = Cursor::start::<MetaFixedFields>(data)?;
+        let _header = table_data.header();
+        let data_maps_count = _header.data_maps_count.get();
         let data_maps_byte_len = (data_maps_count as usize)
             .checked_mul(DataMapRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(data_maps_byte_len);
-        cursor.finish(MetaMarker { data_maps_byte_len }, fixed_fields)
+        cursor.finish(MetaMarker { data_maps_byte_len }, table_data)
     }
 }
 
@@ -106,7 +106,7 @@ impl<'a> Meta<'a> {
     #[inline]
     pub fn data_maps(&self) -> &'a [DataMapRecord] {
         let range = self.shape.data_maps_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

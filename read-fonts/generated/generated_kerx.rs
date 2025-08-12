@@ -61,15 +61,15 @@ impl TopLevelTable for Kerx<'_> {
 impl<'a> FontRead<'a> for Kerx<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a KerxFixedFields = cursor.read_ref()?;
-        let n_tables = fixed_fields.n_tables.get();
+        let (mut cursor, table_data) = Cursor::start::<KerxFixedFields>(data)?;
+        let _header = table_data.header();
+        let n_tables = _header.n_tables.get();
         let subtables_byte_len = {
             let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
             <Subtable as VarSize>::total_len_for_count(data, n_tables as usize)?
         };
         cursor.advance_by(subtables_byte_len);
-        cursor.finish(KerxMarker { subtables_byte_len }, fixed_fields)
+        cursor.finish(KerxMarker { subtables_byte_len }, table_data)
     }
 }
 
@@ -93,7 +93,7 @@ impl<'a> Kerx<'a> {
     #[inline]
     pub fn subtables(&self) -> VarLenArray<'a, Subtable<'a>> {
         let range = self.shape.subtables_byte_range();
-        VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
+        VarLenArray::read(self.offset_data().split_off(range.start).unwrap()).unwrap()
     }
 }
 
@@ -174,11 +174,11 @@ impl MinByteRange for SubtableMarker {
 impl<'a> FontRead<'a> for Subtable<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SubtableFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<SubtableFixedFields>(data)?;
+        let _header = table_data.header();
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(SubtableMarker { data_byte_len }, fixed_fields)
+        cursor.finish(SubtableMarker { data_byte_len }, table_data)
     }
 }
 
@@ -209,7 +209,7 @@ impl<'a> Subtable<'a> {
     #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -295,14 +295,14 @@ impl MinByteRange for Subtable0Marker {
 impl<'a> FontRead<'a> for Subtable0<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Subtable0FixedFields = cursor.read_ref()?;
-        let n_pairs = fixed_fields.n_pairs.get();
+        let (mut cursor, table_data) = Cursor::start::<Subtable0FixedFields>(data)?;
+        let _header = table_data.header();
+        let n_pairs = _header.n_pairs.get();
         let pairs_byte_len = (n_pairs as usize)
             .checked_mul(Subtable0Pair::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(pairs_byte_len);
-        cursor.finish(Subtable0Marker { pairs_byte_len }, fixed_fields)
+        cursor.finish(Subtable0Marker { pairs_byte_len }, table_data)
     }
 }
 
@@ -339,7 +339,7 @@ impl<'a> Subtable0<'a> {
     #[inline]
     pub fn pairs(&self) -> &'a [Subtable0Pair] {
         let range = self.shape.pairs_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

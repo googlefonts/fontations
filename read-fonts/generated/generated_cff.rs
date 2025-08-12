@@ -69,9 +69,9 @@ impl MinByteRange for CffHeaderMarker {
 impl<'a> FontRead<'a> for CffHeader<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CffHeaderFixedFields = cursor.read_ref()?;
-        let hdr_size = fixed_fields.hdr_size;
+        let (mut cursor, table_data) = Cursor::start::<CffHeaderFixedFields>(data)?;
+        let _header = table_data.header();
+        let hdr_size = _header.hdr_size;
         let _padding_byte_len = (transforms::subtract(hdr_size, 4_usize))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -83,7 +83,7 @@ impl<'a> FontRead<'a> for CffHeader<'a> {
                 _padding_byte_len,
                 trailing_data_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -121,14 +121,14 @@ impl<'a> CffHeader<'a> {
     #[inline]
     pub fn _padding(&self) -> &'a [u8] {
         let range = self.shape._padding_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Remaining table data.
     #[inline]
     pub fn trailing_data(&self) -> &'a [u8] {
         let range = self.shape.trailing_data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

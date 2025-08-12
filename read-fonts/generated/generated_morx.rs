@@ -61,15 +61,15 @@ impl TopLevelTable for Morx<'_> {
 impl<'a> FontRead<'a> for Morx<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a MorxFixedFields = cursor.read_ref()?;
-        let n_chains = fixed_fields.n_chains.get();
+        let (mut cursor, table_data) = Cursor::start::<MorxFixedFields>(data)?;
+        let _header = table_data.header();
+        let n_chains = _header.n_chains.get();
         let chains_byte_len = {
             let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
             <Chain as VarSize>::total_len_for_count(data, n_chains as usize)?
         };
         cursor.advance_by(chains_byte_len);
-        cursor.finish(MorxMarker { chains_byte_len }, fixed_fields)
+        cursor.finish(MorxMarker { chains_byte_len }, table_data)
     }
 }
 
@@ -93,7 +93,7 @@ impl<'a> Morx<'a> {
     #[inline]
     pub fn chains(&self) -> VarLenArray<'a, Chain<'a>> {
         let range = self.shape.chains_byte_range();
-        VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
+        VarLenArray::read(self.offset_data().split_off(range.start).unwrap()).unwrap()
     }
 }
 
@@ -187,10 +187,10 @@ impl MinByteRange for ChainMarker {
 impl<'a> FontRead<'a> for Chain<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ChainFixedFields = cursor.read_ref()?;
-        let n_feature_entries = fixed_fields.n_feature_entries.get();
-        let n_subtables = fixed_fields.n_subtables.get();
+        let (mut cursor, table_data) = Cursor::start::<ChainFixedFields>(data)?;
+        let _header = table_data.header();
+        let n_feature_entries = _header.n_feature_entries.get();
+        let n_subtables = _header.n_subtables.get();
         let features_byte_len = (n_feature_entries as usize)
             .checked_mul(Feature::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -205,7 +205,7 @@ impl<'a> FontRead<'a> for Chain<'a> {
                 features_byte_len,
                 subtables_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -243,14 +243,14 @@ impl<'a> Chain<'a> {
     #[inline]
     pub fn features(&self) -> &'a [Feature] {
         let range = self.shape.features_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Array of chain subtables.
     #[inline]
     pub fn subtables(&self) -> VarLenArray<'a, Subtable<'a>> {
         let range = self.shape.subtables_byte_range();
-        VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
+        VarLenArray::read(self.offset_data().split_off(range.start).unwrap()).unwrap()
     }
 }
 
@@ -404,11 +404,11 @@ impl MinByteRange for SubtableMarker {
 impl<'a> FontRead<'a> for Subtable<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SubtableFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<SubtableFixedFields>(data)?;
+        let _header = table_data.header();
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(SubtableMarker { data_byte_len }, fixed_fields)
+        cursor.finish(SubtableMarker { data_byte_len }, table_data)
     }
 }
 
@@ -439,7 +439,7 @@ impl<'a> Subtable<'a> {
     #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

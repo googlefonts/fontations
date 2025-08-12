@@ -148,15 +148,15 @@ impl MinByteRange for Lookup0Marker {
 impl<'a> FontRead<'a> for Lookup0<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Lookup0FixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<Lookup0FixedFields>(data)?;
+        let _header = table_data.header();
         let values_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(values_data_byte_len);
         cursor.finish(
             Lookup0Marker {
                 values_data_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -177,7 +177,7 @@ impl<'a> Lookup0<'a> {
     #[inline]
     pub fn values_data(&self) -> &'a [u8] {
         let range = self.shape.values_data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -283,10 +283,10 @@ impl MinByteRange for Lookup2Marker {
 impl<'a> FontRead<'a> for Lookup2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Lookup2FixedFields = cursor.read_ref()?;
-        let unit_size = fixed_fields.unit_size.get();
-        let n_units = fixed_fields.n_units.get();
+        let (mut cursor, table_data) = Cursor::start::<Lookup2FixedFields>(data)?;
+        let _header = table_data.header();
+        let unit_size = _header.unit_size.get();
+        let n_units = _header.n_units.get();
         let segments_data_byte_len = (transforms::add_multiply(unit_size, 0_usize, n_units))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -295,7 +295,7 @@ impl<'a> FontRead<'a> for Lookup2<'a> {
             Lookup2Marker {
                 segments_data_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -347,7 +347,7 @@ impl<'a> Lookup2<'a> {
     #[inline]
     pub fn segments_data(&self) -> &'a [u8] {
         let range = self.shape.segments_data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -458,14 +458,14 @@ impl MinByteRange for Lookup4Marker {
 impl<'a> FontRead<'a> for Lookup4<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Lookup4FixedFields = cursor.read_ref()?;
-        let n_units = fixed_fields.n_units.get();
+        let (mut cursor, table_data) = Cursor::start::<Lookup4FixedFields>(data)?;
+        let _header = table_data.header();
+        let n_units = _header.n_units.get();
         let segments_byte_len = (n_units as usize)
             .checked_mul(LookupSegment4::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(segments_byte_len);
-        cursor.finish(Lookup4Marker { segments_byte_len }, fixed_fields)
+        cursor.finish(Lookup4Marker { segments_byte_len }, table_data)
     }
 }
 
@@ -516,7 +516,7 @@ impl<'a> Lookup4<'a> {
     #[inline]
     pub fn segments(&self) -> &'a [LookupSegment4] {
         let range = self.shape.segments_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -686,10 +686,10 @@ impl MinByteRange for Lookup6Marker {
 impl<'a> FontRead<'a> for Lookup6<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Lookup6FixedFields = cursor.read_ref()?;
-        let unit_size = fixed_fields.unit_size.get();
-        let n_units = fixed_fields.n_units.get();
+        let (mut cursor, table_data) = Cursor::start::<Lookup6FixedFields>(data)?;
+        let _header = table_data.header();
+        let unit_size = _header.unit_size.get();
+        let n_units = _header.n_units.get();
         let entries_data_byte_len = (transforms::add_multiply(unit_size, 0_usize, n_units))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -698,7 +698,7 @@ impl<'a> FontRead<'a> for Lookup6<'a> {
             Lookup6Marker {
                 entries_data_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -749,7 +749,7 @@ impl<'a> Lookup6<'a> {
     #[inline]
     pub fn entries_data(&self) -> &'a [u8] {
         let range = self.shape.entries_data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -836,9 +836,9 @@ impl MinByteRange for Lookup8Marker {
 impl<'a> FontRead<'a> for Lookup8<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Lookup8FixedFields = cursor.read_ref()?;
-        let glyph_count = fixed_fields.glyph_count.get();
+        let (mut cursor, table_data) = Cursor::start::<Lookup8FixedFields>(data)?;
+        let _header = table_data.header();
+        let glyph_count = _header.glyph_count.get();
         let value_array_byte_len = (glyph_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -847,7 +847,7 @@ impl<'a> FontRead<'a> for Lookup8<'a> {
             Lookup8Marker {
                 value_array_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -882,7 +882,7 @@ impl<'a> Lookup8<'a> {
     #[inline]
     pub fn value_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.value_array_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -973,10 +973,10 @@ impl MinByteRange for Lookup10Marker {
 impl<'a> FontRead<'a> for Lookup10<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Lookup10FixedFields = cursor.read_ref()?;
-        let unit_size = fixed_fields.unit_size.get();
-        let glyph_count = fixed_fields.glyph_count.get();
+        let (mut cursor, table_data) = Cursor::start::<Lookup10FixedFields>(data)?;
+        let _header = table_data.header();
+        let unit_size = _header.unit_size.get();
+        let glyph_count = _header.glyph_count.get();
         let values_data_byte_len = (transforms::add_multiply(glyph_count, 0_usize, unit_size))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -985,7 +985,7 @@ impl<'a> FontRead<'a> for Lookup10<'a> {
             Lookup10Marker {
                 values_data_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1027,7 +1027,7 @@ impl<'a> Lookup10<'a> {
     #[inline]
     pub fn values_data(&self) -> &'a [u8] {
         let range = self.shape.values_data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1109,9 +1109,9 @@ impl MinByteRange for StateHeaderMarker {
 impl<'a> FontRead<'a> for StateHeader<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a StateHeaderFixedFields = cursor.read_ref()?;
-        cursor.finish(StateHeaderMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<StateHeaderFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(StateHeaderMarker {}, table_data)
     }
 }
 
@@ -1136,7 +1136,7 @@ impl<'a> StateHeader<'a> {
     /// Attempt to resolve [`class_table_offset`][Self::class_table_offset].
     #[inline]
     pub fn class_table(&self) -> Result<ClassSubtable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.class_table_offset().resolve(data)
     }
 
@@ -1149,7 +1149,7 @@ impl<'a> StateHeader<'a> {
     /// Attempt to resolve [`state_array_offset`][Self::state_array_offset].
     #[inline]
     pub fn state_array(&self) -> Result<RawBytes<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.state_array_offset().resolve(data)
     }
 
@@ -1162,7 +1162,7 @@ impl<'a> StateHeader<'a> {
     /// Attempt to resolve [`entry_table_offset`][Self::entry_table_offset].
     #[inline]
     pub fn entry_table(&self) -> Result<RawBytes<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.entry_table_offset().resolve(data)
     }
 }
@@ -1245,9 +1245,9 @@ impl MinByteRange for ClassSubtableMarker {
 impl<'a> FontRead<'a> for ClassSubtable<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ClassSubtableFixedFields = cursor.read_ref()?;
-        let n_glyphs = fixed_fields.n_glyphs.get();
+        let (mut cursor, table_data) = Cursor::start::<ClassSubtableFixedFields>(data)?;
+        let _header = table_data.header();
+        let n_glyphs = _header.n_glyphs.get();
         let class_array_byte_len = (n_glyphs as usize)
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1256,7 +1256,7 @@ impl<'a> FontRead<'a> for ClassSubtable<'a> {
             ClassSubtableMarker {
                 class_array_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1283,7 +1283,7 @@ impl<'a> ClassSubtable<'a> {
     #[inline]
     pub fn class_array(&self) -> &'a [u8] {
         let range = self.shape.class_array_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1342,11 +1342,11 @@ impl MinByteRange for RawBytesMarker {
 impl<'a> FontRead<'a> for RawBytes<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a RawBytesFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<RawBytesFixedFields>(data)?;
+        let _header = table_data.header();
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(RawBytesMarker { data_byte_len }, fixed_fields)
+        cursor.finish(RawBytesMarker { data_byte_len }, table_data)
     }
 }
 
@@ -1358,7 +1358,7 @@ impl<'a> RawBytes<'a> {
     #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1436,9 +1436,9 @@ impl MinByteRange for StxHeaderMarker {
 impl<'a> FontRead<'a> for StxHeader<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a StxHeaderFixedFields = cursor.read_ref()?;
-        cursor.finish(StxHeaderMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<StxHeaderFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(StxHeaderMarker {}, table_data)
     }
 }
 
@@ -1462,7 +1462,7 @@ impl<'a> StxHeader<'a> {
     /// Attempt to resolve [`class_table_offset`][Self::class_table_offset].
     #[inline]
     pub fn class_table(&self) -> Result<LookupU16<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.class_table_offset().resolve(data)
     }
 
@@ -1475,7 +1475,7 @@ impl<'a> StxHeader<'a> {
     /// Attempt to resolve [`state_array_offset`][Self::state_array_offset].
     #[inline]
     pub fn state_array(&self) -> Result<RawWords<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.state_array_offset().resolve(data)
     }
 
@@ -1488,7 +1488,7 @@ impl<'a> StxHeader<'a> {
     /// Attempt to resolve [`entry_table_offset`][Self::entry_table_offset].
     #[inline]
     pub fn entry_table(&self) -> Result<RawBytes<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.entry_table_offset().resolve(data)
     }
 }
@@ -1558,11 +1558,11 @@ impl MinByteRange for RawWordsMarker {
 impl<'a> FontRead<'a> for RawWords<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a RawWordsFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<RawWordsFixedFields>(data)?;
+        let _header = table_data.header();
         let data_byte_len = cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(RawWordsMarker { data_byte_len }, fixed_fields)
+        cursor.finish(RawWordsMarker { data_byte_len }, table_data)
     }
 }
 
@@ -1574,7 +1574,7 @@ impl<'a> RawWords<'a> {
     #[inline]
     pub fn data(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

@@ -59,9 +59,9 @@ impl MinByteRange for BasicTableMarker {
 impl<'a> FontRead<'a> for BasicTable<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a BasicTableFixedFields = cursor.read_ref()?;
-        let simple_count = fixed_fields.simple_count.get();
+        let (mut cursor, table_data) = Cursor::start::<BasicTableFixedFields>(data)?;
+        let _header = table_data.header();
+        let simple_count = _header.simple_count.get();
         let simple_records_byte_len = (simple_count as usize)
             .checked_mul(SimpleRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -79,7 +79,7 @@ impl<'a> FontRead<'a> for BasicTable<'a> {
                 simple_records_byte_len,
                 array_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -96,25 +96,25 @@ impl<'a> BasicTable<'a> {
     #[inline]
     pub fn simple_records(&self) -> &'a [SimpleRecord] {
         let range = self.shape.simple_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     #[inline]
     pub fn arrays_inner_count(&self) -> u16 {
         let range = self.shape.arrays_inner_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     #[inline]
     pub fn array_records_count(&self) -> u32 {
         let range = self.shape.array_records_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     #[inline]
     pub fn array_records(&self) -> ComputedArray<'a, ContainsArrays<'a>> {
         let range = self.shape.array_records_byte_range();
-        self.data
+        self.offset_data()
             .read_with_args(range, &self.arrays_inner_count())
             .unwrap()
     }
@@ -403,11 +403,11 @@ impl MinByteRange for VarLenItemMarker {
 impl<'a> FontRead<'a> for VarLenItem<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a VarLenItemFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<VarLenItemFixedFields>(data)?;
+        let _header = table_data.header();
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(VarLenItemMarker { data_byte_len }, fixed_fields)
+        cursor.finish(VarLenItemMarker { data_byte_len }, table_data)
     }
 }
 
@@ -423,7 +423,7 @@ impl<'a> VarLenItem<'a> {
     #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

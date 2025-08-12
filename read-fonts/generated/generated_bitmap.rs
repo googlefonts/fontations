@@ -813,8 +813,8 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtableList<'a> {
     #[inline]
     fn read_with_args(data: FontData<'a>, args: &u32) -> Result<Self, ReadError> {
         let number_of_index_subtables = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a IndexSubtableListFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<IndexSubtableListFixedFields>(data)?;
+        let _header = table_data.header();
         let index_subtable_records_byte_len = (number_of_index_subtables as usize)
             .checked_mul(IndexSubtableRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -823,7 +823,7 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtableList<'a> {
             IndexSubtableListMarker {
                 index_subtable_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -850,7 +850,7 @@ impl<'a> IndexSubtableList<'a> {
     #[inline]
     pub fn index_subtable_records(&self) -> &'a [IndexSubtableRecord] {
         let range = self.shape.index_subtable_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1011,8 +1011,8 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable1<'a> {
         args: &(GlyphId16, GlyphId16),
     ) -> Result<Self, ReadError> {
         let (last_glyph_index, first_glyph_index) = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a IndexSubtable1FixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<IndexSubtable1FixedFields>(data)?;
+        let _header = table_data.header();
         let sbit_offsets_byte_len =
             (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
                 .checked_mul(u32::RAW_BYTE_LEN)
@@ -1022,7 +1022,7 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable1<'a> {
             IndexSubtable1Marker {
                 sbit_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1069,7 +1069,7 @@ impl<'a> IndexSubtable1<'a> {
     #[inline]
     pub fn sbit_offsets(&self) -> &'a [BigEndian<u32>] {
         let range = self.shape.sbit_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1159,15 +1159,15 @@ impl MinByteRange for IndexSubtable2Marker {
 impl<'a> FontRead<'a> for IndexSubtable2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a IndexSubtable2FixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<IndexSubtable2FixedFields>(data)?;
+        let _header = table_data.header();
         let big_metrics_byte_len = BigGlyphMetrics::RAW_BYTE_LEN;
         cursor.advance_by(big_metrics_byte_len);
         cursor.finish(
             IndexSubtable2Marker {
                 big_metrics_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1205,7 +1205,7 @@ impl<'a> IndexSubtable2<'a> {
     #[inline]
     pub fn big_metrics(&self) -> &'a [BigGlyphMetrics] {
         let range = self.shape.big_metrics_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1304,8 +1304,8 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable3<'a> {
         args: &(GlyphId16, GlyphId16),
     ) -> Result<Self, ReadError> {
         let (last_glyph_index, first_glyph_index) = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a IndexSubtable3FixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<IndexSubtable3FixedFields>(data)?;
+        let _header = table_data.header();
         let sbit_offsets_byte_len =
             (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
                 .checked_mul(u16::RAW_BYTE_LEN)
@@ -1315,7 +1315,7 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable3<'a> {
             IndexSubtable3Marker {
                 sbit_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1362,7 +1362,7 @@ impl<'a> IndexSubtable3<'a> {
     #[inline]
     pub fn sbit_offsets(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.sbit_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1452,9 +1452,9 @@ impl MinByteRange for IndexSubtable4Marker {
 impl<'a> FontRead<'a> for IndexSubtable4<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a IndexSubtable4FixedFields = cursor.read_ref()?;
-        let num_glyphs = fixed_fields.num_glyphs.get();
+        let (mut cursor, table_data) = Cursor::start::<IndexSubtable4FixedFields>(data)?;
+        let _header = table_data.header();
+        let num_glyphs = _header.num_glyphs.get();
         let glyph_array_byte_len = (transforms::add(num_glyphs, 1_usize))
             .checked_mul(GlyphIdOffsetPair::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1463,7 +1463,7 @@ impl<'a> FontRead<'a> for IndexSubtable4<'a> {
             IndexSubtable4Marker {
                 glyph_array_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1501,7 +1501,7 @@ impl<'a> IndexSubtable4<'a> {
     #[inline]
     pub fn glyph_array(&self) -> &'a [GlyphIdOffsetPair] {
         let range = self.shape.glyph_array_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1654,8 +1654,8 @@ impl MinByteRange for IndexSubtable5Marker {
 impl<'a> FontRead<'a> for IndexSubtable5<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a IndexSubtable5FixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<IndexSubtable5FixedFields>(data)?;
+        let _header = table_data.header();
         let big_metrics_byte_len = BigGlyphMetrics::RAW_BYTE_LEN;
         cursor.advance_by(big_metrics_byte_len);
         let num_glyphs: u32 = cursor.read()?;
@@ -1668,7 +1668,7 @@ impl<'a> FontRead<'a> for IndexSubtable5<'a> {
                 big_metrics_byte_len,
                 glyph_array_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1706,21 +1706,21 @@ impl<'a> IndexSubtable5<'a> {
     #[inline]
     pub fn big_metrics(&self) -> &'a [BigGlyphMetrics] {
         let range = self.shape.big_metrics_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Array length.
     #[inline]
     pub fn num_glyphs(&self) -> u32 {
         let range = self.shape.num_glyphs_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// One per glyph, sorted by glyhph ID.
     #[inline]
     pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.glyph_array_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

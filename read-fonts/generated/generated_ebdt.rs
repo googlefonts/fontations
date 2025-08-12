@@ -48,9 +48,9 @@ impl TopLevelTable for Ebdt<'_> {
 impl<'a> FontRead<'a> for Ebdt<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a EbdtFixedFields = cursor.read_ref()?;
-        cursor.finish(EbdtMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<EbdtFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(EbdtMarker {}, table_data)
     }
 }
 

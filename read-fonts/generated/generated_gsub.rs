@@ -70,9 +70,9 @@ impl TopLevelTable for Gsub<'_> {
 impl<'a> FontRead<'a> for Gsub<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a GsubFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
+        let (mut cursor, table_data) = Cursor::start::<GsubFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
         let feature_variations_offset_byte_start = version
             .compatible((1u16, 1u16))
             .then(|| cursor.position())
@@ -84,7 +84,7 @@ impl<'a> FontRead<'a> for Gsub<'a> {
             GsubMarker {
                 feature_variations_offset_byte_start,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -109,7 +109,7 @@ impl<'a> Gsub<'a> {
     /// Attempt to resolve [`script_list_offset`][Self::script_list_offset].
     #[inline]
     pub fn script_list(&self) -> Result<ScriptList<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.script_list_offset().resolve(data)
     }
 
@@ -122,7 +122,7 @@ impl<'a> Gsub<'a> {
     /// Attempt to resolve [`feature_list_offset`][Self::feature_list_offset].
     #[inline]
     pub fn feature_list(&self) -> Result<FeatureList<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.feature_list_offset().resolve(data)
     }
 
@@ -135,7 +135,7 @@ impl<'a> Gsub<'a> {
     /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
     #[inline]
     pub fn lookup_list(&self) -> Result<SubstitutionLookupList<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.lookup_list_offset().resolve(data)
     }
 
@@ -144,13 +144,13 @@ impl<'a> Gsub<'a> {
     #[inline]
     pub fn feature_variations_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.feature_variations_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`feature_variations_offset`][Self::feature_variations_offset].
     #[inline]
     pub fn feature_variations(&self) -> Option<Result<FeatureVariations<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.feature_variations_offset().map(|x| x.resolve(data))?
     }
 }
@@ -410,9 +410,9 @@ impl MinByteRange for SingleSubstFormat1Marker {
 impl<'a> FontRead<'a> for SingleSubstFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SingleSubstFormat1FixedFields = cursor.read_ref()?;
-        cursor.finish(SingleSubstFormat1Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<SingleSubstFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(SingleSubstFormat1Marker {}, table_data)
     }
 }
 
@@ -438,7 +438,7 @@ impl<'a> SingleSubstFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -530,9 +530,9 @@ impl MinByteRange for SingleSubstFormat2Marker {
 impl<'a> FontRead<'a> for SingleSubstFormat2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SingleSubstFormat2FixedFields = cursor.read_ref()?;
-        let glyph_count = fixed_fields.glyph_count.get();
+        let (mut cursor, table_data) = Cursor::start::<SingleSubstFormat2FixedFields>(data)?;
+        let _header = table_data.header();
+        let glyph_count = _header.glyph_count.get();
         let substitute_glyph_ids_byte_len = (glyph_count as usize)
             .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -541,7 +541,7 @@ impl<'a> FontRead<'a> for SingleSubstFormat2<'a> {
             SingleSubstFormat2Marker {
                 substitute_glyph_ids_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -568,7 +568,7 @@ impl<'a> SingleSubstFormat2<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -582,7 +582,7 @@ impl<'a> SingleSubstFormat2<'a> {
     #[inline]
     pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.substitute_glyph_ids_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -671,9 +671,9 @@ impl MinByteRange for MultipleSubstFormat1Marker {
 impl<'a> FontRead<'a> for MultipleSubstFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a MultipleSubstFormat1FixedFields = cursor.read_ref()?;
-        let sequence_count = fixed_fields.sequence_count.get();
+        let (mut cursor, table_data) = Cursor::start::<MultipleSubstFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        let sequence_count = _header.sequence_count.get();
         let sequence_offsets_byte_len = (sequence_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -682,7 +682,7 @@ impl<'a> FontRead<'a> for MultipleSubstFormat1<'a> {
             MultipleSubstFormat1Marker {
                 sequence_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -709,7 +709,7 @@ impl<'a> MultipleSubstFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -724,13 +724,13 @@ impl<'a> MultipleSubstFormat1<'a> {
     #[inline]
     pub fn sequence_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.sequence_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`sequence_offsets`][Self::sequence_offsets].
     #[inline]
     pub fn sequences(&self) -> ArrayOfOffsets<'a, Sequence<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.sequence_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -750,7 +750,7 @@ impl<'a> SomeTable<'a> for MultipleSubstFormat1<'a> {
             )),
             2usize => Some(Field::new("sequence_count", self.sequence_count())),
             3usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "sequence_offsets",
                     FieldType::array_of_offsets(
@@ -815,9 +815,9 @@ impl MinByteRange for SequenceMarker {
 impl<'a> FontRead<'a> for Sequence<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SequenceFixedFields = cursor.read_ref()?;
-        let glyph_count = fixed_fields.glyph_count.get();
+        let (mut cursor, table_data) = Cursor::start::<SequenceFixedFields>(data)?;
+        let _header = table_data.header();
+        let glyph_count = _header.glyph_count.get();
         let substitute_glyph_ids_byte_len = (glyph_count as usize)
             .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -826,7 +826,7 @@ impl<'a> FontRead<'a> for Sequence<'a> {
             SequenceMarker {
                 substitute_glyph_ids_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -847,7 +847,7 @@ impl<'a> Sequence<'a> {
     #[inline]
     pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.substitute_glyph_ids_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -931,9 +931,9 @@ impl MinByteRange for AlternateSubstFormat1Marker {
 impl<'a> FontRead<'a> for AlternateSubstFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AlternateSubstFormat1FixedFields = cursor.read_ref()?;
-        let alternate_set_count = fixed_fields.alternate_set_count.get();
+        let (mut cursor, table_data) = Cursor::start::<AlternateSubstFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        let alternate_set_count = _header.alternate_set_count.get();
         let alternate_set_offsets_byte_len = (alternate_set_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -942,7 +942,7 @@ impl<'a> FontRead<'a> for AlternateSubstFormat1<'a> {
             AlternateSubstFormat1Marker {
                 alternate_set_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -969,7 +969,7 @@ impl<'a> AlternateSubstFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -984,13 +984,13 @@ impl<'a> AlternateSubstFormat1<'a> {
     #[inline]
     pub fn alternate_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.alternate_set_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`alternate_set_offsets`][Self::alternate_set_offsets].
     #[inline]
     pub fn alternate_sets(&self) -> ArrayOfOffsets<'a, AlternateSet<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.alternate_set_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -1013,7 +1013,7 @@ impl<'a> SomeTable<'a> for AlternateSubstFormat1<'a> {
                 self.alternate_set_count(),
             )),
             3usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "alternate_set_offsets",
                     FieldType::array_of_offsets(
@@ -1078,9 +1078,9 @@ impl MinByteRange for AlternateSetMarker {
 impl<'a> FontRead<'a> for AlternateSet<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AlternateSetFixedFields = cursor.read_ref()?;
-        let glyph_count = fixed_fields.glyph_count.get();
+        let (mut cursor, table_data) = Cursor::start::<AlternateSetFixedFields>(data)?;
+        let _header = table_data.header();
+        let glyph_count = _header.glyph_count.get();
         let alternate_glyph_ids_byte_len = (glyph_count as usize)
             .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1089,7 +1089,7 @@ impl<'a> FontRead<'a> for AlternateSet<'a> {
             AlternateSetMarker {
                 alternate_glyph_ids_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1109,7 +1109,7 @@ impl<'a> AlternateSet<'a> {
     #[inline]
     pub fn alternate_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.alternate_glyph_ids_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1193,9 +1193,9 @@ impl MinByteRange for LigatureSubstFormat1Marker {
 impl<'a> FontRead<'a> for LigatureSubstFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a LigatureSubstFormat1FixedFields = cursor.read_ref()?;
-        let ligature_set_count = fixed_fields.ligature_set_count.get();
+        let (mut cursor, table_data) = Cursor::start::<LigatureSubstFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        let ligature_set_count = _header.ligature_set_count.get();
         let ligature_set_offsets_byte_len = (ligature_set_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1204,7 +1204,7 @@ impl<'a> FontRead<'a> for LigatureSubstFormat1<'a> {
             LigatureSubstFormat1Marker {
                 ligature_set_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1231,7 +1231,7 @@ impl<'a> LigatureSubstFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -1246,13 +1246,13 @@ impl<'a> LigatureSubstFormat1<'a> {
     #[inline]
     pub fn ligature_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.ligature_set_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`ligature_set_offsets`][Self::ligature_set_offsets].
     #[inline]
     pub fn ligature_sets(&self) -> ArrayOfOffsets<'a, LigatureSet<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.ligature_set_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -1272,7 +1272,7 @@ impl<'a> SomeTable<'a> for LigatureSubstFormat1<'a> {
             )),
             2usize => Some(Field::new("ligature_set_count", self.ligature_set_count())),
             3usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "ligature_set_offsets",
                     FieldType::array_of_offsets(
@@ -1337,9 +1337,9 @@ impl MinByteRange for LigatureSetMarker {
 impl<'a> FontRead<'a> for LigatureSet<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a LigatureSetFixedFields = cursor.read_ref()?;
-        let ligature_count = fixed_fields.ligature_count.get();
+        let (mut cursor, table_data) = Cursor::start::<LigatureSetFixedFields>(data)?;
+        let _header = table_data.header();
+        let ligature_count = _header.ligature_count.get();
         let ligature_offsets_byte_len = (ligature_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1348,7 +1348,7 @@ impl<'a> FontRead<'a> for LigatureSet<'a> {
             LigatureSetMarker {
                 ligature_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1369,13 +1369,13 @@ impl<'a> LigatureSet<'a> {
     #[inline]
     pub fn ligature_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.ligature_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`ligature_offsets`][Self::ligature_offsets].
     #[inline]
     pub fn ligatures(&self) -> ArrayOfOffsets<'a, Ligature<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.ligature_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -1390,7 +1390,7 @@ impl<'a> SomeTable<'a> for LigatureSet<'a> {
         match idx {
             0usize => Some(Field::new("ligature_count", self.ligature_count())),
             1usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "ligature_offsets",
                     FieldType::array_of_offsets(
@@ -1461,9 +1461,9 @@ impl MinByteRange for LigatureMarker {
 impl<'a> FontRead<'a> for Ligature<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a LigatureFixedFields = cursor.read_ref()?;
-        let component_count = fixed_fields.component_count.get();
+        let (mut cursor, table_data) = Cursor::start::<LigatureFixedFields>(data)?;
+        let _header = table_data.header();
+        let component_count = _header.component_count.get();
         let component_glyph_ids_byte_len = (transforms::subtract(component_count, 1_usize))
             .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1472,7 +1472,7 @@ impl<'a> FontRead<'a> for Ligature<'a> {
             LigatureMarker {
                 component_glyph_ids_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1499,7 +1499,7 @@ impl<'a> Ligature<'a> {
     #[inline]
     pub fn component_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.component_glyph_ids_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1587,13 +1587,13 @@ impl<T> Copy for ExtensionSubstFormat1Marker<T> {}
 impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ExtensionSubstFormat1FixedFields = cursor.read_ref()?;
+        let (cursor, table_data) = Cursor::start::<ExtensionSubstFormat1FixedFields>(data)?;
+        let _header = table_data.header();
         cursor.finish(
             ExtensionSubstFormat1Marker {
                 offset_type: std::marker::PhantomData,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1601,15 +1601,12 @@ impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
 impl<'a> ExtensionSubstFormat1<'a, ()> {
     #[allow(dead_code)]
     pub(crate) fn into_concrete<T>(self) -> ExtensionSubstFormat1<'a, T> {
-        let TableRef {
-            data, fixed_fields, ..
-        } = self;
+        let TableRef { data, .. } = self;
         TableRef {
             shape: ExtensionSubstFormat1Marker {
                 offset_type: std::marker::PhantomData,
             },
             data,
-            fixed_fields,
         }
     }
 }
@@ -1618,15 +1615,12 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
     #[allow(dead_code)]
     /// Replace the specific generic type on this implementation with `()`
     pub(crate) fn of_unit_type(&self) -> ExtensionSubstFormat1<'a, ()> {
-        let TableRef {
-            data, fixed_fields, ..
-        } = self;
+        let TableRef { data, .. } = self;
         TableRef {
             shape: ExtensionSubstFormat1Marker {
                 offset_type: std::marker::PhantomData,
             },
             data: *data,
-            fixed_fields: *fixed_fields,
         }
     }
 }
@@ -1664,7 +1658,7 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
     where
         T: FontRead<'a>,
     {
-        let data = self.data;
+        let data = self.offset_data();
         self.extension_offset().resolve(data)
     }
 }
@@ -1853,9 +1847,10 @@ impl MinByteRange for ReverseChainSingleSubstFormat1Marker {
 impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ReverseChainSingleSubstFormat1FixedFields = cursor.read_ref()?;
-        let backtrack_glyph_count = fixed_fields.backtrack_glyph_count.get();
+        let (mut cursor, table_data) =
+            Cursor::start::<ReverseChainSingleSubstFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        let backtrack_glyph_count = _header.backtrack_glyph_count.get();
         let backtrack_coverage_offsets_byte_len = (backtrack_glyph_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1876,7 +1871,7 @@ impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1<'a> {
                 lookahead_coverage_offsets_byte_len,
                 substitute_glyph_ids_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1903,7 +1898,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -1918,13 +1913,13 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     #[inline]
     pub fn backtrack_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.backtrack_coverage_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
     #[inline]
     pub fn backtrack_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.backtrack_coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -1933,7 +1928,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     #[inline]
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Array of offsets to coverage tables in lookahead sequence, in
@@ -1941,13 +1936,13 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     #[inline]
     pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lookahead_coverage_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
     #[inline]
     pub fn lookahead_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.lookahead_coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -1956,14 +1951,14 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     #[inline]
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Array of substitute glyph IDs — ordered by Coverage index.
     #[inline]
     pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.substitute_glyph_ids_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1984,7 +1979,7 @@ impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
                 self.backtrack_glyph_count(),
             )),
             3usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "backtrack_coverage_offsets",
                     FieldType::array_of_offsets(
@@ -2002,7 +1997,7 @@ impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
                 self.lookahead_glyph_count(),
             )),
             5usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "lookahead_coverage_offsets",
                     FieldType::array_of_offsets(

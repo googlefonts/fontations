@@ -626,9 +626,9 @@ impl TopLevelTable for Os2<'_> {
 impl<'a> FontRead<'a> for Os2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Os2FixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
+        let (mut cursor, table_data) = Cursor::start::<Os2FixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
         let panose_10_byte_len = (10_usize)
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -704,7 +704,7 @@ impl<'a> FontRead<'a> for Os2<'a> {
                 us_lower_optical_point_size_byte_start,
                 us_upper_optical_point_size_byte_start,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -837,7 +837,7 @@ impl<'a> Os2<'a> {
     #[inline]
     pub fn panose_10(&self) -> &'a [u8] {
         let range = self.shape.panose_10_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// [Unicode Character Range](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#ulunicoderange1-bits-031ulunicoderange2-bits-3263ulunicoderange3-bits-6495ulunicoderange4-bits-96127).
@@ -846,28 +846,28 @@ impl<'a> Os2<'a> {
     #[inline]
     pub fn ul_unicode_range_1(&self) -> u32 {
         let range = self.shape.ul_unicode_range_1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Unicode Character Range (bits 32-63).
     #[inline]
     pub fn ul_unicode_range_2(&self) -> u32 {
         let range = self.shape.ul_unicode_range_2_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Unicode Character Range (bits 64-95).
     #[inline]
     pub fn ul_unicode_range_3(&self) -> u32 {
         let range = self.shape.ul_unicode_range_3_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Unicode Character Range (bits 96-127).
     #[inline]
     pub fn ul_unicode_range_4(&self) -> u32 {
         let range = self.shape.ul_unicode_range_4_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// [Font Vendor Identification](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#achvendid).
@@ -876,7 +876,7 @@ impl<'a> Os2<'a> {
     #[inline]
     pub fn ach_vend_id(&self) -> Tag {
         let range = self.shape.ach_vend_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// [Font selection flags](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fsselection).
@@ -885,42 +885,42 @@ impl<'a> Os2<'a> {
     #[inline]
     pub fn fs_selection(&self) -> SelectionFlags {
         let range = self.shape.fs_selection_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// The minimum Unicode index (character code) in this font.
     #[inline]
     pub fn us_first_char_index(&self) -> u16 {
         let range = self.shape.us_first_char_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// The maximum Unicode index (character code) in this font.
     #[inline]
     pub fn us_last_char_index(&self) -> u16 {
         let range = self.shape.us_last_char_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// The typographic ascender for this font.
     #[inline]
     pub fn s_typo_ascender(&self) -> i16 {
         let range = self.shape.s_typo_ascender_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// The typographic descender for this font.
     #[inline]
     pub fn s_typo_descender(&self) -> i16 {
         let range = self.shape.s_typo_descender_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// The typographic line gap for this font.
     #[inline]
     pub fn s_typo_line_gap(&self) -> i16 {
         let range = self.shape.s_typo_line_gap_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// The “Windows ascender” metric.
@@ -930,7 +930,7 @@ impl<'a> Os2<'a> {
     #[inline]
     pub fn us_win_ascent(&self) -> u16 {
         let range = self.shape.us_win_ascent_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// The “Windows descender” metric.
@@ -940,21 +940,21 @@ impl<'a> Os2<'a> {
     #[inline]
     pub fn us_win_descent(&self) -> u16 {
         let range = self.shape.us_win_descent_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Code page character range bits 0-31.
     #[inline]
     pub fn ul_code_page_range_1(&self) -> Option<u32> {
         let range = self.shape.ul_code_page_range_1_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Code page character range bits 32-63.
     #[inline]
     pub fn ul_code_page_range_2(&self) -> Option<u32> {
         let range = self.shape.ul_code_page_range_2_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// This metric specifies the distance between the baseline and the
@@ -963,7 +963,7 @@ impl<'a> Os2<'a> {
     #[inline]
     pub fn sx_height(&self) -> Option<i16> {
         let range = self.shape.sx_height_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// This metric specifies the distance between the baseline and the
@@ -971,7 +971,7 @@ impl<'a> Os2<'a> {
     #[inline]
     pub fn s_cap_height(&self) -> Option<i16> {
         let range = self.shape.s_cap_height_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// This is the Unicode codepoint, in UTF-16 encoding, of a character that
@@ -979,7 +979,7 @@ impl<'a> Os2<'a> {
     #[inline]
     pub fn us_default_char(&self) -> Option<u16> {
         let range = self.shape.us_default_char_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// This is the Unicode codepoint, in UTF-16 encoding, of a character that
@@ -987,28 +987,28 @@ impl<'a> Os2<'a> {
     #[inline]
     pub fn us_break_char(&self) -> Option<u16> {
         let range = self.shape.us_break_char_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// This field is used for fonts with multiple optical styles.
     #[inline]
     pub fn us_max_context(&self) -> Option<u16> {
         let range = self.shape.us_max_context_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// This field is used for fonts with multiple optical styles.
     #[inline]
     pub fn us_lower_optical_point_size(&self) -> Option<u16> {
         let range = self.shape.us_lower_optical_point_size_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// This field is used for fonts with multiple optical styles.
     #[inline]
     pub fn us_upper_optical_point_size(&self) -> Option<u16> {
         let range = self.shape.us_upper_optical_point_size_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 }
 

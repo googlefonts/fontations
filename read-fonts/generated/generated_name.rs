@@ -74,10 +74,10 @@ impl TopLevelTable for Name<'_> {
 impl<'a> FontRead<'a> for Name<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a NameFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
-        let count = fixed_fields.count.get();
+        let (mut cursor, table_data) = Cursor::start::<NameFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
+        let count = _header.count.get();
         let name_record_byte_len = (count as usize)
             .checked_mul(NameRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -110,7 +110,7 @@ impl<'a> FontRead<'a> for Name<'a> {
                 lang_tag_record_byte_start,
                 lang_tag_record_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -142,21 +142,21 @@ impl<'a> Name<'a> {
     #[inline]
     pub fn name_record(&self) -> &'a [NameRecord] {
         let range = self.shape.name_record_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Number of language-tag records.
     #[inline]
     pub fn lang_tag_count(&self) -> Option<u16> {
         let range = self.shape.lang_tag_count_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// The language-tag records where langTagCount is the number of records.
     #[inline]
     pub fn lang_tag_record(&self) -> Option<&'a [LangTagRecord]> {
         let range = self.shape.lang_tag_record_byte_range()?;
-        Some(self.data.read_array(range).unwrap())
+        Some(self.offset_data().read_array(range).unwrap())
     }
 }
 

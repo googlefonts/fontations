@@ -55,9 +55,9 @@ impl TopLevelTable for Gasp<'_> {
 impl<'a> FontRead<'a> for Gasp<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a GaspFixedFields = cursor.read_ref()?;
-        let num_ranges = fixed_fields.num_ranges.get();
+        let (mut cursor, table_data) = Cursor::start::<GaspFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_ranges = _header.num_ranges.get();
         let gasp_ranges_byte_len = (num_ranges as usize)
             .checked_mul(GaspRange::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -66,7 +66,7 @@ impl<'a> FontRead<'a> for Gasp<'a> {
             GaspMarker {
                 gasp_ranges_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -92,7 +92,7 @@ impl<'a> Gasp<'a> {
     #[inline]
     pub fn gasp_ranges(&self) -> &'a [GaspRange] {
         let range = self.shape.gasp_ranges_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

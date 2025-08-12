@@ -154,9 +154,9 @@ impl TopLevelTable for Vhea<'_> {
 impl<'a> FontRead<'a> for Vhea<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a VheaFixedFields = cursor.read_ref()?;
-        cursor.finish(VheaMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<VheaFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(VheaMarker {}, table_data)
     }
 }
 

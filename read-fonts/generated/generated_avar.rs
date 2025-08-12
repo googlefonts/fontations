@@ -73,10 +73,10 @@ impl TopLevelTable for Avar<'_> {
 impl<'a> FontRead<'a> for Avar<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AvarFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
-        let axis_count = fixed_fields.axis_count.get();
+        let (mut cursor, table_data) = Cursor::start::<AvarFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
+        let axis_count = _header.axis_count.get();
         let axis_segment_maps_byte_len = {
             let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
             <SegmentMaps as VarSize>::total_len_for_count(data, axis_count as usize)?
@@ -102,7 +102,7 @@ impl<'a> FontRead<'a> for Avar<'a> {
                 axis_index_map_offset_byte_start,
                 var_store_offset_byte_start,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -129,20 +129,20 @@ impl<'a> Avar<'a> {
     #[inline]
     pub fn axis_segment_maps(&self) -> VarLenArray<'a, SegmentMaps<'a>> {
         let range = self.shape.axis_segment_maps_byte_range();
-        VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
+        VarLenArray::read(self.offset_data().split_off(range.start).unwrap()).unwrap()
     }
 
     /// Offset to DeltaSetIndexMap table (may be NULL).
     #[inline]
     pub fn axis_index_map_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.axis_index_map_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`axis_index_map_offset`][Self::axis_index_map_offset].
     #[inline]
     pub fn axis_index_map(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.axis_index_map_offset().map(|x| x.resolve(data))?
     }
 
@@ -150,13 +150,13 @@ impl<'a> Avar<'a> {
     #[inline]
     pub fn var_store_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.var_store_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`var_store_offset`][Self::var_store_offset].
     #[inline]
     pub fn var_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.var_store_offset().map(|x| x.resolve(data))?
     }
 }

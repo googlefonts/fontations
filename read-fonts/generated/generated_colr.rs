@@ -101,9 +101,9 @@ impl TopLevelTable for Colr<'_> {
 impl<'a> FontRead<'a> for Colr<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ColrFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
+        let (mut cursor, table_data) = Cursor::start::<ColrFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
         let base_glyph_list_offset_byte_start = version
             .compatible(1u16)
             .then(|| cursor.position())
@@ -147,7 +147,7 @@ impl<'a> FontRead<'a> for Colr<'a> {
                 var_index_map_offset_byte_start,
                 item_variation_store_offset_byte_start,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -178,7 +178,7 @@ impl<'a> Colr<'a> {
     /// Attempt to resolve [`base_glyph_records_offset`][Self::base_glyph_records_offset].
     #[inline]
     pub fn base_glyph_records(&self) -> Option<Result<&'a [BaseGlyph], ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.num_base_glyph_records();
         self.base_glyph_records_offset()
             .resolve_with_args(data, &args)
@@ -193,7 +193,7 @@ impl<'a> Colr<'a> {
     /// Attempt to resolve [`layer_records_offset`][Self::layer_records_offset].
     #[inline]
     pub fn layer_records(&self) -> Option<Result<&'a [Layer], ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.num_layer_records();
         self.layer_records_offset().resolve_with_args(data, &args)
     }
@@ -208,13 +208,13 @@ impl<'a> Colr<'a> {
     #[inline]
     pub fn base_glyph_list_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.base_glyph_list_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`base_glyph_list_offset`][Self::base_glyph_list_offset].
     #[inline]
     pub fn base_glyph_list(&self) -> Option<Result<BaseGlyphList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.base_glyph_list_offset().map(|x| x.resolve(data))?
     }
 
@@ -222,13 +222,13 @@ impl<'a> Colr<'a> {
     #[inline]
     pub fn layer_list_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.layer_list_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`layer_list_offset`][Self::layer_list_offset].
     #[inline]
     pub fn layer_list(&self) -> Option<Result<LayerList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.layer_list_offset().map(|x| x.resolve(data))?
     }
 
@@ -236,13 +236,13 @@ impl<'a> Colr<'a> {
     #[inline]
     pub fn clip_list_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.clip_list_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`clip_list_offset`][Self::clip_list_offset].
     #[inline]
     pub fn clip_list(&self) -> Option<Result<ClipList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.clip_list_offset().map(|x| x.resolve(data))?
     }
 
@@ -250,13 +250,13 @@ impl<'a> Colr<'a> {
     #[inline]
     pub fn var_index_map_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.var_index_map_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`var_index_map_offset`][Self::var_index_map_offset].
     #[inline]
     pub fn var_index_map(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.var_index_map_offset().map(|x| x.resolve(data))?
     }
 
@@ -264,13 +264,13 @@ impl<'a> Colr<'a> {
     #[inline]
     pub fn item_variation_store_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.item_variation_store_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
     #[inline]
     pub fn item_variation_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.item_variation_store_offset()
             .map(|x| x.resolve(data))?
     }
@@ -483,9 +483,9 @@ impl MinByteRange for BaseGlyphListMarker {
 impl<'a> FontRead<'a> for BaseGlyphList<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a BaseGlyphListFixedFields = cursor.read_ref()?;
-        let num_base_glyph_paint_records = fixed_fields.num_base_glyph_paint_records.get();
+        let (mut cursor, table_data) = Cursor::start::<BaseGlyphListFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_base_glyph_paint_records = _header.num_base_glyph_paint_records.get();
         let base_glyph_paint_records_byte_len = (num_base_glyph_paint_records as usize)
             .checked_mul(BaseGlyphPaint::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -494,7 +494,7 @@ impl<'a> FontRead<'a> for BaseGlyphList<'a> {
             BaseGlyphListMarker {
                 base_glyph_paint_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -512,7 +512,7 @@ impl<'a> BaseGlyphList<'a> {
     #[inline]
     pub fn base_glyph_paint_records(&self) -> &'a [BaseGlyphPaint] {
         let range = self.shape.base_glyph_paint_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -643,9 +643,9 @@ impl MinByteRange for LayerListMarker {
 impl<'a> FontRead<'a> for LayerList<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a LayerListFixedFields = cursor.read_ref()?;
-        let num_layers = fixed_fields.num_layers.get();
+        let (mut cursor, table_data) = Cursor::start::<LayerListFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_layers = _header.num_layers.get();
         let paint_offsets_byte_len = (num_layers as usize)
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -654,7 +654,7 @@ impl<'a> FontRead<'a> for LayerList<'a> {
             LayerListMarker {
                 paint_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -673,13 +673,13 @@ impl<'a> LayerList<'a> {
     #[inline]
     pub fn paint_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.paint_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`paint_offsets`][Self::paint_offsets].
     #[inline]
     pub fn paints(&self) -> ArrayOfOffsets<'a, Paint<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.paint_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -694,7 +694,7 @@ impl<'a> SomeTable<'a> for LayerList<'a> {
         match idx {
             0usize => Some(Field::new("num_layers", self.num_layers())),
             1usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "paint_offsets",
                     FieldType::array_of_offsets(
@@ -765,14 +765,14 @@ impl MinByteRange for ClipListMarker {
 impl<'a> FontRead<'a> for ClipList<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ClipListFixedFields = cursor.read_ref()?;
-        let num_clips = fixed_fields.num_clips.get();
+        let (mut cursor, table_data) = Cursor::start::<ClipListFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_clips = _header.num_clips.get();
         let clips_byte_len = (num_clips as usize)
             .checked_mul(Clip::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(clips_byte_len);
-        cursor.finish(ClipListMarker { clips_byte_len }, fixed_fields)
+        cursor.finish(ClipListMarker { clips_byte_len }, table_data)
     }
 }
 
@@ -797,7 +797,7 @@ impl<'a> ClipList<'a> {
     #[inline]
     pub fn clips(&self) -> &'a [Clip] {
         let range = self.shape.clips_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1071,9 +1071,9 @@ impl MinByteRange for ClipBoxFormat1Marker {
 impl<'a> FontRead<'a> for ClipBoxFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ClipBoxFormat1FixedFields = cursor.read_ref()?;
-        cursor.finish(ClipBoxFormat1Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<ClipBoxFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(ClipBoxFormat1Marker {}, table_data)
     }
 }
 
@@ -1209,9 +1209,9 @@ impl MinByteRange for ClipBoxFormat2Marker {
 impl<'a> FontRead<'a> for ClipBoxFormat2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ClipBoxFormat2FixedFields = cursor.read_ref()?;
-        cursor.finish(ClipBoxFormat2Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<ClipBoxFormat2FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(ClipBoxFormat2Marker {}, table_data)
     }
 }
 
@@ -1541,9 +1541,9 @@ impl MinByteRange for ColorLineMarker {
 impl<'a> FontRead<'a> for ColorLine<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ColorLineFixedFields = cursor.read_ref()?;
-        let num_stops = fixed_fields.num_stops.get();
+        let (mut cursor, table_data) = Cursor::start::<ColorLineFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_stops = _header.num_stops.get();
         let color_stops_byte_len = (num_stops as usize)
             .checked_mul(ColorStop::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1552,7 +1552,7 @@ impl<'a> FontRead<'a> for ColorLine<'a> {
             ColorLineMarker {
                 color_stops_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1577,7 +1577,7 @@ impl<'a> ColorLine<'a> {
     #[inline]
     pub fn color_stops(&self) -> &'a [ColorStop] {
         let range = self.shape.color_stops_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1656,9 +1656,9 @@ impl MinByteRange for VarColorLineMarker {
 impl<'a> FontRead<'a> for VarColorLine<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a VarColorLineFixedFields = cursor.read_ref()?;
-        let num_stops = fixed_fields.num_stops.get();
+        let (mut cursor, table_data) = Cursor::start::<VarColorLineFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_stops = _header.num_stops.get();
         let color_stops_byte_len = (num_stops as usize)
             .checked_mul(VarColorStop::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1667,7 +1667,7 @@ impl<'a> FontRead<'a> for VarColorLine<'a> {
             VarColorLineMarker {
                 color_stops_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1693,7 +1693,7 @@ impl<'a> VarColorLine<'a> {
     #[inline]
     pub fn color_stops(&self) -> &'a [VarColorStop] {
         let range = self.shape.color_stops_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -2098,9 +2098,9 @@ impl MinByteRange for PaintColrLayersMarker {
 impl<'a> FontRead<'a> for PaintColrLayers<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintColrLayersFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintColrLayersMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintColrLayersFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintColrLayersMarker {}, table_data)
     }
 }
 
@@ -2199,9 +2199,9 @@ impl MinByteRange for PaintSolidMarker {
 impl<'a> FontRead<'a> for PaintSolid<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintSolidFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintSolidMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintSolidFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintSolidMarker {}, table_data)
     }
 }
 
@@ -2307,9 +2307,9 @@ impl MinByteRange for PaintVarSolidMarker {
 impl<'a> FontRead<'a> for PaintVarSolid<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintVarSolidFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintVarSolidMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintVarSolidFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintVarSolidMarker {}, table_data)
     }
 }
 
@@ -2452,9 +2452,9 @@ impl MinByteRange for PaintLinearGradientMarker {
 impl<'a> FontRead<'a> for PaintLinearGradient<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintLinearGradientFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintLinearGradientMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintLinearGradientFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintLinearGradientMarker {}, table_data)
     }
 }
 
@@ -2479,7 +2479,7 @@ impl<'a> PaintLinearGradient<'a> {
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
     #[inline]
     pub fn color_line(&self) -> Result<ColorLine<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.color_line_offset().resolve(data)
     }
 
@@ -2643,9 +2643,9 @@ impl MinByteRange for PaintVarLinearGradientMarker {
 impl<'a> FontRead<'a> for PaintVarLinearGradient<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintVarLinearGradientFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintVarLinearGradientMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintVarLinearGradientFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintVarLinearGradientMarker {}, table_data)
     }
 }
 
@@ -2670,7 +2670,7 @@ impl<'a> PaintVarLinearGradient<'a> {
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
     #[inline]
     pub fn color_line(&self) -> Result<VarColorLine<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.color_line_offset().resolve(data)
     }
 
@@ -2840,9 +2840,9 @@ impl MinByteRange for PaintRadialGradientMarker {
 impl<'a> FontRead<'a> for PaintRadialGradient<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintRadialGradientFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintRadialGradientMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintRadialGradientFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintRadialGradientMarker {}, table_data)
     }
 }
 
@@ -2867,7 +2867,7 @@ impl<'a> PaintRadialGradient<'a> {
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
     #[inline]
     pub fn color_line(&self) -> Result<ColorLine<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.color_line_offset().resolve(data)
     }
 
@@ -3031,9 +3031,9 @@ impl MinByteRange for PaintVarRadialGradientMarker {
 impl<'a> FontRead<'a> for PaintVarRadialGradient<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintVarRadialGradientFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintVarRadialGradientMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintVarRadialGradientFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintVarRadialGradientMarker {}, table_data)
     }
 }
 
@@ -3058,7 +3058,7 @@ impl<'a> PaintVarRadialGradient<'a> {
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
     #[inline]
     pub fn color_line(&self) -> Result<VarColorLine<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.color_line_offset().resolve(data)
     }
 
@@ -3212,9 +3212,9 @@ impl MinByteRange for PaintSweepGradientMarker {
 impl<'a> FontRead<'a> for PaintSweepGradient<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintSweepGradientFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintSweepGradientMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintSweepGradientFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintSweepGradientMarker {}, table_data)
     }
 }
 
@@ -3239,7 +3239,7 @@ impl<'a> PaintSweepGradient<'a> {
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
     #[inline]
     pub fn color_line(&self) -> Result<ColorLine<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.color_line_offset().resolve(data)
     }
 
@@ -3377,9 +3377,9 @@ impl MinByteRange for PaintVarSweepGradientMarker {
 impl<'a> FontRead<'a> for PaintVarSweepGradient<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintVarSweepGradientFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintVarSweepGradientMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintVarSweepGradientFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintVarSweepGradientMarker {}, table_data)
     }
 }
 
@@ -3404,7 +3404,7 @@ impl<'a> PaintVarSweepGradient<'a> {
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
     #[inline]
     pub fn color_line(&self) -> Result<VarColorLine<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.color_line_offset().resolve(data)
     }
 
@@ -3521,9 +3521,9 @@ impl MinByteRange for PaintGlyphMarker {
 impl<'a> FontRead<'a> for PaintGlyph<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintGlyphFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintGlyphMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintGlyphFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintGlyphMarker {}, table_data)
     }
 }
 
@@ -3547,7 +3547,7 @@ impl<'a> PaintGlyph<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -3626,9 +3626,9 @@ impl MinByteRange for PaintColrGlyphMarker {
 impl<'a> FontRead<'a> for PaintColrGlyph<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintColrGlyphFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintColrGlyphMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintColrGlyphFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintColrGlyphMarker {}, table_data)
     }
 }
 
@@ -3720,9 +3720,9 @@ impl MinByteRange for PaintTransformMarker {
 impl<'a> FontRead<'a> for PaintTransform<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintTransformFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintTransformMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintTransformFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintTransformMarker {}, table_data)
     }
 }
 
@@ -3746,7 +3746,7 @@ impl<'a> PaintTransform<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -3759,7 +3759,7 @@ impl<'a> PaintTransform<'a> {
     /// Attempt to resolve [`transform_offset`][Self::transform_offset].
     #[inline]
     pub fn transform(&self) -> Result<Affine2x3<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.transform_offset().resolve(data)
     }
 }
@@ -3841,9 +3841,9 @@ impl MinByteRange for PaintVarTransformMarker {
 impl<'a> FontRead<'a> for PaintVarTransform<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintVarTransformFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintVarTransformMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintVarTransformFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintVarTransformMarker {}, table_data)
     }
 }
 
@@ -3868,7 +3868,7 @@ impl<'a> PaintVarTransform<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -3881,7 +3881,7 @@ impl<'a> PaintVarTransform<'a> {
     /// Attempt to resolve [`transform_offset`][Self::transform_offset].
     #[inline]
     pub fn transform(&self) -> Result<VarAffine2x3<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.transform_offset().resolve(data)
     }
 }
@@ -3982,9 +3982,9 @@ impl MinByteRange for Affine2x3Marker {
 impl<'a> FontRead<'a> for Affine2x3<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Affine2x3FixedFields = cursor.read_ref()?;
-        cursor.finish(Affine2x3Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<Affine2x3FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(Affine2x3Marker {}, table_data)
     }
 }
 
@@ -4130,9 +4130,9 @@ impl MinByteRange for VarAffine2x3Marker {
 impl<'a> FontRead<'a> for VarAffine2x3<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a VarAffine2x3FixedFields = cursor.read_ref()?;
-        cursor.finish(VarAffine2x3Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<VarAffine2x3FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(VarAffine2x3Marker {}, table_data)
     }
 }
 
@@ -4270,9 +4270,9 @@ impl MinByteRange for PaintTranslateMarker {
 impl<'a> FontRead<'a> for PaintTranslate<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintTranslateFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintTranslateMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintTranslateFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintTranslateMarker {}, table_data)
     }
 }
 
@@ -4296,7 +4296,7 @@ impl<'a> PaintTranslate<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -4404,9 +4404,9 @@ impl MinByteRange for PaintVarTranslateMarker {
 impl<'a> FontRead<'a> for PaintVarTranslate<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintVarTranslateFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintVarTranslateMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintVarTranslateFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintVarTranslateMarker {}, table_data)
     }
 }
 
@@ -4431,7 +4431,7 @@ impl<'a> PaintVarTranslate<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -4537,9 +4537,9 @@ impl MinByteRange for PaintScaleMarker {
 impl<'a> FontRead<'a> for PaintScale<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintScaleFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintScaleMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintScaleFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintScaleMarker {}, table_data)
     }
 }
 
@@ -4563,7 +4563,7 @@ impl<'a> PaintScale<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -4671,9 +4671,9 @@ impl MinByteRange for PaintVarScaleMarker {
 impl<'a> FontRead<'a> for PaintVarScale<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintVarScaleFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintVarScaleMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintVarScaleFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintVarScaleMarker {}, table_data)
     }
 }
 
@@ -4697,7 +4697,7 @@ impl<'a> PaintVarScale<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -4821,9 +4821,9 @@ impl MinByteRange for PaintScaleAroundCenterMarker {
 impl<'a> FontRead<'a> for PaintScaleAroundCenter<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintScaleAroundCenterFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintScaleAroundCenterMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintScaleAroundCenterFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintScaleAroundCenterMarker {}, table_data)
     }
 }
 
@@ -4848,7 +4848,7 @@ impl<'a> PaintScaleAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -4984,9 +4984,9 @@ impl MinByteRange for PaintVarScaleAroundCenterMarker {
 impl<'a> FontRead<'a> for PaintVarScaleAroundCenter<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintVarScaleAroundCenterFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintVarScaleAroundCenterMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintVarScaleAroundCenterFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintVarScaleAroundCenterMarker {}, table_data)
     }
 }
 
@@ -5011,7 +5011,7 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -5128,9 +5128,9 @@ impl MinByteRange for PaintScaleUniformMarker {
 impl<'a> FontRead<'a> for PaintScaleUniform<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintScaleUniformFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintScaleUniformMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintScaleUniformFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintScaleUniformMarker {}, table_data)
     }
 }
 
@@ -5155,7 +5155,7 @@ impl<'a> PaintScaleUniform<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -5247,9 +5247,9 @@ impl MinByteRange for PaintVarScaleUniformMarker {
 impl<'a> FontRead<'a> for PaintVarScaleUniform<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintVarScaleUniformFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintVarScaleUniformMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintVarScaleUniformFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintVarScaleUniformMarker {}, table_data)
     }
 }
 
@@ -5274,7 +5274,7 @@ impl<'a> PaintVarScaleUniform<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -5383,9 +5383,9 @@ impl MinByteRange for PaintScaleUniformAroundCenterMarker {
 impl<'a> FontRead<'a> for PaintScaleUniformAroundCenter<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintScaleUniformAroundCenterFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintScaleUniformAroundCenterMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintScaleUniformAroundCenterFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintScaleUniformAroundCenterMarker {}, table_data)
     }
 }
 
@@ -5410,7 +5410,7 @@ impl<'a> PaintScaleUniformAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -5532,9 +5532,10 @@ impl MinByteRange for PaintVarScaleUniformAroundCenterMarker {
 impl<'a> FontRead<'a> for PaintVarScaleUniformAroundCenter<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintVarScaleUniformAroundCenterFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintVarScaleUniformAroundCenterMarker {}, fixed_fields)
+        let (cursor, table_data) =
+            Cursor::start::<PaintVarScaleUniformAroundCenterFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintVarScaleUniformAroundCenterMarker {}, table_data)
     }
 }
 
@@ -5562,7 +5563,7 @@ impl<'a> PaintVarScaleUniformAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -5671,9 +5672,9 @@ impl MinByteRange for PaintRotateMarker {
 impl<'a> FontRead<'a> for PaintRotate<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintRotateFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintRotateMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintRotateFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintRotateMarker {}, table_data)
     }
 }
 
@@ -5697,7 +5698,7 @@ impl<'a> PaintRotate<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -5790,9 +5791,9 @@ impl MinByteRange for PaintVarRotateMarker {
 impl<'a> FontRead<'a> for PaintVarRotate<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintVarRotateFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintVarRotateMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintVarRotateFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintVarRotateMarker {}, table_data)
     }
 }
 
@@ -5816,7 +5817,7 @@ impl<'a> PaintVarRotate<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -5925,9 +5926,9 @@ impl MinByteRange for PaintRotateAroundCenterMarker {
 impl<'a> FontRead<'a> for PaintRotateAroundCenter<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintRotateAroundCenterFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintRotateAroundCenterMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintRotateAroundCenterFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintRotateAroundCenterMarker {}, table_data)
     }
 }
 
@@ -5952,7 +5953,7 @@ impl<'a> PaintRotateAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -6075,9 +6076,9 @@ impl MinByteRange for PaintVarRotateAroundCenterMarker {
 impl<'a> FontRead<'a> for PaintVarRotateAroundCenter<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintVarRotateAroundCenterFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintVarRotateAroundCenterMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintVarRotateAroundCenterFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintVarRotateAroundCenterMarker {}, table_data)
     }
 }
 
@@ -6102,7 +6103,7 @@ impl<'a> PaintVarRotateAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -6218,9 +6219,9 @@ impl MinByteRange for PaintSkewMarker {
 impl<'a> FontRead<'a> for PaintSkew<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintSkewFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintSkewMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintSkewFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintSkewMarker {}, table_data)
     }
 }
 
@@ -6244,7 +6245,7 @@ impl<'a> PaintSkew<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -6354,9 +6355,9 @@ impl MinByteRange for PaintVarSkewMarker {
 impl<'a> FontRead<'a> for PaintVarSkew<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintVarSkewFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintVarSkewMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintVarSkewFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintVarSkewMarker {}, table_data)
     }
 }
 
@@ -6380,7 +6381,7 @@ impl<'a> PaintVarSkew<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -6506,9 +6507,9 @@ impl MinByteRange for PaintSkewAroundCenterMarker {
 impl<'a> FontRead<'a> for PaintSkewAroundCenter<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintSkewAroundCenterFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintSkewAroundCenterMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintSkewAroundCenterFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintSkewAroundCenterMarker {}, table_data)
     }
 }
 
@@ -6533,7 +6534,7 @@ impl<'a> PaintSkewAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -6671,9 +6672,9 @@ impl MinByteRange for PaintVarSkewAroundCenterMarker {
 impl<'a> FontRead<'a> for PaintVarSkewAroundCenter<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintVarSkewAroundCenterFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintVarSkewAroundCenterMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintVarSkewAroundCenterFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintVarSkewAroundCenterMarker {}, table_data)
     }
 }
 
@@ -6698,7 +6699,7 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     #[inline]
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.paint_offset().resolve(data)
     }
 
@@ -6826,9 +6827,9 @@ impl MinByteRange for PaintCompositeMarker {
 impl<'a> FontRead<'a> for PaintComposite<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PaintCompositeFixedFields = cursor.read_ref()?;
-        cursor.finish(PaintCompositeMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<PaintCompositeFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(PaintCompositeMarker {}, table_data)
     }
 }
 
@@ -6852,7 +6853,7 @@ impl<'a> PaintComposite<'a> {
     /// Attempt to resolve [`source_paint_offset`][Self::source_paint_offset].
     #[inline]
     pub fn source_paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.source_paint_offset().resolve(data)
     }
 
@@ -6871,7 +6872,7 @@ impl<'a> PaintComposite<'a> {
     /// Attempt to resolve [`backdrop_paint_offset`][Self::backdrop_paint_offset].
     #[inline]
     pub fn backdrop_paint(&self) -> Result<Paint<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.backdrop_paint_offset().resolve(data)
     }
 }

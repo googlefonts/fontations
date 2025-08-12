@@ -72,9 +72,9 @@ impl MinByteRange for TableDirectoryMarker {
 impl<'a> FontRead<'a> for TableDirectory<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a TableDirectoryFixedFields = cursor.read_ref()?;
-        let num_tables = fixed_fields.num_tables.get();
+        let (mut cursor, table_data) = Cursor::start::<TableDirectoryFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_tables = _header.num_tables.get();
         let table_records_byte_len = (num_tables as usize)
             .checked_mul(TableRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -83,7 +83,7 @@ impl<'a> FontRead<'a> for TableDirectory<'a> {
             TableDirectoryMarker {
                 table_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -124,7 +124,7 @@ impl<'a> TableDirectory<'a> {
     #[inline]
     pub fn table_records(&self) -> &'a [TableRecord] {
         let range = self.shape.table_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -293,10 +293,10 @@ impl MinByteRange for TTCHeaderMarker {
 impl<'a> FontRead<'a> for TTCHeader<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a TTCHeaderFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
-        let num_fonts = fixed_fields.num_fonts.get();
+        let (mut cursor, table_data) = Cursor::start::<TTCHeaderFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
+        let num_fonts = _header.num_fonts.get();
         let table_directory_offsets_byte_len = (num_fonts as usize)
             .checked_mul(u32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -329,7 +329,7 @@ impl<'a> FontRead<'a> for TTCHeader<'a> {
                 dsig_length_byte_start,
                 dsig_offset_byte_start,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -361,28 +361,28 @@ impl<'a> TTCHeader<'a> {
     #[inline]
     pub fn table_directory_offsets(&self) -> &'a [BigEndian<u32>] {
         let range = self.shape.table_directory_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Tag indicating that a DSIG table exists, 0x44534947 ('DSIG') (null if no signature)
     #[inline]
     pub fn dsig_tag(&self) -> Option<u32> {
         let range = self.shape.dsig_tag_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// The length (in bytes) of the DSIG table (null if no signature)
     #[inline]
     pub fn dsig_length(&self) -> Option<u32> {
         let range = self.shape.dsig_length_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// The offset (in bytes) of the DSIG table from the beginning of the TTC file (null if no signature)
     #[inline]
     pub fn dsig_offset(&self) -> Option<u32> {
         let range = self.shape.dsig_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 }
 

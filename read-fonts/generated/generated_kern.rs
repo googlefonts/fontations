@@ -50,15 +50,15 @@ impl MinByteRange for OtKernMarker {
 impl<'a> FontRead<'a> for OtKern<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a OtKernFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<OtKernFixedFields>(data)?;
+        let _header = table_data.header();
         let subtable_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(subtable_data_byte_len);
         cursor.finish(
             OtKernMarker {
                 subtable_data_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -84,7 +84,7 @@ impl<'a> OtKern<'a> {
     #[inline]
     pub fn subtable_data(&self) -> &'a [u8] {
         let range = self.shape.subtable_data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -156,15 +156,15 @@ impl MinByteRange for AatKernMarker {
 impl<'a> FontRead<'a> for AatKern<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AatKernFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<AatKernFixedFields>(data)?;
+        let _header = table_data.header();
         let subtable_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(subtable_data_byte_len);
         cursor.finish(
             AatKernMarker {
                 subtable_data_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -190,7 +190,7 @@ impl<'a> AatKern<'a> {
     #[inline]
     pub fn subtable_data(&self) -> &'a [u8] {
         let range = self.shape.subtable_data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -268,11 +268,11 @@ impl MinByteRange for OtSubtableMarker {
 impl<'a> FontRead<'a> for OtSubtable<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a OtSubtableFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<OtSubtableFixedFields>(data)?;
+        let _header = table_data.header();
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(OtSubtableMarker { data_byte_len }, fixed_fields)
+        cursor.finish(OtSubtableMarker { data_byte_len }, table_data)
     }
 }
 
@@ -303,7 +303,7 @@ impl<'a> OtSubtable<'a> {
     #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -382,11 +382,11 @@ impl MinByteRange for AatSubtableMarker {
 impl<'a> FontRead<'a> for AatSubtable<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AatSubtableFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<AatSubtableFixedFields>(data)?;
+        let _header = table_data.header();
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(AatSubtableMarker { data_byte_len }, fixed_fields)
+        cursor.finish(AatSubtableMarker { data_byte_len }, table_data)
     }
 }
 
@@ -417,7 +417,7 @@ impl<'a> AatSubtable<'a> {
     #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -503,14 +503,14 @@ impl MinByteRange for Subtable0Marker {
 impl<'a> FontRead<'a> for Subtable0<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Subtable0FixedFields = cursor.read_ref()?;
-        let n_pairs = fixed_fields.n_pairs.get();
+        let (mut cursor, table_data) = Cursor::start::<Subtable0FixedFields>(data)?;
+        let _header = table_data.header();
+        let n_pairs = _header.n_pairs.get();
         let pairs_byte_len = (n_pairs as usize)
             .checked_mul(Subtable0Pair::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(pairs_byte_len);
-        cursor.finish(Subtable0Marker { pairs_byte_len }, fixed_fields)
+        cursor.finish(Subtable0Marker { pairs_byte_len }, table_data)
     }
 }
 
@@ -547,7 +547,7 @@ impl<'a> Subtable0<'a> {
     #[inline]
     pub fn pairs(&self) -> &'a [Subtable0Pair] {
         let range = self.shape.pairs_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -628,14 +628,14 @@ impl MinByteRange for Subtable2ClassTableMarker {
 impl<'a> FontRead<'a> for Subtable2ClassTable<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Subtable2ClassTableFixedFields = cursor.read_ref()?;
-        let n_glyphs = fixed_fields.n_glyphs.get();
+        let (mut cursor, table_data) = Cursor::start::<Subtable2ClassTableFixedFields>(data)?;
+        let _header = table_data.header();
+        let n_glyphs = _header.n_glyphs.get();
         let offsets_byte_len = (n_glyphs as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(offsets_byte_len);
-        cursor.finish(Subtable2ClassTableMarker { offsets_byte_len }, fixed_fields)
+        cursor.finish(Subtable2ClassTableMarker { offsets_byte_len }, table_data)
     }
 }
 
@@ -661,7 +661,7 @@ impl<'a> Subtable2ClassTable<'a> {
     #[inline]
     pub fn offsets(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -773,12 +773,12 @@ impl MinByteRange for Subtable3Marker {
 impl<'a> FontRead<'a> for Subtable3<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Subtable3FixedFields = cursor.read_ref()?;
-        let glyph_count = fixed_fields.glyph_count.get();
-        let kern_value_count = fixed_fields.kern_value_count;
-        let left_class_count = fixed_fields.left_class_count;
-        let right_class_count = fixed_fields.right_class_count;
+        let (mut cursor, table_data) = Cursor::start::<Subtable3FixedFields>(data)?;
+        let _header = table_data.header();
+        let glyph_count = _header.glyph_count.get();
+        let kern_value_count = _header.kern_value_count;
+        let left_class_count = _header.left_class_count;
+        let right_class_count = _header.right_class_count;
         let kern_value_byte_len = (kern_value_count as usize)
             .checked_mul(i16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -803,7 +803,7 @@ impl<'a> FontRead<'a> for Subtable3<'a> {
                 right_class_byte_len,
                 kern_index_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -847,28 +847,28 @@ impl<'a> Subtable3<'a> {
     #[inline]
     pub fn kern_value(&self) -> &'a [BigEndian<i16>] {
         let range = self.shape.kern_value_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// The left-hand classes.
     #[inline]
     pub fn left_class(&self) -> &'a [u8] {
         let range = self.shape.left_class_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// The right-hand classes.
     #[inline]
     pub fn right_class(&self) -> &'a [u8] {
         let range = self.shape.right_class_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// The indices into the kernValue array.
     #[inline]
     pub fn kern_index(&self) -> &'a [u8] {
         let range = self.shape.kern_index_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

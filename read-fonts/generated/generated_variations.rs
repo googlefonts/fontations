@@ -67,9 +67,9 @@ impl<'a> FontReadWithArgs<'a> for TupleVariationHeader<'a> {
     #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let axis_count = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a TupleVariationHeaderFixedFields = cursor.read_ref()?;
-        let tuple_index = fixed_fields.tuple_index.get();
+        let (mut cursor, table_data) = Cursor::start::<TupleVariationHeaderFixedFields>(data)?;
+        let _header = table_data.header();
+        let tuple_index = _header.tuple_index.get();
         let peak_tuple_byte_len = (TupleIndex::tuple_len(tuple_index, axis_count, 0_usize))
             .checked_mul(F2Dot14::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -90,7 +90,7 @@ impl<'a> FontReadWithArgs<'a> for TupleVariationHeader<'a> {
                 intermediate_start_tuple_byte_len,
                 intermediate_end_tuple_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -283,17 +283,17 @@ impl MinByteRange for DeltaSetIndexMapFormat0Marker {
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a DeltaSetIndexMapFormat0FixedFields = cursor.read_ref()?;
-        let entry_format = fixed_fields.entry_format.get();
-        let map_count = fixed_fields.map_count.get();
+        let (mut cursor, table_data) = Cursor::start::<DeltaSetIndexMapFormat0FixedFields>(data)?;
+        let _header = table_data.header();
+        let entry_format = _header.entry_format.get();
+        let map_count = _header.map_count.get();
         let map_data_byte_len = (EntryFormat::map_size(entry_format, map_count))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(map_data_byte_len);
         cursor.finish(
             DeltaSetIndexMapFormat0Marker { map_data_byte_len },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -327,7 +327,7 @@ impl<'a> DeltaSetIndexMapFormat0<'a> {
     #[inline]
     pub fn map_data(&self) -> &'a [u8] {
         let range = self.shape.map_data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -410,17 +410,17 @@ impl MinByteRange for DeltaSetIndexMapFormat1Marker {
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a DeltaSetIndexMapFormat1FixedFields = cursor.read_ref()?;
-        let entry_format = fixed_fields.entry_format.get();
-        let map_count = fixed_fields.map_count.get();
+        let (mut cursor, table_data) = Cursor::start::<DeltaSetIndexMapFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        let entry_format = _header.entry_format.get();
+        let map_count = _header.map_count.get();
         let map_data_byte_len = (EntryFormat::map_size(entry_format, map_count))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(map_data_byte_len);
         cursor.finish(
             DeltaSetIndexMapFormat1Marker { map_data_byte_len },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -454,7 +454,7 @@ impl<'a> DeltaSetIndexMapFormat1<'a> {
     #[inline]
     pub fn map_data(&self) -> &'a [u8] {
         let range = self.shape.map_data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -931,10 +931,10 @@ impl MinByteRange for VariationRegionListMarker {
 impl<'a> FontRead<'a> for VariationRegionList<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a VariationRegionListFixedFields = cursor.read_ref()?;
-        let axis_count = fixed_fields.axis_count.get();
-        let region_count = fixed_fields.region_count.get();
+        let (mut cursor, table_data) = Cursor::start::<VariationRegionListFixedFields>(data)?;
+        let _header = table_data.header();
+        let axis_count = _header.axis_count.get();
+        let region_count = _header.region_count.get();
         let variation_regions_byte_len = (region_count as usize)
             .checked_mul(<VariationRegion as ComputeSize>::compute_size(&axis_count)?)
             .ok_or(ReadError::OutOfBounds)?;
@@ -943,7 +943,7 @@ impl<'a> FontRead<'a> for VariationRegionList<'a> {
             VariationRegionListMarker {
                 variation_regions_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -972,7 +972,9 @@ impl<'a> VariationRegionList<'a> {
     #[inline]
     pub fn variation_regions(&self) -> ComputedArray<'a, VariationRegion<'a>> {
         let range = self.shape.variation_regions_byte_range();
-        self.data.read_with_args(range, &self.axis_count()).unwrap()
+        self.offset_data()
+            .read_with_args(range, &self.axis_count())
+            .unwrap()
     }
 }
 
@@ -1185,9 +1187,9 @@ impl MinByteRange for ItemVariationStoreMarker {
 impl<'a> FontRead<'a> for ItemVariationStore<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ItemVariationStoreFixedFields = cursor.read_ref()?;
-        let item_variation_data_count = fixed_fields.item_variation_data_count.get();
+        let (mut cursor, table_data) = Cursor::start::<ItemVariationStoreFixedFields>(data)?;
+        let _header = table_data.header();
+        let item_variation_data_count = _header.item_variation_data_count.get();
         let item_variation_data_offsets_byte_len = (item_variation_data_count as usize)
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1196,7 +1198,7 @@ impl<'a> FontRead<'a> for ItemVariationStore<'a> {
             ItemVariationStoreMarker {
                 item_variation_data_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1223,7 +1225,7 @@ impl<'a> ItemVariationStore<'a> {
     /// Attempt to resolve [`variation_region_list_offset`][Self::variation_region_list_offset].
     #[inline]
     pub fn variation_region_list(&self) -> Result<VariationRegionList<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.variation_region_list_offset().resolve(data)
     }
 
@@ -1238,7 +1240,7 @@ impl<'a> ItemVariationStore<'a> {
     #[inline]
     pub fn item_variation_data_offsets(&self) -> &'a [BigEndian<Nullable<Offset32>>] {
         let range = self.shape.item_variation_data_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`item_variation_data_offsets`][Self::item_variation_data_offsets].
@@ -1246,7 +1248,7 @@ impl<'a> ItemVariationStore<'a> {
     pub fn item_variation_data(
         &self,
     ) -> ArrayOfNullableOffsets<'a, ItemVariationData<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.item_variation_data_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -1272,7 +1274,7 @@ impl<'a> SomeTable<'a> for ItemVariationStore<'a> {
                 self.item_variation_data_count(),
             )),
             3usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "item_variation_data_offsets",
                     FieldType::array_of_offsets(
@@ -1355,11 +1357,11 @@ impl MinByteRange for ItemVariationDataMarker {
 impl<'a> FontRead<'a> for ItemVariationData<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ItemVariationDataFixedFields = cursor.read_ref()?;
-        let item_count = fixed_fields.item_count.get();
-        let word_delta_count = fixed_fields.word_delta_count.get();
-        let region_index_count = fixed_fields.region_index_count.get();
+        let (mut cursor, table_data) = Cursor::start::<ItemVariationDataFixedFields>(data)?;
+        let _header = table_data.header();
+        let item_count = _header.item_count.get();
+        let word_delta_count = _header.word_delta_count.get();
+        let region_index_count = _header.region_index_count.get();
         let region_indexes_byte_len = (region_index_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1374,7 +1376,7 @@ impl<'a> FontRead<'a> for ItemVariationData<'a> {
                 region_indexes_byte_len,
                 delta_sets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1408,14 +1410,14 @@ impl<'a> ItemVariationData<'a> {
     #[inline]
     pub fn region_indexes(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.region_indexes_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Delta-set rows.
     #[inline]
     pub fn delta_sets(&self) -> &'a [u8] {
         let range = self.shape.delta_sets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

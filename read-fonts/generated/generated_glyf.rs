@@ -29,9 +29,9 @@ impl TopLevelTable for Glyf<'_> {
 impl<'a> FontRead<'a> for Glyf<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a GlyfFixedFields = cursor.read_ref()?;
-        cursor.finish(GlyfMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<GlyfFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(GlyfMarker {}, table_data)
     }
 }
 
@@ -148,9 +148,9 @@ impl MinByteRange for SimpleGlyphMarker {
 impl<'a> FontRead<'a> for SimpleGlyph<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SimpleGlyphFixedFields = cursor.read_ref()?;
-        let number_of_contours = fixed_fields.number_of_contours.get();
+        let (mut cursor, table_data) = Cursor::start::<SimpleGlyphFixedFields>(data)?;
+        let _header = table_data.header();
+        let number_of_contours = _header.number_of_contours.get();
         let end_pts_of_contours_byte_len = (number_of_contours as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -168,7 +168,7 @@ impl<'a> FontRead<'a> for SimpleGlyph<'a> {
                 instructions_byte_len,
                 glyph_data_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -215,7 +215,7 @@ impl<'a> SimpleGlyph<'a> {
     #[inline]
     pub fn end_pts_of_contours(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.end_pts_of_contours_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Total number of bytes for instructions. If instructionLength is
@@ -224,21 +224,21 @@ impl<'a> SimpleGlyph<'a> {
     #[inline]
     pub fn instruction_length(&self) -> u16 {
         let range = self.shape.instruction_length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Array of instruction byte code for the glyph.
     #[inline]
     pub fn instructions(&self) -> &'a [u8] {
         let range = self.shape.instructions_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// the raw data for flags & x/y coordinates
     #[inline]
     pub fn glyph_data(&self) -> &'a [u8] {
         let range = self.shape.glyph_data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -739,8 +739,8 @@ impl MinByteRange for CompositeGlyphMarker {
 impl<'a> FontRead<'a> for CompositeGlyph<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CompositeGlyphFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<CompositeGlyphFixedFields>(data)?;
+        let _header = table_data.header();
         let component_data_byte_len =
             cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(component_data_byte_len);
@@ -748,7 +748,7 @@ impl<'a> FontRead<'a> for CompositeGlyph<'a> {
             CompositeGlyphMarker {
                 component_data_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -795,7 +795,7 @@ impl<'a> CompositeGlyph<'a> {
     #[inline]
     pub fn component_data(&self) -> &'a [u8] {
         let range = self.shape.component_data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

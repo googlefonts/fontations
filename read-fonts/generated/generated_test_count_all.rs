@@ -43,11 +43,11 @@ impl MinByteRange for CountAll16Marker {
 impl<'a> FontRead<'a> for CountAll16<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CountAll16FixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<CountAll16FixedFields>(data)?;
+        let _header = table_data.header();
         let remainder_byte_len = cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
         cursor.advance_by(remainder_byte_len);
-        cursor.finish(CountAll16Marker { remainder_byte_len }, fixed_fields)
+        cursor.finish(CountAll16Marker { remainder_byte_len }, table_data)
     }
 }
 
@@ -63,7 +63,7 @@ impl<'a> CountAll16<'a> {
     #[inline]
     pub fn remainder(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.remainder_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -127,11 +127,11 @@ impl MinByteRange for CountAll32Marker {
 impl<'a> FontRead<'a> for CountAll32<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CountAll32FixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<CountAll32FixedFields>(data)?;
+        let _header = table_data.header();
         let remainder_byte_len = cursor.remaining_bytes() / u32::RAW_BYTE_LEN * u32::RAW_BYTE_LEN;
         cursor.advance_by(remainder_byte_len);
-        cursor.finish(CountAll32Marker { remainder_byte_len }, fixed_fields)
+        cursor.finish(CountAll32Marker { remainder_byte_len }, table_data)
     }
 }
 
@@ -147,7 +147,7 @@ impl<'a> CountAll32<'a> {
     #[inline]
     pub fn remainder(&self) -> &'a [BigEndian<u32>] {
         let range = self.shape.remainder_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

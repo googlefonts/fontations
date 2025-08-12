@@ -81,12 +81,12 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                impl<'a> #raw_name<'a, ()> {
                    #[allow(dead_code)]
                    pub(crate) fn into_concrete<T>(self) -> #raw_name<'a, #t> {
-                       let TableRef { data, fixed_fields, #shape_name} = self;
+                       let TableRef { data, #shape_name} = self;
                        TableRef {
                            shape: #marker_name {
                                #( #shape_fields, )*
                                offset_type: std::marker::PhantomData,
-                           }, data, fixed_fields
+                           }, data
                        }
                    }
                }
@@ -97,12 +97,12 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                    #[allow(dead_code)]
                    #[doc = #of_unit_docs]
                    pub(crate) fn of_unit_type(&self) -> #raw_name<'a, ()> {
-                       let TableRef { data, fixed_fields, #shape_name} = self;
+                       let TableRef { data, #shape_name} = self;
                        TableRef {
                            shape: #marker_name {
                                #( #shape_fields, )*
                                offset_type: std::marker::PhantomData,
-                           }, data: *data, fixed_fields: *fixed_fields
+                           }, data: *data
                        }
                    }
                }
@@ -187,7 +187,10 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
             "ReadWithArgs not implemented for tables with phantom params."
         );)
     });
-
+    // the cursor doesn't need to be mut if there are no dynamic fields,
+    // which happens at least once (in glyf)?
+    let maybe_mut_kw =
+        (item.fields.fields.iter().any(|field| !field.is_fixed)).then(|| quote!(mut));
     if let Some(read_args) = &item.attrs.read_args {
         let args_type = read_args.args_type();
         let destructure_pattern = read_args.destructure_pattern();
@@ -203,12 +206,12 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
                 #[inline]
                 fn read_with_args(data: FontData<'a>, args: &#args_type) -> Result<Self, ReadError> {
                     let #destructure_pattern = *args;
-                    let mut cursor = data.cursor();
-                    let fixed_fields: &'a #fixed_fields_name = cursor.read_ref()?;
+                    let (#maybe_mut_kw cursor, table_data) = Cursor::start::<#fixed_fields_name>(data)?;
+                    let _header = table_data.header();
                     #( #field_validation_stmts )*
                     cursor.finish( #marker_name {
                         #( #shape_field_names, )*
-                    }, fixed_fields)
+                    }, table_data)
                 }
             }
 
@@ -229,13 +232,13 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
             impl<'a, #generic> FontRead<'a> for #name<'a, #generic> {
             #[inline]
             fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-                let mut cursor = data.cursor();
-                let fixed_fields: &'a #fixed_fields_name = cursor.read_ref()?;
+                let (#maybe_mut_kw cursor, table_data) = Cursor::start::<#fixed_fields_name>(data)?;
+                let _header = table_data.header();
                 #( #field_validation_stmts )*
                 cursor.finish( #marker_name {
                     #( #shape_field_names, )*
                     #phantom
-                }, fixed_fields)
+                }, table_data)
             }
         }
         })

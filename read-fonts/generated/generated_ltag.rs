@@ -61,9 +61,9 @@ impl TopLevelTable for Ltag<'_> {
 impl<'a> FontRead<'a> for Ltag<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a LtagFixedFields = cursor.read_ref()?;
-        let num_tags = fixed_fields.num_tags.get();
+        let (mut cursor, table_data) = Cursor::start::<LtagFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_tags = _header.num_tags.get();
         let tag_ranges_byte_len = (num_tags as usize)
             .checked_mul(FTStringRange::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -72,7 +72,7 @@ impl<'a> FontRead<'a> for Ltag<'a> {
             LtagMarker {
                 tag_ranges_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -104,7 +104,7 @@ impl<'a> Ltag<'a> {
     #[inline]
     pub fn tag_ranges(&self) -> &'a [FTStringRange] {
         let range = self.shape.tag_ranges_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

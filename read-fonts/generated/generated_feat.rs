@@ -68,14 +68,14 @@ impl TopLevelTable for Feat<'_> {
 impl<'a> FontRead<'a> for Feat<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a FeatFixedFields = cursor.read_ref()?;
-        let feature_name_count = fixed_fields.feature_name_count.get();
+        let (mut cursor, table_data) = Cursor::start::<FeatFixedFields>(data)?;
+        let _header = table_data.header();
+        let feature_name_count = _header.feature_name_count.get();
         let names_byte_len = (feature_name_count as usize)
             .checked_mul(FeatureName::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(names_byte_len);
-        cursor.finish(FeatMarker { names_byte_len }, fixed_fields)
+        cursor.finish(FeatMarker { names_byte_len }, table_data)
     }
 }
 
@@ -101,7 +101,7 @@ impl<'a> Feat<'a> {
     #[inline]
     pub fn names(&self) -> &'a [FeatureName] {
         let range = self.shape.names_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -265,13 +265,13 @@ impl<'a> FontReadWithArgs<'a> for SettingNameArray<'a> {
     #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let n_settings = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SettingNameArrayFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<SettingNameArrayFixedFields>(data)?;
+        let _header = table_data.header();
         let settings_byte_len = (n_settings as usize)
             .checked_mul(SettingName::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(settings_byte_len);
-        cursor.finish(SettingNameArrayMarker { settings_byte_len }, fixed_fields)
+        cursor.finish(SettingNameArrayMarker { settings_byte_len }, table_data)
     }
 }
 
@@ -295,7 +295,7 @@ impl<'a> SettingNameArray<'a> {
     #[inline]
     pub fn settings(&self) -> &'a [SettingName] {
         let range = self.shape.settings_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

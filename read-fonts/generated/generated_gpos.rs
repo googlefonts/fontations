@@ -71,9 +71,9 @@ impl TopLevelTable for Gpos<'_> {
 impl<'a> FontRead<'a> for Gpos<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a GposFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
+        let (mut cursor, table_data) = Cursor::start::<GposFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
         let feature_variations_offset_byte_start = version
             .compatible((1u16, 1u16))
             .then(|| cursor.position())
@@ -85,7 +85,7 @@ impl<'a> FontRead<'a> for Gpos<'a> {
             GposMarker {
                 feature_variations_offset_byte_start,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -111,7 +111,7 @@ impl<'a> Gpos<'a> {
     /// Attempt to resolve [`script_list_offset`][Self::script_list_offset].
     #[inline]
     pub fn script_list(&self) -> Result<ScriptList<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.script_list_offset().resolve(data)
     }
 
@@ -124,7 +124,7 @@ impl<'a> Gpos<'a> {
     /// Attempt to resolve [`feature_list_offset`][Self::feature_list_offset].
     #[inline]
     pub fn feature_list(&self) -> Result<FeatureList<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.feature_list_offset().resolve(data)
     }
 
@@ -137,20 +137,20 @@ impl<'a> Gpos<'a> {
     /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
     #[inline]
     pub fn lookup_list(&self) -> Result<PositionLookupList<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.lookup_list_offset().resolve(data)
     }
 
     #[inline]
     pub fn feature_variations_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.feature_variations_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`feature_variations_offset`][Self::feature_variations_offset].
     #[inline]
     pub fn feature_variations(&self) -> Option<Result<FeatureVariations<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.feature_variations_offset().map(|x| x.resolve(data))?
     }
 }
@@ -774,9 +774,9 @@ impl MinByteRange for AnchorFormat1Marker {
 impl<'a> FontRead<'a> for AnchorFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AnchorFormat1FixedFields = cursor.read_ref()?;
-        cursor.finish(AnchorFormat1Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<AnchorFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(AnchorFormat1Marker {}, table_data)
     }
 }
 
@@ -882,9 +882,9 @@ impl MinByteRange for AnchorFormat2Marker {
 impl<'a> FontRead<'a> for AnchorFormat2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AnchorFormat2FixedFields = cursor.read_ref()?;
-        cursor.finish(AnchorFormat2Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<AnchorFormat2FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(AnchorFormat2Marker {}, table_data)
     }
 }
 
@@ -1006,9 +1006,9 @@ impl MinByteRange for AnchorFormat3Marker {
 impl<'a> FontRead<'a> for AnchorFormat3<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AnchorFormat3FixedFields = cursor.read_ref()?;
-        cursor.finish(AnchorFormat3Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<AnchorFormat3FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(AnchorFormat3Marker {}, table_data)
     }
 }
 
@@ -1046,7 +1046,7 @@ impl<'a> AnchorFormat3<'a> {
     /// Attempt to resolve [`x_device_offset`][Self::x_device_offset].
     #[inline]
     pub fn x_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.x_device_offset().resolve(data)
     }
 
@@ -1061,7 +1061,7 @@ impl<'a> AnchorFormat3<'a> {
     /// Attempt to resolve [`y_device_offset`][Self::y_device_offset].
     #[inline]
     pub fn y_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.y_device_offset().resolve(data)
     }
 }
@@ -1136,9 +1136,9 @@ impl MinByteRange for MarkArrayMarker {
 impl<'a> FontRead<'a> for MarkArray<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a MarkArrayFixedFields = cursor.read_ref()?;
-        let mark_count = fixed_fields.mark_count.get();
+        let (mut cursor, table_data) = Cursor::start::<MarkArrayFixedFields>(data)?;
+        let _header = table_data.header();
+        let mark_count = _header.mark_count.get();
         let mark_records_byte_len = (mark_count as usize)
             .checked_mul(MarkRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1147,7 +1147,7 @@ impl<'a> FontRead<'a> for MarkArray<'a> {
             MarkArrayMarker {
                 mark_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1168,7 +1168,7 @@ impl<'a> MarkArray<'a> {
     #[inline]
     pub fn mark_records(&self) -> &'a [MarkRecord] {
         let range = self.shape.mark_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1405,16 +1405,16 @@ impl MinByteRange for SinglePosFormat1Marker {
 impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SinglePosFormat1FixedFields = cursor.read_ref()?;
-        let value_format = fixed_fields.value_format.get();
+        let (mut cursor, table_data) = Cursor::start::<SinglePosFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        let value_format = _header.value_format.get();
         let value_record_byte_len = <ValueRecord as ComputeSize>::compute_size(&value_format)?;
         cursor.advance_by(value_record_byte_len);
         cursor.finish(
             SinglePosFormat1Marker {
                 value_record_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1439,7 +1439,7 @@ impl<'a> SinglePosFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -1454,7 +1454,7 @@ impl<'a> SinglePosFormat1<'a> {
     #[inline]
     pub fn value_record(&self) -> ValueRecord {
         let range = self.shape.value_record_byte_range();
-        self.data
+        self.offset_data()
             .read_with_args(range, &self.value_format())
             .unwrap()
     }
@@ -1552,10 +1552,10 @@ impl MinByteRange for SinglePosFormat2Marker {
 impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SinglePosFormat2FixedFields = cursor.read_ref()?;
-        let value_format = fixed_fields.value_format.get();
-        let value_count = fixed_fields.value_count.get();
+        let (mut cursor, table_data) = Cursor::start::<SinglePosFormat2FixedFields>(data)?;
+        let _header = table_data.header();
+        let value_format = _header.value_format.get();
+        let value_count = _header.value_count.get();
         let value_records_byte_len = (value_count as usize)
             .checked_mul(<ValueRecord as ComputeSize>::compute_size(&value_format)?)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1564,7 +1564,7 @@ impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
             SinglePosFormat2Marker {
                 value_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1589,7 +1589,7 @@ impl<'a> SinglePosFormat2<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -1610,7 +1610,7 @@ impl<'a> SinglePosFormat2<'a> {
     #[inline]
     pub fn value_records(&self) -> ComputedArray<'a, ValueRecord> {
         let range = self.shape.value_records_byte_range();
-        self.data
+        self.offset_data()
             .read_with_args(range, &self.value_format())
             .unwrap()
     }
@@ -1825,9 +1825,9 @@ impl MinByteRange for PairPosFormat1Marker {
 impl<'a> FontRead<'a> for PairPosFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PairPosFormat1FixedFields = cursor.read_ref()?;
-        let pair_set_count = fixed_fields.pair_set_count.get();
+        let (mut cursor, table_data) = Cursor::start::<PairPosFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        let pair_set_count = _header.pair_set_count.get();
         let pair_set_offsets_byte_len = (pair_set_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1836,7 +1836,7 @@ impl<'a> FontRead<'a> for PairPosFormat1<'a> {
             PairPosFormat1Marker {
                 pair_set_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1861,7 +1861,7 @@ impl<'a> PairPosFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -1890,13 +1890,13 @@ impl<'a> PairPosFormat1<'a> {
     #[inline]
     pub fn pair_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.pair_set_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`pair_set_offsets`][Self::pair_set_offsets].
     #[inline]
     pub fn pair_sets(&self) -> ArrayOfOffsets<'a, PairSet<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.pair_set_offsets();
         let args = (self.value_format1(), self.value_format2());
         ArrayOfOffsets::new(offsets, data, args)
@@ -1919,7 +1919,7 @@ impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
             3usize => Some(Field::new("value_format2", self.value_format2())),
             4usize => Some(Field::new("pair_set_count", self.pair_set_count())),
             5usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 let args = (self.value_format1(), self.value_format2());
                 Field::new(
                     "pair_set_offsets",
@@ -1995,9 +1995,9 @@ impl<'a> FontReadWithArgs<'a> for PairSet<'a> {
         args: &(ValueFormat, ValueFormat),
     ) -> Result<Self, ReadError> {
         let (value_format1, value_format2) = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PairSetFixedFields = cursor.read_ref()?;
-        let pair_value_count = fixed_fields.pair_value_count.get();
+        let (mut cursor, table_data) = Cursor::start::<PairSetFixedFields>(data)?;
+        let _header = table_data.header();
+        let pair_value_count = _header.pair_value_count.get();
         let pair_value_records_byte_len = (pair_value_count as usize)
             .checked_mul(<PairValueRecord as ComputeSize>::compute_size(&(
                 value_format1,
@@ -2011,7 +2011,7 @@ impl<'a> FontReadWithArgs<'a> for PairSet<'a> {
                 value_format2,
                 pair_value_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -2048,7 +2048,7 @@ impl<'a> PairSet<'a> {
     #[inline]
     pub fn pair_value_records(&self) -> ComputedArray<'a, PairValueRecord> {
         let range = self.shape.pair_value_records_byte_range();
-        self.data
+        self.offset_data()
             .read_with_args(range, &(self.value_format1(), self.value_format2()))
             .unwrap()
     }
@@ -2291,12 +2291,12 @@ impl MinByteRange for PairPosFormat2Marker {
 impl<'a> FontRead<'a> for PairPosFormat2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PairPosFormat2FixedFields = cursor.read_ref()?;
-        let value_format1 = fixed_fields.value_format1.get();
-        let value_format2 = fixed_fields.value_format2.get();
-        let class1_count = fixed_fields.class1_count.get();
-        let class2_count = fixed_fields.class2_count.get();
+        let (mut cursor, table_data) = Cursor::start::<PairPosFormat2FixedFields>(data)?;
+        let _header = table_data.header();
+        let value_format1 = _header.value_format1.get();
+        let value_format2 = _header.value_format2.get();
+        let class1_count = _header.class1_count.get();
+        let class2_count = _header.class2_count.get();
         let class1_records_byte_len = (class1_count as usize)
             .checked_mul(<Class1Record as ComputeSize>::compute_size(&(
                 class2_count,
@@ -2309,7 +2309,7 @@ impl<'a> FontRead<'a> for PairPosFormat2<'a> {
             PairPosFormat2Marker {
                 class1_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -2334,7 +2334,7 @@ impl<'a> PairPosFormat2<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -2362,7 +2362,7 @@ impl<'a> PairPosFormat2<'a> {
     /// Attempt to resolve [`class_def1_offset`][Self::class_def1_offset].
     #[inline]
     pub fn class_def1(&self) -> Result<ClassDef<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.class_def1_offset().resolve(data)
     }
 
@@ -2376,7 +2376,7 @@ impl<'a> PairPosFormat2<'a> {
     /// Attempt to resolve [`class_def2_offset`][Self::class_def2_offset].
     #[inline]
     pub fn class_def2(&self) -> Result<ClassDef<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.class_def2_offset().resolve(data)
     }
 
@@ -2396,7 +2396,7 @@ impl<'a> PairPosFormat2<'a> {
     #[inline]
     pub fn class1_records(&self) -> ComputedArray<'a, Class1Record<'a>> {
         let range = self.shape.class1_records_byte_range();
-        self.data
+        self.offset_data()
             .read_with_args(
                 range,
                 &(
@@ -2686,9 +2686,9 @@ impl MinByteRange for CursivePosFormat1Marker {
 impl<'a> FontRead<'a> for CursivePosFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CursivePosFormat1FixedFields = cursor.read_ref()?;
-        let entry_exit_count = fixed_fields.entry_exit_count.get();
+        let (mut cursor, table_data) = Cursor::start::<CursivePosFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        let entry_exit_count = _header.entry_exit_count.get();
         let entry_exit_record_byte_len = (entry_exit_count as usize)
             .checked_mul(EntryExitRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -2697,7 +2697,7 @@ impl<'a> FontRead<'a> for CursivePosFormat1<'a> {
             CursivePosFormat1Marker {
                 entry_exit_record_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -2723,7 +2723,7 @@ impl<'a> CursivePosFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -2737,7 +2737,7 @@ impl<'a> CursivePosFormat1<'a> {
     #[inline]
     pub fn entry_exit_record(&self) -> &'a [EntryExitRecord] {
         let range = self.shape.entry_exit_record_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -2926,9 +2926,9 @@ impl MinByteRange for MarkBasePosFormat1Marker {
 impl<'a> FontRead<'a> for MarkBasePosFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a MarkBasePosFormat1FixedFields = cursor.read_ref()?;
-        cursor.finish(MarkBasePosFormat1Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<MarkBasePosFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(MarkBasePosFormat1Marker {}, table_data)
     }
 }
 
@@ -2954,7 +2954,7 @@ impl<'a> MarkBasePosFormat1<'a> {
     /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
     #[inline]
     pub fn mark_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark_coverage_offset().resolve(data)
     }
 
@@ -2968,7 +2968,7 @@ impl<'a> MarkBasePosFormat1<'a> {
     /// Attempt to resolve [`base_coverage_offset`][Self::base_coverage_offset].
     #[inline]
     pub fn base_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.base_coverage_offset().resolve(data)
     }
 
@@ -2988,7 +2988,7 @@ impl<'a> MarkBasePosFormat1<'a> {
     /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
     #[inline]
     pub fn mark_array(&self) -> Result<MarkArray<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark_array_offset().resolve(data)
     }
 
@@ -3002,7 +3002,7 @@ impl<'a> MarkBasePosFormat1<'a> {
     /// Attempt to resolve [`base_array_offset`][Self::base_array_offset].
     #[inline]
     pub fn base_array(&self) -> Result<BaseArray<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.mark_class_count();
         self.base_array_offset().resolve_with_args(data, &args)
     }
@@ -3091,9 +3091,9 @@ impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
     #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a BaseArrayFixedFields = cursor.read_ref()?;
-        let base_count = fixed_fields.base_count.get();
+        let (mut cursor, table_data) = Cursor::start::<BaseArrayFixedFields>(data)?;
+        let _header = table_data.header();
+        let base_count = _header.base_count.get();
         let base_records_byte_len = (base_count as usize)
             .checked_mul(<BaseRecord as ComputeSize>::compute_size(
                 &mark_class_count,
@@ -3105,7 +3105,7 @@ impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
                 mark_class_count,
                 base_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -3137,7 +3137,7 @@ impl<'a> BaseArray<'a> {
     #[inline]
     pub fn base_records(&self) -> ComputedArray<'a, BaseRecord<'a>> {
         let range = self.shape.base_records_byte_range();
-        self.data
+        self.offset_data()
             .read_with_args(range, &self.mark_class_count())
             .unwrap()
     }
@@ -3343,9 +3343,9 @@ impl MinByteRange for MarkLigPosFormat1Marker {
 impl<'a> FontRead<'a> for MarkLigPosFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a MarkLigPosFormat1FixedFields = cursor.read_ref()?;
-        cursor.finish(MarkLigPosFormat1Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<MarkLigPosFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(MarkLigPosFormat1Marker {}, table_data)
     }
 }
 
@@ -3371,7 +3371,7 @@ impl<'a> MarkLigPosFormat1<'a> {
     /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
     #[inline]
     pub fn mark_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark_coverage_offset().resolve(data)
     }
 
@@ -3385,7 +3385,7 @@ impl<'a> MarkLigPosFormat1<'a> {
     /// Attempt to resolve [`ligature_coverage_offset`][Self::ligature_coverage_offset].
     #[inline]
     pub fn ligature_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.ligature_coverage_offset().resolve(data)
     }
 
@@ -3405,7 +3405,7 @@ impl<'a> MarkLigPosFormat1<'a> {
     /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
     #[inline]
     pub fn mark_array(&self) -> Result<MarkArray<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark_array_offset().resolve(data)
     }
 
@@ -3419,7 +3419,7 @@ impl<'a> MarkLigPosFormat1<'a> {
     /// Attempt to resolve [`ligature_array_offset`][Self::ligature_array_offset].
     #[inline]
     pub fn ligature_array(&self) -> Result<LigatureArray<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.mark_class_count();
         self.ligature_array_offset().resolve_with_args(data, &args)
     }
@@ -3508,9 +3508,9 @@ impl<'a> FontReadWithArgs<'a> for LigatureArray<'a> {
     #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a LigatureArrayFixedFields = cursor.read_ref()?;
-        let ligature_count = fixed_fields.ligature_count.get();
+        let (mut cursor, table_data) = Cursor::start::<LigatureArrayFixedFields>(data)?;
+        let _header = table_data.header();
+        let ligature_count = _header.ligature_count.get();
         let ligature_attach_offsets_byte_len = (ligature_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -3520,7 +3520,7 @@ impl<'a> FontReadWithArgs<'a> for LigatureArray<'a> {
                 mark_class_count,
                 ligature_attach_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -3554,13 +3554,13 @@ impl<'a> LigatureArray<'a> {
     #[inline]
     pub fn ligature_attach_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.ligature_attach_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`ligature_attach_offsets`][Self::ligature_attach_offsets].
     #[inline]
     pub fn ligature_attaches(&self) -> ArrayOfOffsets<'a, LigatureAttach<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.ligature_attach_offsets();
         let args = self.mark_class_count();
         ArrayOfOffsets::new(offsets, data, args)
@@ -3580,7 +3580,7 @@ impl<'a> SomeTable<'a> for LigatureArray<'a> {
         match idx {
             0usize => Some(Field::new("ligature_count", self.ligature_count())),
             1usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 let args = self.mark_class_count();
                 Field::new(
                     "ligature_attach_offsets",
@@ -3652,9 +3652,9 @@ impl<'a> FontReadWithArgs<'a> for LigatureAttach<'a> {
     #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a LigatureAttachFixedFields = cursor.read_ref()?;
-        let component_count = fixed_fields.component_count.get();
+        let (mut cursor, table_data) = Cursor::start::<LigatureAttachFixedFields>(data)?;
+        let _header = table_data.header();
+        let component_count = _header.component_count.get();
         let component_records_byte_len = (component_count as usize)
             .checked_mul(<ComponentRecord as ComputeSize>::compute_size(
                 &mark_class_count,
@@ -3666,7 +3666,7 @@ impl<'a> FontReadWithArgs<'a> for LigatureAttach<'a> {
                 mark_class_count,
                 component_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -3698,7 +3698,7 @@ impl<'a> LigatureAttach<'a> {
     #[inline]
     pub fn component_records(&self) -> ComputedArray<'a, ComponentRecord<'a>> {
         let range = self.shape.component_records_byte_range();
-        self.data
+        self.offset_data()
             .read_with_args(range, &self.mark_class_count())
             .unwrap()
     }
@@ -3904,9 +3904,9 @@ impl MinByteRange for MarkMarkPosFormat1Marker {
 impl<'a> FontRead<'a> for MarkMarkPosFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a MarkMarkPosFormat1FixedFields = cursor.read_ref()?;
-        cursor.finish(MarkMarkPosFormat1Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<MarkMarkPosFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(MarkMarkPosFormat1Marker {}, table_data)
     }
 }
 
@@ -3932,7 +3932,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
     /// Attempt to resolve [`mark1_coverage_offset`][Self::mark1_coverage_offset].
     #[inline]
     pub fn mark1_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark1_coverage_offset().resolve(data)
     }
 
@@ -3946,7 +3946,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
     /// Attempt to resolve [`mark2_coverage_offset`][Self::mark2_coverage_offset].
     #[inline]
     pub fn mark2_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark2_coverage_offset().resolve(data)
     }
 
@@ -3966,7 +3966,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
     /// Attempt to resolve [`mark1_array_offset`][Self::mark1_array_offset].
     #[inline]
     pub fn mark1_array(&self) -> Result<MarkArray<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark1_array_offset().resolve(data)
     }
 
@@ -3980,7 +3980,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
     /// Attempt to resolve [`mark2_array_offset`][Self::mark2_array_offset].
     #[inline]
     pub fn mark2_array(&self) -> Result<Mark2Array<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.mark_class_count();
         self.mark2_array_offset().resolve_with_args(data, &args)
     }
@@ -4069,9 +4069,9 @@ impl<'a> FontReadWithArgs<'a> for Mark2Array<'a> {
     #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Mark2ArrayFixedFields = cursor.read_ref()?;
-        let mark2_count = fixed_fields.mark2_count.get();
+        let (mut cursor, table_data) = Cursor::start::<Mark2ArrayFixedFields>(data)?;
+        let _header = table_data.header();
+        let mark2_count = _header.mark2_count.get();
         let mark2_records_byte_len = (mark2_count as usize)
             .checked_mul(<Mark2Record as ComputeSize>::compute_size(
                 &mark_class_count,
@@ -4083,7 +4083,7 @@ impl<'a> FontReadWithArgs<'a> for Mark2Array<'a> {
                 mark_class_count,
                 mark2_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -4115,7 +4115,7 @@ impl<'a> Mark2Array<'a> {
     #[inline]
     pub fn mark2_records(&self) -> ComputedArray<'a, Mark2Record<'a>> {
         let range = self.shape.mark2_records_byte_range();
-        self.data
+        self.offset_data()
             .read_with_args(range, &self.mark_class_count())
             .unwrap()
     }
@@ -4308,13 +4308,13 @@ impl<T> Copy for ExtensionPosFormat1Marker<T> {}
 impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ExtensionPosFormat1FixedFields = cursor.read_ref()?;
+        let (cursor, table_data) = Cursor::start::<ExtensionPosFormat1FixedFields>(data)?;
+        let _header = table_data.header();
         cursor.finish(
             ExtensionPosFormat1Marker {
                 offset_type: std::marker::PhantomData,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -4322,15 +4322,12 @@ impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
 impl<'a> ExtensionPosFormat1<'a, ()> {
     #[allow(dead_code)]
     pub(crate) fn into_concrete<T>(self) -> ExtensionPosFormat1<'a, T> {
-        let TableRef {
-            data, fixed_fields, ..
-        } = self;
+        let TableRef { data, .. } = self;
         TableRef {
             shape: ExtensionPosFormat1Marker {
                 offset_type: std::marker::PhantomData,
             },
             data,
-            fixed_fields,
         }
     }
 }
@@ -4339,15 +4336,12 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
     #[allow(dead_code)]
     /// Replace the specific generic type on this implementation with `()`
     pub(crate) fn of_unit_type(&self) -> ExtensionPosFormat1<'a, ()> {
-        let TableRef {
-            data, fixed_fields, ..
-        } = self;
+        let TableRef { data, .. } = self;
         TableRef {
             shape: ExtensionPosFormat1Marker {
                 offset_type: std::marker::PhantomData,
             },
             data: *data,
-            fixed_fields: *fixed_fields,
         }
     }
 }
@@ -4385,7 +4379,7 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
     where
         T: FontRead<'a>,
     {
-        let data = self.data;
+        let data = self.offset_data();
         self.extension_offset().resolve(data)
     }
 }

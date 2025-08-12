@@ -375,9 +375,9 @@ impl<'a> FontReadWithArgs<'a> for Sbix<'a> {
     #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let num_glyphs = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SbixFixedFields = cursor.read_ref()?;
-        let num_strikes = fixed_fields.num_strikes.get();
+        let (mut cursor, table_data) = Cursor::start::<SbixFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_strikes = _header.num_strikes.get();
         let strike_offsets_byte_len = (num_strikes as usize)
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -387,7 +387,7 @@ impl<'a> FontReadWithArgs<'a> for Sbix<'a> {
                 num_glyphs,
                 strike_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -433,13 +433,13 @@ impl<'a> Sbix<'a> {
     #[inline]
     pub fn strike_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.strike_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`strike_offsets`][Self::strike_offsets].
     #[inline]
     pub fn strikes(&self) -> ArrayOfOffsets<'a, Strike<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.strike_offsets();
         let args = self.num_glyphs();
         ArrayOfOffsets::new(offsets, data, args)
@@ -461,7 +461,7 @@ impl<'a> SomeTable<'a> for Sbix<'a> {
             1usize => Some(Field::new("flags", self.flags())),
             2usize => Some(Field::new("num_strikes", self.num_strikes())),
             3usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 let args = self.num_glyphs();
                 Field::new(
                     "strike_offsets",
@@ -538,8 +538,8 @@ impl<'a> FontReadWithArgs<'a> for Strike<'a> {
     #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let num_glyphs = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a StrikeFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<StrikeFixedFields>(data)?;
+        let _header = table_data.header();
         let glyph_data_offsets_byte_len = (transforms::add(num_glyphs, 1_usize))
             .checked_mul(u32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -548,7 +548,7 @@ impl<'a> FontReadWithArgs<'a> for Strike<'a> {
             StrikeMarker {
                 glyph_data_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -586,7 +586,7 @@ impl<'a> Strike<'a> {
     #[inline]
     pub fn glyph_data_offsets(&self) -> &'a [BigEndian<u32>] {
         let range = self.shape.glyph_data_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -664,11 +664,11 @@ impl MinByteRange for GlyphDataMarker {
 impl<'a> FontRead<'a> for GlyphData<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a GlyphDataFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<GlyphDataFixedFields>(data)?;
+        let _header = table_data.header();
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(GlyphDataMarker { data_byte_len }, fixed_fields)
+        cursor.finish(GlyphDataMarker { data_byte_len }, table_data)
     }
 }
 
@@ -699,7 +699,7 @@ impl<'a> GlyphData<'a> {
     #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

@@ -53,8 +53,8 @@ impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
     #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let number_of_h_metrics = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a HmtxFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<HmtxFixedFields>(data)?;
+        let _header = table_data.header();
         let h_metrics_byte_len = (number_of_h_metrics as usize)
             .checked_mul(LongMetric::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -67,7 +67,7 @@ impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
                 h_metrics_byte_len,
                 left_side_bearings_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -94,7 +94,7 @@ impl<'a> Hmtx<'a> {
     #[inline]
     pub fn h_metrics(&self) -> &'a [LongMetric] {
         let range = self.shape.h_metrics_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Leading (left/top) side bearings for glyph IDs greater than or equal to
@@ -102,7 +102,7 @@ impl<'a> Hmtx<'a> {
     #[inline]
     pub fn left_side_bearings(&self) -> &'a [BigEndian<i16>] {
         let range = self.shape.left_side_bearings_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

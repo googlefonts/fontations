@@ -52,7 +52,7 @@ impl U16Or32 {
 impl<'a> GlyphVariationDataHeader<'a> {
     fn raw_tuple_header_data(&self) -> FontData<'a> {
         let range = self.shape.tuple_variation_headers_byte_range();
-        self.data.split_off(range.start).unwrap()
+        self.offset_data().split_off(range.start).unwrap()
     }
 }
 
@@ -65,7 +65,7 @@ impl<'a> Gvar<'a> {
         if range.is_empty() {
             return Ok(None);
         }
-        match self.data.slice(range) {
+        match self.offset_data().slice(range) {
             Some(data) => Ok(Some(data)),
             None => Err(ReadError::OutOfBounds),
         }
@@ -82,11 +82,13 @@ impl<'a> Gvar<'a> {
         let end = base
             .checked_add(offset_range.end)
             .ok_or(ReadError::OutOfBounds)?;
-        self.data.slice(start..end).ok_or(ReadError::OutOfBounds)
+        self.offset_data()
+            .slice(start..end)
+            .ok_or(ReadError::OutOfBounds)
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        self.data.as_bytes()
+        self.offset_data().as_bytes()
     }
 
     fn data_range_for_gid(&self, gid: GlyphId) -> Result<Range<usize>, ReadError> {

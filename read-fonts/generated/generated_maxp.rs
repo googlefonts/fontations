@@ -127,9 +127,9 @@ impl TopLevelTable for Maxp<'_> {
 impl<'a> FontRead<'a> for Maxp<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a MaxpFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
+        let (mut cursor, table_data) = Cursor::start::<MaxpFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
         let max_points_byte_start = version
             .compatible((1u16, 0u16))
             .then(|| cursor.position())
@@ -237,7 +237,7 @@ impl<'a> FontRead<'a> for Maxp<'a> {
                 max_component_elements_byte_start,
                 max_component_depth_byte_start,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -263,28 +263,28 @@ impl<'a> Maxp<'a> {
     #[inline]
     pub fn max_points(&self) -> Option<u16> {
         let range = self.shape.max_points_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Maximum contours in a non-composite glyph.
     #[inline]
     pub fn max_contours(&self) -> Option<u16> {
         let range = self.shape.max_contours_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Maximum points in a composite glyph.
     #[inline]
     pub fn max_composite_points(&self) -> Option<u16> {
         let range = self.shape.max_composite_points_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Maximum contours in a composite glyph.
     #[inline]
     pub fn max_composite_contours(&self) -> Option<u16> {
         let range = self.shape.max_composite_contours_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// 1 if instructions do not use the twilight zone (Z0), or 2 if
@@ -292,35 +292,35 @@ impl<'a> Maxp<'a> {
     #[inline]
     pub fn max_zones(&self) -> Option<u16> {
         let range = self.shape.max_zones_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Maximum points used in Z0.
     #[inline]
     pub fn max_twilight_points(&self) -> Option<u16> {
         let range = self.shape.max_twilight_points_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Number of Storage Area locations.
     #[inline]
     pub fn max_storage(&self) -> Option<u16> {
         let range = self.shape.max_storage_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Number of FDEFs, equal to the highest function number + 1.
     #[inline]
     pub fn max_function_defs(&self) -> Option<u16> {
         let range = self.shape.max_function_defs_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Number of IDEFs.
     #[inline]
     pub fn max_instruction_defs(&self) -> Option<u16> {
         let range = self.shape.max_instruction_defs_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Maximum stack depth across Font Program ('fpgm' table), CVT
@@ -329,14 +329,14 @@ impl<'a> Maxp<'a> {
     #[inline]
     pub fn max_stack_elements(&self) -> Option<u16> {
         let range = self.shape.max_stack_elements_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Maximum byte count for glyph instructions.
     #[inline]
     pub fn max_size_of_instructions(&self) -> Option<u16> {
         let range = self.shape.max_size_of_instructions_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Maximum number of components referenced at “top level” for
@@ -344,14 +344,14 @@ impl<'a> Maxp<'a> {
     #[inline]
     pub fn max_component_elements(&self) -> Option<u16> {
         let range = self.shape.max_component_elements_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Maximum levels of recursion; 1 for simple components.
     #[inline]
     pub fn max_component_depth(&self) -> Option<u16> {
         let range = self.shape.max_component_depth_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 }
 

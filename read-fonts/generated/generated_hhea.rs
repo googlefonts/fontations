@@ -154,9 +154,9 @@ impl TopLevelTable for Hhea<'_> {
 impl<'a> FontRead<'a> for Hhea<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a HheaFixedFields = cursor.read_ref()?;
-        cursor.finish(HheaMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<HheaFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(HheaMarker {}, table_data)
     }
 }
 

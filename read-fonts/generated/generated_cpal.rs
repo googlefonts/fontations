@@ -95,10 +95,10 @@ impl TopLevelTable for Cpal<'_> {
 impl<'a> FontRead<'a> for Cpal<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CpalFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
-        let num_palettes = fixed_fields.num_palettes.get();
+        let (mut cursor, table_data) = Cursor::start::<CpalFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
+        let num_palettes = _header.num_palettes.get();
         let color_record_indices_byte_len = (num_palettes as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -131,7 +131,7 @@ impl<'a> FontRead<'a> for Cpal<'a> {
                 palette_labels_array_offset_byte_start,
                 palette_entry_labels_array_offset_byte_start,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -175,7 +175,7 @@ impl<'a> Cpal<'a> {
     /// Attempt to resolve [`color_records_array_offset`][Self::color_records_array_offset].
     #[inline]
     pub fn color_records_array(&self) -> Option<Result<&'a [ColorRecord], ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.num_color_records();
         self.color_records_array_offset()
             .resolve_with_args(data, &args)
@@ -186,7 +186,7 @@ impl<'a> Cpal<'a> {
     #[inline]
     pub fn color_record_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.color_record_indices_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Offset from the beginning of CPAL table to the [Palette Types Array][].
@@ -197,13 +197,13 @@ impl<'a> Cpal<'a> {
     #[inline]
     pub fn palette_types_array_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.palette_types_array_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`palette_types_array_offset`][Self::palette_types_array_offset].
     #[inline]
     pub fn palette_types_array(&self) -> Option<Result<&'a [BigEndian<PaletteType>], ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.num_palettes();
         self.palette_types_array_offset()
             .map(|x| x.resolve_with_args(data, &args))?
@@ -219,13 +219,13 @@ impl<'a> Cpal<'a> {
     #[inline]
     pub fn palette_labels_array_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.palette_labels_array_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`palette_labels_array_offset`][Self::palette_labels_array_offset].
     #[inline]
     pub fn palette_labels_array(&self) -> Option<Result<&'a [BigEndian<u16>], ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.num_palettes();
         self.palette_labels_array_offset()
             .map(|x| x.resolve_with_args(data, &args))?
@@ -243,13 +243,13 @@ impl<'a> Cpal<'a> {
     #[inline]
     pub fn palette_entry_labels_array_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.palette_entry_labels_array_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`palette_entry_labels_array_offset`][Self::palette_entry_labels_array_offset].
     #[inline]
     pub fn palette_entry_labels_array(&self) -> Option<Result<&'a [BigEndian<NameId>], ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.num_palette_entries();
         self.palette_entry_labels_array_offset()
             .map(|x| x.resolve_with_args(data, &args))?

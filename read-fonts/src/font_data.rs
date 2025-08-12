@@ -4,7 +4,7 @@
 use std::ops::{Range, RangeBounds};
 
 use bytemuck::AnyBitPattern;
-use types::{BigEndian, FixedSize, Scalar};
+use types::{BigEndian, FixedSize, Scalar, TableDataWithHeader};
 
 use crate::array::ComputedArray;
 use crate::read::{ComputeSize, FontReadWithArgs, ReadError};
@@ -239,12 +239,6 @@ impl<'a> Cursor<'a> {
         temp
     }
 
-    pub fn read_ref<T: AnyBitPattern + FixedSize>(&mut self) -> Result<&'a T, ReadError> {
-        let val = self.data.read_ref_at(self.pos)?;
-        self.advance_by(T::RAW_BYTE_LEN);
-        Ok(val)
-    }
-
     // only used in records that contain arrays :/
     pub(crate) fn read_computed_array<T>(
         &mut self,
@@ -295,17 +289,32 @@ impl<'a> Cursor<'a> {
         self.pos >= self.data.len()
     }
 
+    pub(crate) fn start<F>(
+        data: FontData<'a>,
+    ) -> Result<(Self, TableDataWithHeader<'a, F>), ReadError>
+    where
+        F: bytemuck::AnyBitPattern + bytemuck::Zeroable,
+    {
+        let table_data = TableDataWithHeader::new(data.as_bytes()).ok_or(ReadError::OutOfBounds)?;
+        Ok((
+            Self {
+                data,
+                pos: table_data.header_size(),
+            },
+            table_data,
+        ))
+    }
+
     pub(crate) fn finish<T, F>(
         self,
         shape: T,
-        fixed_fields: &'a F,
+        table_data: TableDataWithHeader<'a, F>,
     ) -> Result<TableRef<'a, T, F>, ReadError> {
         let data = self.data;
         data.check_in_bounds(self.pos)?;
         Ok(TableRef {
-            data,
             shape,
-            fixed_fields,
+            data: table_data,
         })
     }
 }

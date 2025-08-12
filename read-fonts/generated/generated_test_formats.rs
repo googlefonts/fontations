@@ -52,9 +52,9 @@ impl MinByteRange for Table1Marker {
 impl<'a> FontRead<'a> for Table1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Table1FixedFields = cursor.read_ref()?;
-        cursor.finish(Table1Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<Table1FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(Table1Marker {}, table_data)
     }
 }
 
@@ -149,14 +149,14 @@ impl MinByteRange for Table2Marker {
 impl<'a> FontRead<'a> for Table2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Table2FixedFields = cursor.read_ref()?;
-        let value_count = fixed_fields.value_count.get();
+        let (mut cursor, table_data) = Cursor::start::<Table2FixedFields>(data)?;
+        let _header = table_data.header();
+        let value_count = _header.value_count.get();
         let values_byte_len = (value_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(values_byte_len);
-        cursor.finish(Table2Marker { values_byte_len }, fixed_fields)
+        cursor.finish(Table2Marker { values_byte_len }, table_data)
     }
 }
 
@@ -177,7 +177,7 @@ impl<'a> Table2<'a> {
     #[inline]
     pub fn values(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.values_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -245,9 +245,9 @@ impl MinByteRange for Table3Marker {
 impl<'a> FontRead<'a> for Table3<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Table3FixedFields = cursor.read_ref()?;
-        cursor.finish(Table3Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<Table3FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(Table3Marker {}, table_data)
     }
 }
 

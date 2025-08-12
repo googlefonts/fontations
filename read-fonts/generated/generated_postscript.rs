@@ -56,10 +56,10 @@ impl MinByteRange for Index1Marker {
 impl<'a> FontRead<'a> for Index1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Index1FixedFields = cursor.read_ref()?;
-        let count = fixed_fields.count.get();
-        let off_size = fixed_fields.off_size;
+        let (mut cursor, table_data) = Cursor::start::<Index1FixedFields>(data)?;
+        let _header = table_data.header();
+        let count = _header.count.get();
+        let off_size = _header.off_size;
         let offsets_byte_len = (transforms::add_multiply(count, 1_usize, off_size))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -71,7 +71,7 @@ impl<'a> FontRead<'a> for Index1<'a> {
                 offsets_byte_len,
                 data_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -97,14 +97,14 @@ impl<'a> Index1<'a> {
     #[inline]
     pub fn offsets(&self) -> &'a [u8] {
         let range = self.shape.offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Array containing the object data.
     #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -183,10 +183,10 @@ impl MinByteRange for Index2Marker {
 impl<'a> FontRead<'a> for Index2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Index2FixedFields = cursor.read_ref()?;
-        let count = fixed_fields.count.get();
-        let off_size = fixed_fields.off_size;
+        let (mut cursor, table_data) = Cursor::start::<Index2FixedFields>(data)?;
+        let _header = table_data.header();
+        let count = _header.count.get();
+        let off_size = _header.off_size;
         let offsets_byte_len = (transforms::add_multiply(count, 1_usize, off_size))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -198,7 +198,7 @@ impl<'a> FontRead<'a> for Index2<'a> {
                 offsets_byte_len,
                 data_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -224,14 +224,14 @@ impl<'a> Index2<'a> {
     #[inline]
     pub fn offsets(&self) -> &'a [u8] {
         let range = self.shape.offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Array containing the object data.
     #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -382,11 +382,11 @@ impl MinByteRange for FdSelectFormat0Marker {
 impl<'a> FontRead<'a> for FdSelectFormat0<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a FdSelectFormat0FixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<FdSelectFormat0FixedFields>(data)?;
+        let _header = table_data.header();
         let fds_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(fds_byte_len);
-        cursor.finish(FdSelectFormat0Marker { fds_byte_len }, fixed_fields)
+        cursor.finish(FdSelectFormat0Marker { fds_byte_len }, table_data)
     }
 }
 
@@ -405,7 +405,7 @@ impl<'a> FdSelectFormat0<'a> {
     #[inline]
     pub fn fds(&self) -> &'a [u8] {
         let range = self.shape.fds_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -485,15 +485,15 @@ impl MinByteRange for FdSelectFormat3Marker {
 impl<'a> FontRead<'a> for FdSelectFormat3<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a FdSelectFormat3FixedFields = cursor.read_ref()?;
-        let n_ranges = fixed_fields.n_ranges.get();
+        let (mut cursor, table_data) = Cursor::start::<FdSelectFormat3FixedFields>(data)?;
+        let _header = table_data.header();
+        let n_ranges = _header.n_ranges.get();
         let ranges_byte_len = (n_ranges as usize)
             .checked_mul(FdSelectRange3::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(ranges_byte_len);
         cursor.advance::<u16>();
-        cursor.finish(FdSelectFormat3Marker { ranges_byte_len }, fixed_fields)
+        cursor.finish(FdSelectFormat3Marker { ranges_byte_len }, table_data)
     }
 }
 
@@ -518,14 +518,14 @@ impl<'a> FdSelectFormat3<'a> {
     #[inline]
     pub fn ranges(&self) -> &'a [FdSelectRange3] {
         let range = self.shape.ranges_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Sentinel GID. Set equal to the number of glyphs in the font.
     #[inline]
     pub fn sentinel(&self) -> u16 {
         let range = self.shape.sentinel_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 }
 
@@ -658,15 +658,15 @@ impl MinByteRange for FdSelectFormat4Marker {
 impl<'a> FontRead<'a> for FdSelectFormat4<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a FdSelectFormat4FixedFields = cursor.read_ref()?;
-        let n_ranges = fixed_fields.n_ranges.get();
+        let (mut cursor, table_data) = Cursor::start::<FdSelectFormat4FixedFields>(data)?;
+        let _header = table_data.header();
+        let n_ranges = _header.n_ranges.get();
         let ranges_byte_len = (n_ranges as usize)
             .checked_mul(FdSelectRange4::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(ranges_byte_len);
         cursor.advance::<u32>();
-        cursor.finish(FdSelectFormat4Marker { ranges_byte_len }, fixed_fields)
+        cursor.finish(FdSelectFormat4Marker { ranges_byte_len }, table_data)
     }
 }
 
@@ -691,14 +691,14 @@ impl<'a> FdSelectFormat4<'a> {
     #[inline]
     pub fn ranges(&self) -> &'a [FdSelectRange4] {
         let range = self.shape.ranges_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Sentinel GID. Set equal to the number of glyphs in the font.
     #[inline]
     pub fn sentinel(&self) -> u32 {
         let range = self.shape.sentinel_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 }
 
@@ -900,11 +900,11 @@ impl MinByteRange for CharsetFormat0Marker {
 impl<'a> FontRead<'a> for CharsetFormat0<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CharsetFormat0FixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<CharsetFormat0FixedFields>(data)?;
+        let _header = table_data.header();
         let glyph_byte_len = cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
         cursor.advance_by(glyph_byte_len);
-        cursor.finish(CharsetFormat0Marker { glyph_byte_len }, fixed_fields)
+        cursor.finish(CharsetFormat0Marker { glyph_byte_len }, table_data)
     }
 }
 
@@ -923,7 +923,7 @@ impl<'a> CharsetFormat0<'a> {
     #[inline]
     pub fn glyph(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.glyph_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -992,12 +992,12 @@ impl MinByteRange for CharsetFormat1Marker {
 impl<'a> FontRead<'a> for CharsetFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CharsetFormat1FixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<CharsetFormat1FixedFields>(data)?;
+        let _header = table_data.header();
         let ranges_byte_len =
             cursor.remaining_bytes() / CharsetRange1::RAW_BYTE_LEN * CharsetRange1::RAW_BYTE_LEN;
         cursor.advance_by(ranges_byte_len);
-        cursor.finish(CharsetFormat1Marker { ranges_byte_len }, fixed_fields)
+        cursor.finish(CharsetFormat1Marker { ranges_byte_len }, table_data)
     }
 }
 
@@ -1016,7 +1016,7 @@ impl<'a> CharsetFormat1<'a> {
     #[inline]
     pub fn ranges(&self) -> &'a [CharsetRange1] {
         let range = self.shape.ranges_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1136,12 +1136,12 @@ impl MinByteRange for CharsetFormat2Marker {
 impl<'a> FontRead<'a> for CharsetFormat2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CharsetFormat2FixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<CharsetFormat2FixedFields>(data)?;
+        let _header = table_data.header();
         let ranges_byte_len =
             cursor.remaining_bytes() / CharsetRange2::RAW_BYTE_LEN * CharsetRange2::RAW_BYTE_LEN;
         cursor.advance_by(ranges_byte_len);
-        cursor.finish(CharsetFormat2Marker { ranges_byte_len }, fixed_fields)
+        cursor.finish(CharsetFormat2Marker { ranges_byte_len }, table_data)
     }
 }
 
@@ -1160,7 +1160,7 @@ impl<'a> CharsetFormat2<'a> {
     #[inline]
     pub fn ranges(&self) -> &'a [CharsetRange2] {
         let range = self.shape.ranges_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

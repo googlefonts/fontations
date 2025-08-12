@@ -48,9 +48,9 @@ impl TopLevelTable for Cbdt<'_> {
 impl<'a> FontRead<'a> for Cbdt<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CbdtFixedFields = cursor.read_ref()?;
-        cursor.finish(CbdtMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<CbdtFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(CbdtMarker {}, table_data)
     }
 }
 

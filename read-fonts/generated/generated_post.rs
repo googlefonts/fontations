@@ -119,9 +119,9 @@ impl TopLevelTable for Post<'_> {
 impl<'a> FontRead<'a> for Post<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a PostFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
+        let (mut cursor, table_data) = Cursor::start::<PostFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
         let num_glyphs_byte_start = version
             .compatible((2u16, 0u16))
             .then(|| cursor.position())
@@ -161,7 +161,7 @@ impl<'a> FontRead<'a> for Post<'a> {
                 string_data_byte_start,
                 string_data_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -246,21 +246,21 @@ impl<'a> Post<'a> {
     #[inline]
     pub fn num_glyphs(&self) -> Option<u16> {
         let range = self.shape.num_glyphs_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Array of indices into the string data. See below for details.
     #[inline]
     pub fn glyph_name_index(&self) -> Option<&'a [BigEndian<u16>]> {
         let range = self.shape.glyph_name_index_byte_range()?;
-        Some(self.data.read_array(range).unwrap())
+        Some(self.offset_data().read_array(range).unwrap())
     }
 
     /// Storage for the string data.
     #[inline]
     pub fn string_data(&self) -> Option<VarLenArray<'a, PString<'a>>> {
         let range = self.shape.string_data_byte_range()?;
-        Some(VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap())
+        Some(VarLenArray::read(self.offset_data().split_off(range.start).unwrap()).unwrap())
     }
 }
 

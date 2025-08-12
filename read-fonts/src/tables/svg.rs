@@ -22,7 +22,7 @@ impl<'a> Svg<'a> {
             .ok()
             .and_then(|index| document_list.document_records().get(index))
             .and_then(|r| {
-                let all_data = document_list.data.as_bytes();
+                let all_data = document_list.data.data();
                 all_data.get(
                     r.svg_doc_offset.get() as usize
                         ..(r.svg_doc_offset.get() + r.svg_doc_length.get()) as usize,

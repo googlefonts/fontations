@@ -44,9 +44,9 @@ impl MinByteRange for ScriptListMarker {
 impl<'a> FontRead<'a> for ScriptList<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ScriptListFixedFields = cursor.read_ref()?;
-        let script_count = fixed_fields.script_count.get();
+        let (mut cursor, table_data) = Cursor::start::<ScriptListFixedFields>(data)?;
+        let _header = table_data.header();
+        let script_count = _header.script_count.get();
         let script_records_byte_len = (script_count as usize)
             .checked_mul(ScriptRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -55,7 +55,7 @@ impl<'a> FontRead<'a> for ScriptList<'a> {
             ScriptListMarker {
                 script_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -75,7 +75,7 @@ impl<'a> ScriptList<'a> {
     #[inline]
     pub fn script_records(&self) -> &'a [ScriptRecord] {
         let range = self.shape.script_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -209,9 +209,9 @@ impl MinByteRange for ScriptMarker {
 impl<'a> FontRead<'a> for Script<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ScriptFixedFields = cursor.read_ref()?;
-        let lang_sys_count = fixed_fields.lang_sys_count.get();
+        let (mut cursor, table_data) = Cursor::start::<ScriptFixedFields>(data)?;
+        let _header = table_data.header();
+        let lang_sys_count = _header.lang_sys_count.get();
         let lang_sys_records_byte_len = (lang_sys_count as usize)
             .checked_mul(LangSysRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -220,7 +220,7 @@ impl<'a> FontRead<'a> for Script<'a> {
             ScriptMarker {
                 lang_sys_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -240,7 +240,7 @@ impl<'a> Script<'a> {
     /// Attempt to resolve [`default_lang_sys_offset`][Self::default_lang_sys_offset].
     #[inline]
     pub fn default_lang_sys(&self) -> Option<Result<LangSys<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.default_lang_sys_offset().resolve(data)
     }
 
@@ -255,7 +255,7 @@ impl<'a> Script<'a> {
     #[inline]
     pub fn lang_sys_records(&self) -> &'a [LangSysRecord] {
         let range = self.shape.lang_sys_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -398,9 +398,9 @@ impl MinByteRange for LangSysMarker {
 impl<'a> FontRead<'a> for LangSys<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a LangSysFixedFields = cursor.read_ref()?;
-        let feature_index_count = fixed_fields.feature_index_count.get();
+        let (mut cursor, table_data) = Cursor::start::<LangSysFixedFields>(data)?;
+        let _header = table_data.header();
+        let feature_index_count = _header.feature_index_count.get();
         let feature_indices_byte_len = (feature_index_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -409,7 +409,7 @@ impl<'a> FontRead<'a> for LangSys<'a> {
             LangSysMarker {
                 feature_indices_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -437,7 +437,7 @@ impl<'a> LangSys<'a> {
     #[inline]
     pub fn feature_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.feature_indices_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -509,9 +509,9 @@ impl MinByteRange for FeatureListMarker {
 impl<'a> FontRead<'a> for FeatureList<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a FeatureListFixedFields = cursor.read_ref()?;
-        let feature_count = fixed_fields.feature_count.get();
+        let (mut cursor, table_data) = Cursor::start::<FeatureListFixedFields>(data)?;
+        let _header = table_data.header();
+        let feature_count = _header.feature_count.get();
         let feature_records_byte_len = (feature_count as usize)
             .checked_mul(FeatureRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -520,7 +520,7 @@ impl<'a> FontRead<'a> for FeatureList<'a> {
             FeatureListMarker {
                 feature_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -541,7 +541,7 @@ impl<'a> FeatureList<'a> {
     #[inline]
     pub fn feature_records(&self) -> &'a [FeatureRecord] {
         let range = self.shape.feature_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -682,9 +682,9 @@ impl<'a> FontReadWithArgs<'a> for Feature<'a> {
     #[inline]
     fn read_with_args(data: FontData<'a>, args: &Tag) -> Result<Self, ReadError> {
         let feature_tag = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a FeatureFixedFields = cursor.read_ref()?;
-        let lookup_index_count = fixed_fields.lookup_index_count.get();
+        let (mut cursor, table_data) = Cursor::start::<FeatureFixedFields>(data)?;
+        let _header = table_data.header();
+        let lookup_index_count = _header.lookup_index_count.get();
         let lookup_list_indices_byte_len = (lookup_index_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -694,7 +694,7 @@ impl<'a> FontReadWithArgs<'a> for Feature<'a> {
                 feature_tag,
                 lookup_list_indices_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -725,7 +725,7 @@ impl<'a> Feature<'a> {
     /// Attempt to resolve [`feature_params_offset`][Self::feature_params_offset].
     #[inline]
     pub fn feature_params(&self) -> Option<Result<FeatureParams<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.feature_tag();
         self.feature_params_offset().resolve_with_args(data, &args)
     }
@@ -741,7 +741,7 @@ impl<'a> Feature<'a> {
     #[inline]
     pub fn lookup_list_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.lookup_list_indices_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     pub(crate) fn feature_tag(&self) -> Tag {
@@ -826,9 +826,9 @@ impl<T> Copy for LookupListMarker<T> {}
 impl<'a, T> FontRead<'a> for LookupList<'a, T> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a LookupListFixedFields = cursor.read_ref()?;
-        let lookup_count = fixed_fields.lookup_count.get();
+        let (mut cursor, table_data) = Cursor::start::<LookupListFixedFields>(data)?;
+        let _header = table_data.header();
+        let lookup_count = _header.lookup_count.get();
         let lookup_offsets_byte_len = (lookup_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -838,7 +838,7 @@ impl<'a, T> FontRead<'a> for LookupList<'a, T> {
                 lookup_offsets_byte_len,
                 offset_type: std::marker::PhantomData,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -846,18 +846,13 @@ impl<'a, T> FontRead<'a> for LookupList<'a, T> {
 impl<'a> LookupList<'a, ()> {
     #[allow(dead_code)]
     pub(crate) fn into_concrete<T>(self) -> LookupList<'a, T> {
-        let TableRef {
-            data,
-            fixed_fields,
-            shape,
-        } = self;
+        let TableRef { data, shape } = self;
         TableRef {
             shape: LookupListMarker {
                 lookup_offsets_byte_len: shape.lookup_offsets_byte_len,
                 offset_type: std::marker::PhantomData,
             },
             data,
-            fixed_fields,
         }
     }
 }
@@ -866,18 +861,13 @@ impl<'a, T> LookupList<'a, T> {
     #[allow(dead_code)]
     /// Replace the specific generic type on this implementation with `()`
     pub(crate) fn of_unit_type(&self) -> LookupList<'a, ()> {
-        let TableRef {
-            data,
-            fixed_fields,
-            shape,
-        } = self;
+        let TableRef { data, shape } = self;
         TableRef {
             shape: LookupListMarker {
                 lookup_offsets_byte_len: shape.lookup_offsets_byte_len,
                 offset_type: std::marker::PhantomData,
             },
             data: *data,
-            fixed_fields: *fixed_fields,
         }
     }
 }
@@ -898,7 +888,7 @@ impl<'a, T> LookupList<'a, T> {
     #[inline]
     pub fn lookup_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lookup_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`lookup_offsets`][Self::lookup_offsets].
@@ -907,7 +897,7 @@ impl<'a, T> LookupList<'a, T> {
     where
         T: FontRead<'a>,
     {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.lookup_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -922,7 +912,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for LookupList<'a, 
         match idx {
             0usize => Some(Field::new("lookup_count", self.lookup_count())),
             1usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "lookup_offsets",
                     FieldType::array_of_offsets(
@@ -1014,10 +1004,10 @@ impl<T> Copy for LookupMarker<T> {}
 impl<'a, T> FontRead<'a> for Lookup<'a, T> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a LookupFixedFields = cursor.read_ref()?;
-        let lookup_flag = fixed_fields.lookup_flag.get();
-        let sub_table_count = fixed_fields.sub_table_count.get();
+        let (mut cursor, table_data) = Cursor::start::<LookupFixedFields>(data)?;
+        let _header = table_data.header();
+        let lookup_flag = _header.lookup_flag.get();
+        let sub_table_count = _header.sub_table_count.get();
         let subtable_offsets_byte_len = (sub_table_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1035,7 +1025,7 @@ impl<'a, T> FontRead<'a> for Lookup<'a, T> {
                 mark_filtering_set_byte_start,
                 offset_type: std::marker::PhantomData,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1043,11 +1033,7 @@ impl<'a, T> FontRead<'a> for Lookup<'a, T> {
 impl<'a> Lookup<'a, ()> {
     #[allow(dead_code)]
     pub(crate) fn into_concrete<T>(self) -> Lookup<'a, T> {
-        let TableRef {
-            data,
-            fixed_fields,
-            shape,
-        } = self;
+        let TableRef { data, shape } = self;
         TableRef {
             shape: LookupMarker {
                 subtable_offsets_byte_len: shape.subtable_offsets_byte_len,
@@ -1055,7 +1041,6 @@ impl<'a> Lookup<'a, ()> {
                 offset_type: std::marker::PhantomData,
             },
             data,
-            fixed_fields,
         }
     }
 }
@@ -1064,11 +1049,7 @@ impl<'a, T> Lookup<'a, T> {
     #[allow(dead_code)]
     /// Replace the specific generic type on this implementation with `()`
     pub(crate) fn of_unit_type(&self) -> Lookup<'a, ()> {
-        let TableRef {
-            data,
-            fixed_fields,
-            shape,
-        } = self;
+        let TableRef { data, shape } = self;
         TableRef {
             shape: LookupMarker {
                 subtable_offsets_byte_len: shape.subtable_offsets_byte_len,
@@ -1076,7 +1057,6 @@ impl<'a, T> Lookup<'a, T> {
                 offset_type: std::marker::PhantomData,
             },
             data: *data,
-            fixed_fields: *fixed_fields,
         }
     }
 }
@@ -1109,7 +1089,7 @@ impl<'a, T> Lookup<'a, T> {
     #[inline]
     pub fn subtable_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.subtable_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`subtable_offsets`][Self::subtable_offsets].
@@ -1118,7 +1098,7 @@ impl<'a, T> Lookup<'a, T> {
     where
         T: FontRead<'a>,
     {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.subtable_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -1129,7 +1109,7 @@ impl<'a, T> Lookup<'a, T> {
     #[inline]
     pub fn mark_filtering_set(&self) -> Option<u16> {
         let range = self.shape.mark_filtering_set_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 }
 
@@ -1145,7 +1125,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
             1usize => Some(Field::new("lookup_flag", self.traverse_lookup_flag())),
             2usize => Some(Field::new("sub_table_count", self.sub_table_count())),
             3usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "subtable_offsets",
                     FieldType::array_of_offsets(
@@ -1224,9 +1204,9 @@ impl MinByteRange for CoverageFormat1Marker {
 impl<'a> FontRead<'a> for CoverageFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CoverageFormat1FixedFields = cursor.read_ref()?;
-        let glyph_count = fixed_fields.glyph_count.get();
+        let (mut cursor, table_data) = Cursor::start::<CoverageFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        let glyph_count = _header.glyph_count.get();
         let glyph_array_byte_len = (glyph_count as usize)
             .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1235,7 +1215,7 @@ impl<'a> FontRead<'a> for CoverageFormat1<'a> {
             CoverageFormat1Marker {
                 glyph_array_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1261,7 +1241,7 @@ impl<'a> CoverageFormat1<'a> {
     #[inline]
     pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.glyph_array_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1337,9 +1317,9 @@ impl MinByteRange for CoverageFormat2Marker {
 impl<'a> FontRead<'a> for CoverageFormat2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CoverageFormat2FixedFields = cursor.read_ref()?;
-        let range_count = fixed_fields.range_count.get();
+        let (mut cursor, table_data) = Cursor::start::<CoverageFormat2FixedFields>(data)?;
+        let _header = table_data.header();
+        let range_count = _header.range_count.get();
         let range_records_byte_len = (range_count as usize)
             .checked_mul(RangeRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1348,7 +1328,7 @@ impl<'a> FontRead<'a> for CoverageFormat2<'a> {
             CoverageFormat2Marker {
                 range_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1374,7 +1354,7 @@ impl<'a> CoverageFormat2<'a> {
     #[inline]
     pub fn range_records(&self) -> &'a [RangeRecord] {
         let range = self.shape.range_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1594,9 +1574,9 @@ impl MinByteRange for ClassDefFormat1Marker {
 impl<'a> FontRead<'a> for ClassDefFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ClassDefFormat1FixedFields = cursor.read_ref()?;
-        let glyph_count = fixed_fields.glyph_count.get();
+        let (mut cursor, table_data) = Cursor::start::<ClassDefFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        let glyph_count = _header.glyph_count.get();
         let class_value_array_byte_len = (glyph_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1605,7 +1585,7 @@ impl<'a> FontRead<'a> for ClassDefFormat1<'a> {
             ClassDefFormat1Marker {
                 class_value_array_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1637,7 +1617,7 @@ impl<'a> ClassDefFormat1<'a> {
     #[inline]
     pub fn class_value_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.class_value_array_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1714,9 +1694,9 @@ impl MinByteRange for ClassDefFormat2Marker {
 impl<'a> FontRead<'a> for ClassDefFormat2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ClassDefFormat2FixedFields = cursor.read_ref()?;
-        let class_range_count = fixed_fields.class_range_count.get();
+        let (mut cursor, table_data) = Cursor::start::<ClassDefFormat2FixedFields>(data)?;
+        let _header = table_data.header();
+        let class_range_count = _header.class_range_count.get();
         let class_range_records_byte_len = (class_range_count as usize)
             .checked_mul(ClassRangeRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1725,7 +1705,7 @@ impl<'a> FontRead<'a> for ClassDefFormat2<'a> {
             ClassDefFormat2Marker {
                 class_range_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1751,7 +1731,7 @@ impl<'a> ClassDefFormat2<'a> {
     #[inline]
     pub fn class_range_records(&self) -> &'a [ClassRangeRecord] {
         let range = self.shape.class_range_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -2012,9 +1992,9 @@ impl MinByteRange for SequenceContextFormat1Marker {
 impl<'a> FontRead<'a> for SequenceContextFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SequenceContextFormat1FixedFields = cursor.read_ref()?;
-        let seq_rule_set_count = fixed_fields.seq_rule_set_count.get();
+        let (mut cursor, table_data) = Cursor::start::<SequenceContextFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        let seq_rule_set_count = _header.seq_rule_set_count.get();
         let seq_rule_set_offsets_byte_len = (seq_rule_set_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -2023,7 +2003,7 @@ impl<'a> FontRead<'a> for SequenceContextFormat1<'a> {
             SequenceContextFormat1Marker {
                 seq_rule_set_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -2050,7 +2030,7 @@ impl<'a> SequenceContextFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -2065,13 +2045,13 @@ impl<'a> SequenceContextFormat1<'a> {
     #[inline]
     pub fn seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.seq_rule_set_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`seq_rule_set_offsets`][Self::seq_rule_set_offsets].
     #[inline]
     pub fn seq_rule_sets(&self) -> ArrayOfNullableOffsets<'a, SequenceRuleSet<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.seq_rule_set_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -2091,7 +2071,7 @@ impl<'a> SomeTable<'a> for SequenceContextFormat1<'a> {
             )),
             2usize => Some(Field::new("seq_rule_set_count", self.seq_rule_set_count())),
             3usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "seq_rule_set_offsets",
                     FieldType::array_of_offsets(
@@ -2156,9 +2136,9 @@ impl MinByteRange for SequenceRuleSetMarker {
 impl<'a> FontRead<'a> for SequenceRuleSet<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SequenceRuleSetFixedFields = cursor.read_ref()?;
-        let seq_rule_count = fixed_fields.seq_rule_count.get();
+        let (mut cursor, table_data) = Cursor::start::<SequenceRuleSetFixedFields>(data)?;
+        let _header = table_data.header();
+        let seq_rule_count = _header.seq_rule_count.get();
         let seq_rule_offsets_byte_len = (seq_rule_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -2167,7 +2147,7 @@ impl<'a> FontRead<'a> for SequenceRuleSet<'a> {
             SequenceRuleSetMarker {
                 seq_rule_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -2188,13 +2168,13 @@ impl<'a> SequenceRuleSet<'a> {
     #[inline]
     pub fn seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.seq_rule_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`seq_rule_offsets`][Self::seq_rule_offsets].
     #[inline]
     pub fn seq_rules(&self) -> ArrayOfOffsets<'a, SequenceRule<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.seq_rule_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -2209,7 +2189,7 @@ impl<'a> SomeTable<'a> for SequenceRuleSet<'a> {
         match idx {
             0usize => Some(Field::new("seq_rule_count", self.seq_rule_count())),
             1usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "seq_rule_offsets",
                     FieldType::array_of_offsets(
@@ -2286,10 +2266,10 @@ impl MinByteRange for SequenceRuleMarker {
 impl<'a> FontRead<'a> for SequenceRule<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SequenceRuleFixedFields = cursor.read_ref()?;
-        let glyph_count = fixed_fields.glyph_count.get();
-        let seq_lookup_count = fixed_fields.seq_lookup_count.get();
+        let (mut cursor, table_data) = Cursor::start::<SequenceRuleFixedFields>(data)?;
+        let _header = table_data.header();
+        let glyph_count = _header.glyph_count.get();
+        let seq_lookup_count = _header.seq_lookup_count.get();
         let input_sequence_byte_len = (transforms::subtract(glyph_count, 1_usize))
             .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -2303,7 +2283,7 @@ impl<'a> FontRead<'a> for SequenceRule<'a> {
                 input_sequence_byte_len,
                 seq_lookup_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -2329,14 +2309,14 @@ impl<'a> SequenceRule<'a> {
     #[inline]
     pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.input_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Array of Sequence lookup records
     #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -2433,9 +2413,9 @@ impl MinByteRange for SequenceContextFormat2Marker {
 impl<'a> FontRead<'a> for SequenceContextFormat2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SequenceContextFormat2FixedFields = cursor.read_ref()?;
-        let class_seq_rule_set_count = fixed_fields.class_seq_rule_set_count.get();
+        let (mut cursor, table_data) = Cursor::start::<SequenceContextFormat2FixedFields>(data)?;
+        let _header = table_data.header();
+        let class_seq_rule_set_count = _header.class_seq_rule_set_count.get();
         let class_seq_rule_set_offsets_byte_len = (class_seq_rule_set_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -2444,7 +2424,7 @@ impl<'a> FontRead<'a> for SequenceContextFormat2<'a> {
             SequenceContextFormat2Marker {
                 class_seq_rule_set_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -2471,7 +2451,7 @@ impl<'a> SequenceContextFormat2<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -2485,7 +2465,7 @@ impl<'a> SequenceContextFormat2<'a> {
     /// Attempt to resolve [`class_def_offset`][Self::class_def_offset].
     #[inline]
     pub fn class_def(&self) -> Result<ClassDef<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.class_def_offset().resolve(data)
     }
 
@@ -2500,7 +2480,7 @@ impl<'a> SequenceContextFormat2<'a> {
     #[inline]
     pub fn class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.class_seq_rule_set_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`class_seq_rule_set_offsets`][Self::class_seq_rule_set_offsets].
@@ -2508,7 +2488,7 @@ impl<'a> SequenceContextFormat2<'a> {
     pub fn class_seq_rule_sets(
         &self,
     ) -> ArrayOfNullableOffsets<'a, ClassSequenceRuleSet<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.class_seq_rule_set_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -2535,7 +2515,7 @@ impl<'a> SomeTable<'a> for SequenceContextFormat2<'a> {
                 self.class_seq_rule_set_count(),
             )),
             4usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "class_seq_rule_set_offsets",
                     FieldType::array_of_offsets(
@@ -2600,9 +2580,9 @@ impl MinByteRange for ClassSequenceRuleSetMarker {
 impl<'a> FontRead<'a> for ClassSequenceRuleSet<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ClassSequenceRuleSetFixedFields = cursor.read_ref()?;
-        let class_seq_rule_count = fixed_fields.class_seq_rule_count.get();
+        let (mut cursor, table_data) = Cursor::start::<ClassSequenceRuleSetFixedFields>(data)?;
+        let _header = table_data.header();
+        let class_seq_rule_count = _header.class_seq_rule_count.get();
         let class_seq_rule_offsets_byte_len = (class_seq_rule_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -2611,7 +2591,7 @@ impl<'a> FontRead<'a> for ClassSequenceRuleSet<'a> {
             ClassSequenceRuleSetMarker {
                 class_seq_rule_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -2633,13 +2613,13 @@ impl<'a> ClassSequenceRuleSet<'a> {
     #[inline]
     pub fn class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.class_seq_rule_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`class_seq_rule_offsets`][Self::class_seq_rule_offsets].
     #[inline]
     pub fn class_seq_rules(&self) -> ArrayOfOffsets<'a, ClassSequenceRule<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.class_seq_rule_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -2657,7 +2637,7 @@ impl<'a> SomeTable<'a> for ClassSequenceRuleSet<'a> {
                 self.class_seq_rule_count(),
             )),
             1usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "class_seq_rule_offsets",
                     FieldType::array_of_offsets(
@@ -2734,10 +2714,10 @@ impl MinByteRange for ClassSequenceRuleMarker {
 impl<'a> FontRead<'a> for ClassSequenceRule<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ClassSequenceRuleFixedFields = cursor.read_ref()?;
-        let glyph_count = fixed_fields.glyph_count.get();
-        let seq_lookup_count = fixed_fields.seq_lookup_count.get();
+        let (mut cursor, table_data) = Cursor::start::<ClassSequenceRuleFixedFields>(data)?;
+        let _header = table_data.header();
+        let glyph_count = _header.glyph_count.get();
+        let seq_lookup_count = _header.seq_lookup_count.get();
         let input_sequence_byte_len = (transforms::subtract(glyph_count, 1_usize))
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -2751,7 +2731,7 @@ impl<'a> FontRead<'a> for ClassSequenceRule<'a> {
                 input_sequence_byte_len,
                 seq_lookup_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -2779,14 +2759,14 @@ impl<'a> ClassSequenceRule<'a> {
     #[inline]
     pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.input_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Array of SequenceLookupRecords
     #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -2882,10 +2862,10 @@ impl MinByteRange for SequenceContextFormat3Marker {
 impl<'a> FontRead<'a> for SequenceContextFormat3<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SequenceContextFormat3FixedFields = cursor.read_ref()?;
-        let glyph_count = fixed_fields.glyph_count.get();
-        let seq_lookup_count = fixed_fields.seq_lookup_count.get();
+        let (mut cursor, table_data) = Cursor::start::<SequenceContextFormat3FixedFields>(data)?;
+        let _header = table_data.header();
+        let glyph_count = _header.glyph_count.get();
+        let seq_lookup_count = _header.seq_lookup_count.get();
         let coverage_offsets_byte_len = (glyph_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -2899,7 +2879,7 @@ impl<'a> FontRead<'a> for SequenceContextFormat3<'a> {
                 coverage_offsets_byte_len,
                 seq_lookup_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -2933,13 +2913,13 @@ impl<'a> SequenceContextFormat3<'a> {
     #[inline]
     pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.coverage_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].
     #[inline]
     pub fn coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -2948,7 +2928,7 @@ impl<'a> SequenceContextFormat3<'a> {
     #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -2963,7 +2943,7 @@ impl<'a> SomeTable<'a> for SequenceContextFormat3<'a> {
             1usize => Some(Field::new("glyph_count", self.glyph_count())),
             2usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
             3usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "coverage_offsets",
                     FieldType::array_of_offsets(
@@ -3131,9 +3111,10 @@ impl MinByteRange for ChainedSequenceContextFormat1Marker {
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ChainedSequenceContextFormat1FixedFields = cursor.read_ref()?;
-        let chained_seq_rule_set_count = fixed_fields.chained_seq_rule_set_count.get();
+        let (mut cursor, table_data) =
+            Cursor::start::<ChainedSequenceContextFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        let chained_seq_rule_set_count = _header.chained_seq_rule_set_count.get();
         let chained_seq_rule_set_offsets_byte_len = (chained_seq_rule_set_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -3142,7 +3123,7 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat1<'a> {
             ChainedSequenceContextFormat1Marker {
                 chained_seq_rule_set_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -3169,7 +3150,7 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -3184,7 +3165,7 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     #[inline]
     pub fn chained_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.chained_seq_rule_set_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`chained_seq_rule_set_offsets`][Self::chained_seq_rule_set_offsets].
@@ -3192,7 +3173,7 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     pub fn chained_seq_rule_sets(
         &self,
     ) -> ArrayOfNullableOffsets<'a, ChainedSequenceRuleSet<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.chained_seq_rule_set_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -3215,7 +3196,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat1<'a> {
                 self.chained_seq_rule_set_count(),
             )),
             3usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "chained_seq_rule_set_offsets",
                     FieldType::array_of_offsets(
@@ -3280,9 +3261,9 @@ impl MinByteRange for ChainedSequenceRuleSetMarker {
 impl<'a> FontRead<'a> for ChainedSequenceRuleSet<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ChainedSequenceRuleSetFixedFields = cursor.read_ref()?;
-        let chained_seq_rule_count = fixed_fields.chained_seq_rule_count.get();
+        let (mut cursor, table_data) = Cursor::start::<ChainedSequenceRuleSetFixedFields>(data)?;
+        let _header = table_data.header();
+        let chained_seq_rule_count = _header.chained_seq_rule_count.get();
         let chained_seq_rule_offsets_byte_len = (chained_seq_rule_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -3291,7 +3272,7 @@ impl<'a> FontRead<'a> for ChainedSequenceRuleSet<'a> {
             ChainedSequenceRuleSetMarker {
                 chained_seq_rule_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -3313,13 +3294,13 @@ impl<'a> ChainedSequenceRuleSet<'a> {
     #[inline]
     pub fn chained_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.chained_seq_rule_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`chained_seq_rule_offsets`][Self::chained_seq_rule_offsets].
     #[inline]
     pub fn chained_seq_rules(&self) -> ArrayOfOffsets<'a, ChainedSequenceRule<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.chained_seq_rule_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -3337,7 +3318,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceRuleSet<'a> {
                 self.chained_seq_rule_count(),
             )),
             1usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "chained_seq_rule_offsets",
                     FieldType::array_of_offsets(
@@ -3435,9 +3416,9 @@ impl MinByteRange for ChainedSequenceRuleMarker {
 impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ChainedSequenceRuleFixedFields = cursor.read_ref()?;
-        let backtrack_glyph_count = fixed_fields.backtrack_glyph_count.get();
+        let (mut cursor, table_data) = Cursor::start::<ChainedSequenceRuleFixedFields>(data)?;
+        let _header = table_data.header();
+        let backtrack_glyph_count = _header.backtrack_glyph_count.get();
         let backtrack_sequence_byte_len = (backtrack_glyph_count as usize)
             .checked_mul(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -3464,7 +3445,7 @@ impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
                 lookahead_sequence_byte_len,
                 seq_lookup_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -3485,49 +3466,49 @@ impl<'a> ChainedSequenceRule<'a> {
     #[inline]
     pub fn backtrack_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.backtrack_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Number of glyphs in the input sequence
     #[inline]
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.shape.input_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Array of input glyph IDs—start with second glyph
     #[inline]
     pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.input_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Number of glyphs in the lookahead sequence
     #[inline]
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Array of lookahead glyph IDs
     #[inline]
     pub fn lookahead_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.lookahead_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Number of SequenceLookupRecords
     #[inline]
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Array of SequenceLookupRecords
     #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -3650,9 +3631,10 @@ impl MinByteRange for ChainedSequenceContextFormat2Marker {
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ChainedSequenceContextFormat2FixedFields = cursor.read_ref()?;
-        let chained_class_seq_rule_set_count = fixed_fields.chained_class_seq_rule_set_count.get();
+        let (mut cursor, table_data) =
+            Cursor::start::<ChainedSequenceContextFormat2FixedFields>(data)?;
+        let _header = table_data.header();
+        let chained_class_seq_rule_set_count = _header.chained_class_seq_rule_set_count.get();
         let chained_class_seq_rule_set_offsets_byte_len = (chained_class_seq_rule_set_count
             as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
@@ -3662,7 +3644,7 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat2<'a> {
             ChainedSequenceContextFormat2Marker {
                 chained_class_seq_rule_set_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -3689,7 +3671,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -3703,7 +3685,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Attempt to resolve [`backtrack_class_def_offset`][Self::backtrack_class_def_offset].
     #[inline]
     pub fn backtrack_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.backtrack_class_def_offset().resolve(data)
     }
 
@@ -3717,7 +3699,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Attempt to resolve [`input_class_def_offset`][Self::input_class_def_offset].
     #[inline]
     pub fn input_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.input_class_def_offset().resolve(data)
     }
 
@@ -3731,7 +3713,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Attempt to resolve [`lookahead_class_def_offset`][Self::lookahead_class_def_offset].
     #[inline]
     pub fn lookahead_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.lookahead_class_def_offset().resolve(data)
     }
 
@@ -3746,7 +3728,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     #[inline]
     pub fn chained_class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.chained_class_seq_rule_set_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`chained_class_seq_rule_set_offsets`][Self::chained_class_seq_rule_set_offsets].
@@ -3754,7 +3736,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     pub fn chained_class_seq_rule_sets(
         &self,
     ) -> ArrayOfNullableOffsets<'a, ChainedClassSequenceRuleSet<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.chained_class_seq_rule_set_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -3795,7 +3777,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat2<'a> {
                 self.chained_class_seq_rule_set_count(),
             )),
             6usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "chained_class_seq_rule_set_offsets",
                     FieldType::array_of_offsets(
@@ -3860,9 +3842,10 @@ impl MinByteRange for ChainedClassSequenceRuleSetMarker {
 impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ChainedClassSequenceRuleSetFixedFields = cursor.read_ref()?;
-        let chained_class_seq_rule_count = fixed_fields.chained_class_seq_rule_count.get();
+        let (mut cursor, table_data) =
+            Cursor::start::<ChainedClassSequenceRuleSetFixedFields>(data)?;
+        let _header = table_data.header();
+        let chained_class_seq_rule_count = _header.chained_class_seq_rule_count.get();
         let chained_class_seq_rule_offsets_byte_len = (chained_class_seq_rule_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -3871,7 +3854,7 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet<'a> {
             ChainedClassSequenceRuleSetMarker {
                 chained_class_seq_rule_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -3893,7 +3876,7 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
     #[inline]
     pub fn chained_class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.chained_class_seq_rule_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`chained_class_seq_rule_offsets`][Self::chained_class_seq_rule_offsets].
@@ -3901,7 +3884,7 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
     pub fn chained_class_seq_rules(
         &self,
     ) -> ArrayOfOffsets<'a, ChainedClassSequenceRule<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.chained_class_seq_rule_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -3919,7 +3902,7 @@ impl<'a> SomeTable<'a> for ChainedClassSequenceRuleSet<'a> {
                 self.chained_class_seq_rule_count(),
             )),
             1usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "chained_class_seq_rule_offsets",
                     FieldType::array_of_offsets(
@@ -4017,9 +4000,9 @@ impl MinByteRange for ChainedClassSequenceRuleMarker {
 impl<'a> FontRead<'a> for ChainedClassSequenceRule<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ChainedClassSequenceRuleFixedFields = cursor.read_ref()?;
-        let backtrack_glyph_count = fixed_fields.backtrack_glyph_count.get();
+        let (mut cursor, table_data) = Cursor::start::<ChainedClassSequenceRuleFixedFields>(data)?;
+        let _header = table_data.header();
+        let backtrack_glyph_count = _header.backtrack_glyph_count.get();
         let backtrack_sequence_byte_len = (backtrack_glyph_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -4046,7 +4029,7 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRule<'a> {
                 lookahead_sequence_byte_len,
                 seq_lookup_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -4067,14 +4050,14 @@ impl<'a> ChainedClassSequenceRule<'a> {
     #[inline]
     pub fn backtrack_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.backtrack_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Total number of glyphs in the input sequence
     #[inline]
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.shape.input_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Array of input sequence classes, beginning with the second
@@ -4082,35 +4065,35 @@ impl<'a> ChainedClassSequenceRule<'a> {
     #[inline]
     pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.input_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Number of glyphs in the lookahead sequence
     #[inline]
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Array of lookahead-sequence classes
     #[inline]
     pub fn lookahead_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.lookahead_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Number of SequenceLookupRecords
     #[inline]
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Array of SequenceLookupRecords
     #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -4237,9 +4220,10 @@ impl MinByteRange for ChainedSequenceContextFormat3Marker {
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat3<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ChainedSequenceContextFormat3FixedFields = cursor.read_ref()?;
-        let backtrack_glyph_count = fixed_fields.backtrack_glyph_count.get();
+        let (mut cursor, table_data) =
+            Cursor::start::<ChainedSequenceContextFormat3FixedFields>(data)?;
+        let _header = table_data.header();
+        let backtrack_glyph_count = _header.backtrack_glyph_count.get();
         let backtrack_coverage_offsets_byte_len = (backtrack_glyph_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -4266,7 +4250,7 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat3<'a> {
                 lookahead_coverage_offsets_byte_len,
                 seq_lookup_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -4293,13 +4277,13 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     #[inline]
     pub fn backtrack_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.backtrack_coverage_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
     #[inline]
     pub fn backtrack_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.backtrack_coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -4308,20 +4292,20 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     #[inline]
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.shape.input_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Array of offsets to coverage tables for the input sequence
     #[inline]
     pub fn input_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.input_coverage_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`input_coverage_offsets`][Self::input_coverage_offsets].
     #[inline]
     pub fn input_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.input_coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -4330,20 +4314,20 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     #[inline]
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Array of offsets to coverage tables for the lookahead sequence
     #[inline]
     pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lookahead_coverage_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
     #[inline]
     pub fn lookahead_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.lookahead_coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -4352,14 +4336,14 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     #[inline]
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.offset_data().read_at(range.start).unwrap()
     }
 
     /// Array of SequenceLookupRecords
     #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -4376,7 +4360,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                 self.backtrack_glyph_count(),
             )),
             2usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "backtrack_coverage_offsets",
                     FieldType::array_of_offsets(
@@ -4391,7 +4375,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
             }),
             3usize => Some(Field::new("input_glyph_count", self.input_glyph_count())),
             4usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "input_coverage_offsets",
                     FieldType::array_of_offsets(
@@ -4409,7 +4393,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                 self.lookahead_glyph_count(),
             )),
             6usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "lookahead_coverage_offsets",
                     FieldType::array_of_offsets(
@@ -4628,11 +4612,11 @@ impl MinByteRange for DeviceMarker {
 impl<'a> FontRead<'a> for Device<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a DeviceFixedFields = cursor.read_ref()?;
-        let start_size = fixed_fields.start_size.get();
-        let end_size = fixed_fields.end_size.get();
-        let delta_format = fixed_fields.delta_format.get();
+        let (mut cursor, table_data) = Cursor::start::<DeviceFixedFields>(data)?;
+        let _header = table_data.header();
+        let start_size = _header.start_size.get();
+        let end_size = _header.end_size.get();
+        let delta_format = _header.delta_format.get();
         let delta_value_byte_len = (DeltaFormat::value_count(delta_format, start_size, end_size))
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -4641,7 +4625,7 @@ impl<'a> FontRead<'a> for Device<'a> {
             DeviceMarker {
                 delta_value_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -4673,7 +4657,7 @@ impl<'a> Device<'a> {
     #[inline]
     pub fn delta_value(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.delta_value_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -4745,9 +4729,9 @@ impl MinByteRange for VariationIndexMarker {
 impl<'a> FontRead<'a> for VariationIndex<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a VariationIndexFixedFields = cursor.read_ref()?;
-        cursor.finish(VariationIndexMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<VariationIndexFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(VariationIndexMarker {}, table_data)
     }
 }
 
@@ -4922,9 +4906,9 @@ impl MinByteRange for FeatureVariationsMarker {
 impl<'a> FontRead<'a> for FeatureVariations<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a FeatureVariationsFixedFields = cursor.read_ref()?;
-        let feature_variation_record_count = fixed_fields.feature_variation_record_count.get();
+        let (mut cursor, table_data) = Cursor::start::<FeatureVariationsFixedFields>(data)?;
+        let _header = table_data.header();
+        let feature_variation_record_count = _header.feature_variation_record_count.get();
         let feature_variation_records_byte_len = (feature_variation_record_count as usize)
             .checked_mul(FeatureVariationRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -4933,7 +4917,7 @@ impl<'a> FontRead<'a> for FeatureVariations<'a> {
             FeatureVariationsMarker {
                 feature_variation_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -4959,7 +4943,7 @@ impl<'a> FeatureVariations<'a> {
     #[inline]
     pub fn feature_variation_records(&self) -> &'a [FeatureVariationRecord] {
         let range = self.shape.feature_variation_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -5118,9 +5102,9 @@ impl MinByteRange for ConditionSetMarker {
 impl<'a> FontRead<'a> for ConditionSet<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ConditionSetFixedFields = cursor.read_ref()?;
-        let condition_count = fixed_fields.condition_count.get();
+        let (mut cursor, table_data) = Cursor::start::<ConditionSetFixedFields>(data)?;
+        let _header = table_data.header();
+        let condition_count = _header.condition_count.get();
         let condition_offsets_byte_len = (condition_count as usize)
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -5129,7 +5113,7 @@ impl<'a> FontRead<'a> for ConditionSet<'a> {
             ConditionSetMarker {
                 condition_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -5150,13 +5134,13 @@ impl<'a> ConditionSet<'a> {
     #[inline]
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.condition_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
     #[inline]
     pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.condition_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -5171,7 +5155,7 @@ impl<'a> SomeTable<'a> for ConditionSet<'a> {
         match idx {
             0usize => Some(Field::new("condition_count", self.condition_count())),
             1usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "condition_offsets",
                     FieldType::array_of_offsets(
@@ -5347,9 +5331,9 @@ impl MinByteRange for ConditionFormat1Marker {
 impl<'a> FontRead<'a> for ConditionFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ConditionFormat1FixedFields = cursor.read_ref()?;
-        cursor.finish(ConditionFormat1Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<ConditionFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(ConditionFormat1Marker {}, table_data)
     }
 }
 
@@ -5464,9 +5448,9 @@ impl MinByteRange for ConditionFormat2Marker {
 impl<'a> FontRead<'a> for ConditionFormat2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ConditionFormat2FixedFields = cursor.read_ref()?;
-        cursor.finish(ConditionFormat2Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<ConditionFormat2FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(ConditionFormat2Marker {}, table_data)
     }
 }
 
@@ -5566,9 +5550,9 @@ impl MinByteRange for ConditionFormat3Marker {
 impl<'a> FontRead<'a> for ConditionFormat3<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ConditionFormat3FixedFields = cursor.read_ref()?;
-        let condition_count = fixed_fields.condition_count;
+        let (mut cursor, table_data) = Cursor::start::<ConditionFormat3FixedFields>(data)?;
+        let _header = table_data.header();
+        let condition_count = _header.condition_count;
         let condition_offsets_byte_len = (condition_count as usize)
             .checked_mul(Offset24::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -5577,7 +5561,7 @@ impl<'a> FontRead<'a> for ConditionFormat3<'a> {
             ConditionFormat3Marker {
                 condition_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -5603,13 +5587,13 @@ impl<'a> ConditionFormat3<'a> {
     #[inline]
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
         let range = self.shape.condition_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
     #[inline]
     pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset24> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.condition_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -5625,7 +5609,7 @@ impl<'a> SomeTable<'a> for ConditionFormat3<'a> {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("condition_count", self.condition_count())),
             2usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "condition_offsets",
                     FieldType::array_of_offsets(
@@ -5700,9 +5684,9 @@ impl MinByteRange for ConditionFormat4Marker {
 impl<'a> FontRead<'a> for ConditionFormat4<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ConditionFormat4FixedFields = cursor.read_ref()?;
-        let condition_count = fixed_fields.condition_count;
+        let (mut cursor, table_data) = Cursor::start::<ConditionFormat4FixedFields>(data)?;
+        let _header = table_data.header();
+        let condition_count = _header.condition_count;
         let condition_offsets_byte_len = (condition_count as usize)
             .checked_mul(Offset24::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -5711,7 +5695,7 @@ impl<'a> FontRead<'a> for ConditionFormat4<'a> {
             ConditionFormat4Marker {
                 condition_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -5737,13 +5721,13 @@ impl<'a> ConditionFormat4<'a> {
     #[inline]
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
         let range = self.shape.condition_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
     #[inline]
     pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset24> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.condition_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -5759,7 +5743,7 @@ impl<'a> SomeTable<'a> for ConditionFormat4<'a> {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("condition_count", self.condition_count())),
             2usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "condition_offsets",
                     FieldType::array_of_offsets(
@@ -5827,9 +5811,9 @@ impl MinByteRange for ConditionFormat5Marker {
 impl<'a> FontRead<'a> for ConditionFormat5<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ConditionFormat5FixedFields = cursor.read_ref()?;
-        cursor.finish(ConditionFormat5Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<ConditionFormat5FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(ConditionFormat5Marker {}, table_data)
     }
 }
 
@@ -5853,7 +5837,7 @@ impl<'a> ConditionFormat5<'a> {
     /// Attempt to resolve [`condition_offset`][Self::condition_offset].
     #[inline]
     pub fn condition(&self) -> Result<Condition<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.condition_offset().resolve(data)
     }
 }
@@ -5928,9 +5912,9 @@ impl MinByteRange for FeatureTableSubstitutionMarker {
 impl<'a> FontRead<'a> for FeatureTableSubstitution<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a FeatureTableSubstitutionFixedFields = cursor.read_ref()?;
-        let substitution_count = fixed_fields.substitution_count.get();
+        let (mut cursor, table_data) = Cursor::start::<FeatureTableSubstitutionFixedFields>(data)?;
+        let _header = table_data.header();
+        let substitution_count = _header.substitution_count.get();
         let substitutions_byte_len = (substitution_count as usize)
             .checked_mul(FeatureTableSubstitutionRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -5939,7 +5923,7 @@ impl<'a> FontRead<'a> for FeatureTableSubstitution<'a> {
             FeatureTableSubstitutionMarker {
                 substitutions_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -5966,7 +5950,7 @@ impl<'a> FeatureTableSubstitution<'a> {
     #[inline]
     pub fn substitutions(&self) -> &'a [FeatureTableSubstitutionRecord] {
         let range = self.shape.substitutions_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -6111,9 +6095,9 @@ impl MinByteRange for SizeParamsMarker {
 impl<'a> FontRead<'a> for SizeParams<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SizeParamsFixedFields = cursor.read_ref()?;
-        cursor.finish(SizeParamsMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<SizeParamsFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(SizeParamsMarker {}, table_data)
     }
 }
 
@@ -6234,9 +6218,9 @@ impl MinByteRange for StylisticSetParamsMarker {
 impl<'a> FontRead<'a> for StylisticSetParams<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a StylisticSetParamsFixedFields = cursor.read_ref()?;
-        cursor.finish(StylisticSetParamsMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<StylisticSetParamsFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(StylisticSetParamsMarker {}, table_data)
     }
 }
 
@@ -6372,16 +6356,16 @@ impl MinByteRange for CharacterVariantParamsMarker {
 impl<'a> FontRead<'a> for CharacterVariantParams<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CharacterVariantParamsFixedFields = cursor.read_ref()?;
-        let char_count = fixed_fields.char_count.get();
+        let (mut cursor, table_data) = Cursor::start::<CharacterVariantParamsFixedFields>(data)?;
+        let _header = table_data.header();
+        let char_count = _header.char_count.get();
         let character_byte_len = (char_count as usize)
             .checked_mul(Uint24::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(character_byte_len);
         cursor.finish(
             CharacterVariantParamsMarker { character_byte_len },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -6447,7 +6431,7 @@ impl<'a> CharacterVariantParams<'a> {
     #[inline]
     pub fn character(&self) -> &'a [BigEndian<Uint24>] {
         let range = self.shape.character_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

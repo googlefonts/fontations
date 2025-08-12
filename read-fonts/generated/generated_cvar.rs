@@ -62,15 +62,15 @@ impl TopLevelTable for Cvar<'_> {
 impl<'a> FontRead<'a> for Cvar<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CvarFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<CvarFixedFields>(data)?;
+        let _header = table_data.header();
         let tuple_variation_headers_byte_len = cursor.remaining_bytes();
         cursor.advance_by(tuple_variation_headers_byte_len);
         cursor.finish(
             CvarMarker {
                 tuple_variation_headers_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -104,7 +104,7 @@ impl<'a> Cvar<'a> {
     /// Attempt to resolve [`data_offset`][Self::data_offset].
     #[inline]
     pub fn data(&self) -> Result<FontData<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.data_offset().resolve(data)
     }
 
@@ -112,7 +112,7 @@ impl<'a> Cvar<'a> {
     #[inline]
     pub fn tuple_variation_headers(&self) -> VarLenArray<'a, TupleVariationHeader> {
         let range = self.shape.tuple_variation_headers_byte_range();
-        VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
+        VarLenArray::read(self.offset_data().split_off(range.start).unwrap()).unwrap()
     }
 }
 

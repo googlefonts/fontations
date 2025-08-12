@@ -79,9 +79,9 @@ impl TopLevelTable for Varc<'_> {
 impl<'a> FontRead<'a> for Varc<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a VarcFixedFields = cursor.read_ref()?;
-        cursor.finish(VarcMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<VarcFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(VarcMarker {}, table_data)
     }
 }
 
@@ -106,7 +106,7 @@ impl<'a> Varc<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -118,7 +118,7 @@ impl<'a> Varc<'a> {
     /// Attempt to resolve [`multi_var_store_offset`][Self::multi_var_store_offset].
     #[inline]
     pub fn multi_var_store(&self) -> Option<Result<MultiItemVariationStore<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.multi_var_store_offset().resolve(data)
     }
 
@@ -130,7 +130,7 @@ impl<'a> Varc<'a> {
     /// Attempt to resolve [`condition_list_offset`][Self::condition_list_offset].
     #[inline]
     pub fn condition_list(&self) -> Option<Result<ConditionList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.condition_list_offset().resolve(data)
     }
 
@@ -142,7 +142,7 @@ impl<'a> Varc<'a> {
     /// Attempt to resolve [`axis_indices_list_offset`][Self::axis_indices_list_offset].
     #[inline]
     pub fn axis_indices_list(&self) -> Option<Result<Index2<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.axis_indices_list_offset().resolve(data)
     }
 
@@ -154,7 +154,7 @@ impl<'a> Varc<'a> {
     /// Attempt to resolve [`var_composite_glyphs_offset`][Self::var_composite_glyphs_offset].
     #[inline]
     pub fn var_composite_glyphs(&self) -> Result<Index2<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.var_composite_glyphs_offset().resolve(data)
     }
 }
@@ -259,9 +259,9 @@ impl MinByteRange for MultiItemVariationStoreMarker {
 impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a MultiItemVariationStoreFixedFields = cursor.read_ref()?;
-        let variation_data_count = fixed_fields.variation_data_count.get();
+        let (mut cursor, table_data) = Cursor::start::<MultiItemVariationStoreFixedFields>(data)?;
+        let _header = table_data.header();
+        let variation_data_count = _header.variation_data_count.get();
         let variation_data_offsets_byte_len = (variation_data_count as usize)
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -270,7 +270,7 @@ impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
             MultiItemVariationStoreMarker {
                 variation_data_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -295,7 +295,7 @@ impl<'a> MultiItemVariationStore<'a> {
     /// Attempt to resolve [`region_list_offset`][Self::region_list_offset].
     #[inline]
     pub fn region_list(&self) -> Result<SparseVariationRegionList<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.region_list_offset().resolve(data)
     }
 
@@ -307,13 +307,13 @@ impl<'a> MultiItemVariationStore<'a> {
     #[inline]
     pub fn variation_data_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.variation_data_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`variation_data_offsets`][Self::variation_data_offsets].
     #[inline]
     pub fn variation_data(&self) -> ArrayOfOffsets<'a, MultiItemVariationData<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.variation_data_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -336,7 +336,7 @@ impl<'a> SomeTable<'a> for MultiItemVariationStore<'a> {
                 self.variation_data_count(),
             )),
             3usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "variation_data_offsets",
                     FieldType::array_of_offsets(
@@ -400,9 +400,9 @@ impl MinByteRange for SparseVariationRegionListMarker {
 impl<'a> FontRead<'a> for SparseVariationRegionList<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SparseVariationRegionListFixedFields = cursor.read_ref()?;
-        let region_count = fixed_fields.region_count.get();
+        let (mut cursor, table_data) = Cursor::start::<SparseVariationRegionListFixedFields>(data)?;
+        let _header = table_data.header();
+        let region_count = _header.region_count.get();
         let region_offsets_byte_len = (region_count as usize)
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -411,7 +411,7 @@ impl<'a> FontRead<'a> for SparseVariationRegionList<'a> {
             SparseVariationRegionListMarker {
                 region_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -429,13 +429,13 @@ impl<'a> SparseVariationRegionList<'a> {
     #[inline]
     pub fn region_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.region_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`region_offsets`][Self::region_offsets].
     #[inline]
     pub fn regions(&self) -> ArrayOfOffsets<'a, SparseVariationRegion<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.region_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -450,7 +450,7 @@ impl<'a> SomeTable<'a> for SparseVariationRegionList<'a> {
         match idx {
             0usize => Some(Field::new("region_count", self.region_count())),
             1usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "region_offsets",
                     FieldType::array_of_offsets(
@@ -514,9 +514,9 @@ impl MinByteRange for SparseVariationRegionMarker {
 impl<'a> FontRead<'a> for SparseVariationRegion<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SparseVariationRegionFixedFields = cursor.read_ref()?;
-        let region_axis_count = fixed_fields.region_axis_count.get();
+        let (mut cursor, table_data) = Cursor::start::<SparseVariationRegionFixedFields>(data)?;
+        let _header = table_data.header();
+        let region_axis_count = _header.region_axis_count.get();
         let region_axis_offsets_byte_len = (region_axis_count as usize)
             .checked_mul(SparseRegionAxisCoordinates::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -525,7 +525,7 @@ impl<'a> FontRead<'a> for SparseVariationRegion<'a> {
             SparseVariationRegionMarker {
                 region_axis_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -543,7 +543,7 @@ impl<'a> SparseVariationRegion<'a> {
     #[inline]
     pub fn region_axis_offsets(&self) -> &'a [SparseRegionAxisCoordinates] {
         let range = self.shape.region_axis_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -684,9 +684,9 @@ impl MinByteRange for MultiItemVariationDataMarker {
 impl<'a> FontRead<'a> for MultiItemVariationData<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a MultiItemVariationDataFixedFields = cursor.read_ref()?;
-        let region_index_count = fixed_fields.region_index_count.get();
+        let (mut cursor, table_data) = Cursor::start::<MultiItemVariationDataFixedFields>(data)?;
+        let _header = table_data.header();
+        let region_index_count = _header.region_index_count.get();
         let region_indices_byte_len = (region_index_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -699,7 +699,7 @@ impl<'a> FontRead<'a> for MultiItemVariationData<'a> {
                 region_indices_byte_len,
                 raw_delta_sets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -722,13 +722,13 @@ impl<'a> MultiItemVariationData<'a> {
     #[inline]
     pub fn region_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.region_indices_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     #[inline]
     pub fn raw_delta_sets(&self) -> &'a [u8] {
         let range = self.shape.raw_delta_sets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -794,9 +794,9 @@ impl MinByteRange for ConditionListMarker {
 impl<'a> FontRead<'a> for ConditionList<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a ConditionListFixedFields = cursor.read_ref()?;
-        let condition_count = fixed_fields.condition_count.get();
+        let (mut cursor, table_data) = Cursor::start::<ConditionListFixedFields>(data)?;
+        let _header = table_data.header();
+        let condition_count = _header.condition_count.get();
         let condition_offsets_byte_len = (condition_count as usize)
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -805,7 +805,7 @@ impl<'a> FontRead<'a> for ConditionList<'a> {
             ConditionListMarker {
                 condition_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -822,13 +822,13 @@ impl<'a> ConditionList<'a> {
     #[inline]
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.condition_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
     #[inline]
     pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.condition_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -843,7 +843,7 @@ impl<'a> SomeTable<'a> for ConditionList<'a> {
         match idx {
             0usize => Some(Field::new("condition_count", self.condition_count())),
             1usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "condition_offsets",
                     FieldType::array_of_offsets(

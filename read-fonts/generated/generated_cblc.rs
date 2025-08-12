@@ -61,9 +61,9 @@ impl TopLevelTable for Cblc<'_> {
 impl<'a> FontRead<'a> for Cblc<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CblcFixedFields = cursor.read_ref()?;
-        let num_sizes = fixed_fields.num_sizes.get();
+        let (mut cursor, table_data) = Cursor::start::<CblcFixedFields>(data)?;
+        let _header = table_data.header();
+        let num_sizes = _header.num_sizes.get();
         let bitmap_sizes_byte_len = (num_sizes as usize)
             .checked_mul(BitmapSize::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -72,7 +72,7 @@ impl<'a> FontRead<'a> for Cblc<'a> {
             CblcMarker {
                 bitmap_sizes_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -104,7 +104,7 @@ impl<'a> Cblc<'a> {
     #[inline]
     pub fn bitmap_sizes(&self) -> &'a [BitmapSize] {
         let range = self.shape.bitmap_sizes_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

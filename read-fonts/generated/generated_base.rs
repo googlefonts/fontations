@@ -62,9 +62,9 @@ impl TopLevelTable for Base<'_> {
 impl<'a> FontRead<'a> for Base<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a BaseFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
+        let (mut cursor, table_data) = Cursor::start::<BaseFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
         let item_var_store_offset_byte_start = version
             .compatible((1u16, 1u16))
             .then(|| cursor.position())
@@ -76,7 +76,7 @@ impl<'a> FontRead<'a> for Base<'a> {
             BaseMarker {
                 item_var_store_offset_byte_start,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -101,7 +101,7 @@ impl<'a> Base<'a> {
     /// Attempt to resolve [`horiz_axis_offset`][Self::horiz_axis_offset].
     #[inline]
     pub fn horiz_axis(&self) -> Option<Result<Axis<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.horiz_axis_offset().resolve(data)
     }
 
@@ -114,7 +114,7 @@ impl<'a> Base<'a> {
     /// Attempt to resolve [`vert_axis_offset`][Self::vert_axis_offset].
     #[inline]
     pub fn vert_axis(&self) -> Option<Result<Axis<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.vert_axis_offset().resolve(data)
     }
 
@@ -122,13 +122,13 @@ impl<'a> Base<'a> {
     #[inline]
     pub fn item_var_store_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.item_var_store_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`item_var_store_offset`][Self::item_var_store_offset].
     #[inline]
     pub fn item_var_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.item_var_store_offset().map(|x| x.resolve(data))?
     }
 }
@@ -205,9 +205,9 @@ impl MinByteRange for AxisMarker {
 impl<'a> FontRead<'a> for Axis<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AxisFixedFields = cursor.read_ref()?;
-        cursor.finish(AxisMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<AxisFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(AxisMarker {}, table_data)
     }
 }
 
@@ -226,7 +226,7 @@ impl<'a> Axis<'a> {
     /// Attempt to resolve [`base_tag_list_offset`][Self::base_tag_list_offset].
     #[inline]
     pub fn base_tag_list(&self) -> Option<Result<BaseTagList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.base_tag_list_offset().resolve(data)
     }
 
@@ -239,7 +239,7 @@ impl<'a> Axis<'a> {
     /// Attempt to resolve [`base_script_list_offset`][Self::base_script_list_offset].
     #[inline]
     pub fn base_script_list(&self) -> Result<BaseScriptList<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.base_script_list_offset().resolve(data)
     }
 }
@@ -311,9 +311,9 @@ impl MinByteRange for BaseTagListMarker {
 impl<'a> FontRead<'a> for BaseTagList<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a BaseTagListFixedFields = cursor.read_ref()?;
-        let base_tag_count = fixed_fields.base_tag_count.get();
+        let (mut cursor, table_data) = Cursor::start::<BaseTagListFixedFields>(data)?;
+        let _header = table_data.header();
+        let base_tag_count = _header.base_tag_count.get();
         let baseline_tags_byte_len = (base_tag_count as usize)
             .checked_mul(Tag::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -322,7 +322,7 @@ impl<'a> FontRead<'a> for BaseTagList<'a> {
             BaseTagListMarker {
                 baseline_tags_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -344,7 +344,7 @@ impl<'a> BaseTagList<'a> {
     #[inline]
     pub fn baseline_tags(&self) -> &'a [BigEndian<Tag>] {
         let range = self.shape.baseline_tags_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -409,9 +409,9 @@ impl MinByteRange for BaseScriptListMarker {
 impl<'a> FontRead<'a> for BaseScriptList<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a BaseScriptListFixedFields = cursor.read_ref()?;
-        let base_script_count = fixed_fields.base_script_count.get();
+        let (mut cursor, table_data) = Cursor::start::<BaseScriptListFixedFields>(data)?;
+        let _header = table_data.header();
+        let base_script_count = _header.base_script_count.get();
         let base_script_records_byte_len = (base_script_count as usize)
             .checked_mul(BaseScriptRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -420,7 +420,7 @@ impl<'a> FontRead<'a> for BaseScriptList<'a> {
             BaseScriptListMarker {
                 base_script_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -441,7 +441,7 @@ impl<'a> BaseScriptList<'a> {
     #[inline]
     pub fn base_script_records(&self) -> &'a [BaseScriptRecord] {
         let range = self.shape.base_script_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -581,9 +581,9 @@ impl MinByteRange for BaseScriptMarker {
 impl<'a> FontRead<'a> for BaseScript<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a BaseScriptFixedFields = cursor.read_ref()?;
-        let base_lang_sys_count = fixed_fields.base_lang_sys_count.get();
+        let (mut cursor, table_data) = Cursor::start::<BaseScriptFixedFields>(data)?;
+        let _header = table_data.header();
+        let base_lang_sys_count = _header.base_lang_sys_count.get();
         let base_lang_sys_records_byte_len = (base_lang_sys_count as usize)
             .checked_mul(BaseLangSysRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -592,7 +592,7 @@ impl<'a> FontRead<'a> for BaseScript<'a> {
             BaseScriptMarker {
                 base_lang_sys_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -611,7 +611,7 @@ impl<'a> BaseScript<'a> {
     /// Attempt to resolve [`base_values_offset`][Self::base_values_offset].
     #[inline]
     pub fn base_values(&self) -> Option<Result<BaseValues<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.base_values_offset().resolve(data)
     }
 
@@ -624,7 +624,7 @@ impl<'a> BaseScript<'a> {
     /// Attempt to resolve [`default_min_max_offset`][Self::default_min_max_offset].
     #[inline]
     pub fn default_min_max(&self) -> Option<Result<MinMax<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.default_min_max_offset().resolve(data)
     }
 
@@ -639,7 +639,7 @@ impl<'a> BaseScript<'a> {
     #[inline]
     pub fn base_lang_sys_records(&self) -> &'a [BaseLangSysRecord] {
         let range = self.shape.base_lang_sys_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -784,9 +784,9 @@ impl MinByteRange for BaseValuesMarker {
 impl<'a> FontRead<'a> for BaseValues<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a BaseValuesFixedFields = cursor.read_ref()?;
-        let base_coord_count = fixed_fields.base_coord_count.get();
+        let (mut cursor, table_data) = Cursor::start::<BaseValuesFixedFields>(data)?;
+        let _header = table_data.header();
+        let base_coord_count = _header.base_coord_count.get();
         let base_coord_offsets_byte_len = (base_coord_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -795,7 +795,7 @@ impl<'a> FontRead<'a> for BaseValues<'a> {
             BaseValuesMarker {
                 base_coord_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -826,13 +826,13 @@ impl<'a> BaseValues<'a> {
     #[inline]
     pub fn base_coord_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.base_coord_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`base_coord_offsets`][Self::base_coord_offsets].
     #[inline]
     pub fn base_coords(&self) -> ArrayOfOffsets<'a, BaseCoord<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.base_coord_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -851,7 +851,7 @@ impl<'a> SomeTable<'a> for BaseValues<'a> {
             )),
             1usize => Some(Field::new("base_coord_count", self.base_coord_count())),
             2usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "base_coord_offsets",
                     FieldType::array_of_offsets(
@@ -928,9 +928,9 @@ impl MinByteRange for MinMaxMarker {
 impl<'a> FontRead<'a> for MinMax<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a MinMaxFixedFields = cursor.read_ref()?;
-        let feat_min_max_count = fixed_fields.feat_min_max_count.get();
+        let (mut cursor, table_data) = Cursor::start::<MinMaxFixedFields>(data)?;
+        let _header = table_data.header();
+        let feat_min_max_count = _header.feat_min_max_count.get();
         let feat_min_max_records_byte_len = (feat_min_max_count as usize)
             .checked_mul(FeatMinMaxRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -939,7 +939,7 @@ impl<'a> FontRead<'a> for MinMax<'a> {
             MinMaxMarker {
                 feat_min_max_records_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -959,7 +959,7 @@ impl<'a> MinMax<'a> {
     /// Attempt to resolve [`min_coord_offset`][Self::min_coord_offset].
     #[inline]
     pub fn min_coord(&self) -> Option<Result<BaseCoord<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.min_coord_offset().resolve(data)
     }
 
@@ -973,7 +973,7 @@ impl<'a> MinMax<'a> {
     /// Attempt to resolve [`max_coord_offset`][Self::max_coord_offset].
     #[inline]
     pub fn max_coord(&self) -> Option<Result<BaseCoord<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.max_coord_offset().resolve(data)
     }
 
@@ -988,7 +988,7 @@ impl<'a> MinMax<'a> {
     #[inline]
     pub fn feat_min_max_records(&self) -> &'a [FeatMinMaxRecord] {
         let range = self.shape.feat_min_max_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -1245,9 +1245,9 @@ impl MinByteRange for BaseCoordFormat1Marker {
 impl<'a> FontRead<'a> for BaseCoordFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a BaseCoordFormat1FixedFields = cursor.read_ref()?;
-        cursor.finish(BaseCoordFormat1Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<BaseCoordFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(BaseCoordFormat1Marker {}, table_data)
     }
 }
 
@@ -1346,9 +1346,9 @@ impl MinByteRange for BaseCoordFormat2Marker {
 impl<'a> FontRead<'a> for BaseCoordFormat2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a BaseCoordFormat2FixedFields = cursor.read_ref()?;
-        cursor.finish(BaseCoordFormat2Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<BaseCoordFormat2FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(BaseCoordFormat2Marker {}, table_data)
     }
 }
 
@@ -1454,9 +1454,9 @@ impl MinByteRange for BaseCoordFormat3Marker {
 impl<'a> FontRead<'a> for BaseCoordFormat3<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a BaseCoordFormat3FixedFields = cursor.read_ref()?;
-        cursor.finish(BaseCoordFormat3Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<BaseCoordFormat3FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(BaseCoordFormat3Marker {}, table_data)
     }
 }
 
@@ -1488,7 +1488,7 @@ impl<'a> BaseCoordFormat3<'a> {
     /// Attempt to resolve [`device_offset`][Self::device_offset].
     #[inline]
     pub fn device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.device_offset().resolve(data)
     }
 }

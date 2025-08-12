@@ -75,10 +75,10 @@ impl MinByteRange for Cff2HeaderMarker {
 impl<'a> FontRead<'a> for Cff2Header<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a Cff2HeaderFixedFields = cursor.read_ref()?;
-        let header_size = fixed_fields.header_size;
-        let top_dict_length = fixed_fields.top_dict_length.get();
+        let (mut cursor, table_data) = Cursor::start::<Cff2HeaderFixedFields>(data)?;
+        let _header = table_data.header();
+        let header_size = _header.header_size;
+        let top_dict_length = _header.top_dict_length.get();
         let _padding_byte_len = (transforms::subtract(header_size, 5_usize))
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -95,7 +95,7 @@ impl<'a> FontRead<'a> for Cff2Header<'a> {
                 top_dict_data_byte_len,
                 trailing_data_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -133,21 +133,21 @@ impl<'a> Cff2Header<'a> {
     #[inline]
     pub fn _padding(&self) -> &'a [u8] {
         let range = self.shape._padding_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Data containing the Top DICT.
     #[inline]
     pub fn top_dict_data(&self) -> &'a [u8] {
         let range = self.shape.top_dict_data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Remaining table data.
     #[inline]
     pub fn trailing_data(&self) -> &'a [u8] {
         let range = self.shape.trailing_data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 

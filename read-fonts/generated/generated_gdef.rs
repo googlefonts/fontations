@@ -83,9 +83,9 @@ impl TopLevelTable for Gdef<'_> {
 impl<'a> FontRead<'a> for Gdef<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a GdefFixedFields = cursor.read_ref()?;
-        let version = fixed_fields.version.get();
+        let (mut cursor, table_data) = Cursor::start::<GdefFixedFields>(data)?;
+        let _header = table_data.header();
+        let version = _header.version.get();
         let mark_glyph_sets_def_offset_byte_start = version
             .compatible((1u16, 2u16))
             .then(|| cursor.position())
@@ -105,7 +105,7 @@ impl<'a> FontRead<'a> for Gdef<'a> {
                 mark_glyph_sets_def_offset_byte_start,
                 item_var_store_offset_byte_start,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -131,7 +131,7 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`glyph_class_def_offset`][Self::glyph_class_def_offset].
     #[inline]
     pub fn glyph_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.glyph_class_def_offset().resolve(data)
     }
 
@@ -145,7 +145,7 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`attach_list_offset`][Self::attach_list_offset].
     #[inline]
     pub fn attach_list(&self) -> Option<Result<AttachList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.attach_list_offset().resolve(data)
     }
 
@@ -159,7 +159,7 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`lig_caret_list_offset`][Self::lig_caret_list_offset].
     #[inline]
     pub fn lig_caret_list(&self) -> Option<Result<LigCaretList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.lig_caret_list_offset().resolve(data)
     }
 
@@ -173,7 +173,7 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`mark_attach_class_def_offset`][Self::mark_attach_class_def_offset].
     #[inline]
     pub fn mark_attach_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark_attach_class_def_offset().resolve(data)
     }
 
@@ -182,13 +182,13 @@ impl<'a> Gdef<'a> {
     #[inline]
     pub fn mark_glyph_sets_def_offset(&self) -> Option<Nullable<Offset16>> {
         let range = self.shape.mark_glyph_sets_def_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`mark_glyph_sets_def_offset`][Self::mark_glyph_sets_def_offset].
     #[inline]
     pub fn mark_glyph_sets_def(&self) -> Option<Result<MarkGlyphSets<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark_glyph_sets_def_offset().map(|x| x.resolve(data))?
     }
 
@@ -197,13 +197,13 @@ impl<'a> Gdef<'a> {
     #[inline]
     pub fn item_var_store_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.item_var_store_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(self.offset_data().read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`item_var_store_offset`][Self::item_var_store_offset].
     #[inline]
     pub fn item_var_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.item_var_store_offset().map(|x| x.resolve(data))?
     }
 }
@@ -354,9 +354,9 @@ impl MinByteRange for AttachListMarker {
 impl<'a> FontRead<'a> for AttachList<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AttachListFixedFields = cursor.read_ref()?;
-        let glyph_count = fixed_fields.glyph_count.get();
+        let (mut cursor, table_data) = Cursor::start::<AttachListFixedFields>(data)?;
+        let _header = table_data.header();
+        let glyph_count = _header.glyph_count.get();
         let attach_point_offsets_byte_len = (glyph_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -365,7 +365,7 @@ impl<'a> FontRead<'a> for AttachList<'a> {
             AttachListMarker {
                 attach_point_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -384,7 +384,7 @@ impl<'a> AttachList<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -399,13 +399,13 @@ impl<'a> AttachList<'a> {
     #[inline]
     pub fn attach_point_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.attach_point_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`attach_point_offsets`][Self::attach_point_offsets].
     #[inline]
     pub fn attach_points(&self) -> ArrayOfOffsets<'a, AttachPoint<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.attach_point_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -424,7 +424,7 @@ impl<'a> SomeTable<'a> for AttachList<'a> {
             )),
             1usize => Some(Field::new("glyph_count", self.glyph_count())),
             2usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "attach_point_offsets",
                     FieldType::array_of_offsets(
@@ -489,9 +489,9 @@ impl MinByteRange for AttachPointMarker {
 impl<'a> FontRead<'a> for AttachPoint<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AttachPointFixedFields = cursor.read_ref()?;
-        let point_count = fixed_fields.point_count.get();
+        let (mut cursor, table_data) = Cursor::start::<AttachPointFixedFields>(data)?;
+        let _header = table_data.header();
+        let point_count = _header.point_count.get();
         let point_indices_byte_len = (point_count as usize)
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -500,7 +500,7 @@ impl<'a> FontRead<'a> for AttachPoint<'a> {
             AttachPointMarker {
                 point_indices_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -520,7 +520,7 @@ impl<'a> AttachPoint<'a> {
     #[inline]
     pub fn point_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.point_indices_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
@@ -591,9 +591,9 @@ impl MinByteRange for LigCaretListMarker {
 impl<'a> FontRead<'a> for LigCaretList<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a LigCaretListFixedFields = cursor.read_ref()?;
-        let lig_glyph_count = fixed_fields.lig_glyph_count.get();
+        let (mut cursor, table_data) = Cursor::start::<LigCaretListFixedFields>(data)?;
+        let _header = table_data.header();
+        let lig_glyph_count = _header.lig_glyph_count.get();
         let lig_glyph_offsets_byte_len = (lig_glyph_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -602,7 +602,7 @@ impl<'a> FontRead<'a> for LigCaretList<'a> {
             LigCaretListMarker {
                 lig_glyph_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -621,7 +621,7 @@ impl<'a> LigCaretList<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     #[inline]
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
@@ -636,13 +636,13 @@ impl<'a> LigCaretList<'a> {
     #[inline]
     pub fn lig_glyph_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lig_glyph_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`lig_glyph_offsets`][Self::lig_glyph_offsets].
     #[inline]
     pub fn lig_glyphs(&self) -> ArrayOfOffsets<'a, LigGlyph<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.lig_glyph_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -661,7 +661,7 @@ impl<'a> SomeTable<'a> for LigCaretList<'a> {
             )),
             1usize => Some(Field::new("lig_glyph_count", self.lig_glyph_count())),
             2usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "lig_glyph_offsets",
                     FieldType::array_of_offsets(
@@ -726,9 +726,9 @@ impl MinByteRange for LigGlyphMarker {
 impl<'a> FontRead<'a> for LigGlyph<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a LigGlyphFixedFields = cursor.read_ref()?;
-        let caret_count = fixed_fields.caret_count.get();
+        let (mut cursor, table_data) = Cursor::start::<LigGlyphFixedFields>(data)?;
+        let _header = table_data.header();
+        let caret_count = _header.caret_count.get();
         let caret_value_offsets_byte_len = (caret_count as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -737,7 +737,7 @@ impl<'a> FontRead<'a> for LigGlyph<'a> {
             LigGlyphMarker {
                 caret_value_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -758,13 +758,13 @@ impl<'a> LigGlyph<'a> {
     #[inline]
     pub fn caret_value_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.caret_value_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`caret_value_offsets`][Self::caret_value_offsets].
     #[inline]
     pub fn caret_values(&self) -> ArrayOfOffsets<'a, CaretValue<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.caret_value_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -779,7 +779,7 @@ impl<'a> SomeTable<'a> for LigGlyph<'a> {
         match idx {
             0usize => Some(Field::new("caret_count", self.caret_count())),
             1usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "caret_value_offsets",
                     FieldType::array_of_offsets(
@@ -927,9 +927,9 @@ impl MinByteRange for CaretValueFormat1Marker {
 impl<'a> FontRead<'a> for CaretValueFormat1<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CaretValueFormat1FixedFields = cursor.read_ref()?;
-        cursor.finish(CaretValueFormat1Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<CaretValueFormat1FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(CaretValueFormat1Marker {}, table_data)
     }
 }
 
@@ -1016,9 +1016,9 @@ impl MinByteRange for CaretValueFormat2Marker {
 impl<'a> FontRead<'a> for CaretValueFormat2<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CaretValueFormat2FixedFields = cursor.read_ref()?;
-        cursor.finish(CaretValueFormat2Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<CaretValueFormat2FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(CaretValueFormat2Marker {}, table_data)
     }
 }
 
@@ -1114,9 +1114,9 @@ impl MinByteRange for CaretValueFormat3Marker {
 impl<'a> FontRead<'a> for CaretValueFormat3<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a CaretValueFormat3FixedFields = cursor.read_ref()?;
-        cursor.finish(CaretValueFormat3Marker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<CaretValueFormat3FixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(CaretValueFormat3Marker {}, table_data)
     }
 }
 
@@ -1149,7 +1149,7 @@ impl<'a> CaretValueFormat3<'a> {
     /// Attempt to resolve [`device_offset`][Self::device_offset].
     #[inline]
     pub fn device(&self) -> Result<DeviceOrVariationIndex<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.device_offset().resolve(data)
     }
 }
@@ -1229,9 +1229,9 @@ impl MinByteRange for MarkGlyphSetsMarker {
 impl<'a> FontRead<'a> for MarkGlyphSets<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a MarkGlyphSetsFixedFields = cursor.read_ref()?;
-        let mark_glyph_set_count = fixed_fields.mark_glyph_set_count.get();
+        let (mut cursor, table_data) = Cursor::start::<MarkGlyphSetsFixedFields>(data)?;
+        let _header = table_data.header();
+        let mark_glyph_set_count = _header.mark_glyph_set_count.get();
         let coverage_offsets_byte_len = (mark_glyph_set_count as usize)
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -1240,7 +1240,7 @@ impl<'a> FontRead<'a> for MarkGlyphSets<'a> {
             MarkGlyphSetsMarker {
                 coverage_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -1267,13 +1267,13 @@ impl<'a> MarkGlyphSets<'a> {
     #[inline]
     pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.coverage_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].
     #[inline]
     pub fn coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -1292,7 +1292,7 @@ impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
                 self.mark_glyph_set_count(),
             )),
             2usize => Some({
-                let data = self.data;
+                let data = self.offset_data();
                 Field::new(
                     "coverage_offsets",
                     FieldType::array_of_offsets(

@@ -91,10 +91,10 @@ impl TopLevelTable for Gvar<'_> {
 impl<'a> FontRead<'a> for Gvar<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a GvarFixedFields = cursor.read_ref()?;
-        let glyph_count = fixed_fields.glyph_count.get();
-        let flags = fixed_fields.flags.get();
+        let (mut cursor, table_data) = Cursor::start::<GvarFixedFields>(data)?;
+        let _header = table_data.header();
+        let glyph_count = _header.glyph_count.get();
+        let flags = _header.flags.get();
         let glyph_variation_data_offsets_byte_len = (transforms::add(glyph_count, 1_usize))
             .checked_mul(<U16Or32 as ComputeSize>::compute_size(&flags)?)
             .ok_or(ReadError::OutOfBounds)?;
@@ -103,7 +103,7 @@ impl<'a> FontRead<'a> for Gvar<'a> {
             GvarMarker {
                 glyph_variation_data_offsets_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -144,7 +144,7 @@ impl<'a> Gvar<'a> {
     /// Attempt to resolve [`shared_tuples_offset`][Self::shared_tuples_offset].
     #[inline]
     pub fn shared_tuples(&self) -> Result<SharedTuples<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = (self.shared_tuple_count(), self.axis_count());
         self.shared_tuples_offset().resolve_with_args(data, &args)
     }
@@ -176,7 +176,9 @@ impl<'a> Gvar<'a> {
     #[inline]
     pub fn glyph_variation_data_offsets(&self) -> ComputedArray<'a, U16Or32> {
         let range = self.shape.glyph_variation_data_offsets_byte_range();
-        self.data.read_with_args(range, &self.flags()).unwrap()
+        self.offset_data()
+            .read_with_args(range, &self.flags())
+            .unwrap()
     }
 }
 
@@ -556,8 +558,8 @@ impl<'a> FontReadWithArgs<'a> for SharedTuples<'a> {
     #[inline]
     fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
         let (shared_tuple_count, axis_count) = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a SharedTuplesFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<SharedTuplesFixedFields>(data)?;
+        let _header = table_data.header();
         let tuples_byte_len = (shared_tuple_count as usize)
             .checked_mul(<Tuple as ComputeSize>::compute_size(&axis_count)?)
             .ok_or(ReadError::OutOfBounds)?;
@@ -567,7 +569,7 @@ impl<'a> FontReadWithArgs<'a> for SharedTuples<'a> {
                 axis_count,
                 tuples_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -596,7 +598,9 @@ impl<'a> SharedTuples<'a> {
     #[inline]
     pub fn tuples(&self) -> ComputedArray<'a, Tuple<'a>> {
         let range = self.shape.tuples_byte_range();
-        self.data.read_with_args(range, &self.axis_count()).unwrap()
+        self.offset_data()
+            .read_with_args(range, &self.axis_count())
+            .unwrap()
     }
 
     pub(crate) fn axis_count(&self) -> u16 {
@@ -673,15 +677,15 @@ impl MinByteRange for GlyphVariationDataHeaderMarker {
 impl<'a> FontRead<'a> for GlyphVariationDataHeader<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a GlyphVariationDataHeaderFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<GlyphVariationDataHeaderFixedFields>(data)?;
+        let _header = table_data.header();
         let tuple_variation_headers_byte_len = cursor.remaining_bytes();
         cursor.advance_by(tuple_variation_headers_byte_len);
         cursor.finish(
             GlyphVariationDataHeaderMarker {
                 tuple_variation_headers_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -711,7 +715,7 @@ impl<'a> GlyphVariationDataHeader<'a> {
     /// Attempt to resolve [`serialized_data_offset`][Self::serialized_data_offset].
     #[inline]
     pub fn serialized_data(&self) -> Result<FontData<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.serialized_data_offset().resolve(data)
     }
 
@@ -719,7 +723,7 @@ impl<'a> GlyphVariationDataHeader<'a> {
     #[inline]
     pub fn tuple_variation_headers(&self) -> VarLenArray<'a, TupleVariationHeader> {
         let range = self.shape.tuple_variation_headers_byte_range();
-        VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
+        VarLenArray::read(self.offset_data().split_off(range.start).unwrap()).unwrap()
     }
 }
 

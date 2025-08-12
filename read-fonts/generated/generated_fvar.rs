@@ -84,9 +84,9 @@ impl TopLevelTable for Fvar<'_> {
 impl<'a> FontRead<'a> for Fvar<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a FvarFixedFields = cursor.read_ref()?;
-        cursor.finish(FvarMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<FvarFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(FvarMarker {}, table_data)
     }
 }
 
@@ -112,7 +112,7 @@ impl<'a> Fvar<'a> {
     /// Attempt to resolve [`axis_instance_arrays_offset`][Self::axis_instance_arrays_offset].
     #[inline]
     pub fn axis_instance_arrays(&self) -> Result<AxisInstanceArrays<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = (
             self.axis_count(),
             self.instance_count(),
@@ -224,8 +224,8 @@ impl<'a> FontReadWithArgs<'a> for AxisInstanceArrays<'a> {
     #[inline]
     fn read_with_args(data: FontData<'a>, args: &(u16, u16, u16)) -> Result<Self, ReadError> {
         let (axis_count, instance_count, instance_size) = *args;
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a AxisInstanceArraysFixedFields = cursor.read_ref()?;
+        let (mut cursor, table_data) = Cursor::start::<AxisInstanceArraysFixedFields>(data)?;
+        let _header = table_data.header();
         let axes_byte_len = (axis_count as usize)
             .checked_mul(VariationAxisRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -244,7 +244,7 @@ impl<'a> FontReadWithArgs<'a> for AxisInstanceArrays<'a> {
                 axes_byte_len,
                 instances_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -276,14 +276,14 @@ impl<'a> AxisInstanceArrays<'a> {
     #[inline]
     pub fn axes(&self) -> &'a [VariationAxisRecord] {
         let range = self.shape.axes_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 
     /// Instance record array.
     #[inline]
     pub fn instances(&self) -> ComputedArray<'a, InstanceRecord<'a>> {
         let range = self.shape.instances_byte_range();
-        self.data
+        self.offset_data()
             .read_with_args(range, &(self.axis_count(), self.instance_size()))
             .unwrap()
     }

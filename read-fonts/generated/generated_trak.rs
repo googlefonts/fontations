@@ -70,9 +70,9 @@ impl TopLevelTable for Trak<'_> {
 impl<'a> FontRead<'a> for Trak<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a TrakFixedFields = cursor.read_ref()?;
-        cursor.finish(TrakMarker {}, fixed_fields)
+        let (cursor, table_data) = Cursor::start::<TrakFixedFields>(data)?;
+        let _header = table_data.header();
+        cursor.finish(TrakMarker {}, table_data)
     }
 }
 
@@ -102,7 +102,7 @@ impl<'a> Trak<'a> {
     /// Attempt to resolve [`horiz_offset`][Self::horiz_offset].
     #[inline]
     pub fn horiz(&self) -> Option<Result<TrackData<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.horiz_offset().resolve(data)
     }
 
@@ -115,7 +115,7 @@ impl<'a> Trak<'a> {
     /// Attempt to resolve [`vert_offset`][Self::vert_offset].
     #[inline]
     pub fn vert(&self) -> Option<Result<TrackData<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.vert_offset().resolve(data)
     }
 }
@@ -201,9 +201,9 @@ impl MinByteRange for TrackDataMarker {
 impl<'a> FontRead<'a> for TrackData<'a> {
     #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let fixed_fields: &'a TrackDataFixedFields = cursor.read_ref()?;
-        let n_tracks = fixed_fields.n_tracks.get();
+        let (mut cursor, table_data) = Cursor::start::<TrackDataFixedFields>(data)?;
+        let _header = table_data.header();
+        let n_tracks = _header.n_tracks.get();
         let track_table_byte_len = (n_tracks as usize)
             .checked_mul(TrackTableEntry::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -212,7 +212,7 @@ impl<'a> FontRead<'a> for TrackData<'a> {
             TrackDataMarker {
                 track_table_byte_len,
             },
-            fixed_fields,
+            table_data,
         )
     }
 }
@@ -244,7 +244,7 @@ impl<'a> TrackData<'a> {
     #[inline]
     pub fn track_table(&self) -> &'a [TrackTableEntry] {
         let range = self.shape.track_table_byte_range();
-        self.data.read_array(range).unwrap()
+        self.offset_data().read_array(range).unwrap()
     }
 }
 
