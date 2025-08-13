@@ -1,4 +1,19 @@
-//! A fast & efficient ordered set for unsigned integers.
+//! A fast, efficient, sparse, & ordered unsigned integer (`u32`) bit set.
+//!
+//! There are a couple of differences with IntSet:
+//! - This set is not invertible and can only record the set of integers which are members.
+//! - This set works only with `u32` values, unlike IntSet which supports custom integer types.
+//!
+//! When dealing with only `u32`'s and invertibility is not needed then this set is slightly faster
+//! than the more generic IntSet.
+//!
+//! The bitset is implemented using fixed size pages which allows it to compactly
+//! represent sparse membership. However, the set excels when set members are typically
+//! clustered together. For example when representing glyph id or unicode codepoint values
+//! in a font.
+//!
+//! When constructing a new [`U32Set`] from an existing list of integer values the most efficient
+//! way to create the set is to initialize it from a sorted list of values via the extend() method.
 
 use super::bitpage::BitPage;
 use super::bitpage::RangeIter;
@@ -11,21 +26,31 @@ use std::ops::RangeInclusive;
 // log_2(PAGE_BITS)
 const PAGE_BITS_LOG_2: u32 = PAGE_BITS.ilog2();
 
-/// An ordered integer (u32) set.
+/// A fast, efficient, sparse, & ordered `u32` set.
+///
+/// For a higher-level API that supports inversion and generic int types, use [IntSet]
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub(crate) struct BitSet {
+pub struct U32Set {
     // TODO(garretrieger): consider a "small array" type instead of Vec.
     pages: Vec<BitPage>,
     page_map: Vec<PageInfo>,
     length: u64,
 }
 
-impl BitSet {
+impl FromIterator<u32> for U32Set {
+    fn from_iter<I: IntoIterator<Item = u32>>(iter: I) -> Self {
+        let mut s = U32Set::empty();
+        s.extend(iter);
+        s
+    }
+}
+
+impl U32Set {
     /// Add val as a member of this set.
     ///
     /// If the set did not previously contain this value, returns `true`.
-    pub(crate) fn insert(&mut self, val: u32) -> bool {
+    pub fn insert(&mut self, val: u32) -> bool {
         let page = self.ensure_page_for_mut(val);
         let ret = page.insert(val);
         self.length += ret as u64;
@@ -33,7 +58,7 @@ impl BitSet {
     }
 
     /// Add all values in range as members of this set.
-    pub(crate) fn insert_range(&mut self, range: RangeInclusive<u32>) {
+    pub fn insert_range(&mut self, range: RangeInclusive<u32>) {
         let start = *range.start();
         let end = *range.end();
         if start > end {
@@ -61,7 +86,7 @@ impl BitSet {
     /// iterator of values.
     ///
     /// [`extend()`]: Self::extend
-    pub(crate) fn extend_unsorted<U: IntoIterator<Item = u32>>(&mut self, iter: U) {
+    pub fn extend_unsorted<U: IntoIterator<Item = u32>>(&mut self, iter: U) {
         self.length += iter
             .into_iter()
             .map(|val| {
@@ -75,7 +100,7 @@ impl BitSet {
     /// Remove val from this set.
     ///
     /// Returns `true` if the value was present.
-    pub(crate) fn remove(&mut self, val: u32) -> bool {
+    pub fn remove(&mut self, val: u32) -> bool {
         let maybe_page = self.page_for_mut(val);
         if let Some(page) = maybe_page {
             let ret = page.remove(val);
@@ -87,7 +112,7 @@ impl BitSet {
     }
 
     // Remove all values in iter from this set.
-    pub(crate) fn remove_all<U: IntoIterator<Item = u32>>(&mut self, iter: U) {
+    pub fn remove_all<U: IntoIterator<Item = u32>>(&mut self, iter: U) {
         let mut last_page_index: Option<usize> = None;
         let mut last_major_value = u32::MAX;
         let mut total_removed = 0;
@@ -110,7 +135,7 @@ impl BitSet {
     }
 
     /// Removes all values in range as members of this set.
-    pub(crate) fn remove_range(&mut self, range: RangeInclusive<u32>) {
+    pub fn remove_range(&mut self, range: RangeInclusive<u32>) {
         let start = *(range.start());
         let end = *(range.end());
         if start > end {
@@ -152,14 +177,14 @@ impl BitSet {
     }
 
     /// Returns true if val is a member of this set.
-    pub(crate) fn contains(&self, val: u32) -> bool {
+    pub fn contains(&self, val: u32) -> bool {
         self.page_for(val)
             .map(|page| page.contains(val))
             .unwrap_or(false)
     }
 
-    pub(crate) const fn empty() -> BitSet {
-        BitSet {
+    pub const fn empty() -> U32Set {
+        U32Set {
             pages: Vec::new(),
             page_map: Vec::new(),
             length: 0,
@@ -167,15 +192,14 @@ impl BitSet {
     }
 
     /// Remove all members from this set.
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.pages.clear();
         self.page_map.clear();
         self.length = 0;
     }
 
     /// Return true if there are no members in this set.
-    #[cfg(test)]
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
@@ -184,7 +208,7 @@ impl BitSet {
     }
 
     /// Returns the number of members in this set.
-    pub(crate) fn len(&self) -> u64 {
+    pub fn len(&self) -> u64 {
         self.length
     }
 
@@ -193,26 +217,27 @@ impl BitSet {
     }
 
     /// Sets the members of this set to the union of self and other.
-    pub(crate) fn union(&mut self, other: &BitSet) {
+    pub fn union(&mut self, other: &U32Set) {
         self.process(BitPage::union, other);
     }
 
     /// Sets the members of this set to the intersection of self and other.
-    pub(crate) fn intersect(&mut self, other: &BitSet) {
+    pub fn intersect(&mut self, other: &U32Set) {
         self.process(BitPage::intersect, other);
     }
 
     /// Sets the members of this set to self - other.
-    pub(crate) fn subtract(&mut self, other: &BitSet) {
+    pub fn subtract(&mut self, other: &U32Set) {
         self.process(BitPage::subtract, other);
     }
 
     /// Sets the members of this set to other - self.
-    pub(crate) fn reversed_subtract(&mut self, other: &BitSet) {
+    pub fn reversed_subtract(&mut self, other: &U32Set) {
         self.process(|a, b| BitPage::subtract(b, a), other);
     }
 
-    pub(crate) fn iter(&self) -> impl DoubleEndedIterator<Item = u32> + '_ {
+    /// Iterator over the members of this set. In sorted order (ascending).
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = u32> + '_ {
         self.iter_non_empty_pages().flat_map(|(major, page)| {
             let base = Self::major_start(major);
             page.iter().map(move |v| base + v)
@@ -222,7 +247,7 @@ impl BitSet {
     /// Iterator over the members of this set starting from value.
     ///
     /// So value is included in the iterator if it's in the set.
-    pub(crate) fn iter_from(&self, value: u32) -> impl Iterator<Item = u32> + '_ {
+    pub fn iter_from(&self, value: u32) -> impl Iterator<Item = u32> + '_ {
         let major_value = Self::get_major_value(value);
         let result = self
             .page_map
@@ -272,8 +297,9 @@ impl BitSet {
         init_it.chain(follow_on_it)
     }
 
-    pub(crate) fn iter_ranges(&self) -> impl Iterator<Item = RangeInclusive<u32>> + '_ {
-        BitSetRangeIter::new(self)
+    /// Iterate over the ranges of contiguous values in this set.
+    pub fn iter_ranges(&self) -> impl Iterator<Item = RangeInclusive<u32>> + '_ {
+        U32SetRangeIter::new(self)
     }
 
     fn iter_pages(&self) -> impl DoubleEndedIterator<Item = (u32, &BitPage)> + '_ {
@@ -307,11 +333,11 @@ impl BitSet {
         (passthrough_left, passthrough_right)
     }
 
-    fn process<Op>(&mut self, op: Op, other: &BitSet)
+    fn process<Op>(&mut self, op: Op, other: &U32Set)
     where
         Op: Fn(&BitPage, &BitPage) -> BitPage,
     {
-        let (passthrough_left, passthrough_right) = BitSet::passthrough_behavior(&op);
+        let (passthrough_left, passthrough_right) = U32Set::passthrough_behavior(&op);
 
         let mut len_a = self.pages.len();
         let len_b = other.pages.len();
@@ -578,9 +604,9 @@ impl BitSet {
     }
 }
 
-impl Extend<u32> for BitSet {
+impl Extend<u32> for U32Set {
     fn extend<U: IntoIterator<Item = u32>>(&mut self, iter: U) {
-        let mut builder = BitSetBuilder::start(self);
+        let mut builder = U32SetBuilder::start(self);
         for val in iter {
             builder.insert(val);
         }
@@ -588,18 +614,18 @@ impl Extend<u32> for BitSet {
     }
 }
 
-/// This helper is used to construct [`BitSet`]'s from a stream of possibly sorted values.
+/// This helper is used to construct [`U32Set`]'s from a stream of possibly sorted values.
 /// It remembers the last page index to reduce the amount of page lookups needed when inserting
 /// sorted data. If given unsorted values it will still work correctly, but may be slower then just
 /// repeatedly calling `insert()` on the bitset.
-pub(crate) struct BitSetBuilder<'a> {
-    pub(crate) set: &'a mut BitSet,
+pub(crate) struct U32SetBuilder<'a> {
+    pub(crate) set: &'a mut U32Set,
     last_page_index: usize,
     last_major_value: u32,
 }
 
-impl<'a> BitSetBuilder<'a> {
-    pub(crate) fn start(set: &'a mut BitSet) -> Self {
+impl<'a> U32SetBuilder<'a> {
+    pub(crate) fn start(set: &'a mut U32Set) -> Self {
         Self {
             set,
             last_page_index: usize::MAX,
@@ -611,7 +637,7 @@ impl<'a> BitSetBuilder<'a> {
         // TODO(garretrieger): additional optimization ideas:
         // - Assuming data is sorted accumulate a single element mask and only commit it to the element
         //   once the next value passes the end of the element.
-        let major_value = BitSet::get_major_value(val);
+        let major_value = U32Set::get_major_value(val);
         if major_value != self.last_major_value {
             self.last_page_index = self.set.ensure_page_index_for_major(major_value);
             self.last_major_value = major_value;
@@ -621,7 +647,7 @@ impl<'a> BitSetBuilder<'a> {
         }
     }
 
-    pub(crate) fn finish(&mut self) {
+    pub(crate) fn finish(self) {
         // we used to do some finalization and bookkeeping here, and we will
         // want to again if we optimize the impl more.
     }
@@ -636,13 +662,13 @@ struct PageInfo {
     major_value: u32,
 }
 
-impl Hash for BitSet {
+impl Hash for U32Set {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.iter_non_empty_pages().for_each(|t| t.hash(state));
     }
 }
 
-impl std::cmp::PartialEq for BitSet {
+impl std::cmp::PartialEq for U32Set {
     fn eq(&self, other: &Self) -> bool {
         let mut this = self.iter_non_empty_pages();
         let mut other = other.iter_non_empty_pages();
@@ -659,15 +685,15 @@ impl std::cmp::PartialEq for BitSet {
     }
 }
 
-impl std::cmp::Eq for BitSet {}
+impl std::cmp::Eq for U32Set {}
 
-impl std::cmp::PartialOrd for BitSet {
+impl std::cmp::PartialOrd for U32Set {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl std::cmp::Ord for BitSet {
+impl std::cmp::Ord for U32Set {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         let this_it = self.iter();
         let other_it = other.iter();
@@ -684,18 +710,18 @@ impl std::cmp::Ord for BitSet {
     }
 }
 
-struct BitSetRangeIter<'a> {
-    set: &'a BitSet,
+struct U32SetRangeIter<'a> {
+    set: &'a U32Set,
     page_info_index: usize,
     page_iter: Option<RangeIter<'a>>,
 }
 
-impl<'a> BitSetRangeIter<'a> {
-    fn new(set: &'a BitSet) -> BitSetRangeIter<'a> {
-        BitSetRangeIter {
+impl<'a> U32SetRangeIter<'a> {
+    fn new(set: &'a U32Set) -> U32SetRangeIter<'a> {
+        U32SetRangeIter {
             set,
             page_info_index: 0,
-            page_iter: BitSetRangeIter::<'a>::page_iter(set, 0),
+            page_iter: U32SetRangeIter::<'a>::page_iter(set, 0),
         }
     }
 
@@ -706,10 +732,10 @@ impl<'a> BitSetRangeIter<'a> {
     }
 
     fn reset_page_iter(&mut self) {
-        self.page_iter = BitSetRangeIter::<'a>::page_iter(self.set, self.page_info_index);
+        self.page_iter = U32SetRangeIter::<'a>::page_iter(self.set, self.page_info_index);
     }
 
-    fn page_iter(set: &'a BitSet, page_info_index: usize) -> Option<RangeIter<'a>> {
+    fn page_iter(set: &'a U32Set, page_info_index: usize) -> Option<RangeIter<'a>> {
         set.page_map
             .get(page_info_index)
             .map(|pi| pi.index as usize)
@@ -720,7 +746,7 @@ impl<'a> BitSetRangeIter<'a> {
     fn next_range(&mut self) -> Option<RangeInclusive<u32>> {
         // TODO(garretrieger): don't recompute page start on each call.
         let page = self.set.page_map.get(self.page_info_index)?;
-        let page_start = BitSet::major_start(page.major_value);
+        let page_start = U32Set::major_start(page.major_value);
         self.page_iter
             .as_mut()?
             .next()
@@ -728,7 +754,7 @@ impl<'a> BitSetRangeIter<'a> {
     }
 }
 
-impl Iterator for BitSetRangeIter<'_> {
+impl Iterator for U32SetRangeIter<'_> {
     type Item = RangeInclusive<u32>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -736,7 +762,7 @@ impl Iterator for BitSetRangeIter<'_> {
         let mut current_range = self.next_range();
         loop {
             let page = self.set.page_map.get(self.page_info_index)?;
-            let page_end = BitSet::major_end(page.major_value);
+            let page_end = U32Set::major_end(page.major_value);
 
             let Some(range) = current_range.clone() else {
                 // The current page has no more ranges, but there may be more pages.
@@ -778,24 +804,25 @@ mod test {
     use super::*;
     use std::collections::HashSet;
 
-    impl FromIterator<u32> for BitSet {
-        fn from_iter<I: IntoIterator<Item = u32>>(iter: I) -> Self {
-            let mut out = BitSet::empty();
-            out.extend(iter);
-            out
-        }
-    }
-
     #[test]
     fn len() {
-        let bitset = BitSet::empty();
+        let bitset = U32Set::empty();
         assert_eq!(bitset.len(), 0);
         assert!(bitset.is_empty());
     }
 
     #[test]
+    fn from_iter() {
+        let mut expected = U32Set::empty();
+        expected.extend([2, 8, 13]);
+
+        assert_eq!(U32Set::from_iter([2, 8, 13]), expected);
+        assert_eq!(U32Set::from_iter([8, 2, 13]), expected);
+    }
+
+    #[test]
     fn iter() {
-        let mut bitset = BitSet::empty();
+        let mut bitset = U32Set::empty();
         bitset.insert(3);
         bitset.insert(8);
         bitset.insert(534);
@@ -809,7 +836,7 @@ mod test {
     }
 
     fn check_iter_ranges(ranges: Vec<RangeInclusive<u32>>) {
-        let mut set = BitSet::empty();
+        let mut set = U32Set::empty();
         for range in ranges.iter() {
             set.insert_range(*range.start()..=*range.end());
         }
@@ -837,7 +864,7 @@ mod test {
 
     #[test]
     fn iter_ranges_zero_pages() {
-        let mut set = BitSet::empty();
+        let mut set = U32Set::empty();
 
         set.insert(1000);
         set.insert_range(300..=511);
@@ -849,7 +876,7 @@ mod test {
 
     #[test]
     fn iter_backwards() {
-        let mut bitset = BitSet::empty();
+        let mut bitset = U32Set::empty();
 
         bitset.insert_range(1..=6);
         {
@@ -885,7 +912,7 @@ mod test {
 
     #[test]
     fn iter_from() {
-        let mut bitset = BitSet::empty();
+        let mut bitset = U32Set::empty();
         bitset.extend([5, 7, 10, 1250, 1300, 3001]);
 
         assert_eq!(
@@ -941,7 +968,7 @@ mod test {
             vec![u32::MAX]
         );
 
-        let mut bitset = BitSet::empty();
+        let mut bitset = U32Set::empty();
         bitset.extend([510, 511, 512]);
 
         assert_eq!(
@@ -962,10 +989,10 @@ mod test {
         let values = [3, 8, 534, 700, 10000, 10001, 10002];
         let values_unsorted = [10000, 3, 534, 700, 8, 10001, 10002];
 
-        let mut s1 = BitSet::empty();
-        let mut s2 = BitSet::empty();
-        let mut s3 = BitSet::empty();
-        let mut s4 = BitSet::empty();
+        let mut s1 = U32Set::empty();
+        let mut s2 = U32Set::empty();
+        let mut s3 = U32Set::empty();
+        let mut s4 = U32Set::empty();
         assert_eq!(s1.len(), 0);
 
         s1.extend(values.iter().copied());
@@ -986,7 +1013,7 @@ mod test {
 
     #[test]
     fn insert_unordered() {
-        let mut bitset = BitSet::empty();
+        let mut bitset = U32Set::empty();
 
         assert!(!bitset.contains(0));
         assert!(!bitset.contains(768));
@@ -1009,7 +1036,7 @@ mod test {
 
     #[test]
     fn remove() {
-        let mut bitset = BitSet::empty();
+        let mut bitset = U32Set::empty();
 
         assert!(bitset.insert(0));
         assert!(bitset.insert(511));
@@ -1032,7 +1059,7 @@ mod test {
 
     #[test]
     fn remove_all() {
-        let mut bitset = BitSet::empty();
+        let mut bitset = U32Set::empty();
         bitset.extend([5, 7, 11, 18, 620, 2000]);
 
         assert_eq!(bitset.len(), 6);
@@ -1044,7 +1071,7 @@ mod test {
 
     #[test]
     fn remove_range() {
-        let mut bitset = BitSet::empty();
+        let mut bitset = U32Set::empty();
         bitset.extend([5, 7, 11, 18, 511, 620, 1023, 1024, 1200]);
         assert_eq!(bitset.len(), 9);
         bitset.remove_range(7..=620);
@@ -1054,13 +1081,13 @@ mod test {
             vec![5, 1023, 1024, 1200]
         );
 
-        let mut bitset = BitSet::empty();
+        let mut bitset = U32Set::empty();
         bitset.extend([5, 7, 11, 18, 511, 620, 1023, 1024, 1200]);
         bitset.remove_range(7..=1024);
         assert_eq!(bitset.len(), 2);
         assert_eq!(bitset.iter().collect::<Vec<u32>>(), vec![5, 1200]);
 
-        let mut bitset = BitSet::empty();
+        let mut bitset = U32Set::empty();
         bitset.extend([5, 7, 11, 18, 511, 620, 1023, 1024, 1200]);
         bitset.remove_range(2000..=2100);
         assert_eq!(bitset.len(), 9);
@@ -1070,7 +1097,7 @@ mod test {
         );
 
         // Remove all from one page
-        let mut bitset = BitSet::empty();
+        let mut bitset = U32Set::empty();
         bitset.extend([1001, 1002, 1003, 1004]);
         bitset.remove_range(1002..=1003);
         assert!(bitset.contains(1001));
@@ -1093,7 +1120,7 @@ mod test {
 
     #[test]
     fn remove_range_boundary() {
-        let mut set = BitSet::empty();
+        let mut set = U32Set::empty();
 
         set.remove_range(u32::MAX - 10..=u32::MAX);
         assert!(!set.contains(u32::MAX));
@@ -1112,7 +1139,7 @@ mod test {
 
     #[test]
     fn remove_to_empty_page() {
-        let mut bitset = BitSet::empty();
+        let mut bitset = U32Set::empty();
 
         bitset.insert(793);
         bitset.insert(43);
@@ -1125,7 +1152,7 @@ mod test {
 
     #[test]
     fn insert_max_value() {
-        let mut bitset = BitSet::empty();
+        let mut bitset = U32Set::empty();
         assert!(!bitset.contains(u32::MAX));
         assert!(bitset.insert(u32::MAX));
         assert!(bitset.contains(u32::MAX));
@@ -1138,11 +1165,11 @@ mod test {
         A: IntoIterator<Item = u32>,
         B: IntoIterator<Item = u32>,
         C: IntoIterator<Item = u32>,
-        Op: Fn(&mut BitSet, &BitSet),
+        Op: Fn(&mut U32Set, &U32Set),
     {
-        let mut result = BitSet::from_iter(a);
-        let b_set = BitSet::from_iter(b);
-        let expected_set = BitSet::from_iter(expected);
+        let mut result = U32Set::from_iter(a);
+        let b_set = U32Set::from_iter(b);
+        let expected_set = U32Set::from_iter(expected);
         result.len();
 
         op(&mut result, &b_set);
@@ -1185,8 +1212,8 @@ mod test {
         check_process([5], [5, 1000], [1000], |a, b| a.reversed_subtract(b));
     }
 
-    fn set_for_range(first: u32, last: u32) -> BitSet {
-        let mut set = BitSet::empty();
+    fn set_for_range(first: u32, last: u32) -> U32Set {
+        let mut set = U32Set::empty();
         for i in first..=last {
             set.insert(i);
         }
@@ -1204,7 +1231,7 @@ mod test {
             (364, 700),
             (364, 6000),
         ] {
-            let mut set = BitSet::empty();
+            let mut set = U32Set::empty();
             set.len();
             set.insert_range(range.0..=range.1);
             assert_eq!(set, set_for_range(range.0, range.1), "{range:?}");
@@ -1214,7 +1241,7 @@ mod test {
 
     #[test]
     fn insert_range_on_existing() {
-        let mut set = BitSet::empty();
+        let mut set = U32Set::empty();
         set.insert(700);
         set.insert(2000);
         set.insert_range(32..=4000);
@@ -1224,7 +1251,7 @@ mod test {
 
     #[test]
     fn insert_range_max() {
-        let mut set = BitSet::empty();
+        let mut set = U32Set::empty();
         set.insert_range(u32::MAX..=u32::MAX);
         assert!(set.contains(u32::MAX));
         assert_eq!(set.len(), 1);
@@ -1232,7 +1259,7 @@ mod test {
 
     #[test]
     fn clear() {
-        let mut bitset = BitSet::empty();
+        let mut bitset = U32Set::empty();
 
         bitset.insert(13);
         bitset.insert(670);
@@ -1248,10 +1275,10 @@ mod test {
     #[test]
     #[allow(clippy::mutable_key_type)]
     fn hash_and_eq() {
-        let mut bitset1 = BitSet::empty();
-        let mut bitset2 = BitSet::empty();
-        let mut bitset3 = BitSet::empty();
-        let mut bitset4 = BitSet::empty();
+        let mut bitset1 = U32Set::empty();
+        let mut bitset2 = U32Set::empty();
+        let mut bitset3 = U32Set::empty();
+        let mut bitset4 = U32Set::empty();
 
         bitset1.insert(43);
         bitset1.insert(793);
@@ -1266,7 +1293,7 @@ mod test {
 
         bitset4.insert(0);
 
-        assert_eq!(BitSet::empty(), BitSet::empty());
+        assert_eq!(U32Set::empty(), U32Set::empty());
         assert_eq!(bitset1, bitset2);
         assert_ne!(bitset1, bitset3);
         assert_ne!(bitset2, bitset3);
@@ -1280,9 +1307,9 @@ mod test {
     #[test]
     #[allow(clippy::mutable_key_type)]
     fn hash_and_eq_with_empty_pages() {
-        let mut bitset1 = BitSet::empty();
-        let mut bitset2 = BitSet::empty();
-        let mut bitset3 = BitSet::empty();
+        let mut bitset1 = U32Set::empty();
+        let mut bitset2 = U32Set::empty();
+        let mut bitset3 = U32Set::empty();
 
         bitset1.insert(43);
 
@@ -1305,7 +1332,7 @@ mod test {
         macro_rules! assert_ord {
             ($lhs:expr, $rhs:expr, $ord:path) => {
                 assert_eq!(
-                    BitSet::from_iter($lhs).cmp(&BitSet::from_iter($rhs)),
+                    U32Set::from_iter($lhs).cmp(&U32Set::from_iter($rhs)),
                     $ord,
                     "{:?}, {:?}",
                     $lhs,

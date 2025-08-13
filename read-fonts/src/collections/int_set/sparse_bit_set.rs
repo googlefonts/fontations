@@ -7,11 +7,11 @@ use std::collections::VecDeque;
 use std::error::Error;
 use std::fmt;
 
-use super::bitset::BitSetBuilder;
+use super::bitset::U32SetBuilder;
 use super::input_bit_stream::InputBitStream;
 use super::output_bit_stream::OutputBitStream;
-use super::BitSet;
 use super::IntSet;
+use super::U32Set;
 
 #[derive(Debug, PartialEq)]
 pub struct DecodingError;
@@ -92,14 +92,14 @@ impl IntSet<u32> {
         height: u8,
         bias: u32,
         max_value: u32,
-    ) -> Result<(BitSet, &[u8]), DecodingError> {
-        let mut out = BitSet::empty();
+    ) -> Result<(U32Set, &[u8]), DecodingError> {
+        let mut out = U32Set::empty();
         if height == 0 {
             // 1 byte was used for the header.
             return Ok((out, &data[1..]));
         }
 
-        let mut builder = BitSetBuilder::start(&mut out);
+        let mut builder = U32SetBuilder::start(&mut out);
         let mut bits = InputBitStream::<BF>::from(data);
         // TODO(garretrieger): estimate initial capacity (maximum is a function of the number of nodes in the bit stream).
         let mut queue = VecDeque::<NextNode>::new();
