@@ -146,7 +146,7 @@ impl Gvar {
         self.glyph_variation_data_offsets.len().try_into().unwrap()
     }
 
-    fn compute_data_array_offset(&self) -> u32 {
+    fn compute_shared_tuples_offset(&self) -> u32 {
         const BASE_OFFSET: usize = MajorMinor::RAW_BYTE_LEN
             + u16::RAW_BYTE_LEN // axis count
             + u16::RAW_BYTE_LEN // shared tuples count
@@ -165,9 +165,18 @@ impl Gvar {
         (BASE_OFFSET + offsets_len).try_into().unwrap()
     }
 
+    fn compute_data_array_offset(&self) -> u32 {
+        let shared_tuples_len: u32 =
+            (array_len(&self.shared_tuples) * self.axis_count as usize * 2)
+                .try_into()
+                .unwrap();
+        self.compute_shared_tuples_offset() + shared_tuples_len
+    }
+
     fn compile_variation_data(&self) -> GlyphDataWriter {
         GlyphDataWriter {
             long_offsets: self.compute_flags() == GvarFlags::LONG_OFFSETS,
+            shared_tuples: &self.shared_tuples,
             data: &self.glyph_variation_data_offsets,
         }
     }
@@ -540,6 +549,7 @@ impl FontWrite for GlyphTupleVariationData {
 
 struct GlyphDataWriter<'a> {
     long_offsets: bool,
+    shared_tuples: &'a SharedTuples,
     data: &'a [GlyphVariationData],
 }
 
@@ -569,6 +579,10 @@ impl FontWrite for GlyphDataWriter<'_> {
                 last.write_into(writer);
             }
         }
+        // then write the shared tuples (should come here according to the spec)
+        // https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#shared-tuples-array
+        // > The shared tuples array follows the GlyphVariationData offsets array at the end of the 'gvar' header.
+        self.shared_tuples.write_into(writer);
         // then write the actual data
         for glyph in self.data {
             if !glyph.is_empty() {
@@ -756,6 +770,7 @@ mod tests {
             2,
         )
         .unwrap();
+
         let g2 = &table.glyph_variation_data_offsets[1];
         let computed = g2.compute_size();
         let actual = crate::dump_table(g2).unwrap().len();
@@ -766,6 +781,9 @@ mod tests {
         assert_eq!(gvar.version(), MajorMinor::VERSION_1_0);
         assert_eq!(gvar.shared_tuple_count(), 1);
         assert_eq!(gvar.glyph_count(), 3);
+        // Check offsets, the shared_tuples_offset should point to just after the table's header
+        assert_eq!(gvar.shared_tuples_offset(), Offset32::new(28));
+        assert_eq!(gvar.glyph_variation_data_array_offset(), 32);
 
         let g1 = gvar.glyph_variation_data(GlyphId::new(1)).unwrap().unwrap();
         let g1tup = g1.tuples().collect::<Vec<_>>();
@@ -1240,6 +1258,7 @@ mod tests {
 
         let bytes = sink.into_data().bytes;
         let expected_len = (n_glyphs + 1) as usize * offset_len // offsets
+                             + 8 // shared tuples TODO remove magic number
                              + data_len * n_glyphs as usize; // rounded size of each glyph
         assert_eq!(bytes.len(), expected_len);
 
