@@ -22,6 +22,7 @@ table Gvar {
     shared_tuple_count: u16,
     /// Offset from the start of this table to the shared tuple records.
     #[read_offset_with($shared_tuple_count, $axis_count)]
+    #[compile_with(compute_shared_tuples_offset)]
     shared_tuples_offset: Offset32<SharedTuples>,
     /// The number of glyphs in this font. This must match the number
     /// of glyphs stored elsewhere in the font.
