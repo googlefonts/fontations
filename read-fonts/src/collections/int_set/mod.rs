@@ -23,7 +23,7 @@ mod input_bit_stream;
 mod output_bit_stream;
 pub mod sparse_bit_set;
 
-use bitset::BitSet;
+pub use bitset::U32Set;
 use core::ops::{Bound, RangeBounds};
 use font_types::{GlyphId, GlyphId16, NameId, Tag};
 use std::hash::Hash;
@@ -95,10 +95,10 @@ pub struct InDomain(u32);
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum Membership {
     /// Records a set of integers which are members of the set.
-    Inclusive(BitSet),
+    Inclusive(U32Set),
 
     /// Records the set of integers which are not members of the set.
-    Exclusive(BitSet),
+    Exclusive(U32Set),
 }
 
 impl InDomain {
@@ -423,7 +423,7 @@ impl<T: Domain> IntSet<T> {
 }
 
 impl IntSet<u32> {
-    pub(crate) fn from_bitset(set: BitSet) -> IntSet<u32> {
+    pub(crate) fn from_bitset(set: U32Set) -> IntSet<u32> {
         IntSet(Membership::Inclusive(set), PhantomData::<u32>)
     }
 }
@@ -438,12 +438,12 @@ impl<T> IntSet<T> {
 
     /// Create a new empty set (inclusive).
     pub const fn empty() -> Self {
-        IntSet(Membership::Inclusive(BitSet::empty()), PhantomData::<T>)
+        IntSet(Membership::Inclusive(U32Set::empty()), PhantomData::<T>)
     }
 
     /// Create a new set which contains all integers (exclusive).
     pub const fn all() -> Self {
-        IntSet(Membership::Exclusive(BitSet::empty()), PhantomData::<T>)
+        IntSet(Membership::Exclusive(U32Set::empty()), PhantomData::<T>)
     }
 
     /// Returns true if this set is inverted (has exclusive membership).
@@ -460,7 +460,7 @@ impl<T> IntSet<T> {
             // take the existing storage to reuse in a new set of the opposite
             // type.
             Membership::Inclusive(s) | Membership::Exclusive(s) => {
-                std::mem::replace(s, BitSet::empty())
+                std::mem::replace(s, U32Set::empty())
             }
         };
 
@@ -481,7 +481,7 @@ impl<T> IntSet<T> {
             }
             // otherwise take the existing storage to reuse in a new
             // inclusive set:
-            Membership::Exclusive(s) => std::mem::replace(s, BitSet::empty()),
+            Membership::Exclusive(s) => std::mem::replace(s, U32Set::empty()),
         };
         // reuse the now empty storage and mark us as inclusive
         reuse_storage.clear();
@@ -845,7 +845,7 @@ where
     },
     ExclusiveDiscontinuous {
         all_values: Option<AllValuesIter>,
-        set: &'a BitSet,
+        set: &'a U32Set,
         next_value: Option<u32>,
     },
 }
@@ -964,7 +964,7 @@ where
     /// Iterate the ranges of an exclusive set where the domain is discontinuous.
     fn next_discontinuous(
         all_values: &mut Option<AllValuesIter>,
-        set: &'a BitSet,
+        set: &'a U32Set,
         next_value: &mut Option<u32>,
     ) -> Option<RangeInclusive<u32>> {
         let all_values_iter = all_values.as_mut().unwrap();
