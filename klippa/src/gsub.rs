@@ -1,4 +1,5 @@
 //! impl subset() for GSUB table
+mod alternate_subst;
 mod multiple_subst;
 mod single_subst;
 
