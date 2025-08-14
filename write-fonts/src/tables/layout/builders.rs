@@ -1,5 +1,11 @@
 //! Common utilities and helpers for constructing layout tables
 
+// This module uses IntSet's as keys which contain interior mutability.
+// IntSet has custom impls that handle interior mutability correctly.
+// Because the errors are triggered inside of a derive(...) we have to disable
+// the clippy warning at the module level.
+#![allow(clippy::mutable_key_type)]
+
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use read_fonts::collections::IntSet;
