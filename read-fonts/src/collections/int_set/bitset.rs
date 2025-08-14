@@ -1,11 +1,11 @@
 //! A fast, efficient, sparse, & ordered unsigned integer (`u32`) bit set.
 //!
-//! There are a couple of differences with IntSet:
+//! There are a couple of differences with [`super::IntSet`]:
 //! - This set is not invertible and can only record the set of integers which are members.
-//! - This set works only with `u32` values, unlike IntSet which supports custom integer types.
+//! - This set works only with `u32` values, unlike [`super::IntSet`] which supports custom integer types.
 //!
 //! When dealing with only `u32`'s and invertibility is not needed then this set is slightly faster
-//! than the more generic IntSet.
+//! than the more generic [`super::IntSet`].
 //!
 //! The bitset is implemented using fixed size pages which allows it to compactly
 //! represent sparse membership. However, the set excels when set members are typically
@@ -28,7 +28,7 @@ const PAGE_BITS_LOG_2: u32 = PAGE_BITS.ilog2();
 
 /// A fast, efficient, sparse, & ordered `u32` set.
 ///
-/// For a higher-level API that supports inversion and generic int types, use [IntSet]
+/// For a higher-level API that supports inversion and generic int types, use [`super::IntSet`]
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct U32Set {
