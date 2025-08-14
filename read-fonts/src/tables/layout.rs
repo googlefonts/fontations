@@ -241,8 +241,7 @@ impl CoverageFormat1<'_> {
     #[cfg(feature = "std")]
     fn intersects(&self, glyphs: &IntSet<GlyphId>) -> bool {
         let glyph_count = self.glyph_count() as u32;
-        let num_bits = 32 - glyph_count.leading_zeros();
-        if glyph_count > (glyphs.len() as u32) * num_bits {
+        if glyph_count > (glyphs.len() as u32) * self.cost() {
             glyphs.iter().any(|g| self.get(g).is_some())
         } else {
             self.glyph_array()
@@ -255,8 +254,7 @@ impl CoverageFormat1<'_> {
     #[cfg(feature = "std")]
     fn intersect_set(&self, glyphs: &IntSet<GlyphId>) -> IntSet<GlyphId> {
         let glyph_count = self.glyph_count() as u32;
-        let num_bits = 32 - glyph_count.leading_zeros();
-        if glyph_count > (glyphs.len() as u32) * num_bits {
+        if glyph_count > (glyphs.len() as u32) * self.cost() {
             glyphs
                 .iter()
                 .filter_map(|g| self.get(g).map(|_| g))
@@ -307,8 +305,7 @@ impl CoverageFormat2<'_> {
     #[cfg(feature = "std")]
     fn intersects(&self, glyphs: &IntSet<GlyphId>) -> bool {
         let range_count = self.range_count() as u32;
-        let num_bits = 32 - range_count.leading_zeros();
-        if range_count > (glyphs.len() as u32) * num_bits {
+        if range_count > (glyphs.len() as u32) * self.cost() {
             glyphs.iter().any(|g| self.get(g).is_some())
         } else {
             self.range_records()
@@ -321,8 +318,7 @@ impl CoverageFormat2<'_> {
     #[cfg(feature = "std")]
     fn intersect_set(&self, glyphs: &IntSet<GlyphId>) -> IntSet<GlyphId> {
         let range_count = self.range_count() as u32;
-        let num_bits = 32 - range_count.leading_zeros();
-        if range_count > (glyphs.len() as u32) * num_bits {
+        if range_count > (glyphs.len() as u32) * self.cost() {
             glyphs
                 .iter()
                 .filter_map(|g| self.get(g).map(|_| g))
@@ -610,10 +606,9 @@ impl<'a> ClassDefFormat2<'a> {
         }
 
         let num_ranges = self.class_range_count();
-        let num_bits = 16 - num_ranges.leading_zeros();
-        if num_ranges as u64 > glyphs.len() * num_bits as u64 {
+        if num_ranges as u64 > glyphs.len() * self.cost() as u64 {
             for g in glyphs.iter() {
-                let class = self.get(GlyphId16::from(g.to_u32() as u16));
+                let class = self.get(g);
                 if class != 0 {
                     out.insert(class);
                 }
@@ -658,10 +653,9 @@ impl<'a> ClassDefFormat2<'a> {
         }
 
         let num_ranges = self.class_range_count();
-        let num_bits = 16 - num_ranges.leading_zeros();
-        if num_ranges as u64 > glyphs.len() * num_bits as u64 {
+        if num_ranges as u64 > glyphs.len() * self.cost() as u64 {
             for g in glyphs.iter() {
-                let c = self.get(GlyphId16::from(g.to_u32() as u16));
+                let c = self.get(g);
                 if c == class {
                     out.insert(g);
                 }
