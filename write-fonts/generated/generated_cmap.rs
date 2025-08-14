@@ -208,14 +208,12 @@ impl CmapSubtable {
         length: u32,
         language: u32,
         start_char_code: u32,
-        num_chars: u32,
         glyph_id_array: Vec<u16>,
     ) -> Self {
         Self::Format10(Cmap10::new(
             length,
             language,
             start_char_code,
-            num_chars,
             glyph_id_array,
         ))
     }
@@ -873,26 +871,17 @@ pub struct Cmap10 {
     pub language: u32,
     /// First character code covered
     pub start_char_code: u32,
-    /// Number of character codes covered
-    pub num_chars: u32,
     /// Array of glyph indices for the character codes covered
     pub glyph_id_array: Vec<u16>,
 }
 
 impl Cmap10 {
     /// Construct a new `Cmap10`
-    pub fn new(
-        length: u32,
-        language: u32,
-        start_char_code: u32,
-        num_chars: u32,
-        glyph_id_array: Vec<u16>,
-    ) -> Self {
+    pub fn new(length: u32, language: u32, start_char_code: u32, glyph_id_array: Vec<u16>) -> Self {
         Self {
             length,
             language,
             start_char_code,
-            num_chars,
             glyph_id_array,
         }
     }
@@ -906,7 +895,7 @@ impl FontWrite for Cmap10 {
         self.length.write_into(writer);
         self.language.write_into(writer);
         self.start_char_code.write_into(writer);
-        self.num_chars.write_into(writer);
+        (u32::try_from(array_len(&self.glyph_id_array)).unwrap()).write_into(writer);
         self.glyph_id_array.write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -915,7 +904,15 @@ impl FontWrite for Cmap10 {
 }
 
 impl Validate for Cmap10 {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Cmap10", |ctx| {
+            ctx.in_field("glyph_id_array", |ctx| {
+                if self.glyph_id_array.len() > (u32::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+        })
+    }
 }
 
 impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap10<'a>> for Cmap10 {
@@ -925,7 +922,6 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap10<'a>> for Cmap10 {
             length: obj.length(),
             language: obj.language(),
             start_char_code: obj.start_char_code(),
-            num_chars: obj.num_chars(),
             glyph_id_array: obj.glyph_id_array().to_owned_obj(offset_data),
         }
     }
