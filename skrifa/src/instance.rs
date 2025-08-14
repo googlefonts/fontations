@@ -163,8 +163,7 @@ const MAX_INLINE_COORDS: usize = 8;
 ///
 /// This is an owned version of [`LocationRef`]. See the documentation on that
 /// type for more detail.
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
-#[derive(Default)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Default)]
 pub struct Location {
     coords: SmallVec<NormalizedCoord, MAX_INLINE_COORDS>,
 }
@@ -190,7 +189,6 @@ impl Location {
         self.coords.as_mut_slice()
     }
 }
-
 
 impl<'a> From<&'a Location> for LocationRef<'a> {
     fn from(value: &'a Location) -> Self {
