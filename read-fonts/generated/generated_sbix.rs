@@ -313,6 +313,19 @@ impl<'a> From<HeaderFlags> for FieldType<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SbixFixedFields {
+    pub version: BigEndian<u16>,
+    pub flags: BigEndian<HeaderFlags>,
+    pub num_strikes: BigEndian<u32>,
+}
+
+impl FixedSize for SbixFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + HeaderFlags::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
 /// The [sbix (Standard Bitmap Graphics)](https://docs.microsoft.com/en-us/typography/opentype/spec/sbix) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -359,20 +372,23 @@ impl ReadArgs for Sbix<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Sbix<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let num_glyphs = *args;
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<HeaderFlags>();
-        let num_strikes: u32 = cursor.read()?;
+        let fixed_fields: &'a SbixFixedFields = cursor.read_ref()?;
+        let num_strikes = fixed_fields.num_strikes.get();
         let strike_offsets_byte_len = (num_strikes as usize)
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(strike_offsets_byte_len);
-        cursor.finish(SbixMarker {
-            num_glyphs,
-            strike_offsets_byte_len,
-        })
+        cursor.finish(
+            SbixMarker {
+                num_glyphs,
+                strike_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
@@ -381,6 +397,7 @@ impl<'a> Sbix<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
         let args = num_glyphs;
         Self::read_with_args(data, &args)
@@ -388,37 +405,39 @@ impl<'a> Sbix<'a> {
 }
 
 /// The [sbix (Standard Bitmap Graphics)](https://docs.microsoft.com/en-us/typography/opentype/spec/sbix) table
-pub type Sbix<'a> = TableRef<'a, SbixMarker>;
+pub type Sbix<'a> = TableRef<'a, SbixMarker, SbixFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Sbix<'a> {
     /// Table version number — set to 1.
+    #[inline]
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// Bit 0: Set to 1.
     /// Bit 1: Draw outlines.
     /// Bits 2 to 15: reserved (set to 0).
+    #[inline]
     pub fn flags(&self) -> HeaderFlags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
     /// Number of bitmap strikes.
+    #[inline]
     pub fn num_strikes(&self) -> u32 {
-        let range = self.shape.num_strikes_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_strikes.get()
     }
 
     /// Offsets from the beginning of the 'sbix' table to data for each individual bitmap strike.
+    #[inline]
     pub fn strike_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.strike_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// A dynamically resolving wrapper for [`strike_offsets`][Self::strike_offsets].
+    #[inline]
     pub fn strikes(&self) -> ArrayOfOffsets<'a, Strike<'a>, Offset32> {
         let data = self.data;
         let offsets = self.strike_offsets();
@@ -469,6 +488,18 @@ impl<'a> std::fmt::Debug for Sbix<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct StrikeFixedFields {
+    pub ppem: BigEndian<u16>,
+    pub ppi: BigEndian<u16>,
+}
+
+impl FixedSize for StrikeFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// [Strike](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#strikes) header table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -504,18 +535,21 @@ impl ReadArgs for Strike<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Strike<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let num_glyphs = *args;
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
+        let fixed_fields: &'a StrikeFixedFields = cursor.read_ref()?;
         let glyph_data_offsets_byte_len = (transforms::add(num_glyphs, 1_usize))
             .checked_mul(u32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(glyph_data_offsets_byte_len);
-        cursor.finish(StrikeMarker {
-            glyph_data_offsets_byte_len,
-        })
+        cursor.finish(
+            StrikeMarker {
+                glyph_data_offsets_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
@@ -524,6 +558,7 @@ impl<'a> Strike<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
         let args = num_glyphs;
         Self::read_with_args(data, &args)
@@ -531,23 +566,24 @@ impl<'a> Strike<'a> {
 }
 
 /// [Strike](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#strikes) header table
-pub type Strike<'a> = TableRef<'a, StrikeMarker>;
+pub type Strike<'a> = TableRef<'a, StrikeMarker, StrikeFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Strike<'a> {
     /// The PPEM size for which this strike was designed.
+    #[inline]
     pub fn ppem(&self) -> u16 {
-        let range = self.shape.ppem_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().ppem.get()
     }
 
     /// The device pixel density (in PPI) for which this strike was designed. (E.g., 96 PPI, 192 PPI.)
+    #[inline]
     pub fn ppi(&self) -> u16 {
-        let range = self.shape.ppi_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().ppi.get()
     }
 
     /// Offset from the beginning of the strike data header to bitmap data for an individual glyph ID.
+    #[inline]
     pub fn glyph_data_offsets(&self) -> &'a [BigEndian<u32>] {
         let range = self.shape.glyph_data_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -575,6 +611,19 @@ impl<'a> std::fmt::Debug for Strike<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct GlyphDataFixedFields {
+    pub origin_offset_x: BigEndian<i16>,
+    pub origin_offset_y: BigEndian<i16>,
+    pub graphic_type: BigEndian<Tag>,
+}
+
+impl FixedSize for GlyphDataFixedFields {
+    const RAW_BYTE_LEN: usize = i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + Tag::RAW_BYTE_LEN;
 }
 
 /// [Glyph data](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#glyph-data) table
@@ -613,41 +662,41 @@ impl MinByteRange for GlyphDataMarker {
 }
 
 impl<'a> FontRead<'a> for GlyphData<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<Tag>();
+        let fixed_fields: &'a GlyphDataFixedFields = cursor.read_ref()?;
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(GlyphDataMarker { data_byte_len })
+        cursor.finish(GlyphDataMarker { data_byte_len }, fixed_fields)
     }
 }
 
 /// [Glyph data](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#glyph-data) table
-pub type GlyphData<'a> = TableRef<'a, GlyphDataMarker>;
+pub type GlyphData<'a> = TableRef<'a, GlyphDataMarker, GlyphDataFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphData<'a> {
     /// The horizontal (x-axis) position of the left edge of the bitmap graphic in relation to the glyph design space origin.
+    #[inline]
     pub fn origin_offset_x(&self) -> i16 {
-        let range = self.shape.origin_offset_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().origin_offset_x.get()
     }
 
     /// The vertical (y-axis) position of the bottom edge of the bitmap graphic in relation to the glyph design space origin.
+    #[inline]
     pub fn origin_offset_y(&self) -> i16 {
-        let range = self.shape.origin_offset_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().origin_offset_y.get()
     }
 
     /// Indicates the format of the embedded graphic data: one of 'jpg ', 'png ' or 'tiff', or the special format 'dupe'.
+    #[inline]
     pub fn graphic_type(&self) -> Tag {
-        let range = self.shape.graphic_type_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().graphic_type.get()
     }
 
     /// The actual embedded graphic data. The total length is inferred from sequential entries in the glyphDataOffsets array and the fixed size (8 bytes) of the preceding fields.
+    #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()

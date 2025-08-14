@@ -5,6 +5,19 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct VorgFixedFields {
+    pub version: BigEndian<MajorMinor>,
+    pub default_vert_origin_y: BigEndian<i16>,
+    pub num_vert_origin_y_metrics: BigEndian<u16>,
+}
+
+impl FixedSize for VorgFixedFields {
+    const RAW_BYTE_LEN: usize = MajorMinor::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// The [VORG (Vertical Origin)](https://docs.microsoft.com/en-us/typography/opentype/spec/vorg) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -46,47 +59,51 @@ impl TopLevelTable for Vorg<'_> {
 }
 
 impl<'a> FontRead<'a> for Vorg<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<i16>();
-        let num_vert_origin_y_metrics: u16 = cursor.read()?;
+        let fixed_fields: &'a VorgFixedFields = cursor.read_ref()?;
+        let num_vert_origin_y_metrics = fixed_fields.num_vert_origin_y_metrics.get();
         let vert_origin_y_metrics_byte_len = (num_vert_origin_y_metrics as usize)
             .checked_mul(VertOriginYMetrics::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(vert_origin_y_metrics_byte_len);
-        cursor.finish(VorgMarker {
-            vert_origin_y_metrics_byte_len,
-        })
+        cursor.finish(
+            VorgMarker {
+                vert_origin_y_metrics_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
 /// The [VORG (Vertical Origin)](https://docs.microsoft.com/en-us/typography/opentype/spec/vorg) table.
-pub type Vorg<'a> = TableRef<'a, VorgMarker>;
+pub type Vorg<'a> = TableRef<'a, VorgMarker, VorgFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vorg<'a> {
     /// Major/minor version number. Set to 1.0.
+    #[inline]
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// The y coordinate of a glyph’s vertical origin, in the font’s design
     /// coordinate system, to be used if no entry is present for the glyph
     /// in the vertOriginYMetrics array.
+    #[inline]
     pub fn default_vert_origin_y(&self) -> i16 {
-        let range = self.shape.default_vert_origin_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().default_vert_origin_y.get()
     }
 
     /// Number of elements in the vertOriginYMetrics array.
+    #[inline]
     pub fn num_vert_origin_y_metrics(&self) -> u16 {
-        let range = self.shape.num_vert_origin_y_metrics_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().num_vert_origin_y_metrics.get()
     }
 
     /// Array of VertOriginYMetrics records, sorted by glyph ID.
+    #[inline]
     pub fn vert_origin_y_metrics(&self) -> &'a [VertOriginYMetrics] {
         let range = self.shape.vert_origin_y_metrics_byte_range();
         self.data.read_array(range).unwrap()
@@ -143,11 +160,13 @@ pub struct VertOriginYMetrics {
 
 impl VertOriginYMetrics {
     /// Glyph index.
+    #[inline]
     pub fn glyph_index(&self) -> GlyphId16 {
         self.glyph_index.get()
     }
 
     /// Y coordinate, in the font’s design coordinate system, of the glyph’s vertical origin.
+    #[inline]
     pub fn vert_origin_y(&self) -> i16 {
         self.vert_origin_y.get()
     }

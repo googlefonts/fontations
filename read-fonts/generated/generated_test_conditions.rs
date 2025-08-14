@@ -5,6 +5,18 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct MajorMinorVersionFixedFields {
+    pub version: BigEndian<MajorMinor>,
+    pub always_present: BigEndian<u16>,
+}
+
+impl FixedSize for MajorMinorVersionFixedFields {
+    const RAW_BYTE_LEN: usize = MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct MajorMinorVersionMarker {
@@ -41,10 +53,11 @@ impl MinByteRange for MajorMinorVersionMarker {
 }
 
 impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let version: MajorMinor = cursor.read()?;
-        cursor.advance::<u16>();
+        let fixed_fields: &'a MajorMinorVersionFixedFields = cursor.read_ref()?;
+        let version = fixed_fields.version.get();
         let if_11_byte_start = version
             .compatible((1u16, 1u16))
             .then(|| cursor.position())
@@ -59,32 +72,38 @@ impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
         version
             .compatible((2u16, 0u16))
             .then(|| cursor.advance::<u32>());
-        cursor.finish(MajorMinorVersionMarker {
-            if_11_byte_start,
-            if_20_byte_start,
-        })
+        cursor.finish(
+            MajorMinorVersionMarker {
+                if_11_byte_start,
+                if_20_byte_start,
+            },
+            fixed_fields,
+        )
     }
 }
 
-pub type MajorMinorVersion<'a> = TableRef<'a, MajorMinorVersionMarker>;
+pub type MajorMinorVersion<'a> =
+    TableRef<'a, MajorMinorVersionMarker, MajorMinorVersionFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MajorMinorVersion<'a> {
+    #[inline]
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
+    #[inline]
     pub fn always_present(&self) -> u16 {
-        let range = self.shape.always_present_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().always_present.get()
     }
 
+    #[inline]
     pub fn if_11(&self) -> Option<u16> {
         let range = self.shape.if_11_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    #[inline]
     pub fn if_20(&self) -> Option<u32> {
         let range = self.shape.if_20_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -425,6 +444,18 @@ impl<'a> From<GotFlags> for FieldType<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct FlagDayFixedFields {
+    pub volume: BigEndian<u16>,
+    pub flags: BigEndian<GotFlags>,
+}
+
+impl FixedSize for FlagDayFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + GotFlags::RAW_BYTE_LEN;
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct FlagDayMarker {
@@ -467,10 +498,11 @@ impl MinByteRange for FlagDayMarker {
 }
 
 impl<'a> FontRead<'a> for FlagDay<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let flags: GotFlags = cursor.read()?;
+        let fixed_fields: &'a FlagDayFixedFields = cursor.read_ref()?;
+        let flags = fixed_fields.flags.get();
         let foo_byte_start = flags
             .contains(GotFlags::FOO)
             .then(|| cursor.position())
@@ -492,38 +524,44 @@ impl<'a> FontRead<'a> for FlagDay<'a> {
         flags
             .intersects(GotFlags::BAZ | GotFlags::FOO)
             .then(|| cursor.advance::<u16>());
-        cursor.finish(FlagDayMarker {
-            foo_byte_start,
-            bar_byte_start,
-            baz_byte_start,
-        })
+        cursor.finish(
+            FlagDayMarker {
+                foo_byte_start,
+                bar_byte_start,
+                baz_byte_start,
+            },
+            fixed_fields,
+        )
     }
 }
 
-pub type FlagDay<'a> = TableRef<'a, FlagDayMarker>;
+pub type FlagDay<'a> = TableRef<'a, FlagDayMarker, FlagDayFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FlagDay<'a> {
+    #[inline]
     pub fn volume(&self) -> u16 {
-        let range = self.shape.volume_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().volume.get()
     }
 
+    #[inline]
     pub fn flags(&self) -> GotFlags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
+    #[inline]
     pub fn foo(&self) -> Option<u16> {
         let range = self.shape.foo_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    #[inline]
     pub fn bar(&self) -> Option<u16> {
         let range = self.shape.bar_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    #[inline]
     pub fn baz(&self) -> Option<u16> {
         let range = self.shape.baz_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -556,6 +594,17 @@ impl<'a> std::fmt::Debug for FlagDay<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct FieldsAfterConditionalsFixedFields {
+    pub flags: BigEndian<GotFlags>,
+}
+
+impl FixedSize for FieldsAfterConditionalsFixedFields {
+    const RAW_BYTE_LEN: usize = GotFlags::RAW_BYTE_LEN;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -620,9 +669,11 @@ impl MinByteRange for FieldsAfterConditionalsMarker {
 }
 
 impl<'a> FontRead<'a> for FieldsAfterConditionals<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let flags: GotFlags = cursor.read()?;
+        let fixed_fields: &'a FieldsAfterConditionalsFixedFields = cursor.read_ref()?;
+        let flags = fixed_fields.flags.get();
         let foo_byte_start = flags
             .contains(GotFlags::FOO)
             .then(|| cursor.position())
@@ -647,48 +698,58 @@ impl<'a> FontRead<'a> for FieldsAfterConditionals<'a> {
             .then(|| cursor.advance::<u16>());
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        cursor.finish(FieldsAfterConditionalsMarker {
-            foo_byte_start,
-            bar_byte_start,
-            baz_byte_start,
-        })
+        cursor.finish(
+            FieldsAfterConditionalsMarker {
+                foo_byte_start,
+                bar_byte_start,
+                baz_byte_start,
+            },
+            fixed_fields,
+        )
     }
 }
 
-pub type FieldsAfterConditionals<'a> = TableRef<'a, FieldsAfterConditionalsMarker>;
+pub type FieldsAfterConditionals<'a> =
+    TableRef<'a, FieldsAfterConditionalsMarker, FieldsAfterConditionalsFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FieldsAfterConditionals<'a> {
+    #[inline]
     pub fn flags(&self) -> GotFlags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().flags.get()
     }
 
+    #[inline]
     pub fn foo(&self) -> Option<u16> {
         let range = self.shape.foo_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    #[inline]
     pub fn always_here(&self) -> u16 {
         let range = self.shape.always_here_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn bar(&self) -> Option<u16> {
         let range = self.shape.bar_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    #[inline]
     pub fn baz(&self) -> Option<u16> {
         let range = self.shape.baz_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    #[inline]
     pub fn also_always_here(&self) -> u16 {
         let range = self.shape.also_always_here_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn and_me_too(&self) -> u16 {
         let range = self.shape.and_me_too_byte_range();
         self.data.read_at(range.start).unwrap()

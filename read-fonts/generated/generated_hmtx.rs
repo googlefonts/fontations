@@ -5,6 +5,15 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct HmtxFixedFields {}
+
+impl FixedSize for HmtxFixedFields {
+    const RAW_BYTE_LEN: usize = 0;
+}
+
 /// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -41,9 +50,11 @@ impl ReadArgs for Hmtx<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let number_of_h_metrics = *args;
         let mut cursor = data.cursor();
+        let fixed_fields: &'a HmtxFixedFields = cursor.read_ref()?;
         let h_metrics_byte_len = (number_of_h_metrics as usize)
             .checked_mul(LongMetric::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -51,10 +62,13 @@ impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
         let left_side_bearings_byte_len =
             cursor.remaining_bytes() / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN;
         cursor.advance_by(left_side_bearings_byte_len);
-        cursor.finish(HmtxMarker {
-            h_metrics_byte_len,
-            left_side_bearings_byte_len,
-        })
+        cursor.finish(
+            HmtxMarker {
+                h_metrics_byte_len,
+                left_side_bearings_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
@@ -63,6 +77,7 @@ impl<'a> Hmtx<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, number_of_h_metrics: u16) -> Result<Self, ReadError> {
         let args = number_of_h_metrics;
         Self::read_with_args(data, &args)
@@ -70,12 +85,13 @@ impl<'a> Hmtx<'a> {
 }
 
 /// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
-pub type Hmtx<'a> = TableRef<'a, HmtxMarker>;
+pub type Hmtx<'a> = TableRef<'a, HmtxMarker, HmtxFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Hmtx<'a> {
     /// Paired advance width/height and left/top side bearing values for each
     /// glyph. Records are indexed by glyph ID.
+    #[inline]
     pub fn h_metrics(&self) -> &'a [LongMetric] {
         let range = self.shape.h_metrics_byte_range();
         self.data.read_array(range).unwrap()
@@ -83,6 +99,7 @@ impl<'a> Hmtx<'a> {
 
     /// Leading (left/top) side bearings for glyph IDs greater than or equal to
     /// numberOfLongMetrics.
+    #[inline]
     pub fn left_side_bearings(&self) -> &'a [BigEndian<i16>] {
         let range = self.shape.left_side_bearings_byte_range();
         self.data.read_array(range).unwrap()
@@ -130,11 +147,13 @@ pub struct LongMetric {
 
 impl LongMetric {
     /// Advance width/height, in font design units.
+    #[inline]
     pub fn advance(&self) -> u16 {
         self.advance.get()
     }
 
     /// Glyph leading (left/top) side bearing, in font design units.
+    #[inline]
     pub fn side_bearing(&self) -> i16 {
         self.side_bearing.get()
     }

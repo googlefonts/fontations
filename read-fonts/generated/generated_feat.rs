@@ -5,6 +5,21 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct FeatFixedFields {
+    pub version: BigEndian<MajorMinor>,
+    pub feature_name_count: BigEndian<u16>,
+    pub _reserved1: BigEndian<u16>,
+    pub _reserved2: BigEndian<u32>,
+}
+
+impl FixedSize for FeatFixedFields {
+    const RAW_BYTE_LEN: usize =
+        MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
 /// The [feature name](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6feat.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -51,39 +66,39 @@ impl TopLevelTable for Feat<'_> {
 }
 
 impl<'a> FontRead<'a> for Feat<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        let feature_name_count: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
+        let fixed_fields: &'a FeatFixedFields = cursor.read_ref()?;
+        let feature_name_count = fixed_fields.feature_name_count.get();
         let names_byte_len = (feature_name_count as usize)
             .checked_mul(FeatureName::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(names_byte_len);
-        cursor.finish(FeatMarker { names_byte_len })
+        cursor.finish(FeatMarker { names_byte_len }, fixed_fields)
     }
 }
 
 /// The [feature name](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6feat.html) table.
-pub type Feat<'a> = TableRef<'a, FeatMarker>;
+pub type Feat<'a> = TableRef<'a, FeatMarker, FeatFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Feat<'a> {
     /// Version number of the feature name table (0x00010000 for the current
     /// version).
+    #[inline]
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// The number of entries in the feature name array.
+    #[inline]
     pub fn feature_name_count(&self) -> u16 {
-        let range = self.shape.feature_name_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().feature_name_count.get()
     }
 
     /// The feature name array, sorted by feature type.
+    #[inline]
     pub fn names(&self) -> &'a [FeatureName] {
         let range = self.shape.names_byte_range();
         self.data.read_array(range).unwrap()
@@ -141,11 +156,13 @@ pub struct FeatureName {
 
 impl FeatureName {
     /// Feature type.
+    #[inline]
     pub fn feature(&self) -> u16 {
         self.feature.get()
     }
 
     /// The number of records in the setting name array.
+    #[inline]
     pub fn n_settings(&self) -> u16 {
         self.n_settings.get()
     }
@@ -153,6 +170,7 @@ impl FeatureName {
     /// Offset in bytes from the beginning of this table to this feature's
     /// setting name array. The actual type of record this offset refers
     /// to will depend on the exclusivity value, as described below.
+    #[inline]
     pub fn setting_table_offset(&self) -> Offset32 {
         self.setting_table_offset.get()
     }
@@ -163,17 +181,20 @@ impl FeatureName {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    #[inline]
     pub fn setting_table<'a>(&self, data: FontData<'a>) -> Result<SettingNameArray<'a>, ReadError> {
         let args = self.n_settings();
         self.setting_table_offset().resolve_with_args(data, &args)
     }
 
     /// Flags associated with the feature type.
+    #[inline]
     pub fn feature_flags(&self) -> u16 {
         self.feature_flags.get()
     }
 
     /// The name table index for the feature's name.
+    #[inline]
     pub fn name_index(&self) -> NameId {
         self.name_index.get()
     }
@@ -208,6 +229,15 @@ impl<'a> SomeRecord<'a> for FeatureName {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SettingNameArrayFixedFields {}
+
+impl FixedSize for SettingNameArrayFixedFields {
+    const RAW_BYTE_LEN: usize = 0;
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct SettingNameArrayMarker {
@@ -232,14 +262,16 @@ impl ReadArgs for SettingNameArray<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for SettingNameArray<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let n_settings = *args;
         let mut cursor = data.cursor();
+        let fixed_fields: &'a SettingNameArrayFixedFields = cursor.read_ref()?;
         let settings_byte_len = (n_settings as usize)
             .checked_mul(SettingName::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(settings_byte_len);
-        cursor.finish(SettingNameArrayMarker { settings_byte_len })
+        cursor.finish(SettingNameArrayMarker { settings_byte_len }, fixed_fields)
     }
 }
 
@@ -248,17 +280,19 @@ impl<'a> SettingNameArray<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, n_settings: u16) -> Result<Self, ReadError> {
         let args = n_settings;
         Self::read_with_args(data, &args)
     }
 }
 
-pub type SettingNameArray<'a> = TableRef<'a, SettingNameArrayMarker>;
+pub type SettingNameArray<'a> = TableRef<'a, SettingNameArrayMarker, SettingNameArrayFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SettingNameArray<'a> {
     /// List of setting names for a feature.
+    #[inline]
     pub fn settings(&self) -> &'a [SettingName] {
         let range = self.shape.settings_byte_range();
         self.data.read_array(range).unwrap()
@@ -306,11 +340,13 @@ pub struct SettingName {
 
 impl SettingName {
     /// The setting.
+    #[inline]
     pub fn setting(&self) -> u16 {
         self.setting.get()
     }
 
     /// The name table index for the setting's name.
+    #[inline]
     pub fn name_index(&self) -> NameId {
         self.name_index.get()
     }

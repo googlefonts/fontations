@@ -105,10 +105,12 @@ pub struct MyRecord {
 }
 
 impl MyRecord {
+    #[inline]
     pub fn my_enum1(&self) -> MyEnum1 {
         self.my_enum1.get()
     }
 
+    #[inline]
     pub fn my_enum2(&self) -> MyEnum2 {
         self.my_enum2.get()
     }

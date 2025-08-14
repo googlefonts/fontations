@@ -5,6 +5,19 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct KerxFixedFields {
+    pub version: BigEndian<u16>,
+    pub padding: BigEndian<u16>,
+    pub n_tables: BigEndian<u32>,
+}
+
+impl FixedSize for KerxFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
 /// The [kerx (Extended Kerning)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -46,37 +59,38 @@ impl TopLevelTable for Kerx<'_> {
 }
 
 impl<'a> FontRead<'a> for Kerx<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let n_tables: u32 = cursor.read()?;
+        let fixed_fields: &'a KerxFixedFields = cursor.read_ref()?;
+        let n_tables = fixed_fields.n_tables.get();
         let subtables_byte_len = {
             let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
             <Subtable as VarSize>::total_len_for_count(data, n_tables as usize)?
         };
         cursor.advance_by(subtables_byte_len);
-        cursor.finish(KerxMarker { subtables_byte_len })
+        cursor.finish(KerxMarker { subtables_byte_len }, fixed_fields)
     }
 }
 
 /// The [kerx (Extended Kerning)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
-pub type Kerx<'a> = TableRef<'a, KerxMarker>;
+pub type Kerx<'a> = TableRef<'a, KerxMarker, KerxFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Kerx<'a> {
     /// The version number of the extended kerning table (currently 2, 3, or 4)
+    #[inline]
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().version.get()
     }
 
     /// The number of subtables included in the extended kerning table.
+    #[inline]
     pub fn n_tables(&self) -> u32 {
-        let range = self.shape.n_tables_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().n_tables.get()
     }
 
+    #[inline]
     pub fn subtables(&self) -> VarLenArray<'a, Subtable<'a>> {
         let range = self.shape.subtables_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
@@ -107,6 +121,19 @@ impl<'a> std::fmt::Debug for Kerx<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SubtableFixedFields {
+    pub length: BigEndian<u32>,
+    pub coverage: BigEndian<u32>,
+    pub tuple_count: BigEndian<u32>,
+}
+
+impl FixedSize for SubtableFixedFields {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
 /// A subtable in a `kerx` table.
@@ -145,41 +172,41 @@ impl MinByteRange for SubtableMarker {
 }
 
 impl<'a> FontRead<'a> for Subtable<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
+        let fixed_fields: &'a SubtableFixedFields = cursor.read_ref()?;
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(SubtableMarker { data_byte_len })
+        cursor.finish(SubtableMarker { data_byte_len }, fixed_fields)
     }
 }
 
 /// A subtable in a `kerx` table.
-pub type Subtable<'a> = TableRef<'a, SubtableMarker>;
+pub type Subtable<'a> = TableRef<'a, SubtableMarker, SubtableFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable<'a> {
     /// The length of this subtable in bytes, including this header.
+    #[inline]
     pub fn length(&self) -> u32 {
-        let range = self.shape.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().length.get()
     }
 
     /// Circumstances under which this table is used.
+    #[inline]
     pub fn coverage(&self) -> u32 {
-        let range = self.shape.coverage_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().coverage.get()
     }
 
     /// The tuple count. This value is only used with variation fonts and should be 0 for all other fonts. The subtable's tupleCount will be ignored if the 'kerx' table version is less than 4.
+    #[inline]
     pub fn tuple_count(&self) -> u32 {
-        let range = self.shape.tuple_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().tuple_count.get()
     }
 
     /// Subtable specific data.
+    #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()
@@ -208,6 +235,21 @@ impl<'a> std::fmt::Debug for Subtable<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
+}
+
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Subtable0FixedFields {
+    pub n_pairs: BigEndian<u32>,
+    pub search_range: BigEndian<u32>,
+    pub entry_selector: BigEndian<u32>,
+    pub range_shift: BigEndian<u32>,
+}
+
+impl FixedSize for Subtable0FixedFields {
+    const RAW_BYTE_LEN: usize =
+        u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
 /// The type 0 `kerx` subtable.
@@ -251,50 +293,50 @@ impl MinByteRange for Subtable0Marker {
 }
 
 impl<'a> FontRead<'a> for Subtable0<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let n_pairs: u32 = cursor.read()?;
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
+        let fixed_fields: &'a Subtable0FixedFields = cursor.read_ref()?;
+        let n_pairs = fixed_fields.n_pairs.get();
         let pairs_byte_len = (n_pairs as usize)
             .checked_mul(Subtable0Pair::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(pairs_byte_len);
-        cursor.finish(Subtable0Marker { pairs_byte_len })
+        cursor.finish(Subtable0Marker { pairs_byte_len }, fixed_fields)
     }
 }
 
 /// The type 0 `kerx` subtable.
-pub type Subtable0<'a> = TableRef<'a, Subtable0Marker>;
+pub type Subtable0<'a> = TableRef<'a, Subtable0Marker, Subtable0FixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable0<'a> {
     /// The number of kerning pairs in this subtable.
+    #[inline]
     pub fn n_pairs(&self) -> u32 {
-        let range = self.shape.n_pairs_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().n_pairs.get()
     }
 
     /// The largest power of two less than or equal to the value of nPairs, multiplied by the size in bytes of an entry in the subtable.
+    #[inline]
     pub fn search_range(&self) -> u32 {
-        let range = self.shape.search_range_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().search_range.get()
     }
 
     /// This is calculated as log2 of the largest power of two less than or equal to the value of nPairs. This value indicates how many iterations of the search loop have to be made. For example, in a list of eight items, there would be three iterations of the loop.
+    #[inline]
     pub fn entry_selector(&self) -> u32 {
-        let range = self.shape.entry_selector_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().entry_selector.get()
     }
 
     /// The value of nPairs minus the largest power of two less than or equal to nPairs. This is multiplied by the size in bytes of an entry in the table.
+    #[inline]
     pub fn range_shift(&self) -> u32 {
-        let range = self.shape.range_shift_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().range_shift.get()
     }
 
     /// Kerning records.
+    #[inline]
     pub fn pairs(&self) -> &'a [Subtable0Pair] {
         let range = self.shape.pairs_byte_range();
         self.data.read_array(range).unwrap()
@@ -348,16 +390,19 @@ pub struct Subtable0Pair {
 
 impl Subtable0Pair {
     /// The glyph index for the lefthand glyph in the kerning pair.
+    #[inline]
     pub fn left(&self) -> GlyphId16 {
         self.left.get()
     }
 
     /// The glyph index for the righthand glyph in the kerning pair.
+    #[inline]
     pub fn right(&self) -> GlyphId16 {
         self.right.get()
     }
 
     /// Kerning value.
+    #[inline]
     pub fn value(&self) -> i16 {
         self.value.get()
     }

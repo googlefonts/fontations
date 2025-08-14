@@ -5,6 +5,17 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct BasicTableFixedFields {
+    pub simple_count: BigEndian<u16>,
+}
+
+impl FixedSize for BasicTableFixedFields {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct BasicTableMarker {
@@ -46,9 +57,11 @@ impl MinByteRange for BasicTableMarker {
 }
 
 impl<'a> FontRead<'a> for BasicTable<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let simple_count: u16 = cursor.read()?;
+        let fixed_fields: &'a BasicTableFixedFields = cursor.read_ref()?;
+        let simple_count = fixed_fields.simple_count.get();
         let simple_records_byte_len = (simple_count as usize)
             .checked_mul(SimpleRecord::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -61,37 +74,44 @@ impl<'a> FontRead<'a> for BasicTable<'a> {
             )?)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(array_records_byte_len);
-        cursor.finish(BasicTableMarker {
-            simple_records_byte_len,
-            array_records_byte_len,
-        })
+        cursor.finish(
+            BasicTableMarker {
+                simple_records_byte_len,
+                array_records_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
-pub type BasicTable<'a> = TableRef<'a, BasicTableMarker>;
+pub type BasicTable<'a> = TableRef<'a, BasicTableMarker, BasicTableFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BasicTable<'a> {
+    #[inline]
     pub fn simple_count(&self) -> u16 {
-        let range = self.shape.simple_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().simple_count.get()
     }
 
+    #[inline]
     pub fn simple_records(&self) -> &'a [SimpleRecord] {
         let range = self.shape.simple_records_byte_range();
         self.data.read_array(range).unwrap()
     }
 
+    #[inline]
     pub fn arrays_inner_count(&self) -> u16 {
         let range = self.shape.arrays_inner_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn array_records_count(&self) -> u32 {
         let range = self.shape.array_records_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn array_records(&self) -> ComputedArray<'a, ContainsArrays<'a>> {
         let range = self.shape.array_records_byte_range();
         self.data
@@ -151,10 +171,12 @@ pub struct SimpleRecord {
 }
 
 impl SimpleRecord {
+    #[inline]
     pub fn val1(&self) -> u16 {
         self.val1.get()
     }
 
+    #[inline]
     pub fn va2(&self) -> u32 {
         self.va2.get()
     }
@@ -186,10 +208,12 @@ pub struct ContainsArrays<'a> {
 }
 
 impl<'a> ContainsArrays<'a> {
+    #[inline]
     pub fn scalars(&self) -> &'a [BigEndian<u16>] {
         self.scalars
     }
 
+    #[inline]
     pub fn records(&self) -> &'a [SimpleRecord] {
         self.records
     }
@@ -277,10 +301,12 @@ pub struct ContainsOffsets {
 }
 
 impl ContainsOffsets {
+    #[inline]
     pub fn off_array_count(&self) -> u16 {
         self.off_array_count.get()
     }
 
+    #[inline]
     pub fn array_offset(&self) -> Offset16 {
         self.array_offset.get()
     }
@@ -288,11 +314,13 @@ impl ContainsOffsets {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    #[inline]
     pub fn array<'a>(&self, data: FontData<'a>) -> Result<&'a [SimpleRecord], ReadError> {
         let args = self.off_array_count();
         self.array_offset().resolve_with_args(data, &args)
     }
 
+    #[inline]
     pub fn other_offset(&self) -> Offset32 {
         self.other_offset.get()
     }
@@ -300,6 +328,7 @@ impl ContainsOffsets {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    #[inline]
     pub fn other<'a>(&self, data: FontData<'a>) -> Result<BasicTable<'a>, ReadError> {
         self.other_offset().resolve(data)
     }
@@ -336,6 +365,17 @@ impl<'a> SomeRecord<'a> for ContainsOffsets {
     }
 }
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct VarLenItemFixedFields {
+    pub length: BigEndian<u32>,
+}
+
+impl FixedSize for VarLenItemFixedFields {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN;
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct VarLenItemMarker {
@@ -361,24 +401,26 @@ impl MinByteRange for VarLenItemMarker {
 }
 
 impl<'a> FontRead<'a> for VarLenItem<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u32>();
+        let fixed_fields: &'a VarLenItemFixedFields = cursor.read_ref()?;
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(VarLenItemMarker { data_byte_len })
+        cursor.finish(VarLenItemMarker { data_byte_len }, fixed_fields)
     }
 }
 
-pub type VarLenItem<'a> = TableRef<'a, VarLenItemMarker>;
+pub type VarLenItem<'a> = TableRef<'a, VarLenItemMarker, VarLenItemFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarLenItem<'a> {
+    #[inline]
     pub fn length(&self) -> u32 {
-        let range = self.shape.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.fixed_fields().length.get()
     }
 
+    #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()

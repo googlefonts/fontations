@@ -5,6 +5,15 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Copy, Clone, Debug, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct VmtxFixedFields {}
+
+impl FixedSize for VmtxFixedFields {
+    const RAW_BYTE_LEN: usize = 0;
+}
+
 /// The [vmtx (Vertical Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/vmtx) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -41,9 +50,11 @@ impl ReadArgs for Vmtx<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Vmtx<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let number_of_long_ver_metrics = *args;
         let mut cursor = data.cursor();
+        let fixed_fields: &'a VmtxFixedFields = cursor.read_ref()?;
         let v_metrics_byte_len = (number_of_long_ver_metrics as usize)
             .checked_mul(LongMetric::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -51,10 +62,13 @@ impl<'a> FontReadWithArgs<'a> for Vmtx<'a> {
         let top_side_bearings_byte_len =
             cursor.remaining_bytes() / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN;
         cursor.advance_by(top_side_bearings_byte_len);
-        cursor.finish(VmtxMarker {
-            v_metrics_byte_len,
-            top_side_bearings_byte_len,
-        })
+        cursor.finish(
+            VmtxMarker {
+                v_metrics_byte_len,
+                top_side_bearings_byte_len,
+            },
+            fixed_fields,
+        )
     }
 }
 
@@ -63,6 +77,7 @@ impl<'a> Vmtx<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, number_of_long_ver_metrics: u16) -> Result<Self, ReadError> {
         let args = number_of_long_ver_metrics;
         Self::read_with_args(data, &args)
@@ -70,18 +85,20 @@ impl<'a> Vmtx<'a> {
 }
 
 /// The [vmtx (Vertical Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/vmtx) table
-pub type Vmtx<'a> = TableRef<'a, VmtxMarker>;
+pub type Vmtx<'a> = TableRef<'a, VmtxMarker, VmtxFixedFields>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vmtx<'a> {
     /// Paired advance height and top side bearing values for each
     /// glyph. Records are indexed by glyph ID.
+    #[inline]
     pub fn v_metrics(&self) -> &'a [LongMetric] {
         let range = self.shape.v_metrics_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Top side bearings for glyph IDs greater than or equal to numberOfLongMetrics.
+    #[inline]
     pub fn top_side_bearings(&self) -> &'a [BigEndian<i16>] {
         let range = self.shape.top_side_bearings_byte_range();
         self.data.read_array(range).unwrap()
