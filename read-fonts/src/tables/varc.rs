@@ -27,7 +27,7 @@ impl<'a> Get<'a> for Option<Result<Index2<'a>, ReadError>> {
 
 impl Varc<'_> {
     /// Friendlier accessor than directly using raw data via [Index2]
-    pub fn axis_indices(&self, nth: usize) -> Result<PackedDeltas, ReadError> {
+    pub fn axis_indices(&self, nth: usize) -> Result<PackedDeltas<'_>, ReadError> {
         let raw = self.axis_indices_list().get(nth)?;
         Ok(PackedDeltas::consume_all(raw.into()))
     }

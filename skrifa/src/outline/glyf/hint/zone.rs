@@ -363,7 +363,7 @@ impl<'a> GraphicsState<'a> {
     }
 
     #[inline(always)]
-    pub fn zp1(&self) -> &Zone {
+    pub fn zp1(&self) -> &Zone<'_> {
         self.zone(self.zp1)
     }
 
@@ -373,7 +373,7 @@ impl<'a> GraphicsState<'a> {
     }
 
     #[inline(always)]
-    pub fn zp2(&self) -> &Zone {
+    pub fn zp2(&self) -> &Zone<'_> {
         self.zone(self.zp2)
     }
 

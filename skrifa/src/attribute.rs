@@ -71,14 +71,10 @@ impl Attributes {
 
     fn from_head(head: Head) -> Self {
         let mac_style = head.mac_style();
-        let style = mac_style
-            .contains(MacStyle::ITALIC)
-            .then_some(Style::Italic)
-            .unwrap_or_default();
-        let weight = mac_style
-            .contains(MacStyle::BOLD)
-            .then_some(Weight::BOLD)
-            .unwrap_or_default();
+        let style = if mac_style
+            .contains(MacStyle::ITALIC) { Style::Italic } else { Default::default() };
+        let weight = if mac_style
+            .contains(MacStyle::BOLD) { Weight::BOLD } else { Default::default() };
         Self {
             stretch: Stretch::default(),
             style,

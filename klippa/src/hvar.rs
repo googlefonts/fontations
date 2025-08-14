@@ -68,11 +68,11 @@ impl Subset for Hvar<'_> {
 }
 
 pub(crate) trait ListupIndexMaps {
-    fn listup_index_maps(&self) -> Result<Vec<Option<DeltaSetIndexMap>>, ReadError>;
+    fn listup_index_maps(&self) -> Result<Vec<Option<DeltaSetIndexMap<'_>>>, ReadError>;
 }
 
 impl ListupIndexMaps for Hvar<'_> {
-    fn listup_index_maps(&self) -> Result<Vec<Option<DeltaSetIndexMap>>, ReadError> {
+    fn listup_index_maps(&self) -> Result<Vec<Option<DeltaSetIndexMap<'_>>>, ReadError> {
         let out = vec![
             self.advance_width_mapping().transpose()?,
             self.lsb_mapping().transpose()?,
@@ -245,7 +245,7 @@ impl IndexMapSubsetPlan {
         self.output_map.is_empty()
     }
 
-    fn to_serialize_plan(&self) -> DeltaSetIndexMapSerializePlan {
+    fn to_serialize_plan(&self) -> DeltaSetIndexMapSerializePlan<'_> {
         DeltaSetIndexMapSerializePlan::new(
             self.outer_bit_count,
             self.inner_bit_count,

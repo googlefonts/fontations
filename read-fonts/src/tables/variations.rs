@@ -221,10 +221,8 @@ impl<'a> TupleVariationHeader<'a> {
         let tuple_byte_len = F2Dot14::RAW_BYTE_LEN * axis_count as usize;
         let index = self.tuple_index();
         FIXED_LEN
-            + index
-                .embedded_peak_tuple()
-                .then_some(tuple_byte_len)
-                .unwrap_or_default()
+            + if index
+                .embedded_peak_tuple() { tuple_byte_len } else { Default::default() }
             + index
                 .intermediate_region()
                 .then_some(tuple_byte_len * 2)

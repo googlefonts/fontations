@@ -310,7 +310,7 @@ impl HintingInstance {
     }
 
     /// Returns the currently configured normalized location in variation space.
-    pub fn location(&self) -> LocationRef {
+    pub fn location(&self) -> LocationRef<'_> {
         LocationRef::new(&self.coords)
     }
 

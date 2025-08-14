@@ -173,7 +173,7 @@ impl Gvar {
         self.compute_shared_tuples_offset() + shared_tuples_len
     }
 
-    fn compile_variation_data(&self) -> GlyphDataWriter {
+    fn compile_variation_data(&self) -> GlyphDataWriter<'_> {
         GlyphDataWriter {
             long_offsets: self.compute_flags() == GvarFlags::LONG_OFFSETS,
             shared_tuples: &self.shared_tuples,

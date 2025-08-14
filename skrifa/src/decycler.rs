@@ -52,7 +52,7 @@ where
     /// The guard object derefs to the decycler, so it can be passed to
     /// a recursive traversal function to check for cycles in descendent
     /// nodes in a graph.
-    pub fn enter(&mut self, node_id: T) -> Result<DecyclerGuard<T, D>, DecyclerError> {
+    pub fn enter(&mut self, node_id: T) -> Result<DecyclerGuard<'_, T, D>, DecyclerError> {
         if self.depth < D {
             if self.depth == 0 || self.node_ids[self.depth / 2] != node_id {
                 self.node_ids[self.depth] = node_id;

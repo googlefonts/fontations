@@ -273,26 +273,16 @@ impl From<CompositeGlyphFlags> for ComponentFlags {
 
 impl From<ComponentFlags> for CompositeGlyphFlags {
     fn from(value: ComponentFlags) -> Self {
-        value
-            .round_xy_to_grid
-            .then_some(CompositeGlyphFlags::ROUND_XY_TO_GRID)
-            .unwrap_or_default()
-            | value
-                .use_my_metrics
-                .then_some(CompositeGlyphFlags::USE_MY_METRICS)
-                .unwrap_or_default()
-            | value
-                .scaled_component_offset
-                .then_some(CompositeGlyphFlags::SCALED_COMPONENT_OFFSET)
-                .unwrap_or_default()
-            | value
-                .unscaled_component_offset
-                .then_some(CompositeGlyphFlags::UNSCALED_COMPONENT_OFFSET)
-                .unwrap_or_default()
-            | value
-                .overlap_compound
-                .then_some(CompositeGlyphFlags::OVERLAP_COMPOUND)
-                .unwrap_or_default()
+        (if value
+            .round_xy_to_grid { CompositeGlyphFlags::ROUND_XY_TO_GRID } else { Default::default() })
+            | if value
+                .use_my_metrics { CompositeGlyphFlags::USE_MY_METRICS } else { Default::default() }
+            | if value
+                .scaled_component_offset { CompositeGlyphFlags::SCALED_COMPONENT_OFFSET } else { Default::default() }
+            | if value
+                .unscaled_component_offset { CompositeGlyphFlags::UNSCALED_COMPONENT_OFFSET } else { Default::default() }
+            | if value
+                .overlap_compound { CompositeGlyphFlags::OVERLAP_COMPOUND } else { Default::default() }
     }
 }
 

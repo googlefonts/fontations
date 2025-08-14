@@ -63,7 +63,7 @@ impl Subset for Vvar<'_> {
 }
 
 impl ListupIndexMaps for Vvar<'_> {
-    fn listup_index_maps(&self) -> Result<Vec<Option<DeltaSetIndexMap>>, ReadError> {
+    fn listup_index_maps(&self) -> Result<Vec<Option<DeltaSetIndexMap<'_>>>, ReadError> {
         let out = vec![
             self.advance_height_mapping().transpose()?,
             self.tsb_mapping().transpose()?,
