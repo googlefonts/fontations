@@ -225,6 +225,7 @@ table Cmap10 {
     /// First character code covered
     start_char_code: u32,
     /// Number of character codes covered
+    #[compile(array_len($glyph_id_array))]
     num_chars: u32,
     /// Array of glyph indices for the character codes covered
     #[count($num_chars)]
