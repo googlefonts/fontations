@@ -16,7 +16,7 @@ pub use super::layout::{
     Lookup, ScriptList,
 };
 use super::layout::{ExtensionLookup, LookupFlag, Subtables};
-pub use value_record::ValueRecord;
+pub use value_record::{Value, ValueContext, ValueRecord};
 
 #[cfg(test)]
 #[path = "../tests/test_gpos.rs"]
@@ -138,6 +138,62 @@ impl<'a> PositionLookup<'a> {
                 }
             }
             other => Err(ReadError::InvalidFormat(other as _)),
+        }
+    }
+}
+
+impl PairPosFormat2<'_> {
+    /// Returns the pair of values for the given classes, optionally accounting
+    /// for variations.
+    ///
+    /// The `class1` and `class2` parameters can be computed by passing the
+    /// first and second glyphs of the pair to the [`ClassDef`]s returned by
+    /// [`Self::class_def1`] and [`Self::class_def2`] respectively.
+    #[inline]
+    pub fn values(
+        &self,
+        class1: u16,
+        class2: u16,
+        context: &ValueContext,
+    ) -> Result<[Value; 2], ReadError> {
+        let format1 = self.value_format1();
+        let format1_len = format1.record_byte_len();
+        let format2 = self.value_format2();
+        let record_size = format1_len + format2.record_byte_len();
+        let data = self.offset_data();
+        // Compute an offset into the 2D array of positioning records
+        let record_offset = (class1 as usize * record_size * self.class2_count() as usize)
+            + (class2 as usize * record_size)
+            + self.shape().class1_records_byte_range().start;
+        Ok([
+            Value::read(data, record_offset, format1, context)?,
+            Value::read(data, record_offset + format1_len, format2, context)?,
+        ])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pair_pos2_values_match_value_records() {
+        let data = FontData::new(font_test_data::gpos::PAIRPOSFORMAT2);
+        let table = PairPosFormat2::read(data).unwrap();
+        let class1_count = table.class1_count();
+        let class2_count = table.class2_count();
+        let records = table.class1_records();
+        let context = ValueContext::default();
+        for class1 in 0..class1_count {
+            let class1_record = records.get(class1 as usize).unwrap();
+            let class2_records = class1_record.class2_records();
+            for class2 in 0..class2_count {
+                let record = class2_records.get(class2 as usize).unwrap();
+                let value_records = [record.value_record1, record.value_record2]
+                    .map(|rec| rec.value(data, &context).unwrap());
+                let values = table.values(class1, class2, &context).unwrap();
+                assert_eq!(value_records, values);
+            }
         }
     }
 }

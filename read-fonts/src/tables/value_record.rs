@@ -1,10 +1,16 @@
 //! A GPOS ValueRecord
 
 use font_types::Nullable;
-use types::{BigEndian, FixedSize, Offset16};
+use types::{BigEndian, F2Dot14, FixedSize, Offset16};
 
 use super::ValueFormat;
-use crate::{tables::layout::DeviceOrVariationIndex, ResolveNullableOffset};
+use crate::{
+    tables::{
+        layout::DeviceOrVariationIndex,
+        variations::{DeltaSetIndex, ItemVariationStore},
+    },
+    ResolveNullableOffset,
+};
 
 #[cfg(feature = "experimental_traverse")]
 use crate::traversal::{Field, FieldType, RecordResolver, SomeRecord};
@@ -20,6 +26,120 @@ impl ValueFormat {
     #[inline]
     pub fn record_byte_len(self) -> usize {
         self.bits().count_ones() as usize * u16::RAW_BYTE_LEN
+    }
+}
+
+/// A context for resolving [`Value`]s and [`ValueRecord`]s.
+///
+/// In particular, this handles processing of the embedded
+/// [`DeviceOrVariationIndex`] tables.
+#[derive(Clone, Default)]
+pub struct ValueContext<'a> {
+    coords: &'a [F2Dot14],
+    var_store: Option<ItemVariationStore<'a>>,
+}
+
+impl<'a> ValueContext<'a> {
+    /// Creates a new value context that doesn't do any additional processing.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the normalized variation coordinates for this value context.
+    pub fn with_coords(mut self, coords: &'a [F2Dot14]) -> Self {
+        self.coords = coords;
+        self
+    }
+
+    /// Sets the item variation store for this value context.
+    ///
+    /// This comes from the [`Gdef`](super::super::gdef::Gdef) table.
+    pub fn with_var_store(mut self, var_store: Option<ItemVariationStore<'a>>) -> Self {
+        self.var_store = var_store;
+        self
+    }
+
+    fn var_store_and_coords(&self) -> Option<(&ItemVariationStore<'a>, &'a [F2Dot14])> {
+        Some((self.var_store.as_ref()?, self.coords))
+    }
+}
+
+/// A fully resolved [`ValueRecord`].
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+pub struct Value {
+    pub format: ValueFormat,
+    pub x_placement: i16,
+    pub y_placement: i16,
+    pub x_advance: i16,
+    pub y_advance: i16,
+    pub x_placement_delta: i32,
+    pub y_placement_delta: i32,
+    pub x_advance_delta: i32,
+    pub y_advance_delta: i32,
+}
+
+impl Value {
+    /// Reads a value directly from font data.
+    ///
+    /// The `offset_data` parameter must be the offset data for the table
+    /// containing the value record.
+    #[inline]
+    pub fn read(
+        offset_data: FontData,
+        offset: usize,
+        format: ValueFormat,
+        context: &ValueContext,
+    ) -> Result<Self, ReadError> {
+        let mut value = Self {
+            format,
+            ..Default::default()
+        };
+        let mut cursor = offset_data.cursor();
+        cursor.advance_by(offset);
+        if format.contains(ValueFormat::X_PLACEMENT) {
+            value.x_placement = cursor.read()?;
+        }
+        if format.contains(ValueFormat::Y_PLACEMENT) {
+            value.y_placement = cursor.read()?;
+        }
+        if format.contains(ValueFormat::X_ADVANCE) {
+            value.x_advance = cursor.read()?;
+        }
+        if format.contains(ValueFormat::Y_ADVANCE) {
+            value.y_advance = cursor.read()?;
+        }
+        if !format.contains(ValueFormat::ANY_DEVICE_OR_VARIDX) {
+            return Ok(value);
+        }
+        if let Some((ivs, coords)) = context.var_store_and_coords() {
+            let compute_delta = |offset: u16| {
+                let rec_offset = offset_data.read_at::<u16>(offset as usize).ok()? as usize;
+                let format = offset_data.read_at::<u16>(rec_offset + 4).ok()?;
+                // DeltaFormat specifier for a VariationIndex table
+                // See <https://learn.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables>
+                const VARIATION_INDEX_FORMAT: u16 = 0x8000;
+                if format != VARIATION_INDEX_FORMAT {
+                    return Some(0);
+                }
+                let outer = offset_data.read_at::<u16>(rec_offset).ok()?;
+                let inner = offset_data.read_at::<u16>(rec_offset + 2).ok()?;
+                ivs.compute_delta(DeltaSetIndex { outer, inner }, coords)
+                    .ok()
+            };
+            if format.contains(ValueFormat::X_PLACEMENT_DEVICE) {
+                value.x_placement_delta = compute_delta(cursor.read()?).unwrap_or_default();
+            }
+            if format.contains(ValueFormat::Y_PLACEMENT_DEVICE) {
+                value.y_placement_delta = compute_delta(cursor.read()?).unwrap_or_default();
+            }
+            if format.contains(ValueFormat::X_ADVANCE_DEVICE) {
+                value.x_advance_delta = compute_delta(cursor.read()?).unwrap_or_default();
+            }
+            if format.contains(ValueFormat::Y_ADVANCE_DEVICE) {
+                value.y_advance_delta = compute_delta(cursor.read()?).unwrap_or_default();
+            }
+        }
+        Ok(value)
     }
 }
 
@@ -134,6 +254,46 @@ impl ValueRecord {
         data: FontData<'a>,
     ) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
         self.y_advance_device.get().resolve(data)
+    }
+
+    /// Returns a resolved value for the given normalized coordinates and
+    /// item variation store.
+    ///
+    /// The `offset_data` parameter must be the offset data for the table
+    /// containing the value record.
+    pub fn value(&self, offset_data: FontData, context: &ValueContext) -> Result<Value, ReadError> {
+        let mut value = Value {
+            format: self.format,
+            x_placement: self.x_placement.unwrap_or_default().get(),
+            y_placement: self.y_placement.unwrap_or_default().get(),
+            x_advance: self.x_advance.unwrap_or_default().get(),
+            y_advance: self.y_advance.unwrap_or_default().get(),
+            ..Default::default()
+        };
+        if let Some((ivs, coords)) = context.var_store_and_coords() {
+            let compute_delta = |value: DeviceOrVariationIndex| match value {
+                DeviceOrVariationIndex::VariationIndex(var_idx) => {
+                    let outer = var_idx.delta_set_outer_index();
+                    let inner = var_idx.delta_set_inner_index();
+                    ivs.compute_delta(DeltaSetIndex { outer, inner }, coords)
+                        .ok()
+                }
+                _ => None,
+            };
+            if let Some(device) = self.x_placement_device(offset_data) {
+                value.x_placement_delta = compute_delta(device?).unwrap_or_default();
+            }
+            if let Some(device) = self.y_placement_device(offset_data) {
+                value.y_placement_delta = compute_delta(device?).unwrap_or_default();
+            }
+            if let Some(device) = self.x_advance_device(offset_data) {
+                value.x_advance_delta = compute_delta(device?).unwrap_or_default();
+            }
+            if let Some(device) = self.y_advance_device(offset_data) {
+                value.y_advance_delta = compute_delta(device?).unwrap_or_default();
+            }
+        }
+        Ok(value)
     }
 }
 
