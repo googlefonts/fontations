@@ -54,6 +54,7 @@ impl TopLevelTable for Vvar<'_> {
 }
 
 impl<'a> FontRead<'a> for Vvar<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
@@ -73,12 +74,14 @@ pub type Vvar<'a> = TableRef<'a, VvarMarker>;
 impl<'a> Vvar<'a> {
     /// Major version number of the horizontal metrics variations table — set to 1.
     /// Minor version number of the horizontal metrics variations table — set to 0.
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset in bytes from the start of this table to the item variation store table.
+    #[inline]
     pub fn item_variation_store_offset(&self) -> Offset32 {
         let range = self.shape.item_variation_store_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -91,6 +94,7 @@ impl<'a> Vvar<'a> {
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for advance heights (may be NULL).
+    #[inline]
     pub fn advance_height_mapping_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.advance_height_mapping_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -103,6 +107,7 @@ impl<'a> Vvar<'a> {
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for top side bearings (may be NULL).
+    #[inline]
     pub fn tsb_mapping_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.tsb_mapping_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -115,6 +120,7 @@ impl<'a> Vvar<'a> {
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for bottom side bearings (may be NULL).
+    #[inline]
     pub fn bsb_mapping_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.bsb_mapping_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -127,6 +133,7 @@ impl<'a> Vvar<'a> {
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for Y coordinates of vertical origins (may be NULL).
+    #[inline]
     pub fn v_org_mapping_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.v_org_mapping_offset_byte_range();
         self.data.read_at(range.start).unwrap()

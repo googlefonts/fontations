@@ -31,6 +31,7 @@ impl MinByteRange for ScriptListMarker {
 }
 
 impl<'a> FontRead<'a> for ScriptList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let script_count: u16 = cursor.read()?;
@@ -50,12 +51,14 @@ pub type ScriptList<'a> = TableRef<'a, ScriptListMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ScriptList<'a> {
     /// Number of ScriptRecords
+    #[inline]
     pub fn script_count(&self) -> u16 {
         let range = self.shape.script_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of ScriptRecords, listed alphabetically by script tag
+    #[inline]
     pub fn script_records(&self) -> &'a [ScriptRecord] {
         let range = self.shape.script_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -104,11 +107,13 @@ pub struct ScriptRecord {
 
 impl ScriptRecord {
     /// 4-byte script tag identifier
+    #[inline]
     pub fn script_tag(&self) -> Tag {
         self.script_tag.get()
     }
 
     /// Offset to Script table, from beginning of ScriptList
+    #[inline]
     pub fn script_offset(&self) -> Offset16 {
         self.script_offset.get()
     }
@@ -175,6 +180,7 @@ impl MinByteRange for ScriptMarker {
 }
 
 impl<'a> FontRead<'a> for Script<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
@@ -196,6 +202,7 @@ pub type Script<'a> = TableRef<'a, ScriptMarker>;
 impl<'a> Script<'a> {
     /// Offset to default LangSys table, from beginning of Script table
     /// — may be NULL
+    #[inline]
     pub fn default_lang_sys_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.default_lang_sys_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -209,12 +216,14 @@ impl<'a> Script<'a> {
 
     /// Number of LangSysRecords for this script — excluding the
     /// default LangSys
+    #[inline]
     pub fn lang_sys_count(&self) -> u16 {
         let range = self.shape.lang_sys_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of LangSysRecords, listed alphabetically by LangSys tag
+    #[inline]
     pub fn lang_sys_records(&self) -> &'a [LangSysRecord] {
         let range = self.shape.lang_sys_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -266,11 +275,13 @@ pub struct LangSysRecord {
 
 impl LangSysRecord {
     /// 4-byte LangSysTag identifier
+    #[inline]
     pub fn lang_sys_tag(&self) -> Tag {
         self.lang_sys_tag.get()
     }
 
     /// Offset to LangSys table, from beginning of Script table
+    #[inline]
     pub fn lang_sys_offset(&self) -> Offset16 {
         self.lang_sys_offset.get()
     }
@@ -342,6 +353,7 @@ impl MinByteRange for LangSysMarker {
 }
 
 impl<'a> FontRead<'a> for LangSys<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -364,6 +376,7 @@ pub type LangSys<'a> = TableRef<'a, LangSysMarker>;
 impl<'a> LangSys<'a> {
     /// Index of a feature required for this language system; if no
     /// required features = 0xFFFF
+    #[inline]
     pub fn required_feature_index(&self) -> u16 {
         let range = self.shape.required_feature_index_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -371,12 +384,14 @@ impl<'a> LangSys<'a> {
 
     /// Number of feature index values for this language system —
     /// excludes the required feature
+    #[inline]
     pub fn feature_index_count(&self) -> u16 {
         let range = self.shape.feature_index_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of indices into the FeatureList, in arbitrary order
+    #[inline]
     pub fn feature_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.feature_indices_byte_range();
         self.data.read_array(range).unwrap()
@@ -438,6 +453,7 @@ impl MinByteRange for FeatureListMarker {
 }
 
 impl<'a> FontRead<'a> for FeatureList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let feature_count: u16 = cursor.read()?;
@@ -457,6 +473,7 @@ pub type FeatureList<'a> = TableRef<'a, FeatureListMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FeatureList<'a> {
     /// Number of FeatureRecords in this table
+    #[inline]
     pub fn feature_count(&self) -> u16 {
         let range = self.shape.feature_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -464,6 +481,7 @@ impl<'a> FeatureList<'a> {
 
     /// Array of FeatureRecords — zero-based (first feature has
     /// FeatureIndex = 0), listed alphabetically by feature tag
+    #[inline]
     pub fn feature_records(&self) -> &'a [FeatureRecord] {
         let range = self.shape.feature_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -512,11 +530,13 @@ pub struct FeatureRecord {
 
 impl FeatureRecord {
     /// 4-byte feature identification tag
+    #[inline]
     pub fn feature_tag(&self) -> Tag {
         self.feature_tag.get()
     }
 
     /// Offset to Feature table, from beginning of FeatureList
+    #[inline]
     pub fn feature_offset(&self) -> Offset16 {
         self.feature_offset.get()
     }
@@ -589,6 +609,7 @@ impl ReadArgs for Feature<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Feature<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &Tag) -> Result<Self, ReadError> {
         let feature_tag = *args;
         let mut cursor = data.cursor();
@@ -610,6 +631,7 @@ impl<'a> Feature<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, feature_tag: Tag) -> Result<Self, ReadError> {
         let args = feature_tag;
         Self::read_with_args(data, &args)
@@ -622,6 +644,7 @@ pub type Feature<'a> = TableRef<'a, FeatureMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Feature<'a> {
     /// Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
+    #[inline]
     pub fn feature_params_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.feature_params_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -635,6 +658,7 @@ impl<'a> Feature<'a> {
     }
 
     /// Number of LookupList indices for this feature
+    #[inline]
     pub fn lookup_index_count(&self) -> u16 {
         let range = self.shape.lookup_index_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -642,6 +666,7 @@ impl<'a> Feature<'a> {
 
     /// Array of indices into the LookupList — zero-based (first
     /// lookup is LookupListIndex = 0)
+    #[inline]
     pub fn lookup_list_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.lookup_list_indices_byte_range();
         self.data.read_array(range).unwrap()
@@ -716,6 +741,7 @@ impl<T> Clone for LookupListMarker<T> {
 impl<T> Copy for LookupListMarker<T> {}
 
 impl<'a, T> FontRead<'a> for LookupList<'a, T> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let lookup_count: u16 = cursor.read()?;
@@ -765,6 +791,7 @@ pub type LookupList<'a, T> = TableRef<'a, LookupListMarker<T>>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a, T> LookupList<'a, T> {
     /// Number of lookups in this table
+    #[inline]
     pub fn lookup_count(&self) -> u16 {
         let range = self.shape.lookup_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -772,6 +799,7 @@ impl<'a, T> LookupList<'a, T> {
 
     /// Array of offsets to Lookup tables, from beginning of LookupList
     /// — zero based (first lookup is Lookup index = 0)
+    #[inline]
     pub fn lookup_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lookup_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -874,6 +902,7 @@ impl<T> Clone for LookupMarker<T> {
 impl<T> Copy for LookupMarker<T> {}
 
 impl<'a, T> FontRead<'a> for Lookup<'a, T> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -935,18 +964,21 @@ pub type Lookup<'a, T> = TableRef<'a, LookupMarker<T>>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a, T> Lookup<'a, T> {
     /// Different enumerations for GSUB and GPOS
+    #[inline]
     pub fn lookup_type(&self) -> u16 {
         let range = self.shape.lookup_type_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Lookup qualifiers
+    #[inline]
     pub fn lookup_flag(&self) -> LookupFlag {
         let range = self.shape.lookup_flag_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of subtables for this lookup
+    #[inline]
     pub fn sub_table_count(&self) -> u16 {
         let range = self.shape.sub_table_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -954,6 +986,7 @@ impl<'a, T> Lookup<'a, T> {
 
     /// Array of offsets to lookup subtables, from beginning of Lookup
     /// table
+    #[inline]
     pub fn subtable_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.subtable_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -972,6 +1005,7 @@ impl<'a, T> Lookup<'a, T> {
     /// Index (base 0) into GDEF mark glyph sets structure. This field
     /// is only present if the USE_MARK_FILTERING_SET lookup flag is
     /// set.
+    #[inline]
     pub fn mark_filtering_set(&self) -> Option<u16> {
         let range = self.shape.mark_filtering_set_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -1055,6 +1089,7 @@ impl MinByteRange for CoverageFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for CoverageFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1075,18 +1110,21 @@ pub type CoverageFormat1<'a> = TableRef<'a, CoverageFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CoverageFormat1<'a> {
     /// Format identifier — format = 1
+    #[inline]
     pub fn coverage_format(&self) -> u16 {
         let range = self.shape.coverage_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of glyphs in the glyph array
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of glyph IDs — in numerical order
+    #[inline]
     pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.glyph_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -1151,6 +1189,7 @@ impl MinByteRange for CoverageFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for CoverageFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1171,18 +1210,21 @@ pub type CoverageFormat2<'a> = TableRef<'a, CoverageFormat2Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CoverageFormat2<'a> {
     /// Format identifier — format = 2
+    #[inline]
     pub fn coverage_format(&self) -> u16 {
         let range = self.shape.coverage_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of RangeRecords
+    #[inline]
     pub fn range_count(&self) -> u16 {
         let range = self.shape.range_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of glyph ranges — ordered by startGlyphID.
+    #[inline]
     pub fn range_records(&self) -> &'a [RangeRecord] {
         let range = self.shape.range_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -1234,16 +1276,19 @@ pub struct RangeRecord {
 
 impl RangeRecord {
     /// First glyph ID in the range
+    #[inline]
     pub fn start_glyph_id(&self) -> GlyphId16 {
         self.start_glyph_id.get()
     }
 
     /// Last glyph ID in the range
+    #[inline]
     pub fn end_glyph_id(&self) -> GlyphId16 {
         self.end_glyph_id.get()
     }
 
     /// Coverage Index of first glyph ID in range
+    #[inline]
     pub fn start_coverage_index(&self) -> u16 {
         self.start_coverage_index.get()
     }
@@ -1385,6 +1430,7 @@ impl MinByteRange for ClassDefFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for ClassDefFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1406,24 +1452,28 @@ pub type ClassDefFormat1<'a> = TableRef<'a, ClassDefFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClassDefFormat1<'a> {
     /// Format identifier — format = 1
+    #[inline]
     pub fn class_format(&self) -> u16 {
         let range = self.shape.class_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// First glyph ID of the classValueArray
+    #[inline]
     pub fn start_glyph_id(&self) -> GlyphId16 {
         let range = self.shape.start_glyph_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Size of the classValueArray
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of Class Values — one per glyph ID
+    #[inline]
     pub fn class_value_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.class_value_array_byte_range();
         self.data.read_array(range).unwrap()
@@ -1489,6 +1539,7 @@ impl MinByteRange for ClassDefFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for ClassDefFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1509,18 +1560,21 @@ pub type ClassDefFormat2<'a> = TableRef<'a, ClassDefFormat2Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClassDefFormat2<'a> {
     /// Format identifier — format = 2
+    #[inline]
     pub fn class_format(&self) -> u16 {
         let range = self.shape.class_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of ClassRangeRecords
+    #[inline]
     pub fn class_range_count(&self) -> u16 {
         let range = self.shape.class_range_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of ClassRangeRecords — ordered by startGlyphID
+    #[inline]
     pub fn class_range_records(&self) -> &'a [ClassRangeRecord] {
         let range = self.shape.class_range_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -1572,16 +1626,19 @@ pub struct ClassRangeRecord {
 
 impl ClassRangeRecord {
     /// First glyph ID in the range
+    #[inline]
     pub fn start_glyph_id(&self) -> GlyphId16 {
         self.start_glyph_id.get()
     }
 
     /// Last glyph ID in the range
+    #[inline]
     pub fn end_glyph_id(&self) -> GlyphId16 {
         self.end_glyph_id.get()
     }
 
     /// Applied to all glyphs in the range
+    #[inline]
     pub fn class(&self) -> u16 {
         self.class.get()
     }
@@ -1693,11 +1750,13 @@ pub struct SequenceLookupRecord {
 
 impl SequenceLookupRecord {
     /// Index (zero-based) into the input glyph sequence
+    #[inline]
     pub fn sequence_index(&self) -> u16 {
         self.sequence_index.get()
     }
 
     /// Index (zero-based) into the LookupList
+    #[inline]
     pub fn lookup_list_index(&self) -> u16 {
         self.lookup_list_index.get()
     }
@@ -1762,6 +1821,7 @@ impl MinByteRange for SequenceContextFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for SequenceContextFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1783,6 +1843,7 @@ pub type SequenceContextFormat1<'a> = TableRef<'a, SequenceContextFormat1Marker>
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SequenceContextFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1790,6 +1851,7 @@ impl<'a> SequenceContextFormat1<'a> {
 
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat1 table
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1802,6 +1864,7 @@ impl<'a> SequenceContextFormat1<'a> {
     }
 
     /// Number of SequenceRuleSet tables
+    #[inline]
     pub fn seq_rule_set_count(&self) -> u16 {
         let range = self.shape.seq_rule_set_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1809,6 +1872,7 @@ impl<'a> SequenceContextFormat1<'a> {
 
     /// Array of offsets to SequenceRuleSet tables, from beginning of
     /// SequenceContextFormat1 table (offsets may be NULL)
+    #[inline]
     pub fn seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -1888,6 +1952,7 @@ impl MinByteRange for SequenceRuleSetMarker {
 }
 
 impl<'a> FontRead<'a> for SequenceRuleSet<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let seq_rule_count: u16 = cursor.read()?;
@@ -1907,6 +1972,7 @@ pub type SequenceRuleSet<'a> = TableRef<'a, SequenceRuleSetMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SequenceRuleSet<'a> {
     /// Number of SequenceRule tables
+    #[inline]
     pub fn seq_rule_count(&self) -> u16 {
         let range = self.shape.seq_rule_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1914,6 +1980,7 @@ impl<'a> SequenceRuleSet<'a> {
 
     /// Array of offsets to SequenceRule tables, from beginning of the
     /// SequenceRuleSet table
+    #[inline]
     pub fn seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.seq_rule_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -1999,6 +2066,7 @@ impl MinByteRange for SequenceRuleMarker {
 }
 
 impl<'a> FontRead<'a> for SequenceRule<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
@@ -2024,24 +2092,28 @@ pub type SequenceRule<'a> = TableRef<'a, SequenceRuleMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SequenceRule<'a> {
     /// Number of glyphs in the input glyph sequence
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of input glyph IDs—starting with the second glyph
+    #[inline]
     pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Array of Sequence lookup records
+    #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -2124,6 +2196,7 @@ impl MinByteRange for SequenceContextFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for SequenceContextFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -2146,6 +2219,7 @@ pub type SequenceContextFormat2<'a> = TableRef<'a, SequenceContextFormat2Marker>
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SequenceContextFormat2<'a> {
     /// Format identifier: format = 2
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2153,6 +2227,7 @@ impl<'a> SequenceContextFormat2<'a> {
 
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat2 table
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2166,6 +2241,7 @@ impl<'a> SequenceContextFormat2<'a> {
 
     /// Offset to ClassDef table, from beginning of
     /// SequenceContextFormat2 table
+    #[inline]
     pub fn class_def_offset(&self) -> Offset16 {
         let range = self.shape.class_def_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2178,6 +2254,7 @@ impl<'a> SequenceContextFormat2<'a> {
     }
 
     /// Number of ClassSequenceRuleSet tables
+    #[inline]
     pub fn class_seq_rule_set_count(&self) -> u16 {
         let range = self.shape.class_seq_rule_set_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2185,6 +2262,7 @@ impl<'a> SequenceContextFormat2<'a> {
 
     /// Array of offsets to ClassSequenceRuleSet tables, from beginning
     /// of SequenceContextFormat2 table (may be NULL)
+    #[inline]
     pub fn class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.class_seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -2273,6 +2351,7 @@ impl MinByteRange for ClassSequenceRuleSetMarker {
 }
 
 impl<'a> FontRead<'a> for ClassSequenceRuleSet<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let class_seq_rule_count: u16 = cursor.read()?;
@@ -2292,6 +2371,7 @@ pub type ClassSequenceRuleSet<'a> = TableRef<'a, ClassSequenceRuleSetMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClassSequenceRuleSet<'a> {
     /// Number of ClassSequenceRule tables
+    #[inline]
     pub fn class_seq_rule_count(&self) -> u16 {
         let range = self.shape.class_seq_rule_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2299,6 +2379,7 @@ impl<'a> ClassSequenceRuleSet<'a> {
 
     /// Array of offsets to ClassSequenceRule tables, from beginning of
     /// ClassSequenceRuleSet table
+    #[inline]
     pub fn class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.class_seq_rule_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -2387,6 +2468,7 @@ impl MinByteRange for ClassSequenceRuleMarker {
 }
 
 impl<'a> FontRead<'a> for ClassSequenceRule<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
@@ -2412,12 +2494,14 @@ pub type ClassSequenceRule<'a> = TableRef<'a, ClassSequenceRuleMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClassSequenceRule<'a> {
     /// Number of glyphs to be matched
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2425,12 +2509,14 @@ impl<'a> ClassSequenceRule<'a> {
 
     /// Sequence of classes to be matched to the input glyph sequence,
     /// beginning with the second glyph position
+    #[inline]
     pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Array of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -2514,6 +2600,7 @@ impl MinByteRange for SequenceContextFormat3Marker {
 }
 
 impl<'a> FontRead<'a> for SequenceContextFormat3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -2540,18 +2627,21 @@ pub type SequenceContextFormat3<'a> = TableRef<'a, SequenceContextFormat3Marker>
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SequenceContextFormat3<'a> {
     /// Format identifier: format = 3
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of glyphs in the input sequence
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2559,6 +2649,7 @@ impl<'a> SequenceContextFormat3<'a> {
 
     /// Array of offsets to Coverage tables, from beginning of
     /// SequenceContextFormat3 subtable
+    #[inline]
     pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.coverage_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -2572,6 +2663,7 @@ impl<'a> SequenceContextFormat3<'a> {
     }
 
     /// Array of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -2740,6 +2832,7 @@ impl MinByteRange for ChainedSequenceContextFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -2761,6 +2854,7 @@ pub type ChainedSequenceContextFormat1<'a> = TableRef<'a, ChainedSequenceContext
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedSequenceContextFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2768,6 +2862,7 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
 
     /// Offset to Coverage table, from beginning of
     /// ChainSequenceContextFormat1 table
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2780,6 +2875,7 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     }
 
     /// Number of ChainedSequenceRuleSet tables
+    #[inline]
     pub fn chained_seq_rule_set_count(&self) -> u16 {
         let range = self.shape.chained_seq_rule_set_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2787,6 +2883,7 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
 
     /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
     /// ChainedSequenceContextFormat1 table (may be NULL)
+    #[inline]
     pub fn chained_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.chained_seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -2871,6 +2968,7 @@ impl MinByteRange for ChainedSequenceRuleSetMarker {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceRuleSet<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let chained_seq_rule_count: u16 = cursor.read()?;
@@ -2890,6 +2988,7 @@ pub type ChainedSequenceRuleSet<'a> = TableRef<'a, ChainedSequenceRuleSetMarker>
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedSequenceRuleSet<'a> {
     /// Number of ChainedSequenceRule tables
+    #[inline]
     pub fn chained_seq_rule_count(&self) -> u16 {
         let range = self.shape.chained_seq_rule_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2897,6 +2996,7 @@ impl<'a> ChainedSequenceRuleSet<'a> {
 
     /// Array of offsets to ChainedSequenceRule tables, from beginning
     /// of ChainedSequenceRuleSet table
+    #[inline]
     pub fn chained_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.chained_seq_rule_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -3007,6 +3107,7 @@ impl MinByteRange for ChainedSequenceRuleMarker {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let backtrack_glyph_count: u16 = cursor.read()?;
@@ -3044,48 +3145,56 @@ pub type ChainedSequenceRule<'a> = TableRef<'a, ChainedSequenceRuleMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedSequenceRule<'a> {
     /// Number of glyphs in the backtrack sequence
+    #[inline]
     pub fn backtrack_glyph_count(&self) -> u16 {
         let range = self.shape.backtrack_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of backtrack glyph IDs
+    #[inline]
     pub fn backtrack_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.backtrack_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Number of glyphs in the input sequence
+    #[inline]
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.shape.input_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of input glyph IDs—start with second glyph
+    #[inline]
     pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Number of glyphs in the lookahead sequence
+    #[inline]
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of lookahead glyph IDs
+    #[inline]
     pub fn lookahead_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.lookahead_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Number of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -3188,6 +3297,7 @@ impl MinByteRange for ChainedSequenceContextFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -3213,6 +3323,7 @@ pub type ChainedSequenceContextFormat2<'a> = TableRef<'a, ChainedSequenceContext
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Format identifier: format = 2
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3220,6 +3331,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
 
     /// Offset to Coverage table, from beginning of
     /// ChainedSequenceContextFormat2 table
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3233,6 +3345,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
 
     /// Offset to ClassDef table containing backtrack sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
+    #[inline]
     pub fn backtrack_class_def_offset(&self) -> Offset16 {
         let range = self.shape.backtrack_class_def_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3246,6 +3359,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
 
     /// Offset to ClassDef table containing input sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
+    #[inline]
     pub fn input_class_def_offset(&self) -> Offset16 {
         let range = self.shape.input_class_def_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3259,6 +3373,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
 
     /// Offset to ClassDef table containing lookahead sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
+    #[inline]
     pub fn lookahead_class_def_offset(&self) -> Offset16 {
         let range = self.shape.lookahead_class_def_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3271,6 +3386,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     }
 
     /// Number of ChainedClassSequenceRuleSet tables
+    #[inline]
     pub fn chained_class_seq_rule_set_count(&self) -> u16 {
         let range = self.shape.chained_class_seq_rule_set_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3278,6 +3394,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
 
     /// Array of offsets to ChainedClassSequenceRuleSet tables, from
     /// beginning of ChainedSequenceContextFormat2 table (may be NULL)
+    #[inline]
     pub fn chained_class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.chained_class_seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -3380,6 +3497,7 @@ impl MinByteRange for ChainedClassSequenceRuleSetMarker {
 }
 
 impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let chained_class_seq_rule_count: u16 = cursor.read()?;
@@ -3399,6 +3517,7 @@ pub type ChainedClassSequenceRuleSet<'a> = TableRef<'a, ChainedClassSequenceRule
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedClassSequenceRuleSet<'a> {
     /// Number of ChainedClassSequenceRule tables
+    #[inline]
     pub fn chained_class_seq_rule_count(&self) -> u16 {
         let range = self.shape.chained_class_seq_rule_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3406,6 +3525,7 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
 
     /// Array of offsets to ChainedClassSequenceRule tables, from
     /// beginning of ChainedClassSequenceRuleSet
+    #[inline]
     pub fn chained_class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.chained_class_seq_rule_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -3518,6 +3638,7 @@ impl MinByteRange for ChainedClassSequenceRuleMarker {
 }
 
 impl<'a> FontRead<'a> for ChainedClassSequenceRule<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let backtrack_glyph_count: u16 = cursor.read()?;
@@ -3555,18 +3676,21 @@ pub type ChainedClassSequenceRule<'a> = TableRef<'a, ChainedClassSequenceRuleMar
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedClassSequenceRule<'a> {
     /// Number of glyphs in the backtrack sequence
+    #[inline]
     pub fn backtrack_glyph_count(&self) -> u16 {
         let range = self.shape.backtrack_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of backtrack-sequence classes
+    #[inline]
     pub fn backtrack_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.backtrack_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Total number of glyphs in the input sequence
+    #[inline]
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.shape.input_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3574,30 +3698,35 @@ impl<'a> ChainedClassSequenceRule<'a> {
 
     /// Array of input sequence classes, beginning with the second
     /// glyph position
+    #[inline]
     pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Number of glyphs in the lookahead sequence
+    #[inline]
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of lookahead-sequence classes
+    #[inline]
     pub fn lookahead_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.lookahead_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Number of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -3713,6 +3842,7 @@ impl MinByteRange for ChainedSequenceContextFormat3Marker {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -3751,18 +3881,21 @@ pub type ChainedSequenceContextFormat3<'a> = TableRef<'a, ChainedSequenceContext
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Format identifier: format = 3
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of glyphs in the backtrack sequence
+    #[inline]
     pub fn backtrack_glyph_count(&self) -> u16 {
         let range = self.shape.backtrack_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to coverage tables for the backtrack sequence
+    #[inline]
     pub fn backtrack_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.backtrack_coverage_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -3776,12 +3909,14 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 
     /// Number of glyphs in the input sequence
+    #[inline]
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.shape.input_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to coverage tables for the input sequence
+    #[inline]
     pub fn input_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.input_coverage_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -3795,12 +3930,14 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 
     /// Number of glyphs in the lookahead sequence
+    #[inline]
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to coverage tables for the lookahead sequence
+    #[inline]
     pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lookahead_coverage_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -3814,12 +3951,14 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 
     /// Number of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SequenceLookupRecords
+    #[inline]
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -4074,6 +4213,7 @@ impl MinByteRange for DeviceMarker {
 }
 
 impl<'a> FontRead<'a> for Device<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let start_size: u16 = cursor.read()?;
@@ -4095,24 +4235,28 @@ pub type Device<'a> = TableRef<'a, DeviceMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Device<'a> {
     /// Smallest size to correct, in ppem
+    #[inline]
     pub fn start_size(&self) -> u16 {
         let range = self.shape.start_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Largest size to correct, in ppem
+    #[inline]
     pub fn end_size(&self) -> u16 {
         let range = self.shape.end_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Format of deltaValue array data: 0x0001, 0x0002, or 0x0003
+    #[inline]
     pub fn delta_format(&self) -> DeltaFormat {
         let range = self.shape.delta_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of compressed data
+    #[inline]
     pub fn delta_value(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.delta_value_byte_range();
         self.data.read_array(range).unwrap()
@@ -4172,6 +4316,7 @@ impl MinByteRange for VariationIndexMarker {
 }
 
 impl<'a> FontRead<'a> for VariationIndex<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -4188,6 +4333,7 @@ pub type VariationIndex<'a> = TableRef<'a, VariationIndexMarker>;
 impl<'a> VariationIndex<'a> {
     /// A delta-set outer index — used to select an item variation
     /// data subtable within the item variation store.
+    #[inline]
     pub fn delta_set_outer_index(&self) -> u16 {
         let range = self.shape.delta_set_outer_index_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4195,12 +4341,14 @@ impl<'a> VariationIndex<'a> {
 
     /// A delta-set inner index — used to select a delta-set row
     /// within an item variation data subtable.
+    #[inline]
     pub fn delta_set_inner_index(&self) -> u16 {
         let range = self.shape.delta_set_inner_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Format, = 0x8000
+    #[inline]
     pub fn delta_format(&self) -> DeltaFormat {
         let range = self.shape.delta_format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4337,6 +4485,7 @@ impl MinByteRange for FeatureVariationsMarker {
 }
 
 impl<'a> FontRead<'a> for FeatureVariations<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
@@ -4356,18 +4505,21 @@ pub type FeatureVariations<'a> = TableRef<'a, FeatureVariationsMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FeatureVariations<'a> {
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of feature variation records.
+    #[inline]
     pub fn feature_variation_record_count(&self) -> u32 {
         let range = self.shape.feature_variation_record_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of feature variation records.
+    #[inline]
     pub fn feature_variation_records(&self) -> &'a [FeatureVariationRecord] {
         let range = self.shape.feature_variation_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -4423,6 +4575,7 @@ pub struct FeatureVariationRecord {
 impl FeatureVariationRecord {
     /// Offset to a condition set table, from beginning of
     /// FeatureVariations table.
+    #[inline]
     pub fn condition_set_offset(&self) -> Nullable<Offset32> {
         self.condition_set_offset.get()
     }
@@ -4441,6 +4594,7 @@ impl FeatureVariationRecord {
 
     /// Offset to a feature table substitution table, from beginning of
     /// the FeatureVariations table.
+    #[inline]
     pub fn feature_table_substitution_offset(&self) -> Nullable<Offset32> {
         self.feature_table_substitution_offset.get()
     }
@@ -4512,6 +4666,7 @@ impl MinByteRange for ConditionSetMarker {
 }
 
 impl<'a> FontRead<'a> for ConditionSet<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let condition_count: u16 = cursor.read()?;
@@ -4531,6 +4686,7 @@ pub type ConditionSet<'a> = TableRef<'a, ConditionSetMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionSet<'a> {
     /// Number of conditions for this condition set.
+    #[inline]
     pub fn condition_count(&self) -> u16 {
         let range = self.shape.condition_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4538,6 +4694,7 @@ impl<'a> ConditionSet<'a> {
 
     /// Array of offsets to condition tables, from beginning of the
     /// ConditionSet table.
+    #[inline]
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.condition_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -4717,6 +4874,7 @@ impl MinByteRange for ConditionFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -4733,6 +4891,7 @@ pub type ConditionFormat1<'a> = TableRef<'a, ConditionFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionFormat1<'a> {
     /// Format, = 1
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4740,6 +4899,7 @@ impl<'a> ConditionFormat1<'a> {
 
     /// Index (zero-based) for the variation axis within the 'fvar'
     /// table.
+    #[inline]
     pub fn axis_index(&self) -> u16 {
         let range = self.shape.axis_index_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4747,6 +4907,7 @@ impl<'a> ConditionFormat1<'a> {
 
     /// Minimum value of the font variation instances that satisfy this
     /// condition.
+    #[inline]
     pub fn filter_range_min_value(&self) -> F2Dot14 {
         let range = self.shape.filter_range_min_value_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4754,6 +4915,7 @@ impl<'a> ConditionFormat1<'a> {
 
     /// Maximum value of the font variation instances that satisfy this
     /// condition.
+    #[inline]
     pub fn filter_range_max_value(&self) -> F2Dot14 {
         let range = self.shape.filter_range_max_value_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4823,6 +4985,7 @@ impl MinByteRange for ConditionFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -4838,18 +5001,21 @@ pub type ConditionFormat2<'a> = TableRef<'a, ConditionFormat2Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionFormat2<'a> {
     /// Format, = 2
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Value at default instance.
+    #[inline]
     pub fn default_value(&self) -> i16 {
         let range = self.shape.default_value_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Variation index to vary the value based on current designspace location.
+    #[inline]
     pub fn var_index(&self) -> u32 {
         let range = self.shape.var_index_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4914,6 +5080,7 @@ impl MinByteRange for ConditionFormat3Marker {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -4934,18 +5101,21 @@ pub type ConditionFormat3<'a> = TableRef<'a, ConditionFormat3Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionFormat3<'a> {
     /// Format, = 3
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of conditions.
+    #[inline]
     pub fn condition_count(&self) -> u8 {
         let range = self.shape.condition_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of condition tables for this conjunction (AND) expression.
+    #[inline]
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
         let range = self.shape.condition_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -5030,6 +5200,7 @@ impl MinByteRange for ConditionFormat4Marker {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat4<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -5050,18 +5221,21 @@ pub type ConditionFormat4<'a> = TableRef<'a, ConditionFormat4Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionFormat4<'a> {
     /// Format, = 4
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of conditions.
+    #[inline]
     pub fn condition_count(&self) -> u8 {
         let range = self.shape.condition_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of condition tables for this disjunction (OR) expression.
+    #[inline]
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
         let range = self.shape.condition_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -5139,6 +5313,7 @@ impl MinByteRange for ConditionFormat5Marker {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat5<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -5153,12 +5328,14 @@ pub type ConditionFormat5<'a> = TableRef<'a, ConditionFormat5Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionFormat5<'a> {
     /// Format, = 5
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Condition to negate.
+    #[inline]
     pub fn condition_offset(&self) -> Offset24 {
         let range = self.shape.condition_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5227,6 +5404,7 @@ impl MinByteRange for FeatureTableSubstitutionMarker {
 }
 
 impl<'a> FontRead<'a> for FeatureTableSubstitution<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
@@ -5247,18 +5425,21 @@ pub type FeatureTableSubstitution<'a> = TableRef<'a, FeatureTableSubstitutionMar
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FeatureTableSubstitution<'a> {
     /// Major & minor version of the table: (1, 0)
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of feature table substitution records.
+    #[inline]
     pub fn substitution_count(&self) -> u16 {
         let range = self.shape.substitution_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of feature table substitution records.
+    #[inline]
     pub fn substitutions(&self) -> &'a [FeatureTableSubstitutionRecord] {
         let range = self.shape.substitutions_byte_range();
         self.data.read_array(range).unwrap()
@@ -5309,12 +5490,14 @@ pub struct FeatureTableSubstitutionRecord {
 
 impl FeatureTableSubstitutionRecord {
     /// The feature table index to match.
+    #[inline]
     pub fn feature_index(&self) -> u16 {
         self.feature_index.get()
     }
 
     /// Offset to an alternate feature table, from start of the
     /// FeatureTableSubstitution table.
+    #[inline]
     pub fn alternate_feature_offset(&self) -> Offset32 {
         self.alternate_feature_offset.get()
     }
@@ -5383,6 +5566,7 @@ impl MinByteRange for SizeParamsMarker {
 }
 
 impl<'a> FontRead<'a> for SizeParams<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -5402,6 +5586,7 @@ impl<'a> SizeParams<'a> {
     ///
     /// The design size entry must be non-zero. When there is a design size but
     /// no recommended size range, the rest of the array will consist of zeros.
+    #[inline]
     pub fn design_size(&self) -> u16 {
         let range = self.shape.design_size_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5413,6 +5598,7 @@ impl<'a> SizeParams<'a> {
     /// only by size range shall have the same subfamily value, and no fonts
     /// which differ in weight or style shall have the same subfamily value.
     /// If this value is zero, the remaining fields in the array will be ignored.
+    #[inline]
     pub fn identifier(&self) -> u16 {
         let range = self.shape.identifier_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5428,6 +5614,7 @@ impl<'a> SizeParams<'a> {
     /// an application should use, in combination with the family name, to
     /// represent the subfamily in a menu. Applications will choose the
     /// appropriate version based on their selection criteria.
+    #[inline]
     pub fn name_entry(&self) -> u16 {
         let range = self.shape.name_entry_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5438,11 +5625,13 @@ impl<'a> SizeParams<'a> {
     /// (inclusive), stored in 720/inch units (decipoints).
     ///
     /// Ranges must not overlap, and should generally be contiguous.
+    #[inline]
     pub fn range_start(&self) -> u16 {
         let range = self.shape.range_start_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn range_end(&self) -> u16 {
         let range = self.shape.range_end_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5497,6 +5686,7 @@ impl MinByteRange for StylisticSetParamsMarker {
 }
 
 impl<'a> FontRead<'a> for StylisticSetParams<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -5509,6 +5699,7 @@ pub type StylisticSetParams<'a> = TableRef<'a, StylisticSetParamsMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> StylisticSetParams<'a> {
+    #[inline]
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5523,6 +5714,7 @@ impl<'a> StylisticSetParams<'a> {
     /// be provided in multiple languages. An English string should be included
     /// as a fallback. The string should be kept to a minimal length to fit
     /// comfortably with different application interfaces.
+    #[inline]
     pub fn ui_name_id(&self) -> NameId {
         let range = self.shape.ui_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5611,6 +5803,7 @@ impl MinByteRange for CharacterVariantParamsMarker {
 }
 
 impl<'a> FontRead<'a> for CharacterVariantParams<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -5634,6 +5827,7 @@ pub type CharacterVariantParams<'a> = TableRef<'a, CharacterVariantParamsMarker>
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CharacterVariantParams<'a> {
     /// Format number is set to 0.
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5642,6 +5836,7 @@ impl<'a> CharacterVariantParams<'a> {
     /// The 'name' table name ID that specifies a string (or strings,
     /// for multiple languages) for a user-interface label for this
     /// feature. (May be NULL.)
+    #[inline]
     pub fn feat_ui_label_name_id(&self) -> NameId {
         let range = self.shape.feat_ui_label_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5650,6 +5845,7 @@ impl<'a> CharacterVariantParams<'a> {
     /// The 'name' table name ID that specifies a string (or strings,
     /// for multiple languages) that an application can use for tooltip
     /// text for this feature. (May be NULL.)
+    #[inline]
     pub fn feat_ui_tooltip_text_name_id(&self) -> NameId {
         let range = self.shape.feat_ui_tooltip_text_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5657,12 +5853,14 @@ impl<'a> CharacterVariantParams<'a> {
 
     /// The 'name' table name ID that specifies sample text that
     /// illustrates the effect of this feature. (May be NULL.)
+    #[inline]
     pub fn sample_text_name_id(&self) -> NameId {
         let range = self.shape.sample_text_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of named parameters. (May be zero.)
+    #[inline]
     pub fn num_named_parameters(&self) -> u16 {
         let range = self.shape.num_named_parameters_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5671,6 +5869,7 @@ impl<'a> CharacterVariantParams<'a> {
     /// The first 'name' table name ID used to specify strings for
     /// user-interface labels for the feature parameters. (Must be zero
     /// if numParameters is zero.)
+    #[inline]
     pub fn first_param_ui_label_name_id(&self) -> NameId {
         let range = self.shape.first_param_ui_label_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5678,6 +5877,7 @@ impl<'a> CharacterVariantParams<'a> {
 
     /// The count of characters for which this feature provides glyph
     /// variants. (May be zero.)
+    #[inline]
     pub fn char_count(&self) -> u16 {
         let range = self.shape.char_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -5685,6 +5885,7 @@ impl<'a> CharacterVariantParams<'a> {
 
     /// The Unicode Scalar Value of the characters for which this
     /// feature provides glyph variants.
+    #[inline]
     pub fn character(&self) -> &'a [BigEndian<Uint24>] {
         let range = self.shape.character_byte_range();
         self.data.read_array(range).unwrap()

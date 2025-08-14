@@ -44,6 +44,7 @@ impl TopLevelTable for Ankr<'_> {
 }
 
 impl<'a> FontRead<'a> for Ankr<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -60,12 +61,14 @@ pub type Ankr<'a> = TableRef<'a, AnkrMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ankr<'a> {
     /// Version number (set to zero).
+    #[inline]
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Flags (currently unused; set to zero).
+    #[inline]
     pub fn flags(&self) -> u16 {
         let range = self.shape.flags_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -74,6 +77,7 @@ impl<'a> Ankr<'a> {
     /// Offset to the table's lookup table; currently this is always `0x0000000C`.
     ///
     /// Lookup values are two byte offsets into the glyph data table.
+    #[inline]
     pub fn lookup_table_offset(&self) -> Offset32 {
         let range = self.shape.lookup_table_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -86,6 +90,7 @@ impl<'a> Ankr<'a> {
     }
 
     /// Offset to the glyph data table.
+    #[inline]
     pub fn glyph_data_table_offset(&self) -> u32 {
         let range = self.shape.glyph_data_table_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -147,6 +152,7 @@ impl MinByteRange for GlyphDataEntryMarker {
 }
 
 impl<'a> FontRead<'a> for GlyphDataEntry<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let num_points: u32 = cursor.read()?;
@@ -165,12 +171,14 @@ pub type GlyphDataEntry<'a> = TableRef<'a, GlyphDataEntryMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphDataEntry<'a> {
     /// Number of anchor points for this glyph.
+    #[inline]
     pub fn num_points(&self) -> u32 {
         let range = self.shape.num_points_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Individual anchor points.
+    #[inline]
     pub fn anchor_points(&self) -> &'a [AnchorPoint] {
         let range = self.shape.anchor_points_byte_range();
         self.data.read_array(range).unwrap()
@@ -216,10 +224,12 @@ pub struct AnchorPoint {
 }
 
 impl AnchorPoint {
+    #[inline]
     pub fn x(&self) -> i16 {
         self.x.get()
     }
 
+    #[inline]
     pub fn y(&self) -> i16 {
         self.y.get()
     }

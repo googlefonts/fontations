@@ -18,6 +18,7 @@ impl TopLevelTable for Glyf<'_> {
 }
 
 impl<'a> FontRead<'a> for Glyf<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let cursor = data.cursor();
         cursor.finish(GlyfMarker {})
@@ -116,6 +117,7 @@ impl MinByteRange for SimpleGlyphMarker {
 }
 
 impl<'a> FontRead<'a> for SimpleGlyph<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let number_of_contours: i16 = cursor.read()?;
@@ -150,30 +152,35 @@ impl<'a> SimpleGlyph<'a> {
     /// If the number of contours is greater than or equal to zero,
     /// this is a simple glyph. If negative, this is a composite glyph
     /// — the value -1 should be used for composite glyphs.
+    #[inline]
     pub fn number_of_contours(&self) -> i16 {
         let range = self.shape.number_of_contours_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum x for coordinate data.
+    #[inline]
     pub fn x_min(&self) -> i16 {
         let range = self.shape.x_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum y for coordinate data.
+    #[inline]
     pub fn y_min(&self) -> i16 {
         let range = self.shape.y_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum x for coordinate data.
+    #[inline]
     pub fn x_max(&self) -> i16 {
         let range = self.shape.x_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum y for coordinate data.
+    #[inline]
     pub fn y_max(&self) -> i16 {
         let range = self.shape.y_max_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -181,6 +188,7 @@ impl<'a> SimpleGlyph<'a> {
 
     /// Array of point indices for the last point of each contour,
     /// in increasing numeric order
+    #[inline]
     pub fn end_pts_of_contours(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.end_pts_of_contours_byte_range();
         self.data.read_array(range).unwrap()
@@ -189,18 +197,21 @@ impl<'a> SimpleGlyph<'a> {
     /// Total number of bytes for instructions. If instructionLength is
     /// zero, no instructions are present for this glyph, and this
     /// field is followed directly by the flags field.
+    #[inline]
     pub fn instruction_length(&self) -> u16 {
         let range = self.shape.instruction_length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of instruction byte code for the glyph.
+    #[inline]
     pub fn instructions(&self) -> &'a [u8] {
         let range = self.shape.instructions_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// the raw data for flags & x/y coordinates
+    #[inline]
     pub fn glyph_data(&self) -> &'a [u8] {
         let range = self.shape.glyph_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -683,6 +694,7 @@ impl MinByteRange for CompositeGlyphMarker {
 }
 
 impl<'a> FontRead<'a> for CompositeGlyph<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<i16>();
@@ -707,30 +719,35 @@ impl<'a> CompositeGlyph<'a> {
     /// If the number of contours is greater than or equal to zero,
     /// this is a simple glyph. If negative, this is a composite glyph
     /// — the value -1 should be used for composite glyphs.
+    #[inline]
     pub fn number_of_contours(&self) -> i16 {
         let range = self.shape.number_of_contours_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum x for coordinate data.
+    #[inline]
     pub fn x_min(&self) -> i16 {
         let range = self.shape.x_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum y for coordinate data.
+    #[inline]
     pub fn y_min(&self) -> i16 {
         let range = self.shape.y_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum x for coordinate data.
+    #[inline]
     pub fn x_max(&self) -> i16 {
         let range = self.shape.x_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum y for coordinate data.
+    #[inline]
     pub fn y_max(&self) -> i16 {
         let range = self.shape.y_max_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -738,6 +755,7 @@ impl<'a> CompositeGlyph<'a> {
 
     /// component flag
     /// glyph index of component
+    #[inline]
     pub fn component_data(&self) -> &'a [u8] {
         let range = self.shape.component_data_byte_range();
         self.data.read_array(range).unwrap()

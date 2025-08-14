@@ -46,6 +46,7 @@ impl TopLevelTable for Ltag<'_> {
 }
 
 impl<'a> FontRead<'a> for Ltag<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u32>();
@@ -67,24 +68,28 @@ pub type Ltag<'a> = TableRef<'a, LtagMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ltag<'a> {
     /// Table version; currently 1.
+    #[inline]
     pub fn version(&self) -> u32 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Table flags; currently none defined.
+    #[inline]
     pub fn flags(&self) -> u32 {
         let range = self.shape.flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of language tags which follow.
+    #[inline]
     pub fn num_tags(&self) -> u32 {
         let range = self.shape.num_tags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Range of each tag's string.
+    #[inline]
     pub fn tag_ranges(&self) -> &'a [FTStringRange] {
         let range = self.shape.tag_ranges_byte_range();
         self.data.read_array(range).unwrap()
@@ -135,11 +140,13 @@ pub struct FTStringRange {
 
 impl FTStringRange {
     /// Offset from the start of the table to the beginning of the string.
+    #[inline]
     pub fn offset(&self) -> u16 {
         self.offset.get()
     }
 
     /// String length (in bytes).
+    #[inline]
     pub fn length(&self) -> u16 {
         self.length.get()
     }
