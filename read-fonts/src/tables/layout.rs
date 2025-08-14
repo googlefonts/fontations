@@ -420,11 +420,14 @@ impl From<DeltaFormat> for i64 {
 impl<'a> ClassDefFormat1<'a> {
     /// Get the class for this glyph id
     #[inline]
-    pub fn get(&self, gid: GlyphId16) -> u16 {
-        if gid < self.start_glyph_id() {
+    pub fn get(&self, gid: impl Into<GlyphId>) -> u16 {
+        let Some(idx) = gid
+            .into()
+            .to_u32()
+            .checked_sub(self.start_glyph_id().to_u32())
+        else {
             return 0;
-        }
-        let idx = gid.to_u16() - self.start_glyph_id().to_u16();
+        };
         self.class_value_array()
             .get(idx as usize)
             .map(|x| x.get())
@@ -534,14 +537,15 @@ impl<'a> ClassDefFormat1<'a> {
 impl<'a> ClassDefFormat2<'a> {
     /// Get the class for this glyph id
     #[inline]
-    pub fn get(&self, gid: GlyphId16) -> u16 {
+    pub fn get(&self, gid: impl Into<GlyphId>) -> u16 {
+        let gid = gid.into().to_u32();
         let records = self.class_range_records();
-        let ix = match records.binary_search_by(|rec| rec.start_glyph_id().cmp(&gid)) {
+        let ix = match records.binary_search_by(|rec| rec.start_glyph_id().to_u32().cmp(&gid)) {
             Ok(ix) => ix,
             Err(ix) => ix.saturating_sub(1),
         };
         if let Some(record) = records.get(ix) {
-            if (record.start_glyph_id()..=record.end_glyph_id()).contains(&gid) {
+            if (record.start_glyph_id().to_u32()..=record.end_glyph_id().to_u32()).contains(&gid) {
                 return record.class();
             }
         }
@@ -695,7 +699,7 @@ impl ClassRangeRecord {
 impl ClassDef<'_> {
     /// Get the class for this glyph id
     #[inline]
-    pub fn get(&self, gid: GlyphId16) -> u16 {
+    pub fn get(&self, gid: impl Into<GlyphId>) -> u16 {
         match self {
             ClassDef::Format1(table) => table.get(gid),
             ClassDef::Format2(table) => table.get(gid),
