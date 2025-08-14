@@ -1488,7 +1488,6 @@ mod test {
     }
 
     #[test]
-    #[allow(clippy::mutable_key_type)]
     fn equal_and_hash() {
         let mut inc1 = IntSet::<u32>::empty();
         inc1.insert(14);
@@ -1518,7 +1517,6 @@ mod test {
     }
 
     #[test]
-    #[allow(clippy::mutable_key_type)]
     fn equal_and_hash_mixed_membership_types() {
         let mut inverted_all = IntSet::<TwoParts>::all();
         let mut all = IntSet::<TwoParts>::empty();
