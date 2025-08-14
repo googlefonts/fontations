@@ -915,7 +915,15 @@ impl FontWrite for Cmap10 {
 }
 
 impl Validate for Cmap10 {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Cmap10", |ctx| {
+            ctx.in_field("glyph_id_array", |ctx| {
+                if self.glyph_id_array.len() > (u32::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+        })
+    }
 }
 
 impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap10<'a>> for Cmap10 {

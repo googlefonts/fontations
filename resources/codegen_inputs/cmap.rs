@@ -227,7 +227,7 @@ table Cmap10 {
     /// Number of character codes covered
     num_chars: u32,
     /// Array of glyph indices for the character codes covered
-    #[count(..)]
+    #[count($num_chars)]
     glyph_id_array: [u16],
 }
 
