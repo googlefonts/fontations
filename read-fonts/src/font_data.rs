@@ -18,6 +18,7 @@ use crate::FontRead;
 #[derive(Debug, Default, Clone, Copy)]
 pub struct FontData<'a> {
     bytes: &'a [u8],
+    pos: usize,
 }
 
 /// A cursor for validating bytes during parsing.
@@ -35,48 +36,64 @@ pub struct Cursor<'a> {
 
 impl<'a> FontData<'a> {
     /// Empty data, useful for some tests and examples
-    pub const EMPTY: FontData<'static> = FontData { bytes: &[] };
+    pub const EMPTY: FontData<'static> = FontData { bytes: &[], pos: 0 };
 
     /// Create a new `FontData` with these bytes.
     ///
     /// You generally don't need to do this? It is handled for you when loading
     /// data from disk, but may be useful in tests.
     pub const fn new(bytes: &'a [u8]) -> Self {
-        FontData { bytes }
+        FontData { bytes, pos: 0 }
+    }
+
+    /// Returns a new `FontData` with the start at the given offset.
+    ///
+    /// Does not check that the offset is within bounds.
+    #[inline]
+    #[must_use]
+    pub fn with_offset(&self, offset: usize) -> Self {
+        let pos = self.pos_at(offset);
+        Self {
+            bytes: self.bytes,
+            pos,
+        }
     }
 
     /// The length of the data, in bytes
     pub fn len(&self) -> usize {
-        self.bytes.len()
+        self.as_bytes().len()
     }
 
     /// `true` if the data has a length of zero bytes.
     pub fn is_empty(&self) -> bool {
-        self.bytes.is_empty()
+        self.pos >= self.bytes.len()
     }
 
     /// Returns self[pos..]
     pub fn split_off(&self, pos: usize) -> Option<FontData<'a>> {
-        self.bytes.get(pos..).map(|bytes| FontData { bytes })
+        self.bytes.get(self.pos_at(pos)..).map(FontData::new)
     }
 
     /// returns self[..pos], and updates self to = self[pos..];
     pub fn take_up_to(&mut self, pos: usize) -> Option<FontData<'a>> {
-        if pos > self.len() {
+        let bytes = self.as_bytes();
+        if pos > bytes.len() {
             return None;
         }
-        let (head, tail) = self.bytes.split_at(pos);
+        let (head, tail) = bytes.split_at(pos);
         self.bytes = tail;
-        Some(FontData { bytes: head })
+        self.pos = 0;
+        Some(FontData::new(head))
     }
 
     pub fn slice(&self, range: impl RangeBounds<usize>) -> Option<FontData<'a>> {
         let bounds = (range.start_bound().cloned(), range.end_bound().cloned());
-        self.bytes.get(bounds).map(|bytes| FontData { bytes })
+        self.as_bytes().get(bounds).map(FontData::new)
     }
 
     /// Read a scalar at the provided location in the data.
     pub fn read_at<T: Scalar>(&self, offset: usize) -> Result<T, ReadError> {
+        let offset = self.pos_at(offset);
         let end = offset
             .checked_add(T::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -88,6 +105,7 @@ impl<'a> FontData<'a> {
 
     /// Read a big-endian value at the provided location in the data.
     pub fn read_be_at<T: Scalar>(&self, offset: usize) -> Result<BigEndian<T>, ReadError> {
+        let offset = self.pos_at(offset);
         let end = offset
             .checked_add(T::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -107,6 +125,7 @@ impl<'a> FontData<'a> {
     }
 
     fn check_in_bounds(&self, offset: usize) -> Result<(), ReadError> {
+        let offset = self.pos_at(offset);
         self.bytes
             .get(..offset)
             .ok_or(ReadError::OutOfBounds)
@@ -130,6 +149,7 @@ impl<'a> FontData<'a> {
         &self,
         offset: usize,
     ) -> Result<&'a T, ReadError> {
+        let offset = self.pos_at(offset);
         let end = offset
             .checked_add(T::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
@@ -155,8 +175,10 @@ impl<'a> FontData<'a> {
     /// [`read_array_unchecked`]: [Self::read_array_unchecked]
     pub fn read_array<T: AnyBitPattern + FixedSize>(
         &self,
-        range: Range<usize>,
+        mut range: Range<usize>,
     ) -> Result<&'a [T], ReadError> {
+        range.start = range.start.wrapping_add(self.pos);
+        range.end = range.end.wrapping_add(self.pos);
         let bytes = self
             .bytes
             .get(range.clone())
@@ -181,7 +203,12 @@ impl<'a> FontData<'a> {
 
     /// Return the data as a byte slice
     pub fn as_bytes(&self) -> &'a [u8] {
-        self.bytes
+        self.bytes.get(self.pos..).unwrap_or_default()
+    }
+
+    #[inline(always)]
+    fn pos_at(&self, offset: usize) -> usize {
+        self.pos.wrapping_add(offset)
     }
 }
 
