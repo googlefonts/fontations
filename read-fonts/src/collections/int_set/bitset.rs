@@ -18,6 +18,7 @@
 use super::bitpage::BitPage;
 use super::bitpage::RangeIter;
 use super::bitpage::PAGE_BITS;
+use core::sync::atomic::AtomicUsize;
 use std::cmp::Ordering;
 use std::hash::Hash;
 
@@ -29,13 +30,45 @@ const PAGE_BITS_LOG_2: u32 = PAGE_BITS.ilog2();
 /// A fast, efficient, sparse, & ordered `u32` set.
 ///
 /// For a higher-level API that supports inversion and generic int types, use [`super::IntSet`]
-#[derive(Clone, Debug, Default)]
+#[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct U32Set {
     // TODO(garretrieger): consider a "small array" type instead of Vec.
     pages: Vec<BitPage>,
     page_map: Vec<PageInfo>,
     length: u64,
+
+    #[cfg_attr(feature = "serde", serde(skip))]
+    #[cfg_attr(feature = "serde", serde(default = "default_last_page_map_index"))]
+    last_page_map_index: AtomicUsize,
+}
+
+const fn default_last_page_map_index() -> AtomicUsize {
+    AtomicUsize::new(usize::MAX)
+}
+
+impl Default for U32Set {
+    fn default() -> Self {
+        Self {
+            pages: Default::default(),
+            page_map: Default::default(),
+            length: Default::default(),
+            last_page_map_index: default_last_page_map_index(),
+        }
+    }
+}
+
+impl Clone for U32Set {
+    fn clone(&self) -> Self {
+        Self {
+            pages: self.pages.clone(),
+            page_map: self.page_map.clone(),
+            length: self.length,
+            // last_page_map_index has no effect on the externally visible state of the set
+            // so it can just be reset to the default value.
+            last_page_map_index: default_last_page_map_index(),
+        }
+    }
 }
 
 impl FromIterator<u32> for U32Set {
@@ -178,7 +211,35 @@ impl U32Set {
 
     /// Returns true if val is a member of this set.
     pub fn contains(&self, val: u32) -> bool {
-        self.page_for(val)
+        let new_major = U32Set::get_major_value(val);
+
+        let lookup_result = self
+            .page_map
+            .get(
+                self.last_page_map_index
+                    .load(std::sync::atomic::Ordering::Relaxed),
+            )
+            .filter(|info| info.major_value == new_major)
+            .map(|info| Some(info.index as usize))
+            .unwrap_or(None);
+
+        let page_index = match lookup_result {
+            None => {
+                // Cached value needs an update, lookup the actual page map index.
+                let Some(page_map_index) = self.page_map_index_for_major(new_major) else {
+                    // No page exists for this value so it's not present and we don't need to update cached values.
+                    return false;
+                };
+
+                self.last_page_map_index
+                    .store(page_map_index, std::sync::atomic::Ordering::Relaxed);
+                self.page_map[page_map_index].index as usize
+            }
+            Some(page_index) => page_index,
+        };
+
+        self.pages
+            .get(page_index)
             .map(|page| page.contains(val))
             .unwrap_or(false)
     }
@@ -188,6 +249,7 @@ impl U32Set {
             pages: Vec::new(),
             page_map: Vec::new(),
             length: 0,
+            last_page_map_index: default_last_page_map_index(),
         }
     }
 
@@ -528,10 +590,14 @@ impl U32Set {
 
     /// Returns the index in `self.pages` (if it exists) for the page with the same major as `major_value`.
     fn page_index_for_major(&self, major_value: u32) -> Option<usize> {
+        self.page_map_index_for_major(major_value)
+            .map(|info_idx| self.page_map[info_idx].index as usize)
+    }
+
+    fn page_map_index_for_major(&self, major_value: u32) -> Option<usize> {
         self.page_map
             .binary_search_by(|probe| probe.major_value.cmp(&major_value))
             .ok()
-            .map(|info_idx| self.page_map[info_idx].index as usize)
     }
 
     /// Returns the index in `self.pages` for the page with the same major as `major_value`. Will create
@@ -553,13 +619,6 @@ impl U32Set {
                 page_index
             }
         }
-    }
-
-    /// Return a reference to the page that `value` resides in.
-    fn page_for(&self, value: u32) -> Option<&BitPage> {
-        let major_value = Self::get_major_value(value);
-        let pages_index = self.page_index_for_major(major_value)?;
-        self.pages.get(pages_index)
     }
 
     /// Return a mutable reference to the page that `value` resides in.
@@ -1160,6 +1219,44 @@ mod test {
         assert_eq!(bitset.len(), 1);
     }
 
+    #[test]
+    fn contains_index_cache() {
+        let mut bitset = U32Set::from_iter([10, 11, 12, 2023]);
+        // contains() internally uses a cache of last page index
+        // ensure that outward contains() returns are unnaffected
+        // by the ordering of calls.
+        assert!(!bitset.contains(9));
+        assert!(bitset.contains(10));
+        assert!(bitset.contains(11));
+        assert!(bitset.contains(12));
+
+        assert!(!bitset.contains(1200));
+        assert!(!bitset.contains(2022));
+        assert!(bitset.contains(2023));
+        assert!(!bitset.contains(2024));
+
+        assert!(bitset.contains(2023));
+        assert!(bitset.contains(11));
+
+        assert!(!bitset.contains(5000));
+        assert!(bitset.contains(11));
+        assert!(bitset.contains(2023));
+        assert!(bitset.contains(12));
+        assert!(!bitset.contains(2024));
+        assert!(!bitset.contains(13));
+
+        // Caching should also work correctly if the page map is modified between lookups
+        bitset.clear();
+        bitset.insert(2024);
+        bitset.insert(13);
+
+        assert!(bitset.contains(13));
+        assert!(!bitset.contains(12));
+
+        assert!(bitset.contains(2024));
+        assert!(!bitset.contains(2023));
+    }
+
     fn check_process<A, B, C, Op>(a: A, b: B, expected: C, op: Op)
     where
         A: IntoIterator<Item = u32>,
@@ -1273,7 +1370,6 @@ mod test {
     }
 
     #[test]
-    #[allow(clippy::mutable_key_type)]
     fn hash_and_eq() {
         let mut bitset1 = U32Set::empty();
         let mut bitset2 = U32Set::empty();
@@ -1305,7 +1401,6 @@ mod test {
     }
 
     #[test]
-    #[allow(clippy::mutable_key_type)]
     fn hash_and_eq_with_empty_pages() {
         let mut bitset1 = U32Set::empty();
         let mut bitset2 = U32Set::empty();
@@ -1323,6 +1418,22 @@ mod test {
         assert_eq!(bitset1, bitset2);
         assert_ne!(bitset1, bitset3);
 
+        let set = HashSet::from([bitset1]);
+        assert!(set.contains(&bitset2));
+    }
+
+    #[test]
+    fn hash_and_eq_ignore_cache() {
+        let bitset1 = U32Set::from_iter([5, 1027]);
+        let bitset2 = U32Set::from_iter([5, 1027]);
+
+        // Modify the internal last page index cache to point at different pages.
+        assert!(bitset1.contains(1027));
+        assert!(bitset2.contains(5));
+
+        // Hash, eq, cmp should be unnaffected:
+        assert_eq!(bitset1, bitset2);
+        assert!(matches!(bitset1.cmp(&bitset2), Ordering::Equal));
         let set = HashSet::from([bitset1]);
         assert!(set.contains(&bitset2));
     }
