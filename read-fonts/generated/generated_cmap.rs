@@ -1273,9 +1273,10 @@ impl<'a> FontRead<'a> for Cmap10<'a> {
         cursor.advance::<u32>();
         cursor.advance::<u32>();
         cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let glyph_id_array_byte_len =
-            cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
+        let num_chars: u32 = cursor.read()?;
+        let glyph_id_array_byte_len = (num_chars as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(glyph_id_array_byte_len);
         cursor.finish(Cmap10Marker {
             glyph_id_array_byte_len,
