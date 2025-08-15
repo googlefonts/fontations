@@ -1,7 +1,7 @@
 mod bench_helper;
-use bench_helper::random_set;
+use bench_helper::{random_set, random_u32_set};
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
-use read_fonts::collections::IntSet;
+use read_fonts::collections::{IntSet, U32Set};
 
 struct SetTest {
     set_size: u32,
@@ -115,6 +115,25 @@ pub fn lookup_ordered_benchmark(c: &mut Criterion) {
     }
 }
 
+pub fn lookup_ordered_u32_benchmark(c: &mut Criterion) {
+    let inputs = set_parameters();
+
+    for input in inputs {
+        let set = random_u32_set(input.set_size, input.max_value());
+        let mut needle = input.max_value() / 2;
+        c.bench_with_input(
+            BenchmarkId::new("BM_SetLookup/ordered_u32", &input),
+            &set,
+            |b, s: &U32Set| {
+                b.iter(|| {
+                    needle += 3;
+                    s.contains(needle % input.max_value())
+                })
+            },
+        );
+    }
+}
+
 pub fn iteration_benchmark(c: &mut Criterion) {
     let inputs = set_parameters();
 
@@ -140,6 +159,7 @@ criterion_group!(
     ordered_extend_benchmark,
     lookup_random_benchmark,
     lookup_ordered_benchmark,
+    lookup_ordered_u32_benchmark,
     iteration_benchmark,
 );
 criterion_main!(benches);
