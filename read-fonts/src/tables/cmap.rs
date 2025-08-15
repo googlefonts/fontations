@@ -7,6 +7,19 @@ use crate::collections::IntSet;
 use crate::{FontRef, TableProvider};
 use std::ops::Range;
 
+// See <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#windows-platform-platform-id--3>
+const WINDOWS_SYMBOL_ENCODING: u16 = 0;
+const WINDOWS_UNICODE_BMP_ENCODING: u16 = 1;
+const WINDOWS_UNICODE_FULL_ENCODING: u16 = 10;
+
+// See <https://docs.microsoft.com/en-us/typography/opentype/spec/name#platform-specific-encoding-and-language-ids-unicode-platform-platform-id--0>
+const UNICODE_1_0_ENCODING: u16 = 0;
+const UNICODE_1_1_ENCODING: u16 = 1;
+const UNICODE_ISO_ENCODING: u16 = 2;
+const UNICODE_2_0_BMP_ENCODING: u16 = 3;
+const UNICODE_2_0_FULL_ENCODING: u16 = 4;
+const UNICODE_FULL_ENCODING: u16 = 6;
+
 /// Result of mapping a codepoint with a variation selector.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum MapVariant {
@@ -18,7 +31,7 @@ pub enum MapVariant {
     Variant(GlyphId),
 }
 
-impl Cmap<'_> {
+impl<'a> Cmap<'a> {
     /// Map a codepoint to a nominal glyph identifier
     ///
     /// This uses the first available subtable that provides a valid mapping.
@@ -46,6 +59,81 @@ impl Cmap<'_> {
         None
     }
 
+    /// Returns the index, encoding record and subtable for the most
+    /// comprehensive mapping available.
+    ///
+    /// Comprehensive means that tables capable of mapping the Unicode full
+    /// repertoire are chosen over those that only support the basic
+    /// multilingual plane. The exception is that symbol mappings are
+    /// preferred above all others
+    /// (see <https://github.com/harfbuzz/harfbuzz/issues/1918>).
+    pub fn best_subtable(&self) -> Option<(u16, EncodingRecord, CmapSubtable<'a>)> {
+        // Follows the HarfBuzz approach
+        // See <https://github.com/harfbuzz/harfbuzz/blob/a9a78e1bff9d4a62429d22277fea4e0e76e9ac7e/src/hb-ot-cmap-table.hh#L1962>
+        let offset_data = self.offset_data();
+        let records = self.encoding_records();
+        let find = |platform_id, encoding_id| {
+            for (index, record) in records.iter().enumerate() {
+                if record.platform_id() != platform_id || record.encoding_id() != encoding_id {
+                    continue;
+                }
+                if let Ok(subtable) = record.subtable(offset_data) {
+                    match subtable {
+                        CmapSubtable::Format0(_)
+                        | CmapSubtable::Format4(_)
+                        | CmapSubtable::Format6(_)
+                        | CmapSubtable::Format10(_)
+                        | CmapSubtable::Format12(_)
+                        | CmapSubtable::Format13(_) => {
+                            return Some((index as u16, *record, subtable))
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            None
+        };
+        // Symbol subtable.
+        // Prefer symbol if available.
+        // https://github.com/harfbuzz/harfbuzz/issues/1918
+        find(PlatformId::Windows, WINDOWS_SYMBOL_ENCODING)
+            // 32-bit subtables:
+            .or_else(|| find(PlatformId::Windows, WINDOWS_UNICODE_FULL_ENCODING))
+            .or_else(|| find(PlatformId::Unicode, UNICODE_FULL_ENCODING))
+            .or_else(|| find(PlatformId::Unicode, UNICODE_2_0_FULL_ENCODING))
+            // 16-bit subtables:
+            .or_else(|| find(PlatformId::Windows, WINDOWS_UNICODE_BMP_ENCODING))
+            .or_else(|| find(PlatformId::Unicode, UNICODE_2_0_BMP_ENCODING))
+            .or_else(|| find(PlatformId::Unicode, UNICODE_ISO_ENCODING))
+            .or_else(|| find(PlatformId::Unicode, UNICODE_1_1_ENCODING))
+            .or_else(|| find(PlatformId::Unicode, UNICODE_1_0_ENCODING))
+            // MacRoman subtable:
+            .or_else(|| find(PlatformId::Macintosh, 0))
+    }
+
+    /// Returns the index and subtable for the first mapping capable of
+    /// handling Unicode variation sequences.
+    ///
+    /// This is always a [format 14](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences)
+    /// subtable.
+    pub fn uvs_subtable(&self) -> Option<(u16, Cmap14<'a>)> {
+        let offset_data = self.offset_data();
+        for (index, record) in self.encoding_records().iter().enumerate() {
+            if let Ok(CmapSubtable::Format14(cmap14)) = record.subtable(offset_data) {
+                return Some((index as u16, cmap14));
+            };
+        }
+        None
+    }
+
+    /// Returns the subtable at the given index.
+    pub fn subtable(&self, index: u16) -> Result<CmapSubtable<'a>, ReadError> {
+        self.encoding_records()
+            .get(index as usize)
+            .ok_or(ReadError::OutOfBounds)
+            .and_then(|encoding| encoding.subtable(self.offset_data()))
+    }
+
     #[cfg(feature = "std")]
     pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
         for record in self.encoding_records() {
@@ -61,6 +149,16 @@ impl Cmap<'_> {
                 }
             }
         }
+    }
+}
+
+impl EncodingRecord {
+    pub fn is_symbol(&self) -> bool {
+        self.platform_id() == PlatformId::Windows && self.encoding_id() == WINDOWS_SYMBOL_ENCODING
+    }
+
+    pub fn is_mac_roman(&self) -> bool {
+        self.platform_id() == PlatformId::Macintosh && self.encoding_id() == 0
     }
 }
 
@@ -1195,5 +1293,47 @@ mod tests {
             252, 218, 129, 247, 203, 159, 109, 74, 7, 58,
             237, 199, 88, 205, 148, 3]
         }
+    }
+
+    #[test]
+    fn best_subtable_full() {
+        let font = FontRef::new(font_test_data::VORG).unwrap();
+        let cmap = font.cmap().unwrap();
+        let (index, record, _) = cmap.best_subtable().unwrap();
+        assert_eq!(
+            (index, record.platform_id(), record.encoding_id()),
+            (3, PlatformId::Windows, WINDOWS_UNICODE_FULL_ENCODING)
+        );
+    }
+
+    #[test]
+    fn best_subtable_bmp() {
+        let font = FontRef::new(font_test_data::CMAP12_FONT1).unwrap();
+        let cmap = font.cmap().unwrap();
+        let (index, record, _) = cmap.best_subtable().unwrap();
+        assert_eq!(
+            (index, record.platform_id(), record.encoding_id()),
+            (0, PlatformId::Windows, WINDOWS_UNICODE_BMP_ENCODING)
+        );
+    }
+
+    #[test]
+    fn best_subtable_symbol() {
+        let font = FontRef::new(font_test_data::CMAP4_SYMBOL_PUA).unwrap();
+        let cmap = font.cmap().unwrap();
+        let (index, record, _) = cmap.best_subtable().unwrap();
+        assert!(record.is_symbol());
+        assert_eq!(
+            (index, record.platform_id(), record.encoding_id()),
+            (0, PlatformId::Windows, WINDOWS_SYMBOL_ENCODING)
+        );
+    }
+
+    #[test]
+    fn uvs_subtable() {
+        let font = FontRef::new(font_test_data::CMAP14_FONT1).unwrap();
+        let cmap = font.cmap().unwrap();
+        let (index, _) = cmap.uvs_subtable().unwrap();
+        assert_eq!(index, 0);
     }
 }
