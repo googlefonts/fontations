@@ -86,12 +86,11 @@ impl Display for DrawErrorWrapper {
 fn do_glyf_things(outline_request: OutlineRequest, font: &FontRef) -> Result<(), Box<dyn Error>> {
     let outlines = font.outline_glyphs();
     let size = outline_request.size;
-    let mut buf: Vec<u8> = Vec::with_capacity(
-        outline_request
-            .with_memory
-            .then_some(outline_request.memory_size)
-            .unwrap_or_default() as usize,
-    );
+    let mut buf: Vec<u8> = Vec::with_capacity(if outline_request.with_memory {
+        outline_request.memory_size
+    } else {
+        Default::default()
+    } as usize);
     let hinting_instance = if outline_request.hinted {
         Some(
             HintingInstance::new(

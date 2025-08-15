@@ -495,7 +495,7 @@ fn iup_contour_optimize(
         // applying the solution at the end, so we must rotate the solution as well
         // otherwise indices don't match as in https://github.com/googlefonts/fontations/issues/571
         // Cf. https://github.com/fonttools/fonttools/blob/dd783ff/Lib/fontTools/varLib/iup.py#L435-L437
-        encode.iter().map(|idx| ((idx + n - mid) % n)).collect()
+        encode.iter().map(|idx| (idx + n - mid) % n).collect()
     } else {
         // Repeat the contour an extra time, solve the new case, then look for solutions of the
         // circular n-length problem in the solution for new linear case.  I cannot prove that

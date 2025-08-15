@@ -317,7 +317,7 @@ impl LigatureSubBuilder {
         // skip duplicates
         if !entry
             .iter()
-            .any(|existing| (existing.0 == rest && existing.1 == replacement))
+            .any(|existing| existing.0 == rest && existing.1 == replacement)
         {
             entry.push((rest.to_owned(), replacement))
         }

@@ -182,7 +182,7 @@ impl SmallEvenInt {
             "Constructed SmallEvenInt with value > MAX_VALUE."
         );
         assert!(
-            value % 2 == 0,
+            value.is_multiple_of(2),
             "Constructed SmallEvenInt with an odd value."
         );
         SmallEvenInt(value)
@@ -191,7 +191,7 @@ impl SmallEvenInt {
 
 impl SetMember for SmallEvenInt {
     fn create(val: u32) -> Option<SmallEvenInt> {
-        if val > Self::MAX_VALUE || val % 2 != 0 {
+        if val > Self::MAX_VALUE || !val.is_multiple_of(2) {
             return None;
         }
         Some(SmallEvenInt::new(val))
@@ -216,7 +216,7 @@ impl Domain for SmallEvenInt {
     }
 
     fn contains(value: u32) -> bool {
-        (value % 2) == 0 && value <= Self::MAX_VALUE
+        value.is_multiple_of(2) && value <= Self::MAX_VALUE
     }
 
     fn is_continuous() -> bool {

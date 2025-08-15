@@ -166,7 +166,7 @@ impl VariationStoreBuilder {
         VariationRegionList::new(self.axis_count, new_regions)
     }
 
-    fn encoder(&self) -> Encoder {
+    fn encoder(&self) -> Encoder<'_> {
         Encoder::new(&self.delta_sets, self.all_regions.len() as u16)
     }
 

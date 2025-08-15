@@ -94,7 +94,7 @@ impl PackedDeltas {
         })
     }
 
-    fn iter_runs(&self) -> impl Iterator<Item = PackedDeltaRun> {
+    fn iter_runs(&self) -> impl Iterator<Item = PackedDeltaRun<'_>> {
         // 6 bits for length per https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas
         const MAX_POINTS_PER_RUN: usize = 64;
 
@@ -279,7 +279,7 @@ impl PackedPointNumbers {
         }
     }
 
-    fn iter_runs(&self) -> impl Iterator<Item = PackedPointRun> {
+    fn iter_runs(&self) -> impl Iterator<Item = PackedPointRun<'_>> {
         const U8_MAX: u16 = u8::MAX as u16;
         const MAX_POINTS_PER_RUN: usize = 128;
 

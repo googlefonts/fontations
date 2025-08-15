@@ -474,7 +474,7 @@ pub(crate) enum Format1Rule<'a> {
 }
 
 impl ContextFormat1<'_> {
-    pub(crate) fn coverage(&self) -> Result<CoverageTable, ReadError> {
+    pub(crate) fn coverage(&self) -> Result<CoverageTable<'_>, ReadError> {
         match self {
             ContextFormat1::Plain(table) => table.coverage(),
             ContextFormat1::Chain(table) => table.coverage(),
@@ -483,7 +483,7 @@ impl ContextFormat1<'_> {
 
     pub(crate) fn rule_sets(
         &self,
-    ) -> impl Iterator<Item = Option<Result<Format1RuleSet, ReadError>>> {
+    ) -> impl Iterator<Item = Option<Result<Format1RuleSet<'_>, ReadError>>> {
         let (left, right) = match self {
             ContextFormat1::Plain(table) => (
                 Some(
@@ -511,7 +511,7 @@ impl ContextFormat1<'_> {
 }
 
 impl Format1RuleSet<'_> {
-    pub(crate) fn rules(&self) -> impl Iterator<Item = Result<Format1Rule, ReadError>> {
+    pub(crate) fn rules(&self) -> impl Iterator<Item = Result<Format1Rule<'_>, ReadError>> {
         let (left, right) = match self {
             Self::Plain(table) => (
                 Some(
@@ -619,7 +619,7 @@ impl ContextFormat2<'_> {
 
     pub(crate) fn rule_sets(
         &self,
-    ) -> impl Iterator<Item = Option<Result<Format2RuleSet, ReadError>>> {
+    ) -> impl Iterator<Item = Option<Result<Format2RuleSet<'_>, ReadError>>> {
         let (left, right) = match self {
             ContextFormat2::Plain(table) => (
                 Some(
@@ -647,7 +647,7 @@ impl ContextFormat2<'_> {
 }
 
 impl Format2RuleSet<'_> {
-    pub(crate) fn rules(&self) -> impl Iterator<Item = Result<Format2Rule, ReadError>> {
+    pub(crate) fn rules(&self) -> impl Iterator<Item = Result<Format2Rule<'_>, ReadError>> {
         let (left, right) = match self {
             Format2RuleSet::Plain(table) => (
                 Some(
@@ -739,7 +739,7 @@ pub(crate) enum ContextFormat3<'a> {
 }
 
 impl ContextFormat3<'_> {
-    pub(crate) fn coverages(&self) -> ArrayOfOffsets<CoverageTable> {
+    pub(crate) fn coverages(&self) -> ArrayOfOffsets<'_, CoverageTable<'_>> {
         match self {
             ContextFormat3::Plain(table) => table.coverages(),
             ContextFormat3::Chain(table) => table.input_coverages(),

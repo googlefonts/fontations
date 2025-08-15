@@ -1237,7 +1237,7 @@ impl Field {
         quote!( #name : #rhs )
     }
 
-    fn name_for_compile(&self) -> Cow<syn::Ident> {
+    fn name_for_compile(&self) -> Cow<'_, syn::Ident> {
         self.offset_getter_name()
             .map(Cow::Owned)
             .unwrap_or(Cow::Borrowed(&self.name))
@@ -1546,7 +1546,7 @@ impl FieldType {
 }
 
 // convert thing_offset -> thing, and thing_offsets -> things
-pub(crate) fn remove_offset_from_field_name(name: &str) -> Cow<str> {
+pub(crate) fn remove_offset_from_field_name(name: &str) -> Cow<'_, str> {
     if !(name.ends_with("_offset") || name.ends_with("_offsets")) {
         return Cow::Borrowed(name);
     }

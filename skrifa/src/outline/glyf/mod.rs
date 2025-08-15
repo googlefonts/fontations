@@ -268,7 +268,7 @@ impl Outlines<'_> {
 }
 
 trait Scaler {
-    fn outlines(&self) -> &Outlines;
+    fn outlines(&self) -> &Outlines<'_>;
     fn setup_phantom_points(
         &mut self,
         bounds: [i16; 4],
@@ -512,7 +512,7 @@ impl Scaler for FreeTypeScaler<'_> {
         self.phantom[3].y = self.phantom[2].y - F26Dot6::from_bits(vadvance);
     }
 
-    fn outlines(&self) -> &Outlines {
+    fn outlines(&self) -> &Outlines<'_> {
         self.outlines
     }
 
@@ -1033,7 +1033,7 @@ impl Scaler for HarfBuzzScaler<'_> {
         self.phantom[3].y = self.phantom[2].y - vadvance as f32;
     }
 
-    fn outlines(&self) -> &Outlines {
+    fn outlines(&self) -> &Outlines<'_> {
         self.outlines
     }
 

@@ -542,7 +542,7 @@ impl SubsetTable<'_> for ClipBoxFormat2<'_> {
     }
 }
 
-fn create_deltaset_index_map_subset_plan(plan: &Plan) -> Option<DeltaSetIndexMapSerializePlan> {
+fn create_deltaset_index_map_subset_plan(plan: &Plan) -> Option<DeltaSetIndexMapSerializePlan<'_>> {
     let deltaset_idx_varidx_map = &plan.colr_new_deltaset_idx_varidx_map;
     let count = deltaset_idx_varidx_map.len();
     if count == 0 {

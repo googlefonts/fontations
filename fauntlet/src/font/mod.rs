@@ -143,7 +143,7 @@ impl Font {
     pub fn instantiate(
         &mut self,
         options: &InstanceOptions,
-    ) -> Option<(FreeTypeInstance, SkrifaInstance)> {
+    ) -> Option<(FreeTypeInstance, SkrifaInstance<'_>)> {
         let ft_instance = FreeTypeInstance::new(&self.ft_library, &self.data, options)?;
         let skrifa_instance = SkrifaInstance::new(&self.data, options)?;
         Some((ft_instance, skrifa_instance))

@@ -61,7 +61,7 @@ impl<const INLINE_CAP: usize> UnscaledOutlineBuf<INLINE_CAP> {
         self.0.clear();
     }
 
-    pub fn as_ref(&self) -> UnscaledOutlineRef {
+    pub fn as_ref(&self) -> UnscaledOutlineRef<'_> {
         UnscaledOutlineRef {
             points: self.0.as_slice(),
         }

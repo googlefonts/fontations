@@ -65,9 +65,11 @@ pub(crate) fn to_path<C: PointCoord>(
     pen: &mut impl OutlinePen,
 ) -> Result<(), ToPathError> {
     for contour_ix in 0..contours.len() {
-        let start_ix = (contour_ix > 0)
-            .then(|| contours[contour_ix - 1] as usize + 1)
-            .unwrap_or_default();
+        let start_ix = if contour_ix > 0 {
+            contours[contour_ix - 1] as usize + 1
+        } else {
+            Default::default()
+        };
         let end_ix = contours[contour_ix] as usize;
         if end_ix < start_ix || end_ix >= points.len() {
             return Err(ToPathError::ContourOrder(contour_ix));

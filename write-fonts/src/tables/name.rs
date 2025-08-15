@@ -62,7 +62,7 @@ impl NameRecord {
         self.string.as_str()
     }
 
-    fn compile_name_string(&self) -> NameStringAndLenWriter {
+    fn compile_name_string(&self) -> NameStringAndLenWriter<'_> {
         NameStringAndLenWriter(NameStringWriter {
             encoding: Encoding::new(self.platform_id, self.encoding_id),
             string: self.string(),
@@ -96,7 +96,7 @@ impl LangTagRecord {
         self.lang_tag.as_str()
     }
 
-    fn compile_name_string(&self) -> NameStringAndLenWriter {
+    fn compile_name_string(&self) -> NameStringAndLenWriter<'_> {
         NameStringAndLenWriter(NameStringWriter {
             encoding: Encoding::Utf16Be,
             string: self.lang_tag(),
