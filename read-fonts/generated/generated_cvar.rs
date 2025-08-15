@@ -92,7 +92,7 @@ impl<'a> Cvar<'a> {
     }
 
     /// Array of tuple variation headers.
-    pub fn tuple_variation_headers(&self) -> VarLenArray<'a, TupleVariationHeader<'_>> {
+    pub fn tuple_variation_headers(&self) -> VarLenArray<'a, TupleVariationHeader> {
         let range = self.shape.tuple_variation_headers_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
     }
