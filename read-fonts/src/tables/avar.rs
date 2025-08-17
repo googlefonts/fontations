@@ -5,31 +5,124 @@ use super::variations::{DeltaSetIndexMap, ItemVariationStore};
 include!("../../generated/generated_avar.rs");
 
 impl SegmentMaps<'_> {
-    /// Applies the piecewise linear mapping to the specified coordinate.
+    /// Applies the piecewise linear mapping to the specified coordinate,
+    /// matching HarfBuzz's extended avar behavior.
     pub fn apply(&self, coord: Fixed) -> Fixed {
-        let mut prev = AxisValueMap {
-            from_coordinate: Default::default(),
-            to_coordinate: Default::default(),
-        };
-        for (i, axis_value_map) in self.axis_value_maps().iter().enumerate() {
-            use core::cmp::Ordering::*;
-            let from = axis_value_map.from_coordinate().to_fixed();
-            match from.cmp(&coord) {
-                Equal => return axis_value_map.to_coordinate().to_fixed(),
-                Greater => {
-                    if i == 0 {
-                        return coord;
-                    }
-                    let to = axis_value_map.to_coordinate().to_fixed();
-                    let prev_from = prev.from_coordinate().to_fixed();
-                    let prev_to = prev.to_coordinate().to_fixed();
-                    return prev_to + (to - prev_to).mul_div(coord - prev_from, from - prev_from);
-                }
-                _ => {}
-            }
-            prev = *axis_value_map;
+        let maps = self.axis_value_maps();
+        let len = maps.len();
+
+        // Helpers
+        #[inline]
+        fn from(m: &AxisValueMap) -> Fixed {
+            m.from_coordinate().to_fixed()
         }
-        coord
+        #[inline]
+        fn to_(m: &AxisValueMap) -> Fixed {
+            m.to_coordinate().to_fixed()
+        }
+
+        // Special-cases (error-recovery / robustness), as in HB:
+        if len < 2 {
+            return if len == 0 {
+                coord
+            } else {
+                // len == 1: shift by the single mapping delta
+                coord - from(&maps[0]) + to_(&maps[0])
+            };
+        }
+
+        // Now we have at least two mappings.
+        // Trim "duplicate" -1/+1 caps in the wild (CoreText quirks), like HB:
+        let neg1 = Fixed::from_i32(-1);
+        let pos1 = Fixed::from_i32(1);
+
+        let mut start = 0usize;
+        let mut end = len;
+
+        if from(&maps[start]) == neg1 && to_(&maps[start]) == neg1 && from(&maps[start + 1]) == neg1
+        {
+            start += 1;
+        }
+
+        if from(&maps[end - 1]) == pos1
+            && to_(&maps[end - 1]) == pos1
+            && from(&maps[end - 2]) == pos1
+        {
+            end -= 1;
+        }
+
+        // Look for exact match first; handle multiple identical "from" entries.
+        let mut i = start;
+        while i < end {
+            if coord == from(&maps[i]) {
+                break;
+            }
+            i += 1;
+        }
+
+        if i < end {
+            // Found at least one exact match; check if there are consecutive equals.
+            let mut j = i;
+            while j + 1 < end && coord == from(&maps[j + 1]) {
+                j += 1;
+            }
+
+            // [i, j] inclusive are exact matches.
+
+            // Spec-compliant case: exactly one -> return its 'to'.
+            if i == j {
+                return to_(&maps[i]);
+            }
+
+            // Exactly three -> return the middle one.
+            if i + 2 == j {
+                return to_(&maps[i + 1]);
+            }
+
+            // Otherwise, ignore the middle ones.
+            // Return the mapping closer to 0 on the *from* side, following HB:
+            if coord < Fixed::ZERO {
+                return to_(&maps[j]);
+            }
+            if coord > Fixed::ZERO {
+                return to_(&maps[i]);
+            }
+
+            // coord == 0: choose the one with smaller |to|.
+            let ti = to_(&maps[i]);
+            let tj = to_(&maps[j]);
+            return if ti.abs() <= tj.abs() { ti } else { tj };
+        }
+
+        // Not an exact match: find the segment for interpolation.
+        let mut k = start;
+        while k < end {
+            if coord < from(&maps[k]) {
+                break;
+            }
+            k += 1;
+        }
+
+        if k == 0 {
+            // Before all segments: shift by first mapping delta
+            return coord - from(&maps[0]) + to_(&maps[0]);
+        }
+        if k == end {
+            // After all segments: shift by last mapping delta
+            return coord - from(&maps[end - 1]) + to_(&maps[end - 1]);
+        }
+
+        // Interpolate between maps[k-1] and maps[k].
+        let before = &maps[k - 1];
+        let after = &maps[k];
+
+        let bf = from(before);
+        let bt = to_(before);
+        let af = from(after);
+        let at = to_(after);
+
+        let denom = af - bf; // guaranteed non-zero by construction
+        bt + (at - bt).mul_div(coord - bf, denom)
     }
 }
 
