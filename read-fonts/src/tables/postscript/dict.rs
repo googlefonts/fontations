@@ -850,7 +850,7 @@ impl BcdComponents {
                 (Fixed::from_bits(number) / Fixed::from_bits(b)).to_bits()
             }
         } else {
-            number = number.wrapping_mul(-fraction_len);
+            number = number.wrapping_mul(BCD_POWER_TENS[-fraction_len as usize]);
             if number > BCD_INTEGER_LIMIT {
                 return BCD_OVERFLOW;
             } else {
@@ -1147,6 +1147,19 @@ mod tests {
                 .unwrap()
                 .dynamically_scaled_value(),
             (Fixed::from_f64(375.0), -4)
+        );
+    }
+
+    /// See <https://github.com/googlefonts/fontations/issues/1617>
+    #[test]
+    fn blue_scale_fraction_length_of_0() {
+        // 0.0037
+        let bytes = FontData::new(&[0x37, 0xC3, 0xFF]);
+        assert_eq!(
+            BcdComponents::parse(&mut bytes.cursor())
+                .unwrap()
+                .value(true),
+            Fixed::from_f64(0.0370025634765625)
         );
     }
 
