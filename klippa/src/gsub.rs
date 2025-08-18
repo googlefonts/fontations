@@ -1,4 +1,5 @@
 //! impl subset() for GSUB table
+mod multiple_subst;
 mod single_subst;
 
 use crate::{
