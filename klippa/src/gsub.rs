@@ -1,6 +1,7 @@
 //! impl subset() for GSUB table
 mod multiple_subst;
 mod single_subst;
+mod reverse_chain_single_subst;
 
 use crate::{
     collect_features_with_retained_subs, find_duplicate_features, prune_features, remap_indices,
