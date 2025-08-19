@@ -62,7 +62,10 @@ impl<'a> Subtable<'a> {
 
     /// Returns an enum representing the actual subtable data.
     pub fn kind(&self) -> Result<SubtableKind<'a>, ReadError> {
-        SubtableKind::read_with_args(FontData::new(self.data()), &self.coverage())
+        SubtableKind::read_with_args(
+            FontData::new(self.data()),
+            &(self.coverage(), self.tuple_count()),
+        )
     }
 }
 
@@ -77,13 +80,14 @@ pub enum SubtableKind<'a> {
 }
 
 impl ReadArgs for SubtableKind<'_> {
-    type Args = u32;
+    type Args = (u32, u32);
 }
 
 impl<'a> FontReadWithArgs<'a> for SubtableKind<'a> {
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
         // Format is low byte of coverage
-        let format = *args & 0xFF;
+        let format = args.0 & 0xFF;
+        let tuple_count = args.1;
         match format {
             0 => Ok(Self::Format0(Subtable0::read(data)?)),
             1 => Ok(Self::Format1(Subtable1::read(data)?)),
@@ -91,7 +95,10 @@ impl<'a> FontReadWithArgs<'a> for SubtableKind<'a> {
             // No format 3
             4 => Ok(Self::Format4(Subtable4::read(data)?)),
             // No format 5
-            6 => Ok(Self::Format6(Subtable6::read(data)?)),
+            6 => Ok(Self::Format6(Subtable6::read_with_args(
+                data,
+                &tuple_count,
+            )?)),
             _ => Err(ReadError::InvalidFormat(format as _)),
         }
     }
@@ -245,12 +252,27 @@ pub enum Subtable4Actions<'a> {
 /// The type 6 `kerx` subtable.
 #[derive(Clone)]
 pub enum Subtable6<'a> {
-    ShortValues(LookupU16<'a>, LookupU16<'a>, &'a [BigEndian<i16>]),
-    LongValues(LookupU32<'a>, LookupU32<'a>, &'a [BigEndian<i32>]),
+    ShortValues(
+        LookupU16<'a>,
+        LookupU16<'a>,
+        &'a [BigEndian<i16>],
+        Option<&'a [BigEndian<i16>]>,
+    ),
+    LongValues(
+        LookupU32<'a>,
+        LookupU32<'a>,
+        &'a [BigEndian<i32>],
+        Option<&'a [BigEndian<i16>]>,
+    ),
 }
 
-impl<'a> FontRead<'a> for Subtable6<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+impl ReadArgs for Subtable6<'_> {
+    type Args = u32;
+}
+
+impl<'a> FontReadWithArgs<'a> for Subtable6<'a> {
+    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
+        let tuple_count = *args;
         let mut cursor = data.cursor();
         let flags = cursor.read::<u32>()?;
         // Skip rowCount and columnCount
@@ -265,6 +287,14 @@ impl<'a> FontRead<'a> for Subtable6<'a> {
         let kerning_array_offset = (cursor.read::<u32>()? as usize)
             .checked_sub(Subtable::HEADER_LEN)
             .ok_or(ReadError::OutOfBounds)?;
+        let kerning_vector = if tuple_count != 0 {
+            let kerning_vector_offset = (cursor.read::<u32>()? as usize)
+                .checked_sub(Subtable::HEADER_LEN)
+                .ok_or(ReadError::OutOfBounds)?;
+            Some(safe_read_array_to_end(&data, kerning_vector_offset)?)
+        } else {
+            None
+        };
         let row_data = data
             .slice(row_index_table_offset..)
             .ok_or(ReadError::OutOfBounds)?;
@@ -275,12 +305,22 @@ impl<'a> FontRead<'a> for Subtable6<'a> {
             let rows = LookupU16::read(row_data)?;
             let columns = LookupU16::read(column_data)?;
             let kerning_array = safe_read_array_to_end(&data, kerning_array_offset)?;
-            Ok(Self::ShortValues(rows, columns, kerning_array))
+            Ok(Self::ShortValues(
+                rows,
+                columns,
+                kerning_array,
+                kerning_vector,
+            ))
         } else {
             let rows = LookupU32::read(row_data)?;
             let columns = LookupU32::read(column_data)?;
             let kerning_array = safe_read_array_to_end(&data, kerning_array_offset)?;
-            Ok(Self::LongValues(rows, columns, kerning_array))
+            Ok(Self::LongValues(
+                rows,
+                columns,
+                kerning_array,
+                kerning_vector,
+            ))
         }
     }
 }
@@ -290,18 +330,29 @@ impl Subtable6<'_> {
     pub fn kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         let left: u16 = left.to_u32().try_into().ok()?;
         let right: u16 = right.to_u32().try_into().ok()?;
+        fn tuple_kern(value: i32, vector: &Option<&[BigEndian<i16>]>) -> Option<i32> {
+            if let Some(vector) = vector {
+                vector
+                    .get(value as usize >> 1)
+                    .map(|value| value.get() as i32)
+            } else {
+                Some(value)
+            }
+        }
         match self {
-            Self::ShortValues(rows, columns, array) => {
+            Self::ShortValues(rows, columns, array, vector) => {
                 let left_idx = rows.value(left).unwrap_or_default();
                 let right_idx = columns.value(right).unwrap_or_default();
                 let idx = left_idx as usize + right_idx as usize;
-                array.get(idx).map(|value| value.get() as i32)
+                let value = array.get(idx).map(|value| value.get() as i32)?;
+                tuple_kern(value, vector)
             }
-            Self::LongValues(rows, columns, array) => {
+            Self::LongValues(rows, columns, array, vector) => {
                 let left_idx = rows.value(left).unwrap_or_default();
                 let right_idx = columns.value(right).unwrap_or_default();
                 let idx = (left_idx as usize).checked_add(right_idx as usize)?;
-                array.get(idx).map(|value| value.get())
+                let value = array.get(idx).map(|value| value.get())?;
+                tuple_kern(value, vector)
             }
         }
     }
@@ -445,7 +496,7 @@ mod tests {
     #[test]
     fn parse_subtable6_short() {
         let data = FormatTwoSix::SixShort.build_subtable();
-        let subtable = Subtable6::read(FontData::new(&data)).unwrap();
+        let subtable = Subtable6::read_with_args(FontData::new(&data), &0).unwrap();
         let Subtable6::ShortValues(..) = &subtable else {
             panic!("expected short values in subtable 6");
         };
@@ -455,7 +506,17 @@ mod tests {
     #[test]
     fn parse_subtable6_long() {
         let data = FormatTwoSix::SixLong.build_subtable();
-        let subtable = Subtable6::read(FontData::new(&data)).unwrap();
+        let subtable = Subtable6::read_with_args(FontData::new(&data), &0).unwrap();
+        let Subtable6::LongValues(..) = &subtable else {
+            panic!("expected long values in subtable 6");
+        };
+        check_subtable6(subtable);
+    }
+
+    #[test]
+    fn parse_subtable6_long_vector() {
+        let data = FormatTwoSix::SixLongVector.build_subtable();
+        let subtable = Subtable6::read_with_args(FontData::new(&data), &1).unwrap();
         let Subtable6::LongValues(..) = &subtable else {
             panic!("expected long values in subtable 6");
         };
@@ -581,15 +642,20 @@ mod tests {
         Two,
         SixShort,
         SixLong,
+        SixLongVector,
     }
 
     impl FormatTwoSix {
         fn is_long(&self) -> bool {
-            matches!(self, Self::SixLong)
+            matches!(self, Self::SixLong | Self::SixLongVector)
         }
 
         fn is_six(&self) -> bool {
             !matches!(self, Self::Two)
+        }
+
+        fn has_kerning_vector(&self) -> bool {
+            matches!(self, Self::SixLongVector)
         }
 
         // Common helper for building format 2/6 subtables
@@ -598,6 +664,7 @@ mod tests {
             let row_count = 3u32;
             let column_count = 3u32;
             let is_long = self.is_long();
+            let has_kerning_vector = self.has_kerning_vector();
             if self.is_six() {
                 // flags, rowCount, columnCount
                 buf = buf
@@ -629,6 +696,10 @@ mod tests {
             let kerning_array = [0i32, 10, 20, 30, -10, -20, 8, 4, -2];
             let mut offset =
                 Subtable::HEADER_LEN + u32::RAW_BYTE_LEN * if self.is_six() { 5 } else { 4 };
+            if has_kerning_vector {
+                // optional offset for kerning vector
+                offset += 4;
+            }
             // row table offset
             buf = buf.push(offset as u32);
             offset += row_table.len();
@@ -637,13 +708,29 @@ mod tests {
             offset += column_table.len();
             // kerning array offset
             buf = buf.push(offset as u32);
-            buf = buf.extend(row_table);
-            buf = buf.extend(column_table);
-            if is_long {
-                buf = buf.extend(kerning_array);
-            } else {
+            if has_kerning_vector {
+                // 9 32-bit offsets
+                offset += 9 * 4;
+                // kerning vector offset
+                buf = buf.push(offset as u32);
+                buf = buf.extend(row_table);
+                buf = buf.extend(column_table);
+                // With a kerning vector, the kerning array becomes an offset array
+                let offsets: [u32; 9] = core::array::from_fn(|idx| idx as u32 * 2);
+                buf = buf.extend(offsets);
+                // And the value array is always 16-bit
                 for value in &kerning_array {
                     buf = buf.push(*value as i16);
+                }
+            } else {
+                buf = buf.extend(row_table);
+                buf = buf.extend(column_table);
+                if is_long {
+                    buf = buf.extend(kerning_array);
+                } else {
+                    for value in &kerning_array {
+                        buf = buf.push(*value as i16);
+                    }
                 }
             }
             buf.to_vec()
