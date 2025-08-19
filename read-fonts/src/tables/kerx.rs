@@ -332,7 +332,9 @@ impl Subtable6<'_> {
         let right: u16 = right.to_u32().try_into().ok()?;
         fn tuple_kern(value: i32, vector: &Option<&[BigEndian<i16>]>) -> Option<i32> {
             if let Some(vector) = vector {
-                vector.get(value as usize).map(|value| value.get() as i32)
+                vector
+                    .get(value as usize >> 1)
+                    .map(|value| value.get() as i32)
             } else {
                 Some(value)
             }
@@ -511,6 +513,16 @@ mod tests {
         check_subtable6(subtable);
     }
 
+    #[test]
+    fn parse_subtable6_long_vector() {
+        let data = FormatTwoSix::SixLongVector.build_subtable();
+        let subtable = Subtable6::read_with_args(FontData::new(&data), &1).unwrap();
+        let Subtable6::LongValues(..) = &subtable else {
+            panic!("expected long values in subtable 6");
+        };
+        check_subtable6(subtable);
+    }
+
     fn check_subtable6(subtable: Subtable6) {
         let mut values = vec![];
         for left in 0u32..4 {
@@ -630,15 +642,20 @@ mod tests {
         Two,
         SixShort,
         SixLong,
+        SixLongVector,
     }
 
     impl FormatTwoSix {
         fn is_long(&self) -> bool {
-            matches!(self, Self::SixLong)
+            matches!(self, Self::SixLong | Self::SixLongVector)
         }
 
         fn is_six(&self) -> bool {
             !matches!(self, Self::Two)
+        }
+
+        fn has_kerning_vector(&self) -> bool {
+            matches!(self, Self::SixLongVector)
         }
 
         // Common helper for building format 2/6 subtables
@@ -647,6 +664,7 @@ mod tests {
             let row_count = 3u32;
             let column_count = 3u32;
             let is_long = self.is_long();
+            let has_kerning_vector = self.has_kerning_vector();
             if self.is_six() {
                 // flags, rowCount, columnCount
                 buf = buf
@@ -678,6 +696,10 @@ mod tests {
             let kerning_array = [0i32, 10, 20, 30, -10, -20, 8, 4, -2];
             let mut offset =
                 Subtable::HEADER_LEN + u32::RAW_BYTE_LEN * if self.is_six() { 5 } else { 4 };
+            if is_long {
+                // optional offset for kerning vector
+                offset += 4;
+            }
             // row table offset
             buf = buf.push(offset as u32);
             offset += row_table.len();
@@ -686,13 +708,29 @@ mod tests {
             offset += column_table.len();
             // kerning array offset
             buf = buf.push(offset as u32);
-            buf = buf.extend(row_table);
-            buf = buf.extend(column_table);
-            if is_long {
-                buf = buf.extend(kerning_array);
-            } else {
+            if has_kerning_vector {
+                // 9 32-bit offsets
+                offset += 9 * 4;
+                // kerning vector offset
+                buf = buf.push(offset as u32);
+                buf = buf.extend(row_table);
+                buf = buf.extend(column_table);
+                // With a kerning vector, the kerning array becomes an offset array
+                let offsets: [u32; 9] = core::array::from_fn(|idx| idx as u32 * 2);
+                buf = buf.extend(offsets);
+                // And the value array is always 16-bit
                 for value in &kerning_array {
                     buf = buf.push(*value as i16);
+                }
+            } else {
+                buf = buf.extend(row_table);
+                buf = buf.extend(column_table);
+                if is_long {
+                    buf = buf.extend(kerning_array);
+                } else {
+                    for value in &kerning_array {
+                        buf = buf.push(*value as i16);
+                    }
                 }
             }
             buf.to_vec()
