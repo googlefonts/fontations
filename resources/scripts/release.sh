@@ -15,6 +15,21 @@ function usage() {
   echo "Typically you should be running this after bump-version.sh"
 }
 
+handle_publish_interrupt() {
+    echo
+    echo "Publish interrupted by CTRL-C."
+    echo -n "Do you want to continue with tagging? [auto-continue in 5 seconds] (Y/n): "
+    if read -t 5 -r response; then
+        if [[ "$response" =~ ^[Nn]$ ]]; then
+            echo "Stopping release process."
+            exit 130  # Exit with SIGINT code
+        fi
+    else
+        # No input means 'Yes'; add newline after timeout
+        echo
+    fi
+}
+
 # What is it you want us to do?
 if [ $# -gt 1 ]; then
   die_with_usage "Specify 0 - meaning all - or 1 packages"
@@ -34,27 +49,19 @@ cargo release publish ${crate_specifier}
 echo "Doing the thing; ${COLOR_RED}PRESS CTRL+C if anything looks suspicious${TEXT_RESET}"
 
 echo "Publish to crates.io"
-# Temporarily disable errexit so we can catch a CTRL-C at the end of `publish`
-# from the impatient who doesn't want to wait for index changes to propagate
-set +e
-cargo release publish -x ${crate_specifier}
-publish_result=$?
-set -e  # Re-enable errexit
 
-if [ $publish_result -eq 130 ]; then  # exit code for SIGINT (CTRL-C)
-    echo "Publish interrupted by CTRL-C."
-    echo -n "Do you want to continue with tagging? [auto-continue in 5 seconds] (Y/n): "
-    if read -t 5 -r response; then
-        if [[ "$response" =~ ^[Nn]$ ]]; then
-            echo "Stopping release process"
-            exit $publish_result
-        fi
-    else
-        echo  # newline after timeout
+# Set up a trap to handle CTRL-C during cargo release publish
+trap 'handle_publish_interrupt' SIGINT
+cargo release publish -x ${crate_specifier} || {
+    publish_result=$?
+    # If we were interrupted, the trap handler has already run.
+    # If the handler returned, it means we should continue.
+    # For any other error, we should exit.
+    if [[ $publish_result -ne 130 ]]; then
+        exit $publish_result
     fi
-elif [ $publish_result -ne 0 ]; then
-    exit $publish_result
-fi
+}
+trap - SIGINT  # Remove trap
 
 echo "Generate tags"
 cargo release tag -x ${crate_specifier}  # this prompts y/N
