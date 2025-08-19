@@ -696,7 +696,7 @@ mod tests {
             let kerning_array = [0i32, 10, 20, 30, -10, -20, 8, 4, -2];
             let mut offset =
                 Subtable::HEADER_LEN + u32::RAW_BYTE_LEN * if self.is_six() { 5 } else { 4 };
-            if is_long {
+            if has_kerning_vector {
                 // optional offset for kerning vector
                 offset += 4;
             }
