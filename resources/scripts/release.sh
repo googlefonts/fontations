@@ -52,7 +52,15 @@ echo "Publish to crates.io"
 
 # Set up a trap to handle CTRL-C during cargo release publish
 trap 'handle_publish_interrupt' SIGINT
-cargo release publish -x ${crate_specifier}
+cargo release publish -x ${crate_specifier} || {
+    publish_result=$?
+    # If we were interrupted, the trap handler has already run.
+    # If the handler returned, it means we should continue.
+    # For any other error, we should exit.
+    if [[ $publish_result -ne 130 ]]; then
+        exit $publish_result
+    fi
+}
 trap - SIGINT  # Remove trap
 
 echo "Generate tags"
