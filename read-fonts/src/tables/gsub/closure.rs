@@ -829,7 +829,8 @@ impl GlyphClosure for ContextFormat3<'_> {
             let active_glyphs = if !seen_sequence_indices.insert(seq_idx) {
                 ctx.glyphs().clone()
             } else if seq_idx == 0 {
-                ctx.parent_active_glyphs().clone()
+                let cov = input_coverages.get(0)?;
+                cov.intersect_set(ctx.parent_active_glyphs())
             } else {
                 let cov = input_coverages.get(seq_idx as usize)?;
                 cov.intersect_set(ctx.glyphs())
@@ -1197,7 +1198,20 @@ mod tests {
         assert_closure_result!(glyph_map, nop, &["c", "z"]);
 
         let full = compute_closure(&gsub, &glyph_map, &["a", "b", "c", "z"]);
-        assert_closure_result!(glyph_map, full, &["a", "b", "c", "z", "A", "B", "C"]);
+        assert_closure_result!(glyph_map, full, &["a", "b", "c", "z", "A", "B"]);
+    }
+
+    #[test]
+    fn closure_ignore_unreachable_glyphs() {
+        let font = FontRef::new(font_test_data::closure::CONTEXT_ONLY_REACHABLE).unwrap();
+        let gsub = font.gsub().unwrap();
+        let glyph_map = GlyphMap::new(test_data::CONTEXT_ONLY_REACHABLE_GLYPHS);
+        let result = compute_closure(&gsub, &glyph_map, &["a", "b", "c", "d", "e", "f", "period"]);
+        assert_closure_result!(
+            glyph_map,
+            result,
+            &["a", "b", "c", "d", "e", "f", "period", "A", "B", "C"]
+        );
     }
 
     #[test]
