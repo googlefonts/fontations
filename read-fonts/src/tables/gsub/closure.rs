@@ -1201,6 +1201,19 @@ mod tests {
     }
 
     #[test]
+    fn closure_ignore_unreachable_glyphs() {
+        let font = FontRef::new(font_test_data::closure::CONTEXT_ONLY_REACHABLE).unwrap();
+        let gsub = font.gsub().unwrap();
+        let glyph_map = GlyphMap::new(test_data::CONTEXT_ONLY_REACHABLE_GLYPHS);
+        let result = compute_closure(&gsub, &glyph_map, &["a", "b", "c", "d", "e", "f", "period"]);
+        assert_closure_result!(
+            glyph_map,
+            result,
+            &["a", "b", "c", "d", "e", "f", "period", "A", "B", "C"]
+        );
+    }
+
+    #[test]
     fn cyclical_context() {
         let gsub = get_gsub(test_data::CYCLIC_CONTEXTUAL);
         let glyph_map = GlyphMap::new(test_data::RECURSIVE_CONTEXTUAL_GLYPHS);
