@@ -140,6 +140,10 @@ pub mod closure {
         include_bytes!("../test_data/ttf/variations_closure.ttf");
     pub static VARIATIONS_GLYPHS: &str =
         include_str!("../test_data/fea/variations_closure_glyphs.txt");
+    pub static CONTEXT_ONLY_REACHABLE: &[u8] =
+        include_bytes!("../test_data/ttf/context_only_reachable.ttf");
+    pub static CONTEXT_ONLY_REACHABLE_GLYPHS: &str =
+        include_str!("../test_data/fea/context_only_reachable_glyphs.txt");
 }
 
 pub mod post {
