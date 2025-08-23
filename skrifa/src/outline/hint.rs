@@ -9,6 +9,10 @@ use super::{
 };
 use crate::alloc::{boxed::Box, vec::Vec};
 
+#[cfg(feature = "libm")]
+#[allow(unused_imports)]
+use core_maths::CoreFloat;
+
 /// Configuration settings for a hinting instance.
 #[derive(Clone, Default, Debug)]
 pub struct HintingOptions {
