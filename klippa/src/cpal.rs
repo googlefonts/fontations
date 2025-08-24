@@ -208,7 +208,7 @@ impl NameIdClosure for Cpal<'_> {
 
         if let Some(Ok(palette_labels)) = self.palette_labels_array() {
             plan.name_ids
-                .extend_unsorted(palette_labels.iter().map(|x| NameId::from(x.get())));
+                .extend_unsorted(palette_labels.iter().map(|x| x.get()));
         }
 
         if let Some(Ok(palette_entry_labels)) = self.palette_entry_labels_array() {

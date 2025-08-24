@@ -42,7 +42,7 @@ table Cpal {
     #[since_version(1)]
     #[nullable]
     #[read_offset_with($num_palettes)]
-    palette_labels_array_offset: Offset32<[u16]>,
+    palette_labels_array_offset: Offset32<[NameId]>,
     /// Offset from the beginning of CPAL table to the [Palette Entry Labels Array][].
     ///
     /// This is an array of 'name' table IDs (typically in the font-specific name
@@ -67,12 +67,14 @@ flags u32 PaletteType {
 }
 
 /// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record
+///
+/// Contains a color in non-premultiplied BGRA form, in the sRGB color space.
 record ColorRecord {
     /// Blue value (B0).
     blue: u8,
     /// Green value (B1).
     green: u8,
-    ///     Red value (B2).
+    /// Red value (B2).
     red: u8,
     /// Alpha value (B3).
     alpha: u8,
