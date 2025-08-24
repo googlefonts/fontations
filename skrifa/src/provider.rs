@@ -1,4 +1,4 @@
-use crate::GlyphNames;
+use crate::{color::ColorPaletteCollection, GlyphNames};
 
 use super::{
     attribute::Attributes,
@@ -50,8 +50,11 @@ pub trait MetadataProvider<'a>: Sized {
     /// source, use the [`OutlineGlyphCollection::with_format`] method.
     fn outline_glyphs(&self) -> OutlineGlyphCollection<'a>;
 
-    // Returns a collection of paintable color glyphs.
+    /// Returns a collection of paintable color glyphs.
     fn color_glyphs(&self) -> ColorGlyphCollection<'a>;
+
+    /// Returns a collection of color palettes for color glyphs.
+    fn color_palettes(&self) -> ColorPaletteCollection<'a>;
 
     /// Returns a collection of bitmap strikes.
     fn bitmap_strikes(&self) -> BitmapStrikes<'a>;
@@ -114,6 +117,11 @@ impl<'a> MetadataProvider<'a> for FontRef<'a> {
     // Returns a collection of paintable color glyphs.
     fn color_glyphs(&self) -> ColorGlyphCollection<'a> {
         ColorGlyphCollection::new(self)
+    }
+
+    /// Returns a collection of color palettes for color glyphs.
+    fn color_palettes(&self) -> ColorPaletteCollection<'a> {
+        ColorPaletteCollection::new(self)
     }
 
     /// Returns a collection of bitmap strikes.

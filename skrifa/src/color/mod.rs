@@ -42,7 +42,11 @@ mod traversal;
 #[cfg(test)]
 mod traversal_tests;
 
-use raw::{tables::colr, FontRef};
+use raw::{
+    tables::{colr, cpal},
+    types::{BigEndian, NameId},
+    FontRef,
+};
 #[cfg(test)]
 use serde::{Deserialize, Serialize};
 
@@ -449,6 +453,108 @@ impl<'a> ColorGlyphCollection<'a> {
     }
 }
 
+/// A single color palette.
+pub struct ColorPalette<'a> {
+    cpal: cpal::Cpal<'a>,
+    /// Preparsed subarray of color records for just this palette.
+    sub_array: &'a [cpal::ColorRecord],
+    /// This palette's index in the CPAL table.
+    index: u16,
+}
+
+impl<'a> ColorPalette<'a> {
+    /// Returns the color at this palette index.
+    pub fn get(&self, color_index: u16) -> Option<cpal::ColorRecord> {
+        self.sub_array.get(usize::from(color_index)).copied()
+    }
+
+    /// Returns this palette's type flags (currently, whether this palette is appropriate for use on
+    /// a light and/or dark background). This may not always be present.
+    pub fn palette_type(&self) -> Option<cpal::PaletteType> {
+        self.cpal
+            .palette_types_array()?
+            .ok()?
+            .get(usize::from(self.index))
+            .map(|p| p.get())
+    }
+
+    /// Returns this palette's label/name, if present.
+    pub fn label(&self) -> Option<NameId> {
+        self.cpal
+            .palette_labels_array()?
+            .ok()?
+            .get(usize::from(self.index))
+            .and_then(|p| {
+                let name_id = p.get();
+                Some(name_id).filter(|name_id| name_id.to_u16() != 0xFFFF)
+            })
+    }
+
+    /// Returns this palette's index in the CPAL table.
+    pub fn index(&self) -> u16 {
+        self.index
+    }
+}
+
+/// Collection of color palettes for color glyphs.
+pub struct ColorPaletteCollection<'a> {
+    cpal: Option<cpal::Cpal<'a>>,
+}
+
+impl<'a> ColorPaletteCollection<'a> {
+    /// Creates a new collection of color palettes for the given font.
+    pub fn new(font: &FontRef<'a>) -> Self {
+        Self {
+            cpal: font.cpal().ok(),
+        }
+    }
+
+    /// Returns the total number of palettes in this collection (0 if this collection's font has no
+    /// CPAL table).
+    pub fn num_palettes(&self) -> u16 {
+        self.cpal.as_ref().map_or(0, |cpal| cpal.num_palettes())
+    }
+
+    /// Returns the number of colors per palette (all palettes have the same number of colors).
+    pub fn num_colors(&self) -> u16 {
+        self.cpal
+            .as_ref()
+            .map_or(0, |cpal| cpal.num_palette_entries())
+    }
+
+    /// Returns the color palette at the given index. The palette at index 0 is the default palette.
+    pub fn get(&self, index: u16) -> Option<ColorPalette<'_>> {
+        let cpal = self.cpal.clone()?;
+
+        let start_index: &BigEndian<u16> = cpal.color_record_indices().get(usize::from(index))?;
+        let start_index = usize::from(start_index.get());
+        let num_palette_entries = usize::from(cpal.num_palette_entries());
+
+        // Get the slice of the color records array containing just the chosen palette's colors.
+        let color_records_array = cpal.color_records_array()?.ok()?;
+        let sub_array = color_records_array.get(start_index..start_index + num_palette_entries)?;
+
+        Some(ColorPalette {
+            cpal,
+            sub_array,
+            index,
+        })
+    }
+
+    /// Returns the label/name for a given color, if present (labels are per-color, but shared
+    /// across all palettes).
+    pub fn color_label(&self, color_index: u16) -> Option<NameId> {
+        let name_id = self
+            .cpal
+            .as_ref()?
+            .palette_entry_labels_array()?
+            .ok()?
+            .get(usize::from(color_index))?
+            .get();
+        Some(name_id).filter(|name_id| name_id.to_u16() != 0xFFFF)
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -458,6 +564,7 @@ mod tests {
         MetadataProvider,
     };
 
+    use raw::tables::cpal;
     use read_fonts::{types::BoundingBox, FontRef};
 
     use super::{Brush, ColorPainter, CompositeMode, GlyphId, Transform};
@@ -551,5 +658,62 @@ mod tests {
         assert!(colrv0_glyph
             .bounding_box(LocationRef::default(), Size::unscaled())
             .is_none());
+    }
+
+    #[test]
+    fn cpal_test() {
+        let cpal_font = font_test_data::COLRV0V1;
+        let font = FontRef::new(cpal_font).unwrap();
+        let palettes = font.color_palettes();
+        assert_eq!(palettes.num_palettes(), 3);
+        assert_eq!(palettes.num_colors(), 14);
+
+        let first_palette = palettes.get(0).unwrap();
+        assert_eq!(
+            first_palette.get(0),
+            Some(cpal::ColorRecord {
+                blue: 0,
+                green: 0,
+                red: 255,
+                alpha: 255
+            })
+        );
+        assert_eq!(first_palette.get(14), None);
+        assert_eq!(
+            first_palette.palette_type(),
+            Some(cpal::PaletteType::empty())
+        );
+
+        let second_palette = palettes.get(1).unwrap();
+        assert_eq!(
+            second_palette.get(0),
+            Some(cpal::ColorRecord {
+                blue: 74,
+                green: 41,
+                red: 42,
+                alpha: 255
+            })
+        );
+        assert_eq!(
+            second_palette.palette_type(),
+            Some(cpal::PaletteType::USABLE_WITH_DARK_BACKGROUND)
+        );
+
+        let third_palette = palettes.get(2).unwrap();
+        assert_eq!(
+            third_palette.get(0),
+            Some(cpal::ColorRecord {
+                blue: 24,
+                green: 113,
+                red: 252,
+                alpha: 255
+            })
+        );
+        assert_eq!(
+            third_palette.palette_type(),
+            Some(cpal::PaletteType::USABLE_WITH_LIGHT_BACKGROUND)
+        );
+
+        assert!(palettes.get(3).is_none());
     }
 }

@@ -36,7 +36,7 @@ pub struct Cpal {
     /// Use 0xFFFF if no name ID is provided for a palette.
     ///
     /// [Palette Labels Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-labels-array
-    pub palette_labels_array: NullableOffsetMarker<Vec<u16>, WIDTH_32>,
+    pub palette_labels_array: NullableOffsetMarker<Vec<NameId>, WIDTH_32>,
     /// Offset from the beginning of CPAL table to the [Palette Entry Labels Array][].
     ///
     /// This is an array of 'name' table IDs (typically in the font-specific name
@@ -145,6 +145,8 @@ impl FontWrite for PaletteType {
 }
 
 /// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record
+///
+/// Contains a color in non-premultiplied BGRA form, in the sRGB color space.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ColorRecord {
@@ -152,7 +154,7 @@ pub struct ColorRecord {
     pub blue: u8,
     /// Green value (B1).
     pub green: u8,
-    ///     Red value (B2).
+    /// Red value (B2).
     pub red: u8,
     /// Alpha value (B3).
     pub alpha: u8,
