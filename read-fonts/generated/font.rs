@@ -51,6 +51,7 @@ impl MinByteRange for TableDirectoryMarker {
 }
 
 impl<'a> FontRead<'a> for TableDirectory<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u32>();
@@ -74,33 +75,39 @@ pub type TableDirectory<'a> = TableRef<'a, TableDirectoryMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> TableDirectory<'a> {
     /// 0x00010000 or 0x4F54544F
+    #[inline]
     pub fn sfnt_version(&self) -> u32 {
         let range = self.shape.sfnt_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of tables.
+    #[inline]
     pub fn num_tables(&self) -> u16 {
         let range = self.shape.num_tables_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn search_range(&self) -> u16 {
         let range = self.shape.search_range_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn entry_selector(&self) -> u16 {
         let range = self.shape.entry_selector_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn range_shift(&self) -> u16 {
         let range = self.shape.range_shift_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Table records array—one for each top-level table in the font
+    #[inline]
     pub fn table_records(&self) -> &'a [TableRecord] {
         let range = self.shape.table_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -157,21 +164,25 @@ pub struct TableRecord {
 
 impl TableRecord {
     /// Table identifier.
+    #[inline]
     pub fn tag(&self) -> Tag {
         self.tag.get()
     }
 
     /// Checksum for the table.
+    #[inline]
     pub fn checksum(&self) -> u32 {
         self.checksum.get()
     }
 
     /// Offset from the beginning of the font data.
+    #[inline]
     pub fn offset(&self) -> u32 {
         self.offset.get()
     }
 
     /// Length of the table.
+    #[inline]
     pub fn length(&self) -> u32 {
         self.length.get()
     }
@@ -253,6 +264,7 @@ impl MinByteRange for TTCHeaderMarker {
 }
 
 impl<'a> FontRead<'a> for TTCHeader<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Tag>();
@@ -298,42 +310,49 @@ pub type TTCHeader<'a> = TableRef<'a, TTCHeaderMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> TTCHeader<'a> {
     /// Font Collection ID string: \"ttcf\"
+    #[inline]
     pub fn ttc_tag(&self) -> Tag {
         let range = self.shape.ttc_tag_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Major/minor version of the TTC Header
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of fonts in TTC
+    #[inline]
     pub fn num_fonts(&self) -> u32 {
         let range = self.shape.num_fonts_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to the TableDirectory for each font from the beginning of the file
+    #[inline]
     pub fn table_directory_offsets(&self) -> &'a [BigEndian<u32>] {
         let range = self.shape.table_directory_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Tag indicating that a DSIG table exists, 0x44534947 ('DSIG') (null if no signature)
+    #[inline]
     pub fn dsig_tag(&self) -> Option<u32> {
         let range = self.shape.dsig_tag_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// The length (in bytes) of the DSIG table (null if no signature)
+    #[inline]
     pub fn dsig_length(&self) -> Option<u32> {
         let range = self.shape.dsig_length_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// The offset (in bytes) of the DSIG table from the beginning of the TTC file (null if no signature)
+    #[inline]
     pub fn dsig_offset(&self) -> Option<u32> {
         let range = self.shape.dsig_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())

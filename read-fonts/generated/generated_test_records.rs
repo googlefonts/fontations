@@ -46,6 +46,7 @@ impl MinByteRange for BasicTableMarker {
 }
 
 impl<'a> FontRead<'a> for BasicTable<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let simple_count: u16 = cursor.read()?;
@@ -72,26 +73,31 @@ pub type BasicTable<'a> = TableRef<'a, BasicTableMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BasicTable<'a> {
+    #[inline]
     pub fn simple_count(&self) -> u16 {
         let range = self.shape.simple_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn simple_records(&self) -> &'a [SimpleRecord] {
         let range = self.shape.simple_records_byte_range();
         self.data.read_array(range).unwrap()
     }
 
+    #[inline]
     pub fn arrays_inner_count(&self) -> u16 {
         let range = self.shape.arrays_inner_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn array_records_count(&self) -> u32 {
         let range = self.shape.array_records_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn array_records(&self) -> ComputedArray<'a, ContainsArrays<'a>> {
         let range = self.shape.array_records_byte_range();
         self.data
@@ -151,10 +157,12 @@ pub struct SimpleRecord {
 }
 
 impl SimpleRecord {
+    #[inline]
     pub fn val1(&self) -> u16 {
         self.val1.get()
     }
 
+    #[inline]
     pub fn va2(&self) -> u32 {
         self.va2.get()
     }
@@ -186,10 +194,12 @@ pub struct ContainsArrays<'a> {
 }
 
 impl<'a> ContainsArrays<'a> {
+    #[inline]
     pub fn scalars(&self) -> &'a [BigEndian<u16>] {
         self.scalars
     }
 
+    #[inline]
     pub fn records(&self) -> &'a [SimpleRecord] {
         self.records
     }
@@ -277,10 +287,12 @@ pub struct ContainsOffsets {
 }
 
 impl ContainsOffsets {
+    #[inline]
     pub fn off_array_count(&self) -> u16 {
         self.off_array_count.get()
     }
 
+    #[inline]
     pub fn array_offset(&self) -> Offset16 {
         self.array_offset.get()
     }
@@ -293,6 +305,7 @@ impl ContainsOffsets {
         self.array_offset().resolve_with_args(data, &args)
     }
 
+    #[inline]
     pub fn other_offset(&self) -> Offset32 {
         self.other_offset.get()
     }
@@ -361,6 +374,7 @@ impl MinByteRange for VarLenItemMarker {
 }
 
 impl<'a> FontRead<'a> for VarLenItem<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u32>();
@@ -374,11 +388,13 @@ pub type VarLenItem<'a> = TableRef<'a, VarLenItemMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarLenItem<'a> {
+    #[inline]
     pub fn length(&self) -> u32 {
         let range = self.shape.length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()
