@@ -144,7 +144,19 @@ impl EncodingRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_subtable`][Self::read_subtable],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn subtable<'a>(&self, data: FontData<'a>) -> Result<CmapSubtable<'a>, ReadError> {
+        self.subtable_offset().resolve(data)
+    }
+
+    /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
+    /// encoding.
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_subtable<'a>(&self, source: &Cmap<'a>) -> Result<CmapSubtable<'a>, ReadError> {
+        let data = source.offset_data();
         self.subtable_offset().resolve(data)
     }
 }
@@ -1824,7 +1836,22 @@ impl VariationSelector {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_default_uvs`][Self::read_default_uvs],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn default_uvs<'a>(&self, data: FontData<'a>) -> Option<Result<DefaultUvs<'a>, ReadError>> {
+        self.default_uvs_offset().resolve(data)
+    }
+
+    /// Offset from the start of the [`Cmap14`] subtable to Default UVS
+    /// Table. May be NULL.
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_default_uvs<'a>(
+        &self,
+        source: &Cmap14<'a>,
+    ) -> Option<Result<DefaultUvs<'a>, ReadError>> {
+        let data = source.offset_data();
         self.default_uvs_offset().resolve(data)
     }
 
@@ -1839,10 +1866,25 @@ impl VariationSelector {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_non_default_uvs`][Self::read_non_default_uvs],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn non_default_uvs<'a>(
         &self,
         data: FontData<'a>,
     ) -> Option<Result<NonDefaultUvs<'a>, ReadError>> {
+        self.non_default_uvs_offset().resolve(data)
+    }
+
+    /// Offset from the start of the [`Cmap14`] subtable to Non-Default
+    /// UVS Table. May be NULL.
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_non_default_uvs<'a>(
+        &self,
+        source: &Cmap14<'a>,
+    ) -> Option<Result<NonDefaultUvs<'a>, ReadError>> {
+        let data = source.offset_data();
         self.non_default_uvs_offset().resolve(data)
     }
 }
