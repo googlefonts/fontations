@@ -369,6 +369,11 @@ impl<T: Domain> IntSet<T> {
         // Iterate the smaller set and check for member ship in the larger set
         // Estimate the true size as the number of pages.
         let (a, b) = match (&self.0, &other.0) {
+            (Membership::Inclusive(us), Membership::Inclusive(them)) => {
+                // Can utilize the bitset intersects method.
+                return us.intersects_set(them);
+            }
+
             (
                 Membership::Inclusive(us) | Membership::Exclusive(us),
                 Membership::Inclusive(them) | Membership::Exclusive(them),

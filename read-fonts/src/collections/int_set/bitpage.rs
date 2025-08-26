@@ -50,7 +50,7 @@ impl BitPage {
     }
 
     /// Returns true if this page has any members in common with `other`.
-    pub(crate) fn intersects(&self, other: &BitPage) -> bool {
+    pub(crate) fn intersects_set(&self, other: &BitPage) -> bool {
         for (a, b) in self.storage.iter().zip(other.storage.iter()) {
             if (*a & *b) != 0 {
                 return true;
@@ -836,5 +836,29 @@ mod test {
         let set = HashSet::from([page1]);
         assert!(set.contains(&page2));
         assert!(!set.contains(&page3));
+    }
+
+    #[test]
+    fn intersects() {
+        macro_rules! assert_intersects {
+            ($lhs:path, $rhs:path, $expected:expr) => {
+                assert_eq!($lhs.intersects_set(&$rhs), $expected);
+                assert_eq!($rhs.intersects_set(&$lhs), $expected);
+            };
+        }
+
+        let a = BitPage::new_zeroes();
+        let b = BitPage::from_iter([32, 400]);
+        let c = BitPage::from_iter([400]);
+        let d = BitPage::from_iter([401]);
+
+        assert_intersects!(a, b, false);
+        assert_intersects!(a, c, false);
+        assert_intersects!(a, d, false);
+
+        assert_intersects!(b, c, true);
+        assert_intersects!(b, d, false);
+
+        assert_intersects!(c, d, false);
     }
 }
