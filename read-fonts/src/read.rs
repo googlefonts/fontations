@@ -99,11 +99,18 @@ pub trait VarSize {
     /// `data` starting from `start`.
     #[doc(hidden)]
     fn total_len_for_count(data: FontData, count: usize) -> Result<usize, ReadError> {
-        (0..count).try_fold(0usize, |current_pos, _i| {
-            Self::read_len_at(data, current_pos)
-                .and_then(|i_len| current_pos.checked_add(i_len))
-                .ok_or(ReadError::OutOfBounds)
-        })
+        let mut current_pos = 0;
+        for _ in 0..count {
+            let len = Self::read_len_at(data, current_pos).ok_or(ReadError::OutOfBounds)?;
+            // If length is 0 then this will spin until we've completed
+            // `count` iterations so just bail out early.
+            // See <https://github.com/harfbuzz/harfrust/issues/203>
+            if len == 0 {
+                return Ok(current_pos);
+            }
+            current_pos = current_pos.checked_add(len).ok_or(ReadError::OutOfBounds)?;
+        }
+        Ok(current_pos)
     }
 }
 
@@ -148,3 +155,35 @@ impl std::fmt::Display for ReadError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for ReadError {}
+
+#[cfg(test)]
+mod tests {
+    use font_test_data::bebuffer::BeBuffer;
+
+    use super::*;
+
+    struct DummyVarSize {}
+
+    impl VarSize for DummyVarSize {
+        type Size = u16;
+
+        fn read_len_at(data: FontData, pos: usize) -> Option<usize> {
+            data.read_at::<u16>(pos).map(|v| v as usize).ok()
+        }
+    }
+
+    // Avoid fuzzer timeout when we have a VarSizeArray with a large count
+    // that contains a 0 length element.
+    // See <https://github.com/harfbuzz/harfrust/issues/203>
+    #[test]
+    fn total_var_size_with_zero_length_element() {
+        // Array that appears to have 4 var size elements totalling
+        // 26 bytes in length but the zero length 3rd element makes the
+        // final one inaccessible.
+        const PAYLOAD_NOT_SIZE: u16 = 1;
+        let buf = BeBuffer::new().extend([2u16, 4u16, PAYLOAD_NOT_SIZE, 0u16, 20u16]);
+        let total_len =
+            DummyVarSize::total_len_for_count(FontData::new(buf.data()), usize::MAX).unwrap();
+        assert_eq!(total_len, 6);
+    }
+}
