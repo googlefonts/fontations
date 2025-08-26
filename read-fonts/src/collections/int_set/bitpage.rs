@@ -49,6 +49,16 @@ impl BitPage {
         self.len() == 0
     }
 
+    /// Returns true if this page has any members in common with `other`.
+    pub(crate) fn intersects(&self, other: &BitPage) -> bool {
+        for (a, b) in self.storage.iter().zip(other.storage.iter()) {
+            if (*a & *b) != 0 {
+                return true;
+            }
+        }
+        false
+    }
+
     // TODO(garretrieger): iterator that starts after some value (similar to next in hb).
     // TODO(garretrieger): reverse iterator.
 
