@@ -14,14 +14,17 @@ pub mod class {
 }
 
 impl Lookup0<'_> {
-    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
+    pub fn values<T: LookupValue>(&self) -> Result<&[BigEndian<T>], ReadError> {
         let data = self.values_data();
         let data_len = data.len();
         let n_elems = data_len / T::RAW_BYTE_LEN;
         let len_in_bytes = n_elems * T::RAW_BYTE_LEN;
         FontData::new(&data[..len_in_bytes])
             .cursor()
-            .read_array::<BigEndian<T>>(n_elems)?
+            .read_array::<BigEndian<T>>(n_elems)
+    }
+    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
+        self.values::<T>()?
             .get(index as usize)
             .map(|val| val.get())
             .ok_or(ReadError::OutOfBounds)
@@ -63,7 +66,7 @@ impl Lookup2<'_> {
         Err(ReadError::OutOfBounds)
     }
 
-    fn segments<T: LookupValue>(&self) -> Result<&[LookupSegment2<T>], ReadError> {
+    pub fn segments<T: LookupValue>(&self) -> Result<&[LookupSegment2<T>], ReadError> {
         FontData::new(self.segments_data())
             .cursor()
             .read_array(self.n_units() as usize)
@@ -88,6 +91,23 @@ impl Lookup4<'_> {
             return self.offset_data().read_at(offset);
         }
         Err(ReadError::OutOfBounds)
+    }
+    pub fn segment_values<T: LookupValue>(
+        &self,
+        segment: usize,
+    ) -> Result<&[BigEndian<T>], ReadError> {
+        let segment = self.segments().get(segment).ok_or(ReadError::OutOfBounds)?;
+        let base_offset = segment.value_offset() as usize;
+        let n_elems = segment
+            .last_glyph
+            .get()
+            .checked_sub(segment.first_glyph.get())
+            .ok_or(ReadError::MalformedData(
+                "invalid segment in format 4 AAT lookup table",
+            ))? as usize
+            + 1;
+        self.offset_data()
+            .read_array::<BigEndian<T>>(base_offset..base_offset + n_elems * T::RAW_BYTE_LEN)
     }
 }
 
@@ -120,7 +140,7 @@ impl Lookup6<'_> {
         Err(ReadError::OutOfBounds)
     }
 
-    fn entries<T: LookupValue>(&self) -> Result<&[LookupSingle<T>], ReadError> {
+    pub fn entries<T: LookupValue>(&self) -> Result<&[LookupSingle<T>], ReadError> {
         FontData::new(self.entries_data())
             .cursor()
             .read_array(self.n_units() as usize)
@@ -178,7 +198,7 @@ impl Lookup<'_> {
 
 #[derive(Clone)]
 pub struct TypedLookup<'a, T> {
-    lookup: Lookup<'a>,
+    pub lookup: Lookup<'a>,
     _marker: std::marker::PhantomData<fn() -> T>,
 }
 
@@ -301,6 +321,7 @@ where
 ///
 /// The input to the state machine consists of the current state
 /// and a glyph class. The output is an [entry](StateEntry) containing
+
 /// the next state and a payload that is dependent on the type of
 /// layout action being performed.
 ///
@@ -394,8 +415,8 @@ impl<'a> SomeTable<'a> for StateTable<'a> {
 
 #[derive(Clone)]
 pub struct ExtendedStateTable<'a, T = NoPayload> {
-    n_classes: usize,
-    class_table: LookupU16<'a>,
+    pub n_classes: usize,
+    pub class_table: LookupU16<'a>,
     state_array: &'a [BigEndian<u16>],
     entry_table: &'a [u8],
     _marker: std::marker::PhantomData<fn() -> T>,
