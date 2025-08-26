@@ -244,6 +244,36 @@ impl U32Set {
             .unwrap_or(false)
     }
 
+    pub fn intersects(&self, other: &U32Set) -> bool {
+        let mut idx_a = 0;
+        let len_a = self.pages.len();
+        let mut idx_b = 0;
+        let len_b = other.pages.len();
+
+        while idx_a < len_a && idx_b < len_b {
+            let a_major = self.page_map[idx_a].major_value;
+            let b_major = other.page_map[idx_b].major_value;
+
+            match a_major.cmp(&b_major) {
+                Ordering::Equal => {
+                    if self.pages[idx_a].intersects(&other.pages[idx_b]) {
+                        return true;
+                    }
+                    idx_a += 1;
+                    idx_b += 1;
+                }
+                Ordering::Less => {
+                    idx_a += 1;
+                }
+                Ordering::Greater => {
+                    idx_b += 1;
+                }
+            }
+        }
+
+        false
+    }
+
     pub const fn empty() -> U32Set {
         U32Set {
             pages: Vec::new(),
