@@ -58,13 +58,17 @@ impl<'a> Iterator for Subtables<'a> {
     type Item = Result<Subtable<'a>, ReadError>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.n_tables == 0 || self.data.is_empty() {
+            return None;
+        }
+        self.n_tables -= 1;
         let len = if self.is_aat {
             self.data.read_at::<u32>(0).ok()? as usize
-        } else if self.n_tables == 1 {
-            // For OT kern tables with a single subtable, ignore the length
-            // and allow the single subtable to extend to the end of the full
-            // table. Some fonts abuse this to bypass the 16-bit limit of the
-            // length field.
+        } else if self.n_tables == 0 {
+            // For OT kern tables ignore the length of the last subtable
+            // and allow the subtable to extend to the end of the full
+            // table. Some fonts abuse this to bypass the 16-bit limit
+            // of the length field.
             //
             // This is why we don't use VarLenArray for this type.
             self.data.len()
