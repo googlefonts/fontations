@@ -321,7 +321,6 @@ where
 ///
 /// The input to the state machine consists of the current state
 /// and a glyph class. The output is an [entry](StateEntry) containing
-
 /// the next state and a payload that is dependent on the type of
 /// layout action being performed.
 ///
@@ -329,7 +328,7 @@ where
 /// for more detail.
 #[derive(Clone)]
 pub struct StateTable<'a> {
-    header: StateHeader<'a>,
+    pub header: StateHeader<'a>,
 }
 
 impl StateTable<'_> {
