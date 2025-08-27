@@ -329,7 +329,7 @@ where
 /// for more detail.
 #[derive(Clone)]
 pub struct StateTable<'a> {
-    header: StateHeader<'a>,
+    pub header: StateHeader<'a>,
 }
 
 impl StateTable<'_> {
