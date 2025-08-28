@@ -627,6 +627,7 @@ impl U32Set {
 
     /// Returns the index in `self.pages` for the page with the same major as `major_value`. Will create
     /// the page if it does not yet exist.
+    #[inline]
     fn ensure_page_index_for_major(&mut self, major_value: u32) -> usize {
         match self
             .page_map
