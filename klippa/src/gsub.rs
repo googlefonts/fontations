@@ -2,6 +2,7 @@
 mod alternate_subst;
 mod ligature_subst;
 mod multiple_subst;
+mod reverse_chain_single_subst;
 mod single_subst;
 
 use crate::{
