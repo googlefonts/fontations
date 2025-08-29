@@ -148,40 +148,54 @@ impl<'a> BitmapStrike<'a> {
         }
     }
 
-    /// Returns a bitmap glyph for the given identifier, if available.
-    pub fn get(&self, glyph_id: GlyphId) -> Option<BitmapGlyph<'a>> {
+    fn get_internal(&self, glyph_id: GlyphId, recurse_depth: usize) -> Option<BitmapGlyph<'a>> {
         match &self.0 {
             StrikeKind::Sbix(sbix, metrics) => {
                 let glyph = sbix.glyph_data(glyph_id).ok()??;
-                if glyph.graphic_type() != Tag::new(b"png ") {
-                    return None;
+                match &glyph.graphic_type().into_bytes() {
+                    b"png " => {
+                        // Note that this calculation does not entirely correspond to the description in
+                        // the specification, but it's implemented this way in Skia (https://github.com/google/skia/blob/02cd0561f4f756bf4f7b16641d8fc4c61577c765/src/ports/fontations/src/bitmap.rs#L161-L178),
+                        // the implementation of which has been tested against behavior in CoreText.
+                        let glyf_bb = metrics.bounds(glyph_id).unwrap_or_default();
+                        let lsb = metrics.left_side_bearing(glyph_id).unwrap_or_default();
+                        let ppem = sbix.ppem() as f32;
+                        let png_data = glyph.data();
+                        // PNG format:
+                        // 8 byte header, IHDR chunk (4 byte length, 4 byte chunk type), width, height
+                        let reader = FontData::new(png_data);
+                        let width = reader.read_at::<u32>(16).ok()?;
+                        let height = reader.read_at::<u32>(20).ok()?;
+                        Some(BitmapGlyph {
+                            data: BitmapData::Png(glyph.data()),
+                            bearing_x: lsb,
+                            bearing_y: glyf_bb.y_min,
+                            inner_bearing_x: glyph.origin_offset_x() as f32,
+                            inner_bearing_y: glyph.origin_offset_y() as f32,
+                            ppem_x: ppem,
+                            ppem_y: ppem,
+                            width,
+                            height,
+                            advance: None,
+                            placement_origin: Origin::BottomLeft,
+                            flip: false,
+                        })
+                    }
+                    b"dupe" | b"flip" => {
+                        if recurse_depth >= 4 {
+                            return None;
+                        }
+                        let data = glyph.data();
+                        let reader = FontData::new(data);
+                        let target_id = GlyphId::new(reader.read_at::<u16>(0).ok()?.into());
+                        let mut bitmap_glyph = self.get_internal(target_id, recurse_depth + 1)?;
+                        if glyph.graphic_type() == Tag::new(b"flip") {
+                            bitmap_glyph.flip = true;
+                        }
+                        Some(bitmap_glyph)
+                    }
+                    _ => None,
                 }
-
-                // Note that this calculation does not entirely correspond to the description in
-                // the specification, but it's implemented this way in Skia (https://github.com/google/skia/blob/02cd0561f4f756bf4f7b16641d8fc4c61577c765/src/ports/fontations/src/bitmap.rs#L161-L178),
-                // the implementation of which has been tested against behavior in CoreText.
-                let glyf_bb = metrics.bounds(glyph_id).unwrap_or_default();
-                let lsb = metrics.left_side_bearing(glyph_id).unwrap_or_default();
-                let ppem = sbix.ppem() as f32;
-                let png_data = glyph.data();
-                // PNG format:
-                // 8 byte header, IHDR chunk (4 byte length, 4 byte chunk type), width, height
-                let reader = FontData::new(png_data);
-                let width = reader.read_at::<u32>(16).ok()?;
-                let height = reader.read_at::<u32>(20).ok()?;
-                Some(BitmapGlyph {
-                    data: BitmapData::Png(glyph.data()),
-                    bearing_x: lsb,
-                    bearing_y: glyf_bb.y_min,
-                    inner_bearing_x: glyph.origin_offset_x() as f32,
-                    inner_bearing_y: glyph.origin_offset_y() as f32,
-                    ppem_x: ppem,
-                    ppem_y: ppem,
-                    width,
-                    height,
-                    advance: None,
-                    placement_origin: Origin::BottomLeft,
-                })
             }
             StrikeKind::Cbdt(size, tables) => {
                 let location = size
@@ -198,6 +212,11 @@ impl<'a> BitmapStrike<'a> {
                 BitmapGlyph::from_bdt(size, &data)
             }
         }
+    }
+
+    /// Returns a bitmap glyph for the given identifier, if available.
+    pub fn get(&self, glyph_id: GlyphId) -> Option<BitmapGlyph<'a>> {
+        self.get_internal(glyph_id, 0)
     }
 }
 
@@ -250,6 +269,10 @@ pub struct BitmapGlyph<'a> {
     pub height: u32,
     /// The placement origin of the bitmap.
     pub placement_origin: Origin,
+    /// Whether the bitmap data should be flipped before being displayed. This is only `true` for a
+    /// few sbix-based fonts. Flipping is done on the untransformed image, and not with respect to
+    /// any origin or offset.
+    pub flip: bool,
 }
 
 impl<'a> BitmapGlyph<'a> {
@@ -304,6 +327,7 @@ impl<'a> BitmapGlyph<'a> {
             height: metrics.height,
             advance: Some(metrics.advance),
             placement_origin: Origin::TopLeft,
+            flip: false,
         })
     }
 }
