@@ -362,12 +362,7 @@ impl StateTable<'_> {
         }
         let state_array = self.header.state_array()?.data();
         let entry_ix = state_array
-            .get(
-                (state as usize)
-                    .checked_mul(n_classes)
-                    .ok_or(ReadError::OutOfBounds)?
-                    + class,
-            )
+            .get(state as usize * n_classes + class)
             .copied()
             .ok_or(ReadError::OutOfBounds)? as usize;
         let entry_offset = entry_ix * 4;
