@@ -84,6 +84,17 @@ Describes the provenance, usage and generation procedures for font data used for
     pyftsubset material_icons.otf --gids=2
     ```
 
+* _material_icons_subset_matrix_
+  * font: Google Material Icons Regular
+  * source: https://fonts.googleapis.com/icon?family=Material+Icons
+  * license: [Apache 2][Apache2]
+  * usage: testing nested font matrix
+  * subset: just a single glyph to check scaling
+    ```shell
+    pyftsubset material_icons.otf --gids=2
+    ```
+  * additional hacks: hand modified TTX to add some font matrices
+
 * _avar2checker_
   * font: avar2 checker
   * source: https://github.com/Lorp/fencer/tree/main/src/fonts
