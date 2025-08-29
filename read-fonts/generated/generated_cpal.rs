@@ -197,7 +197,7 @@ impl<'a> Cpal<'a> {
     }
 
     /// Attempt to resolve [`palette_labels_array_offset`][Self::palette_labels_array_offset].
-    pub fn palette_labels_array(&self) -> Option<Result<&'a [BigEndian<u16>], ReadError>> {
+    pub fn palette_labels_array(&self) -> Option<Result<&'a [BigEndian<NameId>], ReadError>> {
         let data = self.data;
         let args = self.num_palettes();
         self.palette_labels_array_offset()
@@ -604,6 +604,8 @@ impl<'a> From<PaletteType> for FieldType<'a> {
 }
 
 /// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record
+///
+/// Contains a color in non-premultiplied BGRA form, in the sRGB color space.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -612,7 +614,7 @@ pub struct ColorRecord {
     pub blue: u8,
     /// Green value (B1).
     pub green: u8,
-    ///     Red value (B2).
+    /// Red value (B2).
     pub red: u8,
     /// Alpha value (B3).
     pub alpha: u8,
@@ -629,7 +631,7 @@ impl ColorRecord {
         self.green
     }
 
-    ///     Red value (B2).
+    /// Red value (B2).
     pub fn red(&self) -> u8 {
         self.red
     }
