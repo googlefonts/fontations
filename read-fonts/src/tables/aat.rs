@@ -329,6 +329,11 @@ where
 #[derive(Clone)]
 pub struct StateTable<'a> {
     pub header: StateHeader<'a>,
+    n_classes: usize,
+    class_first_glyph: u16,
+    class_array: &'a [u8],
+    state_array: &'a [u8],
+    entry_table: &'a [u8],
 }
 
 impl StateTable<'_> {
@@ -340,41 +345,27 @@ impl StateTable<'_> {
         if glyph_id == 0xFFFF {
             return Ok(class::DELETED_GLYPH);
         }
-        let class_table = self.header.class_table()?;
         glyph_id
-            .checked_sub(class_table.first_glyph())
-            .and_then(|ix| class_table.class_array().get(ix as usize).copied())
+            .checked_sub(self.class_first_glyph)
+            .and_then(|ix| self.class_array.get(ix as usize).copied())
             .ok_or(ReadError::OutOfBounds)
     }
 
     /// Returns the entry for the given state and class.
     #[inline(always)]
     pub fn entry(&self, state: u16, class: u8) -> Result<StateEntry, ReadError> {
-        // Each state has a 1-byte entry per class so state_size == n_classes
-        let n_classes = self.header.state_size() as usize;
-        if n_classes == 0 {
-            // Avoid potential divide by zero below
-            return Err(ReadError::MalformedData("empty AAT state table"));
-        }
         let mut class = class as usize;
-        if class >= n_classes {
+        if class >= self.n_classes {
             class = class::OUT_OF_BOUNDS as usize;
         }
-        let state_array = self.header.state_array()?.data();
-        let entry_ix = state_array
-            .get(
-                (state as usize)
-                    .checked_mul(n_classes)
-                    .ok_or(ReadError::OutOfBounds)?
-                    + class,
-            )
+        let entry_ix = self
+            .state_array
+            .get(state as usize * self.n_classes + class)
             .copied()
             .ok_or(ReadError::OutOfBounds)? as usize;
         let entry_offset = entry_ix * 4;
         let entry_data = self
-            .header
-            .entry_table()?
-            .data()
+            .entry_table
             .get(entry_offset..)
             .ok_or(ReadError::OutOfBounds)?;
         let mut entry = StateEntry::read(FontData::new(entry_data))?;
@@ -383,7 +374,7 @@ impl StateTable<'_> {
         let new_state = (entry.new_state as i32)
             .checked_sub(self.header.state_array_offset().to_u32() as i32)
             .ok_or(ReadError::OutOfBounds)?
-            / n_classes as i32;
+            / self.n_classes as i32;
         entry.new_state = new_state.try_into().map_err(|_| ReadError::OutOfBounds)?;
         Ok(entry)
     }
@@ -396,8 +387,25 @@ impl StateTable<'_> {
 
 impl<'a> FontRead<'a> for StateTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let header = StateHeader::read(data)?;
+        // Each state has a 1-byte entry per class so state_size == n_classes
+        let n_classes = header.state_size() as usize;
+        if n_classes == 0 {
+            // This will result in a divide by 0 in all cases
+            return Err(ReadError::MalformedData("empty AAT state table"));
+        }
+        let class_table = header.class_table()?;
+        let class_first_glyph = class_table.first_glyph();
+        let class_array = class_table.class_array();
+        let state_array = header.state_array()?.data();
+        let entry_table = header.entry_table()?.data();
         Ok(Self {
             header: StateHeader::read(data)?,
+            n_classes,
+            class_first_glyph,
+            class_array,
+            state_array,
+            entry_table,
         })
     }
 }
