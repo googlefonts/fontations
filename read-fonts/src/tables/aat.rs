@@ -348,6 +348,7 @@ impl StateTable<'_> {
     }
 
     /// Returns the entry for the given state and class.
+    #[inline(always)]
     pub fn entry(&self, state: u16, class: u8) -> Result<StateEntry, ReadError> {
         // Each state has a 1-byte entry per class so state_size == n_classes
         let n_classes = self.header.state_size() as usize;
