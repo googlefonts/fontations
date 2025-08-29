@@ -259,7 +259,8 @@ pub enum Entry {
     UnderlineThickness(Fixed),
     PaintType(i32),
     CharstringType(i32),
-    FontMatrix([Fixed; 6]),
+    /// Affine matrix and scaling factor.
+    FontMatrix([Fixed; 6], i32),
     StrokeWidth(Fixed),
     FdArrayOffset(usize),
     FdSelectOffset(usize),
@@ -380,10 +381,8 @@ pub fn entries<'a>(
                     // Now reparse with dynamic scaling
                     let mut cursor = crate::FontData::new(dict_data).cursor();
                     cursor.advance_by(cursor_pos);
-                    if let Some((matrix, _upem)) = parse_font_matrix(&mut cursor) {
-                        // FreeType doesn't seem to make use of the upem
-                        // conversion factor. Seems like a bug?
-                        return Some(Ok(Entry::FontMatrix(matrix)));
+                    if let Some((matrix, upem)) = parse_font_matrix(&mut cursor) {
+                        return Some(Ok(Entry::FontMatrix(matrix, upem)));
                     }
                     continue;
                 }
@@ -536,26 +535,31 @@ fn parse_font_matrix(cursor: &mut Cursor) -> Option<([Fixed; 6], i32)> {
     if is_degenerate(&values) {
         return None;
     }
-    let mut upem = BCD_POWER_TENS[(-max_scaling) as usize];
-    // Now normalize the matrix so that the y scale factor is 1
+    let upem = BCD_POWER_TENS[(-max_scaling) as usize];
+    Some((values, upem))
+}
+
+/// Given a font matrix and a scaled UPEM, compute a new font matrix and UPEM
+/// scale factor where the Y scale of the matrix is 1.0.
+pub fn normalize_font_matrix(mut matrix: [Fixed; 6], mut scaled_upem: i32) -> ([Fixed; 6], i32) {
     // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffobjs.c#L727>
-    let factor = if values[3] != Fixed::ZERO {
-        values[3].abs()
+    let factor = if matrix[3] != Fixed::ZERO {
+        matrix[3].abs()
     } else {
         // Use yx if yy is zero
-        values[1].abs()
+        matrix[1].abs()
     };
     if factor != Fixed::ONE {
-        upem = (Fixed::from_bits(upem) / factor).to_bits();
-        for value in &mut values {
+        scaled_upem = (Fixed::from_bits(scaled_upem) / factor).to_bits();
+        for value in &mut matrix {
             *value /= factor;
         }
     }
     // FT shifts off the fractional parts of the translation?
-    for offset in values[4..6].iter_mut() {
+    for offset in matrix[4..6].iter_mut() {
         *offset = Fixed::from_bits(offset.to_bits() >> 16);
     }
-    Some((values, upem))
+    (matrix, scaled_upem)
 }
 
 /// Check for a degenerate matrix.
@@ -886,8 +890,8 @@ impl BcdComponents {
         exponent += self.exponent_add;
         fraction_len += integer_len;
         exponent += integer_len;
-        let mut result = Fixed::ONE;
-        let mut scaling = 0;
+        let result;
+        let scaling;
         if fraction_len <= 5 {
             if number > BCD_INTEGER_LIMIT {
                 result = Fixed::from_bits(number) / Fixed::from_bits(10);
@@ -917,6 +921,10 @@ impl BcdComponents {
             result = Fixed::from_bits(number)
                 / Fixed::from_bits(BCD_POWER_TENS[fraction_len as usize - 4]);
             scaling = exponent - 4;
+        } else {
+            result = Fixed::from_bits(number)
+                / Fixed::from_bits(BCD_POWER_TENS[fraction_len as usize - 5]);
+            scaling = exponent - 5;
         }
         (Fixed::from_bits(result.to_bits() * self.sign), scaling)
     }
@@ -1148,6 +1156,14 @@ mod tests {
                 .dynamically_scaled_value(),
             (Fixed::from_f64(375.0), -4)
         );
+        // .001953125
+        let bytes = FontData::new(&[0xa0, 0x1, 0x95, 0x31, 0x25, 0xff]);
+        assert_eq!(
+            BcdComponents::parse(&mut bytes.cursor())
+                .unwrap()
+                .dynamically_scaled_value(),
+            (Fixed::from_bits(1280000000), -7)
+        );
     }
 
     /// See <https://github.com/googlefonts/fontations/issues/1617>
@@ -1168,7 +1184,8 @@ mod tests {
         let dict_data = [
             30u8, 10, 0, 31, 139, 30, 10, 0, 1, 103, 255, 30, 10, 0, 31, 139, 139, 12, 7,
         ];
-        let Entry::FontMatrix(matrix) = entries(&dict_data, None).next().unwrap().unwrap() else {
+        let Entry::FontMatrix(matrix, _) = entries(&dict_data, None).next().unwrap().unwrap()
+        else {
             panic!("This was totally a font matrix");
         };
         // From ttx: <FontMatrix value="0.001 0 0.000167 0.001 0 0"/>
@@ -1213,5 +1230,16 @@ mod tests {
         is_degenerate(&[Fixed::MAX; 6]);
         // And all min values
         is_degenerate(&[Fixed::MIN; 6]);
+    }
+
+    #[test]
+    fn normalize_matrix() {
+        // This matrix has a y scale of 0.5 so we should produce a new matrix
+        // with a y scale of 1.0 and a scale factor of 2
+        let matrix = [65536, 0, 0, 32768, 0, 0].map(Fixed::from_bits);
+        let (normalized, scale) = normalize_font_matrix(matrix, 1);
+        let expected_normalized = [131072, 0, 0, 65536, 0, 0].map(Fixed::from_bits);
+        assert_eq!(normalized, expected_normalized);
+        assert_eq!(scale, 2);
     }
 }

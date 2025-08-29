@@ -94,6 +94,9 @@ pub static AVAR2_CHECKER: &[u8] = include_bytes!("../test_data/ttf/avar2checker.
 pub static MATERIAL_ICONS_SUBSET: &[u8] =
     include_bytes!("../test_data/ttf/material_icons_subset.ttf");
 
+pub static MATERIAL_ICONS_SUBSET_MATRIX: &[u8] =
+    include_bytes!("../test_data/ttf/material_icons_subset_matrix.ttf");
+
 pub static TINOS_SUBSET: &[u8] = include_bytes!("../test_data/ttf/tinos_subset.ttf");
 
 pub static NOTO_HANDWRITING_SBIX: &[u8] =
