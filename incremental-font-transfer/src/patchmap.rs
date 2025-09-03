@@ -41,7 +41,7 @@ pub fn intersecting_patches(
     //  indexes or other data to accelerate intersection.
     let mut result: Vec<PatchMapEntry> = vec![];
 
-    for (tag, table) in IftTableTag::tables_in(font) {
+    for (tag, table) in IftTableTag::tables_in(font)? {
         add_intersecting_patches(font, tag, &table, subset_definition, &mut result)?;
     }
 
@@ -879,16 +879,23 @@ pub(crate) enum IftTableTag {
 }
 
 impl IftTableTag {
-    pub(crate) fn tables_in<'a>(font: &'a FontRef) -> impl Iterator<Item = (IftTableTag, Ift<'a>)> {
+    pub(crate) fn tables_in<'a>(
+        font: &'a FontRef,
+    ) -> Result<impl Iterator<Item = (IftTableTag, Ift<'a>)>, ReadError> {
         let ift = font
-            .ift()
+            .data_for_tag(IFT_TAG)
+            .map(Ift::read)
+            .transpose()?
             .map(|t| (IftTableTag::Ift(t.compatibility_id()), t))
             .into_iter();
         let iftx = font
-            .iftx()
+            .data_for_tag(IFTX_TAG)
+            .map(Ift::read)
+            .transpose()?
             .map(|t| (IftTableTag::Iftx(t.compatibility_id()), t))
             .into_iter();
-        ift.chain(iftx)
+
+        Ok(ift.chain(iftx))
     }
 
     pub(crate) fn font_compat_id(&self, font: &FontRef) -> Result<CompatibilityId, ReadError> {
@@ -1649,6 +1656,27 @@ mod tests {
         check_url_template_substitution(foo_bar_id64, 17_000_000, "//foo.bar/AQNmQA%3D%3D");
 
         check_string_url_template_substitution(foo_bar_id64, "àbc", "//foo.bar/w6BiYw%3D%3D");
+    }
+
+    #[test]
+    fn rejects_invalid_format() {
+        let mut bad_format = simple_format1();
+        bad_format.write_at("format", 3u8);
+
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&bad_format),
+            Some(&simple_format1()),
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+        assert_eq!(
+            intersecting_patches(
+                &font,
+                &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
+            )
+            .unwrap_err(),
+            ReadError::InvalidFormat(3)
+        );
     }
 
     #[test]
