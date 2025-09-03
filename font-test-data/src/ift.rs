@@ -25,7 +25,7 @@ pub const ABSOLUTE_URL_TEMPLATE: &[u8] = b"\x0a//foo.bar/\x80";
 pub fn simple_format1() -> BeBuffer {
     let mut buffer = be_buffer! {
         /* ### Header ### */
-        1u8,                    // format
+        {1u8: "format"},        // format
         0u32,                   // reserved
         [1u32, 2, 3, 4],        // compat id
         2u16,                   // max entry id
@@ -296,7 +296,7 @@ pub fn feature_map_format1() -> BeBuffer {
 // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-2
 pub fn codepoints_only_format2() -> BeBuffer {
     let mut buffer = be_buffer! {
-      2u8,                // format
+      {2u8: "format"},    // format
 
       0u32,               // reserved
 
