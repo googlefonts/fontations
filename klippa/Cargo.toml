@@ -1,6 +1,6 @@
 [package]
 name = "klippa"
-version = "0.1.0"
+version = "0.2.0"
 description = "Subsetting a font file according to provided input."
 readme = "README.md"
 categories = ["text-processing"]
