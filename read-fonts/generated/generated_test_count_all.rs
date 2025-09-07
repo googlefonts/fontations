@@ -30,6 +30,7 @@ impl MinByteRange for CountAll16Marker {
 }
 
 impl<'a> FontRead<'a> for CountAll16<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -43,11 +44,13 @@ pub type CountAll16<'a> = TableRef<'a, CountAll16Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CountAll16<'a> {
+    #[inline]
     pub fn some_field(&self) -> u16 {
         let range = self.shape.some_field_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn remainder(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.remainder_byte_range();
         self.data.read_array(range).unwrap()
@@ -101,6 +104,7 @@ impl MinByteRange for CountAll32Marker {
 }
 
 impl<'a> FontRead<'a> for CountAll32<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -114,11 +118,13 @@ pub type CountAll32<'a> = TableRef<'a, CountAll32Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CountAll32<'a> {
+    #[inline]
     pub fn some_field(&self) -> u16 {
         let range = self.shape.some_field_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn remainder(&self) -> &'a [BigEndian<u32>] {
         let range = self.shape.remainder_byte_range();
         self.data.read_array(range).unwrap()

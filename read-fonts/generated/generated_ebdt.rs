@@ -34,6 +34,7 @@ impl TopLevelTable for Ebdt<'_> {
 }
 
 impl<'a> FontRead<'a> for Ebdt<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -48,12 +49,14 @@ pub type Ebdt<'a> = TableRef<'a, EbdtMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ebdt<'a> {
     /// Major version of the EBDT table, = 2.
+    #[inline]
     pub fn major_version(&self) -> u16 {
         let range = self.shape.major_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minor version of EBDT table, = 0.
+    #[inline]
     pub fn minor_version(&self) -> u16 {
         let range = self.shape.minor_version_byte_range();
         self.data.read_at(range.start).unwrap()

@@ -59,6 +59,7 @@ impl TopLevelTable for Fvar<'_> {
 }
 
 impl<'a> FontRead<'a> for Fvar<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
@@ -79,6 +80,7 @@ pub type Fvar<'a> = TableRef<'a, FvarMarker>;
 impl<'a> Fvar<'a> {
     /// Major version number of the font variations table — set to 1.
     /// Minor version number of the font variations table — set to 0.
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -86,6 +88,7 @@ impl<'a> Fvar<'a> {
 
     /// Offset in bytes from the beginning of the table to the start of the VariationAxisRecord array. The
     /// InstanceRecord array directly follows.
+    #[inline]
     pub fn axis_instance_arrays_offset(&self) -> Offset16 {
         let range = self.shape.axis_instance_arrays_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -104,24 +107,28 @@ impl<'a> Fvar<'a> {
     }
 
     /// The number of variation axes in the font (the number of records in the axes array).
+    #[inline]
     pub fn axis_count(&self) -> u16 {
         let range = self.shape.axis_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The size in bytes of each VariationAxisRecord — set to 20 (0x0014) for this version.
+    #[inline]
     pub fn axis_size(&self) -> u16 {
         let range = self.shape.axis_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of named instances defined in the font (the number of records in the instances array).
+    #[inline]
     pub fn instance_count(&self) -> u16 {
         let range = self.shape.instance_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The size in bytes of each InstanceRecord — set to either axisCount * sizeof(Fixed) + 4, or to axisCount * sizeof(Fixed) + 6.
+    #[inline]
     pub fn instance_size(&self) -> u16 {
         let range = self.shape.instance_size_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -193,6 +200,7 @@ impl ReadArgs for AxisInstanceArrays<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for AxisInstanceArrays<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &(u16, u16, u16)) -> Result<Self, ReadError> {
         let (axis_count, instance_count, instance_size) = *args;
         let mut cursor = data.cursor();
@@ -221,6 +229,7 @@ impl<'a> AxisInstanceArrays<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(
         data: FontData<'a>,
         axis_count: u16,
@@ -238,12 +247,14 @@ pub type AxisInstanceArrays<'a> = TableRef<'a, AxisInstanceArraysMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisInstanceArrays<'a> {
     /// Variation axis record array.
+    #[inline]
     pub fn axes(&self) -> &'a [VariationAxisRecord] {
         let range = self.shape.axes_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Instance record array.
+    #[inline]
     pub fn instances(&self) -> ComputedArray<'a, InstanceRecord<'a>> {
         let range = self.shape.instances_byte_range();
         self.data
@@ -317,31 +328,37 @@ pub struct VariationAxisRecord {
 
 impl VariationAxisRecord {
     /// Tag identifying the design variation for the axis.
+    #[inline]
     pub fn axis_tag(&self) -> Tag {
         self.axis_tag.get()
     }
 
     /// The minimum coordinate value for the axis.
+    #[inline]
     pub fn min_value(&self) -> Fixed {
         self.min_value.get()
     }
 
     /// The default coordinate value for the axis.
+    #[inline]
     pub fn default_value(&self) -> Fixed {
         self.default_value.get()
     }
 
     /// The maximum coordinate value for the axis.
+    #[inline]
     pub fn max_value(&self) -> Fixed {
         self.max_value.get()
     }
 
     /// Axis qualifiers — see details below.
+    #[inline]
     pub fn flags(&self) -> u16 {
         self.flags.get()
     }
 
     /// The name ID for entries in the 'name' table that provide a display name for this axis.
+    #[inline]
     pub fn axis_name_id(&self) -> NameId {
         self.axis_name_id.get()
     }

@@ -56,6 +56,7 @@ impl TopLevelTable for Varc<'_> {
 }
 
 impl<'a> FontRead<'a> for Varc<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
@@ -76,11 +77,13 @@ pub type Varc<'a> = TableRef<'a, VarcMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Varc<'a> {
     /// Major/minor version number. Set to 1.0.
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn coverage_offset(&self) -> Offset32 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -92,6 +95,7 @@ impl<'a> Varc<'a> {
         self.coverage_offset().resolve(data)
     }
 
+    #[inline]
     pub fn multi_var_store_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.multi_var_store_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -103,6 +107,7 @@ impl<'a> Varc<'a> {
         self.multi_var_store_offset().resolve(data)
     }
 
+    #[inline]
     pub fn condition_list_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.condition_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -114,6 +119,7 @@ impl<'a> Varc<'a> {
         self.condition_list_offset().resolve(data)
     }
 
+    #[inline]
     pub fn axis_indices_list_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.axis_indices_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -125,6 +131,7 @@ impl<'a> Varc<'a> {
         self.axis_indices_list_offset().resolve(data)
     }
 
+    #[inline]
     pub fn var_composite_glyphs_offset(&self) -> Offset32 {
         let range = self.shape.var_composite_glyphs_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -222,6 +229,7 @@ impl MinByteRange for MultiItemVariationStoreMarker {
 }
 
 impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -243,11 +251,13 @@ pub type MultiItemVariationStore<'a> = TableRef<'a, MultiItemVariationStoreMarke
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MultiItemVariationStore<'a> {
+    #[inline]
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn region_list_offset(&self) -> Offset32 {
         let range = self.shape.region_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -259,11 +269,13 @@ impl<'a> MultiItemVariationStore<'a> {
         self.region_list_offset().resolve(data)
     }
 
+    #[inline]
     pub fn variation_data_count(&self) -> u16 {
         let range = self.shape.variation_data_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn variation_data_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.variation_data_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -345,6 +357,7 @@ impl MinByteRange for SparseVariationRegionListMarker {
 }
 
 impl<'a> FontRead<'a> for SparseVariationRegionList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let region_count: u16 = cursor.read()?;
@@ -362,11 +375,13 @@ pub type SparseVariationRegionList<'a> = TableRef<'a, SparseVariationRegionListM
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SparseVariationRegionList<'a> {
+    #[inline]
     pub fn region_count(&self) -> u16 {
         let range = self.shape.region_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn region_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.region_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -440,6 +455,7 @@ impl MinByteRange for SparseVariationRegionMarker {
 }
 
 impl<'a> FontRead<'a> for SparseVariationRegion<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let region_axis_count: u16 = cursor.read()?;
@@ -457,11 +473,13 @@ pub type SparseVariationRegion<'a> = TableRef<'a, SparseVariationRegionMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SparseVariationRegion<'a> {
+    #[inline]
     pub fn region_axis_count(&self) -> u16 {
         let range = self.shape.region_axis_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn region_axis_offsets(&self) -> &'a [SparseRegionAxisCoordinates] {
         let range = self.shape.region_axis_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -508,18 +526,22 @@ pub struct SparseRegionAxisCoordinates {
 }
 
 impl SparseRegionAxisCoordinates {
+    #[inline]
     pub fn axis_index(&self) -> u16 {
         self.axis_index.get()
     }
 
+    #[inline]
     pub fn start(&self) -> F2Dot14 {
         self.start.get()
     }
 
+    #[inline]
     pub fn peak(&self) -> F2Dot14 {
         self.peak.get()
     }
 
+    #[inline]
     pub fn end(&self) -> F2Dot14 {
         self.end.get()
     }
@@ -587,6 +609,7 @@ impl MinByteRange for MultiItemVariationDataMarker {
 }
 
 impl<'a> FontRead<'a> for MultiItemVariationData<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -609,21 +632,25 @@ pub type MultiItemVariationData<'a> = TableRef<'a, MultiItemVariationDataMarker>
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MultiItemVariationData<'a> {
+    #[inline]
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn region_index_count(&self) -> u16 {
         let range = self.shape.region_index_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn region_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.region_indices_byte_range();
         self.data.read_array(range).unwrap()
     }
 
+    #[inline]
     pub fn raw_delta_sets(&self) -> &'a [u8] {
         let range = self.shape.raw_delta_sets_byte_range();
         self.data.read_array(range).unwrap()
@@ -679,6 +706,7 @@ impl MinByteRange for ConditionListMarker {
 }
 
 impl<'a> FontRead<'a> for ConditionList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let condition_count: u32 = cursor.read()?;
@@ -696,11 +724,13 @@ pub type ConditionList<'a> = TableRef<'a, ConditionListMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionList<'a> {
+    #[inline]
     pub fn condition_count(&self) -> u32 {
         let range = self.shape.condition_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.condition_offsets_byte_range();
         self.data.read_array(range).unwrap()

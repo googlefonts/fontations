@@ -58,6 +58,7 @@ impl TopLevelTable for Avar<'_> {
 }
 
 impl<'a> FontRead<'a> for Avar<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
@@ -97,24 +98,28 @@ pub type Avar<'a> = TableRef<'a, AvarMarker>;
 impl<'a> Avar<'a> {
     /// Major version number of the axis variations table — set to 1 or 2.
     /// Minor version number of the axis variations table — set to 0.
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of variation axes for this font. This must be the same number as axisCount in the 'fvar' table.
+    #[inline]
     pub fn axis_count(&self) -> u16 {
         let range = self.shape.axis_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The segment maps array — one segment map for each axis, in the order of axes specified in the 'fvar' table.
+    #[inline]
     pub fn axis_segment_maps(&self) -> VarLenArray<'a, SegmentMaps<'a>> {
         let range = self.shape.axis_segment_maps_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
     }
 
     /// Offset to DeltaSetIndexMap table (may be NULL).
+    #[inline]
     pub fn axis_index_map_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.axis_index_map_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -127,6 +132,7 @@ impl<'a> Avar<'a> {
     }
 
     /// Offset to ItemVariationStore (may be NULL).
+    #[inline]
     pub fn var_store_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.var_store_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -189,11 +195,13 @@ pub struct SegmentMaps<'a> {
 
 impl<'a> SegmentMaps<'a> {
     /// The number of correspondence pairs for this axis.
+    #[inline]
     pub fn position_map_count(&self) -> u16 {
         self.position_map_count.get()
     }
 
     /// The array of axis value map records for this axis.
+    #[inline]
     pub fn axis_value_maps(&self) -> &'a [AxisValueMap] {
         self.axis_value_maps
     }
@@ -234,11 +242,13 @@ pub struct AxisValueMap {
 
 impl AxisValueMap {
     /// A normalized coordinate value obtained using default normalization.
+    #[inline]
     pub fn from_coordinate(&self) -> F2Dot14 {
         self.from_coordinate.get()
     }
 
     /// The modified, normalized coordinate value.
+    #[inline]
     pub fn to_coordinate(&self) -> F2Dot14 {
         self.to_coordinate.get()
     }

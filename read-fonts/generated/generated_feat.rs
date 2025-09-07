@@ -51,6 +51,7 @@ impl TopLevelTable for Feat<'_> {
 }
 
 impl<'a> FontRead<'a> for Feat<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
@@ -72,18 +73,21 @@ pub type Feat<'a> = TableRef<'a, FeatMarker>;
 impl<'a> Feat<'a> {
     /// Version number of the feature name table (0x00010000 for the current
     /// version).
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of entries in the feature name array.
+    #[inline]
     pub fn feature_name_count(&self) -> u16 {
         let range = self.shape.feature_name_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The feature name array, sorted by feature type.
+    #[inline]
     pub fn names(&self) -> &'a [FeatureName] {
         let range = self.shape.names_byte_range();
         self.data.read_array(range).unwrap()
@@ -141,11 +145,13 @@ pub struct FeatureName {
 
 impl FeatureName {
     /// Feature type.
+    #[inline]
     pub fn feature(&self) -> u16 {
         self.feature.get()
     }
 
     /// The number of records in the setting name array.
+    #[inline]
     pub fn n_settings(&self) -> u16 {
         self.n_settings.get()
     }
@@ -153,6 +159,7 @@ impl FeatureName {
     /// Offset in bytes from the beginning of this table to this feature's
     /// setting name array. The actual type of record this offset refers
     /// to will depend on the exclusivity value, as described below.
+    #[inline]
     pub fn setting_table_offset(&self) -> Offset32 {
         self.setting_table_offset.get()
     }
@@ -169,11 +176,13 @@ impl FeatureName {
     }
 
     /// Flags associated with the feature type.
+    #[inline]
     pub fn feature_flags(&self) -> u16 {
         self.feature_flags.get()
     }
 
     /// The name table index for the feature's name.
+    #[inline]
     pub fn name_index(&self) -> NameId {
         self.name_index.get()
     }
@@ -232,6 +241,7 @@ impl ReadArgs for SettingNameArray<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for SettingNameArray<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let n_settings = *args;
         let mut cursor = data.cursor();
@@ -248,6 +258,7 @@ impl<'a> SettingNameArray<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, n_settings: u16) -> Result<Self, ReadError> {
         let args = n_settings;
         Self::read_with_args(data, &args)
@@ -259,6 +270,7 @@ pub type SettingNameArray<'a> = TableRef<'a, SettingNameArrayMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SettingNameArray<'a> {
     /// List of setting names for a feature.
+    #[inline]
     pub fn settings(&self) -> &'a [SettingName] {
         let range = self.shape.settings_byte_range();
         self.data.read_array(range).unwrap()
@@ -306,11 +318,13 @@ pub struct SettingName {
 
 impl SettingName {
     /// The setting.
+    #[inline]
     pub fn setting(&self) -> u16 {
         self.setting.get()
     }
 
     /// The name table index for the setting's name.
+    #[inline]
     pub fn name_index(&self) -> NameId {
         self.name_index.get()
     }

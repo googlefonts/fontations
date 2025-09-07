@@ -46,6 +46,7 @@ impl TopLevelTable for Kerx<'_> {
 }
 
 impl<'a> FontRead<'a> for Kerx<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -66,17 +67,20 @@ pub type Kerx<'a> = TableRef<'a, KerxMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Kerx<'a> {
     /// The version number of the extended kerning table (currently 2, 3, or 4)
+    #[inline]
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of subtables included in the extended kerning table.
+    #[inline]
     pub fn n_tables(&self) -> u32 {
         let range = self.shape.n_tables_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    #[inline]
     pub fn subtables(&self) -> VarLenArray<'a, Subtable<'a>> {
         let range = self.shape.subtables_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
@@ -145,6 +149,7 @@ impl MinByteRange for SubtableMarker {
 }
 
 impl<'a> FontRead<'a> for Subtable<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u32>();
@@ -162,24 +167,28 @@ pub type Subtable<'a> = TableRef<'a, SubtableMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable<'a> {
     /// The length of this subtable in bytes, including this header.
+    #[inline]
     pub fn length(&self) -> u32 {
         let range = self.shape.length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Circumstances under which this table is used.
+    #[inline]
     pub fn coverage(&self) -> u32 {
         let range = self.shape.coverage_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The tuple count. This value is only used with variation fonts and should be 0 for all other fonts. The subtable's tupleCount will be ignored if the 'kerx' table version is less than 4.
+    #[inline]
     pub fn tuple_count(&self) -> u32 {
         let range = self.shape.tuple_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Subtable specific data.
+    #[inline]
     pub fn data(&self) -> &'a [u8] {
         let range = self.shape.data_byte_range();
         self.data.read_array(range).unwrap()
@@ -251,6 +260,7 @@ impl MinByteRange for Subtable0Marker {
 }
 
 impl<'a> FontRead<'a> for Subtable0<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let n_pairs: u32 = cursor.read()?;
@@ -271,30 +281,35 @@ pub type Subtable0<'a> = TableRef<'a, Subtable0Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable0<'a> {
     /// The number of kerning pairs in this subtable.
+    #[inline]
     pub fn n_pairs(&self) -> u32 {
         let range = self.shape.n_pairs_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The largest power of two less than or equal to the value of nPairs, multiplied by the size in bytes of an entry in the subtable.
+    #[inline]
     pub fn search_range(&self) -> u32 {
         let range = self.shape.search_range_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// This is calculated as log2 of the largest power of two less than or equal to the value of nPairs. This value indicates how many iterations of the search loop have to be made. For example, in a list of eight items, there would be three iterations of the loop.
+    #[inline]
     pub fn entry_selector(&self) -> u32 {
         let range = self.shape.entry_selector_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The value of nPairs minus the largest power of two less than or equal to nPairs. This is multiplied by the size in bytes of an entry in the table.
+    #[inline]
     pub fn range_shift(&self) -> u32 {
         let range = self.shape.range_shift_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Kerning records.
+    #[inline]
     pub fn pairs(&self) -> &'a [Subtable0Pair] {
         let range = self.shape.pairs_byte_range();
         self.data.read_array(range).unwrap()
@@ -348,16 +363,19 @@ pub struct Subtable0Pair {
 
 impl Subtable0Pair {
     /// The glyph index for the lefthand glyph in the kerning pair.
+    #[inline]
     pub fn left(&self) -> GlyphId16 {
         self.left.get()
     }
 
     /// The glyph index for the righthand glyph in the kerning pair.
+    #[inline]
     pub fn right(&self) -> GlyphId16 {
         self.right.get()
     }
 
     /// Kerning value.
+    #[inline]
     pub fn value(&self) -> i16 {
         self.value.get()
     }

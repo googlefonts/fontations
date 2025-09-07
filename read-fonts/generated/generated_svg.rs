@@ -39,6 +39,7 @@ impl TopLevelTable for Svg<'_> {
 }
 
 impl<'a> FontRead<'a> for Svg<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -54,6 +55,7 @@ pub type Svg<'a> = TableRef<'a, SvgMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Svg<'a> {
     /// Table version (starting at 0). Set to 0.
+    #[inline]
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -61,6 +63,7 @@ impl<'a> Svg<'a> {
 
     /// Offset to the SVGDocumentList, from the start of the SVG table.
     /// Must be non-zero.
+    #[inline]
     pub fn svg_document_list_offset(&self) -> Offset32 {
         let range = self.shape.svg_document_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -124,6 +127,7 @@ impl MinByteRange for SVGDocumentListMarker {
 }
 
 impl<'a> FontRead<'a> for SVGDocumentList<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let num_entries: u16 = cursor.read()?;
@@ -143,12 +147,14 @@ pub type SVGDocumentList<'a> = TableRef<'a, SVGDocumentListMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SVGDocumentList<'a> {
     /// Number of SVGDocumentRecords. Must be non-zero.
+    #[inline]
     pub fn num_entries(&self) -> u16 {
         let range = self.shape.num_entries_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SVGDocumentRecords.
+    #[inline]
     pub fn document_records(&self) -> &'a [SVGDocumentRecord] {
         let range = self.shape.document_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -202,22 +208,26 @@ pub struct SVGDocumentRecord {
 
 impl SVGDocumentRecord {
     /// The first glyph ID for the range covered by this record.
+    #[inline]
     pub fn start_glyph_id(&self) -> GlyphId16 {
         self.start_glyph_id.get()
     }
 
     /// The last glyph ID for the range covered by this record.
+    #[inline]
     pub fn end_glyph_id(&self) -> GlyphId16 {
         self.end_glyph_id.get()
     }
 
     /// Offset from the beginning of the SVGDocumentList to an SVG
     /// document. Must be non-zero.
+    #[inline]
     pub fn svg_doc_offset(&self) -> u32 {
         self.svg_doc_offset.get()
     }
 
     /// Length of the SVG document data. Must be non-zero.
+    #[inline]
     pub fn svg_doc_length(&self) -> u32 {
         self.svg_doc_length.get()
     }

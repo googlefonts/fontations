@@ -66,6 +66,7 @@ impl TopLevelTable for Gvar<'_> {
 }
 
 impl<'a> FontRead<'a> for Gvar<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
@@ -91,6 +92,7 @@ pub type Gvar<'a> = TableRef<'a, GvarMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Gvar<'a> {
     /// Major/minor version number of the glyph variations table — set to (1,0).
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -98,6 +100,7 @@ impl<'a> Gvar<'a> {
 
     /// The number of variation axes for this font. This must be the
     /// same number as axisCount in the 'fvar' table.
+    #[inline]
     pub fn axis_count(&self) -> u16 {
         let range = self.shape.axis_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -107,12 +110,14 @@ impl<'a> Gvar<'a> {
     /// referenced within glyph variation data tables for multiple
     /// glyphs, as opposed to other tuple records stored directly
     /// within a glyph variation data table.
+    #[inline]
     pub fn shared_tuple_count(&self) -> u16 {
         let range = self.shape.shared_tuple_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset from the start of this table to the shared tuple records.
+    #[inline]
     pub fn shared_tuples_offset(&self) -> Offset32 {
         let range = self.shape.shared_tuples_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -127,6 +132,7 @@ impl<'a> Gvar<'a> {
 
     /// The number of glyphs in this font. This must match the number
     /// of glyphs stored elsewhere in the font.
+    #[inline]
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -135,6 +141,7 @@ impl<'a> Gvar<'a> {
     /// Bit-field that gives the format of the offset array that
     /// follows. If bit 0 is clear, the offsets are uint16; if bit 0 is
     /// set, the offsets are uint32.
+    #[inline]
     pub fn flags(&self) -> GvarFlags {
         let range = self.shape.flags_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -142,6 +149,7 @@ impl<'a> Gvar<'a> {
 
     /// Offset from the start of this table to the array of
     /// GlyphVariationData tables.
+    #[inline]
     pub fn glyph_variation_data_array_offset(&self) -> u32 {
         let range = self.shape.glyph_variation_data_array_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -149,6 +157,7 @@ impl<'a> Gvar<'a> {
 
     /// Offsets from the start of the GlyphVariationData array to each
     /// GlyphVariationData table.
+    #[inline]
     pub fn glyph_variation_data_offsets(&self) -> ComputedArray<'a, U16Or32> {
         let range = self.shape.glyph_variation_data_offsets_byte_range();
         self.data.read_with_args(range, &self.flags()).unwrap()
@@ -519,6 +528,7 @@ impl ReadArgs for SharedTuples<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for SharedTuples<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
         let (shared_tuple_count, axis_count) = *args;
         let mut cursor = data.cursor();
@@ -538,6 +548,7 @@ impl<'a> SharedTuples<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(
         data: FontData<'a>,
         shared_tuple_count: u16,
@@ -553,6 +564,7 @@ pub type SharedTuples<'a> = TableRef<'a, SharedTuplesMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SharedTuples<'a> {
+    #[inline]
     pub fn tuples(&self) -> ComputedArray<'a, Tuple<'a>> {
         let range = self.shape.tuples_byte_range();
         self.data.read_with_args(range, &self.axis_count()).unwrap()
@@ -618,6 +630,7 @@ impl MinByteRange for GlyphVariationDataHeaderMarker {
 }
 
 impl<'a> FontRead<'a> for GlyphVariationDataHeader<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<TupleVariationCount>();
@@ -639,6 +652,7 @@ impl<'a> GlyphVariationDataHeader<'a> {
     /// are the number of tuple variation tables for this glyph. The
     /// number of tuple variation tables can be any number between 1
     /// and 4095.
+    #[inline]
     pub fn tuple_variation_count(&self) -> TupleVariationCount {
         let range = self.shape.tuple_variation_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -646,6 +660,7 @@ impl<'a> GlyphVariationDataHeader<'a> {
 
     /// Offset from the start of the GlyphVariationData table to the
     /// serialized data
+    #[inline]
     pub fn serialized_data_offset(&self) -> Offset16 {
         let range = self.shape.serialized_data_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -658,6 +673,7 @@ impl<'a> GlyphVariationDataHeader<'a> {
     }
 
     /// Array of tuple variation headers.
+    #[inline]
     pub fn tuple_variation_headers(&self) -> VarLenArray<'a, TupleVariationHeader> {
         let range = self.shape.tuple_variation_headers_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()

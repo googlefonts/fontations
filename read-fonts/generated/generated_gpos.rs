@@ -52,6 +52,7 @@ impl TopLevelTable for Gpos<'_> {
 }
 
 impl<'a> FontRead<'a> for Gpos<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
@@ -78,12 +79,14 @@ pub type Gpos<'a> = TableRef<'a, GposMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Gpos<'a> {
     /// The major and minor version of the GPOS table, as a tuple (u16, u16)
+    #[inline]
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to ScriptList table, from beginning of GPOS table
+    #[inline]
     pub fn script_list_offset(&self) -> Offset16 {
         let range = self.shape.script_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -96,6 +99,7 @@ impl<'a> Gpos<'a> {
     }
 
     /// Offset to FeatureList table, from beginning of GPOS table
+    #[inline]
     pub fn feature_list_offset(&self) -> Offset16 {
         let range = self.shape.feature_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -108,6 +112,7 @@ impl<'a> Gpos<'a> {
     }
 
     /// Offset to LookupList table, from beginning of GPOS table
+    #[inline]
     pub fn lookup_list_offset(&self) -> Offset16 {
         let range = self.shape.lookup_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -119,6 +124,7 @@ impl<'a> Gpos<'a> {
         self.lookup_list_offset().resolve(data)
     }
 
+    #[inline]
     pub fn feature_variations_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.feature_variations_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -186,6 +192,7 @@ pub enum PositionLookup<'a> {
 }
 
 impl<'a> FontRead<'a> for PositionLookup<'a> {
+    #[inline]
     fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
         let untyped = Lookup::read(bytes)?;
         match untyped.lookup_type() {
@@ -730,6 +737,7 @@ impl MinByteRange for AnchorFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for AnchorFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -745,18 +753,21 @@ pub type AnchorFormat1<'a> = TableRef<'a, AnchorFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AnchorFormat1<'a> {
     /// Format identifier, = 1
+    #[inline]
     pub fn anchor_format(&self) -> u16 {
         let range = self.shape.anchor_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Horizontal value, in design units
+    #[inline]
     pub fn x_coordinate(&self) -> i16 {
         let range = self.shape.x_coordinate_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Vertical value, in design units
+    #[inline]
     pub fn y_coordinate(&self) -> i16 {
         let range = self.shape.y_coordinate_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -824,6 +835,7 @@ impl MinByteRange for AnchorFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for AnchorFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -840,24 +852,28 @@ pub type AnchorFormat2<'a> = TableRef<'a, AnchorFormat2Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AnchorFormat2<'a> {
     /// Format identifier, = 2
+    #[inline]
     pub fn anchor_format(&self) -> u16 {
         let range = self.shape.anchor_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Horizontal value, in design units
+    #[inline]
     pub fn x_coordinate(&self) -> i16 {
         let range = self.shape.x_coordinate_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Vertical value, in design units
+    #[inline]
     pub fn y_coordinate(&self) -> i16 {
         let range = self.shape.y_coordinate_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Index to glyph contour point
+    #[inline]
     pub fn anchor_point(&self) -> u16 {
         let range = self.shape.anchor_point_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -931,6 +947,7 @@ impl MinByteRange for AnchorFormat3Marker {
 }
 
 impl<'a> FontRead<'a> for AnchorFormat3<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -948,18 +965,21 @@ pub type AnchorFormat3<'a> = TableRef<'a, AnchorFormat3Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AnchorFormat3<'a> {
     /// Format identifier, = 3
+    #[inline]
     pub fn anchor_format(&self) -> u16 {
         let range = self.shape.anchor_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Horizontal value, in design units
+    #[inline]
     pub fn x_coordinate(&self) -> i16 {
         let range = self.shape.x_coordinate_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Vertical value, in design units
+    #[inline]
     pub fn y_coordinate(&self) -> i16 {
         let range = self.shape.y_coordinate_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -968,6 +988,7 @@ impl<'a> AnchorFormat3<'a> {
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for X coordinate, from beginning of
     /// Anchor table (may be NULL)
+    #[inline]
     pub fn x_device_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.x_device_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -982,6 +1003,7 @@ impl<'a> AnchorFormat3<'a> {
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for Y coordinate, from beginning of
     /// Anchor table (may be NULL)
+    #[inline]
     pub fn y_device_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.y_device_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1051,6 +1073,7 @@ impl MinByteRange for MarkArrayMarker {
 }
 
 impl<'a> FontRead<'a> for MarkArray<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let mark_count: u16 = cursor.read()?;
@@ -1070,6 +1093,7 @@ pub type MarkArray<'a> = TableRef<'a, MarkArrayMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MarkArray<'a> {
     /// Number of MarkRecords
+    #[inline]
     pub fn mark_count(&self) -> u16 {
         let range = self.shape.mark_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1077,6 +1101,7 @@ impl<'a> MarkArray<'a> {
 
     /// Array of MarkRecords, ordered by corresponding glyphs in the
     /// associated mark Coverage table.
+    #[inline]
     pub fn mark_records(&self) -> &'a [MarkRecord] {
         let range = self.shape.mark_records_byte_range();
         self.data.read_array(range).unwrap()
@@ -1125,11 +1150,13 @@ pub struct MarkRecord {
 
 impl MarkRecord {
     /// Class defined for the associated mark.
+    #[inline]
     pub fn mark_class(&self) -> u16 {
         self.mark_class.get()
     }
 
     /// Offset to Anchor table, from beginning of MarkArray table.
+    #[inline]
     pub fn mark_anchor_offset(&self) -> Offset16 {
         self.mark_anchor_offset.get()
     }
@@ -1293,6 +1320,7 @@ impl MinByteRange for SinglePosFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1312,12 +1340,14 @@ pub type SinglePosFormat1<'a> = TableRef<'a, SinglePosFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SinglePosFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn pos_format(&self) -> u16 {
         let range = self.shape.pos_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to Coverage table, from beginning of SinglePos subtable.
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1330,6 +1360,7 @@ impl<'a> SinglePosFormat1<'a> {
     }
 
     /// Defines the types of data in the ValueRecord.
+    #[inline]
     pub fn value_format(&self) -> ValueFormat {
         let range = self.shape.value_format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1337,6 +1368,7 @@ impl<'a> SinglePosFormat1<'a> {
 
     /// Defines positioning value(s) — applied to all glyphs in the
     /// Coverage table.
+    #[inline]
     pub fn value_record(&self) -> ValueRecord {
         let range = self.shape.value_record_byte_range();
         self.data
@@ -1420,6 +1452,7 @@ impl MinByteRange for SinglePosFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1442,12 +1475,14 @@ pub type SinglePosFormat2<'a> = TableRef<'a, SinglePosFormat2Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SinglePosFormat2<'a> {
     /// Format identifier: format = 2
+    #[inline]
     pub fn pos_format(&self) -> u16 {
         let range = self.shape.pos_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to Coverage table, from beginning of SinglePos subtable.
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1460,6 +1495,7 @@ impl<'a> SinglePosFormat2<'a> {
     }
 
     /// Defines the types of data in the ValueRecords.
+    #[inline]
     pub fn value_format(&self) -> ValueFormat {
         let range = self.shape.value_format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1467,12 +1503,14 @@ impl<'a> SinglePosFormat2<'a> {
 
     /// Number of ValueRecords — must equal glyphCount in the
     /// Coverage table.
+    #[inline]
     pub fn value_count(&self) -> u16 {
         let range = self.shape.value_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of ValueRecords — positioning values applied to glyphs.
+    #[inline]
     pub fn value_records(&self) -> ComputedArray<'a, ValueRecord> {
         let range = self.shape.value_records_byte_range();
         self.data
@@ -1664,6 +1702,7 @@ impl MinByteRange for PairPosFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for PairPosFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1687,12 +1726,14 @@ pub type PairPosFormat1<'a> = TableRef<'a, PairPosFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PairPosFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn pos_format(&self) -> u16 {
         let range = self.shape.pos_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to Coverage table, from beginning of PairPos subtable.
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1706,6 +1747,7 @@ impl<'a> PairPosFormat1<'a> {
 
     /// Defines the types of data in valueRecord1 — for the first
     /// glyph in the pair (may be zero).
+    #[inline]
     pub fn value_format1(&self) -> ValueFormat {
         let range = self.shape.value_format1_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1713,12 +1755,14 @@ impl<'a> PairPosFormat1<'a> {
 
     /// Defines the types of data in valueRecord2 — for the second
     /// glyph in the pair (may be zero).
+    #[inline]
     pub fn value_format2(&self) -> ValueFormat {
         let range = self.shape.value_format2_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of PairSet tables
+    #[inline]
     pub fn pair_set_count(&self) -> u16 {
         let range = self.shape.pair_set_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1726,6 +1770,7 @@ impl<'a> PairPosFormat1<'a> {
 
     /// Array of offsets to PairSet tables. Offsets are from beginning
     /// of PairPos subtable, ordered by Coverage Index.
+    #[inline]
     pub fn pair_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.pair_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -1815,6 +1860,7 @@ impl ReadArgs for PairSet<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for PairSet<'a> {
+    #[inline]
     fn read_with_args(
         data: FontData<'a>,
         args: &(ValueFormat, ValueFormat),
@@ -1842,6 +1888,7 @@ impl<'a> PairSet<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(
         data: FontData<'a>,
         value_format1: ValueFormat,
@@ -1858,6 +1905,7 @@ pub type PairSet<'a> = TableRef<'a, PairSetMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PairSet<'a> {
     /// Number of PairValueRecords
+    #[inline]
     pub fn pair_value_count(&self) -> u16 {
         let range = self.shape.pair_value_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -1865,6 +1913,7 @@ impl<'a> PairSet<'a> {
 
     /// Array of PairValueRecords, ordered by glyph ID of the second
     /// glyph.
+    #[inline]
     pub fn pair_value_records(&self) -> ComputedArray<'a, PairValueRecord> {
         let range = self.shape.pair_value_records_byte_range();
         self.data
@@ -1925,16 +1974,19 @@ pub struct PairValueRecord {
 impl PairValueRecord {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
+    #[inline]
     pub fn second_glyph(&self) -> GlyphId16 {
         self.second_glyph.get()
     }
 
     /// Positioning data for the first glyph in the pair.
+    #[inline]
     pub fn value_record1(&self) -> &ValueRecord {
         &self.value_record1
     }
 
     /// Positioning data for the second glyph in the pair.
+    #[inline]
     pub fn value_record2(&self) -> &ValueRecord {
         &self.value_record2
     }
@@ -2080,6 +2132,7 @@ impl MinByteRange for PairPosFormat2Marker {
 }
 
 impl<'a> FontRead<'a> for PairPosFormat2<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -2110,12 +2163,14 @@ pub type PairPosFormat2<'a> = TableRef<'a, PairPosFormat2Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PairPosFormat2<'a> {
     /// Format identifier: format = 2
+    #[inline]
     pub fn pos_format(&self) -> u16 {
         let range = self.shape.pos_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to Coverage table, from beginning of PairPos subtable.
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2129,6 +2184,7 @@ impl<'a> PairPosFormat2<'a> {
 
     /// ValueRecord definition — for the first glyph of the pair (may
     /// be zero).
+    #[inline]
     pub fn value_format1(&self) -> ValueFormat {
         let range = self.shape.value_format1_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2136,6 +2192,7 @@ impl<'a> PairPosFormat2<'a> {
 
     /// ValueRecord definition — for the second glyph of the pair
     /// (may be zero).
+    #[inline]
     pub fn value_format2(&self) -> ValueFormat {
         let range = self.shape.value_format2_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2143,6 +2200,7 @@ impl<'a> PairPosFormat2<'a> {
 
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the first glyph of the pair.
+    #[inline]
     pub fn class_def1_offset(&self) -> Offset16 {
         let range = self.shape.class_def1_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2156,6 +2214,7 @@ impl<'a> PairPosFormat2<'a> {
 
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the second glyph of the pair.
+    #[inline]
     pub fn class_def2_offset(&self) -> Offset16 {
         let range = self.shape.class_def2_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2168,18 +2227,21 @@ impl<'a> PairPosFormat2<'a> {
     }
 
     /// Number of classes in classDef1 table — includes Class 0.
+    #[inline]
     pub fn class1_count(&self) -> u16 {
         let range = self.shape.class1_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of classes in classDef2 table — includes Class 0.
+    #[inline]
     pub fn class2_count(&self) -> u16 {
         let range = self.shape.class2_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of Class1 records, ordered by classes in classDef1.
+    #[inline]
     pub fn class1_records(&self) -> ComputedArray<'a, Class1Record<'a>> {
         let range = self.shape.class1_records_byte_range();
         self.data
@@ -2249,6 +2311,7 @@ pub struct Class1Record<'a> {
 
 impl<'a> Class1Record<'a> {
     /// Array of Class2 records, ordered by classes in classDef2.
+    #[inline]
     pub fn class2_records(&self) -> &ComputedArray<'a, Class2Record> {
         &self.class2_records
     }
@@ -2334,11 +2397,13 @@ pub struct Class2Record {
 
 impl Class2Record {
     /// Positioning for first glyph — empty if valueFormat1 = 0.
+    #[inline]
     pub fn value_record1(&self) -> &ValueRecord {
         &self.value_record1
     }
 
     /// Positioning for second glyph — empty if valueFormat2 = 0.
+    #[inline]
     pub fn value_record2(&self) -> &ValueRecord {
         &self.value_record2
     }
@@ -2454,6 +2519,7 @@ impl MinByteRange for CursivePosFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for CursivePosFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -2475,12 +2541,14 @@ pub type CursivePosFormat1<'a> = TableRef<'a, CursivePosFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CursivePosFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn pos_format(&self) -> u16 {
         let range = self.shape.pos_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to Coverage table, from beginning of CursivePos subtable.
+    #[inline]
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2493,12 +2561,14 @@ impl<'a> CursivePosFormat1<'a> {
     }
 
     /// Number of EntryExit records
+    #[inline]
     pub fn entry_exit_count(&self) -> u16 {
         let range = self.shape.entry_exit_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of EntryExit records, in Coverage index order.
+    #[inline]
     pub fn entry_exit_record(&self) -> &'a [EntryExitRecord] {
         let range = self.shape.entry_exit_record_byte_range();
         self.data.read_array(range).unwrap()
@@ -2555,6 +2625,7 @@ pub struct EntryExitRecord {
 impl EntryExitRecord {
     /// Offset to entryAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
+    #[inline]
     pub fn entry_anchor_offset(&self) -> Nullable<Offset16> {
         self.entry_anchor_offset.get()
     }
@@ -2573,6 +2644,7 @@ impl EntryExitRecord {
 
     /// Offset to exitAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
+    #[inline]
     pub fn exit_anchor_offset(&self) -> Nullable<Offset16> {
         self.exit_anchor_offset.get()
     }
@@ -2663,6 +2735,7 @@ impl MinByteRange for MarkBasePosFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for MarkBasePosFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -2681,6 +2754,7 @@ pub type MarkBasePosFormat1<'a> = TableRef<'a, MarkBasePosFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MarkBasePosFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn pos_format(&self) -> u16 {
         let range = self.shape.pos_format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2688,6 +2762,7 @@ impl<'a> MarkBasePosFormat1<'a> {
 
     /// Offset to markCoverage table, from beginning of MarkBasePos
     /// subtable.
+    #[inline]
     pub fn mark_coverage_offset(&self) -> Offset16 {
         let range = self.shape.mark_coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2701,6 +2776,7 @@ impl<'a> MarkBasePosFormat1<'a> {
 
     /// Offset to baseCoverage table, from beginning of MarkBasePos
     /// subtable.
+    #[inline]
     pub fn base_coverage_offset(&self) -> Offset16 {
         let range = self.shape.base_coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2713,6 +2789,7 @@ impl<'a> MarkBasePosFormat1<'a> {
     }
 
     /// Number of classes defined for marks
+    #[inline]
     pub fn mark_class_count(&self) -> u16 {
         let range = self.shape.mark_class_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2720,6 +2797,7 @@ impl<'a> MarkBasePosFormat1<'a> {
 
     /// Offset to MarkArray table, from beginning of MarkBasePos
     /// subtable.
+    #[inline]
     pub fn mark_array_offset(&self) -> Offset16 {
         let range = self.shape.mark_array_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2733,6 +2811,7 @@ impl<'a> MarkBasePosFormat1<'a> {
 
     /// Offset to BaseArray table, from beginning of MarkBasePos
     /// subtable.
+    #[inline]
     pub fn base_array_offset(&self) -> Offset16 {
         let range = self.shape.base_array_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2815,6 +2894,7 @@ impl ReadArgs for BaseArray<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
         let mut cursor = data.cursor();
@@ -2837,6 +2917,7 @@ impl<'a> BaseArray<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
         Self::read_with_args(data, &args)
@@ -2849,12 +2930,14 @@ pub type BaseArray<'a> = TableRef<'a, BaseArrayMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseArray<'a> {
     /// Number of BaseRecords
+    #[inline]
     pub fn base_count(&self) -> u16 {
         let range = self.shape.base_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of BaseRecords, in order of baseCoverage Index.
+    #[inline]
     pub fn base_records(&self) -> ComputedArray<'a, BaseRecord<'a>> {
         let range = self.shape.base_records_byte_range();
         self.data
@@ -2909,6 +2992,7 @@ impl<'a> BaseRecord<'a> {
     /// Array of offsets (one per mark class) to Anchor tables. Offsets
     /// are from beginning of BaseArray table, ordered by class
     /// (offsets may be NULL).
+    #[inline]
     pub fn base_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         self.base_anchor_offsets
     }
@@ -3038,6 +3122,7 @@ impl MinByteRange for MarkLigPosFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for MarkLigPosFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -3056,6 +3141,7 @@ pub type MarkLigPosFormat1<'a> = TableRef<'a, MarkLigPosFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MarkLigPosFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn pos_format(&self) -> u16 {
         let range = self.shape.pos_format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3063,6 +3149,7 @@ impl<'a> MarkLigPosFormat1<'a> {
 
     /// Offset to markCoverage table, from beginning of MarkLigPos
     /// subtable.
+    #[inline]
     pub fn mark_coverage_offset(&self) -> Offset16 {
         let range = self.shape.mark_coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3076,6 +3163,7 @@ impl<'a> MarkLigPosFormat1<'a> {
 
     /// Offset to ligatureCoverage table, from beginning of MarkLigPos
     /// subtable.
+    #[inline]
     pub fn ligature_coverage_offset(&self) -> Offset16 {
         let range = self.shape.ligature_coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3088,6 +3176,7 @@ impl<'a> MarkLigPosFormat1<'a> {
     }
 
     /// Number of defined mark classes
+    #[inline]
     pub fn mark_class_count(&self) -> u16 {
         let range = self.shape.mark_class_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3095,6 +3184,7 @@ impl<'a> MarkLigPosFormat1<'a> {
 
     /// Offset to MarkArray table, from beginning of MarkLigPos
     /// subtable.
+    #[inline]
     pub fn mark_array_offset(&self) -> Offset16 {
         let range = self.shape.mark_array_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3108,6 +3198,7 @@ impl<'a> MarkLigPosFormat1<'a> {
 
     /// Offset to LigatureArray table, from beginning of MarkLigPos
     /// subtable.
+    #[inline]
     pub fn ligature_array_offset(&self) -> Offset16 {
         let range = self.shape.ligature_array_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3190,6 +3281,7 @@ impl ReadArgs for LigatureArray<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for LigatureArray<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
         let mut cursor = data.cursor();
@@ -3210,6 +3302,7 @@ impl<'a> LigatureArray<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
         Self::read_with_args(data, &args)
@@ -3222,6 +3315,7 @@ pub type LigatureArray<'a> = TableRef<'a, LigatureArrayMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LigatureArray<'a> {
     /// Number of LigatureAttach table offsets
+    #[inline]
     pub fn ligature_count(&self) -> u16 {
         let range = self.shape.ligature_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3230,6 +3324,7 @@ impl<'a> LigatureArray<'a> {
     /// Array of offsets to LigatureAttach tables. Offsets are from
     /// beginning of LigatureArray table, ordered by ligatureCoverage
     /// index.
+    #[inline]
     pub fn ligature_attach_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.ligature_attach_offsets_byte_range();
         self.data.read_array(range).unwrap()
@@ -3315,6 +3410,7 @@ impl ReadArgs for LigatureAttach<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for LigatureAttach<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
         let mut cursor = data.cursor();
@@ -3337,6 +3433,7 @@ impl<'a> LigatureAttach<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
         Self::read_with_args(data, &args)
@@ -3349,12 +3446,14 @@ pub type LigatureAttach<'a> = TableRef<'a, LigatureAttachMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LigatureAttach<'a> {
     /// Number of ComponentRecords in this ligature
+    #[inline]
     pub fn component_count(&self) -> u16 {
         let range = self.shape.component_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of Component records, ordered in writing direction.
+    #[inline]
     pub fn component_records(&self) -> ComputedArray<'a, ComponentRecord<'a>> {
         let range = self.shape.component_records_byte_range();
         self.data
@@ -3409,6 +3508,7 @@ impl<'a> ComponentRecord<'a> {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of LigatureAttach table, ordered by class
     /// (offsets may be NULL).
+    #[inline]
     pub fn ligature_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         self.ligature_anchor_offsets
     }
@@ -3538,6 +3638,7 @@ impl MinByteRange for MarkMarkPosFormat1Marker {
 }
 
 impl<'a> FontRead<'a> for MarkMarkPosFormat1<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -3556,6 +3657,7 @@ pub type MarkMarkPosFormat1<'a> = TableRef<'a, MarkMarkPosFormat1Marker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MarkMarkPosFormat1<'a> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn pos_format(&self) -> u16 {
         let range = self.shape.pos_format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3563,6 +3665,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
 
     /// Offset to Combining Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
+    #[inline]
     pub fn mark1_coverage_offset(&self) -> Offset16 {
         let range = self.shape.mark1_coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3576,6 +3679,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
 
     /// Offset to Base Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
+    #[inline]
     pub fn mark2_coverage_offset(&self) -> Offset16 {
         let range = self.shape.mark2_coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3588,6 +3692,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
     }
 
     /// Number of Combining Mark classes defined
+    #[inline]
     pub fn mark_class_count(&self) -> u16 {
         let range = self.shape.mark_class_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3595,6 +3700,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
 
     /// Offset to MarkArray table for mark1, from beginning of
     /// MarkMarkPos subtable.
+    #[inline]
     pub fn mark1_array_offset(&self) -> Offset16 {
         let range = self.shape.mark1_array_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3608,6 +3714,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
 
     /// Offset to Mark2Array table for mark2, from beginning of
     /// MarkMarkPos subtable.
+    #[inline]
     pub fn mark2_array_offset(&self) -> Offset16 {
         let range = self.shape.mark2_array_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3690,6 +3797,7 @@ impl ReadArgs for Mark2Array<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Mark2Array<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
         let mut cursor = data.cursor();
@@ -3712,6 +3820,7 @@ impl<'a> Mark2Array<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
+    #[inline]
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
         Self::read_with_args(data, &args)
@@ -3724,12 +3833,14 @@ pub type Mark2Array<'a> = TableRef<'a, Mark2ArrayMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Mark2Array<'a> {
     /// Number of Mark2 records
+    #[inline]
     pub fn mark2_count(&self) -> u16 {
         let range = self.shape.mark2_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of Mark2Records, in Coverage order.
+    #[inline]
     pub fn mark2_records(&self) -> ComputedArray<'a, Mark2Record<'a>> {
         let range = self.shape.mark2_records_byte_range();
         self.data
@@ -3784,6 +3895,7 @@ impl<'a> Mark2Record<'a> {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of Mark2Array table, in class order (offsets may
     /// be NULL).
+    #[inline]
     pub fn mark2_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         self.mark2_anchor_offsets
     }
@@ -3908,6 +4020,7 @@ impl<T> Clone for ExtensionPosFormat1Marker<T> {
 impl<T> Copy for ExtensionPosFormat1Marker<T> {}
 
 impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -3952,6 +4065,7 @@ pub type ExtensionPosFormat1<'a, T> = TableRef<'a, ExtensionPosFormat1Marker<T>>
 #[allow(clippy::needless_lifetimes)]
 impl<'a, T> ExtensionPosFormat1<'a, T> {
     /// Format identifier: format = 1
+    #[inline]
     pub fn pos_format(&self) -> u16 {
         let range = self.shape.pos_format_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3959,6 +4073,7 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
 
     /// Lookup type of subtable referenced by extensionOffset (i.e. the
     /// extension subtable).
+    #[inline]
     pub fn extension_lookup_type(&self) -> u16 {
         let range = self.shape.extension_lookup_type_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -3967,6 +4082,7 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
     /// Offset to the extension subtable, of lookup type
     /// extensionLookupType, relative to the start of the
     /// ExtensionPosFormat1 subtable.
+    #[inline]
     pub fn extension_offset(&self) -> Offset32 {
         let range = self.shape.extension_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -4024,6 +4140,7 @@ pub enum ExtensionSubtable<'a> {
 }
 
 impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
+    #[inline]
     fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
         let untyped = ExtensionPosFormat1::read(bytes)?;
         match untyped.extension_lookup_type() {

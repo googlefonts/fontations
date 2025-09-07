@@ -41,6 +41,7 @@ impl TopLevelTable for Gasp<'_> {
 }
 
 impl<'a> FontRead<'a> for Gasp<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -61,18 +62,21 @@ pub type Gasp<'a> = TableRef<'a, GaspMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Gasp<'a> {
     /// Version number (set to 1)
+    #[inline]
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of records to follow
+    #[inline]
     pub fn num_ranges(&self) -> u16 {
         let range = self.shape.num_ranges_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Sorted by ppem
+    #[inline]
     pub fn gasp_ranges(&self) -> &'a [GaspRange] {
         let range = self.shape.gasp_ranges_byte_range();
         self.data.read_array(range).unwrap()
@@ -121,11 +125,13 @@ pub struct GaspRange {
 
 impl GaspRange {
     /// Upper limit of range, in PPEM
+    #[inline]
     pub fn range_max_ppem(&self) -> u16 {
         self.range_max_ppem.get()
     }
 
     /// Flags describing desired rasterizer behavior.
+    #[inline]
     pub fn range_gasp_behavior(&self) -> GaspRangeBehavior {
         self.range_gasp_behavior.get()
     }

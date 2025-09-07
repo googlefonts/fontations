@@ -46,6 +46,7 @@ impl TopLevelTable for Cblc<'_> {
 }
 
 impl<'a> FontRead<'a> for Cblc<'a> {
+    #[inline]
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -67,24 +68,28 @@ pub type Cblc<'a> = TableRef<'a, CblcMarker>;
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cblc<'a> {
     /// Major version of the CBLC table, = 3.
+    #[inline]
     pub fn major_version(&self) -> u16 {
         let range = self.shape.major_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minor version of CBLC table, = 0.
+    #[inline]
     pub fn minor_version(&self) -> u16 {
         let range = self.shape.minor_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of BitmapSize records.
+    #[inline]
     pub fn num_sizes(&self) -> u32 {
         let range = self.shape.num_sizes_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// BitmapSize records array.
+    #[inline]
     pub fn bitmap_sizes(&self) -> &'a [BitmapSize] {
         let range = self.shape.bitmap_sizes_byte_range();
         self.data.read_array(range).unwrap()
