@@ -44,7 +44,7 @@ mod traversal_tests;
 
 use raw::{
     tables::{colr, cpal},
-    types::{BigEndian, NameId},
+    types::BigEndian,
     FontRef,
 };
 #[cfg(test)]
@@ -57,6 +57,9 @@ use read_fonts::{
     ReadError, TableProvider,
 };
 
+#[doc(inline)]
+pub use cpal::ColorRecord as Color;
+
 use std::{fmt::Debug, ops::Range};
 
 use traversal::{
@@ -66,6 +69,7 @@ use traversal::{
 pub use transform::Transform;
 
 use crate::prelude::{LocationRef, Size};
+use crate::string::StringId;
 
 use self::instance::{resolve_paint, PaintId};
 
@@ -457,15 +461,15 @@ impl<'a> ColorGlyphCollection<'a> {
 pub struct ColorPalette<'a> {
     cpal: cpal::Cpal<'a>,
     /// Preparsed subarray of color records for just this palette.
-    sub_array: &'a [cpal::ColorRecord],
+    sub_array: &'a [Color],
     /// This palette's index in the CPAL table.
     index: u16,
 }
 
 impl<'a> ColorPalette<'a> {
     /// Returns the color at this palette index.
-    pub fn get(&self, color_index: u16) -> Option<cpal::ColorRecord> {
-        self.sub_array.get(usize::from(color_index)).copied()
+    pub fn colors(&self) -> &[Color] {
+        self.sub_array
     }
 
     /// Returns this palette's type flags (currently, whether this palette is appropriate for use on
@@ -479,7 +483,7 @@ impl<'a> ColorPalette<'a> {
     }
 
     /// Returns this palette's label/name, if present.
-    pub fn label(&self) -> Option<NameId> {
+    pub fn label(&self) -> Option<StringId> {
         self.cpal
             .palette_labels_array()?
             .ok()?
@@ -497,11 +501,11 @@ impl<'a> ColorPalette<'a> {
 }
 
 /// Collection of color palettes for color glyphs.
-pub struct ColorPaletteCollection<'a> {
+pub struct ColorPalettes<'a> {
     cpal: Option<cpal::Cpal<'a>>,
 }
 
-impl<'a> ColorPaletteCollection<'a> {
+impl<'a> ColorPalettes<'a> {
     /// Creates a new collection of color palettes for the given font.
     pub fn new(font: &FontRef<'a>) -> Self {
         Self {
@@ -513,13 +517,6 @@ impl<'a> ColorPaletteCollection<'a> {
     /// CPAL table).
     pub fn num_palettes(&self) -> u16 {
         self.cpal.as_ref().map_or(0, |cpal| cpal.num_palettes())
-    }
-
-    /// Returns the number of colors per palette (all palettes have the same number of colors).
-    pub fn num_colors(&self) -> u16 {
-        self.cpal
-            .as_ref()
-            .map_or(0, |cpal| cpal.num_palette_entries())
     }
 
     /// Returns the color palette at the given index. The palette at index 0 is the default palette.
@@ -543,7 +540,7 @@ impl<'a> ColorPaletteCollection<'a> {
 
     /// Returns the label/name for a given color, if present (labels are per-color, but shared
     /// across all palettes).
-    pub fn color_label(&self, color_index: u16) -> Option<NameId> {
+    pub fn color_label(&self, color_index: u16) -> Option<StringId> {
         let name_id = self
             .cpal
             .as_ref()?
@@ -662,23 +659,24 @@ mod tests {
 
     #[test]
     fn cpal_test() {
+        use crate::color::Color;
         let cpal_font = font_test_data::COLRV0V1;
         let font = FontRef::new(cpal_font).unwrap();
         let palettes = font.color_palettes();
         assert_eq!(palettes.num_palettes(), 3);
-        assert_eq!(palettes.num_colors(), 14);
 
         let first_palette = palettes.get(0).unwrap();
+        assert_eq!(first_palette.colors().len(), 14);
         assert_eq!(
-            first_palette.get(0),
-            Some(cpal::ColorRecord {
+            first_palette.colors().get(0),
+            Some(&Color {
                 blue: 0,
                 green: 0,
                 red: 255,
                 alpha: 255
             })
         );
-        assert_eq!(first_palette.get(14), None);
+        assert_eq!(first_palette.colors().get(14), None);
         assert_eq!(
             first_palette.palette_type(),
             Some(cpal::PaletteType::empty())
@@ -686,8 +684,8 @@ mod tests {
 
         let second_palette = palettes.get(1).unwrap();
         assert_eq!(
-            second_palette.get(0),
-            Some(cpal::ColorRecord {
+            second_palette.colors().get(0),
+            Some(&Color {
                 blue: 74,
                 green: 41,
                 red: 42,
@@ -701,8 +699,8 @@ mod tests {
 
         let third_palette = palettes.get(2).unwrap();
         assert_eq!(
-            third_palette.get(0),
-            Some(cpal::ColorRecord {
+            third_palette.colors().get(0),
+            Some(&Color {
                 blue: 24,
                 green: 113,
                 red: 252,

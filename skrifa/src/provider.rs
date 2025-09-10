@@ -1,4 +1,4 @@
-use crate::{color::ColorPaletteCollection, GlyphNames};
+use crate::{color::ColorPalettes, GlyphNames};
 
 use super::{
     attribute::Attributes,
@@ -54,7 +54,7 @@ pub trait MetadataProvider<'a>: Sized {
     fn color_glyphs(&self) -> ColorGlyphCollection<'a>;
 
     /// Returns a collection of color palettes for color glyphs.
-    fn color_palettes(&self) -> ColorPaletteCollection<'a>;
+    fn color_palettes(&self) -> ColorPalettes<'a>;
 
     /// Returns a collection of bitmap strikes.
     fn bitmap_strikes(&self) -> BitmapStrikes<'a>;
@@ -120,8 +120,8 @@ impl<'a> MetadataProvider<'a> for FontRef<'a> {
     }
 
     /// Returns a collection of color palettes for color glyphs.
-    fn color_palettes(&self) -> ColorPaletteCollection<'a> {
-        ColorPaletteCollection::new(self)
+    fn color_palettes(&self) -> ColorPalettes<'a> {
+        ColorPalettes::new(self)
     }
 
     /// Returns a collection of bitmap strikes.
