@@ -515,7 +515,7 @@ impl<'a> ColorPalettes<'a> {
 
     /// Returns the total number of palettes in this collection (0 if this collection's font has no
     /// CPAL table).
-    pub fn num_palettes(&self) -> u16 {
+    pub fn len(&self) -> u16 {
         self.cpal.as_ref().map_or(0, |cpal| cpal.num_palettes())
     }
 
@@ -663,7 +663,7 @@ mod tests {
         let cpal_font = font_test_data::COLRV0V1;
         let font = FontRef::new(cpal_font).unwrap();
         let palettes = font.color_palettes();
-        assert_eq!(palettes.num_palettes(), 3);
+        assert_eq!(palettes.len(), 3);
 
         let first_palette = palettes.get(0).unwrap();
         assert_eq!(first_palette.colors().len(), 14);
