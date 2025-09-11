@@ -519,6 +519,11 @@ impl<'a> ColorPalettes<'a> {
         self.cpal.as_ref().map_or(0, |cpal| cpal.num_palettes())
     }
 
+    /// Returns true if the collection is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Returns the color palette at the given index. The palette at index 0 is the default palette.
     pub fn get(&self, index: u16) -> Option<ColorPalette<'_>> {
         let cpal = self.cpal.clone()?;
@@ -668,7 +673,7 @@ mod tests {
         let first_palette = palettes.get(0).unwrap();
         assert_eq!(first_palette.colors().len(), 14);
         assert_eq!(
-            first_palette.colors().get(0),
+            first_palette.colors().first(),
             Some(&Color {
                 blue: 0,
                 green: 0,
@@ -684,7 +689,7 @@ mod tests {
 
         let second_palette = palettes.get(1).unwrap();
         assert_eq!(
-            second_palette.colors().get(0),
+            second_palette.colors().first(),
             Some(&Color {
                 blue: 74,
                 green: 41,
@@ -699,7 +704,7 @@ mod tests {
 
         let third_palette = palettes.get(2).unwrap();
         assert_eq!(
-            third_palette.colors().get(0),
+            third_palette.colors().first(),
             Some(&Color {
                 blue: 24,
                 green: 113,
