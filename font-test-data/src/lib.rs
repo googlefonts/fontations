@@ -14,6 +14,10 @@ pub static CMAP14_FONT1: &[u8] = include_bytes!("../test_data/ttf/cmap14_font1.t
 
 pub static CMAP4_SYMBOL_PUA: &[u8] = include_bytes!("../test_data/ttf/cmap4_symbol_pua.ttf");
 
+pub static CMAP6: &[u8] = include_bytes!("../test_data/ttf/cmap6.ttf");
+
+pub static CMAP10: &[u8] = include_bytes!("../test_data/ttf/cmap10.ttf");
+
 pub static COLR_GRADIENT_RECT: &[u8] =
     include_bytes!("../test_data/ttf/linear_gradient_rect_colr_1.ttf");
 

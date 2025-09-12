@@ -302,7 +302,7 @@ impl Iterator for Cmap4Iter<'_> {
     }
 }
 
-impl Cmap6<'_> {
+impl<'a> Cmap6<'a> {
     pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
         let codepoint = codepoint.into();
 
@@ -311,6 +311,76 @@ impl Cmap6<'_> {
         self.glyph_id_array()
             .get(idx as usize)
             .map(|g| GlyphId::new(g.get() as u32))
+    }
+
+    /// Returns an iterator over all (codepoint, glyph identifier) pairs
+    /// in the subtable.    
+    pub fn iter(&self) -> Cmap6Iter<'a> {
+        Cmap6Iter {
+            first: self.first_code() as u32,
+            glyph_ids: self.glyph_id_array(),
+            pos: 0,
+        }
+    }
+}
+
+/// Iterator over all (codepoint, glyph identifier) pairs in
+/// the subtable.
+#[derive(Clone)]
+pub struct Cmap6Iter<'a> {
+    first: u32,
+    glyph_ids: &'a [BigEndian<u16>],
+    pos: u32,
+}
+
+impl Iterator for Cmap6Iter<'_> {
+    type Item = (u32, GlyphId);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let gid = self.glyph_ids.get(self.pos as usize)?.get().into();
+        let codepoint = self.first + self.pos;
+        self.pos += 1;
+        Some((codepoint, gid))
+    }
+}
+
+impl<'a> Cmap10<'a> {
+    pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
+        let codepoint = codepoint.into();
+        let idx = codepoint.checked_sub(self.start_char_code())?;
+        self.glyph_id_array()
+            .get(idx as usize)
+            .map(|g| GlyphId::new(g.get() as u32))
+    }
+
+    /// Returns an iterator over all (codepoint, glyph identifier) pairs
+    /// in the subtable.    
+    pub fn iter(&self) -> Cmap10Iter<'a> {
+        Cmap10Iter {
+            first: self.start_char_code(),
+            glyph_ids: self.glyph_id_array(),
+            pos: 0,
+        }
+    }
+}
+
+/// Iterator over all (codepoint, glyph identifier) pairs in
+/// the subtable.
+#[derive(Clone)]
+pub struct Cmap10Iter<'a> {
+    first: u32,
+    glyph_ids: &'a [BigEndian<u16>],
+    pos: u32,
+}
+
+impl Iterator for Cmap10Iter<'_> {
+    type Item = (u32, GlyphId);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let gid = self.glyph_ids.get(self.pos as usize)?.get().into();
+        let codepoint = self.first + self.pos;
+        self.pos += 1;
+        Some((codepoint, gid))
     }
 }
 
@@ -1003,6 +1073,78 @@ mod tests {
             .map(|(ch, gid)| (ch, gid.to_u32()))
             .collect::<Vec<_>>();
         assert_eq!(mappings, &[(259, 236), (262, 326), (65535, 0)]);
+    }
+
+    const CMAP6_PAIRS: &[(u32, u32)] = &[
+        (0x1723, 1),
+        (0x1724, 2),
+        (0x1725, 3),
+        (0x1726, 4),
+        (0x1727, 5),
+    ];
+
+    #[test]
+    fn cmap6_map() {
+        let font = FontRef::new(font_test_data::CMAP6).unwrap();
+        let cmap = font.cmap().unwrap();
+        let CmapSubtable::Format6(cmap6) = cmap.subtable(0).unwrap() else {
+            panic!("should be a format 6 subtable");
+        };
+        for (ch, gid) in CMAP6_PAIRS {
+            assert_eq!(cmap6.map_codepoint(*ch).unwrap().to_u32(), *gid);
+        }
+        // Check out of bounds codepoints
+        assert!(cmap6.map_codepoint(CMAP6_PAIRS[0].0 - 1).is_none());
+        assert!(cmap6
+            .map_codepoint(CMAP6_PAIRS.last().copied().unwrap().0 + 1)
+            .is_none());
+    }
+
+    #[test]
+    fn cmap6_iter() {
+        let font = FontRef::new(font_test_data::CMAP6).unwrap();
+        let cmap = font.cmap().unwrap();
+        let CmapSubtable::Format6(cmap6) = cmap.subtable(0).unwrap() else {
+            panic!("should be a format 6 subtable");
+        };
+        let pairs = cmap6
+            .iter()
+            .map(|(ch, gid)| (ch, gid.to_u32()))
+            .collect::<Vec<_>>();
+        assert_eq!(pairs, CMAP6_PAIRS);
+    }
+
+    const CMAP10_PAIRS: &[(u32, u32)] = &[(0x109423, 26), (0x109424, 27), (0x109425, 32)];
+
+    #[test]
+    fn cmap10_map() {
+        let font = FontRef::new(font_test_data::CMAP10).unwrap();
+        let cmap = font.cmap().unwrap();
+        let CmapSubtable::Format10(cmap10) = cmap.subtable(0).unwrap() else {
+            panic!("should be a format 10 subtable");
+        };
+        for (ch, gid) in CMAP10_PAIRS {
+            assert_eq!(cmap10.map_codepoint(*ch).unwrap().to_u32(), *gid);
+        }
+        // Check out of bounds codepoints
+        assert!(cmap10.map_codepoint(CMAP10_PAIRS[0].0 - 1).is_none());
+        assert!(cmap10
+            .map_codepoint(CMAP10_PAIRS.last().copied().unwrap().0 + 1)
+            .is_none());
+    }
+
+    #[test]
+    fn cmap10_iter() {
+        let font = FontRef::new(font_test_data::CMAP10).unwrap();
+        let cmap = font.cmap().unwrap();
+        let CmapSubtable::Format10(cmap10) = cmap.subtable(0).unwrap() else {
+            panic!("should be a format 10 subtable");
+        };
+        let pairs = cmap10
+            .iter()
+            .map(|(ch, gid)| (ch, gid.to_u32()))
+            .collect::<Vec<_>>();
+        assert_eq!(pairs, CMAP10_PAIRS);
     }
 
     #[test]
