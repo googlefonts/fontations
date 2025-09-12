@@ -124,6 +124,13 @@ Describes the provenance, usage and generation procedures for font data used for
     ```shell
     pyftsubset cousine-regular.ttf --gids=85
     ```
+* _cmap6_
+  * font: Hand rolled cmap 6 subtable
+  * usage: testing cmap format 6 mapping and iteration
+
+* _cmap10_
+  * font: Hand rolled cmap 10 subtable
+  * usage: testing cmap format 10 mapping and iteration
 
 ## rebuilding
 To update the binaries and extracted data, run script located at `resources/test_fonts/rebuild.sh`
