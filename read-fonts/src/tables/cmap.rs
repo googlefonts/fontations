@@ -44,14 +44,7 @@ impl<'a> Cmap<'a> {
         let codepoint = codepoint.into();
         for record in self.encoding_records() {
             if let Ok(subtable) = record.subtable(self.offset_data()) {
-                if let Some(gid) = match subtable {
-                    CmapSubtable::Format0(format0) => format0.map_codepoint(codepoint),
-                    CmapSubtable::Format4(format4) => format4.map_codepoint(codepoint),
-                    CmapSubtable::Format6(format6) => format6.map_codepoint(codepoint),
-                    CmapSubtable::Format12(format12) => format12.map_codepoint(codepoint),
-                    CmapSubtable::Format13(format13) => format13.map_codepoint(codepoint),
-                    _ => None,
-                } {
+                if let Some(gid) = subtable.map_codepoint(codepoint) {
                     return Some(gid);
                 }
             }
@@ -162,7 +155,7 @@ impl EncodingRecord {
     }
 }
 
-impl CmapSubtable<'_> {
+impl<'a> CmapSubtable<'a> {
     pub fn language(&self) -> u32 {
         match self {
             Self::Format0(item) => item.language() as u32,
@@ -173,6 +166,77 @@ impl CmapSubtable<'_> {
             Self::Format12(item) => item.language(),
             Self::Format13(item) => item.language(),
             _ => 0,
+        }
+    }
+
+    /// Attempts to map the given codepoint to a nominal glyph identifier using
+    /// the underlying subtable.
+    #[inline]
+    pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
+        match self {
+            Self::Format0(item) => item.map_codepoint(codepoint),
+            Self::Format4(item) => item.map_codepoint(codepoint),
+            Self::Format6(item) => item.map_codepoint(codepoint),
+            Self::Format10(item) => item.map_codepoint(codepoint),
+            Self::Format12(item) => item.map_codepoint(codepoint),
+            Self::Format13(item) => item.map_codepoint(codepoint),
+            _ => None,
+        }
+    }
+
+    /// Returns an iterator over all (codepoint, glyph identifier) pairs
+    /// in the subtable.
+    ///
+    /// Malicious and malformed fonts can produce a large number of invalid
+    /// pairs. Use [`Self::iter_with_limits`] to generate a pruned sequence
+    /// that is limited to reasonable values.
+    pub fn iter(&self) -> CmapSubtableIter<'a> {
+        let limits = CmapIterLimits {
+            max_char: u32::MAX,
+            glyph_count: u32::MAX,
+        };
+        self.iter_with_limits(limits)
+    }
+
+    /// Returns an iterator over all (codepoint, glyph identifier) pairs
+    /// in the subtable within the given limits.    
+    pub fn iter_with_limits(&self, limits: CmapIterLimits) -> CmapSubtableIter<'a> {
+        match self {
+            Self::Format4(item) => CmapSubtableIter::Format4(item.iter()),
+            Self::Format6(item) => CmapSubtableIter::Format6(item.iter()),
+            Self::Format10(item) => CmapSubtableIter::Format10(item.iter()),
+            Self::Format12(item) => CmapSubtableIter::Format12(item.iter_with_limits(limits)),
+            Self::Format13(item) => CmapSubtableIter::Format13(item.iter_with_limits(limits)),
+            _ => CmapSubtableIter::None,
+        }
+    }
+}
+
+/// Iterator over all (codepoint, glyph identifier) pairs in
+/// the subtable.
+#[derive(Clone)]
+#[non_exhaustive]
+pub enum CmapSubtableIter<'a> {
+    None,
+    Format4(Cmap4Iter<'a>),
+    Format6(Cmap6Iter<'a>),
+    Format10(Cmap10Iter<'a>),
+    Format12(Cmap12Iter<'a>),
+    Format13(Cmap13Iter<'a>),
+}
+
+impl<'a> Iterator for CmapSubtableIter<'a> {
+    type Item = (u32, GlyphId);
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::None => None,
+            Self::Format4(iter) => iter.next(),
+            Self::Format6(iter) => iter.next(),
+            Self::Format10(iter) => iter.next(),
+            Self::Format12(iter) => iter.next(),
+            Self::Format13(iter) => iter.next(),
         }
     }
 }
