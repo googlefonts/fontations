@@ -658,7 +658,7 @@ impl<'a> GlyphVariationDataHeader<'a> {
     }
 
     /// Array of tuple variation headers.
-    pub fn tuple_variation_headers(&self) -> VarLenArray<'a, TupleVariationHeader> {
+    pub fn tuple_variation_headers(&self) -> VarLenArray<'a, TupleVariationHeader<'a>> {
         let range = self.shape.tuple_variation_headers_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
     }

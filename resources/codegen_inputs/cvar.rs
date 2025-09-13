@@ -24,5 +24,5 @@ table Cvar {
     /// Array of tuple variation headers.
     #[count(..)]
     #[traverse_with(skip)]
-    tuple_variation_headers: VarLenArray<TupleVariationHeader>,
+    tuple_variation_headers: VarLenArray<TupleVariationHeader<'_>>,
 }
