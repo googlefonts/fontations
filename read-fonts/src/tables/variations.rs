@@ -226,10 +226,11 @@ impl<'a> TupleVariationHeader<'a> {
             } else {
                 Default::default()
             }
-            + index
-                .intermediate_region()
-                .then_some(tuple_byte_len * 2)
-                .unwrap_or_default()
+            + if index.intermediate_region() {
+                tuple_byte_len * 2
+            } else {
+                Default::default()
+            }
     }
 }
 
