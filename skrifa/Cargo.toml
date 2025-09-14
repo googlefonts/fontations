@@ -29,36 +29,7 @@ spec_next = ["read-fonts/spec_next"]
 libm = ["dep:core_maths", "read-fonts/libm"]
 
 [dependencies]
-read-fonts = { workspace = true, default-features = false, features = [
-    "avar",
-    "bitmap",
-    "cbdt",
-    "cblc",
-    "cff",
-    "cff2",
-    "cmap",
-    "colr",
-    "cvar",
-    "cvt",
-    "ebdt",
-    "eblc",
-    "fvar",
-    "glyf",
-    "gsub",
-    "gvar",
-    "hdmx",
-    "head",
-    "hmtx",
-    "hvar",
-    "loca",
-    "mvar",
-    "name",
-    "os2",
-    "post",
-    "sbix",
-    "varc",
-    "variations",
-] }
+read-fonts = { workspace = true, default-features = false, features = ["all_tables"] }
 core_maths = { workspace = true, optional = true }
 bytemuck = { workspace = true }
 
