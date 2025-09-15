@@ -17,12 +17,12 @@ impl SvgMarker {
     }
 
     pub fn svg_document_list_offset_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
-        let start = self.svg_document_list_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 }
@@ -112,7 +112,7 @@ impl SVGDocumentListMarker {
     }
 
     pub fn document_records_byte_range(&self) -> Range<usize> {
-        let start = self.num_entries_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.document_records_byte_len
     }
 }

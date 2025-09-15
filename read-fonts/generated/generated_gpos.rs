@@ -20,17 +20,17 @@ impl GposMarker {
     }
 
     pub fn script_list_offset_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn feature_list_offset_byte_range(&self) -> Range<usize> {
-        let start = self.script_list_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn lookup_list_offset_byte_range(&self) -> Range<usize> {
-        let start = self.feature_list_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
@@ -713,12 +713,12 @@ impl AnchorFormat1Marker {
     }
 
     pub fn x_coordinate_byte_range(&self) -> Range<usize> {
-        let start = self.anchor_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_coordinate_byte_range(&self) -> Range<usize> {
-        let start = self.x_coordinate_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 }
@@ -802,17 +802,17 @@ impl AnchorFormat2Marker {
     }
 
     pub fn x_coordinate_byte_range(&self) -> Range<usize> {
-        let start = self.anchor_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_coordinate_byte_range(&self) -> Range<usize> {
-        let start = self.x_coordinate_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn anchor_point_byte_range(&self) -> Range<usize> {
-        let start = self.y_coordinate_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 }
@@ -904,22 +904,23 @@ impl AnchorFormat3Marker {
     }
 
     pub fn x_coordinate_byte_range(&self) -> Range<usize> {
-        let start = self.anchor_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_coordinate_byte_range(&self) -> Range<usize> {
-        let start = self.x_coordinate_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn x_device_offset_byte_range(&self) -> Range<usize> {
-        let start = self.y_coordinate_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn y_device_offset_byte_range(&self) -> Range<usize> {
-        let start = self.x_device_offset_byte_range().end;
+        let start =
+            u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 }
@@ -1039,7 +1040,7 @@ impl MarkArrayMarker {
     }
 
     pub fn mark_records_byte_range(&self) -> Range<usize> {
-        let start = self.mark_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.mark_records_byte_len
     }
 }
@@ -1271,17 +1272,17 @@ impl SinglePosFormat1Marker {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.pos_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn value_format_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + ValueFormat::RAW_BYTE_LEN
     }
 
     pub fn value_record_byte_range(&self) -> Range<usize> {
-        let start = self.value_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + ValueFormat::RAW_BYTE_LEN;
         start..start + self.value_record_byte_len
     }
 }
@@ -1393,22 +1394,25 @@ impl SinglePosFormat2Marker {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.pos_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn value_format_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + ValueFormat::RAW_BYTE_LEN
     }
 
     pub fn value_count_byte_range(&self) -> Range<usize> {
-        let start = self.value_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + ValueFormat::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn value_records_byte_range(&self) -> Range<usize> {
-        let start = self.value_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + ValueFormat::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + self.value_records_byte_len
     }
 }
@@ -1632,27 +1636,34 @@ impl PairPosFormat1Marker {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.pos_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn value_format1_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + ValueFormat::RAW_BYTE_LEN
     }
 
     pub fn value_format2_byte_range(&self) -> Range<usize> {
-        let start = self.value_format1_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + ValueFormat::RAW_BYTE_LEN;
         start..start + ValueFormat::RAW_BYTE_LEN
     }
 
     pub fn pair_set_count_byte_range(&self) -> Range<usize> {
-        let start = self.value_format2_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + ValueFormat::RAW_BYTE_LEN
+            + ValueFormat::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn pair_set_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.pair_set_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + ValueFormat::RAW_BYTE_LEN
+            + ValueFormat::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + self.pair_set_offsets_byte_len
     }
 }
@@ -1799,7 +1810,7 @@ impl PairSetMarker {
     }
 
     pub fn pair_value_records_byte_range(&self) -> Range<usize> {
-        let start = self.pair_value_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.pair_value_records_byte_len
     }
 }
@@ -2033,42 +2044,67 @@ impl PairPosFormat2Marker {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.pos_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn value_format1_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + ValueFormat::RAW_BYTE_LEN
     }
 
     pub fn value_format2_byte_range(&self) -> Range<usize> {
-        let start = self.value_format1_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + ValueFormat::RAW_BYTE_LEN;
         start..start + ValueFormat::RAW_BYTE_LEN
     }
 
     pub fn class_def1_offset_byte_range(&self) -> Range<usize> {
-        let start = self.value_format2_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + ValueFormat::RAW_BYTE_LEN
+            + ValueFormat::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn class_def2_offset_byte_range(&self) -> Range<usize> {
-        let start = self.class_def1_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + ValueFormat::RAW_BYTE_LEN
+            + ValueFormat::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn class1_count_byte_range(&self) -> Range<usize> {
-        let start = self.class_def2_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + ValueFormat::RAW_BYTE_LEN
+            + ValueFormat::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn class2_count_byte_range(&self) -> Range<usize> {
-        let start = self.class1_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + ValueFormat::RAW_BYTE_LEN
+            + ValueFormat::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn class1_records_byte_range(&self) -> Range<usize> {
-        let start = self.class2_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + ValueFormat::RAW_BYTE_LEN
+            + ValueFormat::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + self.class1_records_byte_len
     }
 }
@@ -2432,17 +2468,17 @@ impl CursivePosFormat1Marker {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.pos_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn entry_exit_count_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn entry_exit_record_byte_range(&self) -> Range<usize> {
-        let start = self.entry_exit_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.entry_exit_record_byte_len
     }
 }
@@ -2631,27 +2667,32 @@ impl MarkBasePosFormat1Marker {
     }
 
     pub fn mark_coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.pos_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn base_coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.mark_coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn mark_class_count_byte_range(&self) -> Range<usize> {
-        let start = self.base_coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn mark_array_offset_byte_range(&self) -> Range<usize> {
-        let start = self.mark_class_count_byte_range().end;
+        let start =
+            u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn base_array_offset_byte_range(&self) -> Range<usize> {
-        let start = self.mark_array_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 }
@@ -2799,7 +2840,7 @@ impl BaseArrayMarker {
     }
 
     pub fn base_records_byte_range(&self) -> Range<usize> {
-        let start = self.base_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.base_records_byte_len
     }
 }
@@ -3006,27 +3047,32 @@ impl MarkLigPosFormat1Marker {
     }
 
     pub fn mark_coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.pos_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn ligature_coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.mark_coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn mark_class_count_byte_range(&self) -> Range<usize> {
-        let start = self.ligature_coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn mark_array_offset_byte_range(&self) -> Range<usize> {
-        let start = self.mark_class_count_byte_range().end;
+        let start =
+            u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn ligature_array_offset_byte_range(&self) -> Range<usize> {
-        let start = self.mark_array_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 }
@@ -3174,7 +3220,7 @@ impl LigatureArrayMarker {
     }
 
     pub fn ligature_attach_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.ligature_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.ligature_attach_offsets_byte_len
     }
 }
@@ -3299,7 +3345,7 @@ impl LigatureAttachMarker {
     }
 
     pub fn component_records_byte_range(&self) -> Range<usize> {
-        let start = self.component_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.component_records_byte_len
     }
 }
@@ -3506,27 +3552,32 @@ impl MarkMarkPosFormat1Marker {
     }
 
     pub fn mark1_coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.pos_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn mark2_coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.mark1_coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn mark_class_count_byte_range(&self) -> Range<usize> {
-        let start = self.mark2_coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn mark1_array_offset_byte_range(&self) -> Range<usize> {
-        let start = self.mark_class_count_byte_range().end;
+        let start =
+            u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn mark2_array_offset_byte_range(&self) -> Range<usize> {
-        let start = self.mark1_array_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 }
@@ -3674,7 +3725,7 @@ impl Mark2ArrayMarker {
     }
 
     pub fn mark2_records_byte_range(&self) -> Range<usize> {
-        let start = self.mark2_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.mark2_records_byte_len
     }
 }
@@ -3883,12 +3934,12 @@ impl<T> ExtensionPosFormat1Marker<T> {
     }
 
     pub fn extension_lookup_type_byte_range(&self) -> Range<usize> {
-        let start = self.pos_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn extension_offset_byte_range(&self) -> Range<usize> {
-        let start = self.extension_lookup_type_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + Offset32::RAW_BYTE_LEN
     }
 }

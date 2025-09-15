@@ -905,6 +905,22 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
     })
 }
 
+#[derive(Clone)]
+enum FieldOffset {
+    Zero,
+    Const(TokenStream),
+    Variable(TokenStream),
+}
+
+impl FieldOffset {
+    fn expr(&self) -> TokenStream {
+        match self {
+            FieldOffset::Zero => quote! { 0 },
+            FieldOffset::Const(ts) | FieldOffset::Variable(ts) => ts.clone(),
+        }
+    }
+}
+
 impl Table {
     pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
         self.fields.sanity_check(phase)
@@ -915,20 +931,21 @@ impl Table {
     }
 
     fn iter_shape_byte_fns(&self) -> impl Iterator<Item = TokenStream> + '_ {
-        let mut prev_field_end_expr = quote!(0);
+        let mut prev_end = FieldOffset::Zero;
         let mut iter = self.fields.iter();
 
         std::iter::from_fn(move || {
             let field = iter.next()?;
             let fn_name = field.shape_byte_range_fn_name();
             let len_expr = field.shape_len_expr();
+            let prev_expr = prev_end.expr();
 
             // versioned fields have a different signature
             if field.attrs.conditional.is_some() {
-                prev_field_end_expr = quote! {
+                prev_end = FieldOffset::Variable(quote! {
                     self.#fn_name().map(|range| range.end)
-                        .unwrap_or_else(|| #prev_field_end_expr)
-                };
+                        .unwrap_or_else(|| #prev_expr)
+                });
                 let start_field_name = field.shape_byte_start_field_name();
                 return Some(quote! {
                     pub fn #fn_name(&self) -> Option<Range<usize>> {
@@ -940,11 +957,15 @@ impl Table {
 
             let result = quote! {
                 pub fn #fn_name(&self) -> Range<usize> {
-                    let start = #prev_field_end_expr;
+                    let start = #prev_expr;
                     start..start + #len_expr
                 }
             };
-            prev_field_end_expr = quote!( self.#fn_name().end );
+            prev_end = match (&prev_end, field.is_fixed_size()) {
+                (FieldOffset::Zero, true) => FieldOffset::Const(quote!(#len_expr)),
+                (FieldOffset::Const(end), true) => FieldOffset::Const(quote!(#end + #len_expr)),
+                _ => FieldOffset::Variable(quote!( self.#fn_name().end )),
+            };
 
             Some(result)
         })

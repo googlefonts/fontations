@@ -22,17 +22,17 @@ impl NameMarker {
     }
 
     pub fn count_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn storage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn name_record_byte_range(&self) -> Range<usize> {
-        let start = self.storage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.name_record_byte_len
     }
 

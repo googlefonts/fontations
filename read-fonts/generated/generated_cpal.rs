@@ -22,27 +22,31 @@ impl CpalMarker {
     }
 
     pub fn num_palette_entries_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn num_palettes_byte_range(&self) -> Range<usize> {
-        let start = self.num_palette_entries_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn num_color_records_byte_range(&self) -> Range<usize> {
-        let start = self.num_palettes_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn color_records_array_offset_byte_range(&self) -> Range<usize> {
-        let start = self.num_color_records_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn color_record_indices_byte_range(&self) -> Range<usize> {
-        let start = self.color_records_array_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN;
         start..start + self.color_record_indices_byte_len
     }
 

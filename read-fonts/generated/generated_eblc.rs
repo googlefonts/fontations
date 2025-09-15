@@ -19,17 +19,17 @@ impl EblcMarker {
     }
 
     pub fn minor_version_byte_range(&self) -> Range<usize> {
-        let start = self.major_version_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn num_sizes_byte_range(&self) -> Range<usize> {
-        let start = self.minor_version_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn bitmap_sizes_byte_range(&self) -> Range<usize> {
-        let start = self.num_sizes_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.bitmap_sizes_byte_len
     }
 }

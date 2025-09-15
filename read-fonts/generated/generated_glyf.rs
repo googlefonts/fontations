@@ -69,27 +69,31 @@ impl SimpleGlyphMarker {
     }
 
     pub fn x_min_byte_range(&self) -> Range<usize> {
-        let start = self.number_of_contours_byte_range().end;
+        let start = i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_min_byte_range(&self) -> Range<usize> {
-        let start = self.x_min_byte_range().end;
+        let start = i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn x_max_byte_range(&self) -> Range<usize> {
-        let start = self.y_min_byte_range().end;
+        let start = i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_max_byte_range(&self) -> Range<usize> {
-        let start = self.x_max_byte_range().end;
+        let start = i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn end_pts_of_contours_byte_range(&self) -> Range<usize> {
-        let start = self.y_max_byte_range().end;
+        let start = i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + self.end_pts_of_contours_byte_len
     }
 
@@ -651,27 +655,31 @@ impl CompositeGlyphMarker {
     }
 
     pub fn x_min_byte_range(&self) -> Range<usize> {
-        let start = self.number_of_contours_byte_range().end;
+        let start = i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_min_byte_range(&self) -> Range<usize> {
-        let start = self.x_min_byte_range().end;
+        let start = i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn x_max_byte_range(&self) -> Range<usize> {
-        let start = self.y_min_byte_range().end;
+        let start = i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_max_byte_range(&self) -> Range<usize> {
-        let start = self.x_max_byte_range().end;
+        let start = i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn component_data_byte_range(&self) -> Range<usize> {
-        let start = self.y_max_byte_range().end;
+        let start = i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + self.component_data_byte_len
     }
 }

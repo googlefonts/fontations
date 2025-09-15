@@ -20,27 +20,34 @@ impl KindsOfOffsetsMarker {
     }
 
     pub fn nonnullable_offset_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn nullable_offset_byte_range(&self) -> Range<usize> {
-        let start = self.nonnullable_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn array_offset_count_byte_range(&self) -> Range<usize> {
-        let start = self.nullable_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn array_offset_byte_range(&self) -> Range<usize> {
-        let start = self.array_offset_count_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn record_array_offset_byte_range(&self) -> Range<usize> {
-        let start = self.array_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
@@ -296,12 +303,12 @@ impl KindsOfArraysOfOffsetsMarker {
     }
 
     pub fn count_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn nonnullable_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.count_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.nonnullable_offsets_byte_len
     }
 
@@ -541,12 +548,12 @@ impl KindsOfArraysMarker {
     }
 
     pub fn count_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn scalars_byte_range(&self) -> Range<usize> {
-        let start = self.count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.scalars_byte_len
     }
 
@@ -717,7 +724,7 @@ impl VarLenHaverMarker {
     }
 
     pub fn var_len_byte_range(&self) -> Range<usize> {
-        let start = self.count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.var_len_byte_len
     }
 
@@ -801,7 +808,7 @@ impl DummyMarker {
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
-        let start = self.value_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 }

@@ -19,7 +19,7 @@ impl ScriptListMarker {
     }
 
     pub fn script_records_byte_range(&self) -> Range<usize> {
-        let start = self.script_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.script_records_byte_len
     }
 }
@@ -158,12 +158,12 @@ impl ScriptMarker {
     }
 
     pub fn lang_sys_count_byte_range(&self) -> Range<usize> {
-        let start = self.default_lang_sys_offset_byte_range().end;
+        let start = Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn lang_sys_records_byte_range(&self) -> Range<usize> {
-        let start = self.lang_sys_count_byte_range().end;
+        let start = Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.lang_sys_records_byte_len
     }
 }
@@ -320,17 +320,17 @@ impl LangSysMarker {
     }
 
     pub fn required_feature_index_byte_range(&self) -> Range<usize> {
-        let start = self.lookup_order_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn feature_index_count_byte_range(&self) -> Range<usize> {
-        let start = self.required_feature_index_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn feature_indices_byte_range(&self) -> Range<usize> {
-        let start = self.feature_index_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.feature_indices_byte_len
     }
 }
@@ -426,7 +426,7 @@ impl FeatureListMarker {
     }
 
     pub fn feature_records_byte_range(&self) -> Range<usize> {
-        let start = self.feature_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.feature_records_byte_len
     }
 }
@@ -568,12 +568,12 @@ impl FeatureMarker {
     }
 
     pub fn lookup_index_count_byte_range(&self) -> Range<usize> {
-        let start = self.feature_params_offset_byte_range().end;
+        let start = Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn lookup_list_indices_byte_range(&self) -> Range<usize> {
-        let start = self.lookup_index_count_byte_range().end;
+        let start = Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.lookup_list_indices_byte_len
     }
 }
@@ -696,7 +696,7 @@ impl<T> LookupListMarker<T> {
     }
 
     pub fn lookup_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.lookup_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.lookup_offsets_byte_len
     }
 }
@@ -839,17 +839,17 @@ impl<T> LookupMarker<T> {
     }
 
     pub fn lookup_flag_byte_range(&self) -> Range<usize> {
-        let start = self.lookup_type_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + LookupFlag::RAW_BYTE_LEN
     }
 
     pub fn sub_table_count_byte_range(&self) -> Range<usize> {
-        let start = self.lookup_flag_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + LookupFlag::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn subtable_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.sub_table_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + LookupFlag::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.subtable_offsets_byte_len
     }
 
@@ -1038,12 +1038,12 @@ impl CoverageFormat1Marker {
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn glyph_array_byte_range(&self) -> Range<usize> {
-        let start = self.glyph_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.glyph_array_byte_len
     }
 }
@@ -1134,12 +1134,12 @@ impl CoverageFormat2Marker {
     }
 
     pub fn range_count_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn range_records_byte_range(&self) -> Range<usize> {
-        let start = self.range_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.range_records_byte_len
     }
 }
@@ -1363,17 +1363,17 @@ impl ClassDefFormat1Marker {
     }
 
     pub fn start_glyph_id_byte_range(&self) -> Range<usize> {
-        let start = self.class_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + GlyphId16::RAW_BYTE_LEN
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
-        let start = self.start_glyph_id_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn class_value_array_byte_range(&self) -> Range<usize> {
-        let start = self.glyph_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.class_value_array_byte_len
     }
 }
@@ -1472,12 +1472,12 @@ impl ClassDefFormat2Marker {
     }
 
     pub fn class_range_count_byte_range(&self) -> Range<usize> {
-        let start = self.class_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn class_range_records_byte_range(&self) -> Range<usize> {
-        let start = self.class_range_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.class_range_records_byte_len
     }
 }
@@ -1740,17 +1740,17 @@ impl SequenceContextFormat1Marker {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn seq_rule_set_count_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.seq_rule_set_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.seq_rule_set_offsets_byte_len
     }
 }
@@ -1876,7 +1876,7 @@ impl SequenceRuleSetMarker {
     }
 
     pub fn seq_rule_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.seq_rule_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.seq_rule_offsets_byte_len
     }
 }
@@ -1977,12 +1977,12 @@ impl SequenceRuleMarker {
     }
 
     pub fn seq_lookup_count_byte_range(&self) -> Range<usize> {
-        let start = self.glyph_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn input_sequence_byte_range(&self) -> Range<usize> {
-        let start = self.seq_lookup_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.input_sequence_byte_len
     }
 
@@ -2097,22 +2097,23 @@ impl SequenceContextFormat2Marker {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn class_def_offset_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn class_seq_rule_set_count_byte_range(&self) -> Range<usize> {
-        let start = self.class_def_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn class_seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.class_seq_rule_set_count_byte_range().end;
+        let start =
+            u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.class_seq_rule_set_offsets_byte_len
     }
 }
@@ -2261,7 +2262,7 @@ impl ClassSequenceRuleSetMarker {
     }
 
     pub fn class_seq_rule_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.class_seq_rule_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.class_seq_rule_offsets_byte_len
     }
 }
@@ -2365,12 +2366,12 @@ impl ClassSequenceRuleMarker {
     }
 
     pub fn seq_lookup_count_byte_range(&self) -> Range<usize> {
-        let start = self.glyph_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn input_sequence_byte_range(&self) -> Range<usize> {
-        let start = self.seq_lookup_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.input_sequence_byte_len
     }
 
@@ -2487,17 +2488,17 @@ impl SequenceContextFormat3Marker {
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn seq_lookup_count_byte_range(&self) -> Range<usize> {
-        let start = self.glyph_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn coverage_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.seq_lookup_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.coverage_offsets_byte_len
     }
 
@@ -2718,17 +2719,17 @@ impl ChainedSequenceContextFormat1Marker {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn chained_seq_rule_set_count_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn chained_seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.chained_seq_rule_set_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.chained_seq_rule_set_offsets_byte_len
     }
 }
@@ -2859,7 +2860,7 @@ impl ChainedSequenceRuleSetMarker {
     }
 
     pub fn chained_seq_rule_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.chained_seq_rule_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.chained_seq_rule_offsets_byte_len
     }
 }
@@ -2965,7 +2966,7 @@ impl ChainedSequenceRuleMarker {
     }
 
     pub fn backtrack_sequence_byte_range(&self) -> Range<usize> {
-        let start = self.backtrack_glyph_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.backtrack_sequence_byte_len
     }
 
@@ -3151,32 +3152,44 @@ impl ChainedSequenceContextFormat2Marker {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn backtrack_class_def_offset_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn input_class_def_offset_byte_range(&self) -> Range<usize> {
-        let start = self.backtrack_class_def_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn lookahead_class_def_offset_byte_range(&self) -> Range<usize> {
-        let start = self.input_class_def_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn chained_class_seq_rule_set_count_byte_range(&self) -> Range<usize> {
-        let start = self.lookahead_class_def_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn chained_class_seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.chained_class_seq_rule_set_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + self.chained_class_seq_rule_set_offsets_byte_len
     }
 }
@@ -3368,7 +3381,7 @@ impl ChainedClassSequenceRuleSetMarker {
     }
 
     pub fn chained_class_seq_rule_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.chained_class_seq_rule_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.chained_class_seq_rule_offsets_byte_len
     }
 }
@@ -3476,7 +3489,7 @@ impl ChainedClassSequenceRuleMarker {
     }
 
     pub fn backtrack_sequence_byte_range(&self) -> Range<usize> {
-        let start = self.backtrack_glyph_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.backtrack_sequence_byte_len
     }
 
@@ -3666,12 +3679,12 @@ impl ChainedSequenceContextFormat3Marker {
     }
 
     pub fn backtrack_glyph_count_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn backtrack_coverage_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.backtrack_glyph_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.backtrack_coverage_offsets_byte_len
     }
 
@@ -4052,17 +4065,17 @@ impl DeviceMarker {
     }
 
     pub fn end_size_byte_range(&self) -> Range<usize> {
-        let start = self.start_size_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn delta_format_byte_range(&self) -> Range<usize> {
-        let start = self.end_size_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + DeltaFormat::RAW_BYTE_LEN
     }
 
     pub fn delta_value_byte_range(&self) -> Range<usize> {
-        let start = self.delta_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + DeltaFormat::RAW_BYTE_LEN;
         start..start + self.delta_value_byte_len
     }
 }
@@ -4155,12 +4168,12 @@ impl VariationIndexMarker {
     }
 
     pub fn delta_set_inner_index_byte_range(&self) -> Range<usize> {
-        let start = self.delta_set_outer_index_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn delta_format_byte_range(&self) -> Range<usize> {
-        let start = self.delta_set_inner_index_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + DeltaFormat::RAW_BYTE_LEN
     }
 }
@@ -4320,12 +4333,12 @@ impl FeatureVariationsMarker {
     }
 
     pub fn feature_variation_record_count_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn feature_variation_records_byte_range(&self) -> Range<usize> {
-        let start = self.feature_variation_record_count_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.feature_variation_records_byte_len
     }
 }
@@ -4500,7 +4513,7 @@ impl ConditionSetMarker {
     }
 
     pub fn condition_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.condition_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.condition_offsets_byte_len
     }
 }
@@ -4695,17 +4708,17 @@ impl ConditionFormat1Marker {
     }
 
     pub fn axis_index_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn filter_range_min_value_byte_range(&self) -> Range<usize> {
-        let start = self.axis_index_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn filter_range_max_value_byte_range(&self) -> Range<usize> {
-        let start = self.filter_range_min_value_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
         start..start + F2Dot14::RAW_BYTE_LEN
     }
 }
@@ -4806,12 +4819,12 @@ impl ConditionFormat2Marker {
     }
 
     pub fn default_value_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn var_index_byte_range(&self) -> Range<usize> {
-        let start = self.default_value_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 }
@@ -4897,12 +4910,12 @@ impl ConditionFormat3Marker {
     }
 
     pub fn condition_count_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn condition_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.condition_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + self.condition_offsets_byte_len
     }
 }
@@ -5013,12 +5026,12 @@ impl ConditionFormat4Marker {
     }
 
     pub fn condition_count_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn condition_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.condition_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + self.condition_offsets_byte_len
     }
 }
@@ -5127,7 +5140,7 @@ impl ConditionFormat5Marker {
     }
 
     pub fn condition_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset24::RAW_BYTE_LEN
     }
 }
@@ -5210,12 +5223,12 @@ impl FeatureTableSubstitutionMarker {
     }
 
     pub fn substitution_count_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn substitutions_byte_range(&self) -> Range<usize> {
-        let start = self.substitution_count_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.substitutions_byte_len
     }
 }
@@ -5356,22 +5369,22 @@ impl SizeParamsMarker {
     }
 
     pub fn identifier_byte_range(&self) -> Range<usize> {
-        let start = self.design_size_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn name_entry_byte_range(&self) -> Range<usize> {
-        let start = self.identifier_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn range_start_byte_range(&self) -> Range<usize> {
-        let start = self.name_entry_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn range_end_byte_range(&self) -> Range<usize> {
-        let start = self.range_start_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 }
@@ -5485,7 +5498,7 @@ impl StylisticSetParamsMarker {
     }
 
     pub fn ui_name_id_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + NameId::RAW_BYTE_LEN
     }
 }
@@ -5569,37 +5582,53 @@ impl CharacterVariantParamsMarker {
     }
 
     pub fn feat_ui_label_name_id_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + NameId::RAW_BYTE_LEN
     }
 
     pub fn feat_ui_tooltip_text_name_id_byte_range(&self) -> Range<usize> {
-        let start = self.feat_ui_label_name_id_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN;
         start..start + NameId::RAW_BYTE_LEN
     }
 
     pub fn sample_text_name_id_byte_range(&self) -> Range<usize> {
-        let start = self.feat_ui_tooltip_text_name_id_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN;
         start..start + NameId::RAW_BYTE_LEN
     }
 
     pub fn num_named_parameters_byte_range(&self) -> Range<usize> {
-        let start = self.sample_text_name_id_byte_range().end;
+        let start =
+            u16::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn first_param_ui_label_name_id_byte_range(&self) -> Range<usize> {
-        let start = self.num_named_parameters_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + NameId::RAW_BYTE_LEN
+            + NameId::RAW_BYTE_LEN
+            + NameId::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + NameId::RAW_BYTE_LEN
     }
 
     pub fn char_count_byte_range(&self) -> Range<usize> {
-        let start = self.first_param_ui_label_name_id_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + NameId::RAW_BYTE_LEN
+            + NameId::RAW_BYTE_LEN
+            + NameId::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + NameId::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn character_byte_range(&self) -> Range<usize> {
-        let start = self.char_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + NameId::RAW_BYTE_LEN
+            + NameId::RAW_BYTE_LEN
+            + NameId::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + NameId::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + self.character_byte_len
     }
 }

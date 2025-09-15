@@ -20,17 +20,17 @@ impl HdmxMarker {
     }
 
     pub fn num_records_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn size_device_record_byte_range(&self) -> Range<usize> {
-        let start = self.num_records_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn records_byte_range(&self) -> Range<usize> {
-        let start = self.size_device_record_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.records_byte_len
     }
 }

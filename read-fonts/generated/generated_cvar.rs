@@ -19,17 +19,18 @@ impl CvarMarker {
     }
 
     pub fn tuple_variation_count_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + TupleVariationCount::RAW_BYTE_LEN
     }
 
     pub fn data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.tuple_variation_count_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + TupleVariationCount::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
-        let start = self.data_offset_byte_range().end;
+        let start =
+            MajorMinor::RAW_BYTE_LEN + TupleVariationCount::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + self.tuple_variation_headers_byte_len
     }
 }

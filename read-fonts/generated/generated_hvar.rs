@@ -17,22 +17,25 @@ impl HvarMarker {
     }
 
     pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn advance_width_mapping_offset_byte_range(&self) -> Range<usize> {
-        let start = self.item_variation_store_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
         start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn lsb_mapping_offset_byte_range(&self) -> Range<usize> {
-        let start = self.advance_width_mapping_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
         start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn rsb_mapping_offset_byte_range(&self) -> Range<usize> {
-        let start = self.lsb_mapping_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN;
         start..start + Offset32::RAW_BYTE_LEN
     }
 }

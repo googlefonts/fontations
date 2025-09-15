@@ -19,22 +19,22 @@ impl MetaMarker {
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn reserved_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn data_maps_count_byte_range(&self) -> Range<usize> {
-        let start = self.reserved_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn data_maps_byte_range(&self) -> Range<usize> {
-        let start = self.data_maps_count_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.data_maps_byte_len
     }
 }

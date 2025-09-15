@@ -690,6 +690,14 @@ impl Field {
         self.attrs.skip_getter.is_none()
     }
 
+    pub(crate) fn is_fixed_size(&self) -> bool {
+        // TODO: a struct of fixed size fields is itself fixed size
+        matches!(
+            self.typ,
+            FieldType::Offset { .. } | FieldType::Scalar { .. }
+        )
+    }
+
     pub(crate) fn shape_len_expr(&self) -> TokenStream {
         // is this a scalar/offset? then it's just 'RAW_BYTE_LEN'
         // is this computed? then it is stored

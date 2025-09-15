@@ -19,37 +19,55 @@ impl GvarMarker {
     }
 
     pub fn axis_count_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn shared_tuple_count_byte_range(&self) -> Range<usize> {
-        let start = self.axis_count_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn shared_tuples_offset_byte_range(&self) -> Range<usize> {
-        let start = self.shared_tuple_count_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
-        let start = self.shared_tuples_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.glyph_count_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + GvarFlags::RAW_BYTE_LEN
     }
 
     pub fn glyph_variation_data_array_offset_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + GvarFlags::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn glyph_variation_data_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.glyph_variation_data_array_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + GvarFlags::RAW_BYTE_LEN
+            + u32::RAW_BYTE_LEN;
         start..start + self.glyph_variation_data_offsets_byte_len
     }
 }
@@ -601,12 +619,12 @@ impl GlyphVariationDataHeaderMarker {
     }
 
     pub fn serialized_data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.tuple_variation_count_byte_range().end;
+        let start = TupleVariationCount::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
-        let start = self.serialized_data_offset_byte_range().end;
+        let start = TupleVariationCount::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + self.tuple_variation_headers_byte_len
     }
 }

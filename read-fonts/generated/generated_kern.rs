@@ -19,12 +19,12 @@ impl OtKernMarker {
     }
 
     pub fn n_tables_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn subtable_data_byte_range(&self) -> Range<usize> {
-        let start = self.n_tables_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.subtable_data_byte_len
     }
 }
@@ -109,12 +109,12 @@ impl AatKernMarker {
     }
 
     pub fn n_tables_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn subtable_data_byte_range(&self) -> Range<usize> {
-        let start = self.n_tables_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.subtable_data_byte_len
     }
 }
@@ -199,17 +199,17 @@ impl OtSubtableMarker {
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn coverage_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.data_byte_len
     }
 }
@@ -300,17 +300,17 @@ impl AatSubtableMarker {
     }
 
     pub fn coverage_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
+        let start = u32::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn tuple_index_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.tuple_index_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.data_byte_len
     }
 }
@@ -401,22 +401,22 @@ impl Subtable0Marker {
     }
 
     pub fn search_range_byte_range(&self) -> Range<usize> {
-        let start = self.n_pairs_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn entry_selector_byte_range(&self) -> Range<usize> {
-        let start = self.search_range_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn range_shift_byte_range(&self) -> Range<usize> {
-        let start = self.entry_selector_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn pairs_byte_range(&self) -> Range<usize> {
-        let start = self.range_shift_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.pairs_byte_len
     }
 }
@@ -524,12 +524,12 @@ impl Subtable2ClassTableMarker {
     }
 
     pub fn n_glyphs_byte_range(&self) -> Range<usize> {
-        let start = self.first_glyph_byte_range().end;
+        let start = GlyphId16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn offsets_byte_range(&self) -> Range<usize> {
-        let start = self.n_glyphs_byte_range().end;
+        let start = GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.offsets_byte_len
     }
 }
@@ -617,27 +617,31 @@ impl Subtable3Marker {
     }
 
     pub fn kern_value_count_byte_range(&self) -> Range<usize> {
-        let start = self.glyph_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn left_class_count_byte_range(&self) -> Range<usize> {
-        let start = self.kern_value_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn right_class_count_byte_range(&self) -> Range<usize> {
-        let start = self.left_class_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.right_class_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn kern_value_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN;
         start..start + self.kern_value_byte_len
     }
 

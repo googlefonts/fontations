@@ -19,27 +19,32 @@ impl MvarMarker {
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn value_record_size_byte_range(&self) -> Range<usize> {
-        let start = self._reserved_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn value_record_count_byte_range(&self) -> Range<usize> {
-        let start = self.value_record_size_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
-        let start = self.value_record_count_byte_range().end;
+        let start =
+            MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn value_records_byte_range(&self) -> Range<usize> {
-        let start = self.item_variation_store_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN;
         start..start + self.value_records_byte_len
     }
 }

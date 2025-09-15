@@ -19,17 +19,17 @@ impl LtagMarker {
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn num_tags_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn tag_ranges_byte_range(&self) -> Range<usize> {
-        let start = self.num_tags_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.tag_ranges_byte_len
     }
 }

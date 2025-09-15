@@ -19,17 +19,17 @@ impl MorxMarker {
     }
 
     pub fn unused_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn n_chains_byte_range(&self) -> Range<usize> {
-        let start = self.unused_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn chains_byte_range(&self) -> Range<usize> {
-        let start = self.n_chains_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.chains_byte_len
     }
 }
@@ -124,22 +124,22 @@ impl ChainMarker {
     }
 
     pub fn chain_length_byte_range(&self) -> Range<usize> {
-        let start = self.default_flags_byte_range().end;
+        let start = u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn n_feature_entries_byte_range(&self) -> Range<usize> {
-        let start = self.chain_length_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn n_subtables_byte_range(&self) -> Range<usize> {
-        let start = self.n_feature_entries_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn features_byte_range(&self) -> Range<usize> {
-        let start = self.n_subtables_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.features_byte_len
     }
 
@@ -329,17 +329,17 @@ impl SubtableMarker {
     }
 
     pub fn coverage_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
+        let start = u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn sub_feature_flags_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.sub_feature_flags_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.data_byte_len
     }
 }

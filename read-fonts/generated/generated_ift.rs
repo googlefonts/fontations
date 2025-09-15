@@ -445,57 +445,106 @@ impl PatchMapFormat1Marker {
     }
 
     pub fn _reserved_0_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u8::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn _reserved_1_byte_range(&self) -> Range<usize> {
-        let start = self._reserved_0_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn _reserved_2_byte_range(&self) -> Range<usize> {
-        let start = self._reserved_1_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn field_flags_byte_range(&self) -> Range<usize> {
-        let start = self._reserved_2_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
     }
 
     pub fn compatibility_id_byte_range(&self) -> Range<usize> {
-        let start = self.field_flags_byte_range().end;
+        let start = u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + PatchMapFieldPresenceFlags::RAW_BYTE_LEN;
         start..start + CompatibilityId::RAW_BYTE_LEN
     }
 
     pub fn max_entry_index_byte_range(&self) -> Range<usize> {
-        let start = self.compatibility_id_byte_range().end;
+        let start = u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+            + CompatibilityId::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn max_glyph_map_entry_index_byte_range(&self) -> Range<usize> {
-        let start = self.max_entry_index_byte_range().end;
+        let start = u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+            + CompatibilityId::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
-        let start = self.max_glyph_map_entry_index_byte_range().end;
+        let start = u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+            + CompatibilityId::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + Uint24::RAW_BYTE_LEN
     }
 
     pub fn glyph_map_offset_byte_range(&self) -> Range<usize> {
-        let start = self.glyph_count_byte_range().end;
+        let start = u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+            + CompatibilityId::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + Uint24::RAW_BYTE_LEN;
         start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn feature_map_offset_byte_range(&self) -> Range<usize> {
-        let start = self.glyph_map_offset_byte_range().end;
+        let start = u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+            + CompatibilityId::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + Uint24::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN;
         start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn applied_entries_bitmap_byte_range(&self) -> Range<usize> {
-        let start = self.feature_map_offset_byte_range().end;
+        let start = u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+            + CompatibilityId::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + Uint24::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN;
         start..start + self.applied_entries_bitmap_byte_len
     }
 
@@ -754,7 +803,7 @@ impl GlyphMapMarker {
     }
 
     pub fn entry_index_byte_range(&self) -> Range<usize> {
-        let start = self.first_mapped_glyph_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.entry_index_byte_len
     }
 }
@@ -858,7 +907,7 @@ impl FeatureMapMarker {
     }
 
     pub fn feature_records_byte_range(&self) -> Range<usize> {
-        let start = self.feature_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.feature_records_byte_len
     }
 
@@ -1145,57 +1194,106 @@ impl PatchMapFormat2Marker {
     }
 
     pub fn _reserved_0_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u8::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn _reserved_1_byte_range(&self) -> Range<usize> {
-        let start = self._reserved_0_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn _reserved_2_byte_range(&self) -> Range<usize> {
-        let start = self._reserved_1_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn field_flags_byte_range(&self) -> Range<usize> {
-        let start = self._reserved_2_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
     }
 
     pub fn compatibility_id_byte_range(&self) -> Range<usize> {
-        let start = self.field_flags_byte_range().end;
+        let start = u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + PatchMapFieldPresenceFlags::RAW_BYTE_LEN;
         start..start + CompatibilityId::RAW_BYTE_LEN
     }
 
     pub fn default_patch_format_byte_range(&self) -> Range<usize> {
-        let start = self.compatibility_id_byte_range().end;
+        let start = u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+            + CompatibilityId::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn entry_count_byte_range(&self) -> Range<usize> {
-        let start = self.default_patch_format_byte_range().end;
+        let start = u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+            + CompatibilityId::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN;
         start..start + Uint24::RAW_BYTE_LEN
     }
 
     pub fn entries_offset_byte_range(&self) -> Range<usize> {
-        let start = self.entry_count_byte_range().end;
+        let start = u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+            + CompatibilityId::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + Uint24::RAW_BYTE_LEN;
         start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn entry_id_string_data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.entries_offset_byte_range().end;
+        let start = u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+            + CompatibilityId::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + Uint24::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN;
         start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn url_template_length_byte_range(&self) -> Range<usize> {
-        let start = self.entry_id_string_data_offset_byte_range().end;
+        let start = u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+            + CompatibilityId::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + Uint24::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn url_template_byte_range(&self) -> Range<usize> {
-        let start = self.url_template_length_byte_range().end;
+        let start = u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+            + CompatibilityId::RAW_BYTE_LEN
+            + u8::RAW_BYTE_LEN
+            + Uint24::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN
+            + Offset32::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + self.url_template_byte_len
     }
 
@@ -1526,7 +1624,7 @@ impl EntryDataMarker {
                                                 self.feature_count_byte_range()
                                                     .map(|range| range.end)
                                                     .unwrap_or_else(|| {
-                                                        self.format_flags_byte_range().end
+                                                        EntryFormatFlags::RAW_BYTE_LEN
                                                     })
                                             })
                                     })
@@ -2173,22 +2271,25 @@ impl TableKeyedPatchMarker {
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = Tag::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn compatibility_id_byte_range(&self) -> Range<usize> {
-        let start = self._reserved_byte_range().end;
+        let start = Tag::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + CompatibilityId::RAW_BYTE_LEN
     }
 
     pub fn patches_count_byte_range(&self) -> Range<usize> {
-        let start = self.compatibility_id_byte_range().end;
+        let start = Tag::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + CompatibilityId::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn patch_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.patches_count_byte_range().end;
+        let start = Tag::RAW_BYTE_LEN
+            + u32::RAW_BYTE_LEN
+            + CompatibilityId::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + self.patch_offsets_byte_len
     }
 }
@@ -2304,17 +2405,17 @@ impl TablePatchMarker {
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.tag_byte_range().end;
+        let start = Tag::RAW_BYTE_LEN;
         start..start + TablePatchFlags::RAW_BYTE_LEN
     }
 
     pub fn max_uncompressed_length_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
+        let start = Tag::RAW_BYTE_LEN + TablePatchFlags::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn brotli_stream_byte_range(&self) -> Range<usize> {
-        let start = self.max_uncompressed_length_byte_range().end;
+        let start = Tag::RAW_BYTE_LEN + TablePatchFlags::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.brotli_stream_byte_len
     }
 }
@@ -2711,27 +2812,34 @@ impl GlyphKeyedPatchMarker {
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = Tag::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self._reserved_byte_range().end;
+        let start = Tag::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + GlyphKeyedFlags::RAW_BYTE_LEN
     }
 
     pub fn compatibility_id_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
+        let start = Tag::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + GlyphKeyedFlags::RAW_BYTE_LEN;
         start..start + CompatibilityId::RAW_BYTE_LEN
     }
 
     pub fn max_uncompressed_length_byte_range(&self) -> Range<usize> {
-        let start = self.compatibility_id_byte_range().end;
+        let start = Tag::RAW_BYTE_LEN
+            + u32::RAW_BYTE_LEN
+            + GlyphKeyedFlags::RAW_BYTE_LEN
+            + CompatibilityId::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn brotli_stream_byte_range(&self) -> Range<usize> {
-        let start = self.max_uncompressed_length_byte_range().end;
+        let start = Tag::RAW_BYTE_LEN
+            + u32::RAW_BYTE_LEN
+            + GlyphKeyedFlags::RAW_BYTE_LEN
+            + CompatibilityId::RAW_BYTE_LEN
+            + u32::RAW_BYTE_LEN;
         start..start + self.brotli_stream_byte_len
     }
 }
@@ -3142,12 +3250,12 @@ impl GlyphPatchesMarker {
     }
 
     pub fn table_count_byte_range(&self) -> Range<usize> {
-        let start = self.glyph_count_byte_range().end;
+        let start = u32::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn glyph_ids_byte_range(&self) -> Range<usize> {
-        let start = self.table_count_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + self.glyph_ids_byte_len
     }
 

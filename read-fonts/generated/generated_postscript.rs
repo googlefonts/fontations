@@ -20,12 +20,12 @@ impl Index1Marker {
     }
 
     pub fn off_size_byte_range(&self) -> Range<usize> {
-        let start = self.count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn offsets_byte_range(&self) -> Range<usize> {
-        let start = self.off_size_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + self.offsets_byte_len
     }
 
@@ -128,12 +128,12 @@ impl Index2Marker {
     }
 
     pub fn off_size_byte_range(&self) -> Range<usize> {
-        let start = self.count_byte_range().end;
+        let start = u32::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn offsets_byte_range(&self) -> Range<usize> {
-        let start = self.off_size_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + self.offsets_byte_len
     }
 
@@ -317,7 +317,7 @@ impl FdSelectFormat0Marker {
     }
 
     pub fn fds_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u8::RAW_BYTE_LEN;
         start..start + self.fds_byte_len
     }
 }
@@ -396,12 +396,12 @@ impl FdSelectFormat3Marker {
     }
 
     pub fn n_ranges_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u8::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn ranges_byte_range(&self) -> Range<usize> {
-        let start = self.n_ranges_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.ranges_byte_len
     }
 
@@ -552,12 +552,12 @@ impl FdSelectFormat4Marker {
     }
 
     pub fn n_ranges_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u8::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn ranges_byte_range(&self) -> Range<usize> {
-        let start = self.n_ranges_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.ranges_byte_len
     }
 
@@ -786,7 +786,7 @@ impl CharsetFormat0Marker {
     }
 
     pub fn glyph_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u8::RAW_BYTE_LEN;
         start..start + self.glyph_byte_len
     }
 }
@@ -865,7 +865,7 @@ impl CharsetFormat1Marker {
     }
 
     pub fn ranges_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u8::RAW_BYTE_LEN;
         start..start + self.ranges_byte_len
     }
 }
@@ -994,7 +994,7 @@ impl CharsetFormat2Marker {
     }
 
     pub fn ranges_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u8::RAW_BYTE_LEN;
         start..start + self.ranges_byte_len
     }
 }

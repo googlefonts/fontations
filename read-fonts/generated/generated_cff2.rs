@@ -21,22 +21,22 @@ impl Cff2HeaderMarker {
     }
 
     pub fn minor_version_byte_range(&self) -> Range<usize> {
-        let start = self.major_version_byte_range().end;
+        let start = u8::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn header_size_byte_range(&self) -> Range<usize> {
-        let start = self.minor_version_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn top_dict_length_byte_range(&self) -> Range<usize> {
-        let start = self.header_size_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn _padding_byte_range(&self) -> Range<usize> {
-        let start = self.top_dict_length_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self._padding_byte_len
     }
 
