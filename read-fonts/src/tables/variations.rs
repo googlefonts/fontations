@@ -2,7 +2,7 @@
 
 include!("../../generated/generated_variations.rs");
 
-use super::glyf::{PointCoord, PointFlags, PointMarker};
+use super::glyf_types::{PointCoord, PointFlags, PointMarker};
 
 pub const NO_VARIATION_INDEX: u32 = 0xFFFFFFFF;
 /// Outer and inner indices for reading from an [ItemVariationStore].

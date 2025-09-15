@@ -108,6 +108,8 @@ pub mod vvar;
 #[cfg(feature = "ift")]
 pub mod ift;
 
+mod glyf_types;
+
 /// Computes the table checksum for the given data.
 ///
 /// See the OpenType [specification](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#calculating-checksums)
