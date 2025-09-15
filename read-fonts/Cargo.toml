@@ -35,7 +35,7 @@ libm = ["dep:core_maths"]
 # Table support
 bitmap = []
 layout = ["gpos", "gsub", "variations"]
-variations = ["glyf", "gvar"]
+variations = []
 postscript = ["variations", "cff"]
 
 # Tables
