@@ -15,6 +15,7 @@ extern crate std;
 #[macro_use]
 extern crate core as std;
 
+mod attribute;
 mod bbox;
 mod fixed;
 mod fword;
@@ -33,6 +34,7 @@ mod version;
 #[cfg(all(test, feature = "serde"))]
 mod serde_test;
 
+pub use attribute::{Stretch, Style, Weight};
 pub use bbox::BoundingBox;
 pub use fixed::{F26Dot6, F2Dot14, F4Dot12, F6Dot10, Fixed};
 pub use fword::{FWord, UfWord};
