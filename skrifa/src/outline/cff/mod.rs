@@ -320,7 +320,7 @@ impl<'a> Outlines<'a> {
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L279>
 fn scale_for_hinting(scale: Option<Fixed>) -> Fixed {
-    Fixed::from_bits((scale.unwrap_or(Fixed::ONE).to_bits() + 32) / 64)
+    Fixed::from_bits((scale.unwrap_or(Fixed::ONE).to_bits().saturating_add(32)) / 64)
 }
 
 struct CharstringEvaluator<'a> {
