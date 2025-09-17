@@ -59,9 +59,11 @@ impl<'a> ColrInstance<'a> {
         {
             return deltas;
         }
+        // Avoid overflow if var_index_base + N > u32::MAX
+        let actual_count = ((u32::MAX - var_index_base) as usize).min(N);
         let var_store = self.var_store.as_ref().unwrap();
         if let Some(index_map) = self.index_map.as_ref() {
-            for (i, delta) in deltas.iter_mut().enumerate() {
+            for (i, delta) in deltas.iter_mut().enumerate().take(actual_count) {
                 let var_index = var_index_base + i as u32;
                 if let Ok(delta_ix) = index_map.get(var_index) {
                     *delta = var_store
@@ -70,7 +72,7 @@ impl<'a> ColrInstance<'a> {
                 }
             }
         } else {
-            for (i, delta) in deltas.iter_mut().enumerate() {
+            for (i, delta) in deltas.iter_mut().enumerate().take(actual_count) {
                 let var_index = var_index_base + i as u32;
                 // If we don't have a var index map, use our index as the inner
                 // component and set the outer to 0.
@@ -594,4 +596,22 @@ pub fn resolve_paint<'a>(
             backdrop_paint: composite.backdrop_paint()?,
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use raw::{FontRef, TableProvider};
+
+    /// OSS Fuzz caught add with overflow when computing delta indices.
+    /// See <https://oss-fuzz.com/testcase-detail/5180237819478016>
+    /// and <https://g-issues.oss-fuzz.com/issues/439498857>
+    #[test]
+    fn var_delta_index_overflow() {
+        let font = FontRef::new(font_test_data::COLRV0V1_VARIABLE).unwrap();
+        let coords = &[F2Dot14::from_f32(0.5)];
+        let instance = ColrInstance::new(font.colr().unwrap(), coords);
+        // Just don't panic with overflow
+        let _: [FloatItemDelta; 4] = instance.var_deltas(0xFFFFFFFE);
+    }
 }
