@@ -59,9 +59,11 @@ impl<'a> ColrInstance<'a> {
         {
             return deltas;
         }
+        // Avoid overflow if var_index_base + N > u32::MAX
+        let actual_count = ((u32::MAX - var_index_base) as usize).min(N);
         let var_store = self.var_store.as_ref().unwrap();
         if let Some(index_map) = self.index_map.as_ref() {
-            for (i, delta) in deltas.iter_mut().enumerate() {
+            for (i, delta) in deltas.iter_mut().enumerate().take(actual_count) {
                 let var_index = var_index_base + i as u32;
                 if let Ok(delta_ix) = index_map.get(var_index) {
                     *delta = var_store
@@ -70,7 +72,7 @@ impl<'a> ColrInstance<'a> {
                 }
             }
         } else {
-            for (i, delta) in deltas.iter_mut().enumerate() {
+            for (i, delta) in deltas.iter_mut().enumerate().take(actual_count) {
                 let var_index = var_index_base + i as u32;
                 // If we don't have a var index map, use our index as the inner
                 // component and set the outer to 0.
