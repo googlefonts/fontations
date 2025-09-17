@@ -1068,4 +1068,19 @@ mod tests {
             })
             .collect()
     }
+
+    /// OSS Fuzz caught subtract with overflow in State::apply_to_segment.
+    /// See <https://oss-fuzz.com/testcase-detail/5446493076258816>
+    /// and <https://issues.oss-fuzz.com/issues/438909305>
+    #[test]
+    fn state_apply_overflow() {
+        let mut segment = Segment::default();
+        let state = State {
+            min_coord: MAX_SCORE,
+            max_coord: MIN_SCORE,
+            ..Default::default()
+        };
+        // Just don't panic with overflow
+        state.apply_to_segment(&mut segment, 0);
+    }
 }
