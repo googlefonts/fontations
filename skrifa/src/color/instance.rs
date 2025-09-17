@@ -595,3 +595,21 @@ pub fn resolve_paint<'a>(
         },
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use raw::{FontRef, TableProvider};
+
+    /// OSS Fuzz caught add with overflow when computing delta indices.
+    /// See <https://oss-fuzz.com/testcase-detail/5180237819478016>
+    /// and <https://g-issues.oss-fuzz.com/issues/439498857>
+    #[test]
+    fn var_delta_index_overflow() {
+        let font = FontRef::new(font_test_data::COLRV0V1_VARIABLE).unwrap();
+        let coords = &[F2Dot14::from_f32(0.5)];
+        let instance = ColrInstance::new(font.colr().unwrap(), coords);
+        // Just don't panic with overflow
+        let _: [FloatItemDelta; 4] = instance.var_deltas(0xFFFFFFFE);
+    }
+}
