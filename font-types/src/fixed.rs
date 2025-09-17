@@ -485,4 +485,23 @@ mod tests {
             Fixed::from_f64(0.25)
         );
     }
+
+    // OSS Fuzz caught panic with overflow in fixed point division.
+    // See <https://oss-fuzz.com/testcase-detail/5666843647082496> and
+    // <https://issues.oss-fuzz.com/issues/443104630>
+    #[test]
+    fn fixed_div_neg_overflow() {
+        let a = Fixed::from_f64(-92.5);
+        let b = Fixed::from_f64(0.0028228759765625);
+        // Just don't panic with overflow
+        let _ = a / b;
+    }
+
+    #[test]
+    fn fixed_mul_div_neg_overflow() {
+        let a = Fixed::from_f64(-92.5);
+        let b = Fixed::from_f64(0.0028228759765625);
+        // Just don't panic with overflow
+        let _ = a.mul_div(Fixed::ONE, b);
+    }
 }
