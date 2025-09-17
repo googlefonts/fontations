@@ -168,7 +168,7 @@ macro_rules! fixed_mul_div {
                     0x7FFFFFFF
                 };
                 Self(if sign < 0 {
-                    -(result as i32)
+                    (result as i32).wrapping_neg()
                 } else {
                     result as i32
                 })
@@ -211,7 +211,11 @@ macro_rules! fixed_mul_div {
                 } else {
                     ((((a as u64) << 16) + ((b as u64) >> 1)) / (b as u64)) as u32
                 };
-                Self(if sign < 0 { -(q as i32) } else { q as i32 })
+                Self(if sign < 0 {
+                    (q as i32).wrapping_neg()
+                } else {
+                    q as i32
+                })
             }
         }
 
