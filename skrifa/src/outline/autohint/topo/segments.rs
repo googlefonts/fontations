@@ -579,7 +579,7 @@ impl State {
         }
         segment.min_coord = self.min_coord as i16;
         segment.max_coord = self.max_coord as i16;
-        segment.height = segment.max_coord - segment.min_coord;
+        segment.height = (self.max_coord - self.min_coord) as i16;
     }
 }
 
