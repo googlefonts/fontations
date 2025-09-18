@@ -127,7 +127,7 @@ impl<'a> std::fmt::Debug for Meta<'a> {
 }
 
 ///  <https://learn.microsoft.com/en-us/typography/opentype/spec/meta#table-formats>
-#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[derive(Clone, Debug, Copy, bytemuck_derive :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct DataMapRecord {

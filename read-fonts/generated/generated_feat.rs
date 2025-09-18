@@ -121,7 +121,7 @@ impl<'a> std::fmt::Debug for Feat<'a> {
 }
 
 /// Type, flags and names for a feature.
-#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[derive(Clone, Debug, Copy, bytemuck_derive :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FeatureName {
@@ -294,7 +294,9 @@ impl<'a> std::fmt::Debug for SettingNameArray<'a> {
 }
 
 /// Associates a setting with a name identifier.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SettingName {

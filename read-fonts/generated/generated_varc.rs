@@ -497,7 +497,9 @@ impl<'a> std::fmt::Debug for SparseVariationRegion<'a> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SparseRegionAxisCoordinates {
@@ -752,7 +754,9 @@ impl<'a> std::fmt::Debug for ConditionList<'a> {
 /// Flags used in the [VarcComponent] byte stream
 ///
 /// <https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md#variable-component-flags>
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck_derive :: AnyBitPattern,
+)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct VarcFlags {

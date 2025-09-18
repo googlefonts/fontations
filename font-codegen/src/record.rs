@@ -36,7 +36,7 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
             #[repr(packed)]
         }
     });
-    let simple_record_traits = is_zerocopy.then(|| quote!(Copy, bytemuck::AnyBitPattern,));
+    let simple_record_traits = is_zerocopy.then(|| quote!(Copy, bytemuck_derive::AnyBitPattern,));
 
     let maybe_impl_fixed_size = is_zerocopy.then(|| {
         let inner_types = item.fields.iter().map(|fld| fld.typ.cooked_type_tokens());

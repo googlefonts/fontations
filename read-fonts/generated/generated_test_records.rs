@@ -142,7 +142,9 @@ impl<'a> std::fmt::Debug for BasicTable<'a> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SimpleRecord {
@@ -267,7 +269,7 @@ impl<'a> SomeRecord<'a> for ContainsArrays<'a> {
     }
 }
 
-#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[derive(Clone, Debug, Copy, bytemuck_derive :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ContainsOffsets {

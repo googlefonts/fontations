@@ -3,7 +3,7 @@ use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssi
 /// Two dimensional point with a generic coordinate type.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "bytemuck", derive(bytemuck::AnyBitPattern))]
+#[cfg_attr(feature = "bytemuck", derive(bytemuck_derive::AnyBitPattern))]
 #[repr(C)]
 pub struct Point<T> {
     /// X coordinate.

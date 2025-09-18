@@ -334,7 +334,9 @@ impl<'a> std::fmt::Debug for Subtable0<'a> {
 }
 
 /// The type 0 `kerx` subtable kerning record.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct Subtable0Pair {

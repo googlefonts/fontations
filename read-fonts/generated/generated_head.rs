@@ -6,7 +6,9 @@
 use crate::codegen_prelude::*;
 
 /// The `macStyle` field for the head table.
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck_derive :: AnyBitPattern,
+)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct MacStyle {
@@ -340,7 +342,9 @@ impl<'a> From<MacStyle> for FieldType<'a> {
 }
 
 /// The `flags` field for the head table.
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck_derive :: AnyBitPattern,
+)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct Flags {

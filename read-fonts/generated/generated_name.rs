@@ -184,7 +184,7 @@ impl<'a> std::fmt::Debug for Name<'a> {
 }
 
 /// Part of [Name]
-#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[derive(Clone, Debug, Copy, bytemuck_derive :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct LangTagRecord {
@@ -228,7 +228,7 @@ impl<'a> SomeRecord<'a> for LangTagRecord {
 }
 
 ///[Name Records](https://docs.microsoft.com/en-us/typography/opentype/spec/name#name-records)
-#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[derive(Clone, Debug, Copy, bytemuck_derive :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct NameRecord {
