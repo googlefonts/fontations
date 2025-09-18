@@ -220,9 +220,7 @@ impl<'a> Outlines<'a> {
             // fairly often after normalization.
             font_matrix = None;
         }
-        // When hinting, use a modified scale factor
-        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L279>
-        let hint_scale = Fixed::from_bits((scale.unwrap_or(Fixed::ONE).to_bits() + 32) / 64);
+        let hint_scale = scale_for_hinting(scale);
         let hint_state = HintState::new(&private_dict.hint_params, hint_scale);
         Ok(Subfont {
             is_cff2: self.is_cff2(),
@@ -316,6 +314,13 @@ impl<'a> Outlines<'a> {
             })
         }
     }
+}
+
+/// When hinting, use a modified scale factor.
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L279>
+fn scale_for_hinting(scale: Option<Fixed>) -> Fixed {
+    Fixed::from_bits((scale.unwrap_or(Fixed::ONE).to_bits().saturating_add(32)) / 64)
 }
 
 struct CharstringEvaluator<'a> {
@@ -1323,5 +1328,14 @@ mod tests {
         assert_eq!(subfont.font_matrix.unwrap(), expected_combined_matrix);
         // Check the final scale
         assert_eq!(subfont.scale.unwrap().to_bits(), 98304);
+    }
+
+    /// OSS fuzz caught add with overflow for hint scale computation.
+    /// See <https://oss-fuzz.com/testcase-detail/6498790355042304>
+    /// and <https://issues.oss-fuzz.com/issues/444024349>
+    #[test]
+    fn subfont_hint_scale_overflow() {
+        // Just don't panic with overflow
+        let _ = scale_for_hinting(Some(Fixed::from_bits(i32::MAX)));
     }
 }
