@@ -579,7 +579,7 @@ impl State {
         }
         segment.min_coord = self.min_coord as i16;
         segment.max_coord = self.max_coord as i16;
-        segment.height = segment.max_coord - segment.min_coord;
+        segment.height = (self.max_coord - self.min_coord) as i16;
     }
 }
 
@@ -1067,5 +1067,20 @@ mod tests {
                 ..Default::default()
             })
             .collect()
+    }
+
+    /// OSS Fuzz caught subtract with overflow in State::apply_to_segment.
+    /// See <https://oss-fuzz.com/testcase-detail/5446493076258816>
+    /// and <https://issues.oss-fuzz.com/issues/438909305>
+    #[test]
+    fn state_apply_overflow() {
+        let mut segment = Segment::default();
+        let state = State {
+            min_coord: MAX_SCORE,
+            max_coord: MIN_SCORE,
+            ..Default::default()
+        };
+        // Just don't panic with overflow
+        state.apply_to_segment(&mut segment, 0);
     }
 }
