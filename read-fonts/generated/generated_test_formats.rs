@@ -20,12 +20,12 @@ impl Table1Marker {
     }
 
     pub fn heft_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn flex_byte_range(&self) -> Range<usize> {
-        let start = self.heft_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 }
@@ -106,12 +106,12 @@ impl Table2Marker {
     }
 
     pub fn value_count_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn values_byte_range(&self) -> Range<usize> {
-        let start = self.value_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.values_byte_len
     }
 }
@@ -193,7 +193,7 @@ impl Table3Marker {
     }
 
     pub fn something_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 }

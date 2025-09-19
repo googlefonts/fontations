@@ -381,82 +381,196 @@ impl Os2Marker {
     }
 
     pub fn x_avg_char_width_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn us_weight_class_byte_range(&self) -> Range<usize> {
-        let start = self.x_avg_char_width_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn us_width_class_byte_range(&self) -> Range<usize> {
-        let start = self.us_weight_class_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn fs_type_byte_range(&self) -> Range<usize> {
-        let start = self.us_width_class_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn y_subscript_x_size_byte_range(&self) -> Range<usize> {
-        let start = self.fs_type_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_subscript_y_size_byte_range(&self) -> Range<usize> {
-        let start = self.y_subscript_x_size_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_subscript_x_offset_byte_range(&self) -> Range<usize> {
-        let start = self.y_subscript_y_size_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_subscript_y_offset_byte_range(&self) -> Range<usize> {
-        let start = self.y_subscript_x_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_superscript_x_size_byte_range(&self) -> Range<usize> {
-        let start = self.y_subscript_y_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_superscript_y_size_byte_range(&self) -> Range<usize> {
-        let start = self.y_superscript_x_size_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_superscript_x_offset_byte_range(&self) -> Range<usize> {
-        let start = self.y_superscript_y_size_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_superscript_y_offset_byte_range(&self) -> Range<usize> {
-        let start = self.y_superscript_x_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_strikeout_size_byte_range(&self) -> Range<usize> {
-        let start = self.y_superscript_y_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_strikeout_position_byte_range(&self) -> Range<usize> {
-        let start = self.y_strikeout_size_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn s_family_class_byte_range(&self) -> Range<usize> {
-        let start = self.y_strikeout_position_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn panose_10_byte_range(&self) -> Range<usize> {
-        let start = self.s_family_class_byte_range().end;
+        let start = u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + self.panose_10_byte_len
     }
 

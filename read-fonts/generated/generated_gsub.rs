@@ -19,17 +19,17 @@ impl GsubMarker {
     }
 
     pub fn script_list_offset_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn feature_list_offset_byte_range(&self) -> Range<usize> {
-        let start = self.script_list_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn lookup_list_offset_byte_range(&self) -> Range<usize> {
-        let start = self.feature_list_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
@@ -350,12 +350,12 @@ impl SingleSubstFormat1Marker {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.subst_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn delta_glyph_id_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 }
@@ -451,17 +451,17 @@ impl SingleSubstFormat2Marker {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.subst_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn substitute_glyph_ids_byte_range(&self) -> Range<usize> {
-        let start = self.glyph_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.substitute_glyph_ids_byte_len
     }
 }
@@ -573,17 +573,17 @@ impl MultipleSubstFormat1Marker {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.subst_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn sequence_count_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn sequence_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.sequence_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.sequence_offsets_byte_len
     }
 }
@@ -709,7 +709,7 @@ impl SequenceMarker {
     }
 
     pub fn substitute_glyph_ids_byte_range(&self) -> Range<usize> {
-        let start = self.glyph_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.substitute_glyph_ids_byte_len
     }
 }
@@ -796,17 +796,17 @@ impl AlternateSubstFormat1Marker {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.subst_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn alternate_set_count_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn alternate_set_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.alternate_set_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.alternate_set_offsets_byte_len
     }
 }
@@ -935,7 +935,7 @@ impl AlternateSetMarker {
     }
 
     pub fn alternate_glyph_ids_byte_range(&self) -> Range<usize> {
-        let start = self.glyph_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.alternate_glyph_ids_byte_len
     }
 }
@@ -1021,17 +1021,17 @@ impl LigatureSubstFormat1Marker {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.subst_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn ligature_set_count_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn ligature_set_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.ligature_set_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.ligature_set_offsets_byte_len
     }
 }
@@ -1157,7 +1157,7 @@ impl LigatureSetMarker {
     }
 
     pub fn ligature_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.ligature_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.ligature_offsets_byte_len
     }
 }
@@ -1257,12 +1257,12 @@ impl LigatureMarker {
     }
 
     pub fn component_count_byte_range(&self) -> Range<usize> {
-        let start = self.ligature_glyph_byte_range().end;
+        let start = GlyphId16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn component_glyph_ids_byte_range(&self) -> Range<usize> {
-        let start = self.component_count_byte_range().end;
+        let start = GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.component_glyph_ids_byte_len
     }
 }
@@ -1357,12 +1357,12 @@ impl<T> ExtensionSubstFormat1Marker<T> {
     }
 
     pub fn extension_lookup_type_byte_range(&self) -> Range<usize> {
-        let start = self.subst_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn extension_offset_byte_range(&self) -> Range<usize> {
-        let start = self.extension_lookup_type_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + Offset32::RAW_BYTE_LEN
     }
 }
@@ -1582,17 +1582,17 @@ impl ReverseChainSingleSubstFormat1Marker {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.subst_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn backtrack_glyph_count_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn backtrack_coverage_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.backtrack_glyph_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.backtrack_coverage_offsets_byte_len
     }
 

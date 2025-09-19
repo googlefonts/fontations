@@ -908,17 +908,17 @@ impl IndexSubtable1Marker {
     }
 
     pub fn image_format_byte_range(&self) -> Range<usize> {
-        let start = self.index_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn image_data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.image_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn sbit_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.image_data_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.sbit_offsets_byte_len
     }
 }
@@ -1040,22 +1040,22 @@ impl IndexSubtable2Marker {
     }
 
     pub fn image_format_byte_range(&self) -> Range<usize> {
-        let start = self.index_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn image_data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.image_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn image_size_byte_range(&self) -> Range<usize> {
-        let start = self.image_data_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn big_metrics_byte_range(&self) -> Range<usize> {
-        let start = self.image_size_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.big_metrics_byte_len
     }
 }
@@ -1167,17 +1167,17 @@ impl IndexSubtable3Marker {
     }
 
     pub fn image_format_byte_range(&self) -> Range<usize> {
-        let start = self.index_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn image_data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.image_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn sbit_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.image_data_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.sbit_offsets_byte_len
     }
 }
@@ -1299,22 +1299,22 @@ impl IndexSubtable4Marker {
     }
 
     pub fn image_format_byte_range(&self) -> Range<usize> {
-        let start = self.index_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn image_data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.image_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn num_glyphs_byte_range(&self) -> Range<usize> {
-        let start = self.image_data_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn glyph_array_byte_range(&self) -> Range<usize> {
-        let start = self.num_glyphs_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.glyph_array_byte_len
     }
 }
@@ -1471,22 +1471,22 @@ impl IndexSubtable5Marker {
     }
 
     pub fn image_format_byte_range(&self) -> Range<usize> {
-        let start = self.index_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn image_data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.image_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn image_size_byte_range(&self) -> Range<usize> {
-        let start = self.image_data_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn big_metrics_byte_range(&self) -> Range<usize> {
-        let start = self.image_size_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.big_metrics_byte_len
     }
 

@@ -19,12 +19,12 @@ impl BaseMarker {
     }
 
     pub fn horiz_axis_offset_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn vert_axis_offset_byte_range(&self) -> Range<usize> {
-        let start = self.horiz_axis_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
@@ -158,7 +158,7 @@ impl AxisMarker {
     }
 
     pub fn base_script_list_offset_byte_range(&self) -> Range<usize> {
-        let start = self.base_tag_list_offset_byte_range().end;
+        let start = Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 }
@@ -251,7 +251,7 @@ impl BaseTagListMarker {
     }
 
     pub fn baseline_tags_byte_range(&self) -> Range<usize> {
-        let start = self.base_tag_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.baseline_tags_byte_len
     }
 }
@@ -332,7 +332,7 @@ impl BaseScriptListMarker {
     }
 
     pub fn base_script_records_byte_range(&self) -> Range<usize> {
-        let start = self.base_script_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.base_script_records_byte_len
     }
 }
@@ -472,17 +472,17 @@ impl BaseScriptMarker {
     }
 
     pub fn default_min_max_offset_byte_range(&self) -> Range<usize> {
-        let start = self.base_values_offset_byte_range().end;
+        let start = Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn base_lang_sys_count_byte_range(&self) -> Range<usize> {
-        let start = self.default_min_max_offset_byte_range().end;
+        let start = Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn base_lang_sys_records_byte_range(&self) -> Range<usize> {
-        let start = self.base_lang_sys_count_byte_range().end;
+        let start = Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.base_lang_sys_records_byte_len
     }
 }
@@ -659,12 +659,12 @@ impl BaseValuesMarker {
     }
 
     pub fn base_coord_count_byte_range(&self) -> Range<usize> {
-        let start = self.default_baseline_index_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn base_coord_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.base_coord_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.base_coord_offsets_byte_len
     }
 }
@@ -779,17 +779,17 @@ impl MinMaxMarker {
     }
 
     pub fn max_coord_offset_byte_range(&self) -> Range<usize> {
-        let start = self.min_coord_offset_byte_range().end;
+        let start = Offset16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn feat_min_max_count_byte_range(&self) -> Range<usize> {
-        let start = self.max_coord_offset_byte_range().end;
+        let start = Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn feat_min_max_records_byte_range(&self) -> Range<usize> {
-        let start = self.feat_min_max_count_byte_range().end;
+        let start = Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.feat_min_max_records_byte_len
     }
 }
@@ -1080,7 +1080,7 @@ impl BaseCoordFormat1Marker {
     }
 
     pub fn coordinate_byte_range(&self) -> Range<usize> {
-        let start = self.base_coord_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 }
@@ -1156,17 +1156,17 @@ impl BaseCoordFormat2Marker {
     }
 
     pub fn coordinate_byte_range(&self) -> Range<usize> {
-        let start = self.base_coord_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn reference_glyph_byte_range(&self) -> Range<usize> {
-        let start = self.coordinate_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn base_coord_point_byte_range(&self) -> Range<usize> {
-        let start = self.reference_glyph_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 }
@@ -1258,12 +1258,12 @@ impl BaseCoordFormat3Marker {
     }
 
     pub fn coordinate_byte_range(&self) -> Range<usize> {
-        let start = self.base_coord_format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn device_offset_byte_range(&self) -> Range<usize> {
-        let start = self.coordinate_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 }

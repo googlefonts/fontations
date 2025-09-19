@@ -17,17 +17,17 @@ impl AnkrMarker {
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn lookup_table_offset_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn glyph_data_table_offset_byte_range(&self) -> Range<usize> {
-        let start = self.lookup_table_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 }
@@ -135,7 +135,7 @@ impl GlyphDataEntryMarker {
     }
 
     pub fn anchor_points_byte_range(&self) -> Range<usize> {
-        let start = self.num_points_byte_range().end;
+        let start = u32::RAW_BYTE_LEN;
         start..start + self.anchor_points_byte_len
     }
 }

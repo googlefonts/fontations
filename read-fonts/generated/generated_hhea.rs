@@ -17,82 +17,199 @@ impl HheaMarker {
     }
 
     pub fn ascender_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn descender_byte_range(&self) -> Range<usize> {
-        let start = self.ascender_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + FWord::RAW_BYTE_LEN;
         start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn line_gap_byte_range(&self) -> Range<usize> {
-        let start = self.descender_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + FWord::RAW_BYTE_LEN + FWord::RAW_BYTE_LEN;
         start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn advance_width_max_byte_range(&self) -> Range<usize> {
-        let start = self.line_gap_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN;
         start..start + UfWord::RAW_BYTE_LEN
     }
 
     pub fn min_left_side_bearing_byte_range(&self) -> Range<usize> {
-        let start = self.advance_width_max_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + UfWord::RAW_BYTE_LEN;
         start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn min_right_side_bearing_byte_range(&self) -> Range<usize> {
-        let start = self.min_left_side_bearing_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + UfWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN;
         start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn x_max_extent_byte_range(&self) -> Range<usize> {
-        let start = self.min_right_side_bearing_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + UfWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN;
         start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn caret_slope_rise_byte_range(&self) -> Range<usize> {
-        let start = self.x_max_extent_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + UfWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn caret_slope_run_byte_range(&self) -> Range<usize> {
-        let start = self.caret_slope_rise_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + UfWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn caret_offset_byte_range(&self) -> Range<usize> {
-        let start = self.caret_slope_run_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + UfWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn reserved1_byte_range(&self) -> Range<usize> {
-        let start = self.caret_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + UfWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn reserved2_byte_range(&self) -> Range<usize> {
-        let start = self.reserved1_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + UfWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn reserved3_byte_range(&self) -> Range<usize> {
-        let start = self.reserved2_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + UfWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn reserved4_byte_range(&self) -> Range<usize> {
-        let start = self.reserved3_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + UfWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn metric_data_format_byte_range(&self) -> Range<usize> {
-        let start = self.reserved4_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + UfWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn number_of_h_metrics_byte_range(&self) -> Range<usize> {
-        let start = self.metric_data_format_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + UfWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN
+            + i16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 }

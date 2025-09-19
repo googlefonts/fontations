@@ -19,7 +19,7 @@ impl MajorMinorVersionMarker {
     }
 
     pub fn always_present_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
@@ -440,7 +440,7 @@ impl FlagDayMarker {
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.volume_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + GotFlags::RAW_BYTE_LEN
     }
 
@@ -581,7 +581,7 @@ impl FieldsAfterConditionalsMarker {
         let start = self
             .foo_byte_range()
             .map(|range| range.end)
-            .unwrap_or_else(|| self.flags_byte_range().end);
+            .unwrap_or_else(|| GotFlags::RAW_BYTE_LEN);
         start..start + u16::RAW_BYTE_LEN
     }
 

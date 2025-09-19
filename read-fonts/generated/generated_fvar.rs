@@ -17,32 +17,44 @@ impl FvarMarker {
     }
 
     pub fn axis_instance_arrays_offset_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
-        let start = self.axis_instance_arrays_offset_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn axis_count_byte_range(&self) -> Range<usize> {
-        let start = self._reserved_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn axis_size_byte_range(&self) -> Range<usize> {
-        let start = self.axis_count_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn instance_count_byte_range(&self) -> Range<usize> {
-        let start = self.axis_size_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn instance_size_byte_range(&self) -> Range<usize> {
-        let start = self.instance_count_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN
+            + Offset16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 }

@@ -19,17 +19,17 @@ impl DsigMarker {
     }
 
     pub fn num_signatures_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u32::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.num_signatures_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + PermissionFlags::RAW_BYTE_LEN
     }
 
     pub fn signature_records_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + PermissionFlags::RAW_BYTE_LEN;
         start..start + self.signature_records_byte_len
     }
 }
@@ -493,17 +493,17 @@ impl SignatureBlockFormat1Marker {
     }
 
     pub fn _reserved2_byte_range(&self) -> Range<usize> {
-        let start = self._reserved1_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn signature_length_byte_range(&self) -> Range<usize> {
-        let start = self._reserved2_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn signature_byte_range(&self) -> Range<usize> {
-        let start = self.signature_length_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.signature_byte_len
     }
 }

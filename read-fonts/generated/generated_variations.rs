@@ -21,12 +21,12 @@ impl TupleVariationHeaderMarker {
     }
 
     pub fn tuple_index_byte_range(&self) -> Range<usize> {
-        let start = self.variation_data_size_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + TupleIndex::RAW_BYTE_LEN
     }
 
     pub fn peak_tuple_byte_range(&self) -> Range<usize> {
-        let start = self.tuple_index_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + TupleIndex::RAW_BYTE_LEN;
         start..start + self.peak_tuple_byte_len
     }
 
@@ -227,17 +227,17 @@ impl DeltaSetIndexMapFormat0Marker {
     }
 
     pub fn entry_format_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u8::RAW_BYTE_LEN;
         start..start + EntryFormat::RAW_BYTE_LEN
     }
 
     pub fn map_count_byte_range(&self) -> Range<usize> {
-        let start = self.entry_format_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + EntryFormat::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn map_data_byte_range(&self) -> Range<usize> {
-        let start = self.map_count_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + EntryFormat::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.map_data_byte_len
     }
 }
@@ -335,17 +335,17 @@ impl DeltaSetIndexMapFormat1Marker {
     }
 
     pub fn entry_format_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u8::RAW_BYTE_LEN;
         start..start + EntryFormat::RAW_BYTE_LEN
     }
 
     pub fn map_count_byte_range(&self) -> Range<usize> {
-        let start = self.entry_format_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + EntryFormat::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn map_data_byte_range(&self) -> Range<usize> {
-        let start = self.map_count_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + EntryFormat::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.map_data_byte_len
     }
 }
@@ -839,12 +839,12 @@ impl VariationRegionListMarker {
     }
 
     pub fn region_count_byte_range(&self) -> Range<usize> {
-        let start = self.axis_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn variation_regions_byte_range(&self) -> Range<usize> {
-        let start = self.region_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.variation_regions_byte_len
     }
 }
@@ -1064,17 +1064,17 @@ impl ItemVariationStoreMarker {
     }
 
     pub fn variation_region_list_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn item_variation_data_count_byte_range(&self) -> Range<usize> {
-        let start = self.variation_region_list_offset_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn item_variation_data_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.item_variation_data_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.item_variation_data_offsets_byte_len
     }
 }
@@ -1209,17 +1209,17 @@ impl ItemVariationDataMarker {
     }
 
     pub fn word_delta_count_byte_range(&self) -> Range<usize> {
-        let start = self.item_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn region_index_count_byte_range(&self) -> Range<usize> {
-        let start = self.word_delta_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn region_indexes_byte_range(&self) -> Range<usize> {
-        let start = self.region_index_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.region_indexes_byte_len
     }
 

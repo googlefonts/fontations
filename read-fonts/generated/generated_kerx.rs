@@ -19,17 +19,17 @@ impl KerxMarker {
     }
 
     pub fn padding_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn n_tables_byte_range(&self) -> Range<usize> {
-        let start = self.padding_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn subtables_byte_range(&self) -> Range<usize> {
-        let start = self.n_tables_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.subtables_byte_len
     }
 }
@@ -123,17 +123,17 @@ impl SubtableMarker {
     }
 
     pub fn coverage_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
+        let start = u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn tuple_count_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.tuple_count_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.data_byte_len
     }
 }
@@ -224,22 +224,22 @@ impl Subtable0Marker {
     }
 
     pub fn search_range_byte_range(&self) -> Range<usize> {
-        let start = self.n_pairs_byte_range().end;
+        let start = u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn entry_selector_byte_range(&self) -> Range<usize> {
-        let start = self.search_range_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn range_shift_byte_range(&self) -> Range<usize> {
-        let start = self.entry_selector_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn pairs_byte_range(&self) -> Range<usize> {
-        let start = self.range_shift_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.pairs_byte_len
     }
 }

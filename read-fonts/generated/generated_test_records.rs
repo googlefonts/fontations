@@ -19,7 +19,7 @@ impl BasicTableMarker {
     }
 
     pub fn simple_records_byte_range(&self) -> Range<usize> {
-        let start = self.simple_count_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.simple_records_byte_len
     }
 
@@ -349,7 +349,7 @@ impl VarLenItemMarker {
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
+        let start = u32::RAW_BYTE_LEN;
         start..start + self.data_byte_len
     }
 }

@@ -19,27 +19,31 @@ impl TableDirectoryMarker {
     }
 
     pub fn num_tables_byte_range(&self) -> Range<usize> {
-        let start = self.sfnt_version_byte_range().end;
+        let start = u32::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn search_range_byte_range(&self) -> Range<usize> {
-        let start = self.num_tables_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn entry_selector_byte_range(&self) -> Range<usize> {
-        let start = self.search_range_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn range_shift_byte_range(&self) -> Range<usize> {
-        let start = self.entry_selector_byte_range().end;
+        let start = u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn table_records_byte_range(&self) -> Range<usize> {
-        let start = self.range_shift_byte_range().end;
+        let start = u32::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN;
         start..start + self.table_records_byte_len
     }
 }
@@ -216,17 +220,17 @@ impl TTCHeaderMarker {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = self.ttc_tag_byte_range().end;
+        let start = Tag::RAW_BYTE_LEN;
         start..start + MajorMinor::RAW_BYTE_LEN
     }
 
     pub fn num_fonts_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = Tag::RAW_BYTE_LEN + MajorMinor::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn table_directory_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.num_fonts_byte_range().end;
+        let start = Tag::RAW_BYTE_LEN + MajorMinor::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.table_directory_offsets_byte_len
     }
 

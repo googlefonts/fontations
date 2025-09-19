@@ -19,17 +19,17 @@ impl VorgMarker {
     }
 
     pub fn default_vert_origin_y_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn num_vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
-        let start = self.default_vert_origin_y_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
-        let start = self.num_vert_origin_y_metrics_byte_range().end;
+        let start = MajorMinor::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.vert_origin_y_metrics_byte_len
     }
 }

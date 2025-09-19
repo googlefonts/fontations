@@ -20,22 +20,22 @@ impl CffHeaderMarker {
     }
 
     pub fn minor_byte_range(&self) -> Range<usize> {
-        let start = self.major_byte_range().end;
+        let start = u8::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn hdr_size_byte_range(&self) -> Range<usize> {
-        let start = self.minor_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn off_size_byte_range(&self) -> Range<usize> {
-        let start = self.hdr_size_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn _padding_byte_range(&self) -> Range<usize> {
-        let start = self.off_size_byte_range().end;
+        let start = u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
         start..start + self._padding_byte_len
     }
 

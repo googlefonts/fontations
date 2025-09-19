@@ -328,17 +328,17 @@ impl SbixMarker {
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + HeaderFlags::RAW_BYTE_LEN
     }
 
     pub fn num_strikes_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + HeaderFlags::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn strike_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.num_strikes_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + HeaderFlags::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
         start..start + self.strike_offsets_byte_len
     }
 }
@@ -483,12 +483,12 @@ impl StrikeMarker {
     }
 
     pub fn ppi_byte_range(&self) -> Range<usize> {
-        let start = self.ppem_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn glyph_data_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.ppi_byte_range().end;
+        let start = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
         start..start + self.glyph_data_offsets_byte_len
     }
 }
@@ -591,17 +591,17 @@ impl GlyphDataMarker {
     }
 
     pub fn origin_offset_y_byte_range(&self) -> Range<usize> {
-        let start = self.origin_offset_x_byte_range().end;
+        let start = i16::RAW_BYTE_LEN;
         start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn graphic_type_byte_range(&self) -> Range<usize> {
-        let start = self.origin_offset_y_byte_range().end;
+        let start = i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
         start..start + Tag::RAW_BYTE_LEN
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.graphic_type_byte_range().end;
+        let start = i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + Tag::RAW_BYTE_LEN;
         start..start + self.data_byte_len
     }
 }

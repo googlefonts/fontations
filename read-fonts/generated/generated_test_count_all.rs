@@ -18,7 +18,7 @@ impl CountAll16Marker {
     }
 
     pub fn remainder_byte_range(&self) -> Range<usize> {
-        let start = self.some_field_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.remainder_byte_len
     }
 }
@@ -89,7 +89,7 @@ impl CountAll32Marker {
     }
 
     pub fn remainder_byte_range(&self) -> Range<usize> {
-        let start = self.some_field_byte_range().end;
+        let start = u16::RAW_BYTE_LEN;
         start..start + self.remainder_byte_len
     }
 }

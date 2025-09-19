@@ -23,42 +23,67 @@ impl PostMarker {
     }
 
     pub fn italic_angle_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
+        let start = Version16Dot16::RAW_BYTE_LEN;
         start..start + Fixed::RAW_BYTE_LEN
     }
 
     pub fn underline_position_byte_range(&self) -> Range<usize> {
-        let start = self.italic_angle_byte_range().end;
+        let start = Version16Dot16::RAW_BYTE_LEN + Fixed::RAW_BYTE_LEN;
         start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn underline_thickness_byte_range(&self) -> Range<usize> {
-        let start = self.underline_position_byte_range().end;
+        let start = Version16Dot16::RAW_BYTE_LEN + Fixed::RAW_BYTE_LEN + FWord::RAW_BYTE_LEN;
         start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn is_fixed_pitch_byte_range(&self) -> Range<usize> {
-        let start = self.underline_thickness_byte_range().end;
+        let start = Version16Dot16::RAW_BYTE_LEN
+            + Fixed::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn min_mem_type42_byte_range(&self) -> Range<usize> {
-        let start = self.is_fixed_pitch_byte_range().end;
+        let start = Version16Dot16::RAW_BYTE_LEN
+            + Fixed::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn max_mem_type42_byte_range(&self) -> Range<usize> {
-        let start = self.min_mem_type42_byte_range().end;
+        let start = Version16Dot16::RAW_BYTE_LEN
+            + Fixed::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + u32::RAW_BYTE_LEN
+            + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn min_mem_type1_byte_range(&self) -> Range<usize> {
-        let start = self.max_mem_type42_byte_range().end;
+        let start = Version16Dot16::RAW_BYTE_LEN
+            + Fixed::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + u32::RAW_BYTE_LEN
+            + u32::RAW_BYTE_LEN
+            + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn max_mem_type1_byte_range(&self) -> Range<usize> {
-        let start = self.min_mem_type1_byte_range().end;
+        let start = Version16Dot16::RAW_BYTE_LEN
+            + Fixed::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + FWord::RAW_BYTE_LEN
+            + u32::RAW_BYTE_LEN
+            + u32::RAW_BYTE_LEN
+            + u32::RAW_BYTE_LEN
+            + u32::RAW_BYTE_LEN;
         start..start + u32::RAW_BYTE_LEN
     }
 
