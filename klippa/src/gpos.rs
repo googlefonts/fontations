@@ -13,7 +13,7 @@ mod value_record;
 use crate::{
     collect_features_with_retained_subs, find_duplicate_features,
     offset::SerializeSubset,
-    prune_features, remap_indices,
+    prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset,
     SubsetError, SubsetLayoutContext, SubsetState, SubsetTable,
@@ -119,7 +119,9 @@ impl LayoutClosure for Gpos<'_> {
             self.prune_langsys(&duplicate_feature_index_map, &plan.layout_scripts);
 
         plan.gpos_lookups = remap_indices(lookup_indices);
-        plan.gpos_features = remap_indices(feature_indices);
+
+        (plan.gpos_features, plan.gpos_features_w_duplicates) =
+            remap_feature_indices(&feature_indices, &duplicate_feature_index_map);
         plan.gpos_script_langsys = script_langsys_map;
     }
 }
@@ -284,9 +286,10 @@ mod test {
             gpos.prune_langsys(&duplicate_feature_index_map, &layout_scripts);
         // script langsys map is empty cause all langsys duplicate with default langsys
         assert!(script_langsys_map.is_empty());
-        assert_eq!(features.len(), 2);
+        assert_eq!(features.len(), 3);
         assert!(features.contains(0));
         assert!(features.contains(2));
+        assert!(features.contains(4));
 
         // test script filter
         layout_scripts.clear();

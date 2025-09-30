@@ -6,8 +6,8 @@ mod reverse_chain_single_subst;
 mod single_subst;
 
 use crate::{
-    collect_features_with_retained_subs, find_duplicate_features, prune_features, remap_indices,
-    LayoutClosure, NameIdClosure, Plan, PruneLangSysContext,
+    collect_features_with_retained_subs, find_duplicate_features, prune_features,
+    remap_feature_indices, remap_indices, LayoutClosure, NameIdClosure, Plan, PruneLangSysContext,
 };
 use fnv::FnvHashMap;
 use write_fonts::read::{collections::IntSet, tables::gsub::Gsub, types::Tag};
@@ -101,7 +101,8 @@ impl LayoutClosure for Gsub<'_> {
             self.prune_langsys(&duplicate_feature_index_map, &plan.layout_scripts);
 
         plan.gsub_lookups = remap_indices(lookup_indices);
-        plan.gsub_features = remap_indices(feature_indices);
+        (plan.gsub_features, plan.gsub_features_w_duplicates) =
+            remap_feature_indices(&feature_indices, &duplicate_feature_index_map);
         plan.gsub_script_langsys = script_langsys_map;
     }
 }
