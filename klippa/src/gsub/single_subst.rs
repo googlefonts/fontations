@@ -3,8 +3,9 @@ use crate::{
     layout::intersected_glyphs_and_indices,
     offset::SerializeSerialize,
     serialize::{SerializeErrorFlags, Serializer},
-    Plan, Serialize, SubsetTable,
+    Plan, Serialize, SubsetState, SubsetTable,
 };
+use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         tables::{
@@ -12,22 +13,23 @@ use write_fonts::{
             layout::CoverageTable,
         },
         types::GlyphId,
+        FontRef,
     },
     types::Offset16,
 };
 
 impl<'a> SubsetTable<'a> for SingleSubst<'_> {
-    type ArgsForSubset = ();
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        args: Self::ArgsForSubset,
+        _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
         match self {
-            Self::Format1(item) => item.subset(plan, s, args),
-            Self::Format2(item) => item.subset(plan, s, args),
+            Self::Format1(item) => item.subset(plan, s, ()),
+            Self::Format2(item) => item.subset(plan, s, ()),
         }
     }
 }
@@ -218,7 +220,10 @@ mod test {
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
 
-        singlesubst_table.subset(&plan, &mut s, ()).unwrap();
+        let subset_state = SubsetState::default();
+        singlesubst_table
+            .subset(&plan, &mut s, (&subset_state, &font, &plan.gsub_lookups))
+            .unwrap();
         assert!(!s.in_error());
         s.end_serialize();
 
@@ -264,7 +269,10 @@ mod test {
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
 
-        singlesubst_table.subset(&plan, &mut s, ()).unwrap();
+        let subset_state = SubsetState::default();
+        singlesubst_table
+            .subset(&plan, &mut s, (&subset_state, &font, &plan.gsub_lookups))
+            .unwrap();
         assert!(!s.in_error());
         s.end_serialize();
 
@@ -295,7 +303,10 @@ mod test {
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
 
-        singlesubst_table.subset(&plan, &mut s, ()).unwrap();
+        let subset_state = SubsetState::default();
+        singlesubst_table
+            .subset(&plan, &mut s, (&subset_state, &font, &plan.gsub_lookups))
+            .unwrap();
         assert!(!s.in_error());
         s.end_serialize();
 

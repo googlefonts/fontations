@@ -4,8 +4,9 @@ use crate::{
     offset::SerializeSerialize,
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, Serializer},
-    Plan, SubsetTable,
+    Plan, SubsetState, SubsetTable,
 };
+use fnv::FnvHashMap;
 use skrifa::raw::tables::layout::Intersect;
 use write_fonts::{
     read::{
@@ -15,13 +16,13 @@ use write_fonts::{
             layout::CoverageTable,
         },
         types::GlyphId,
-        ReadError,
+        FontRef, ReadError,
     },
     types::Offset16,
 };
 
 impl<'a> SubsetTable<'a> for LigatureSubstFormat1<'_> {
-    type ArgsForSubset = ();
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -199,7 +200,10 @@ mod test {
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
 
-        ligsubst_table.subset(&plan, &mut s, ()).unwrap();
+        let subset_state = SubsetState::default();
+        ligsubst_table
+            .subset(&plan, &mut s, (&subset_state, &font, &plan.gsub_lookups))
+            .unwrap();
         assert!(!s.in_error());
         s.end_serialize();
 

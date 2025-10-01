@@ -7,6 +7,7 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, Serialize, SubsetFlags, SubsetState, SubsetTable,
 };
+use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -21,7 +22,7 @@ use write_fonts::{
 };
 
 impl<'a> SubsetTable<'a> for SinglePos<'_> {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -29,6 +30,7 @@ impl<'a> SubsetTable<'a> for SinglePos<'_> {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        let args = (args.0, args.1);
         match self {
             Self::Format1(item) => item.subset(plan, s, args),
             Self::Format2(item) => item.subset(plan, s, args),
@@ -325,7 +327,7 @@ mod test {
         assert_eq!(s.start_serialize(), Ok(()));
 
         singlepos_table
-            .subset(&plan, &mut s, (&subset_state, &font))
+            .subset(&plan, &mut s, (&subset_state, &font, &plan.gpos_lookups))
             .unwrap();
         assert!(!s.in_error());
         s.end_serialize();
@@ -367,7 +369,7 @@ mod test {
         assert_eq!(s.start_serialize(), Ok(()));
 
         singlepos_table
-            .subset(&plan, &mut s, (&subset_state, &font))
+            .subset(&plan, &mut s, (&subset_state, &font, &plan.gpos_lookups))
             .unwrap();
         assert!(!s.in_error());
         s.end_serialize();
@@ -395,7 +397,7 @@ mod test {
         assert_eq!(s.start_serialize(), Ok(()));
 
         singlepos_table
-            .subset(&plan, &mut s, (&subset_state, &font))
+            .subset(&plan, &mut s, (&subset_state, &font, &plan.gpos_lookups))
             .unwrap();
         assert!(!s.in_error());
         s.end_serialize();

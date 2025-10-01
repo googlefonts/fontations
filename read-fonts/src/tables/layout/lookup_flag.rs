@@ -3,7 +3,7 @@
 //! This is kind-of-but-not-quite-exactly a bit enumeration, and so we implement
 //! it manually.
 
-use core::ops::{BitOr, BitOrAssign};
+use core::ops::{BitOr, BitOrAssign, Sub};
 
 /// The [LookupFlag](https://learn.microsoft.com/en-us/typography/opentype/spec/chapter2#lookupFlag) bit enumeration.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -25,6 +25,15 @@ impl BitOr for LookupFlag {
 impl BitOrAssign for LookupFlag {
     fn bitor_assign(&mut self, rhs: Self) {
         self.0 |= rhs.0
+    }
+}
+
+impl Sub for LookupFlag {
+    type Output = Self;
+    /// Returns the difference between the flags in `self` and `other`.
+    #[inline]
+    fn sub(self, rhs: Self) -> Self {
+        Self(self.0 & !rhs.0)
     }
 }
 

@@ -4,7 +4,7 @@ use crate::{
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, Serializer},
-    Plan, SubsetTable,
+    Plan, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
 use write_fonts::{
@@ -17,20 +17,21 @@ use write_fonts::{
             SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3,
             SequenceLookupRecord, SequenceRule, SequenceRuleSet,
         },
-        ArrayOfOffsets,
+        ArrayOfOffsets, FontRef,
     },
     types::{BigEndian, FixedSize, GlyphId, GlyphId16, Offset16},
 };
 
 impl<'a> SubsetTable<'a> for SequenceContext<'_> {
-    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        lookup_map: Self::ArgsForSubset,
+        args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        let lookup_map = args.2;
         match self {
             Self::Format1(item) => item.subset(plan, s, lookup_map),
             Self::Format2(item) => item.subset(plan, s, lookup_map),
@@ -437,14 +438,15 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat3<'_> {
 }
 
 impl<'a> SubsetTable<'a> for ChainedSequenceContext<'_> {
-    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        lookup_map: Self::ArgsForSubset,
+        args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        let lookup_map = args.2;
         match self {
             Self::Format1(item) => item.subset(plan, s, lookup_map),
             Self::Format2(item) => item.subset(plan, s, lookup_map),
@@ -870,8 +872,9 @@ mod test {
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
 
+        let subset_state = SubsetState::default();
         contextsubst_table
-            .subset(&plan, &mut s, &lookup_map)
+            .subset(&plan, &mut s, (&subset_state, &font, &lookup_map))
             .unwrap();
         assert!(!s.in_error());
         s.end_serialize();
@@ -923,8 +926,9 @@ mod test {
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
 
+        let subset_state = SubsetState::default();
         chainedcontextpos_table
-            .subset(&plan, &mut s, &lookup_map)
+            .subset(&plan, &mut s, (&subset_state, &font, &lookup_map))
             .unwrap();
         assert!(!s.in_error());
         s.end_serialize();
@@ -986,7 +990,10 @@ mod test {
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
 
-        contextpos_table.subset(&plan, &mut s, &lookup_map).unwrap();
+        let subset_state = SubsetState::default();
+        contextpos_table
+            .subset(&plan, &mut s, (&subset_state, &font, &lookup_map))
+            .unwrap();
         assert!(!s.in_error());
         s.end_serialize();
 
@@ -1055,8 +1062,9 @@ mod test {
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
 
+        let subset_state = SubsetState::default();
         contextsubst_table
-            .subset(&plan, &mut s, &lookup_map)
+            .subset(&plan, &mut s, (&subset_state, &font, &lookup_map))
             .unwrap();
         assert!(!s.in_error());
         s.end_serialize();
@@ -1116,8 +1124,9 @@ mod test {
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
 
+        let subset_state = SubsetState::default();
         contextsubst_table
-            .subset(&plan, &mut s, &lookup_map)
+            .subset(&plan, &mut s, (&subset_state, &font, &lookup_map))
             .unwrap();
         assert!(!s.in_error());
         s.end_serialize();
@@ -1175,8 +1184,9 @@ mod test {
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
 
+        let subset_state = SubsetState::default();
         contextsubst_table
-            .subset(&plan, &mut s, &lookup_map)
+            .subset(&plan, &mut s, (&subset_state, &font, &lookup_map))
             .unwrap();
         assert!(!s.in_error());
         s.end_serialize();

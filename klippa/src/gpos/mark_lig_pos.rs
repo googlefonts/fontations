@@ -73,7 +73,7 @@ impl CollectVariationIndices for MarkLigPosFormat1<'_> {
 }
 
 impl<'a> SubsetTable<'a> for MarkLigPosFormat1<'_> {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -321,7 +321,7 @@ mod test {
         assert_eq!(s.start_serialize(), Ok(()));
 
         markligpos_table
-            .subset(&plan, &mut s, (&subset_state, &font))
+            .subset(&plan, &mut s, (&subset_state, &font, &plan.gpos_lookups))
             .unwrap();
         assert!(!s.in_error());
         s.end_serialize();
@@ -371,7 +371,7 @@ mod test {
         assert_eq!(s.start_serialize(), Ok(()));
 
         markligpos_table
-            .subset(&plan, &mut s, (&subset_state, &font))
+            .subset(&plan, &mut s, (&subset_state, &font, &plan.gpos_lookups))
             .unwrap();
         assert!(!s.in_error());
         s.end_serialize();

@@ -2,18 +2,20 @@
 use crate::{
     offset::SerializeSerialize,
     serialize::{SerializeErrorFlags, Serializer},
-    Plan, SubsetTable,
+    Plan, SubsetState, SubsetTable,
 };
+use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         tables::{gsub::ReverseChainSingleSubstFormat1, layout::CoverageTable},
         types::GlyphId,
+        FontRef,
     },
     types::Offset16,
 };
 
 impl<'a> SubsetTable<'a> for ReverseChainSingleSubstFormat1<'_> {
-    type ArgsForSubset = ();
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -119,7 +121,10 @@ mod test {
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
 
-        subst_table.subset(&plan, &mut s, ()).unwrap();
+        let subset_state = SubsetState::default();
+        subst_table
+            .subset(&plan, &mut s, (&subset_state, &font, &plan.gsub_lookups))
+            .unwrap();
         assert!(!s.in_error());
         s.end_serialize();
 
