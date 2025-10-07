@@ -314,10 +314,6 @@ impl SubsetTestCase {
         profile: &(String, SubsetInput),
         output_dir: &Path,
     ) {
-        //TODO: re-enable subset="*" once populate_unicodes_to_retain supports *
-        if subset == "*" {
-            return;
-        }
         let subset_font_name = gen_subset_font_name(font, subset, profile.0.as_str());
         let output_file = output_dir.join(&subset_font_name);
         gen_subset_font_file(font, subset, &profile.1, &output_file);
@@ -336,11 +332,6 @@ impl SubsetTestCase {
         profile: &(String, SubsetInput),
         output_dir: &Path,
     ) {
-        //TODO: re-enable subset="*" once populate_unicodes_to_retain supports *
-        if subset == "*" {
-            return;
-        }
-
         let subset_font_name = gen_subset_font_name(font, subset, profile.0.as_str());
         let output_file = output_dir.join(&subset_font_name);
         gen_subset_font_file(font, subset, &profile.1, &output_file);
@@ -643,7 +634,7 @@ fn parse_test() {
     let test_file = test_data_dir.join("tests/basics.tests");
     let subset_test = SubsetTestCase::new(&test_file);
 
-    assert_eq!(subset_test.fonts.len(), 3);
+    assert_eq!(subset_test.fonts.len(), 2);
     assert_eq!(subset_test.fonts[0], "Roboto-Regular.abc.ttf");
     assert_eq!(subset_test.profiles.len(), 12);
     assert_eq!(subset_test.profiles[0].0, String::from("default.txt"));
@@ -756,6 +747,6 @@ fn parse_test() {
         subset_test.profiles[11].1.subset_flag,
         SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS | SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES
     );
-    assert_eq!(subset_test.subsets.len(), 5);
-    assert_eq!(subset_test.subsets[0], "61,62,63");
+    assert_eq!(subset_test.subsets.len(), 3);
+    assert_eq!(subset_test.subsets[1], "61,62,63");
 }
