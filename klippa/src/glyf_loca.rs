@@ -104,7 +104,7 @@ fn write_glyf_loca(
     let init_len = s.length();
     let mut last: u32 = 0;
     if loca_format == 0 {
-        let mut offset: u16 = 0;
+        let mut offset: u32 = 0;
         let mut value = 0_u16.to_be_bytes();
         for ((new_gid, _), i) in plan.new_to_old_gid_list.iter().zip(0u16..) {
             let gid = new_gid.to_u32();
@@ -115,8 +115,8 @@ fn write_glyf_loca(
             }
             let g = &subset_glyphs[i as usize];
             let padded_len = padded_size(g.len());
-            offset += padded_len as u16;
-            value = (offset >> 1).to_be_bytes();
+            offset += padded_len as u32;
+            value = ((offset >> 1) as u16).to_be_bytes();
             loca_out.extend_from_slice(&value);
             s.embed_bytes(g)
                 .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?;
