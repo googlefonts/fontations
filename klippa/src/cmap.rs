@@ -635,7 +635,7 @@ fn serialize_rangeoffset_glyph_ids(
         .collect();
 
     for i in indices {
-        let val = 2 * (seg_count - i);
+        let val = s.head() - id_range_offset - 2 * i;
         s.copy_assign(id_range_offset + i * 2, val as u16);
         let start_cp = s.get_value_at::<u16>(start_code + i * 2).unwrap() as u32;
         let end_cp = s.get_value_at::<u16>(end_code + i * 2).unwrap() as u32;
