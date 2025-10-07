@@ -702,30 +702,26 @@ impl<'a> Serialize<'a> for CoverageFormat2<'a> {
 
         // range records
         let pos = s.allocate_size((range_count as usize) * RangeRecord::RAW_BYTE_LEN, true)?;
-
         let mut last = glyphs[0].to_u32() as u16;
+        // copy start glyph of first record
+        s.copy_assign(pos, last);
+        // copy coverage index of firstr ecord
+        s.copy_assign(pos + 4, 0_u16);
+
         let mut range = 0;
-        for (idx, g) in glyphs.iter().enumerate() {
+        for (idx, g) in glyphs.iter().enumerate().skip(1) {
             let g = g.to_u32() as u16;
             let range_pos = pos + range * RangeRecord::RAW_BYTE_LEN;
             if last + 1 != g {
-                if range == 0 {
-                    //start glyph
-                    s.copy_assign(range_pos, g);
+                //end glyph
+                s.copy_assign(range_pos + 2, last);
+                range += 1;
 
-                    //coverage index
-                    s.copy_assign(range_pos + 4, idx as u16);
-                } else {
-                    //end glyph
-                    s.copy_assign(range_pos + 2, last);
-                    range += 1;
-
-                    let new_range_pos = range_pos + RangeRecord::RAW_BYTE_LEN;
-                    //start glyph
-                    s.copy_assign(new_range_pos, g);
-                    //coverage index
-                    s.copy_assign(new_range_pos + 4, idx as u16);
-                }
+                let new_range_pos = range_pos + RangeRecord::RAW_BYTE_LEN;
+                // start glyph of next record
+                s.copy_assign(new_range_pos, g);
+                // coverage index of next record
+                s.copy_assign(new_range_pos + 4, idx as u16);
             }
             last = g;
         }
