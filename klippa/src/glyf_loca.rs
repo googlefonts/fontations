@@ -143,8 +143,7 @@ fn write_glyf_loca(
                 last += 1;
             }
             let g = &subset_glyphs[i as usize];
-            let padded_len = padded_size(g.len());
-            offset += padded_len as u32;
+            offset += g.len() as u32;
             value = offset.to_be_bytes();
             loca_out.extend_from_slice(&value);
 
