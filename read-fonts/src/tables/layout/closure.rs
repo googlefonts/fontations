@@ -383,7 +383,7 @@ impl Intersect for ClassDefFormat1<'_> {
         let start = self.start_glyph_id().to_u32();
         let end = start + glyph_count as u32;
 
-        let start_glyph = GlyphId::from(start);
+        let mut start_glyph = GlyphId::from(start);
         let class_values = self.class_value_array();
         if glyph_set.contains(start_glyph) && class_values[0] != 0 {
             return Ok(true);
@@ -400,6 +400,7 @@ impl Intersect for ClassDefFormat1<'_> {
             if class.get() != 0 {
                 return Ok(true);
             }
+            start_glyph = GlyphId::from(g);
         }
         Ok(false)
     }

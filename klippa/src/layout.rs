@@ -4,6 +4,7 @@ use std::{cmp::Ordering, mem};
 
 use crate::{
     offset::SerializeSubset,
+    offset_array::SubsetOffsetArray,
     serialize::{OffsetWhence, SerializeErrorFlags, Serializer},
     CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetState, SubsetTable,
 };
@@ -15,17 +16,19 @@ use write_fonts::{
             gsub::Gsub,
             layout::{
                 CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2,
-                ClassRangeRecord, CoverageFormat1, CoverageFormat2, CoverageTable, DeltaFormat,
-                Device, DeviceOrVariationIndex, ExtensionLookup, Feature, FeatureList,
-                FeatureParams, FeatureRecord, FeatureVariations, Intersect, LangSys, LangSysRecord,
-                RangeRecord, Script, ScriptList, ScriptRecord, SizeParams, StylisticSetParams,
-                Subtables, VariationIndex,
+                ClassRangeRecord, Condition, ConditionFormat1, ConditionSet, CoverageFormat1,
+                CoverageFormat2, CoverageTable, DeltaFormat, Device, DeviceOrVariationIndex,
+                ExtensionLookup, Feature, FeatureList, FeatureParams, FeatureRecord,
+                FeatureTableSubstitution, FeatureTableSubstitutionRecord, FeatureVariationRecord,
+                FeatureVariations, Intersect, LangSys, LangSysRecord, LookupList, RangeRecord,
+                Script, ScriptList, ScriptRecord, SizeParams, StylisticSetParams, Subtables,
+                VariationIndex,
             },
         },
         types::{GlyphId, GlyphId16, NameId},
         FontData, FontRead, FontRef, TopLevelTable,
     },
-    types::{FixedSize, Offset16, Tag},
+    types::{FixedSize, Offset16, Offset32, Tag},
 };
 
 const MAX_SCRIPTS: u16 = 500;
@@ -1496,16 +1499,104 @@ impl<'a> SubsetTable<'a> for FeatureParams<'_> {
     }
 }
 
-// TODO: serialize offset array and num of subtables
-impl<'a, T, Ext> SubsetTable<'a> for Subtables<'a, T, Ext>
-where
-    T: SubsetTable<'a, ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>)>
-        + Intersect
-        + FontRead<'a>
-        + 'a,
-    Ext: ExtensionLookup<'a, T> + 'a,
+impl<
+        'a,
+        T: FontRead<'a>
+            + SubsetTable<
+                'a,
+                ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
+            >,
+    > SubsetTable<'a> for LookupList<'a, T>
 {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        let lookup_index_map = args.2;
+        let lookup_count = lookup_index_map.len() as u16;
+        s.embed(lookup_count)?;
+
+        let lookup_offsets = self.lookups();
+        for i in (0..self.lookup_count()).filter(|idx| lookup_index_map.contains_key(idx)) {
+            lookup_offsets.subset_offset(i as usize, s, plan, args)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
+    type ArgsForSubset = &'a mut SubsetLayoutContext;
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        c: &mut SubsetLayoutContext,
+    ) -> Result<(), SerializeErrorFlags> {
+        let feature_index_map = if c.table_tag == Gsub::TAG {
+            &plan.gsub_features_w_duplicates
+        } else {
+            &plan.gpos_features_w_duplicates
+        };
+        let num_retained_records = num_variation_record_to_retain(self, feature_index_map, s)?;
+        if num_retained_records == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+
+        s.embed(self.version())?;
+        s.embed(num_retained_records)?;
+
+        let font_data = self.offset_data();
+
+        let variation_records = self.feature_variation_records();
+        for i in 0..num_retained_records {
+            variation_records[i as usize].subset(plan, s, (font_data, feature_index_map, c))?;
+        }
+        Ok(())
+    }
+}
+
+// Prune empty records at the end only
+// ref: <https://github.com/fonttools/fonttools/blob/3c1822544d608f87c41fc8fb9ba41ea129257aa8/Lib/fontTools/subset/__init__.py#L1782>
+fn num_variation_record_to_retain(
+    feature_variations: &FeatureVariations,
+    feature_index_map: &FnvHashMap<u16, u16>,
+    s: &mut Serializer,
+) -> Result<u32, SerializeErrorFlags> {
+    let num_records = feature_variations.feature_variation_record_count();
+    let variation_records = feature_variations.feature_variation_records();
+    let font_data = feature_variations.offset_data();
+
+    for i in (0..num_records).rev() {
+        let Some(feature_substitution) = variation_records[i as usize]
+            .feature_table_substitution(font_data)
+            .transpose()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+        else {
+            continue;
+        };
+
+        if feature_substitution
+            .substitutions()
+            .iter()
+            .any(|subs| feature_index_map.contains_key(&subs.feature_index()))
+        {
+            return Ok(i + 1);
+        }
+    }
+    Ok(0)
+}
+
+impl<'a> SubsetTable<'a> for FeatureVariationRecord {
+    type ArgsForSubset = (
+        FontData<'a>,
+        &'a FnvHashMap<u16, u16>,
+        &'a mut SubsetLayoutContext,
+    );
     type Output = ();
     fn subset(
         &self,
@@ -1513,6 +1604,172 @@ where
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        let (font_data, feature_index_map, c) = args;
+        let condition_set_offset_pos = s.embed(0_u32)?;
+        if let Some(condition_set) = self
+            .condition_set(font_data)
+            .transpose()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+        {
+            Offset32::serialize_subset(&condition_set, s, plan, (), condition_set_offset_pos)?;
+        }
+
+        let feature_substitutions_offset_pos = s.embed(0_u32)?;
+        if let Some(feature_subs) = self
+            .feature_table_substitution(font_data)
+            .transpose()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+        {
+            Offset32::serialize_subset(
+                &feature_subs,
+                s,
+                plan,
+                (feature_index_map, c),
+                feature_substitutions_offset_pos,
+            )?;
+        }
+
+        Ok(())
+    }
+}
+
+impl SubsetTable<'_> for ConditionSet<'_> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        let count_pos = s.embed(0_u16)?;
+        let mut count = 0_u16;
+
+        let conditions = self.conditions();
+        for i in 0..self.condition_count() {
+            match conditions.subset_offset(i as usize, s, plan, ()) {
+                Ok(()) => count += 1,
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => continue,
+                Err(e) => return Err(e),
+            }
+        }
+
+        if count != 0 {
+            s.copy_assign(count_pos, count);
+        }
+        Ok(())
+    }
+}
+
+impl SubsetTable<'_> for Condition<'_> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        match self {
+            Self::Format1AxisRange(item) => item.subset(plan, s, ()),
+            // TODO: support other formats
+            _ => Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY),
+        }
+    }
+}
+
+impl SubsetTable<'_> for ConditionFormat1<'_> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        _plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        s.embed_bytes(self.min_table_bytes()).map(|_| ())
+    }
+}
+
+impl<'a> SubsetTable<'a> for FeatureTableSubstitution<'_> {
+    type ArgsForSubset = (&'a FnvHashMap<u16, u16>, &'a mut SubsetLayoutContext);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        s.embed(self.version())?;
+
+        // substitution count
+        let subs_count_pos = s.embed(0_u16)?;
+        let mut subs_count = 0_u16;
+
+        let (feature_index_map, c) = args;
+        let font_data = self.offset_data();
+        for sub in self.substitutions() {
+            match sub.subset(plan, s, (feature_index_map, c, font_data)) {
+                Ok(()) => subs_count += 1,
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => continue,
+                Err(e) => return Err(e),
+            }
+        }
+
+        if subs_count != 0 {
+            s.copy_assign(subs_count_pos, subs_count);
+        }
+        Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for FeatureTableSubstitutionRecord {
+    type ArgsForSubset = (
+        &'a FnvHashMap<u16, u16>,
+        &'a mut SubsetLayoutContext,
+        FontData<'a>,
+    );
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        let (feature_index_map, c, font_data) = args;
+        let Some(new_feature_indx) = feature_index_map.get(&self.feature_index()) else {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        };
+
+        let alternate_feature = self
+            .alternate_feature(font_data)
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        s.embed(*new_feature_indx)?;
+
+        let feature_offset_pos = s.embed(0_u32)?;
+        Offset32::serialize_subset(&alternate_feature, s, plan, c, feature_offset_pos)
+    }
+}
+
+impl<'a, T, Ext> SubsetTable<'a> for Subtables<'a, T, Ext>
+where
+    T: SubsetTable<
+            'a,
+            ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
+        > + Intersect
+        + FontRead<'a>
+        + 'a,
+    Ext: ExtensionLookup<'a, T> + 'a,
+{
+    type ArgsForSubset = T::ArgsForSubset;
+    type Output = u16;
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        let mut count = 0_u16;
         for sub in self.iter() {
             let sub =
                 sub.map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
@@ -1523,9 +1780,18 @@ where
             {
                 continue;
             }
-            sub.subset(plan, s, args)?;
+            let snap = s.snapshot();
+            let offset_pos = s.embed(0_u16)?;
+            match Offset16::serialize_subset(&sub, s, plan, args, offset_pos) {
+                Ok(_) => count += 1,
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => s.revert_snapshot(snap),
+                Err(e) => {
+                    s.revert_snapshot(snap);
+                    return Err(e);
+                }
+            }
         }
-        Ok(())
+        Ok(count)
     }
 }
 

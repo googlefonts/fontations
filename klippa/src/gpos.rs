@@ -23,13 +23,13 @@ use write_fonts::{
     read::{
         collections::IntSet,
         tables::{
-            gpos::{Gpos, PositionSubtables},
-            layout::{ExtensionLookup, Intersect, Subtables},
+            gpos::{Gpos, PositionLookup, PositionSubtables},
+            layout::{ExtensionLookup, Intersect, LookupFlag, Subtables},
         },
         types::Tag,
         FontRead, FontRef, TopLevelTable,
     },
-    types::Offset16,
+    types::{MajorMinor, Offset16, Offset32},
     FontBuilder,
 };
 
@@ -127,20 +127,27 @@ impl LayoutClosure for Gpos<'_> {
 }
 
 impl Subset for Gpos<'_> {
-    fn subset(
+    fn subset_with_state(
         &self,
         plan: &Plan,
-        _font: &FontRef,
+        font: &FontRef,
+        state: &mut SubsetState,
         s: &mut Serializer,
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
-        subset_gpos(self, plan, s).map_err(|_| SubsetError::SubsetTableError(Gpos::TAG))
+        subset_gpos(self, plan, font, state, s)
+            .map_err(|_| SubsetError::SubsetTableError(Gpos::TAG))
     }
 }
 
-fn subset_gpos(gpos: &Gpos, plan: &Plan, s: &mut Serializer) -> Result<(), SerializeErrorFlags> {
-    // TODO: version update
-    let _version = s.embed(gpos.version())?;
+fn subset_gpos(
+    gpos: &Gpos,
+    plan: &Plan,
+    font: &FontRef,
+    state: &SubsetState,
+    s: &mut Serializer,
+) -> Result<(), SerializeErrorFlags> {
+    let version_pos = s.embed(gpos.version())?;
 
     // script_list
     let script_list_offset_pos = s.embed(0_u16)?;
@@ -159,23 +166,47 @@ fn subset_gpos(gpos: &Gpos, plan: &Plan, s: &mut Serializer) -> Result<(), Seria
         .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
     Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
 
-    // TODO: lookup_list
-    //let lookup_list_pos = s.embed(0_u16)?;
+    // lookup list
+    let lookup_list_offset_pos = s.embed(0_u16)?;
+    let lookup_list = gpos
+        .lookup_list()
+        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+    Offset16::serialize_subset(
+        &lookup_list,
+        s,
+        plan,
+        (state, font, &plan.gpos_lookups),
+        lookup_list_offset_pos,
+    )?;
 
-    // TODO: feature variations
-    //if let Some(feature_variations) = gpos
-    //    .feature_variations()
-    //    .transpose()
-    //    .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
-    //{
-    //    let feature_vars_offset_pos = s.embed(0_u32)?;
-    //}
+    if let Some(feature_variations) = gpos
+        .feature_variations()
+        .transpose()
+        .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+    {
+        let snap = s.snapshot();
+        let feature_vars_offset_pos = s.embed(0_u32)?;
+        match Offset32::serialize_subset(
+            &feature_variations,
+            s,
+            plan,
+            &mut c,
+            feature_vars_offset_pos,
+        ) {
+            Ok(()) => (),
+            // downgrade table version if there are no FeatureVariations
+            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => {
+                s.revert_snapshot(snap);
+                s.copy_assign(version_pos, MajorMinor::VERSION_1_0);
+            }
+            Err(e) => return Err(e),
+        }
+    }
     Ok(())
 }
 
-// TODO: add subset() call as we support more types
-impl<'a> SubsetTable<'a> for PositionSubtables<'a> {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>);
+impl<'a> SubsetTable<'a> for PositionLookup<'_> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -183,15 +214,50 @@ impl<'a> SubsetTable<'a> for PositionSubtables<'a> {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        s.embed(self.lookup_type())?;
+        let lookup_flag = self.lookup_flag();
+        let lookup_flag_pos = s.embed(lookup_flag)?;
+        let lookup_count_pos = s.embed(0_u16)?;
+
+        let subtables = self
+            .subtables()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        let lookup_count = subtables.subset(plan, s, args)?;
+        s.copy_assign(lookup_count_pos, lookup_count);
+
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/a790c38b782f9d8e6f0299d2837229e5726fc669/src/hb-ot-layout-common.hh#L1385>
+        if let Some(mark_filtering_set) = self.mark_filtering_set() {
+            if let Some(new_idx) = plan.used_mark_sets_map.get(&mark_filtering_set) {
+                s.embed(*new_idx)?;
+            } else {
+                let new_flag =
+                    (lookup_flag - LookupFlag::USE_MARK_FILTERING_SET) | LookupFlag::IGNORE_MARKS;
+                s.copy_assign(lookup_flag_pos, new_flag);
+            }
+        }
+        Ok(())
+    }
+}
+
+// TODO: support extension lookup type
+impl<'a> SubsetTable<'a> for PositionSubtables<'a> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type Output = u16;
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<u16, SerializeErrorFlags> {
         match self {
             PositionSubtables::Single(subtables) => subtables.subset(plan, s, args),
             PositionSubtables::Pair(subtables) => subtables.subset(plan, s, args),
             PositionSubtables::Cursive(subtables) => subtables.subset(plan, s, args),
-            PositionSubtables::MarkToBase(_) => Ok(()),
-            PositionSubtables::MarkToLig(_) => Ok(()),
-            PositionSubtables::MarkToMark(_) => Ok(()),
-            PositionSubtables::Contextual(_) => Ok(()),
-            PositionSubtables::ChainContextual(_) => Ok(()),
+            PositionSubtables::MarkToBase(subtables) => subtables.subset(plan, s, args),
+            PositionSubtables::MarkToLig(subtables) => subtables.subset(plan, s, args),
+            PositionSubtables::MarkToMark(subtables) => subtables.subset(plan, s, args),
+            PositionSubtables::Contextual(subtables) => subtables.subset(plan, s, args),
+            PositionSubtables::ChainContextual(subtables) => subtables.subset(plan, s, args),
         }
     }
 }

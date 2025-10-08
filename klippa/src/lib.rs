@@ -1228,6 +1228,16 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
             .subset(plan, font, s, builder),
 
+        Gpos::TAG => font
+            .gpos()
+            .map_err(|_| SubsetError::SubsetTableError(Gpos::TAG))?
+            .subset_with_state(plan, font, state, s, builder),
+
+        Gsub::TAG => font
+            .gsub()
+            .map_err(|_| SubsetError::SubsetTableError(Gsub::TAG))?
+            .subset_with_state(plan, font, state, s, builder),
+
         Gvar::TAG => font
             .gvar()
             .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?
