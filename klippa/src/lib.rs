@@ -9,6 +9,7 @@ mod fvar;
 mod gdef;
 mod glyf_loca;
 mod gpos;
+mod graph;
 mod gsub;
 mod gsubgpos;
 mod gvar;
@@ -25,12 +26,15 @@ mod offset_array;
 mod os2;
 mod parsing_util;
 mod post;
+mod priority_queue;
+mod repack;
 mod sbix;
 pub mod serialize;
 mod stat;
 mod variations;
 mod vorg;
 mod vvar;
+use crate::repack::resolve_overflows;
 use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
 use layout::{
@@ -654,8 +658,7 @@ impl Plan {
                 let mut deltaset_idx_var_idx_map = FnvHashMap::default();
                 // when a DeltaSetIndexMap is included, collected variation indices are actually delta set indices,
                 // we need to map them into variation indices
-                if var_index_map.is_some() {
-                    let var_index_map = var_index_map.as_ref().unwrap();
+                if let Some(var_index_map) = &var_index_map {
                     delta_set_indices.extend(variation_indices.iter());
                     variation_indices.clear();
                     for idx in delta_set_indices.iter() {
@@ -1140,7 +1143,10 @@ fn subset<'a>(
         return Ok(());
     }
 
-    //TODO: repack when there's an offset overflow
+    //TODO: complete overflow resolution
+    if s.offset_overflow() {
+        let _ = resolve_overflows(&s);
+    }
     let subsetted_data = s.copy_bytes();
     if !subsetted_data.is_empty() {
         builder.add_raw(table_tag, subsetted_data);
