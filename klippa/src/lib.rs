@@ -35,7 +35,7 @@ use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
 use layout::{
     collect_features_with_retained_subs, find_duplicate_features, prune_features,
-    PruneLangSysContext, SubsetLayoutContext,
+    remap_feature_indices, PruneLangSysContext, SubsetLayoutContext,
 };
 pub use parsing_util::{
     parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
@@ -309,6 +309,10 @@ pub struct Plan {
     //active old->new feature index map after removing redundant langsys and prune_features
     gsub_features: FnvHashMap<u16, u16>,
     gpos_features: FnvHashMap<u16, u16>,
+
+    //active features(with duplicates) old->new feature index map, used by Script/FeatureVariations
+    gsub_features_w_duplicates: FnvHashMap<u16, u16>,
+    gpos_features_w_duplicates: FnvHashMap<u16, u16>,
 
     // active old->new lookup index map
     gsub_lookups: FnvHashMap<u16, u16>,

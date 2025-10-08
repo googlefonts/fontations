@@ -942,7 +942,7 @@ pub(crate) fn find_duplicate_features(
 pub(crate) struct PruneLangSysContext<'a> {
     script_count: u16,
     langsys_feature_count: u16,
-    // IN: retained feature indices map: old->new
+    // IN: retained feature indices map:
     // duplicate features will be mapped to the same value
     feature_index_map: &'a FnvHashMap<u16, u16>,
     // OUT: retained feature indices after pruning
@@ -985,12 +985,12 @@ impl<'a> PruneLangSysContext<'a> {
             self.feature_indices.insert(required_feature_index);
         }
 
-        self.feature_indices.extend_unsorted(
-            langsys
-                .feature_indices()
-                .iter()
-                .filter_map(|i| self.feature_index_map.get(&i.get()).copied()),
-        );
+        self.feature_indices
+            .extend_unsorted(langsys.feature_indices().iter().filter_map(|i| {
+                self.feature_index_map
+                    .contains_key(&i.get())
+                    .then_some(i.get())
+            }));
     }
 
     fn check_equal(&self, la: &LangSys, lb: &LangSys) -> bool {
@@ -1086,6 +1086,29 @@ impl<'a> PruneLangSysContext<'a> {
         }
         (self.script_langsys_map(), self.feature_indices())
     }
+}
+
+// remap feature indices: old-> new
+// mapping contains unique old feature indices -> new indices mapping only, used by FeatureList subsetting
+// mapping_w_duplicate contains all retained feature indices in ScriptList/FeatureVariations subsetting
+pub(crate) fn remap_feature_indices(
+    feature_indices: &IntSet<u16>,
+    duplicate_feature_map: &FnvHashMap<u16, u16>,
+) -> (FnvHashMap<u16, u16>, FnvHashMap<u16, u16>) {
+    let mut mapping = FnvHashMap::default();
+    let mut mapping_w_duplicates = FnvHashMap::default();
+    let mut i = 0_u16;
+    for f_idx in feature_indices.iter() {
+        let unique_f_idx = duplicate_feature_map.get(&f_idx).unwrap_or(&f_idx);
+        if let Some(new_idx) = mapping.get(unique_f_idx) {
+            mapping_w_duplicates.insert(f_idx, *new_idx);
+        } else {
+            mapping.insert(f_idx, i);
+            mapping_w_duplicates.insert(f_idx, i);
+            i += 1;
+        }
+    }
+    (mapping, mapping_w_duplicates)
 }
 
 pub(crate) struct SubsetLayoutContext {
@@ -1320,9 +1343,9 @@ impl<'a> SubsetTable<'a> for LangSys<'a> {
         s.embed(0_u16)?;
 
         let feature_index_map = if c.table_tag == Gsub::TAG {
-            &plan.gsub_features
+            &plan.gsub_features_w_duplicates
         } else {
-            &plan.gpos_features
+            &plan.gpos_features_w_duplicates
         };
         // required feature index
         let required_feature_idx = self.required_feature_index();
@@ -1881,8 +1904,8 @@ mod test {
         let gpos_script_list = font.gpos().unwrap().script_list().unwrap();
 
         let mut plan = Plan::default();
-        plan.gpos_features.insert(0_u16, 0_u16);
-        plan.gpos_features.insert(2_u16, 1_u16);
+        plan.gpos_features_w_duplicates.insert(0_u16, 0_u16);
+        plan.gpos_features_w_duplicates.insert(2_u16, 1_u16);
 
         plan.layout_scripts.invert();
 
