@@ -102,6 +102,7 @@ record IndexSubtableRecord {
     last_glyph_index: GlyphId16,
     /// Offset to an IndexSubtable from the start of the IndexSubtableList.
     #[read_offset_with($last_glyph_index, $first_glyph_index)]
+    #[offset_from(IndexSubtableList)]
     index_subtable_offset: Offset32<IndexSubtable>,
 }
 
