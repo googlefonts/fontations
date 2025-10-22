@@ -1144,10 +1144,12 @@ fn subset<'a>(
     }
 
     //TODO: complete overflow resolution
-    if s.offset_overflow() {
-        let _ = resolve_overflows(&s);
-    }
-    let subsetted_data = s.copy_bytes();
+    let subsetted_data = if !s.offset_overflow() {
+        s.copy_bytes()
+    } else {
+        resolve_overflows(&s).map_err(|_| SubsetError::SubsetTableError(table_tag))?
+    };
+
     if !subsetted_data.is_empty() {
         builder.add_raw(table_tag, subsetted_data);
     }
