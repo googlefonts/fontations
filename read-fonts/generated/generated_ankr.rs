@@ -207,7 +207,9 @@ impl<'a> std::fmt::Debug for GlyphDataEntry<'a> {
 }
 
 /// Individual anchor point.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct AnchorPoint {
