@@ -144,6 +144,28 @@ jobs:
       - name: cargo build skrifa
         run: cargo build -p skrifa --target thumbv7em-none-eabihf --no-default-features --features=libm
 
+  check-individual-features:
+    name: cargo check (individual features)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.82
+          # Use a target without `std` to make sure we don't link to `std`
+          target: thumbv7em-none-eabihf
+
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack
+
+      # Run 'cargo check --no-default-features --features std,X' for every feature X
+      - name: Check individual features
+        run: cargo hack check --each-feature -p read-fonts --features std
+
   # We use `cargo build` here because `cargo check` doesn't pick up all
   # warnings / errors. Notably, it misses `arithmetic_overflow`.
   check-wasm:
