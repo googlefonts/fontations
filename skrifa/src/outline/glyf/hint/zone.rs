@@ -10,6 +10,7 @@ use super::{
     graphics::{CoordAxis, GraphicsState},
     math,
 };
+use crate::outline::InterpreterVersion;
 
 use HintErrorKind::{InvalidPointIndex, InvalidPointRange};
 
@@ -428,19 +429,23 @@ impl GraphicsState<'_> {
         // where subpixel rendering provides better fidelity.
         //
         // For more detail, see <https://learn.microsoft.com/en-us/typography/cleartype/truetypecleartype>
+        let iv = self.interpreter_version;
         let back_compat = self.backward_compatibility;
         let back_compat_and_did_iup = back_compat && self.did_iup_x && self.did_iup_y;
         let zone = &mut self.zones[zone as usize];
         let point = zone.point_mut(point_ix)?;
+        let adj_x =
+            (iv == InterpreterVersion::_40 && !back_compat) || iv == InterpreterVersion::_35;
+        let adj_y = !(iv == InterpreterVersion::_40 && back_compat_and_did_iup);
         match self.freedom_axis {
             CoordAxis::X => {
-                if !back_compat {
+                if adj_x {
                     point.x += distance;
                 }
                 zone.touch(point_ix, CoordAxis::X)?;
             }
             CoordAxis::Y => {
-                if !back_compat_and_did_iup {
+                if adj_y {
                     point.y += distance;
                 }
                 zone.touch(point_ix, CoordAxis::Y)?;
@@ -450,13 +455,13 @@ impl GraphicsState<'_> {
                 let fv = self.freedom_vector;
                 let distance = distance.to_bits();
                 if fv.x != 0 {
-                    if !back_compat {
+                    if adj_x {
                         point.x += F26Dot6::from_bits(math::mul_div(distance, fv.x, self.fdotp));
                     }
                     zone.touch(point_ix, CoordAxis::X)?;
                 }
                 if fv.y != 0 {
-                    if !back_compat_and_did_iup {
+                    if adj_y {
                         zone.point_mut(point_ix)?.y +=
                             F26Dot6::from_bits(math::mul_div(distance, fv.y, self.fdotp));
                     }
@@ -481,12 +486,13 @@ impl GraphicsState<'_> {
         do_touch: bool,
     ) -> Result<(), HintErrorKind> {
         // See notes above in move_point() about how this is used.
+        let iv = self.interpreter_version;
         let back_compat = self.backward_compatibility;
         let back_compat_and_did_iup = back_compat && self.did_iup_x && self.did_iup_y;
         let fv = self.freedom_vector;
         let zone = self.zp2_mut();
         if fv.x != 0 {
-            if !back_compat {
+            if !(iv == InterpreterVersion::_40 && back_compat) {
                 zone.point_mut(point_ix)?.x += dx;
             }
             if do_touch {
@@ -494,7 +500,7 @@ impl GraphicsState<'_> {
             }
         }
         if fv.y != 0 {
-            if !back_compat_and_did_iup {
+            if !(iv == InterpreterVersion::_40 && back_compat_and_did_iup) {
                 zone.point_mut(point_ix)?.y += dy;
             }
             if do_touch {
