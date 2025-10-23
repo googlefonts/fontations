@@ -6,13 +6,12 @@ use std::{
     mem,
 };
 
-use fnv::FnvHasher;
+use fnv::{FnvHashMap, FnvHasher};
 use hashbrown::HashTable;
 use write_fonts::types::{FixedSize, Scalar, Uint24};
 
 /// An error which occurred during the serialization of a table using Serializer.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[allow(dead_code)]
 pub struct SerializeErrorFlags(u16);
 
 impl std::fmt::Display for SerializeErrorFlags {
@@ -25,7 +24,6 @@ impl std::fmt::Display for SerializeErrorFlags {
     }
 }
 
-#[allow(dead_code)]
 impl SerializeErrorFlags {
     pub const SERIALIZE_ERROR_NONE: Self = Self(0x0000);
     pub const SERIALIZE_ERROR_OTHER: Self = Self(0x0001);
@@ -63,8 +61,7 @@ impl std::ops::Not for SerializeErrorFlags {
     }
 }
 
-#[allow(dead_code)]
-#[derive(Default, Eq, PartialEq, Hash)]
+#[derive(Default, Eq, PartialEq, Clone, Copy, Hash, Debug)]
 /// Marks where an offset is relative from.
 ///
 /// Offset relative to the current object head (default)/tail or
@@ -80,9 +77,8 @@ type PoolIdx = usize;
 
 // Reference Harfbuzz implementation:
 // <https://github.com/harfbuzz/harfbuzz/blob/5e32b5ca8fe430132b87c0eee6a1c056d37c35eb/src/hb-serialize.hh#L69>
-#[allow(dead_code)]
 #[derive(Default)]
-struct Object {
+pub(crate) struct Object {
     // head/tail: indices of the output buffer for this object
     head: usize,
     tail: usize,
@@ -114,21 +110,44 @@ impl Object {
 
         self.virtual_links.push(link);
     }
+
+    pub(crate) fn head(&self) -> usize {
+        self.head
+    }
+
+    pub(crate) fn tail(&self) -> usize {
+        self.tail
+    }
+
+    pub(crate) fn real_links(&self) -> FnvHashMap<u32, Link> {
+        let mut links_map = FnvHashMap::default();
+        for l in &self.real_links {
+            let pos = l.position;
+            links_map.insert(pos, *l);
+        }
+        links_map
+    }
+
+    pub(crate) fn virtual_links(&self) -> Vec<Link> {
+        self.virtual_links.clone()
+    }
 }
 
-// LinkWidth:2->offset16, 3->offset24 and 4->offset32
-#[allow(dead_code)]
-#[derive(Default, Eq, PartialEq, Hash, Clone, Copy)]
-enum LinkWidth {
+// LinkWidth: 0->virtual_link, 2->offset16, 3->offset24 and 4->offset32
+#[derive(Default, Eq, PartialEq, Clone, Copy, Hash, Debug)]
+#[repr(u8)]
+pub(crate) enum LinkWidth {
     #[default]
-    Two,
-    Three,
-    Four,
+    Zero = 0,
+    Two = 2,
+    Three = 3,
+    Four = 4,
 }
 
 impl LinkWidth {
     fn new_checked(val: usize) -> Option<LinkWidth> {
         match val {
+            0 => Some(LinkWidth::Zero),
             2 => Some(LinkWidth::Two),
             3 => Some(LinkWidth::Three),
             4 => Some(LinkWidth::Four),
@@ -139,15 +158,33 @@ impl LinkWidth {
 
 pub(crate) type ObjIdx = usize;
 
-#[allow(dead_code)]
-#[derive(Default, Eq, PartialEq, Hash)]
-struct Link {
+#[derive(Default, Eq, PartialEq, Clone, Copy, Hash, Debug)]
+pub(crate) struct Link {
     width: LinkWidth,
     is_signed: bool,
     whence: OffsetWhence,
     bias: u32,
     position: u32,
     objidx: ObjIdx,
+}
+
+impl Link {
+    pub(crate) fn obj_idx(&self) -> ObjIdx {
+        self.objidx
+    }
+
+    pub(crate) fn link_width(&self) -> LinkWidth {
+        self.width
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn partial_equals(&self, other: &Self) -> bool {
+        self.width == other.width
+            && self.is_signed == other.is_signed
+            && self.whence == other.whence
+            && self.bias == other.bias
+            && self.position == other.position
+    }
 }
 
 #[derive(Default)]
@@ -175,7 +212,6 @@ pub(crate) struct Snapshot {
 /// Note: currently repacking to resolve offset overflows is not yet implemented
 /// (context: <https://github.com/harfbuzz/harfbuzz/blob/main/docs/repacker.md>)
 #[derive(Default)]
-#[allow(dead_code)]
 pub struct Serializer {
     start: usize,
     end: usize,
@@ -193,7 +229,6 @@ pub struct Serializer {
     packed_map: PoolIdxHashTable,
 }
 
-#[allow(dead_code)]
 impl Serializer {
     pub fn new(size: usize) -> Self {
         Serializer {
@@ -364,10 +399,9 @@ impl Serializer {
         self.packed.clear();
         self.packed_map.clear();
 
-        while self.current.is_some() {
-            let o = self.current.unwrap();
-            self.current = self.object_pool.next_idx(self.current.unwrap());
-            self.object_pool.release(o);
+        while let Some(current) = self.current.take() {
+            self.current = self.object_pool.next_idx(current);
+            self.object_pool.release(current);
         }
         self.data.clear();
     }
@@ -532,8 +566,8 @@ impl Serializer {
         }
         self.errors = snapshot.errors;
 
-        if self.current.is_some() {
-            let Some(obj) = self.object_pool.get_obj_mut(self.current.unwrap()) else {
+        if let Some(current) = self.current {
+            let Some(obj) = self.object_pool.get_obj_mut(current) else {
                 return;
             };
             obj.real_links.truncate(snapshot.num_real_links);
@@ -719,6 +753,7 @@ impl Serializer {
             LinkWidth::Two => (2, u16::MAX as usize),
             LinkWidth::Three => (3, (Uint24::MAX).to_u32() as usize),
             LinkWidth::Four => (4, u32::MAX as usize),
+            _ => return,
         };
 
         if offset > max_offset {
@@ -739,6 +774,7 @@ impl Serializer {
             LinkWidth::Two => offset_data_bytes.copy_from_slice(&be_bytes[2..=3]),
             LinkWidth::Three => offset_data_bytes.copy_from_slice(&be_bytes[1..=3]),
             LinkWidth::Four => offset_data_bytes.copy_from_slice(&be_bytes),
+            _ => (),
         }
     }
 
@@ -811,9 +847,20 @@ impl Serializer {
         self.pop_pack(false);
         self.resolve_links();
     }
+
+    pub(crate) fn packed_obj_idxs(&self) -> &[PoolIdx] {
+        &self.packed
+    }
+
+    pub(crate) fn get_obj(&self, pool_idx: PoolIdx) -> Option<&Object> {
+        self.object_pool.get_obj(pool_idx)
+    }
+
+    pub(crate) fn data(&self) -> Vec<u8> {
+        self.data.clone()
+    }
 }
 
-#[allow(dead_code)]
 #[derive(Default)]
 struct ObjectWrap {
     pub obj: Object,
@@ -822,14 +869,12 @@ struct ObjectWrap {
 
 // reference Harfbuzz implementation:
 //<https://github.com/harfbuzz/harfbuzz/blob/5e32b5ca8fe430132b87c0eee6a1c056d37c35eb/src/hb-pool.hh>
-#[allow(dead_code)]
 #[derive(Default)]
 struct ObjectPool {
     chunks: Vec<ObjectWrap>,
     next: Option<PoolIdx>,
 }
 
-#[allow(dead_code)]
 impl ObjectPool {
     const ALLOC_CHUNKS_LEN: usize = 64;
     pub fn alloc(&mut self) -> PoolIdx {
