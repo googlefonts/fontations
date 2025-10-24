@@ -177,6 +177,18 @@ impl Link {
         self.width
     }
 
+    pub(crate) fn whence(&self) -> OffsetWhence {
+        self.whence
+    }
+
+    pub(crate) fn bias(&self) -> u32 {
+        self.bias
+    }
+
+    pub(crate) fn is_signed(&self) -> bool {
+        self.is_signed
+    }
+
     #[allow(dead_code)]
     pub(crate) fn partial_equals(&self, other: &Self) -> bool {
         self.width == other.width
