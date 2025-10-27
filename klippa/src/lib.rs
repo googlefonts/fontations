@@ -1147,7 +1147,7 @@ fn subset<'a>(
     let subsetted_data = if !s.offset_overflow() {
         s.copy_bytes()
     } else {
-        resolve_overflows(&s).map_err(|_| SubsetError::SubsetTableError(table_tag))?
+        resolve_overflows(&s, table_tag).map_err(|_| SubsetError::SubsetTableError(table_tag))?
     };
 
     if !subsetted_data.is_empty() {

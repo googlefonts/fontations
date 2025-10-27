@@ -197,6 +197,10 @@ impl Link {
             && self.bias == other.bias
             && self.position == other.position
     }
+
+    pub(crate) fn update_obj_idx(&mut self, new_idx: ObjIdx) {
+        self.objidx = new_idx;
+    }
 }
 
 #[derive(Default)]

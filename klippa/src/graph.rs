@@ -96,6 +96,19 @@ impl Vertex {
         self.incoming_edges += 1;
     }
 
+    fn remove_parent(&mut self, parent_idx: ObjIdx) {
+        let Some(num_edges) = self.parents.get_mut(&parent_idx) else {
+            return;
+        };
+
+        self.incoming_edges -= 1;
+        if *num_edges > 1 {
+            *num_edges -= 1;
+        } else {
+            self.parents.remove(&parent_idx);
+        }
+    }
+
     fn link_positions_valid(&self, num_objs: usize) -> bool {
         let table_size = self.table_size();
         let mut assigned_bytes = IntSet::empty();
@@ -145,6 +158,20 @@ impl Vertex {
 
     fn incoming_edges(&self) -> usize {
         self.incoming_edges
+    }
+}
+
+impl Clone for Vertex {
+    fn clone(&self) -> Self {
+        Self {
+            head: self.head,
+            tail: self.tail,
+            real_links: self.real_links.clone(),
+            virtual_links: self.virtual_links.clone(),
+            distance: self.distance,
+            space: self.space,
+            ..Default::default()
+        }
     }
 }
 
@@ -213,6 +240,17 @@ impl Graph {
         self.errors
     }
 
+    // Generates a new topological sorting of graph ordered by the shortest
+    // distance to each node if positions are marked as invalid.
+    pub(crate) fn sort_shortest_distance_if_needed(&mut self) -> Result<(), RepackErrorFlags> {
+        if !self.positions_invalid {
+            return Ok(());
+        }
+        self.sort_shortest_distance()
+    }
+
+    // Generates a new topological sorting of graph ordered by the shortest
+    // distance to each node.
     pub(crate) fn sort_shortest_distance(&mut self) -> Result<(), RepackErrorFlags> {
         if self.vertices.len() < 2 {
             // no need to do sorting when num of nodes < 2
@@ -508,6 +546,346 @@ impl Graph {
         }
         false
     }
+
+    pub(crate) fn assign_spaces(&mut self) -> Result<bool, RepackErrorFlags> {
+        self.update_parents()?;
+        let (mut visited, mut roots) = self.find_space_roots()?;
+        if roots.is_empty() {
+            return Ok(false);
+        }
+
+        visited.invert();
+        loop {
+            let Some(next) = roots.first() else {
+                break;
+            };
+            let mut connected_roots = IntSet::empty();
+            self.find_connected_nodes(
+                next as usize,
+                &mut roots,
+                &mut visited,
+                &mut connected_roots,
+            );
+
+            self.isolate_subgraph(&mut connected_roots)?;
+            let next_space = self.next_space() as u32;
+
+            self.num_roots_for_space
+                .push(connected_roots.len() as usize);
+            self.distance_invalid = true;
+            self.positions_invalid = true;
+
+            let vertices = &mut self.vertices;
+            for obj_idx in connected_roots.iter() {
+                vertices[obj_idx as usize].space = next_space;
+            }
+        }
+        Ok(true)
+    }
+
+    // Finds all nodes in targets that are reachable from start_idx, nodes in visited will be skipped.
+    // For this search the graph is treated as being undirected.
+    // Connected targets will be added to connected and removed from targets. All visited nodes will be added to visited.
+    fn find_connected_nodes(
+        &self,
+        start_idx: ObjIdx,
+        targets: &mut IntSet<u32>,
+        visited: &mut IntSet<u32>,
+        connected: &mut IntSet<u32>,
+    ) {
+        if !visited.insert(start_idx as u32) {
+            return;
+        }
+
+        if targets.remove(start_idx as u32) {
+            connected.insert(start_idx as u32);
+        }
+
+        let v = &self.vertices[start_idx];
+        for l in v.real_links.values().chain(v.virtual_links.iter()) {
+            self.find_connected_nodes(l.obj_idx(), targets, visited, connected);
+        }
+
+        for p in v.parents.keys() {
+            self.find_connected_nodes(*p, targets, visited, connected);
+        }
+    }
+
+    fn find_space_roots(&self) -> Result<(IntSet<u32>, IntSet<u32>), RepackErrorFlags> {
+        let root_idx = self.root_idx();
+        let mut visited = IntSet::empty();
+        let mut roots = IntSet::empty();
+        let vertices = &self.vertices;
+        for i in &self.ordering {
+            if visited.contains(*i as u32) {
+                continue;
+            }
+            let Some(v) = vertices.get(*i) else {
+                return Err(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX);
+            };
+            for l in v.real_links.values() {
+                if l.is_signed() {
+                    continue;
+                }
+
+                match l.link_width() {
+                    LinkWidth::Three => {
+                        if *i == root_idx {
+                            continue;
+                        }
+                        let mut sub_roots = IntSet::empty();
+                        self.find_32bit_roots(l.obj_idx(), &mut sub_roots);
+                        for idx in sub_roots.iter() {
+                            roots.insert(idx);
+                            self.find_subgraph_nodes(idx as usize, &mut visited);
+                        }
+                    }
+                    LinkWidth::Four => {
+                        let obj_idx = l.obj_idx();
+                        roots.insert(obj_idx as u32);
+                        self.find_subgraph_nodes(obj_idx, &mut visited);
+                    }
+                    _ => continue,
+                }
+            }
+        }
+        Ok((roots, visited))
+    }
+
+    fn find_subgraph_nodes(&self, obj_idx: ObjIdx, subgraph: &mut IntSet<u32>) {
+        if !subgraph.insert(obj_idx as u32) {
+            return;
+        }
+
+        let v = &self.vertices[obj_idx];
+        for l in v.real_links.values().chain(v.virtual_links.iter()) {
+            self.find_subgraph_nodes(l.obj_idx(), subgraph);
+        }
+    }
+
+    fn find_subgraph_nodes_incoming_edges(
+        &self,
+        start_idx: ObjIdx,
+        subgraph_map: &mut FnvHashMap<u32, usize>,
+    ) {
+        let v = &self.vertices[start_idx];
+        for l in v.real_links.values().chain(v.virtual_links.iter()) {
+            let obj_idx = l.obj_idx();
+            let v = subgraph_map
+                .entry(obj_idx as u32)
+                .and_modify(|c| *c += 1)
+                .or_insert(1);
+
+            if *v > 1 {
+                continue;
+            }
+            self.find_subgraph_nodes_incoming_edges(obj_idx, subgraph_map);
+        }
+    }
+
+    // Finds the topmost children of 32bit offsets in the subgraph starting at obj_idx
+    fn find_32bit_roots(&self, obj_idx: ObjIdx, roots: &mut IntSet<u32>) {
+        let v = &self.vertices[obj_idx];
+        for l in v.real_links.values() {
+            let obj_idx = l.obj_idx();
+            if !l.is_signed() && l.link_width() == LinkWidth::Four {
+                roots.insert(obj_idx as u32);
+                continue;
+            }
+            self.find_32bit_roots(obj_idx, roots);
+        }
+    }
+
+    // Isolates the subgraph of nodes reachable from root. Any links to nodes in the subgraph
+    // that originate from outside of the subgraph will be removed by duplicating the linked to
+    // object
+    // Indices stored in roots will be updated if any of the roots are duplicated to new indices.
+    fn isolate_subgraph(&mut self, roots: &mut IntSet<u32>) -> Result<(), RepackErrorFlags> {
+        self.update_parents()?;
+
+        let mut parents = IntSet::empty();
+        let mut subgraph_map = FnvHashMap::default();
+        for root_idx in roots.iter() {
+            subgraph_map.insert(root_idx, self.wide_parents(root_idx as usize, &mut parents));
+            self.find_subgraph_nodes_incoming_edges(root_idx as usize, &mut subgraph_map);
+        }
+
+        let len = self.vertices.len();
+        let mut index_map = FnvHashMap::default();
+        for (idx, num_incoming_edges) in subgraph_map.iter() {
+            let obj_idx = *idx as usize;
+            assert!(obj_idx < len);
+            // duplicate objects with incoming links from outside the subgraph.
+            if *num_incoming_edges < self.vertices[obj_idx].incoming_edges() {
+                self.duplicate_subgraph(obj_idx, &mut index_map);
+            }
+        }
+
+        if index_map.is_empty() {
+            return Ok(());
+        }
+
+        let new_subgraph = subgraph_map
+            .keys()
+            .map(|idx| {
+                index_map
+                    .get(&(*idx as usize))
+                    .copied()
+                    .unwrap_or(*idx as usize)
+            })
+            .map(|i| i as u32)
+            .collect();
+
+        self.remap_obj_indices(&index_map, new_subgraph, false)?;
+        self.remap_obj_indices(&index_map, parents, true)?;
+
+        for (old, new) in index_map.iter() {
+            if roots.remove(*old as u32) {
+                roots.insert(*new as u32);
+            }
+        }
+        Ok(())
+    }
+
+    fn remap_obj_indices(
+        &mut self,
+        index_map: &FnvHashMap<usize, usize>,
+        it: IntSet<u32>,
+        only_wide: bool,
+    ) -> Result<(), RepackErrorFlags> {
+        let mut old_to_new_idx_parents = Vec::new();
+        for i in it.iter() {
+            let parent_idx = i as usize;
+            let Some(obj) = self.vertices.get_mut(i as usize) else {
+                return Err(self.set_err(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX));
+            };
+            for l in obj.real_links.values_mut() {
+                let old_idx = l.obj_idx();
+                let Some(new_idx) = index_map.get(&old_idx) else {
+                    continue;
+                };
+
+                if only_wide
+                    && (l.is_signed()
+                        || (l.link_width() != LinkWidth::Four
+                            && l.link_width() != LinkWidth::Three))
+                {
+                    continue;
+                }
+                l.update_obj_idx(*new_idx);
+                old_to_new_idx_parents.push((old_idx, *new_idx, parent_idx, false));
+            }
+
+            for l in &mut obj.virtual_links {
+                let old_idx = l.obj_idx();
+                let Some(new_idx) = index_map.get(&old_idx) else {
+                    continue;
+                };
+
+                if only_wide
+                    && (l.is_signed()
+                        || (l.link_width() != LinkWidth::Four
+                            && l.link_width() != LinkWidth::Three))
+                {
+                    continue;
+                }
+                l.update_obj_idx(*new_idx);
+                old_to_new_idx_parents.push((old_idx, *new_idx, parent_idx, true));
+            }
+        }
+        self.reassign_parents(&old_to_new_idx_parents)
+    }
+
+    // Also Corrects the parents map on the previous and new child nodes.
+    fn reassign_parents(
+        &mut self,
+        old_to_new_idx_parents: &[(usize, usize, usize, bool)],
+    ) -> Result<(), RepackErrorFlags> {
+        let vertices = &mut self.vertices;
+        for (old_idx, new_idx, parent_idx, is_virtual) in old_to_new_idx_parents {
+            let Some(old_v) = vertices.get_mut(*old_idx) else {
+                return Err(self.set_err(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX));
+            };
+            old_v.remove_parent(*parent_idx);
+
+            let Some(new_v) = vertices.get_mut(*new_idx) else {
+                return Err(self.set_err(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX));
+            };
+            new_v.add_parent(*parent_idx, *is_virtual);
+        }
+        Ok(())
+    }
+
+    // duplicates all nodes in the subgraph reachable from start_idx. Does not re-assign
+    // links. index_map is updated with mappings from old idx to new idx.
+    // If a duplication has already been performed for a given index, then it will be skipped.
+    fn duplicate_subgraph(&mut self, start_idx: ObjIdx, index_map: &mut FnvHashMap<usize, usize>) {
+        if index_map.contains_key(&start_idx) {
+            return;
+        }
+
+        let clone_idx = self.duplicate_obj(start_idx);
+        index_map.insert(start_idx, clone_idx);
+
+        let start_v = &self.vertices[start_idx];
+        let child_idxes: Vec<ObjIdx> = start_v
+            .real_links
+            .values()
+            .chain(start_v.virtual_links.iter())
+            .map(|l| l.obj_idx())
+            .collect();
+        for idx in child_idxes {
+            self.duplicate_subgraph(idx, index_map);
+        }
+    }
+
+    // Creates a copy of the specified obj and returns the new obj_idx.
+    fn duplicate_obj(&mut self, obj_idx: ObjIdx) -> ObjIdx {
+        self.positions_invalid = true;
+        self.distance_invalid = true;
+
+        let clone_idx = self.vertices.len();
+        self.ordering.push(clone_idx);
+
+        let new_v = self.vertices[obj_idx].clone();
+        let vertices = &mut self.vertices;
+
+        for l in new_v.real_links.values() {
+            let child_idx = l.obj_idx();
+            vertices[child_idx].add_parent(clone_idx, false);
+        }
+
+        for l in &new_v.virtual_links {
+            let child_idx = l.obj_idx();
+            vertices[child_idx].add_parent(clone_idx, true);
+        }
+
+        self.vertices.push(new_v);
+        clone_idx
+    }
+
+    // returns the number of incoming edges that are 24 or 32 bits wide
+    // and parent obj_idx will be added into the parents set
+    fn wide_parents(&self, obj_idx: ObjIdx, parents_set: &mut IntSet<u32>) -> usize {
+        let vertices = &self.vertices;
+        let v = &vertices[obj_idx];
+        let mut count = 0;
+        for p in v.parents.keys() {
+            let parent_v = &vertices[*p];
+            for l in parent_v.real_links.values() {
+                let width = l.link_width() as u8;
+                if l.obj_idx() == obj_idx && (width == 3 || width == 4) && !l.is_signed() {
+                    count += 1;
+                    parents_set.insert(*p as u32);
+                }
+            }
+        }
+        count
+    }
+
+    fn next_space(&self) -> usize {
+        self.num_roots_for_space.len()
+    }
 }
 
 fn serialize_link(
@@ -547,7 +925,7 @@ fn serialize_link(
 pub(crate) mod test {
     use super::*;
     use crate::serialize::OffsetWhence;
-    use write_fonts::types::{FixedSize, Offset16};
+    use write_fonts::types::{FixedSize, Offset16, Offset32, Scalar};
 
     impl Vertex {
         // zeros all offsets
@@ -601,7 +979,7 @@ pub(crate) mod test {
     }
 
     impl Graph {
-        fn normalize(&mut self) {
+        pub(crate) fn normalize(&mut self) {
             for v in &self.vertices {
                 v.normalize(&mut self.data);
             }
@@ -628,16 +1006,24 @@ pub(crate) mod test {
         s.pop_pack(false).unwrap()
     }
 
-    fn add_offset(s: &mut Serializer, obj_idx: ObjIdx) {
-        let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true).unwrap();
+    fn add_typed_offset<T: Scalar>(s: &mut Serializer, obj_idx: ObjIdx) {
+        let offset_pos = s.allocate_size(T::RAW_BYTE_LEN, true).unwrap();
         s.add_link(
-            offset_pos..offset_pos + 2,
+            offset_pos..offset_pos + T::RAW_BYTE_LEN,
             obj_idx,
             OffsetWhence::Head,
             0,
             false,
         )
         .unwrap();
+    }
+
+    fn add_offset(s: &mut Serializer, obj_idx: ObjIdx) {
+        add_typed_offset::<Offset16>(s, obj_idx);
+    }
+
+    fn add_wide_offset(s: &mut Serializer, obj_idx: ObjIdx) {
+        add_typed_offset::<Offset32>(s, obj_idx);
     }
 
     fn populate_serializer_complex_2(s: &mut Serializer) {
@@ -703,6 +1089,57 @@ pub(crate) mod test {
         add_offset(s, obj_1);
         s.pop_pack(false);
 
+        s.end_serialize();
+    }
+
+    pub(crate) fn populate_serializer_spaces(s: &mut Serializer, with_overflow: bool) {
+        let large_string = [b'a'; 70000];
+        s.start_serialize().unwrap();
+
+        let obj_i = if with_overflow {
+            add_object(s, b"i", 1)
+        } else {
+            0
+        };
+
+        // space 2
+        let obj_h = add_object(s, b"h", 1);
+        start_object(s, &large_string, 30000);
+        add_offset(s, obj_h);
+
+        let obj_e = s.pop_pack(false).unwrap();
+        start_object(s, b"b", 1);
+        add_offset(s, obj_e);
+        let obj_b = s.pop_pack(false).unwrap();
+
+        // space 1
+        let obj_i = if !with_overflow {
+            add_object(s, b"i", 1)
+        } else {
+            obj_i
+        };
+
+        start_object(s, &large_string, 30000);
+        add_offset(s, obj_i);
+        let obj_g = s.pop_pack(false).unwrap();
+
+        start_object(s, &large_string, 30000);
+        add_offset(s, obj_i);
+        let obj_f = s.pop_pack(false).unwrap();
+
+        start_object(s, b"d", 1);
+        add_offset(s, obj_g);
+        let obj_d = s.pop_pack(false).unwrap();
+
+        start_object(s, b"c", 1);
+        add_offset(s, obj_f);
+        let obj_c = s.pop_pack(false).unwrap();
+
+        start_object(s, b"a", 1);
+        add_wide_offset(s, obj_b);
+        add_wide_offset(s, obj_c);
+        add_wide_offset(s, obj_d);
+        s.pop_pack(false).unwrap();
         s.end_serialize();
     }
 
