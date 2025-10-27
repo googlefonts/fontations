@@ -3,13 +3,13 @@
 
 use crate::{
     priority_queue::PriorityQueue,
-    serialize::{Link, LinkWidth, ObjIdx, Object, Serializer},
+    serialize::{Link, LinkWidth, ObjIdx, Object, OffsetWhence, SerializeErrorFlags, Serializer},
 };
 use fnv::FnvHashMap;
-use write_fonts::read::collections::IntSet;
+use write_fonts::{read::collections::IntSet, types::Uint24};
 
 #[derive(Debug, Copy, Clone, PartialEq, Default)]
-pub(crate) struct RepackErrorFlags(u16);
+pub(crate) struct RepackErrorFlags(u32);
 
 impl RepackErrorFlags {
     pub(crate) const ERROR_NONE: Self = Self(0x0000);
@@ -19,12 +19,13 @@ impl RepackErrorFlags {
     pub(crate) const GRAPH_ERROR_CYCLE_DETECTED: Self = Self(0x0008);
     #[allow(dead_code)]
     pub(crate) const GRAPH_ERROR_INVALID_ROOT: Self = Self(0x0010);
+    pub(crate) const REPACK_ERROR_SERIALIZE: Self = Self(0x0020);
     #[allow(dead_code)]
-    pub(crate) const REPACK_ERROR_SPLIT_SUBTABLE: Self = Self(0x0020);
+    pub(crate) const REPACK_ERROR_SPLIT_SUBTABLE: Self = Self(0x0040);
     #[allow(dead_code)]
-    pub(crate) const REPACK_ERROR_EXT_PROMOTION: Self = Self(0x0040);
+    pub(crate) const REPACK_ERROR_EXT_PROMOTION: Self = Self(0x0080);
     #[allow(dead_code)]
-    pub(crate) const REPACK_ERROR_NO_RESOLUTION: Self = Self(0x0080);
+    pub(crate) const REPACK_ERROR_NO_RESOLUTION: Self = Self(0x0100);
 }
 
 impl std::ops::BitOrAssign for RepackErrorFlags {
@@ -57,8 +58,8 @@ struct Vertex {
     distance: u64,
     space: u32,
     priority: u8,
-    //start: usize,
-    //end: usize,
+    start: usize,
+    end: usize,
     incoming_edges: usize,
     has_incoming_virtual_edges: bool,
     parents: FnvHashMap<ObjIdx, u16>,
@@ -389,10 +390,161 @@ impl Graph {
     fn root_idx(&self) -> usize {
         self.ordering[0]
     }
+
+    pub(crate) fn is_fully_connected(&mut self) -> Result<(), RepackErrorFlags> {
+        self.update_parents()?;
+
+        // Root cannot have parents
+        if self.root().incoming_edges() > 0 {
+            return Err(self.set_err(RepackErrorFlags::GRAPH_ERROR_INVALID_ROOT));
+        }
+
+        let root_idx = self.root_idx();
+        if self
+            .vertices
+            .iter()
+            .take(root_idx)
+            .any(|v| v.incoming_edges() == 0)
+        {
+            return Err(self.set_err(RepackErrorFlags::GRAPH_ERROR_ORPHANED_NODES));
+        }
+        Ok(())
+    }
+
+    fn total_size_in_bytes(&self) -> usize {
+        self.vertices
+            .iter()
+            .map(|v| v.tail - v.head)
+            .reduce(|acc, e| acc + e)
+            .unwrap_or(0)
+    }
+
+    pub(crate) fn serialize(&self) -> Result<Vec<u8>, SerializeErrorFlags> {
+        let mut s = Serializer::new(self.total_size_in_bytes());
+        s.start_serialize()?;
+
+        let vertices = &self.vertices;
+        let data = &self.data;
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/07ee609f5abe59b591e4a6cf99db890be556501b/src/graph/serialize.hh#L245>
+        let mut id_map = vec![0; self.ordering.len()];
+        for i in self.ordering.iter().rev() {
+            let v = &vertices[*i];
+
+            let obj_bytes = &data[v.head..v.tail];
+            let obj_size = obj_bytes.len();
+            s.push()?;
+            let start = s.embed_bytes(obj_bytes)?;
+
+            for (link_pos, link) in &v.real_links {
+                serialize_link(&mut s, link, *link_pos as usize, start, obj_size, &id_map)?;
+            }
+
+            let new_idx = s
+                .pop_pack(false)
+                .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
+            id_map[*i] = new_idx;
+        }
+        s.end_serialize();
+
+        if s.in_error() {
+            return Err(s.error());
+        }
+
+        Ok(s.copy_bytes())
+    }
+
+    // compute the serialized start/end positions for each vertex
+    fn update_positions(&mut self) {
+        if !self.positions_invalid {
+            return;
+        }
+
+        let mut cur_pos = 0;
+        let vertices = &mut self.vertices;
+        for i in &self.ordering {
+            let v = &mut vertices[*i];
+            v.start = cur_pos;
+            cur_pos += v.tail - v.head;
+            v.end = cur_pos;
+        }
+
+        self.positions_invalid = false;
+    }
+
+    #[inline]
+    fn offset_overflows(&self, parent_v: &Vertex, link: &Link) -> bool {
+        let vertices = &self.vertices;
+        let child_v = &vertices[link.obj_idx()];
+        let mut offset = match link.whence() {
+            OffsetWhence::Head => child_v.start - parent_v.start,
+            OffsetWhence::Tail => child_v.start - parent_v.end,
+            OffsetWhence::Absolute => child_v.start,
+        };
+
+        let bias = link.bias() as usize;
+        assert!(offset >= bias);
+        offset -= bias;
+
+        //TODO: support signed offset?
+        match link.link_width() {
+            LinkWidth::Two => offset > u16::MAX as usize,
+            LinkWidth::Three => offset > (Uint24::MAX).to_u32() as usize,
+            LinkWidth::Four => offset > u32::MAX as usize,
+            LinkWidth::Zero => false,
+        }
+    }
+
+    //TODO: store all overflow info if needed
+    pub(crate) fn has_overflows(&mut self) -> bool {
+        self.update_positions();
+        let vertices = &self.vertices;
+        for parent_idx in &self.ordering {
+            let parent_v = &vertices[*parent_idx];
+            for link in parent_v.real_links.values() {
+                if self.offset_overflows(parent_v, link) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
+fn serialize_link(
+    s: &mut Serializer,
+    link: &Link,
+    link_pos: usize,
+    start: usize,
+    obj_size: usize,
+    id_map: &[usize],
+) -> Result<(), SerializeErrorFlags> {
+    let link_width = link.link_width() as usize;
+    if link_width == 0 {
+        return Ok(());
+    }
+    assert!(link_pos + link_width <= obj_size);
+
+    let offset_pos = start + link_pos;
+    let Some(offset_data) = s.get_mut_data(offset_pos..offset_pos + link_width) else {
+        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+    };
+
+    offset_data.fill(0);
+    let new_obj_idx = id_map
+        .get(link.obj_idx())
+        .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))?;
+
+    s.add_link(
+        offset_pos..offset_pos + link_width,
+        *new_obj_idx,
+        link.whence(),
+        link.bias(),
+        link.is_signed(),
+    )
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use super::*;
     use crate::serialize::OffsetWhence;
     use write_fonts::types::{FixedSize, Offset16};
@@ -463,8 +615,7 @@ mod test {
     }
 
     fn extend(s: &mut Serializer, bytes: &[u8], len: usize) {
-        let pos = s.allocate_size(len, true).unwrap();
-        s.copy_assign_from_bytes(pos, bytes);
+        s.embed_bytes(&bytes[0..len]).unwrap();
     }
 
     fn start_object(s: &mut Serializer, bytes: &[u8], len: usize) {
@@ -511,6 +662,62 @@ mod test {
         s.end_serialize();
     }
 
+    fn populate_serializer_simple(s: &mut Serializer) {
+        let _ = s.start_serialize();
+        let obj_1 = add_object(s, b"ghi", 3);
+        let obj_2 = add_object(s, b"def", 3);
+        start_object(s, b"abc", 3);
+        add_offset(s, obj_2);
+        add_offset(s, obj_1);
+        s.pop_pack(false);
+        s.end_serialize();
+    }
+
+    pub(crate) fn populate_serializer_with_overflow(s: &mut Serializer) {
+        let large_bytes = [b'a'; 50000];
+        let _ = s.start_serialize();
+        let obj_1 = add_object(s, &large_bytes, 10000);
+        let obj_2 = add_object(s, &large_bytes, 20000);
+        let obj_3 = add_object(s, &large_bytes, 50000);
+
+        start_object(s, b"abc", 3);
+        add_offset(s, obj_3);
+        add_offset(s, obj_2);
+        add_offset(s, obj_1);
+        s.pop_pack(false);
+
+        s.end_serialize();
+    }
+
+    fn populate_serializer_with_dedup_overflow(s: &mut Serializer) {
+        let large_bytes = [b'a'; 70000];
+        let _ = s.start_serialize();
+        let obj_1 = add_object(s, b"def", 3);
+
+        start_object(s, &large_bytes, 60000);
+        add_offset(s, obj_1);
+        let obj_2 = s.pop_pack(false).unwrap();
+
+        start_object(s, &large_bytes, 10000);
+        add_offset(s, obj_2);
+        add_offset(s, obj_1);
+        s.pop_pack(false);
+
+        s.end_serialize();
+    }
+
+    #[test]
+    fn test_graph_serialize() {
+        let buf_size = 100;
+        let mut s1 = Serializer::new(buf_size);
+        populate_serializer_simple(&mut s1);
+        let graph = Graph::from_serializer(&s1).unwrap();
+
+        let expected_bytes = s1.copy_bytes();
+        let out = graph.serialize().unwrap();
+        assert_eq!(out, expected_bytes);
+    }
+
     #[test]
     fn test_sort_shortest() {
         let buf_size = 100;
@@ -548,5 +755,35 @@ mod test {
         expected_graph.normalize();
 
         assert_eq!(graph, expected_graph);
+    }
+
+    #[test]
+    fn test_has_overflows_1() {
+        let buf_size = 100;
+        let mut s = Serializer::new(buf_size);
+        populate_serializer_complex_2(&mut s);
+        let mut graph = Graph::from_serializer(&s).unwrap();
+
+        assert!(!graph.has_overflows());
+    }
+
+    #[test]
+    fn test_has_overflows_2() {
+        let buf_size = 160000;
+        let mut s = Serializer::new(buf_size);
+        populate_serializer_with_overflow(&mut s);
+        let mut graph = Graph::from_serializer(&s).unwrap();
+
+        assert!(graph.has_overflows());
+    }
+
+    #[test]
+    fn test_has_overflows_3() {
+        let buf_size = 160000;
+        let mut s = Serializer::new(buf_size);
+        populate_serializer_with_dedup_overflow(&mut s);
+        let mut graph = Graph::from_serializer(&s).unwrap();
+
+        assert!(graph.has_overflows());
     }
 }
