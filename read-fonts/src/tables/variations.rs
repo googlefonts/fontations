@@ -1334,7 +1334,7 @@ impl ItemVariationStore<'_> {
         index: DeltaSetIndex,
         coords: &[F2Dot14],
     ) -> Result<i32, ReadError> {
-        if coords.is_empty() {
+        if coords.is_empty() || index == DeltaSetIndex::NO_VARIATION_INDEX {
             return Ok(0);
         }
         let data = match self.item_variation_data().get(index.outer as usize) {
