@@ -44,6 +44,18 @@ impl std::ops::Not for RepackErrorFlags {
     }
 }
 
+pub(crate) struct Overflow(u64);
+
+impl Overflow {
+    fn child(&self) -> ObjIdx {
+        (self.0 as usize) & 0xFFFFFFFF
+    }
+
+    fn parent(&self) -> ObjIdx {
+        (self.0 >> 32) as usize
+    }
+}
+
 #[derive(Default, Debug)]
 struct Vertex {
     head: usize,
@@ -136,28 +148,58 @@ impl Vertex {
         true
     }
 
-    #[allow(dead_code)]
     fn has_max_priority(&self) -> bool {
         self.priority >= 3
+    }
+
+    fn raise_priority(&mut self) -> bool {
+        if self.has_max_priority() {
+            return false;
+        }
+
+        self.priority += 1;
+        true
     }
 
     fn modified_distance(&self, order: u32) -> i64 {
         let prev_dist = self.distance as i64;
         let table_size = (self.tail - self.head) as i64;
 
-        let distance = match self.priority {
-            0 => prev_dist,
-            1 => prev_dist - table_size / 2,
-            2 => prev_dist - table_size,
-            _ => 0,
-        }
-        .clamp(0, 0x7FFFFFFFFFF_i64);
+        let distance = if self.has_max_priority() {
+            0
+        } else {
+            match self.priority {
+                0 => prev_dist,
+                1 => prev_dist - table_size / 2,
+                2 => prev_dist - table_size,
+                _ => 0,
+            }
+            .clamp(0, 0x7FFFFFFFFFF_i64)
+        };
 
         (distance << 18) | (0x003FFFF & order as i64)
     }
 
     fn incoming_edges(&self) -> usize {
         self.incoming_edges
+    }
+
+    fn is_shared(&self) -> bool {
+        self.parents.len() > 1
+    }
+
+    fn is_leaf(&self) -> bool {
+        self.real_links.is_empty() && self.virtual_links.is_empty()
+    }
+
+    fn incoming_edges_from_parent(&self, parent_idx: ObjIdx) -> u16 {
+        *self.parents.get(&parent_idx).unwrap_or(&0)
+    }
+
+    fn give_max_priority(&mut self) {
+        if !self.has_max_priority() {
+            self.priority = 3;
+        }
     }
 }
 
@@ -184,7 +226,6 @@ pub(crate) struct Graph {
     ordering: Vec<usize>,
     ordering_scratch: Vec<usize>,
     num_roots_for_space: Vec<usize>,
-    #[allow(dead_code)]
     data: Vec<u8>,
 
     // graph state flags
@@ -371,13 +412,12 @@ impl Graph {
 
         let mut visited = vec![false; count];
         let mut distance_map = vec![0; count];
-        while let Some((_, next_idx)) = queue.pop() {
+        while let Some((next_distance, next_idx)) = queue.pop() {
             if visited[next_idx] {
                 continue;
             }
 
             let next_v = &self.vertices[next_idx];
-            let next_distance = next_v.distance;
             visited[next_idx] = true;
 
             for link in next_v
@@ -532,7 +572,6 @@ impl Graph {
         }
     }
 
-    //TODO: store all overflow info if needed
     pub(crate) fn has_overflows(&mut self) -> bool {
         self.update_positions();
         let vertices = &self.vertices;
@@ -547,9 +586,31 @@ impl Graph {
         false
     }
 
+    pub(crate) fn overflows(&mut self) -> Vec<Overflow> {
+        self.update_positions();
+        let vertices = &self.vertices;
+        let mut overflows = FnvHashMap::default();
+        let mut out = Vec::new();
+        for parent_idx in &self.ordering {
+            let parent_v = &vertices[*parent_idx];
+            for link in parent_v.real_links.values() {
+                if !self.offset_overflows(parent_v, link) {
+                    continue;
+                }
+
+                let overflow = ((*parent_idx as u64) << 32) | (link.obj_idx() as u64);
+                if overflows.insert(overflow, 1).is_some() {
+                    continue;
+                }
+                out.push(Overflow(overflow));
+            }
+        }
+        out
+    }
+
     pub(crate) fn assign_spaces(&mut self) -> Result<bool, RepackErrorFlags> {
         self.update_parents()?;
-        let (mut visited, mut roots) = self.find_space_roots()?;
+        let (mut roots, mut visited) = self.find_space_roots()?;
         if roots.is_empty() {
             return Ok(false);
         }
@@ -634,10 +695,16 @@ impl Graph {
                             continue;
                         }
                         let mut sub_roots = IntSet::empty();
-                        self.find_32bit_roots(l.obj_idx(), &mut sub_roots);
-                        for idx in sub_roots.iter() {
-                            roots.insert(idx);
-                            self.find_subgraph_nodes(idx as usize, &mut visited);
+                        let obj_idx = l.obj_idx();
+                        self.find_32bit_roots(obj_idx, &mut sub_roots);
+                        if sub_roots.is_empty() {
+                            roots.insert(obj_idx as u32);
+                            self.find_subgraph_nodes(obj_idx, &mut visited);
+                        } else {
+                            for idx in sub_roots.iter() {
+                                roots.insert(idx);
+                                self.find_subgraph_nodes(idx as usize, &mut visited);
+                            }
                         }
                     }
                     LinkWidth::Four => {
@@ -687,12 +754,12 @@ impl Graph {
     fn find_32bit_roots(&self, obj_idx: ObjIdx, roots: &mut IntSet<u32>) {
         let v = &self.vertices[obj_idx];
         for l in v.real_links.values() {
-            let obj_idx = l.obj_idx();
+            let child_idx = l.obj_idx();
             if !l.is_signed() && l.link_width() == LinkWidth::Four {
-                roots.insert(obj_idx as u32);
+                roots.insert(child_idx as u32);
                 continue;
             }
-            self.find_32bit_roots(obj_idx, roots);
+            self.find_32bit_roots(child_idx, roots);
         }
     }
 
@@ -886,6 +953,247 @@ impl Graph {
     fn next_space(&self) -> usize {
         self.num_roots_for_space.len()
     }
+
+    pub(crate) fn try_isolating_subgraphs(
+        &mut self,
+        overflows: &[Overflow],
+    ) -> Result<bool, RepackErrorFlags> {
+        let mut space = 0;
+        let mut roots_to_isolate = IntSet::empty();
+        for overflow in overflows.iter().rev() {
+            let (overflow_space, root) = self.find_root_and_space(overflow.parent())?;
+            if overflow_space == 0 || self.num_roots_for_space[overflow_space] < 2 {
+                continue;
+            }
+
+            if space == 0 {
+                space = overflow_space;
+            }
+
+            if space == overflow_space {
+                roots_to_isolate.insert(root as u32);
+            }
+        }
+
+        if roots_to_isolate.is_empty() {
+            return Ok(false);
+        }
+
+        let max_to_move = self.num_roots_for_space[space] / 2;
+        if roots_to_isolate.len() as usize > max_to_move {
+            let mut extra = roots_to_isolate.len() as usize - max_to_move;
+            for idx in &self.ordering {
+                if extra == 0 {
+                    break;
+                }
+                if roots_to_isolate.remove(*idx as u32) {
+                    extra -= 1;
+                }
+            }
+        }
+
+        self.isolate_subgraph(&mut roots_to_isolate)?;
+        self.move_to_new_space(&roots_to_isolate, space);
+        Ok(true)
+    }
+
+    fn find_root_and_space(&self, obj_idx: ObjIdx) -> Result<(usize, ObjIdx), RepackErrorFlags> {
+        let Some(v) = self.vertices.get(obj_idx) else {
+            return Err(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX);
+        };
+        if v.space > 0 {
+            return Ok((v.space as usize, obj_idx));
+        }
+
+        let Some(parent_idx) = v.parents.keys().nth(0) else {
+            return Ok((0, obj_idx));
+        };
+        self.find_root_and_space(*parent_idx)
+    }
+
+    fn move_to_new_space(&mut self, indices: &IntSet<u32>, old_space: usize) {
+        let new_space = self.num_roots_for_space.len() as u32;
+        let vertices = &mut self.vertices;
+        for idx in indices.iter() {
+            vertices[idx as usize].space = new_space;
+        }
+
+        let num_indices = indices.len() as usize;
+        self.num_roots_for_space[old_space] -= num_indices;
+        self.num_roots_for_space.push(num_indices);
+        self.distance_invalid = true;
+        self.positions_invalid = true;
+    }
+
+    fn raise_childrens_priority(&mut self, parent_idx: ObjIdx) -> bool {
+        let children: Vec<usize> = self.vertices[parent_idx]
+            .real_links
+            .values()
+            .chain(self.vertices[parent_idx].virtual_links.iter())
+            .map(|l| l.obj_idx())
+            .collect();
+
+        let mut made_changes = false;
+        for obj_idx in children {
+            made_changes |= self.vertices[obj_idx].raise_priority();
+        }
+        made_changes
+    }
+
+    // Creates a copy of child and re-assigns the link from parent to the clone.
+    // The copy is a shallow copy, objects linked from child are not duplicated.
+    // Returns the index of the newly created duplicate.
+    // If the child_idx only has incoming edges from parent_idx, duplication isn't possible and this will return None
+    #[allow(dead_code)]
+    fn duplicate_child(
+        &mut self,
+        parent_idx: ObjIdx,
+        child_idx: ObjIdx,
+    ) -> Result<Option<ObjIdx>, RepackErrorFlags> {
+        self.update_parents()?;
+
+        let child_v = &self.vertices[child_idx];
+        if child_v.incoming_edges() <= child_v.incoming_edges_from_parent(parent_idx) as usize
+            || child_v.has_incoming_virtual_edges
+        {
+            return Ok(None);
+        }
+
+        let clone_idx = self.duplicate_obj(child_idx);
+        let mut old_to_new_idx_parents = Vec::new();
+        for l in self.vertices[parent_idx].real_links.values_mut() {
+            if l.obj_idx() != child_idx {
+                continue;
+            }
+            l.update_obj_idx(clone_idx);
+            old_to_new_idx_parents.push((child_idx, clone_idx, parent_idx, false));
+        }
+
+        for l in self.vertices[parent_idx].virtual_links.iter_mut() {
+            if l.obj_idx() != child_idx {
+                continue;
+            }
+            l.update_obj_idx(clone_idx);
+            old_to_new_idx_parents.push((child_idx, clone_idx, parent_idx, true));
+        }
+        self.reassign_parents(&old_to_new_idx_parents)?;
+        Ok(Some(clone_idx))
+    }
+
+    // Creates a copy of child and re-assigns the link from parents to the clone.
+    // The copy is a shallow copy, objects linked from child are not duplicated.
+    // Returns the index of the newly created duplicate.
+    // If the child_idx only has incoming edges from parents, duplication isn't possible and this will return None
+    fn duplicate_and_reassign_parents(
+        &mut self,
+        parents: &IntSet<u32>,
+        child_idx: ObjIdx,
+    ) -> Result<Option<ObjIdx>, RepackErrorFlags> {
+        if parents.is_empty() {
+            return Ok(None);
+        }
+
+        self.update_parents()?;
+        let child_v = &self.vertices[child_idx];
+        if child_v.has_incoming_virtual_edges {
+            return Ok(None);
+        }
+
+        let links_to_child = parents
+            .iter()
+            .map(|idx| child_v.incoming_edges_from_parent(idx as usize) as usize)
+            .reduce(|acc, e| acc + e)
+            .unwrap_or(0);
+        if links_to_child >= child_v.incoming_edges() {
+            return Ok(None);
+        }
+
+        let clone_idx = self.duplicate_obj(child_idx);
+        let mut old_to_new_idx_parents = Vec::new();
+        for parent_idx in parents.iter() {
+            let parent_idx = parent_idx as usize;
+            for l in self.vertices[parent_idx].real_links.values_mut() {
+                if l.obj_idx() != child_idx {
+                    continue;
+                }
+                l.update_obj_idx(clone_idx);
+                old_to_new_idx_parents.push((child_idx, clone_idx, parent_idx, false));
+            }
+
+            for l in self.vertices[parent_idx].virtual_links.iter_mut() {
+                if l.obj_idx() != child_idx {
+                    continue;
+                }
+                l.update_obj_idx(clone_idx);
+                old_to_new_idx_parents.push((child_idx, clone_idx, parent_idx, true));
+            }
+        }
+        self.reassign_parents(&old_to_new_idx_parents)?;
+        Ok(Some(clone_idx))
+    }
+
+    fn resolve_shared_overflow(
+        &mut self,
+        overflow: &Overflow,
+        overflows: &[Overflow],
+    ) -> Result<bool, RepackErrorFlags> {
+        // Find all of the parents in overflowing links that link to this same child node.
+        // try duplicating the child node and re-assigning all of these parents to the duplicate.
+        let child_idx = overflow.child();
+        let mut parents = IntSet::empty();
+        for o in overflows {
+            if o.child() == child_idx {
+                parents.insert(o.parent() as u32);
+            }
+        }
+
+        let Some(ret) = (match self.duplicate_and_reassign_parents(&parents, child_idx)? {
+            None => {
+                if parents.len() > 2 {
+                    parents.remove(parents.first().unwrap());
+                    self.duplicate_and_reassign_parents(&parents, child_idx)?
+                } else {
+                    None
+                }
+            }
+            Some(clone_idx) => Some(clone_idx),
+        }) else {
+            return Ok(false);
+        };
+
+        if parents.len() > 1 {
+            self.vertices[ret].give_max_priority();
+        }
+        Ok(true)
+    }
+
+    // ref:<https://github.com/harfbuzz/harfbuzz/blob/8f2ecfb10303d9970c79f27fc8af0a8f686302f6/src/hb-repacker.hh#L296>
+    pub(crate) fn process_overflows(
+        &mut self,
+        overflows: &[Overflow],
+    ) -> Result<bool, RepackErrorFlags> {
+        let mut priority_bumped_parents = IntSet::empty();
+        let mut resolution_attempted = false;
+        // try resolving the furthest overflows first
+        for overflow in overflows.iter().rev() {
+            let child_idx = overflow.child();
+            if self.vertices[child_idx].is_shared()
+                && self.resolve_shared_overflow(overflow, overflows)?
+            {
+                return Ok(true);
+            }
+
+            let parent_idx = overflow.parent();
+            if self.vertices[child_idx].is_leaf()
+                && !priority_bumped_parents.contains(parent_idx as u32)
+                && self.raise_childrens_priority(parent_idx)
+            {
+                priority_bumped_parents.insert(parent_idx as u32);
+                resolution_attempted = true;
+            }
+        }
+        Ok(resolution_attempted)
+    }
 }
 
 fn serialize_link(
@@ -925,7 +1233,7 @@ fn serialize_link(
 pub(crate) mod test {
     use super::*;
     use crate::serialize::OffsetWhence;
-    use write_fonts::types::{FixedSize, Offset16, Offset32, Scalar};
+    use write_fonts::types::{FixedSize, Offset16, Offset24, Offset32, Scalar};
 
     impl Vertex {
         // zeros all offsets
@@ -996,12 +1304,12 @@ pub(crate) mod test {
         s.embed_bytes(&bytes[0..len]).unwrap();
     }
 
-    fn start_object(s: &mut Serializer, bytes: &[u8], len: usize) {
+    pub(crate) fn start_object(s: &mut Serializer, bytes: &[u8], len: usize) {
         s.push().unwrap();
         extend(s, bytes, len);
     }
 
-    fn add_object(s: &mut Serializer, bytes: &[u8], len: usize) -> ObjIdx {
+    pub(crate) fn add_object(s: &mut Serializer, bytes: &[u8], len: usize) -> ObjIdx {
         start_object(s, bytes, len);
         s.pop_pack(false).unwrap()
     }
@@ -1018,12 +1326,20 @@ pub(crate) mod test {
         .unwrap();
     }
 
-    fn add_offset(s: &mut Serializer, obj_idx: ObjIdx) {
+    pub(crate) fn add_offset(s: &mut Serializer, obj_idx: ObjIdx) {
         add_typed_offset::<Offset16>(s, obj_idx);
     }
 
-    fn add_wide_offset(s: &mut Serializer, obj_idx: ObjIdx) {
+    pub(crate) fn add_24_offset(s: &mut Serializer, obj_idx: ObjIdx) {
+        add_typed_offset::<Offset24>(s, obj_idx);
+    }
+
+    pub(crate) fn add_wide_offset(s: &mut Serializer, obj_idx: ObjIdx) {
         add_typed_offset::<Offset32>(s, obj_idx);
+    }
+
+    pub(crate) fn add_virtual_offset(s: &mut Serializer, obj_idx: ObjIdx) -> bool {
+        s.add_virtual_link(obj_idx)
     }
 
     fn populate_serializer_complex_2(s: &mut Serializer) {
@@ -1044,6 +1360,32 @@ pub(crate) mod test {
         add_offset(s, obj_4);
         add_offset(s, obj_5);
         s.pop_pack(false);
+
+        s.end_serialize();
+    }
+
+    fn populate_serializer_complex_3(s: &mut Serializer) {
+        let _ = s.start_serialize();
+        let obj_6 = add_object(s, b"opqrst", 6);
+        let obj_5 = add_object(s, b"mn", 2);
+
+        start_object(s, b"jkl", 3);
+        add_offset(s, obj_6);
+        let obj_4 = s.pop_pack(false).unwrap();
+
+        start_object(s, b"ghi", 3);
+        add_offset(s, obj_4);
+        let obj_3 = s.pop_pack(false).unwrap();
+
+        start_object(s, b"def", 3);
+        add_offset(s, obj_3);
+        let obj_2 = s.pop_pack(false).unwrap();
+
+        start_object(s, b"abc", 3);
+        add_offset(s, obj_2);
+        add_offset(s, obj_4);
+        add_offset(s, obj_5);
+        s.pop_pack(false).unwrap();
 
         s.end_serialize();
     }
@@ -1075,7 +1417,7 @@ pub(crate) mod test {
         s.end_serialize();
     }
 
-    fn populate_serializer_with_dedup_overflow(s: &mut Serializer) {
+    pub(crate) fn populate_serializer_with_dedup_overflow(s: &mut Serializer) {
         let large_bytes = [b'a'; 70000];
         let _ = s.start_serialize();
         let obj_1 = add_object(s, b"def", 3);
@@ -1089,57 +1431,6 @@ pub(crate) mod test {
         add_offset(s, obj_1);
         s.pop_pack(false);
 
-        s.end_serialize();
-    }
-
-    pub(crate) fn populate_serializer_spaces(s: &mut Serializer, with_overflow: bool) {
-        let large_string = [b'a'; 70000];
-        s.start_serialize().unwrap();
-
-        let obj_i = if with_overflow {
-            add_object(s, b"i", 1)
-        } else {
-            0
-        };
-
-        // space 2
-        let obj_h = add_object(s, b"h", 1);
-        start_object(s, &large_string, 30000);
-        add_offset(s, obj_h);
-
-        let obj_e = s.pop_pack(false).unwrap();
-        start_object(s, b"b", 1);
-        add_offset(s, obj_e);
-        let obj_b = s.pop_pack(false).unwrap();
-
-        // space 1
-        let obj_i = if !with_overflow {
-            add_object(s, b"i", 1)
-        } else {
-            obj_i
-        };
-
-        start_object(s, &large_string, 30000);
-        add_offset(s, obj_i);
-        let obj_g = s.pop_pack(false).unwrap();
-
-        start_object(s, &large_string, 30000);
-        add_offset(s, obj_i);
-        let obj_f = s.pop_pack(false).unwrap();
-
-        start_object(s, b"d", 1);
-        add_offset(s, obj_g);
-        let obj_d = s.pop_pack(false).unwrap();
-
-        start_object(s, b"c", 1);
-        add_offset(s, obj_f);
-        let obj_c = s.pop_pack(false).unwrap();
-
-        start_object(s, b"a", 1);
-        add_wide_offset(s, obj_b);
-        add_wide_offset(s, obj_c);
-        add_wide_offset(s, obj_d);
-        s.pop_pack(false).unwrap();
         s.end_serialize();
     }
 
@@ -1222,5 +1513,129 @@ pub(crate) mod test {
         let mut graph = Graph::from_serializer(&s).unwrap();
 
         assert!(graph.has_overflows());
+    }
+
+    #[test]
+    fn test_duplicate_leaf() {
+        let buf_size = 100;
+        let mut a = Serializer::new(buf_size);
+        populate_serializer_complex_2(&mut a);
+        let mut graph = Graph::from_serializer(&a).unwrap();
+        graph.duplicate_child(4, 1).unwrap();
+        graph.normalize();
+
+        let mut e = Serializer::new(buf_size);
+        e.start_serialize().unwrap();
+
+        let mn = add_object(&mut e, b"mn", 2);
+        let jkl_2 = add_object(&mut e, b"jkl", 3);
+
+        start_object(&mut e, b"ghi", 3);
+        add_offset(&mut e, jkl_2);
+        let ghi = e.pop_pack(false).unwrap();
+
+        start_object(&mut e, b"def", 3);
+        add_offset(&mut e, ghi);
+        let def = e.pop_pack(false).unwrap();
+
+        let jkl_1 = add_object(&mut e, b"jkl", 3);
+
+        start_object(&mut e, b"abc", 3);
+        add_offset(&mut e, def);
+        add_offset(&mut e, jkl_1);
+        add_offset(&mut e, mn);
+
+        e.pop_pack(false).unwrap();
+
+        let mut expected = Graph::from_serializer(&e).unwrap();
+        expected.normalize();
+        assert_eq!(graph, expected);
+    }
+
+    #[test]
+    fn test_duplicate_interior() {
+        let buf_size = 100;
+        let mut c = Serializer::new(buf_size);
+        populate_serializer_complex_3(&mut c);
+        let mut graph = Graph::from_serializer(&c).unwrap();
+        graph.duplicate_child(3, 2).unwrap();
+
+        let data_bytes = &graph.data;
+        let obj_6 = &graph.vertices[6];
+        assert_eq!(data_bytes.get(obj_6.head..obj_6.head + 3).unwrap(), b"jkl");
+        assert_eq!(obj_6.real_links.len(), 1);
+        assert_eq!(obj_6.real_links.values().next().unwrap().obj_idx(), 0);
+
+        let obj_5 = &graph.vertices[5];
+        assert_eq!(data_bytes.get(obj_5.head..obj_5.head + 3).unwrap(), b"abc");
+        assert_eq!(obj_5.real_links.len(), 3);
+        let child_idxes: IntSet<u32> = obj_5
+            .real_links
+            .values()
+            .map(|l| l.obj_idx() as u32)
+            .collect();
+        assert!(child_idxes.contains(4));
+        assert!(child_idxes.contains(2));
+        assert!(child_idxes.contains(1));
+
+        let obj_4 = &graph.vertices[4];
+        assert_eq!(data_bytes.get(obj_4.head..obj_4.head + 3).unwrap(), b"def");
+        assert_eq!(obj_4.real_links.len(), 1);
+        assert_eq!(obj_4.real_links.values().next().unwrap().obj_idx(), 3);
+
+        let obj_3 = &graph.vertices[3];
+        assert_eq!(data_bytes.get(obj_3.head..obj_3.head + 3).unwrap(), b"ghi");
+        assert_eq!(obj_3.real_links.len(), 1);
+        assert_eq!(obj_3.real_links.values().next().unwrap().obj_idx(), 6);
+
+        let obj_2 = &graph.vertices[2];
+        assert_eq!(data_bytes.get(obj_2.head..obj_2.head + 3).unwrap(), b"jkl");
+        assert_eq!(obj_2.real_links.len(), 1);
+        assert_eq!(obj_2.real_links.values().next().unwrap().obj_idx(), 0);
+
+        let obj_1 = &graph.vertices[1];
+        assert_eq!(data_bytes.get(obj_1.head..obj_1.head + 2).unwrap(), b"mn");
+        assert!(obj_1.real_links.is_empty());
+
+        let obj_0 = &graph.vertices[0];
+        assert_eq!(
+            data_bytes.get(obj_0.head..obj_0.head + 6).unwrap(),
+            b"opqrst"
+        );
+        assert!(obj_0.real_links.is_empty());
+    }
+
+    #[test]
+    fn test_shared_node_with_virtual_links() {
+        let buf_size = 100;
+        let mut c = Serializer::new(buf_size);
+
+        c.start_serialize().unwrap();
+        let obj_b = add_object(&mut c, b"b", 1);
+        let obj_c = add_object(&mut c, b"c", 1);
+
+        start_object(&mut c, b"d", 1);
+        add_virtual_offset(&mut c, obj_b);
+        let obj_d_1 = c.pop_pack(true).unwrap();
+
+        start_object(&mut c, b"d", 1);
+        add_virtual_offset(&mut c, obj_c);
+        let obj_d_2 = c.pop_pack(true).unwrap();
+
+        assert_eq!(obj_d_1, obj_d_2);
+
+        start_object(&mut c, b"a", 1);
+        add_offset(&mut c, obj_b);
+        add_offset(&mut c, obj_c);
+        add_offset(&mut c, obj_d_1);
+        add_offset(&mut c, obj_d_2);
+        c.pop_pack(true).unwrap();
+        c.end_serialize();
+
+        let graph = Graph::from_serializer(&c).unwrap();
+        let d_1 = &graph.vertices[obj_d_1];
+        assert_eq!(d_1.virtual_links.len(), 2);
+        assert_eq!(d_1.virtual_links[0].obj_idx(), obj_b);
+        assert_eq!(d_1.virtual_links[1].obj_idx(), obj_c);
     }
 }
