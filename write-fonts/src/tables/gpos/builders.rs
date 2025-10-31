@@ -22,7 +22,7 @@ use super::{
 
 type GlyphSet = IntSet<GlyphId16>;
 
-/// A builder for ['ValueRecord`]s, which may contain raw deltas or device tables.
+/// A builder for [`ValueRecord`]s, which may contain raw deltas or device tables.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ValueRecordBuilder {
