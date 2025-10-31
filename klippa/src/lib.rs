@@ -518,8 +518,9 @@ impl Plan {
         self.glyphset_gsub.insert(GlyphId::NOTDEF);
 
         //glyph closure for cmap
-        let cmap = font.cmap().expect("Error reading cmap table");
-        cmap.closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
+        if let Ok(cmap) = font.cmap() {
+            cmap.closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
+        }
         remove_invalid_gids(&mut self.glyphset_gsub, self.font_num_glyphs);
 
         // layout closure
