@@ -142,9 +142,13 @@ where
                     self.stack.push(num)?;
                 }
                 _ => {
-                    let operator = Operator::read(&mut cursor, b0)?;
-                    if !self.evaluate_operator(operator, &mut cursor, nesting_depth)? {
-                        break;
+                    // FreeType ignores reserved (unknown) operators.
+                    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L703>
+                    // and fontations issue <https://github.com/googlefonts/fontations/issues/1680>
+                    if let Ok(operator) = Operator::read(&mut cursor, b0) {
+                        if !self.evaluate_operator(operator, &mut cursor, nesting_depth)? {
+                            break;
+                        }
                     }
                 }
             }
@@ -1092,5 +1096,32 @@ mod tests {
         let mut cursor = FontData::new(&[]).cursor();
         // Just don't panic
         let _ = evaluator.evaluate_operator(Operator::HhCurveTo, &mut cursor, 0);
+    }
+
+    #[test]
+    fn ignore_reserved_operators() {
+        let charstring = &[
+            0u8, // reserved
+            32,  // push -107
+            22,  // hmoveto
+            2,   // reserved
+        ];
+        let empty_index_bytes = [0u8; 8];
+        let global_subrs = Index::new(&empty_index_bytes, false).unwrap();
+        let mut commands = CaptureCommandSink::default();
+        evaluate(
+            &[],
+            Index::Empty,
+            global_subrs,
+            None,
+            None,
+            charstring,
+            &mut commands,
+        )
+        .unwrap();
+        assert_eq!(
+            commands.0,
+            [Command::MoveTo(Fixed::from_i32(-107), Fixed::ZERO)]
+        );
     }
 }
