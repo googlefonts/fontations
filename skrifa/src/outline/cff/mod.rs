@@ -613,6 +613,10 @@ impl<S: CommandSink> CommandSink for HintedTransformingSink<'_, S> {
         self.inner.counter_mask(mask);
     }
 
+    fn clear_hints(&mut self) {
+        self.inner.clear_hints();
+    }
+
     fn move_to(&mut self, x: Fixed, y: Fixed) {
         let (x, y) = self.transform(x, y);
         self.inner.move_to(x, y);
@@ -713,6 +717,10 @@ impl<S: CommandSink> CommandSink for ScalingTransformingSink<'_, S> {
         self.inner.counter_mask(mask);
     }
 
+    fn clear_hints(&mut self) {
+        self.inner.clear_hints();
+    }
+
     fn move_to(&mut self, x: Fixed, y: Fixed) {
         let (x, y) = self.transform(x, y);
         self.inner.move_to(x, y);
@@ -795,6 +803,10 @@ impl<S: CommandSink> CommandSink for ScalingSink26Dot6<'_, S> {
 
     fn counter_mask(&mut self, mask: &[u8]) {
         self.inner.counter_mask(mask);
+    }
+
+    fn clear_hints(&mut self) {
+        self.inner.clear_hints();
     }
 
     fn move_to(&mut self, x: Fixed, y: Fixed) {
@@ -910,6 +922,10 @@ where
 
     fn counter_mask(&mut self, mask: &[u8]) {
         self.inner.counter_mask(mask);
+    }
+
+    fn clear_hints(&mut self) {
+        self.inner.clear_hints();
     }
 
     fn move_to(&mut self, x: Fixed, y: Fixed) {
@@ -1242,6 +1258,41 @@ mod tests {
         // that we have a path to represent each by checking for two closepath
         // commands.
         assert_eq!(pen.to_string().chars().filter(|ch| *ch == 'Z').count(), 2);
+    }
+
+    #[test]
+    fn implied_seac_clears_hints() {
+        let font = FontRef::new(font_test_data::CHARSTRING_PATH_OPS).unwrap();
+        let outlines = Outlines::from_cff(&font, 1000).unwrap();
+        let subfont = outlines.subfont(0, Some(16.0), &[]).unwrap();
+        let cff_data = outlines.offset_data.as_bytes();
+        let charstrings = outlines.top_dict.charstrings.clone();
+        let charstring_data = charstrings.get(3).unwrap();
+        let subrs = subfont.subrs(&outlines).unwrap();
+        let blend_state = None;
+        let cs_eval = CharstringEvaluator {
+            cff_data,
+            charstrings,
+            global_subrs: outlines.global_subrs.clone(),
+            subrs,
+            blend_state,
+            charstring_data,
+        };
+        struct ClearHintsCountingSink(u32);
+        impl CommandSink for ClearHintsCountingSink {
+            fn move_to(&mut self, _: Fixed, _: Fixed) {}
+            fn line_to(&mut self, _: Fixed, _: Fixed) {}
+            fn curve_to(&mut self, _: Fixed, _: Fixed, _: Fixed, _: Fixed, _: Fixed, _: Fixed) {}
+            fn close(&mut self) {}
+            fn clear_hints(&mut self) {
+                self.0 += 1;
+            }
+        }
+        let mut sink = ClearHintsCountingSink(0);
+        cs_eval.evaluate(&mut sink).unwrap();
+        // We should have cleared hints twice.. once for the base and once
+        // for the accent
+        assert_eq!(sink.0, 2);
     }
 
     const TRANSFORM: [Fixed; 6] = [
