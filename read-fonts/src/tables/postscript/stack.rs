@@ -96,10 +96,11 @@ impl Stack {
     /// Will return an error if the value at that index was not pushed as an
     /// integer.
     pub fn get_i32(&self, index: usize) -> Result<i32, Error> {
-        let value = *self
-            .values
-            .get(index)
-            .ok_or(Error::InvalidStackAccess(index))?;
+        // FreeType just returns 0 for OOB access
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psstack.c#L143>
+        let Some(value) = self.values.get(index).copied() else {
+            return Ok(0);
+        };
         if self.value_is_fixed[index] {
             // FreeType returns an error here rather than converting
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psstack.c#L145>
@@ -114,10 +115,11 @@ impl Stack {
     /// If the value was pushed as an integer, it will be automatically
     /// converted to 16.16 fixed point.
     pub fn get_fixed(&self, index: usize) -> Result<Fixed, Error> {
-        let value = *self
-            .values
-            .get(index)
-            .ok_or(Error::InvalidStackAccess(index))?;
+        // FreeType just returns 0 for OOB access
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psstack.c#L193>
+        let Some(value) = self.values.get(index).copied() else {
+            return Ok(Fixed::ZERO);
+        };
         Ok(if self.value_is_fixed[index] {
             Fixed::from_bits(value)
         } else {
@@ -165,14 +167,11 @@ impl Stack {
     /// `first_index`.
     pub fn fixed_array<const N: usize>(&self, first_index: usize) -> Result<[Fixed; N], Error> {
         let mut result = [Fixed::ZERO; N];
-        if first_index >= self.top {
-            return Err(Error::InvalidStackAccess(first_index));
-        }
         let end = first_index + N;
-        if end > self.top {
-            return Err(Error::InvalidStackAccess(end - 1));
-        }
-        let range = first_index..end;
+        // FreeType doesn't have an equivalent to this function but always
+        // returns 0 on failure so we take the maximum valid range and
+        // pad the remainder with zeros
+        let range = first_index.min(self.top)..end.min(self.top);
         for ((src, is_fixed), dest) in self.values[range.clone()]
             .iter()
             .zip(&self.value_is_fixed[range])
@@ -314,7 +313,7 @@ impl Stack {
             self.top -= 1;
             Ok(self.top)
         } else {
-            Err(Error::StackUnderflow)
+            Ok(0)
         }
     }
 }
@@ -457,5 +456,21 @@ mod tests {
         // 1: 20 + (-60 * 0.5) + (2 * 0.5) = -9
         let expected = &[Fixed::from_f64(8.0), Fixed::from_f64(-9.0)];
         assert_eq!(&result, expected);
+    }
+
+    #[test]
+    fn invalid_access_yields_zero() {
+        let mut stack = Stack::new();
+        assert_eq!(stack.pop_i32().unwrap(), 0);
+        assert_eq!(stack.pop_fixed().unwrap(), Fixed::ZERO);
+        assert_eq!(stack.get_i32(10).unwrap(), 0);
+        assert_eq!(stack.get_fixed(10).unwrap(), Fixed::ZERO);
+        // In this case, we get the first valid value followed by the
+        // remainder of the requested array size padded with zeros
+        stack.push(5).unwrap();
+        assert_eq!(
+            stack.fixed_array::<3>(0).unwrap(),
+            [Fixed::from_i32(5), Fixed::ZERO, Fixed::ZERO]
+        );
     }
 }
