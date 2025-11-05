@@ -40,6 +40,8 @@ pub trait CommandSink {
     /// Bitmask defining the counter hints that should be made active for the
     /// commands that follow.
     fn counter_mask(&mut self, mask: &[u8]) {}
+    /// Clear accumulated stem hints and all data derived from them.
+    fn clear_hints(&mut self) {}
 }
 
 /// Evaluates the given charstring and emits the resulting commands to the
@@ -496,10 +498,21 @@ where
         self.x = dx;
         self.y = dy;
         let accent_charstring = self.charstrings.get(accent_gid.to_u32() as usize)?;
+        // FreeType calls cf2_interpT2CharString for each component
+        // which uses a fresh set of stem hints. Since our hinter is in
+        // a separate crate, we signal this through the sink. Also
+        // reset our own stem count so we read the correct number of
+        // bytes for each hint mask instruction.
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1443>
+        // and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L540>
+        self.sink.clear_hints();
+        self.stem_count = 0;
         self.evaluate(accent_charstring, nesting_depth + 1)?;
         self.x = x;
         self.y = y;
         let base_charstring = self.charstrings.get(base_gid.to_u32() as usize)?;
+        self.sink.clear_hints();
+        self.stem_count = 0;
         self.evaluate(base_charstring, nesting_depth + 1)
     }
 

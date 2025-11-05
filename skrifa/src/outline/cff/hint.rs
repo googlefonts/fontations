@@ -1044,6 +1044,18 @@ impl<S: CommandSink> CommandSink for HintingSink<'_, S> {
         );
     }
 
+    fn clear_hints(&mut self) {
+        // This resets all hinting state that is derived from accumulated
+        // stem hints.
+        // This is used when evaluating the implied SEAC operator which
+        // processes a base char followed by an accent char and expects
+        // hinting state to be fresh for each.
+        self.stem_count = 0;
+        self.map = HintMap::new(self.state.scale);
+        self.initial_map = HintMap::new(self.state.scale);
+        self.mask = HintMask::all();
+    }
+
     fn move_to(&mut self, x: Fixed, y: Fixed) {
         self.maybe_close_subpath();
         self.start_point = Some([x, y]);
