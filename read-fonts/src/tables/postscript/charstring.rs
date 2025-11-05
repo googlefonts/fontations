@@ -497,7 +497,7 @@ where
         // FreeType calls cf2_interpT2CharString for each component
         // which uses a fresh set of stem hints. Since our hinter is in
         // a separate crate, we signal this through the sink. Also
-        // reset our own stem count so we need to correct number of
+        // reset our own stem count so we read the correct number of
         // bytes for each hint mask instruction.
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1443>
         // and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L540>
