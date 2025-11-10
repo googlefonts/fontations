@@ -201,6 +201,15 @@ impl Link {
     pub(crate) fn update_obj_idx(&mut self, new_idx: ObjIdx) {
         self.objidx = new_idx;
     }
+
+    pub(crate) fn new(link_width: LinkWidth, obj_idx: ObjIdx, position: u32) -> Self {
+        Self {
+            width: link_width,
+            objidx: obj_idx,
+            position,
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Default)]

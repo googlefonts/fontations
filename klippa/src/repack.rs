@@ -1,17 +1,25 @@
 //! Implement repacking algorithm to resolve offset overflows
 //! ref:<https://github.com/harfbuzz/harfbuzz/blob/9cfb0e6786ecceabaec7a26fd74b1ddb1209f74d/src/hb-repacker.hh#L454>
 
+use std::cmp::Ordering;
+
 use crate::{
-    graph::{Graph, RepackErrorFlags},
-    serialize::Serializer,
+    graph::{
+        layout::{Lookup, EXTENSION_TABLE_SIZE},
+        Graph, RepackErrorFlags,
+    },
+    serialize::{ObjIdx, Serializer},
 };
+use fnv::FnvHashMap;
 use write_fonts::{
     read::{
+        collections::IntSet,
         tables::{gpos::Gpos, gsub::Gsub},
         TopLevelTable,
     },
     types::Tag,
 };
+
 //TODO: add more functionality, serialize output etc.
 pub(crate) fn resolve_overflows(
     s: &Serializer,
@@ -21,7 +29,7 @@ pub(crate) fn resolve_overflows(
     let mut graph = Graph::from_serializer(s)?;
 
     graph.is_fully_connected()?;
-    resolve_graph_overflows(&mut graph, tag, max_round)?;
+    resolve_graph_overflows(&mut graph, tag, max_round, false)?;
 
     graph
         .serialize()
@@ -32,6 +40,7 @@ pub(crate) fn resolve_graph_overflows(
     graph: &mut Graph,
     tag: Tag,
     max_round: u8,
+    always_recalculate_extensions: bool,
 ) -> Result<(), RepackErrorFlags> {
     graph.sort_shortest_distance()?;
     if !graph.has_overflows() {
@@ -39,6 +48,10 @@ pub(crate) fn resolve_graph_overflows(
     }
 
     if tag == Gsub::TAG || tag == Gpos::TAG {
+        if always_recalculate_extensions {
+            let (lookup_list_idx, lookup_indices) = find_lookup_indices(graph)?;
+            promote_extensions_if_needed(graph, lookup_list_idx, &lookup_indices, tag)?;
+        }
         if graph.assign_spaces()? {
             graph.sort_shortest_distance()?;
         } else {
@@ -64,8 +77,145 @@ pub(crate) fn resolve_graph_overflows(
     if overflows.is_empty() {
         Ok(())
     } else {
+        if (tag == Gsub::TAG || tag == Gpos::TAG) && !always_recalculate_extensions {
+            return resolve_graph_overflows(graph, tag, max_round, true);
+        }
         Err(RepackErrorFlags::REPACK_ERROR_NO_RESOLUTION)
     }
+}
+
+fn promote_extensions_if_needed(
+    graph: &mut Graph,
+    lookup_list_idx: ObjIdx,
+    lookups: &[ObjIdx],
+    table_tag: Tag,
+) -> Result<(), RepackErrorFlags> {
+    struct LookupSize {
+        obj_idx: ObjIdx,
+        lookup_size: usize,
+        subgraph_size: usize,
+        subtable_count: usize,
+        lookup_type: u16,
+        is_ext: bool,
+    }
+
+    impl LookupSize {
+        fn cmp(&self, other: &LookupSize) -> std::cmp::Ordering {
+            let bytes_per_subtable_a = self.subtable_count as f64 / self.subgraph_size as f64;
+            let bytes_per_subtable_b = other.subtable_count as f64 / other.subgraph_size as f64;
+            if bytes_per_subtable_b < bytes_per_subtable_a {
+                Ordering::Less
+            } else if bytes_per_subtable_b > bytes_per_subtable_a {
+                Ordering::Greater
+            } else {
+                Ordering::Equal
+            }
+        }
+    }
+    let mut total_lookup_table_sizes = 0;
+    let mut lookup_sizes = Vec::with_capacity(lookups.len());
+    let mut visited = IntSet::empty();
+    for lookup_idx in lookups {
+        let lookup_v = graph
+            .vertex(*lookup_idx)
+            .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+
+        let table_size = lookup_v.table_size();
+        total_lookup_table_sizes += table_size;
+
+        let lookup = Lookup::from_graph(graph, *lookup_idx)?;
+        let lookup_type = lookup.lookup_type();
+        let subtable_count = lookup.num_subtables();
+
+        visited.clear();
+        let subgraph_size = graph.find_subgraph_size(*lookup_idx, &mut visited, u16::MAX)?;
+        lookup_sizes.push(LookupSize {
+            obj_idx: *lookup_idx,
+            lookup_size: table_size,
+            subgraph_size,
+            subtable_count: subtable_count as usize,
+            lookup_type,
+            is_ext: is_extension(lookup_type, table_tag),
+        });
+    }
+
+    lookup_sizes.sort_by(|a, b| a.cmp(b));
+
+    const MAX_SIZE: usize = u16::MAX as usize;
+    let lookup_list_v = graph
+        .vertex(lookup_list_idx)
+        .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+
+    let lookup_list_size = lookup_list_v.table_size();
+    let l2_l3_size = lookup_list_size + total_lookup_table_sizes; // size of LookupList + lookups
+    let mut l3_l4_size = total_lookup_table_sizes; // Lookups + lookup subtables
+    let mut l4_plus_size = 0; // subtables and anything below that
+
+    for l in &lookup_sizes {
+        let subtables_size = l.subtable_count * EXTENSION_TABLE_SIZE;
+        l3_l4_size += subtables_size;
+        l4_plus_size += subtables_size;
+    }
+
+    let mut layers_full = false;
+    let mut idx_map = FnvHashMap::default();
+    for l in &lookup_sizes {
+        if l.is_ext {
+            continue;
+        }
+
+        if !layers_full {
+            let lookup_size = l.lookup_size;
+            visited.clear();
+            let subtables_size =
+                graph.find_subgraph_size(l.obj_idx, &mut visited, 1)? - lookup_size;
+            let remaining_size = l.subgraph_size - subtables_size - lookup_size;
+
+            l3_l4_size += subtables_size;
+            l3_l4_size -= l.subtable_count * EXTENSION_TABLE_SIZE;
+            l4_plus_size += subtables_size + remaining_size;
+
+            if l2_l3_size < MAX_SIZE && l3_l4_size < MAX_SIZE && l4_plus_size < MAX_SIZE {
+                continue;
+            }
+            layers_full = true;
+        }
+        graph.make_extension(
+            l.obj_idx,
+            l.lookup_type,
+            extension_type(table_tag),
+            &mut idx_map,
+        )?;
+    }
+    Ok(())
+}
+
+fn is_extension(lookup_type: u16, table_tag: Tag) -> bool {
+    match table_tag {
+        Gpos::TAG => lookup_type == 9,
+        Gsub::TAG => lookup_type == 7,
+        _ => false,
+    }
+}
+
+fn extension_type(table_tag: Tag) -> Option<u16> {
+    match table_tag {
+        Gpos::TAG => Some(9),
+        Gsub::TAG => Some(7),
+        _ => None,
+    }
+}
+
+fn find_lookup_indices(graph: &Graph) -> Result<(ObjIdx, Vec<ObjIdx>), RepackErrorFlags> {
+    // pos=8: lookup list position in GSUB/GPOS table
+    let lookup_list_idx = graph
+        .index_for_position(graph.root_idx(), 8)
+        .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+
+    let lookup_list_v = graph
+        .vertex(lookup_list_idx)
+        .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+    Ok((lookup_list_idx, lookup_list_v.child_idxes()))
 }
 
 #[cfg(test)]
@@ -679,10 +829,98 @@ pub(crate) mod test {
         s.end_serialize();
     }
 
+    fn add_gsub_gpos_header(s: &mut Serializer, lookup_list_idx: ObjIdx) -> ObjIdx {
+        let header_bytes = [0, 1, 0, 0, 0, 0, 0, 0];
+        start_object(s, &header_bytes, 8);
+        add_offset(s, lookup_list_idx);
+        s.pop_pack(false).unwrap()
+    }
+
+    fn add_lookup_list(s: &mut Serializer, lookup_count: usize, lookups: &[ObjIdx]) -> ObjIdx {
+        let lookup_count_bytes = [0, lookup_count as u8];
+        start_object(s, &lookup_count_bytes, 2);
+
+        for i in lookups.iter().take(lookup_count) {
+            add_offset(s, *i);
+        }
+
+        s.pop_pack(false).unwrap()
+    }
+
+    fn add_extension(s: &mut Serializer, child_idx: ObjIdx, ext_type: u8) -> ObjIdx {
+        let ext_header_bytes = [0, 1, 0, ext_type];
+        start_object(s, &ext_header_bytes, 4);
+        add_wide_offset(s, child_idx);
+        s.pop_pack(false).unwrap()
+    }
+
+    fn start_lookup(s: &mut Serializer, lookup_type: u8, num_subtables: u8) {
+        let lookup_bytes = [0, lookup_type, 0, 0, 0, num_subtables];
+        start_object(s, &lookup_bytes, 6);
+    }
+
+    fn finish_lookup(s: &mut Serializer) -> ObjIdx {
+        let filter = [0, 0];
+        s.embed_bytes(&filter).unwrap();
+        s.pop_pack(false).unwrap()
+    }
+
+    fn populate_serializer_with_extension_promotion(
+        s: &mut Serializer,
+        num_extensions: usize,
+        shared_subtables: bool,
+    ) {
+        const NUM_LOOKUPS: usize = 5;
+        const NUM_SUBTABLES: usize = NUM_LOOKUPS * 2;
+        let mut lookups = [0; NUM_LOOKUPS];
+        let mut subtables = [0; NUM_SUBTABLES];
+        let mut extensions = [0; NUM_SUBTABLES];
+
+        let large_bytes = [b'a'; 60000];
+        s.start_serialize().unwrap();
+
+        for i in (0..NUM_SUBTABLES).rev() {
+            subtables[i] = add_object(s, &large_bytes, 15000 + i);
+        }
+
+        assert!(NUM_LOOKUPS >= num_extensions);
+        for i in ((NUM_LOOKUPS - num_extensions) * 2..NUM_SUBTABLES).rev() {
+            extensions[i] = add_extension(s, subtables[i], 5);
+        }
+
+        for i in (0..NUM_LOOKUPS).rev() {
+            let is_ext = i >= (NUM_LOOKUPS - num_extensions);
+            let lookup_type = if is_ext { 7 } else { 5 };
+            let num_subtables = if shared_subtables && i > 2 { 3 } else { 2 };
+            start_lookup(s, lookup_type, num_subtables);
+
+            if is_ext {
+                if shared_subtables && i > 2 {
+                    add_offset(s, extensions[i * 2 - 1]);
+                }
+                add_offset(s, extensions[i * 2]);
+                add_offset(s, extensions[i * 2 + 1]);
+            } else {
+                if shared_subtables && i > 2 {
+                    add_offset(s, subtables[i * 2 - 1]);
+                }
+                add_offset(s, subtables[i * 2]);
+                add_offset(s, subtables[i * 2 + 1]);
+            }
+
+            lookups[i] = finish_lookup(s);
+        }
+
+        let lookup_list_idx = add_lookup_list(s, NUM_LOOKUPS, &lookups);
+        add_gsub_gpos_header(s, lookup_list_idx);
+        s.end_serialize();
+    }
+
     fn run_resolve_overflow_test(
         overflowing: &Serializer,
         expected: &Serializer,
         num_iterations: u8,
+        recalculate_extensions: bool,
         check_binary_equivalence: bool,
     ) {
         let mut graph = Graph::from_serializer(overflowing).unwrap();
@@ -698,7 +936,13 @@ pub(crate) mod test {
         }
         // Check that overflow resolution succeeds
         assert!(graph.has_overflows());
-        resolve_graph_overflows(&mut graph, Tag::new(b"GSUB"), num_iterations).unwrap();
+        resolve_graph_overflows(
+            &mut graph,
+            Tag::new(b"GSUB"),
+            num_iterations,
+            recalculate_extensions,
+        )
+        .unwrap();
 
         // Check the graphs can be serialized.
         let out1 = graph.serialize().unwrap();
@@ -752,7 +996,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_spaces(&mut e, false);
 
-        run_resolve_overflow_test(&c, &e, 0, false);
+        run_resolve_overflow_test(&c, &e, 0, false, false);
     }
 
     #[test]
@@ -763,7 +1007,7 @@ pub(crate) mod test {
 
         let mut e = Serializer::new(buf_size);
         populate_serializer_with_priority_overflow_expected(&mut e);
-        run_resolve_overflow_test(&s, &e, 3, false);
+        run_resolve_overflow_test(&s, &e, 3, false, false);
     }
 
     #[test]
@@ -787,7 +1031,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_with_isolation_overflow_complex_expected(&mut e);
 
-        run_resolve_overflow_test(&s, &e, 0, false);
+        run_resolve_overflow_test(&s, &e, 0, false, false);
     }
 
     #[test]
@@ -815,7 +1059,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_spaces_16bit_connection_expected(&mut e);
 
-        run_resolve_overflow_test(&s, &e, 0, false);
+        run_resolve_overflow_test(&s, &e, 0, false, false);
     }
 
     #[test]
@@ -827,7 +1071,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_short_and_wide_subgraph_root_expected(&mut e);
 
-        run_resolve_overflow_test(&s, &e, 0, false);
+        run_resolve_overflow_test(&s, &e, 0, false, false);
     }
 
     #[test]
@@ -839,7 +1083,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_with_split_spaces_expected(&mut e);
 
-        run_resolve_overflow_test(&s, &e, 1, false);
+        run_resolve_overflow_test(&s, &e, 1, false, false);
     }
 
     #[test]
@@ -851,7 +1095,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_with_split_spaces_expected_2(&mut e);
 
-        run_resolve_overflow_test(&s, &e, 1, false);
+        run_resolve_overflow_test(&s, &e, 1, false, false);
     }
 
     #[test]
@@ -887,5 +1131,29 @@ pub(crate) mod test {
         assert_eq!(out[8], b'e');
         assert_eq!(out[9], b'b');
         assert_eq!(out[12], b'd');
+    }
+
+    #[test]
+    fn test_resolve_with_extension_promotion() {
+        let buf_size = 200000;
+        let mut overflowing = Serializer::new(buf_size);
+        populate_serializer_with_extension_promotion(&mut overflowing, 0, false);
+
+        let mut expected = Serializer::new(buf_size);
+        populate_serializer_with_extension_promotion(&mut expected, 3, false);
+
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false);
+    }
+
+    #[test]
+    fn test_resolve_with_shared_extension_promotion() {
+        let buf_size = 200000;
+        let mut overflowing = Serializer::new(buf_size);
+        populate_serializer_with_extension_promotion(&mut overflowing, 0, true);
+
+        let mut expected = Serializer::new(buf_size);
+        populate_serializer_with_extension_promotion(&mut expected, 3, true);
+
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false);
     }
 }
