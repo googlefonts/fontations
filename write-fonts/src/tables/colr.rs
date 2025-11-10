@@ -7,7 +7,8 @@ use super::variations::{DeltaSetIndexMap, ItemVariationStore};
 impl Colr {
     fn compute_version(&self) -> u16 {
         // Using v1-only fields?
-        if self.layer_list.is_some()
+        if self.base_glyph_list.is_some()
+            || self.layer_list.is_some()
             || self.clip_list.is_some()
             || self.var_index_map.is_some()
             || self.item_variation_store.is_some()
