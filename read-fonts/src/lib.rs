@@ -56,7 +56,7 @@
 //! [NameString]: tables::name::NameString
 //! [table-directory]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-directory
 
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![forbid(unsafe_code)]
 #![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(not(feature = "std"), no_std)]
