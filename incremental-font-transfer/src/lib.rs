@@ -8,7 +8,7 @@
 //!
 //! Built on top of the read-fonts crate.
 
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![forbid(unsafe_code)]
 
 pub mod font_patch;
