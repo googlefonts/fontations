@@ -55,7 +55,14 @@ impl core::ops::BitOr for PointMarker {
 /// itself. Others, designated as markers are set and cleared while an outline
 /// is being transformed during variation application and hinting.
 #[derive(
-    Copy, Clone, PartialEq, Eq, Default, Debug, bytemuck::AnyBitPattern, bytemuck::NoUninit,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    Debug,
+    bytemuck_derive::AnyBitPattern,
+    bytemuck_derive::NoUninit,
 )]
 #[repr(transparent)]
 pub struct PointFlags(u8);
