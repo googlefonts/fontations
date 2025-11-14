@@ -1181,6 +1181,7 @@ mod tests {
     fn assert_glyph_path_start_with(
         font: &FontRef,
         gid: GlyphId,
+        size: Size,
         loc: Location,
         path_style: PathStyle,
         expected_path_start: &[PathEl],
@@ -1193,7 +1194,7 @@ mod tests {
         let mut pen = BezPen::default();
         glyph
             .draw(
-                DrawSettings::unhinted(Size::unscaled(), &loc).with_path_style(path_style),
+                DrawSettings::unhinted(size, &loc).with_path_style(path_style),
                 &mut pen,
             )
             .unwrap_or_else(|e| panic!("Unable to draw {gid}: {e}"));
@@ -1216,6 +1217,7 @@ mod tests {
         assert_glyph_path_start_with(
             &font,
             MATERIAL_SYMBOL_GID_MAIL_AT_DEFAULT,
+            Size::unscaled(),
             Location::default(),
             PathStyle::FreeType,
             &[
@@ -1232,6 +1234,26 @@ mod tests {
         assert_glyph_path_start_with(
             &font,
             MATERIAL_SYMBOL_GID_MAIL_AT_DEFAULT,
+            Size::unscaled(),
+            Location::default(),
+            PathStyle::HarfBuzz,
+            &[
+                PathEl::MoveTo((160.0, -160.0).into()),
+                PathEl::QuadTo((127.0, -160.0).into(), (103.5, -183.5).into()),
+                PathEl::QuadTo((80.0, -207.0).into(), (80.0, -240.0).into()),
+            ],
+        );
+    }
+
+    /// Drawing with a PPEM that matches the UPM should be equivalent to no
+    /// scaling. Added as a failing test to reproduce a bug.
+    #[test]
+    fn draw_icon_harfbuzz_style_at_default_scaled() {
+        let font = FontRef::new(font_test_data::MATERIAL_SYMBOLS_SUBSET).unwrap();
+        assert_glyph_path_start_with(
+            &font,
+            MATERIAL_SYMBOL_GID_MAIL_AT_DEFAULT,
+            Size::new(font.head().unwrap().units_per_em() as f32),
             Location::default(),
             PathStyle::HarfBuzz,
             &[
@@ -1248,6 +1270,7 @@ mod tests {
         assert_glyph_path_start_with(
             &font,
             MATERIAL_SYMBOL_GID_MAIL_OFF_DEFAULT,
+            Size::unscaled(),
             icon_loc_off_default(&font),
             PathStyle::FreeType,
             &[
@@ -1264,6 +1287,7 @@ mod tests {
         assert_glyph_path_start_with(
             &font,
             MATERIAL_SYMBOL_GID_MAIL_OFF_DEFAULT,
+            Size::unscaled(),
             icon_loc_off_default(&font),
             PathStyle::HarfBuzz,
             &[
@@ -1284,6 +1308,7 @@ mod tests {
         assert_glyph_path_start_with(
             &font,
             GLYF_COMPONENT_GID_NON_UNIFORM_SCALE,
+            Size::unscaled(),
             Location::default(),
             PathStyle::FreeType,
             &[
@@ -1302,6 +1327,7 @@ mod tests {
         assert_glyph_path_start_with(
             &font,
             GLYF_COMPONENT_GID_NON_UNIFORM_SCALE,
+            Size::unscaled(),
             Location::default(),
             PathStyle::HarfBuzz,
             &[
@@ -1320,6 +1346,7 @@ mod tests {
         assert_glyph_path_start_with(
             &font,
             GLYF_COMPONENT_GID_SCALED_COMPONENT_OFFSET,
+            Size::unscaled(),
             Location::default(),
             PathStyle::FreeType,
             &[
@@ -1335,6 +1362,7 @@ mod tests {
         assert_glyph_path_start_with(
             &font,
             GLYF_COMPONENT_GID_NO_SCALED_COMPONENT_OFFSET,
+            Size::unscaled(),
             Location::default(),
             PathStyle::FreeType,
             &[PathEl::MoveTo((705.0, -340.0).into())],
@@ -1347,6 +1375,7 @@ mod tests {
         assert_glyph_path_start_with(
             &font,
             GLYF_COMPONENT_GID_SCALED_COMPONENT_OFFSET,
+            Size::unscaled(),
             Location::default(),
             PathStyle::HarfBuzz,
             &[
@@ -1362,6 +1391,7 @@ mod tests {
         assert_glyph_path_start_with(
             &font,
             GLYF_COMPONENT_GID_NO_SCALED_COMPONENT_OFFSET,
+            Size::unscaled(),
             Location::default(),
             PathStyle::HarfBuzz,
             &[PathEl::MoveTo((704.97, -340.0).into())],
