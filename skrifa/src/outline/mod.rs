@@ -1408,6 +1408,7 @@ mod tests {
         assert_glyph_path_start_with(
             &font,
             CUBIC_GLYPH,
+            Size::unscaled(),
             Location::default(),
             PathStyle::FreeType,
             &[
