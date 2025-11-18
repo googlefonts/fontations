@@ -461,7 +461,7 @@ target = "read-fonts/generated/generated_silf.rs"
 [[generate]]
 mode = "compile"
 source = "resources/codegen_inputs/silf.rs"
-target = "read-fonts/generated/generated_silf.rs"
+target = "write-fonts/generated/generated_silf.rs"
 
 [[generate]]
 mode = "parse"
@@ -471,7 +471,7 @@ target = "read-fonts/generated/generated_glat.rs"
 [[generate]]
 mode = "compile"
 source = "resources/codegen_inputs/glat.rs"
-target = "read-fonts/generated/generated_glat.rs"
+target = "write-fonts/generated/generated_glat.rs"
 
 [[generate]]
 mode = "parse"
@@ -481,7 +481,7 @@ target = "read-fonts/generated/generated_gloc.rs"
 [[generate]]
 mode = "compile"
 source = "resources/codegen_inputs/gloc.rs"
-target = "read-fonts/generated/generated_gloc.rs"
+target = "write-fonts/generated/generated_gloc.rs"
 
 [[generate]]
 mode = "parse"
@@ -491,7 +491,7 @@ target = "read-fonts/generated/generated_featgr.rs"
 [[generate]]
 mode = "compile"
 source = "resources/codegen_inputs/featgr.rs"
-target = "read-fonts/generated/generated_featgr.rs"
+target = "write-fonts/generated/generated_featgr.rs"
 
 [[generate]]
 mode = "parse"
@@ -501,7 +501,7 @@ target = "read-fonts/generated/generated_sill.rs"
 [[generate]]
 mode = "compile"
 source = "resources/codegen_inputs/sill.rs"
-target = "read-fonts/generated/generated_sill.rs"
+target = "write-fonts/generated/generated_sill.rs"
 
 # modules just used for testing
 [[generate]]

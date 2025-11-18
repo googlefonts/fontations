@@ -5,195 +5,543 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-pub use read_fonts::tables::featgr::FeatureFlags;
-
 /// The graphite feature table - this is similar but not identical to apple's feature table.
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Feat {
-    pub features: Vec<Feature>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct FeatMarker {
+    features_byte_len: usize,
 }
 
-impl Feat {
-    /// Construct a new `Feat`
-    pub fn new(features: Vec<Feature>) -> Self {
-        Self { features }
+impl FeatMarker {
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + MajorMinor::RAW_BYTE_LEN
+    }
+
+    pub fn num_features_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn _padding1_byte_range(&self) -> Range<usize> {
+        let start = self.num_features_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn _padding2_byte_range(&self) -> Range<usize> {
+        let start = self._padding1_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn features_byte_range(&self) -> Range<usize> {
+        let start = self._padding2_byte_range().end;
+        start..start + self.features_byte_len
     }
 }
 
-impl FontWrite for Feat {
-    #[allow(clippy::unnecessary_cast)]
-    fn write_into(&self, writer: &mut TableWriter) {
-        let version = self.compute_version() as MajorMinor;
-        version.write_into(writer);
-        (u16::try_from(array_len(&self.features)).unwrap()).write_into(writer);
-        (0 as u16).write_into(writer);
-        (0 as u32).write_into(writer);
-        self.features.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::TopLevel(Feat::TAG)
+impl MinByteRange for FeatMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.features_byte_range().end
     }
 }
 
-impl Validate for Feat {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("Feat", |ctx| {
-            ctx.in_field("features", |ctx| {
-                if self.features.len() > (u16::MAX as usize) {
-                    ctx.report("array exceeds max length");
-                }
-                self.features.validate_impl(ctx);
-            });
-        })
-    }
-}
-
-impl TopLevelTable for Feat {
+impl TopLevelTable for Feat<'_> {
+    /// `Feat`
     const TAG: Tag = Tag::new(b"Feat");
 }
 
-impl<'a> FromObjRef<read_fonts::tables::featgr::Feat<'a>> for Feat {
-    fn from_obj_ref(obj: &read_fonts::tables::featgr::Feat<'a>, _: FontData) -> Self {
-        let offset_data = obj.offset_data();
-        Feat {
-            features: obj.features().to_owned_obj(offset_data),
+impl<'a> FontRead<'a> for Feat<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let version: MajorMinor = cursor.read()?;
+        let num_features: u16 = cursor.read()?;
+        cursor.advance::<u16>();
+        cursor.advance::<u32>();
+        let features_byte_len = (num_features as usize)
+            .checked_mul(Feature::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        cursor.advance_by(features_byte_len);
+        cursor.finish(FeatMarker { features_byte_len })
+    }
+}
+
+/// The graphite feature table - this is similar but not identical to apple's feature table.
+pub type Feat<'a> = TableRef<'a, FeatMarker>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Feat<'a> {
+    /// (major, minor) Version for the Feat table
+    pub fn version(&self) -> MajorMinor {
+        let range = self.shape.version_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn num_features(&self) -> u16 {
+        let range = self.shape.num_features_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn features(&self) -> &'a [Feature] {
+        let range = self.shape.features_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for Feat<'a> {
+    fn type_name(&self) -> &str {
+        "Feat"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let version = self.version();
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new("num_features", self.num_features())),
+            2usize => Some(Field::new(
+                "features",
+                traversal::FieldType::array_of_records(
+                    stringify!(Feature),
+                    self.features(),
+                    self.offset_data(),
+                ),
+            )),
+            _ => None,
         }
     }
 }
 
+#[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a> FromTableRef<read_fonts::tables::featgr::Feat<'a>> for Feat {}
-
-impl<'a> FontRead<'a> for Feat {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::tables::featgr::Feat as FontRead>::read(data).map(|x| x.to_owned_table())
+impl<'a> std::fmt::Debug for Feat<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
 pub struct Feature {
-    pub feat_id: Option<u32>,
-    pub feat_id: Option<u16>,
-    pub settings: OffsetMarker<Vec<Setting>, WIDTH_32>,
-    pub flags: FeatureFlags,
-    pub name_idx: NameId,
+    pub feat_id: BigEndian<u32>,
+    pub feat_id: BigEndian<u16>,
+    pub num_settings: BigEndian<u16>,
+    pub _padding: BigEndian<u16>,
+    pub settings_offset: BigEndian<Offset32>,
+    pub flags: BigEndian<FeatureFlags>,
+    pub name_idx: BigEndian<NameId>,
 }
 
 impl Feature {
-    /// Construct a new `Feature`
-    pub fn new(settings: Vec<Setting>, flags: FeatureFlags, name_idx: NameId) -> Self {
-        Self {
-            settings: settings.into(),
-            flags,
-            name_idx,
-            ..Default::default()
+    pub fn feat_id(&self) -> u32 {
+        self.feat_id.get()
+    }
+
+    pub fn feat_id(&self) -> u16 {
+        self.feat_id.get()
+    }
+
+    pub fn num_settings(&self) -> u16 {
+        self.num_settings.get()
+    }
+
+    pub fn settings_offset(&self) -> Offset32 {
+        self.settings_offset.get()
+    }
+
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn settings<'a>(&self, data: FontData<'a>) -> Result<&'a [Setting], ReadError> {
+        let args = self.num_settings();
+        self.settings_offset().resolve_with_args(data, &args)
+    }
+
+    pub fn flags(&self) -> FeatureFlags {
+        self.flags.get()
+    }
+
+    pub fn name_idx(&self) -> NameId {
+        self.name_idx.get()
+    }
+}
+
+impl FixedSize for Feature {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + FeatureFlags::RAW_BYTE_LEN
+        + NameId::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for Feature {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "Feature",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize if version.compatible(3u16) => {
+                    Some(Field::new("feat_id", self.feat_id().unwrap()))
+                }
+                1usize if !version.compatible(3u16) => {
+                    Some(Field::new("feat_id", self.feat_id().unwrap()))
+                }
+                2usize => Some(Field::new("num_settings", self.num_settings())),
+                3usize => Some(Field::new(
+                    "settings_offset",
+                    traversal::FieldType::offset_to_array_of_records(
+                        self.settings_offset(),
+                        self.settings(_data),
+                        stringify!(Setting),
+                        _data,
+                    ),
+                )),
+                4usize => Some(Field::new("flags", self.flags())),
+                5usize => Some(Field::new("name_idx", self.name_idx())),
+                _ => None,
+            }),
+            data,
         }
     }
 }
 
-impl FontWrite for Feature {
-    #[allow(clippy::unnecessary_cast)]
-    fn write_into(&self, writer: &mut TableWriter) {
-        version.compatible(3u16).then(|| {
-            self.feat_id
-                .as_ref()
-                .expect("missing conditional field should have failed validation")
-                .write_into(writer)
-        });
-        !version.compatible(3u16).then(|| {
-            self.feat_id
-                .as_ref()
-                .expect("missing conditional field should have failed validation")
-                .write_into(writer)
-        });
-        (u16::try_from(array_len(&self.settings)).unwrap()).write_into(writer);
-        version
-            .compatible(2u16)
-            .then(|| (0 as u16).write_into(writer));
-        self.settings.write_into(writer);
-        self.flags.write_into(writer);
-        self.name_idx.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::Named("Feature")
-    }
-}
-
-impl Validate for Feature {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("Feature", |ctx| {
-            ctx.in_field("feat_id", |ctx| {
-                if version.compatible(3u16) && self.feat_id.is_none() {
-                    ctx.report(format!("field must be present for version {version}"));
-                }
-            });
-            ctx.in_field("feat_id", |ctx| {
-                if !version.compatible(3u16) && self.feat_id.is_none() {
-                    ctx.report(format!("field must be present for version {version}"));
-                }
-            });
-            ctx.in_field("settings", |ctx| {
-                self.settings.validate_impl(ctx);
-            });
-        })
-    }
-}
-
-impl FromObjRef<read_fonts::tables::featgr::Feature> for Feature {
-    fn from_obj_ref(obj: &read_fonts::tables::featgr::Feature, offset_data: FontData) -> Self {
-        Feature {
-            feat_id: obj.feat_id(),
-            feat_id: obj.feat_id(),
-            settings: obj.settings(offset_data).to_owned_obj(offset_data),
-            flags: obj.flags(),
-            name_idx: obj.name_idx(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
 pub struct Setting {
-    pub feature_id: u32,
-    pub value: u16,
+    pub feature_id: BigEndian<u32>,
+    pub value: BigEndian<u16>,
+    pub _padding: BigEndian<u16>,
 }
 
 impl Setting {
-    /// Construct a new `Setting`
-    pub fn new(feature_id: u32, value: u16) -> Self {
-        Self { feature_id, value }
+    pub fn feature_id(&self) -> u32 {
+        self.feature_id.get()
+    }
+
+    pub fn value(&self) -> u16 {
+        self.value.get()
     }
 }
 
-impl FontWrite for Setting {
-    #[allow(clippy::unnecessary_cast)]
-    fn write_into(&self, writer: &mut TableWriter) {
-        self.feature_id.write_into(writer);
-        self.value.write_into(writer);
-        (0 as u16).write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::Named("Setting")
-    }
+impl FixedSize for Setting {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-impl Validate for Setting {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
-}
-
-impl FromObjRef<read_fonts::tables::featgr::Setting> for Setting {
-    fn from_obj_ref(obj: &read_fonts::tables::featgr::Setting, _: FontData) -> Self {
-        Setting {
-            feature_id: obj.feature_id(),
-            value: obj.value(),
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for Setting {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "Setting",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("feature_id", self.feature_id())),
+                1usize => Some(Field::new("value", self.value())),
+                _ => None,
+            }),
+            data,
         }
     }
 }
 
-impl FontWrite for FeatureFlags {
-    fn write_into(&self, writer: &mut TableWriter) {
-        writer.write_slice(&self.bits().to_be_bytes())
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
+pub struct FeatureFlags {
+    bits: u16,
+}
+
+impl FeatureFlags {
+    pub const HIDDEN: Self = Self { bits: 0x0800 };
+
+    pub const EXCLUSIVE: Self = Self { bits: 0x8000 };
+}
+
+impl FeatureFlags {
+    ///  Returns an empty set of flags.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self { bits: 0 }
+    }
+
+    /// Returns the set containing all flags.
+    #[inline]
+    pub const fn all() -> Self {
+        Self {
+            bits: Self::HIDDEN.bits | Self::EXCLUSIVE.bits,
+        }
+    }
+
+    /// Returns the raw value of the flags currently stored.
+    #[inline]
+    pub const fn bits(&self) -> u16 {
+        self.bits
+    }
+
+    /// Convert from underlying bit representation, unless that
+    /// representation contains bits that do not correspond to a flag.
+    #[inline]
+    pub const fn from_bits(bits: u16) -> Option<Self> {
+        if (bits & !Self::all().bits()) == 0 {
+            Some(Self { bits })
+        } else {
+            None
+        }
+    }
+
+    /// Convert from underlying bit representation, dropping any bits
+    /// that do not correspond to flags.
+    #[inline]
+    pub const fn from_bits_truncate(bits: u16) -> Self {
+        Self {
+            bits: bits & Self::all().bits,
+        }
+    }
+
+    /// Returns `true` if no flags are currently stored.
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.bits() == Self::empty().bits()
+    }
+
+    /// Returns `true` if there are flags common to both `self` and `other`.
+    #[inline]
+    pub const fn intersects(&self, other: Self) -> bool {
+        !(Self {
+            bits: self.bits & other.bits,
+        })
+        .is_empty()
+    }
+
+    /// Returns `true` if all of the flags in `other` are contained within `self`.
+    #[inline]
+    pub const fn contains(&self, other: Self) -> bool {
+        (self.bits & other.bits) == other.bits
+    }
+
+    /// Inserts the specified flags in-place.
+    #[inline]
+    pub fn insert(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+
+    /// Removes the specified flags in-place.
+    #[inline]
+    pub fn remove(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+
+    /// Toggles the specified flags in-place.
+    #[inline]
+    pub fn toggle(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+
+    /// Returns the intersection between the flags in `self` and
+    /// `other`.
+    ///
+    /// Specifically, the returned set contains only the flags which are
+    /// present in *both* `self` *and* `other`.
+    ///
+    /// This is equivalent to using the `&` operator (e.g.
+    /// [`ops::BitAnd`]), as in `flags & other`.
+    ///
+    /// [`ops::BitAnd`]: https://doc.rust-lang.org/std/ops/trait.BitAnd.html
+    #[inline]
+    #[must_use]
+    pub const fn intersection(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+
+    /// Returns the union of between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags which are
+    /// present in *either* `self` *or* `other`, including any which are
+    /// present in both.
+    ///
+    /// This is equivalent to using the `|` operator (e.g.
+    /// [`ops::BitOr`]), as in `flags | other`.
+    ///
+    /// [`ops::BitOr`]: https://doc.rust-lang.org/std/ops/trait.BitOr.html
+    #[inline]
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+
+    /// Returns the difference between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags present in
+    /// `self`, except for the ones present in `other`.
+    ///
+    /// It is also conceptually equivalent to the "bit-clear" operation:
+    /// `flags & !other` (and this syntax is also supported).
+    ///
+    /// This is equivalent to using the `-` operator (e.g.
+    /// [`ops::Sub`]), as in `flags - other`.
+    ///
+    /// [`ops::Sub`]: https://doc.rust-lang.org/std/ops/trait.Sub.html
+    #[inline]
+    #[must_use]
+    pub const fn difference(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOr for FeatureFlags {
+    type Output = Self;
+
+    /// Returns the union of the two sets of flags.
+    #[inline]
+    fn bitor(self, other: FeatureFlags) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOrAssign for FeatureFlags {
+    /// Adds the set of flags.
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+}
+
+impl std::ops::BitXor for FeatureFlags {
+    type Output = Self;
+
+    /// Returns the left flags, but with all the right flags toggled.
+    #[inline]
+    fn bitxor(self, other: Self) -> Self {
+        Self {
+            bits: self.bits ^ other.bits,
+        }
+    }
+}
+
+impl std::ops::BitXorAssign for FeatureFlags {
+    /// Toggles the set of flags.
+    #[inline]
+    fn bitxor_assign(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+}
+
+impl std::ops::BitAnd for FeatureFlags {
+    type Output = Self;
+
+    /// Returns the intersection between the two sets of flags.
+    #[inline]
+    fn bitand(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+}
+
+impl std::ops::BitAndAssign for FeatureFlags {
+    /// Disables all flags disabled in the set.
+    #[inline]
+    fn bitand_assign(&mut self, other: Self) {
+        self.bits &= other.bits;
+    }
+}
+
+impl std::ops::Sub for FeatureFlags {
+    type Output = Self;
+
+    /// Returns the set difference of the two sets of flags.
+    #[inline]
+    fn sub(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::SubAssign for FeatureFlags {
+    /// Disables all flags enabled in the set.
+    #[inline]
+    fn sub_assign(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+}
+
+impl std::ops::Not for FeatureFlags {
+    type Output = Self;
+
+    /// Returns the complement of this set of flags.
+    #[inline]
+    fn not(self) -> Self {
+        Self { bits: !self.bits } & Self::all()
+    }
+}
+
+impl std::fmt::Debug for FeatureFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let members: &[(&str, Self)] = &[("HIDDEN", Self::HIDDEN), ("EXCLUSIVE", Self::EXCLUSIVE)];
+        let mut first = true;
+        for (name, value) in members {
+            if self.contains(*value) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str(name)?;
+            }
+        }
+        if first {
+            f.write_str("(empty)")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Binary for FeatureFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Binary::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::Octal for FeatureFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Octal::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::LowerHex for FeatureFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::LowerHex::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::UpperHex for FeatureFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::UpperHex::fmt(&self.bits, f)
+    }
+}
+
+impl font_types::Scalar for FeatureFlags {
+    type Raw = <u16 as font_types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        self.bits().to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u16>::from_raw(raw);
+        Self::from_bits_truncate(t)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> From<FeatureFlags> for FieldType<'a> {
+    fn from(src: FeatureFlags) -> FieldType<'a> {
+        src.bits().into()
     }
 }

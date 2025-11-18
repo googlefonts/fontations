@@ -5,170 +5,236 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Sill {
-    /// A power of two > num_langs
-    pub next_power_of_two: u16,
-    /// Rounded base-2 log of num_langs
-    pub log: u16,
-    /// Difference between next_power_of_two and num_langs
-    pub power_diff: i16,
-    pub languages: Vec<Language>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct SillMarker {
+    languages_byte_len: usize,
 }
 
-impl Sill {
-    /// Construct a new `Sill`
-    pub fn new(
-        next_power_of_two: u16,
-        log: u16,
-        power_diff: i16,
-        languages: Vec<Language>,
-    ) -> Self {
-        Self {
-            next_power_of_two,
-            log,
-            power_diff,
-            languages,
-        }
+impl SillMarker {
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + MajorMinor::RAW_BYTE_LEN
+    }
+
+    pub fn num_langs_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn next_power_of_two_byte_range(&self) -> Range<usize> {
+        let start = self.num_langs_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn log_byte_range(&self) -> Range<usize> {
+        let start = self.next_power_of_two_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn power_diff_byte_range(&self) -> Range<usize> {
+        let start = self.log_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn languages_byte_range(&self) -> Range<usize> {
+        let start = self.power_diff_byte_range().end;
+        start..start + self.languages_byte_len
     }
 }
 
-impl FontWrite for Sill {
-    #[allow(clippy::unnecessary_cast)]
-    fn write_into(&self, writer: &mut TableWriter) {
-        let version = self.compute_version() as MajorMinor;
-        version.write_into(writer);
-        (u16::try_from(array_len(&self.languages)).unwrap()).write_into(writer);
-        self.next_power_of_two.write_into(writer);
-        self.log.write_into(writer);
-        self.power_diff.write_into(writer);
-        self.languages.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::TopLevel(Sill::TAG)
+impl MinByteRange for SillMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.languages_byte_range().end
     }
 }
 
-impl Validate for Sill {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("Sill", |ctx| {
-            ctx.in_field("languages", |ctx| {
-                if self.languages.len() > (u16::MAX as usize) {
-                    ctx.report("array exceeds max length");
-                }
-                self.languages.validate_impl(ctx);
-            });
-        })
-    }
-}
-
-impl TopLevelTable for Sill {
+impl TopLevelTable for Sill<'_> {
+    /// `Sill`
     const TAG: Tag = Tag::new(b"Sill");
 }
 
-impl<'a> FromObjRef<read_fonts::tables::sill::Sill<'a>> for Sill {
-    fn from_obj_ref(obj: &read_fonts::tables::sill::Sill<'a>, _: FontData) -> Self {
-        let offset_data = obj.offset_data();
-        Sill {
-            next_power_of_two: obj.next_power_of_two(),
-            log: obj.log(),
-            power_diff: obj.power_diff(),
-            languages: obj.languages().to_owned_obj(offset_data),
+impl<'a> FontRead<'a> for Sill<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let version: MajorMinor = cursor.read()?;
+        let num_langs: u16 = cursor.read()?;
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<i16>();
+        let languages_byte_len = (num_langs as usize)
+            .checked_mul(Language::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        cursor.advance_by(languages_byte_len);
+        cursor.finish(SillMarker { languages_byte_len })
+    }
+}
+
+pub type Sill<'a> = TableRef<'a, SillMarker>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Sill<'a> {
+    /// (major, minor) Version for the Sill table
+    pub fn version(&self) -> MajorMinor {
+        let range = self.shape.version_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn num_langs(&self) -> u16 {
+        let range = self.shape.num_langs_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// A power of two > num_langs
+    pub fn next_power_of_two(&self) -> u16 {
+        let range = self.shape.next_power_of_two_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Rounded base-2 log of num_langs
+    pub fn log(&self) -> u16 {
+        let range = self.shape.log_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Difference between next_power_of_two and num_langs
+    pub fn power_diff(&self) -> i16 {
+        let range = self.shape.power_diff_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn languages(&self) -> &'a [Language] {
+        let range = self.shape.languages_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for Sill<'a> {
+    fn type_name(&self) -> &str {
+        "Sill"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let version = self.version();
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new("num_langs", self.num_langs())),
+            2usize => Some(Field::new("next_power_of_two", self.next_power_of_two())),
+            3usize => Some(Field::new("log", self.log())),
+            4usize => Some(Field::new("power_diff", self.power_diff())),
+            5usize => Some(Field::new(
+                "languages",
+                traversal::FieldType::array_of_records(
+                    stringify!(Language),
+                    self.languages(),
+                    self.offset_data(),
+                ),
+            )),
+            _ => None,
         }
     }
 }
 
+#[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a> FromTableRef<read_fonts::tables::sill::Sill<'a>> for Sill {}
-
-impl<'a> FontRead<'a> for Sill {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::tables::sill::Sill as FontRead>::read(data).map(|x| x.to_owned_table())
+impl<'a> std::fmt::Debug for Sill<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
 pub struct Language {
-    pub language: Tag,
-    pub settings: OffsetMarker<Vec<SettingName>, WIDTH_32>,
+    pub language: BigEndian<Tag>,
+    pub num_settings: BigEndian<u16>,
+    pub settings_offset: BigEndian<Offset32>,
 }
 
 impl Language {
-    /// Construct a new `Language`
-    pub fn new(language: Tag, settings: Vec<SettingName>) -> Self {
-        Self {
-            language,
-            settings: settings.into(),
+    pub fn language(&self) -> Tag {
+        self.language.get()
+    }
+
+    pub fn num_settings(&self) -> u16 {
+        self.num_settings.get()
+    }
+
+    pub fn settings_offset(&self) -> Offset32 {
+        self.settings_offset.get()
+    }
+
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn settings<'a>(&self, data: FontData<'a>) -> Result<&'a [SettingName], ReadError> {
+        let args = self.num_settings();
+        self.settings_offset().resolve_with_args(data, &args)
+    }
+}
+
+impl FixedSize for Language {
+    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for Language {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "Language",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("language", self.language())),
+                1usize => Some(Field::new("num_settings", self.num_settings())),
+                2usize => Some(Field::new(
+                    "settings_offset",
+                    traversal::FieldType::offset_to_array_of_records(
+                        self.settings_offset(),
+                        self.settings(_data),
+                        stringify!(SettingName),
+                        _data,
+                    ),
+                )),
+                _ => None,
+            }),
+            data,
         }
     }
 }
 
-impl FontWrite for Language {
-    #[allow(clippy::unnecessary_cast)]
-    fn write_into(&self, writer: &mut TableWriter) {
-        self.language.write_into(writer);
-        (u16::try_from(array_len(&self.settings)).unwrap()).write_into(writer);
-        self.settings.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::Named("Language")
-    }
-}
-
-impl Validate for Language {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("Language", |ctx| {
-            ctx.in_field("settings", |ctx| {
-                self.settings.validate_impl(ctx);
-            });
-        })
-    }
-}
-
-impl FromObjRef<read_fonts::tables::sill::Language> for Language {
-    fn from_obj_ref(obj: &read_fonts::tables::sill::Language, offset_data: FontData) -> Self {
-        Language {
-            language: obj.language(),
-            settings: obj.settings(offset_data).to_owned_obj(offset_data),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
 pub struct SettingName {
-    pub value: u16,
-    pub name: NameId,
+    pub value: BigEndian<u16>,
+    pub name: BigEndian<NameId>,
 }
 
 impl SettingName {
-    /// Construct a new `SettingName`
-    pub fn new(value: u16, name: NameId) -> Self {
-        Self { value, name }
+    pub fn value(&self) -> u16 {
+        self.value.get()
+    }
+
+    pub fn name(&self) -> NameId {
+        self.name.get()
     }
 }
 
-impl FontWrite for SettingName {
-    fn write_into(&self, writer: &mut TableWriter) {
-        self.value.write_into(writer);
-        self.name.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::Named("SettingName")
-    }
+impl FixedSize for SettingName {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN;
 }
 
-impl Validate for SettingName {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
-}
-
-impl FromObjRef<read_fonts::tables::sill::SettingName> for SettingName {
-    fn from_obj_ref(obj: &read_fonts::tables::sill::SettingName, _: FontData) -> Self {
-        SettingName {
-            value: obj.value(),
-            name: obj.name(),
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for SettingName {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "SettingName",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("value", self.value())),
+                1usize => Some(Field::new("name", self.name())),
+                _ => None,
+            }),
+            data,
         }
     }
 }

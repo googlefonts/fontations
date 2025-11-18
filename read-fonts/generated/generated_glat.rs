@@ -5,242 +5,282 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Glat {
-    pub octaboxes: Vec<OctaBox>,
-    pub glyphs: Vec<GlyphAttrRun>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct GlatMarker {
+    output_octaboxes_byte_start: Option<usize>,
+    octaboxes_byte_len: usize,
+    glyphs_byte_len: usize,
 }
 
-impl Glat {
-    /// Construct a new `Glat`
-    pub fn new(octaboxes: Vec<OctaBox>, glyphs: Vec<GlyphAttrRun>) -> Self {
-        Self {
-            octaboxes,
-            glyphs,
-            ..Default::default()
-        }
+impl GlatMarker {
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + MajorMinor::RAW_BYTE_LEN
+    }
+
+    pub fn output_octaboxes_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.output_octaboxes_byte_start?;
+        Some(start..start + u32::RAW_BYTE_LEN)
+    }
+
+    pub fn octaboxes_byte_range(&self) -> Range<usize> {
+        let start = self
+            .output_octaboxes_byte_range()
+            .map(|range| range.end)
+            .unwrap_or_else(|| self.version_byte_range().end);
+        start..start + self.octaboxes_byte_len
+    }
+
+    pub fn glyphs_byte_range(&self) -> Range<usize> {
+        let start = self.octaboxes_byte_range().end;
+        start..start + self.glyphs_byte_len
     }
 }
 
-impl FontWrite for Glat {
-    #[allow(clippy::unnecessary_cast)]
-    fn write_into(&self, writer: &mut TableWriter) {
-        let version = self.compute_version() as MajorMinor;
-        version.write_into(writer);
+impl MinByteRange for GlatMarker {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyphs_byte_range().end
+    }
+}
+
+impl TopLevelTable for Glat<'_> {
+    /// `Glat`
+    const TAG: Tag = Tag::new(b"Glat");
+}
+
+impl ReadArgs for Glat<'_> {
+    type Args = u16;
+}
+
+impl<'a> FontReadWithArgs<'a> for Glat<'a> {
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let num_glyphs = *args;
+        let mut cursor = data.cursor();
+        let version: MajorMinor = cursor.read()?;
+        let output_octaboxes_byte_start = version
+            .compatible((3u16, 0u16))
+            .then(|| cursor.position())
+            .transpose()?;
         version
             .compatible((3u16, 0u16))
-            .then(|| (1 as u32).write_into(writer));
-        self.octaboxes.write_into(writer);
-        self.glyphs.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::TopLevel(Glat::TAG)
-    }
-}
-
-impl Validate for Glat {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("Glat", |ctx| {
-            let version: MajorMinor = self.compute_version();
-            ctx.in_field("octaboxes", |ctx| {
-                if self.octaboxes.len() > (u16::MAX as usize) {
-                    ctx.report("array exceeds max length");
-                }
-                self.octaboxes.validate_impl(ctx);
-            });
-            ctx.in_field("glyphs", |ctx| {
-                self.glyphs.validate_impl(ctx);
-            });
+            .then(|| cursor.advance::<u32>());
+        let octaboxes_byte_len = (num_glyphs as usize)
+            .checked_mul(OctaBox::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        cursor.advance_by(octaboxes_byte_len);
+        let glyphs_byte_len =
+            cursor.remaining_bytes() / GlyphAttrRun::RAW_BYTE_LEN * GlyphAttrRun::RAW_BYTE_LEN;
+        cursor.advance_by(glyphs_byte_len);
+        cursor.finish(GlatMarker {
+            output_octaboxes_byte_start,
+            octaboxes_byte_len,
+            glyphs_byte_len,
         })
     }
 }
 
-impl TopLevelTable for Glat {
-    const TAG: Tag = Tag::new(b"Glat");
+impl<'a> Glat<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
+        let args = num_glyphs;
+        Self::read_with_args(data, &args)
+    }
 }
 
-impl<'a> FromObjRef<read_fonts::tables::glat::Glat<'a>> for Glat {
-    fn from_obj_ref(obj: &read_fonts::tables::glat::Glat<'a>, _: FontData) -> Self {
-        let offset_data = obj.offset_data();
-        Glat {
-            octaboxes: obj.octaboxes().to_owned_obj(offset_data),
-            glyphs: obj.glyphs().to_owned_obj(offset_data),
+pub type Glat<'a> = TableRef<'a, GlatMarker>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Glat<'a> {
+    /// (major, minor) Version for the Glat table
+    pub fn version(&self) -> MajorMinor {
+        let range = self.shape.version_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn output_octaboxes(&self) -> Option<u32> {
+        let range = self.shape.output_octaboxes_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn octaboxes(&self) -> &'a [OctaBox] {
+        let range = self.shape.octaboxes_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    pub fn glyphs(&self) -> &'a [GlyphAttrRun] {
+        let range = self.shape.glyphs_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for Glat<'a> {
+    fn type_name(&self) -> &str {
+        "Glat"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let version = self.version();
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize if version.compatible((3u16, 0u16)) => Some(Field::new(
+                "output_octaboxes",
+                self.output_octaboxes().unwrap(),
+            )),
+            2usize => Some(Field::new(
+                "octaboxes",
+                traversal::FieldType::array_of_records(
+                    stringify!(OctaBox),
+                    self.octaboxes(),
+                    self.offset_data(),
+                ),
+            )),
+            3usize => Some(Field::new(
+                "glyphs",
+                traversal::FieldType::array_of_records(
+                    stringify!(GlyphAttrRun),
+                    self.glyphs(),
+                    self.offset_data(),
+                ),
+            )),
+            _ => None,
         }
     }
 }
 
+#[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a> FromTableRef<read_fonts::tables::glat::Glat<'a>> for Glat {}
+impl<'a> std::fmt::Debug for Glat<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct OctaBox {
-    pub bitmap: u16,
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct OctaBox<'a> {
+    pub bitmap: BigEndian<u16>,
     pub dn_min: u8,
     pub dn_max: u8,
     pub dp_min: u8,
     pub dp_max: u8,
-    pub sub_box: Vec<SubBox>,
+    pub sub_box: &'a [SubBox],
 }
 
-impl OctaBox {
-    /// Construct a new `OctaBox`
-    pub fn new(
-        bitmap: u16,
-        dn_min: u8,
-        dn_max: u8,
-        dp_min: u8,
-        dp_max: u8,
-        sub_box: Vec<SubBox>,
-    ) -> Self {
-        Self {
-            bitmap,
-            dn_min,
-            dn_max,
-            dp_min,
-            dp_max,
-            sub_box,
+impl<'a> OctaBox<'a> {
+    pub fn bitmap(&self) -> u16 {
+        self.bitmap.get()
+    }
+
+    pub fn dn_min(&self) -> u8 {
+        self.dn_min
+    }
+
+    pub fn dn_max(&self) -> u8 {
+        self.dn_max
+    }
+
+    pub fn dp_min(&self) -> u8 {
+        self.dp_min
+    }
+
+    pub fn dp_max(&self) -> u8 {
+        self.dp_max
+    }
+
+    pub fn sub_box(&self) -> &'a [SubBox] {
+        self.sub_box
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for OctaBox<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "OctaBox",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("bitmap", self.bitmap())),
+                1usize => Some(Field::new("dn_min", self.dn_min())),
+                2usize => Some(Field::new("dn_max", self.dn_max())),
+                3usize => Some(Field::new("dp_min", self.dp_min())),
+                4usize => Some(Field::new("dp_max", self.dp_max())),
+                5usize => Some(Field::new(
+                    "sub_box",
+                    traversal::FieldType::array_of_records(
+                        stringify!(SubBox),
+                        self.sub_box(),
+                        _data,
+                    ),
+                )),
+                _ => None,
+            }),
+            data,
         }
     }
 }
 
-impl FontWrite for OctaBox {
-    fn write_into(&self, writer: &mut TableWriter) {
-        self.bitmap.write_into(writer);
-        self.dn_min.write_into(writer);
-        self.dn_max.write_into(writer);
-        self.dp_min.write_into(writer);
-        self.dp_max.write_into(writer);
-        self.sub_box.write_into(writer);
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct GlyphAttrRun<'a> {
+    pub start: u8,
+    pub length: u8,
+    pub start: BigEndian<u16>,
+    pub length: BigEndian<u16>,
+    pub attrs: &'a [BigEndian<u16>],
+}
+
+impl<'a> GlyphAttrRun<'a> {
+    pub fn start(&self) -> u8 {
+        self.start
     }
-    fn table_type(&self) -> TableType {
-        TableType::Named("OctaBox")
+
+    pub fn length(&self) -> u8 {
+        self.length
+    }
+
+    pub fn start(&self) -> u16 {
+        self.start.get()
+    }
+
+    pub fn length(&self) -> u16 {
+        self.length.get()
+    }
+
+    pub fn attrs(&self) -> &'a [BigEndian<u16>] {
+        self.attrs
     }
 }
 
-impl Validate for OctaBox {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("OctaBox", |ctx| {
-            ctx.in_field("sub_box", |ctx| {
-                self.sub_box.validate_impl(ctx);
-            });
-        })
-    }
-}
-
-impl FromObjRef<read_fonts::tables::glat::OctaBox<'_>> for OctaBox {
-    fn from_obj_ref(obj: &read_fonts::tables::glat::OctaBox, offset_data: FontData) -> Self {
-        OctaBox {
-            bitmap: obj.bitmap(),
-            dn_min: obj.dn_min(),
-            dn_max: obj.dn_max(),
-            dp_min: obj.dp_min(),
-            dp_max: obj.dp_max(),
-            sub_box: obj.sub_box().to_owned_obj(offset_data),
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for GlyphAttrRun<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "GlyphAttrRun",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize if !version.compatible(2u16) => {
+                    Some(Field::new("start", self.start().unwrap()))
+                }
+                1usize if !version.compatible(2u16) => {
+                    Some(Field::new("length", self.length().unwrap()))
+                }
+                2usize if version.compatible(2u16) => {
+                    Some(Field::new("start", self.start().unwrap()))
+                }
+                3usize if version.compatible(2u16) => {
+                    Some(Field::new("length", self.length().unwrap()))
+                }
+                4usize => Some(Field::new("attrs", self.attrs())),
+                _ => None,
+            }),
+            data,
         }
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct GlyphAttrRun {
-    pub start: Option<u8>,
-    pub length: Option<u8>,
-    pub start: Option<u16>,
-    pub length: Option<u16>,
-    pub attrs: Vec<u16>,
-}
-
-impl GlyphAttrRun {
-    /// Construct a new `GlyphAttrRun`
-    pub fn new(attrs: Vec<u16>) -> Self {
-        Self {
-            attrs,
-            ..Default::default()
-        }
-    }
-}
-
-impl FontWrite for GlyphAttrRun {
-    fn write_into(&self, writer: &mut TableWriter) {
-        !version.compatible(2u16).then(|| {
-            self.start
-                .as_ref()
-                .expect("missing conditional field should have failed validation")
-                .write_into(writer)
-        });
-        !version.compatible(2u16).then(|| {
-            self.length
-                .as_ref()
-                .expect("missing conditional field should have failed validation")
-                .write_into(writer)
-        });
-        version.compatible(2u16).then(|| {
-            self.start
-                .as_ref()
-                .expect("missing conditional field should have failed validation")
-                .write_into(writer)
-        });
-        version.compatible(2u16).then(|| {
-            self.length
-                .as_ref()
-                .expect("missing conditional field should have failed validation")
-                .write_into(writer)
-        });
-        self.attrs.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::Named("GlyphAttrRun")
-    }
-}
-
-impl Validate for GlyphAttrRun {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("GlyphAttrRun", |ctx| {
-            ctx.in_field("start", |ctx| {
-                if !version.compatible(2u16) && self.start.is_none() {
-                    ctx.report(format!("field must be present for version {version}"));
-                }
-            });
-            ctx.in_field("length", |ctx| {
-                if !version.compatible(2u16) && self.length.is_none() {
-                    ctx.report(format!("field must be present for version {version}"));
-                }
-            });
-            ctx.in_field("start", |ctx| {
-                if version.compatible(2u16) && self.start.is_none() {
-                    ctx.report(format!("field must be present for version {version}"));
-                }
-            });
-            ctx.in_field("length", |ctx| {
-                if version.compatible(2u16) && self.length.is_none() {
-                    ctx.report(format!("field must be present for version {version}"));
-                }
-            });
-            ctx.in_field("attrs", |ctx| {
-                if self.attrs.len() > (u8::MAX as usize) {
-                    ctx.report("array exceeds max length");
-                }
-            });
-        })
-    }
-}
-
-impl FromObjRef<read_fonts::tables::glat::GlyphAttrRun<'_>> for GlyphAttrRun {
-    fn from_obj_ref(obj: &read_fonts::tables::glat::GlyphAttrRun, offset_data: FontData) -> Self {
-        GlyphAttrRun {
-            start: obj.start(),
-            length: obj.length(),
-            start: obj.start(),
-            length: obj.length(),
-            attrs: obj.attrs().to_owned_obj(offset_data),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
 pub struct SubBox {
     pub left: u8,
     pub right: u8,
@@ -253,62 +293,67 @@ pub struct SubBox {
 }
 
 impl SubBox {
-    /// Construct a new `SubBox`
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        left: u8,
-        right: u8,
-        bottom: u8,
-        top: u8,
-        dn_min: u8,
-        dn_max: u8,
-        dp_min: u8,
-        dp_max: u8,
-    ) -> Self {
-        Self {
-            left,
-            right,
-            bottom,
-            top,
-            dn_min,
-            dn_max,
-            dp_min,
-            dp_max,
-        }
+    pub fn left(&self) -> u8 {
+        self.left
+    }
+
+    pub fn right(&self) -> u8 {
+        self.right
+    }
+
+    pub fn bottom(&self) -> u8 {
+        self.bottom
+    }
+
+    pub fn top(&self) -> u8 {
+        self.top
+    }
+
+    pub fn dn_min(&self) -> u8 {
+        self.dn_min
+    }
+
+    pub fn dn_max(&self) -> u8 {
+        self.dn_max
+    }
+
+    pub fn dp_min(&self) -> u8 {
+        self.dp_min
+    }
+
+    pub fn dp_max(&self) -> u8 {
+        self.dp_max
     }
 }
 
-impl FontWrite for SubBox {
-    fn write_into(&self, writer: &mut TableWriter) {
-        self.left.write_into(writer);
-        self.right.write_into(writer);
-        self.bottom.write_into(writer);
-        self.top.write_into(writer);
-        self.dn_min.write_into(writer);
-        self.dn_max.write_into(writer);
-        self.dp_min.write_into(writer);
-        self.dp_max.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::Named("SubBox")
-    }
+impl FixedSize for SubBox {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN;
 }
 
-impl Validate for SubBox {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
-}
-
-impl FromObjRef<read_fonts::tables::glat::SubBox> for SubBox {
-    fn from_obj_ref(obj: &read_fonts::tables::glat::SubBox, _: FontData) -> Self {
-        SubBox {
-            left: obj.left(),
-            right: obj.right(),
-            bottom: obj.bottom(),
-            top: obj.top(),
-            dn_min: obj.dn_min(),
-            dn_max: obj.dn_max(),
-            dp_min: obj.dp_min(),
-            dp_max: obj.dp_max(),
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for SubBox {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "SubBox",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("left", self.left())),
+                1usize => Some(Field::new("right", self.right())),
+                2usize => Some(Field::new("bottom", self.bottom())),
+                3usize => Some(Field::new("top", self.top())),
+                4usize => Some(Field::new("dn_min", self.dn_min())),
+                5usize => Some(Field::new("dn_max", self.dn_max())),
+                6usize => Some(Field::new("dp_min", self.dp_min())),
+                7usize => Some(Field::new("dp_max", self.dp_max())),
+                _ => None,
+            }),
+            data,
         }
     }
 }
