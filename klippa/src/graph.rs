@@ -8,42 +8,24 @@ use crate::{
 use fnv::FnvHashMap;
 use write_fonts::{read::collections::IntSet, types::Uint24};
 
+mod coverage_graph;
 pub(crate) mod layout;
+pub(crate) mod ligature_graph;
 
-#[derive(Debug, Copy, Clone, PartialEq, Default)]
-pub(crate) struct RepackErrorFlags(u32);
-
-impl RepackErrorFlags {
-    pub(crate) const ERROR_NONE: Self = Self(0x0000);
-    pub(crate) const GRAPH_ERROR_ORPHANED_NODES: Self = Self(0x0001);
-    pub(crate) const GRAPH_ERROR_INVALID_OBJ_INDEX: Self = Self(0x0002);
-    pub(crate) const GRAPH_ERROR_INVALID_LINK_POSITION: Self = Self(0x0004);
-    pub(crate) const GRAPH_ERROR_CYCLE_DETECTED: Self = Self(0x0008);
-    #[allow(dead_code)]
-    pub(crate) const GRAPH_ERROR_INVALID_ROOT: Self = Self(0x0010);
-    pub(crate) const REPACK_ERROR_SERIALIZE: Self = Self(0x0020);
-    #[allow(dead_code)]
-    pub(crate) const REPACK_ERROR_SPLIT_SUBTABLE: Self = Self(0x0040);
-    #[allow(dead_code)]
-    pub(crate) const REPACK_ERROR_EXT_PROMOTION: Self = Self(0x0080);
-    #[allow(dead_code)]
-    pub(crate) const REPACK_ERROR_NO_RESOLUTION: Self = Self(0x0100);
-}
-
-impl std::ops::BitOrAssign for RepackErrorFlags {
-    /// Adds the set of flags.
-    #[inline]
-    fn bitor_assign(&mut self, other: Self) {
-        self.0 |= other.0;
-    }
-}
-
-impl std::ops::Not for RepackErrorFlags {
-    type Output = bool;
-    #[inline]
-    fn not(self) -> bool {
-        self == RepackErrorFlags::ERROR_NONE
-    }
+#[derive(Default, Debug, PartialEq)]
+pub(crate) enum RepackErrorFlags {
+    #[default]
+    GraphErrorNone,
+    GraphErrorOrphanedNodes,
+    GraphErrorInvalidObjIndex,
+    GraphErrorInvalidLinkPosition,
+    GraphErrorCycleDetected,
+    GraphErrorInvalidRoot,
+    GraphErrorInvalidVertex,
+    RepackErrorSerialize,
+    RepackErrorReadTable,
+    RepackErrorSplitSubtable,
+    RepackErrorNoResolution,
 }
 
 pub(crate) struct Overflow(u64);
@@ -90,6 +72,18 @@ impl Vertex {
         }
     }
 
+    fn duplicate(other_v: &Vertex) -> Self {
+        Self {
+            head: other_v.head,
+            tail: other_v.tail,
+            real_links: other_v.real_links.clone(),
+            virtual_links: other_v.virtual_links.clone(),
+            distance: other_v.distance,
+            space: other_v.space,
+            ..Default::default()
+        }
+    }
+
     pub(crate) fn table_size(&self) -> usize {
         self.tail - self.head
     }
@@ -110,13 +104,18 @@ impl Vertex {
         self.incoming_edges += 1;
     }
 
-    fn remove_parent(&mut self, parent_idx: ObjIdx) {
+    fn remove_parent(&mut self, parent_idx: ObjIdx, remove_all_edges: bool) {
         let Some(num_edges) = self.parents.get_mut(&parent_idx) else {
             return;
         };
 
-        self.incoming_edges -= 1;
-        if *num_edges > 1 {
+        if remove_all_edges {
+            self.incoming_edges -= *num_edges as usize;
+        } else {
+            self.incoming_edges -= 1;
+        }
+
+        if *num_edges > 1 && !remove_all_edges {
             *num_edges -= 1;
         } else {
             self.parents.remove(&parent_idx);
@@ -213,13 +212,29 @@ impl Vertex {
         }
     }
 
-    pub(crate) fn add_link(&mut self, width: LinkWidth, child_idx: ObjIdx, position: u32) {
+    pub(crate) fn add_link(
+        &mut self,
+        width: LinkWidth,
+        child_idx: ObjIdx,
+        position: u32,
+        is_virtual: bool,
+    ) {
         let link = Link::new(width, child_idx, position);
-        self.real_links.insert(position, link);
+        if is_virtual {
+            self.virtual_links.push(link);
+        } else {
+            self.real_links.insert(position, link);
+        }
     }
 
     pub(crate) fn child_idxes(&self) -> Vec<ObjIdx> {
         self.real_links.values().map(|l| l.obj_idx()).collect()
+    }
+
+    pub(crate) fn remap_child(&mut self, pos: u32, new_child_idx: ObjIdx) {
+        self.real_links
+            .entry(pos)
+            .and_modify(|l| l.update_obj_idx(new_child_idx));
     }
 }
 
@@ -252,7 +267,6 @@ pub(crate) struct Graph {
     parents_invalid: bool,
     distance_invalid: bool,
     positions_invalid: bool,
-    errors: RepackErrorFlags,
 }
 
 impl Graph {
@@ -274,11 +288,11 @@ impl Graph {
         for obj_idx in packed_obj_idxs.iter() {
             let obj = s
                 .get_obj(*obj_idx)
-                .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+                .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
 
             let v = Vertex::from_object(obj);
             if !v.link_positions_valid(count) {
-                return Err(RepackErrorFlags::GRAPH_ERROR_INVALID_LINK_POSITION);
+                return Err(RepackErrorFlags::GraphErrorInvalidLinkPosition);
             }
             this.vertices.push(v);
         }
@@ -291,19 +305,24 @@ impl Graph {
         Ok(this)
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn in_error(&self) -> bool {
-        !!self.errors
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn error(&self) -> RepackErrorFlags {
-        self.errors
-    }
-
     pub(crate) fn vertex(&self, obj_idx: ObjIdx) -> Option<&Vertex> {
         self.vertices.get(obj_idx)
     }
+
+    fn mut_vertex(&mut self, obj_idx: ObjIdx) -> Option<&mut Vertex> {
+        self.vertices.get_mut(obj_idx)
+    }
+
+    fn vertex_data(&self, obj_idx: ObjIdx) -> Option<&[u8]> {
+        let v = self.vertex(obj_idx)?;
+        self.data.get(v.head..v.tail)
+    }
+
+    fn vertex_data_mut(&mut self, obj_idx: ObjIdx) -> Option<&mut [u8]> {
+        let v = self.vertices.get(obj_idx)?;
+        self.data.get_mut(v.head..v.tail)
+    }
+
     // Generates a new topological sorting of graph ordered by the shortest
     // distance to each node if positions are marked as invalid.
     pub(crate) fn sort_shortest_distance_if_needed(&mut self) -> Result<(), RepackErrorFlags> {
@@ -339,7 +358,7 @@ impl Graph {
         while let Some((_, next_id)) = queue.pop() {
             if pos >= v_count {
                 // we're out of ids, meaning we've visited the same node more than once
-                return Err(self.set_err(RepackErrorFlags::GRAPH_ERROR_CYCLE_DETECTED));
+                return Err(RepackErrorFlags::GraphErrorCycleDetected);
             }
             new_ordering[pos] = next_id;
             pos += 1;
@@ -363,7 +382,7 @@ impl Graph {
 
         std::mem::swap(&mut self.ordering, new_ordering);
         if pos != v_count {
-            return Err(self.set_err(RepackErrorFlags::GRAPH_ERROR_ORPHANED_NODES));
+            return Err(RepackErrorFlags::GraphErrorOrphanedNodes);
             //TODO: add print_orphaned_nodes()
         }
         Ok(())
@@ -400,14 +419,14 @@ impl Graph {
 
             for child_idx in &real_links_idxes {
                 let Some(v) = self.vertices.get_mut(*child_idx) else {
-                    return Err(self.set_err(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX));
+                    return Err(RepackErrorFlags::GraphErrorInvalidObjIndex);
                 };
                 v.add_parent(idx, false);
             }
 
             for child_idx in &virtual_links_idxes {
                 let Some(v) = self.vertices.get_mut(*child_idx) else {
-                    return Err(self.set_err(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX));
+                    return Err(RepackErrorFlags::GraphErrorInvalidObjIndex);
                 };
                 v.add_parent(idx, true);
             }
@@ -476,16 +495,11 @@ impl Graph {
         }
 
         if !queue.is_empty() {
-            return Err(self.set_err(RepackErrorFlags::GRAPH_ERROR_ORPHANED_NODES));
+            return Err(RepackErrorFlags::GraphErrorOrphanedNodes);
         }
 
         self.distance_invalid = false;
         Ok(())
-    }
-
-    fn set_err(&mut self, error_type: RepackErrorFlags) -> RepackErrorFlags {
-        self.errors |= error_type;
-        self.errors
     }
 
     pub(crate) fn root_idx(&self) -> usize {
@@ -497,7 +511,7 @@ impl Graph {
 
         // Root cannot have parents
         if self.root().incoming_edges() > 0 {
-            return Err(self.set_err(RepackErrorFlags::GRAPH_ERROR_INVALID_ROOT));
+            return Err(RepackErrorFlags::GraphErrorInvalidRoot);
         }
 
         let root_idx = self.root_idx();
@@ -507,7 +521,7 @@ impl Graph {
             .take(root_idx)
             .any(|v| v.incoming_edges() == 0)
         {
-            return Err(self.set_err(RepackErrorFlags::GRAPH_ERROR_ORPHANED_NODES));
+            return Err(RepackErrorFlags::GraphErrorOrphanedNodes);
         }
         Ok(())
     }
@@ -705,7 +719,7 @@ impl Graph {
                 continue;
             }
             let Some(v) = vertices.get(*i) else {
-                return Err(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX);
+                return Err(RepackErrorFlags::GraphErrorInvalidObjIndex);
             };
             for l in v.real_links.values() {
                 if l.is_signed() {
@@ -786,7 +800,7 @@ impl Graph {
         assert!(obj_idx < self.vertices.len());
         let v = self
             .vertex(obj_idx)
-            .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
         let mut size = v.table_size();
         if max_depth == 0 {
             return Ok(size);
@@ -833,7 +847,7 @@ impl Graph {
             assert!(obj_idx < len);
             // duplicate objects with incoming links from outside the subgraph.
             if *num_incoming_edges < self.vertices[obj_idx].incoming_edges() {
-                self.duplicate_subgraph(obj_idx, &mut index_map);
+                self.duplicate_subgraph(obj_idx, &mut index_map)?;
             }
         }
 
@@ -873,7 +887,7 @@ impl Graph {
         for i in it.iter() {
             let parent_idx = i as usize;
             let Some(obj) = self.vertices.get_mut(i as usize) else {
-                return Err(self.set_err(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX));
+                return Err(RepackErrorFlags::GraphErrorInvalidObjIndex);
             };
             for l in obj.real_links.values_mut() {
                 let old_idx = l.obj_idx();
@@ -920,12 +934,12 @@ impl Graph {
         let vertices = &mut self.vertices;
         for (old_idx, new_idx, parent_idx, is_virtual) in old_to_new_idx_parents {
             let Some(old_v) = vertices.get_mut(*old_idx) else {
-                return Err(self.set_err(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX));
+                return Err(RepackErrorFlags::GraphErrorInvalidObjIndex);
             };
-            old_v.remove_parent(*parent_idx);
+            old_v.remove_parent(*parent_idx, false);
 
             let Some(new_v) = vertices.get_mut(*new_idx) else {
-                return Err(self.set_err(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX));
+                return Err(RepackErrorFlags::GraphErrorInvalidObjIndex);
             };
             new_v.add_parent(*parent_idx, *is_virtual);
         }
@@ -935,12 +949,16 @@ impl Graph {
     // duplicates all nodes in the subgraph reachable from start_idx. Does not re-assign
     // links. index_map is updated with mappings from old idx to new idx.
     // If a duplication has already been performed for a given index, then it will be skipped.
-    fn duplicate_subgraph(&mut self, start_idx: ObjIdx, index_map: &mut FnvHashMap<usize, usize>) {
+    fn duplicate_subgraph(
+        &mut self,
+        start_idx: ObjIdx,
+        index_map: &mut FnvHashMap<usize, usize>,
+    ) -> Result<(), RepackErrorFlags> {
         if index_map.contains_key(&start_idx) {
-            return;
+            return Ok(());
         }
 
-        let clone_idx = self.duplicate_obj(start_idx);
+        let clone_idx = self.duplicate_vertex(start_idx)?;
         index_map.insert(start_idx, clone_idx);
 
         let start_v = &self.vertices[start_idx];
@@ -951,33 +969,41 @@ impl Graph {
             .map(|l| l.obj_idx())
             .collect();
         for idx in child_idxes {
-            self.duplicate_subgraph(idx, index_map);
+            self.duplicate_subgraph(idx, index_map)?;
         }
+        Ok(())
     }
 
-    // Creates a copy of the specified obj and returns the new obj_idx.
-    fn duplicate_obj(&mut self, obj_idx: ObjIdx) -> ObjIdx {
+    // Creates a copy of the specified vertex and returns the new vertex idx.
+    fn duplicate_vertex(&mut self, obj_idx: ObjIdx) -> Result<ObjIdx, RepackErrorFlags> {
         self.positions_invalid = true;
         self.distance_invalid = true;
 
         let clone_idx = self.vertices.len();
         self.ordering.push(clone_idx);
 
-        let new_v = self.vertices[obj_idx].clone();
+        let v = self
+            .vertex(obj_idx)
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
+        let new_v = Vertex::duplicate(v);
         let vertices = &mut self.vertices;
 
         for l in new_v.real_links.values() {
-            let child_idx = l.obj_idx();
-            vertices[child_idx].add_parent(clone_idx, false);
+            vertices
+                .get_mut(l.obj_idx())
+                .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?
+                .add_parent(clone_idx, false);
         }
 
         for l in &new_v.virtual_links {
-            let child_idx = l.obj_idx();
-            vertices[child_idx].add_parent(clone_idx, true);
+            vertices
+                .get_mut(l.obj_idx())
+                .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?
+                .add_parent(clone_idx, true);
         }
 
-        self.vertices.push(new_v);
-        clone_idx
+        vertices.push(new_v);
+        Ok(clone_idx)
     }
 
     // returns the number of incoming edges that are 24 or 32 bits wide
@@ -1048,7 +1074,7 @@ impl Graph {
 
     fn find_root_and_space(&self, obj_idx: ObjIdx) -> Result<(usize, ObjIdx), RepackErrorFlags> {
         let Some(v) = self.vertices.get(obj_idx) else {
-            return Err(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX);
+            return Err(RepackErrorFlags::GraphErrorInvalidObjIndex);
         };
         if v.space > 0 {
             return Ok((v.space as usize, obj_idx));
@@ -1093,7 +1119,6 @@ impl Graph {
     // The copy is a shallow copy, objects linked from child are not duplicated.
     // Returns the index of the newly created duplicate.
     // If the child_idx only has incoming edges from parent_idx, duplication isn't possible and this will return None
-    #[allow(dead_code)]
     fn duplicate_child(
         &mut self,
         parent_idx: ObjIdx,
@@ -1108,7 +1133,7 @@ impl Graph {
             return Ok(None);
         }
 
-        let clone_idx = self.duplicate_obj(child_idx);
+        let clone_idx = self.duplicate_vertex(child_idx)?;
         let mut old_to_new_idx_parents = Vec::new();
         for l in self.vertices[parent_idx].real_links.values_mut() {
             if l.obj_idx() != child_idx {
@@ -1157,7 +1182,7 @@ impl Graph {
             return Ok(None);
         }
 
-        let clone_idx = self.duplicate_obj(child_idx);
+        let clone_idx = self.duplicate_vertex(child_idx)?;
         let mut old_to_new_idx_parents = Vec::new();
         for parent_idx in parents.iter() {
             let parent_idx = parent_idx as usize;
@@ -1250,7 +1275,9 @@ impl Graph {
         self.distance_invalid = true;
 
         let cur_len = self.data.len();
-        self.data.resize(cur_len + size, 0);
+        if size > 0 {
+            self.data.resize(cur_len + size, 0);
+        }
 
         let new_vertex = Vertex {
             head: cur_len,
@@ -1273,6 +1300,182 @@ impl Graph {
         let v = self.vertices.get(idx)?;
         let link = v.real_links.get(&position)?;
         Some(link.obj_idx())
+    }
+
+    fn add_parent_child_link(
+        &mut self,
+        parent_idx: ObjIdx,
+        child_idx: ObjIdx,
+        width: LinkWidth,
+        position: u32,
+        is_virtual: bool,
+    ) -> Result<(), RepackErrorFlags> {
+        self.vertices
+            .get_mut(parent_idx)
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?
+            .add_link(width, child_idx, position, is_virtual);
+
+        self.vertices
+            .get_mut(child_idx)
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?
+            .add_parent(parent_idx, is_virtual);
+        Ok(())
+    }
+
+    // Moves the child of old_parent_idx pointed to by old_offset to a new vertex at the new_offset.
+    // Returns the idx of the child that was moved.
+    fn move_child(
+        &mut self,
+        old_parent_idx: ObjIdx,
+        old_offset: u32,
+        new_parent_idx: ObjIdx,
+        new_offset: u32,
+        link_width: usize,
+    ) -> Result<ObjIdx, RepackErrorFlags> {
+        self.distance_invalid = true;
+        self.positions_invalid = true;
+
+        let old_parent_v = self
+            .vertices
+            .get_mut(old_parent_idx)
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
+
+        // remove from old parent
+        let (_, link) = old_parent_v
+            .real_links
+            .remove_entry(&old_offset)
+            .ok_or(RepackErrorFlags::GraphErrorInvalidLinkPosition)?;
+
+        let child_idx = link.obj_idx();
+        let width =
+            LinkWidth::new_checked(link_width).ok_or(RepackErrorFlags::RepackErrorSplitSubtable)?;
+
+        self.vertices
+            .get_mut(new_parent_idx)
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?
+            .add_link(width, child_idx, new_offset, false);
+
+        let child_v = self
+            .vertices
+            .get_mut(child_idx)
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
+
+        child_v.remove_parent(old_parent_idx, false);
+        child_v.add_parent(new_parent_idx, false);
+        Ok(child_idx)
+    }
+
+    // Move all outgoing links in old parent that have a link position between [old_offset_start, old_offset_start + num_child * link_width)
+    // to the new parent. Links are placed serially in the new parent starting at new_offset_start.
+    fn move_children(
+        &mut self,
+        old_parent_idx: ObjIdx,
+        old_offset_start: u32,
+        new_parent_idx: ObjIdx,
+        new_offset_start: u32,
+        num_child: u32,
+        link_width: usize,
+    ) -> Result<(), RepackErrorFlags> {
+        self.distance_invalid = true;
+        self.positions_invalid = true;
+
+        let mut child_idxes = Vec::with_capacity(num_child as usize);
+
+        let old_parent_v = self
+            .vertices
+            .get_mut(old_parent_idx)
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
+
+        for i in 0..num_child as u32 {
+            let pos = old_offset_start + i * link_width as u32;
+            let (_, l) = old_parent_v
+                .real_links
+                .remove_entry(&pos)
+                .ok_or(RepackErrorFlags::GraphErrorInvalidLinkPosition)?;
+
+            child_idxes.push(l.obj_idx());
+        }
+
+        for child_idx in &child_idxes {
+            let child_v = self
+                .vertices
+                .get_mut(*child_idx)
+                .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
+
+            child_v.remove_parent(old_parent_idx, false);
+            child_v.add_parent(new_parent_idx, false);
+        }
+
+        let new_parent_v = self
+            .vertices
+            .get_mut(new_parent_idx)
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
+
+        let width =
+            LinkWidth::new_checked(link_width).ok_or(RepackErrorFlags::RepackErrorSplitSubtable)?;
+        for (i, child_idx) in child_idxes.iter().enumerate() {
+            new_parent_v.add_link(
+                width,
+                *child_idx,
+                new_offset_start + (i * link_width) as u32,
+                false,
+            );
+        }
+        Ok(())
+    }
+
+    fn update_vertex_data(
+        &mut self,
+        vertex_idx: ObjIdx,
+        data: &[u8],
+    ) -> Result<(), RepackErrorFlags> {
+        let v = self
+            .vertex(vertex_idx)
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
+
+        let data_len = data.len();
+        let table_size = v.table_size();
+        if data_len <= table_size {
+            let v = self
+                .mut_vertex(vertex_idx)
+                .ok_or(RepackErrorFlags::GraphErrorInvalidVertex)?;
+            v.tail = v.head + data_len;
+
+            self.vertex_data_mut(vertex_idx)
+                .ok_or(RepackErrorFlags::GraphErrorInvalidVertex)?
+                .copy_from_slice(data);
+        } else {
+            let head = self.data.len();
+            self.data.extend_from_slice(data);
+            let v = self
+                .mut_vertex(vertex_idx)
+                .ok_or(RepackErrorFlags::GraphErrorInvalidVertex)?;
+
+            v.head = head;
+            v.tail = head + data_len;
+        }
+        Ok(())
+    }
+
+    fn remap_child(
+        &mut self,
+        parent: ObjIdx,
+        old_child: ObjIdx,
+        new_child: ObjIdx,
+        pos: u32,
+        is_virtual: bool,
+    ) -> Result<(), RepackErrorFlags> {
+        self.mut_vertex(old_child)
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?
+            .remove_parent(parent, false);
+        self.mut_vertex(new_child)
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?
+            .add_parent(parent, is_virtual);
+
+        self.mut_vertex(parent)
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?
+            .remap_child(pos, new_child);
+        Ok(())
     }
 }
 
@@ -1389,9 +1592,9 @@ pub(crate) mod test {
         extend(s, bytes, len);
     }
 
-    pub(crate) fn add_object(s: &mut Serializer, bytes: &[u8], len: usize) -> ObjIdx {
+    pub(crate) fn add_object(s: &mut Serializer, bytes: &[u8], len: usize, shared: bool) -> ObjIdx {
         start_object(s, bytes, len);
-        s.pop_pack(false).unwrap()
+        s.pop_pack(shared).unwrap()
     }
 
     fn add_typed_offset<T: Scalar>(s: &mut Serializer, obj_idx: ObjIdx) {
@@ -1424,8 +1627,8 @@ pub(crate) mod test {
 
     fn populate_serializer_complex_2(s: &mut Serializer) {
         let _ = s.start_serialize();
-        let obj_5 = add_object(s, b"mn", 2);
-        let obj_4 = add_object(s, b"jkl", 3);
+        let obj_5 = add_object(s, b"mn", 2, false);
+        let obj_4 = add_object(s, b"jkl", 3, false);
 
         start_object(s, b"ghi", 3);
         add_offset(s, obj_4);
@@ -1446,8 +1649,8 @@ pub(crate) mod test {
 
     fn populate_serializer_complex_3(s: &mut Serializer) {
         let _ = s.start_serialize();
-        let obj_6 = add_object(s, b"opqrst", 6);
-        let obj_5 = add_object(s, b"mn", 2);
+        let obj_6 = add_object(s, b"opqrst", 6, false);
+        let obj_5 = add_object(s, b"mn", 2, false);
 
         start_object(s, b"jkl", 3);
         add_offset(s, obj_6);
@@ -1472,8 +1675,8 @@ pub(crate) mod test {
 
     fn populate_serializer_simple(s: &mut Serializer) {
         let _ = s.start_serialize();
-        let obj_1 = add_object(s, b"ghi", 3);
-        let obj_2 = add_object(s, b"def", 3);
+        let obj_1 = add_object(s, b"ghi", 3, false);
+        let obj_2 = add_object(s, b"def", 3, false);
         start_object(s, b"abc", 3);
         add_offset(s, obj_2);
         add_offset(s, obj_1);
@@ -1484,9 +1687,9 @@ pub(crate) mod test {
     pub(crate) fn populate_serializer_with_overflow(s: &mut Serializer) {
         let large_bytes = [b'a'; 50000];
         let _ = s.start_serialize();
-        let obj_1 = add_object(s, &large_bytes, 10000);
-        let obj_2 = add_object(s, &large_bytes, 20000);
-        let obj_3 = add_object(s, &large_bytes, 50000);
+        let obj_1 = add_object(s, &large_bytes, 10000, false);
+        let obj_2 = add_object(s, &large_bytes, 20000, false);
+        let obj_3 = add_object(s, &large_bytes, 50000, false);
 
         start_object(s, b"abc", 3);
         add_offset(s, obj_3);
@@ -1500,7 +1703,7 @@ pub(crate) mod test {
     pub(crate) fn populate_serializer_with_dedup_overflow(s: &mut Serializer) {
         let large_bytes = [b'a'; 70000];
         let _ = s.start_serialize();
-        let obj_1 = add_object(s, b"def", 3);
+        let obj_1 = add_object(s, b"def", 3, false);
 
         start_object(s, &large_bytes, 60000);
         add_offset(s, obj_1);
@@ -1536,12 +1739,11 @@ pub(crate) mod test {
         let mut graph = Graph::from_serializer(&a).unwrap();
         assert_eq!(graph.sort_shortest_distance(), Ok(()));
         graph.normalize();
-        assert!(!graph.in_error());
 
         // Expected graph
         let _ = e.start_serialize();
 
-        let jkl = add_object(&mut e, b"jkl", 3);
+        let jkl = add_object(&mut e, b"jkl", 3, false);
         start_object(&mut e, b"ghi", 3);
         add_offset(&mut e, jkl);
         let ghi = e.pop_pack(false).unwrap();
@@ -1550,7 +1752,7 @@ pub(crate) mod test {
         add_offset(&mut e, ghi);
         let def = e.pop_pack(false).unwrap();
 
-        let mn = add_object(&mut e, b"mn", 2);
+        let mn = add_object(&mut e, b"mn", 2, false);
 
         start_object(&mut e, b"abc", 3);
         add_offset(&mut e, def);
@@ -1607,8 +1809,8 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         e.start_serialize().unwrap();
 
-        let mn = add_object(&mut e, b"mn", 2);
-        let jkl_2 = add_object(&mut e, b"jkl", 3);
+        let mn = add_object(&mut e, b"mn", 2, false);
+        let jkl_2 = add_object(&mut e, b"jkl", 3, false);
 
         start_object(&mut e, b"ghi", 3);
         add_offset(&mut e, jkl_2);
@@ -1618,7 +1820,7 @@ pub(crate) mod test {
         add_offset(&mut e, ghi);
         let def = e.pop_pack(false).unwrap();
 
-        let jkl_1 = add_object(&mut e, b"jkl", 3);
+        let jkl_1 = add_object(&mut e, b"jkl", 3, false);
 
         start_object(&mut e, b"abc", 3);
         add_offset(&mut e, def);
@@ -1691,8 +1893,8 @@ pub(crate) mod test {
         let mut c = Serializer::new(buf_size);
 
         c.start_serialize().unwrap();
-        let obj_b = add_object(&mut c, b"b", 1);
-        let obj_c = add_object(&mut c, b"c", 1);
+        let obj_b = add_object(&mut c, b"b", 1, false);
+        let obj_c = add_object(&mut c, b"c", 1, false);
 
         start_object(&mut c, b"d", 1);
         add_virtual_offset(&mut c, obj_b);

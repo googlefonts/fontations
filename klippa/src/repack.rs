@@ -5,7 +5,8 @@ use std::cmp::Ordering;
 
 use crate::{
     graph::{
-        layout::{Lookup, EXTENSION_TABLE_SIZE},
+        layout::{ExtensionSubtable, Lookup, EXTENSION_TABLE_SIZE},
+        ligature_graph::split_ligature_subst,
         Graph, RepackErrorFlags,
     },
     serialize::{ObjIdx, Serializer},
@@ -17,7 +18,7 @@ use write_fonts::{
         tables::{gpos::Gpos, gsub::Gsub},
         TopLevelTable,
     },
-    types::Tag,
+    types::{FixedSize, Offset16, Tag},
 };
 
 //TODO: add more functionality, serialize output etc.
@@ -33,7 +34,7 @@ pub(crate) fn resolve_overflows(
 
     graph
         .serialize()
-        .map_err(|_| RepackErrorFlags::REPACK_ERROR_SERIALIZE)
+        .map_err(|_| RepackErrorFlags::RepackErrorSerialize)
 }
 
 pub(crate) fn resolve_graph_overflows(
@@ -50,7 +51,9 @@ pub(crate) fn resolve_graph_overflows(
     if tag == Gsub::TAG || tag == Gpos::TAG {
         if always_recalculate_extensions {
             let (lookup_list_idx, lookup_indices) = find_lookup_indices(graph)?;
-            promote_extensions_if_needed(graph, lookup_list_idx, &lookup_indices, tag)?;
+            let mut visited = FnvHashMap::default();
+            presplit_subtables_if_needed(graph, &tag, &lookup_indices, &mut visited)?;
+            promote_extensions_if_needed(graph, lookup_list_idx, &lookup_indices, &tag)?;
         }
         if graph.assign_spaces()? {
             graph.sort_shortest_distance()?;
@@ -80,7 +83,101 @@ pub(crate) fn resolve_graph_overflows(
         if (tag == Gsub::TAG || tag == Gpos::TAG) && !always_recalculate_extensions {
             return resolve_graph_overflows(graph, tag, max_round, true);
         }
-        Err(RepackErrorFlags::REPACK_ERROR_NO_RESOLUTION)
+        Err(RepackErrorFlags::RepackErrorNoResolution)
+    }
+}
+
+fn presplit_subtables_if_needed(
+    graph: &mut Graph,
+    table_tag: &Tag,
+    lookup_indices: &Vec<ObjIdx>,
+    visited: &mut FnvHashMap<ObjIdx, Vec<ObjIdx>>,
+) -> Result<(), RepackErrorFlags> {
+    for lookup_idx in lookup_indices {
+        split_lookup_subtables_if_needed(graph, table_tag, *lookup_idx, visited)?;
+    }
+    Ok(())
+}
+
+fn split_lookup_subtables_if_needed(
+    graph: &mut Graph,
+    table_tag: &Tag,
+    lookup_index: ObjIdx,
+    visited: &mut FnvHashMap<ObjIdx, Vec<ObjIdx>>,
+) -> Result<(), RepackErrorFlags> {
+    let lookup = Lookup::from_graph(graph, lookup_index)?;
+    let mut lookup_type = lookup.lookup_type();
+    let is_ext = is_extension(lookup_type, table_tag);
+
+    if !is_ext && !splitting_supported_lookup_type(lookup_type, table_tag) {
+        return Ok(());
+    }
+
+    let num_subtables = lookup.num_subtables();
+    let mut ext_lookup_type_checked = false;
+    let mut all_subtables = Vec::with_capacity(num_subtables as usize * 2);
+    for i in 0..num_subtables as u32 {
+        let Some(subtable_idx) = graph.index_for_position(
+            lookup_index,
+            Lookup::LOOKUP_MIN_SIZE as u32 + i * Offset16::RAW_BYTE_LEN as u32,
+        ) else {
+            continue;
+        };
+
+        if is_ext && !ext_lookup_type_checked {
+            let ext_table = ExtensionSubtable::from_graph(graph, subtable_idx)?;
+            lookup_type = ext_table.lookup_type();
+            if !splitting_supported_lookup_type(lookup_type, table_tag) {
+                return Ok(());
+            }
+            ext_lookup_type_checked = true;
+        }
+
+        all_subtables.push(subtable_idx);
+        if let Some(new_subtables) = visited.get(&subtable_idx) {
+            if new_subtables.is_empty() {
+                continue;
+            }
+            all_subtables.extend_from_slice(&new_subtables);
+            continue;
+        }
+
+        let non_ext_subtable_idx = if is_ext {
+            let Some(child_idx) = graph.index_for_position(subtable_idx, 4) else {
+                continue;
+            };
+            child_idx
+        } else {
+            subtable_idx
+        };
+
+        // TODO: support more lookup types
+        let mut new_subtables = split_ligature_subst(graph, non_ext_subtable_idx)?;
+        if new_subtables.is_empty() {
+            visited.insert(subtable_idx, new_subtables);
+            continue;
+        }
+
+        if is_ext {
+            graph.add_extension(lookup_type, &mut new_subtables)?;
+        }
+
+        all_subtables.extend_from_slice(&new_subtables);
+        visited.insert(subtable_idx, new_subtables);
+    }
+    if all_subtables.len() <= num_subtables as usize {
+        return Ok(());
+    }
+    graph.make_lookup(lookup_index, &all_subtables)
+}
+
+//TODO: support more lookup types
+fn splitting_supported_lookup_type(lookup_type: u16, table_tag: &Tag) -> bool {
+    match *table_tag {
+        Gpos::TAG => false,
+        // GSUB: currently only support ligature subst
+        Gsub::TAG => lookup_type == 4,
+        _ => false,
     }
 }
 
@@ -88,7 +185,7 @@ fn promote_extensions_if_needed(
     graph: &mut Graph,
     lookup_list_idx: ObjIdx,
     lookups: &[ObjIdx],
-    table_tag: Tag,
+    table_tag: &Tag,
 ) -> Result<(), RepackErrorFlags> {
     struct LookupSize {
         obj_idx: ObjIdx,
@@ -118,7 +215,7 @@ fn promote_extensions_if_needed(
     for lookup_idx in lookups {
         let lookup_v = graph
             .vertex(*lookup_idx)
-            .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
 
         let table_size = lookup_v.table_size();
         total_lookup_table_sizes += table_size;
@@ -144,7 +241,7 @@ fn promote_extensions_if_needed(
     const MAX_SIZE: usize = u16::MAX as usize;
     let lookup_list_v = graph
         .vertex(lookup_list_idx)
-        .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+        .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
 
     let lookup_list_size = lookup_list_v.table_size();
     let l2_l3_size = lookup_list_size + total_lookup_table_sizes; // size of LookupList + lookups
@@ -190,16 +287,16 @@ fn promote_extensions_if_needed(
     Ok(())
 }
 
-fn is_extension(lookup_type: u16, table_tag: Tag) -> bool {
-    match table_tag {
+fn is_extension(lookup_type: u16, table_tag: &Tag) -> bool {
+    match *table_tag {
         Gpos::TAG => lookup_type == 9,
         Gsub::TAG => lookup_type == 7,
         _ => false,
     }
 }
 
-fn extension_type(table_tag: Tag) -> Option<u16> {
-    match table_tag {
+fn extension_type(table_tag: &Tag) -> Option<u16> {
+    match *table_tag {
         Gpos::TAG => Some(9),
         Gsub::TAG => Some(7),
         _ => None,
@@ -210,11 +307,11 @@ fn find_lookup_indices(graph: &Graph) -> Result<(ObjIdx, Vec<ObjIdx>), RepackErr
     // pos=8: lookup list position in GSUB/GPOS table
     let lookup_list_idx = graph
         .index_for_position(graph.root_idx(), 8)
-        .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+        .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
 
     let lookup_list_v = graph
         .vertex(lookup_list_idx)
-        .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+        .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
     Ok((lookup_list_idx, lookup_list_v.child_idxes()))
 }
 
@@ -231,13 +328,13 @@ pub(crate) mod test {
         s.start_serialize().unwrap();
 
         let obj_i = if with_overflow {
-            add_object(s, b"i", 1)
+            add_object(s, b"i", 1, false)
         } else {
             0
         };
 
         // space 2
-        let obj_h = add_object(s, b"h", 1);
+        let obj_h = add_object(s, b"h", 1, false);
         start_object(s, &large_string, 30000);
         add_offset(s, obj_h);
 
@@ -248,7 +345,7 @@ pub(crate) mod test {
 
         // space 1
         let obj_i = if !with_overflow {
-            add_object(s, b"i", 1)
+            add_object(s, b"i", 1, false)
         } else {
             obj_i
         };
@@ -280,7 +377,7 @@ pub(crate) mod test {
     fn populate_serializer_with_isolation_overflow(s: &mut Serializer) {
         let large_bytes = [b'a'; 70000];
         let _ = s.start_serialize();
-        let obj_4 = add_object(s, b"4", 1);
+        let obj_4 = add_object(s, b"4", 1, false);
 
         start_object(s, &large_bytes, 60000);
         add_offset(s, obj_4);
@@ -301,7 +398,7 @@ pub(crate) mod test {
     fn populate_serializer_with_isolation_overflow_complex(s: &mut Serializer) {
         let large_bytes = [b'a'; 70000];
         let _ = s.start_serialize();
-        let obj_f = add_object(s, b"f", 1);
+        let obj_f = add_object(s, b"f", 1, false);
 
         start_object(s, b"e", 1);
         add_offset(s, obj_f);
@@ -345,7 +442,7 @@ pub(crate) mod test {
         let _ = s.start_serialize();
 
         // space 1
-        let obj_f_prime = add_object(s, b"f", 1);
+        let obj_f_prime = add_object(s, b"f", 1, false);
 
         start_object(s, b"e", 1);
         add_offset(s, obj_f_prime);
@@ -369,7 +466,7 @@ pub(crate) mod test {
         let obj_b = s.pop_pack(false).unwrap();
 
         // space 0
-        let obj_f = add_object(s, b"f", 1);
+        let obj_f = add_object(s, b"f", 1, false);
 
         start_object(s, b"e", 1);
         add_offset(s, obj_f);
@@ -398,8 +495,8 @@ pub(crate) mod test {
     fn populate_serializer_with_isolation_overflow_spaces(s: &mut Serializer) {
         let large_bytes = [b'a'; 70000];
         let _ = s.start_serialize();
-        let obj_d = add_object(s, b"f", 1);
-        let obj_e = add_object(s, b"f", 1);
+        let obj_d = add_object(s, b"f", 1, false);
+        let obj_e = add_object(s, b"f", 1, false);
 
         start_object(s, &large_bytes, 60000);
         add_offset(s, obj_d);
@@ -420,7 +517,7 @@ pub(crate) mod test {
     fn populate_serializer_with_multiple_dedup_overflow(s: &mut Serializer) {
         let large_bytes = [b'a'; 70000];
         let _ = s.start_serialize();
-        let leaf = add_object(s, b"def", 3);
+        let leaf = add_object(s, b"def", 3, false);
 
         const NUM_MIN_NODES: usize = 20;
         let mut mid_nodes = [0; NUM_MIN_NODES];
@@ -442,8 +539,8 @@ pub(crate) mod test {
     fn populate_serializer_with_priority_overflow(s: &mut Serializer) {
         let large_bytes = [b'a'; 50000];
         let _ = s.start_serialize();
-        let obj_e = add_object(s, b"e", 1);
-        let obj_d = add_object(s, b"d", 1);
+        let obj_e = add_object(s, b"e", 1, false);
+        let obj_d = add_object(s, b"d", 1, false);
 
         start_object(s, &large_bytes, 50000);
         add_offset(s, obj_e);
@@ -464,13 +561,13 @@ pub(crate) mod test {
     fn populate_serializer_with_priority_overflow_expected(s: &mut Serializer) {
         let large_bytes = [b'a'; 50000];
         let _ = s.start_serialize();
-        let obj_e = add_object(s, b"e", 1);
+        let obj_e = add_object(s, b"e", 1, false);
 
         start_object(s, &large_bytes, 50000);
         add_offset(s, obj_e);
         let obj_c = s.pop_pack(false).unwrap();
 
-        let obj_d = add_object(s, b"d", 1);
+        let obj_d = add_object(s, b"d", 1, false);
 
         start_object(s, &large_bytes, 20000);
         add_offset(s, obj_d);
@@ -487,8 +584,8 @@ pub(crate) mod test {
     fn populate_serializer_spaces_16bit_connection(s: &mut Serializer) {
         let large_bytes = [b'a'; 70000];
         let _ = s.start_serialize();
-        let obj_g = add_object(s, b"g", 1);
-        let obj_h = add_object(s, b"h", 1);
+        let obj_g = add_object(s, b"g", 1, false);
+        let obj_h = add_object(s, b"h", 1, false);
 
         start_object(s, &large_bytes, 40000);
         add_offset(s, obj_g);
@@ -523,7 +620,7 @@ pub(crate) mod test {
     fn populate_serializer_spaces_16bit_connection_expected(s: &mut Serializer) {
         let large_bytes = [b'a'; 70000];
         let _ = s.start_serialize();
-        let obj_g_prime = add_object(s, b"g", 1);
+        let obj_g_prime = add_object(s, b"g", 1, false);
 
         start_object(s, &large_bytes, 40000);
         add_offset(s, obj_g_prime);
@@ -533,7 +630,7 @@ pub(crate) mod test {
         add_offset(s, obj_e_prime);
         let obj_c = s.pop_pack(false).unwrap();
 
-        let obj_h_prime = add_object(s, b"h", 1);
+        let obj_h_prime = add_object(s, b"h", 1, false);
 
         start_object(s, &large_bytes, 40000);
         add_offset(s, obj_h_prime);
@@ -543,13 +640,13 @@ pub(crate) mod test {
         add_offset(s, obj_f);
         let obj_d = s.pop_pack(false).unwrap();
 
-        let obj_g = add_object(s, b"g", 1);
+        let obj_g = add_object(s, b"g", 1, false);
 
         start_object(s, &large_bytes, 40000);
         add_offset(s, obj_g);
         let obj_e = s.pop_pack(false).unwrap();
 
-        let obj_h = add_object(s, b"h", 1);
+        let obj_h = add_object(s, b"h", 1, false);
 
         start_object(s, b"b", 1);
         add_offset(s, obj_e);
@@ -568,7 +665,7 @@ pub(crate) mod test {
     fn populate_serializer_short_and_wide_subgraph_root(s: &mut Serializer) {
         let large_bytes = [b'a'; 70000];
         let _ = s.start_serialize();
-        let obj_e = add_object(s, b"e", 1);
+        let obj_e = add_object(s, b"e", 1, false);
 
         start_object(s, &large_bytes, 40000);
         add_offset(s, obj_e);
@@ -595,7 +692,7 @@ pub(crate) mod test {
     fn populate_serializer_short_and_wide_subgraph_root_expected(s: &mut Serializer) {
         let large_bytes = [b'a'; 70000];
         let _ = s.start_serialize();
-        let obj_e_prime = add_object(s, b"e", 1);
+        let obj_e_prime = add_object(s, b"e", 1, false);
 
         start_object(s, &large_bytes, 40000);
         add_offset(s, obj_e_prime);
@@ -605,7 +702,7 @@ pub(crate) mod test {
         add_offset(s, obj_c_prime);
         let obj_d = s.pop_pack(false).unwrap();
 
-        let obj_e = add_object(s, b"e", 1);
+        let obj_e = add_object(s, b"e", 1, false);
 
         start_object(s, &large_bytes, 40000);
         add_offset(s, obj_e);
@@ -628,7 +725,7 @@ pub(crate) mod test {
     fn populate_serializer_with_split_spaces(s: &mut Serializer) {
         let large_bytes = [b'a'; 70000];
         let _ = s.start_serialize();
-        let obj_f = add_object(s, b"f", 1);
+        let obj_f = add_object(s, b"f", 1, false);
 
         start_object(s, &large_bytes, 40000);
         add_offset(s, obj_f);
@@ -657,7 +754,7 @@ pub(crate) mod test {
     fn populate_serializer_with_split_spaces_expected(s: &mut Serializer) {
         let large_bytes = [b'a'; 70000];
         let _ = s.start_serialize();
-        let obj_f_prime = add_object(s, b"f", 1);
+        let obj_f_prime = add_object(s, b"f", 1, false);
 
         start_object(s, &large_bytes, 40000);
         add_offset(s, obj_f_prime);
@@ -667,7 +764,7 @@ pub(crate) mod test {
         add_offset(s, obj_d);
         let obj_b = s.pop_pack(false).unwrap();
 
-        let obj_f = add_object(s, b"f", 1);
+        let obj_f = add_object(s, b"f", 1, false);
 
         start_object(s, &large_bytes, 40000);
         add_offset(s, obj_f);
@@ -688,7 +785,7 @@ pub(crate) mod test {
     fn populate_serializer_with_split_spaces_2(s: &mut Serializer) {
         let large_bytes = [b'a'; 70000];
         let _ = s.start_serialize();
-        let obj_f = add_object(s, b"f", 1);
+        let obj_f = add_object(s, b"f", 1, false);
 
         start_object(s, &large_bytes, 40000);
         add_offset(s, obj_f);
@@ -720,7 +817,7 @@ pub(crate) mod test {
         let _ = s.start_serialize();
 
         // space 2
-        let obj_f_double_prime = add_object(s, b"f", 1);
+        let obj_f_double_prime = add_object(s, b"f", 1, false);
 
         start_object(s, &large_bytes, 40000);
         add_offset(s, obj_f_double_prime);
@@ -731,7 +828,7 @@ pub(crate) mod test {
         let obj_b_prime = s.pop_pack(false).unwrap();
 
         // space 1
-        let obj_f_prime = add_object(s, b"f", 1);
+        let obj_f_prime = add_object(s, b"f", 1, false);
 
         start_object(s, &large_bytes, 40000);
         add_offset(s, obj_f_prime);
@@ -742,7 +839,7 @@ pub(crate) mod test {
         let obj_c = s.pop_pack(false).unwrap();
 
         // space 0
-        let obj_f = add_object(s, b"f", 1);
+        let obj_f = add_object(s, b"f", 1, false);
 
         start_object(s, &large_bytes, 40000);
         add_offset(s, obj_f);
@@ -766,10 +863,10 @@ pub(crate) mod test {
         let large_bytes = [b'a'; 70000];
         let _ = s.start_serialize();
 
-        let obj_f = add_object(s, b"f", 1);
-        let obj_g = add_object(s, b"g", 1);
-        let obj_j = add_object(s, b"j", 1);
-        let obj_k = add_object(s, b"k", 1);
+        let obj_f = add_object(s, b"f", 1, false);
+        let obj_g = add_object(s, b"g", 1, false);
+        let obj_j = add_object(s, b"j", 1, false);
+        let obj_k = add_object(s, b"k", 1, false);
 
         start_object(s, &large_bytes, 40000);
         add_offset(s, obj_f);
@@ -807,7 +904,7 @@ pub(crate) mod test {
 
     fn populate_serializer_virtual_link(s: &mut Serializer) {
         let _ = s.start_serialize();
-        let obj_d = add_object(s, b"d", 1);
+        let obj_d = add_object(s, b"d", 1, false);
 
         start_object(s, b"b", 1);
         add_offset(s, obj_d);
@@ -865,6 +962,58 @@ pub(crate) mod test {
         s.pop_pack(false).unwrap()
     }
 
+    // Adds coverage table fro [start, end]
+    fn add_coverage(s: &mut Serializer, start: u16, end: u16, shared: bool) -> ObjIdx {
+        let start_be_bytes = start.to_be_bytes();
+        let end_be_bytes = end.to_be_bytes();
+        match end - start {
+            0 => {
+                let coverage: [u8; 6] = [0, 1, 0, 1, start_be_bytes[0], start_be_bytes[1]];
+                add_object(s, &coverage, 6, shared)
+            }
+            1 => {
+                let coverage: [u8; 8] = [
+                    0,
+                    1,
+                    0,
+                    2,
+                    start_be_bytes[0],
+                    start_be_bytes[1],
+                    end_be_bytes[0],
+                    end_be_bytes[1],
+                ];
+                add_object(s, &coverage, 8, shared)
+            }
+            _ => {
+                let coverage: [u8; 10] = [
+                    0,
+                    2,
+                    0,
+                    1,
+                    start_be_bytes[0],
+                    start_be_bytes[1],
+                    end_be_bytes[0],
+                    end_be_bytes[1],
+                    0,
+                    0,
+                ];
+                add_object(s, &coverage, 10, shared)
+            }
+        }
+    }
+
+    fn add_liga_set_header(s: &mut Serializer, liga_count: u16) {
+        let liga_count_bytes = liga_count.to_be_bytes();
+        start_object(s, &liga_count_bytes, 2);
+    }
+
+    fn add_liga_header(s: &mut Serializer, liga_set_count: u16, coverage_idx: ObjIdx) {
+        start_object(s, &1_u16.to_be_bytes(), 2);
+        add_offset(s, coverage_idx);
+        let liga_set_count_bytes = liga_set_count.to_be_bytes();
+        s.embed_bytes(&liga_set_count_bytes).unwrap();
+    }
+
     fn populate_serializer_with_extension_promotion(
         s: &mut Serializer,
         num_extensions: usize,
@@ -880,7 +1029,7 @@ pub(crate) mod test {
         s.start_serialize().unwrap();
 
         for i in (0..NUM_SUBTABLES).rev() {
-            subtables[i] = add_object(s, &large_bytes, 15000 + i);
+            subtables[i] = add_object(s, &large_bytes, 15000 + i, false);
         }
 
         assert!(NUM_LOOKUPS >= num_extensions);
@@ -912,6 +1061,136 @@ pub(crate) mod test {
         }
 
         let lookup_list_idx = add_lookup_list(s, NUM_LOOKUPS, &lookups);
+        add_gsub_gpos_header(s, lookup_list_idx);
+        s.end_serialize();
+    }
+
+    fn populate_serializer_with_large_ligsubst(
+        s: &mut Serializer,
+        lig_subst_count: usize,
+        liga_set_count: usize,
+        liga_per_set_count: usize,
+        liga_size: usize,
+        sequential_liga_sets: bool,
+        shared: bool,
+        liga_subst_idxes: &mut [ObjIdx],
+        unique_lig_str: bool,
+    ) {
+        let mut liga = vec![0_usize; liga_set_count * liga_per_set_count];
+        let mut liga_set = vec![0_usize; liga_set_count];
+        let mut ch = b'a';
+        for l in 0..lig_subst_count {
+            let coverage_start = if sequential_liga_sets {
+                l * liga_set_count
+            } else {
+                0
+            };
+
+            let coverage_end = if sequential_liga_sets {
+                (l + 1) * liga_set_count - 1
+            } else {
+                liga_set_count - 1
+            };
+
+            let coverage_idx = add_coverage(s, coverage_start as u16, coverage_end as u16, shared);
+            for i in 0..liga_set_count {
+                for j in 0..liga_per_set_count {
+                    let large_str = [ch; 100000];
+                    start_object(s, &large_str, liga_size);
+                    if unique_lig_str {
+                        ch += 1;
+                    }
+
+                    add_virtual_offset(s, coverage_idx);
+                    liga[i * liga_per_set_count + j] = s.pop_pack(shared).unwrap();
+                }
+                add_liga_set_header(s, liga_per_set_count as u16);
+                add_virtual_offset(s, coverage_idx);
+
+                for j in 0..liga_per_set_count {
+                    add_offset(s, liga[i * liga_per_set_count + j]);
+                }
+                liga_set[i] = s.pop_pack(shared).unwrap();
+            }
+
+            add_liga_header(s, liga_set_count as u16, coverage_idx);
+            for i in 0..liga_set_count {
+                add_offset(s, liga_set[i]);
+            }
+
+            liga_subst_idxes[l] = s.pop_pack(shared).unwrap();
+        }
+
+        for l in 0..lig_subst_count {
+            liga_subst_idxes[l] = add_extension(s, liga_subst_idxes[l], 4);
+        }
+    }
+
+    fn populate_serializer_with_shared_large_liga(
+        s: &mut Serializer,
+        lig_subst_count: usize,
+        liga_set_count: usize,
+        liga_per_set_count: usize,
+        liga_size: usize,
+    ) {
+        s.start_serialize().unwrap();
+        let mut lookups: [ObjIdx; 2] = [0; 2];
+        // Lookup
+        // LigSubst: shared with another Lookup table, needs splitting
+        let mut liga_subst_idxes = vec![0; lig_subst_count + 1];
+        populate_serializer_with_large_ligsubst(
+            s,
+            lig_subst_count,
+            liga_set_count,
+            liga_per_set_count,
+            liga_size,
+            true,
+            true,
+            &mut liga_subst_idxes,
+            true,
+        );
+
+        start_lookup(s, 7, lig_subst_count as u8);
+        for l in 0..lig_subst_count {
+            add_offset(s, liga_subst_idxes[l]);
+        }
+        lookups[0] = finish_lookup(s);
+
+        // Lookup with 2 LigSubst tables
+        // LigSubst: small one, not shared, no split
+        populate_serializer_with_large_ligsubst(
+            s,
+            1,
+            1,
+            1,
+            10,
+            true,
+            false,
+            &mut liga_subst_idxes,
+            false,
+        );
+
+        // LigSubst: shared, needs splitting
+        let lig_subst_idxes = liga_subst_idxes.get_mut(1..=lig_subst_count).unwrap();
+        populate_serializer_with_large_ligsubst(
+            s,
+            lig_subst_count,
+            liga_set_count,
+            liga_per_set_count,
+            liga_size,
+            true,
+            true,
+            lig_subst_idxes,
+            true,
+        );
+
+        start_lookup(s, 7, lig_subst_count as u8 + 1);
+        for l in 0..=lig_subst_count {
+            add_offset(s, liga_subst_idxes[l]);
+        }
+        lookups[1] = finish_lookup(s);
+
+        let lookup_list_idx = add_lookup_list(s, 2, &lookups);
         add_gsub_gpos_header(s, lookup_list_idx);
         s.end_serialize();
     }
@@ -1153,6 +1432,18 @@ pub(crate) mod test {
 
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_extension_promotion(&mut expected, 3, true);
+
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false);
+    }
+
+    #[test]
+    fn test_resolve_with_liga_split_shared_table() {
+        let buf_size = 400000;
+        let mut overflowing = Serializer::new(buf_size);
+        populate_serializer_with_shared_large_liga(&mut overflowing, 1, 6, 2, 16000);
+
+        let mut expected = Serializer::new(buf_size);
+        populate_serializer_with_shared_large_liga(&mut expected, 3, 2, 2, 16000);
 
         run_resolve_overflow_test(&overflowing, &expected, 20, true, false);
     }
