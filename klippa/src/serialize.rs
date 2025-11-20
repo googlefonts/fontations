@@ -145,7 +145,7 @@ pub(crate) enum LinkWidth {
 }
 
 impl LinkWidth {
-    fn new_checked(val: usize) -> Option<LinkWidth> {
+    pub(crate) fn new_checked(val: usize) -> Option<LinkWidth> {
         match val {
             0 => Some(LinkWidth::Zero),
             2 => Some(LinkWidth::Two),
@@ -200,6 +200,10 @@ impl Link {
 
     pub(crate) fn update_obj_idx(&mut self, new_idx: ObjIdx) {
         self.objidx = new_idx;
+    }
+
+    pub(crate) fn update_position(&mut self, new_pos: u32) {
+        self.position = new_pos;
     }
 
     pub(crate) fn new(link_width: LinkWidth, obj_idx: ObjIdx, position: u32) -> Self {

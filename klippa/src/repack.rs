@@ -5,7 +5,8 @@ use std::cmp::Ordering;
 
 use crate::{
     graph::{
-        layout::{Lookup, EXTENSION_TABLE_SIZE},
+        layout::{ExtensionSubtable, Lookup, EXTENSION_TABLE_SIZE},
+        ligature_graph::split_ligature_subst,
         Graph, RepackErrorFlags,
     },
     serialize::{ObjIdx, Serializer},
@@ -17,7 +18,7 @@ use write_fonts::{
         tables::{gpos::Gpos, gsub::Gsub},
         TopLevelTable,
     },
-    types::Tag,
+    types::{FixedSize, Offset16, Tag},
 };
 
 //TODO: add more functionality, serialize output etc.
@@ -33,7 +34,7 @@ pub(crate) fn resolve_overflows(
 
     graph
         .serialize()
-        .map_err(|_| RepackErrorFlags::REPACK_ERROR_SERIALIZE)
+        .map_err(|_| RepackErrorFlags::RepackErrorSerialize)
 }
 
 pub(crate) fn resolve_graph_overflows(
@@ -50,7 +51,7 @@ pub(crate) fn resolve_graph_overflows(
     if tag == Gsub::TAG || tag == Gpos::TAG {
         if always_recalculate_extensions {
             let (lookup_list_idx, lookup_indices) = find_lookup_indices(graph)?;
-            promote_extensions_if_needed(graph, lookup_list_idx, &lookup_indices, tag)?;
+            promote_extensions_if_needed(graph, lookup_list_idx, &lookup_indices, &tag)?;
         }
         if graph.assign_spaces()? {
             graph.sort_shortest_distance()?;
@@ -80,7 +81,75 @@ pub(crate) fn resolve_graph_overflows(
         if (tag == Gsub::TAG || tag == Gpos::TAG) && !always_recalculate_extensions {
             return resolve_graph_overflows(graph, tag, max_round, true);
         }
-        Err(RepackErrorFlags::REPACK_ERROR_NO_RESOLUTION)
+        Err(RepackErrorFlags::RepackErrorNoResolution)
+    }
+}
+
+fn presplit_subtables_if_needed(
+    graph: &mut Graph,
+    table_tag: &Tag,
+    lookup_indices: &Vec<ObjIdx>,
+) -> Result<(), RepackErrorFlags> {
+    for lookup_idx in lookup_indices {
+        split_lookup_subtables_if_needed(graph, table_tag, *lookup_idx)?;
+    }
+    Ok(())
+}
+
+fn split_lookup_subtables_if_needed(
+    graph: &mut Graph,
+    table_tag: &Tag,
+    lookup_index: ObjIdx,
+) -> Result<(), RepackErrorFlags> {
+    let lookup = Lookup::from_graph(graph, lookup_index)?;
+    let mut lookup_type = lookup.lookup_type();
+    let is_ext = is_extension(lookup_type, table_tag);
+
+    if !is_ext && !splitting_supported_lookup_type(lookup_type, table_tag) {
+        return Ok(());
+    }
+
+    let num_subtables = lookup.num_subtables();
+    let mut ext_lookup_type_checked = false;
+    for i in 0..num_subtables as u32 {
+        let Some(subtable_idx) = graph.index_for_position(
+            lookup_index,
+            Lookup::LOOKUP_MIN_SIZE as u32 + i * Offset16::RAW_BYTE_LEN as u32,
+        ) else {
+            continue;
+        };
+
+        if is_ext && !ext_lookup_type_checked {
+            let ext_table = ExtensionSubtable::from_graph(graph, subtable_idx)?;
+            lookup_type = ext_table.lookup_type();
+            if !splitting_supported_lookup_type(lookup_type, table_tag) {
+                return Ok(());
+            }
+            ext_lookup_type_checked = true;
+        }
+
+        let (parent_idx, subtable_idx) = if is_ext {
+            let Some(child_idx) = graph.index_for_position(subtable_idx, 4) else {
+                continue;
+            };
+            (subtable_idx, child_idx)
+        } else {
+            (lookup_index, subtable_idx)
+        };
+
+        // TODO: support more lookup types
+        split_ligature_subst(graph, parent_idx, subtable_idx)?;
+    }
+    Ok(())
+}
+
+//TODO: support more lookup types
+fn splitting_supported_lookup_type(lookup_type: u16, table_tag: &Tag) -> bool {
+    match *table_tag {
+        Gpos::TAG => false,
+        // GSUB: currently only support ligature subst
+        Gsub::TAG => lookup_type == 4,
+        _ => false,
     }
 }
 
@@ -88,7 +157,7 @@ fn promote_extensions_if_needed(
     graph: &mut Graph,
     lookup_list_idx: ObjIdx,
     lookups: &[ObjIdx],
-    table_tag: Tag,
+    table_tag: &Tag,
 ) -> Result<(), RepackErrorFlags> {
     struct LookupSize {
         obj_idx: ObjIdx,
@@ -118,7 +187,7 @@ fn promote_extensions_if_needed(
     for lookup_idx in lookups {
         let lookup_v = graph
             .vertex(*lookup_idx)
-            .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
 
         let table_size = lookup_v.table_size();
         total_lookup_table_sizes += table_size;
@@ -144,7 +213,7 @@ fn promote_extensions_if_needed(
     const MAX_SIZE: usize = u16::MAX as usize;
     let lookup_list_v = graph
         .vertex(lookup_list_idx)
-        .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+        .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
 
     let lookup_list_size = lookup_list_v.table_size();
     let l2_l3_size = lookup_list_size + total_lookup_table_sizes; // size of LookupList + lookups
@@ -190,16 +259,16 @@ fn promote_extensions_if_needed(
     Ok(())
 }
 
-fn is_extension(lookup_type: u16, table_tag: Tag) -> bool {
-    match table_tag {
+fn is_extension(lookup_type: u16, table_tag: &Tag) -> bool {
+    match *table_tag {
         Gpos::TAG => lookup_type == 9,
         Gsub::TAG => lookup_type == 7,
         _ => false,
     }
 }
 
-fn extension_type(table_tag: Tag) -> Option<u16> {
-    match table_tag {
+fn extension_type(table_tag: &Tag) -> Option<u16> {
+    match *table_tag {
         Gpos::TAG => Some(9),
         Gsub::TAG => Some(7),
         _ => None,
@@ -210,11 +279,11 @@ fn find_lookup_indices(graph: &Graph) -> Result<(ObjIdx, Vec<ObjIdx>), RepackErr
     // pos=8: lookup list position in GSUB/GPOS table
     let lookup_list_idx = graph
         .index_for_position(graph.root_idx(), 8)
-        .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+        .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
 
     let lookup_list_v = graph
         .vertex(lookup_list_idx)
-        .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+        .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
     Ok((lookup_list_idx, lookup_list_v.child_idxes()))
 }
 

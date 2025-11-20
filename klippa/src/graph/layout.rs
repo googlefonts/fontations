@@ -6,41 +6,54 @@ use crate::{
 use fnv::FnvHashMap;
 use write_fonts::types::{FixedSize, Scalar};
 
-struct DataBytes<'a> {
+pub(super) struct DataBytes<'a> {
     bytes: &'a mut [u8],
 }
 
-impl DataBytes<'_> {
+impl<'a> DataBytes<'a> {
+    pub(super) fn from_graph(
+        graph: &'a mut Graph,
+        obj_idx: ObjIdx,
+    ) -> Result<Self, RepackErrorFlags> {
+        let bytes = graph
+            .vertex_data_mut(obj_idx)
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
+        Ok(Self { bytes })
+    }
+
     /// Read a scalar at the provided location in the data bytes.
     /// caller is responsible for ensuring no out-of-bound reading
-    fn read_at<T: Scalar>(&self, pos: usize) -> T {
+    pub(super) fn read_at<T: Scalar>(&self, pos: usize) -> T {
         T::read(&self.bytes[pos..pos + T::RAW_BYTE_LEN]).unwrap()
     }
 
     /// Write a scalar value over existing data at the provided location in the data bytes.
     /// caller is responsible for ensuring no out-of-bound writing
-    fn write_at<T: Scalar>(&mut self, value: T, pos: usize) {
+    pub(super) fn write_at<T: Scalar>(&mut self, value: T, pos: usize) {
         let src_bytes = value.to_raw();
         self.bytes[pos..pos + T::RAW_BYTE_LEN].copy_from_slice(src_bytes.as_ref());
     }
 
-    fn len(&self) -> usize {
+    pub(super) fn len(&self) -> usize {
         self.bytes.len()
     }
 }
-struct ExtensionSubtable<'a>(DataBytes<'a>);
+pub(crate) struct ExtensionSubtable<'a>(DataBytes<'a>);
 
 impl<'a> ExtensionSubtable<'a> {
     const FORMAT_BYTE_POS: usize = 0;
     const LOOKUP_TYPE_POS: usize = 2;
-    fn from_graph(graph: &'a mut Graph, obj_idx: ObjIdx) -> Result<Self, RepackErrorFlags> {
+    pub(crate) fn from_graph(
+        graph: &'a mut Graph,
+        obj_idx: ObjIdx,
+    ) -> Result<Self, RepackErrorFlags> {
         let ext = graph
-            .obj_data(obj_idx)
+            .vertex_data_mut(obj_idx)
             .map(|data| Self(DataBytes { bytes: data }))
-            .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
 
         if !ext.sanitize() {
-            return Err(RepackErrorFlags::REPACK_ERROR_EXT_PROMOTION);
+            return Err(RepackErrorFlags::RepackErrorReadTable);
         }
         Ok(ext)
     }
@@ -55,12 +68,16 @@ impl<'a> ExtensionSubtable<'a> {
         self.0.write_at(1_u16, Self::FORMAT_BYTE_POS);
         self.0.write_at(lookup_type, Self::LOOKUP_TYPE_POS);
     }
+
+    pub(crate) fn lookup_type(&self) -> u16 {
+        self.0.read_at::<u16>(Self::LOOKUP_TYPE_POS)
+    }
 }
 
 pub(crate) struct Lookup<'a>(DataBytes<'a>);
 
 impl<'a> Lookup<'a> {
-    const LOOKUP_MIN_SIZE: usize = 6;
+    pub(crate) const LOOKUP_MIN_SIZE: usize = 6;
     const LOOKUP_TYPE_POS: usize = 0;
     const LOOKUP_FLAG_POS: usize = 2;
     const NUM_SUBTABLE_BYTE_POS: usize = 4;
@@ -70,12 +87,12 @@ impl<'a> Lookup<'a> {
         obj_idx: ObjIdx,
     ) -> Result<Self, RepackErrorFlags> {
         let lookup = graph
-            .obj_data(obj_idx)
+            .vertex_data_mut(obj_idx)
             .map(|data| Self(DataBytes { bytes: data }))
-            .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
 
         if !lookup.sanitize() {
-            return Err(RepackErrorFlags::REPACK_ERROR_EXT_PROMOTION);
+            return Err(RepackErrorFlags::RepackErrorReadTable);
         }
         Ok(lookup)
     }
@@ -118,7 +135,7 @@ impl Graph {
         subtable_idx: ObjIdx,
         lookup_type: u16,
     ) -> Result<ObjIdx, RepackErrorFlags> {
-        let ext_idx = self.new_vertex(EXTENSION_TABLE_SIZE);
+        let ext_idx = self.new_vertex(EXTENSION_TABLE_SIZE, true);
         let mut ext_subtable = ExtensionSubtable::from_graph(self, ext_idx)?;
 
         ext_subtable.reset(lookup_type);
@@ -126,11 +143,6 @@ impl Graph {
         // Make extension point at the subtable
         self.vertices[ext_idx].add_link(LinkWidth::Four, subtable_idx, 4);
         Ok(ext_idx)
-    }
-
-    fn obj_data(&mut self, obj_idx: ObjIdx) -> Option<&mut [u8]> {
-        let v = &self.vertices[obj_idx];
-        self.data.get_mut(v.head..v.tail)
     }
 
     fn make_subtable_extension(
@@ -144,7 +156,7 @@ impl Graph {
             let subtable_v = self
                 .vertices
                 .get_mut(subtable_idx)
-                .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+                .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
             subtable_v.remove_parent(lookup_idx);
             *idx
         } else {
@@ -154,7 +166,7 @@ impl Graph {
             let subtable_v = self
                 .vertices
                 .get_mut(subtable_idx)
-                .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+                .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
             subtable_v.remap_parent(lookup_idx, idx);
             idx
         };
@@ -181,7 +193,7 @@ impl Graph {
         let lookup_v = self
             .vertices
             .get(lookup_idx)
-            .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+            .ok_or(RepackErrorFlags::GraphErrorInvalidObjIndex)?;
 
         let subtable_idxes = lookup_v.child_idxes();
         for subtable_idx in subtable_idxes {
