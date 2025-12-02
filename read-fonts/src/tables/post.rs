@@ -2,6 +2,7 @@
 
 include!("../../generated/generated_post.rs");
 
+#[allow(clippy::needless_lifetimes)] // 'a is used with experimental_traverse feature below
 impl<'a> Post<'a> {
     /// The number of glyph names covered by this table
     pub fn num_names(&self) -> usize {

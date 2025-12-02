@@ -70,7 +70,7 @@ impl<'a> SubsetTable<'a> for MultipleSubstFormat1<'_> {
     }
 }
 
-impl<'a> SubsetTable<'a> for Sequence<'_> {
+impl SubsetTable<'_> for Sequence<'_> {
     type ArgsForSubset = ();
     type Output = ();
     fn subset(

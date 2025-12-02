@@ -466,7 +466,7 @@ pub struct ColorPalette<'a> {
     index: u16,
 }
 
-impl<'a> ColorPalette<'a> {
+impl ColorPalette<'_> {
     /// Returns the colors contained within this palette.
     pub fn colors(&self) -> &[Color] {
         self.sub_array

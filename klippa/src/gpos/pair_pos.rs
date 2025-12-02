@@ -79,7 +79,7 @@ fn compute_effective_pair_formats_1(
     Ok((new_format1, new_format2))
 }
 
-impl<'a> SubsetTable<'a> for PairSet<'_> {
+impl SubsetTable<'_> for PairSet<'_> {
     type ArgsForSubset = (ValueFormat, ValueFormat);
     type Output = ();
     fn subset(

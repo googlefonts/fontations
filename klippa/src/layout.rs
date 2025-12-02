@@ -1477,7 +1477,7 @@ impl<'a> SubsetTable<'a> for Feature<'_> {
     }
 }
 
-impl<'a> SubsetTable<'a> for FeatureParams<'_> {
+impl SubsetTable<'_> for FeatureParams<'_> {
     type ArgsForSubset = ();
     type Output = ();
     fn subset(
