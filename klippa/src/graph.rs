@@ -8,6 +8,8 @@ use crate::{
 use fnv::FnvHashMap;
 use write_fonts::{read::collections::IntSet, types::Uint24};
 
+pub(crate) mod layout;
+
 #[derive(Debug, Copy, Clone, PartialEq, Default)]
 pub(crate) struct RepackErrorFlags(u32);
 
@@ -57,7 +59,7 @@ impl Overflow {
 }
 
 #[derive(Default, Debug)]
-struct Vertex {
+pub(crate) struct Vertex {
     head: usize,
     tail: usize,
     // real_links: link position-> Link mapping
@@ -88,7 +90,7 @@ impl Vertex {
         }
     }
 
-    fn table_size(&self) -> usize {
+    pub(crate) fn table_size(&self) -> usize {
         self.tail - self.head
     }
 
@@ -119,6 +121,15 @@ impl Vertex {
         } else {
             self.parents.remove(&parent_idx);
         }
+    }
+
+    fn remap_parent(&mut self, old_parent: ObjIdx, new_parent: ObjIdx) {
+        let Some(v) = self.parents.get(&old_parent) else {
+            return;
+        };
+
+        self.parents.insert(new_parent, *v);
+        self.parents.remove(&old_parent);
     }
 
     fn link_positions_valid(&self, num_objs: usize) -> bool {
@@ -201,6 +212,15 @@ impl Vertex {
             self.priority = 3;
         }
     }
+
+    pub(crate) fn add_link(&mut self, width: LinkWidth, child_idx: ObjIdx, position: u32) {
+        let link = Link::new(width, child_idx, position);
+        self.real_links.insert(position, link);
+    }
+
+    pub(crate) fn child_idxes(&self) -> Vec<ObjIdx> {
+        self.real_links.values().map(|l| l.obj_idx()).collect()
+    }
 }
 
 impl Clone for Vertex {
@@ -281,6 +301,9 @@ impl Graph {
         self.errors
     }
 
+    pub(crate) fn vertex(&self, obj_idx: ObjIdx) -> Option<&Vertex> {
+        self.vertices.get(obj_idx)
+    }
     // Generates a new topological sorting of graph ordered by the shortest
     // distance to each node if positions are marked as invalid.
     pub(crate) fn sort_shortest_distance_if_needed(&mut self) -> Result<(), RepackErrorFlags> {
@@ -465,7 +488,7 @@ impl Graph {
         self.errors
     }
 
-    fn root_idx(&self) -> usize {
+    pub(crate) fn root_idx(&self) -> usize {
         self.ordering[0]
     }
 
@@ -748,6 +771,32 @@ impl Graph {
             }
             self.find_subgraph_nodes_incoming_edges(obj_idx, subgraph_map);
         }
+    }
+
+    pub(crate) fn find_subgraph_size(
+        &self,
+        obj_idx: ObjIdx,
+        visited: &mut IntSet<u32>,
+        max_depth: u16,
+    ) -> Result<usize, RepackErrorFlags> {
+        if !visited.insert(obj_idx as u32) {
+            return Ok(0);
+        }
+
+        assert!(obj_idx < self.vertices.len());
+        let v = self
+            .vertex(obj_idx)
+            .ok_or(RepackErrorFlags::GRAPH_ERROR_INVALID_OBJ_INDEX)?;
+        let mut size = v.table_size();
+        if max_depth == 0 {
+            return Ok(size);
+        }
+
+        for l in v.real_links.values().chain(v.virtual_links.iter()) {
+            size += self.find_subgraph_size(l.obj_idx(), visited, max_depth - 1)?;
+        }
+
+        Ok(size)
     }
 
     // Finds the topmost children of 32bit offsets in the subgraph starting at obj_idx
@@ -1193,6 +1242,37 @@ impl Graph {
             }
         }
         Ok(resolution_attempted)
+    }
+
+    //  Adds a new vertex to the graph, not connected to anything.
+    fn new_vertex(&mut self, size: usize) -> ObjIdx {
+        self.positions_invalid = true;
+        self.distance_invalid = true;
+
+        let cur_len = self.data.len();
+        self.data.resize(cur_len + size, 0);
+
+        let new_vertex = Vertex {
+            head: cur_len,
+            tail: cur_len + size,
+            distance: 0,
+            space: 0,
+            ..Default::default()
+        };
+
+        let new_idx = self.vertices.len();
+        self.vertices.push(new_vertex);
+        self.ordering.push(new_idx);
+
+        new_idx
+    }
+
+    // Finds the object idx of the object pointed to by the offset at specified 'position'
+    // within vertices[idx].
+    pub(crate) fn index_for_position(&self, idx: ObjIdx, position: u32) -> Option<ObjIdx> {
+        let v = self.vertices.get(idx)?;
+        let link = v.real_links.get(&position)?;
+        Some(link.obj_idx())
     }
 }
 
