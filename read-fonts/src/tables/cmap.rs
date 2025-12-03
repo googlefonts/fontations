@@ -225,7 +225,7 @@ pub enum CmapSubtableIter<'a> {
     Format13(Cmap13Iter<'a>),
 }
 
-impl<'a> Iterator for CmapSubtableIter<'a> {
+impl Iterator for CmapSubtableIter<'_> {
     type Item = (u32, GlyphId);
 
     #[inline]

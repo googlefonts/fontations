@@ -69,7 +69,7 @@ impl<'a> SubsetTable<'a> for AlternateSubstFormat1<'_> {
     }
 }
 
-impl<'a> SubsetTable<'a> for AlternateSet<'_> {
+impl SubsetTable<'_> for AlternateSet<'_> {
     type ArgsForSubset = ();
     type Output = ();
     fn subset(

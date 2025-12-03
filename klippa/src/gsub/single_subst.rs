@@ -34,7 +34,7 @@ impl<'a> SubsetTable<'a> for SingleSubst<'_> {
     }
 }
 
-impl<'a> SubsetTable<'a> for SingleSubstFormat1<'_> {
+impl SubsetTable<'_> for SingleSubstFormat1<'_> {
     type ArgsForSubset = ();
     type Output = ();
     fn subset(
@@ -77,7 +77,7 @@ impl<'a> SubsetTable<'a> for SingleSubstFormat1<'_> {
     }
 }
 
-impl<'a> SubsetTable<'a> for SingleSubstFormat2<'_> {
+impl SubsetTable<'_> for SingleSubstFormat2<'_> {
     type ArgsForSubset = ();
     type Output = ();
     fn subset(

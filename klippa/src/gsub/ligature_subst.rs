@@ -87,7 +87,7 @@ impl<'a> SubsetTable<'a> for LigatureSubstFormat1<'_> {
     }
 }
 
-impl<'a> SubsetTable<'a> for LigatureSet<'_> {
+impl SubsetTable<'_> for LigatureSet<'_> {
     type ArgsForSubset = ();
     type Output = ();
     fn subset(
@@ -115,7 +115,7 @@ impl<'a> SubsetTable<'a> for LigatureSet<'_> {
     }
 }
 
-impl<'a> SubsetTable<'a> for Ligature<'_> {
+impl SubsetTable<'_> for Ligature<'_> {
     type ArgsForSubset = ();
     type Output = ();
     fn subset(

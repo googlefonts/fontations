@@ -13,7 +13,7 @@ use write_fonts::{
     types::Offset16,
 };
 
-impl<'a> SubsetTable<'a> for AnchorTable<'_> {
+impl SubsetTable<'_> for AnchorTable<'_> {
     type ArgsForSubset = ();
     type Output = ();
     fn subset(
@@ -30,7 +30,7 @@ impl<'a> SubsetTable<'a> for AnchorTable<'_> {
     }
 }
 
-impl<'a> SubsetTable<'a> for AnchorFormat1<'_> {
+impl SubsetTable<'_> for AnchorFormat1<'_> {
     type ArgsForSubset = ();
     type Output = ();
     fn subset(
@@ -43,7 +43,7 @@ impl<'a> SubsetTable<'a> for AnchorFormat1<'_> {
     }
 }
 
-impl<'a> SubsetTable<'a> for AnchorFormat2<'_> {
+impl SubsetTable<'_> for AnchorFormat2<'_> {
     type ArgsForSubset = ();
     type Output = ();
     fn subset(
@@ -67,7 +67,7 @@ impl<'a> SubsetTable<'a> for AnchorFormat2<'_> {
     }
 }
 
-impl<'a> SubsetTable<'a> for AnchorFormat3<'_> {
+impl SubsetTable<'_> for AnchorFormat3<'_> {
     type ArgsForSubset = ();
     type Output = ();
     fn subset(
