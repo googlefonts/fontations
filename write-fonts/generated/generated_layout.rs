@@ -3703,7 +3703,7 @@ impl<'a> FontRead<'a> for StylisticSetParams {
 }
 
 /// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CharacterVariantParams {
     /// The 'name' table name ID that specifies a string (or strings,
@@ -3728,23 +3728,26 @@ pub struct CharacterVariantParams {
     pub character: Vec<Uint24>,
 }
 
+impl Default for CharacterVariantParams {
+    fn default() -> Self {
+        Self {
+            feat_ui_label_name_id: NameId::COPYRIGHT_NOTICE,
+            feat_ui_tooltip_text_name_id: NameId::COPYRIGHT_NOTICE,
+            sample_text_name_id: NameId::COPYRIGHT_NOTICE,
+            num_named_parameters: Default::default(),
+            first_param_ui_label_name_id: NameId::COPYRIGHT_NOTICE,
+            character: Default::default(),
+        }
+    }
+}
+
 impl CharacterVariantParams {
     /// Construct a new `CharacterVariantParams`
-    pub fn new(
-        feat_ui_label_name_id: NameId,
-        feat_ui_tooltip_text_name_id: NameId,
-        sample_text_name_id: NameId,
-        num_named_parameters: u16,
-        first_param_ui_label_name_id: NameId,
-        character: Vec<Uint24>,
-    ) -> Self {
+    pub fn new(num_named_parameters: u16, character: Vec<Uint24>) -> Self {
         Self {
-            feat_ui_label_name_id,
-            feat_ui_tooltip_text_name_id,
-            sample_text_name_id,
             num_named_parameters,
-            first_param_ui_label_name_id,
             character,
+            ..Default::default()
         }
     }
 }

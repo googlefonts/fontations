@@ -767,19 +767,23 @@ table CharacterVariantParams {
     /// The 'name' table name ID that specifies a string (or strings,
     /// for multiple languages) for a user-interface label for this
     /// feature. (May be NULL.)
+    #[default(NameId::COPYRIGHT_NOTICE)] // aka 'NULL'
     feat_ui_label_name_id: NameId,
     /// The 'name' table name ID that specifies a string (or strings,
     /// for multiple languages) that an application can use for tooltip
     /// text for this feature. (May be NULL.)
+    #[default(NameId::COPYRIGHT_NOTICE)]
     feat_ui_tooltip_text_name_id: NameId,
     /// The 'name' table name ID that specifies sample text that
     /// illustrates the effect of this feature. (May be NULL.)
+    #[default(NameId::COPYRIGHT_NOTICE)]
     sample_text_name_id: NameId,
     /// Number of named parameters. (May be zero.)
     num_named_parameters: u16,
     /// The first 'name' table name ID used to specify strings for
     /// user-interface labels for the feature parameters. (Must be zero
     /// if numParameters is zero.)
+    #[default(NameId::COPYRIGHT_NOTICE)]
     first_param_ui_label_name_id: NameId,
     /// The count of characters for which this feature provides glyph
     /// variants. (May be zero.)
