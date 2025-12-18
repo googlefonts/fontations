@@ -127,8 +127,10 @@ fn main() {
         }
     };
 
-    let font_bytes = std::fs::read(&args.path).expect("Invalid input font file found");
-    let font = FontRef::new(&font_bytes).expect("Error reading font bytes");
+    let font_bytes = std::fs::read(&args.path)
+        .unwrap_or_else(|err| panic!("Failed to read file {path:?}.\n{err}", path = &args.path));
+    let font = FontRef::new(&font_bytes)
+        .unwrap_or_else(|err| panic!("Failed to read {path:?} as font.\n{err}", path = &args.path));
     let drop_tables = match &args.drop_tables {
         Some(drop_tables_input) => match parse_tag_list(drop_tables_input) {
             Ok(drop_tables) => drop_tables,
@@ -253,7 +255,12 @@ fn main() {
             }
         };
     }
-    std::fs::write(&args.output_file, output_bytes).unwrap();
+    std::fs::write(&args.output_file, output_bytes).unwrap_or_else(|err| {
+        panic!(
+            "Failed to write output to {path:?}.\n{err}",
+            path = &args.output_file
+        )
+    });
 }
 
 fn parse_subset_flags(args: &Args) -> SubsetFlags {
