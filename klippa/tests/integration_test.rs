@@ -602,7 +602,9 @@ fn compare_with_expected(output_dir: &Path, output_file: &Path, expected_file: &
 
         let ttx_diff = diff_ttx(&expected_ttx, &output_ttx);
         //TODO: print more info about the test state
-        panic!("{ttx_diff}\nError: ttx for expected and actual does not match.");
+        panic!(
+            "failed on {expected_file:?}\n{ttx_diff}\nError: ttx for expected and actual does not match."
+        );
     }
 }
 
