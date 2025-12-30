@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [kerx (Extended Kerning)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct KerxMarker {}
+pub struct KerxMarker;
 
 impl<'a> MinByteRange for Kerx<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,21 +23,16 @@ impl TopLevelTable for Kerx<'_> {
 
 impl<'a> FontRead<'a> for Kerx<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let n_tables: u32 = cursor.read()?;
-        let subtables_byte_len = {
-            let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
-            <Subtable as VarSize>::total_len_for_count(data, n_tables as usize)?
-        };
-        cursor.advance_by(subtables_byte_len);
-        cursor.finish(KerxMarker {})
+        Ok(TableRef {
+            shape: KerxMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [kerx (Extended Kerning)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
-pub type Kerx<'a> = TableRef<'a, KerxMarker>;
+pub type Kerx<'a> = TableRef<'a, KerxMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Kerx<'a> {
@@ -116,7 +111,7 @@ impl<'a> std::fmt::Debug for Kerx<'a> {
 /// A subtable in a `kerx` table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SubtableMarker {}
+pub struct SubtableMarker;
 
 impl<'a> MinByteRange for Subtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -126,18 +121,16 @@ impl<'a> MinByteRange for Subtable<'a> {
 
 impl<'a> FontRead<'a> for Subtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(data_byte_len);
-        cursor.finish(SubtableMarker {})
+        Ok(TableRef {
+            shape: SubtableMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// A subtable in a `kerx` table.
-pub type Subtable<'a> = TableRef<'a, SubtableMarker>;
+pub type Subtable<'a> = TableRef<'a, SubtableMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable<'a> {
@@ -221,7 +214,7 @@ impl<'a> std::fmt::Debug for Subtable<'a> {
 /// The type 0 `kerx` subtable.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Subtable0Marker {}
+pub struct Subtable0Marker;
 
 impl<'a> MinByteRange for Subtable0<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -231,21 +224,16 @@ impl<'a> MinByteRange for Subtable0<'a> {
 
 impl<'a> FontRead<'a> for Subtable0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let n_pairs: u32 = cursor.read()?;
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let pairs_byte_len = (n_pairs as usize)
-            .checked_mul(Subtable0Pair::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(pairs_byte_len);
-        cursor.finish(Subtable0Marker {})
+        Ok(TableRef {
+            shape: Subtable0Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The type 0 `kerx` subtable.
-pub type Subtable0<'a> = TableRef<'a, Subtable0Marker>;
+pub type Subtable0<'a> = TableRef<'a, Subtable0Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable0<'a> {

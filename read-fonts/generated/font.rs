@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The OpenType [Table Directory](https://docs.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct TableDirectoryMarker {}
+pub struct TableDirectoryMarker;
 
 impl<'a> MinByteRange for TableDirectory<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -18,22 +18,16 @@ impl<'a> MinByteRange for TableDirectory<'a> {
 
 impl<'a> FontRead<'a> for TableDirectory<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        let num_tables: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let table_records_byte_len = (num_tables as usize)
-            .checked_mul(TableRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(table_records_byte_len);
-        cursor.finish(TableDirectoryMarker {})
+        Ok(TableRef {
+            shape: TableDirectoryMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The OpenType [Table Directory](https://docs.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
-pub type TableDirectory<'a> = TableRef<'a, TableDirectoryMarker>;
+pub type TableDirectory<'a> = TableRef<'a, TableDirectoryMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> TableDirectory<'a> {
@@ -203,11 +197,7 @@ impl<'a> SomeRecord<'a> for TableRecord {
 /// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct TTCHeaderMarker {
-    dsig_tag_byte_start: Option<usize>,
-    dsig_length_byte_start: Option<usize>,
-    dsig_offset_byte_start: Option<usize>,
-}
+pub struct TTCHeaderMarker;
 
 impl<'a> MinByteRange for TTCHeader<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -217,45 +207,16 @@ impl<'a> MinByteRange for TTCHeader<'a> {
 
 impl<'a> FontRead<'a> for TTCHeader<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<Tag>();
-        let version: MajorMinor = cursor.read()?;
-        let num_fonts: u32 = cursor.read()?;
-        let table_directory_offsets_byte_len = (num_fonts as usize)
-            .checked_mul(u32::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(table_directory_offsets_byte_len);
-        let dsig_tag_byte_start = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.advance::<u32>());
-        let dsig_length_byte_start = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.advance::<u32>());
-        let dsig_offset_byte_start = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.advance::<u32>());
-        cursor.finish(TTCHeaderMarker {
-            dsig_tag_byte_start,
-            dsig_length_byte_start,
-            dsig_offset_byte_start,
+        Ok(TableRef {
+            shape: TTCHeaderMarker,
+            args: (),
+            data,
         })
     }
 }
 
 /// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
-pub type TTCHeader<'a> = TableRef<'a, TTCHeaderMarker>;
+pub type TTCHeader<'a> = TableRef<'a, TTCHeaderMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> TTCHeader<'a> {
@@ -287,18 +248,40 @@ impl<'a> TTCHeader<'a> {
     }
 
     pub fn dsig_tag_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.dsig_tag_byte_start?;
-        Some(start..start + u32::RAW_BYTE_LEN)
+        if self.version().compatible((2u16, 0u16)) {
+            let start = self.table_directory_offsets_byte_range().end;
+            Some(start..start + u32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn dsig_length_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.dsig_length_byte_start?;
-        Some(start..start + u32::RAW_BYTE_LEN)
+        if self.version().compatible((2u16, 0u16)) {
+            let start = self
+                .dsig_tag_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.table_directory_offsets_byte_range().end);
+            Some(start..start + u32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn dsig_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.dsig_offset_byte_start?;
-        Some(start..start + u32::RAW_BYTE_LEN)
+        if self.version().compatible((2u16, 0u16)) {
+            let start = self
+                .dsig_length_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.dsig_tag_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| self.table_directory_offsets_byte_range().end)
+                });
+            Some(start..start + u32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     /// Font Collection ID string: \"ttcf\"

@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// [gasp](https://learn.microsoft.com/en-us/typography/opentype/spec/gasp#gasp-table-formats)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct GaspMarker {}
+pub struct GaspMarker;
 
 impl<'a> MinByteRange for Gasp<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,19 +23,16 @@ impl TopLevelTable for Gasp<'_> {
 
 impl<'a> FontRead<'a> for Gasp<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let num_ranges: u16 = cursor.read()?;
-        let gasp_ranges_byte_len = (num_ranges as usize)
-            .checked_mul(GaspRange::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(gasp_ranges_byte_len);
-        cursor.finish(GaspMarker {})
+        Ok(TableRef {
+            shape: GaspMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [gasp](https://learn.microsoft.com/en-us/typography/opentype/spec/gasp#gasp-table-formats)
-pub type Gasp<'a> = TableRef<'a, GaspMarker>;
+pub type Gasp<'a> = TableRef<'a, GaspMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Gasp<'a> {

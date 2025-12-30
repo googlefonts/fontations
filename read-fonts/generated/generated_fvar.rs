@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [fvar (Font Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/fvar) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct FvarMarker {}
+pub struct FvarMarker;
 
 impl<'a> MinByteRange for Fvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,20 +23,16 @@ impl TopLevelTable for Fvar<'_> {
 
 impl<'a> FontRead<'a> for Fvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.finish(FvarMarker {})
+        Ok(TableRef {
+            shape: FvarMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [fvar (Font Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/fvar) table
-pub type Fvar<'a> = TableRef<'a, FvarMarker>;
+pub type Fvar<'a> = TableRef<'a, FvarMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Fvar<'a> {
@@ -161,11 +157,7 @@ impl<'a> std::fmt::Debug for Fvar<'a> {
 /// Shim table to handle combined axis and instance arrays.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AxisInstanceArraysMarker {
-    axis_count: u16,
-    instance_count: u16,
-    instance_size: u16,
-}
+pub struct AxisInstanceArraysMarker;
 
 impl<'a> MinByteRange for AxisInstanceArrays<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -179,23 +171,11 @@ impl ReadArgs for AxisInstanceArrays<'_> {
 
 impl<'a> FontReadWithArgs<'a> for AxisInstanceArrays<'a> {
     fn read_with_args(data: FontData<'a>, args: &(u16, u16, u16)) -> Result<Self, ReadError> {
-        let (axis_count, instance_count, instance_size) = *args;
-        let mut cursor = data.cursor();
-        let axes_byte_len = (axis_count as usize)
-            .checked_mul(VariationAxisRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(axes_byte_len);
-        let instances_byte_len = (instance_count as usize)
-            .checked_mul(<InstanceRecord as ComputeSize>::compute_size(&(
-                axis_count,
-                instance_size,
-            ))?)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(instances_byte_len);
-        cursor.finish(AxisInstanceArraysMarker {
-            axis_count,
-            instance_count,
-            instance_size,
+        let args = *args;
+        Ok(TableRef {
+            shape: AxisInstanceArraysMarker,
+            args,
+            data,
         })
     }
 }
@@ -217,25 +197,21 @@ impl<'a> AxisInstanceArrays<'a> {
 }
 
 /// Shim table to handle combined axis and instance arrays.
-pub type AxisInstanceArrays<'a> = TableRef<'a, AxisInstanceArraysMarker>;
+pub type AxisInstanceArrays<'a> = TableRef<'a, AxisInstanceArraysMarker, (u16, u16, u16)>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisInstanceArrays<'a> {
     fn axes_byte_len(&self, start: usize) -> usize {
         let _ = start;
-        ((self.shape.axis_count) as usize)
+        ((self.args.0) as usize)
             .checked_mul(VariationAxisRecord::RAW_BYTE_LEN)
             .unwrap()
     }
     fn instances_byte_len(&self, start: usize) -> usize {
         let _ = start;
-        ((self.shape.instance_count) as usize)
+        ((self.args.1) as usize)
             .checked_mul(
-                <InstanceRecord as ComputeSize>::compute_size(&(
-                    self.shape.axis_count,
-                    self.shape.instance_size,
-                ))
-                .unwrap(),
+                <InstanceRecord as ComputeSize>::compute_size(&(self.args.0, self.args.2)).unwrap(),
             )
             .unwrap()
     }
@@ -265,15 +241,15 @@ impl<'a> AxisInstanceArrays<'a> {
     }
 
     pub(crate) fn axis_count(&self) -> u16 {
-        self.shape.axis_count
+        self.args.0
     }
 
     pub(crate) fn instance_count(&self) -> u16 {
-        self.shape.instance_count
+        self.args.1
     }
 
     pub(crate) fn instance_size(&self) -> u16 {
-        self.shape.instance_size
+        self.args.2
     }
 }
 

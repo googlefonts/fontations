@@ -8,9 +8,7 @@ use crate::codegen_prelude::*;
 /// The [Horizontal Device Metrics](https://learn.microsoft.com/en-us/typography/opentype/spec/hdmx) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct HdmxMarker {
-    num_glyphs: u16,
-}
+pub struct HdmxMarker;
 
 impl<'a> MinByteRange for Hdmx<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -29,19 +27,12 @@ impl ReadArgs for Hdmx<'_> {
 
 impl<'a> FontReadWithArgs<'a> for Hdmx<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let num_glyphs = *args;
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let num_records: u16 = cursor.read()?;
-        let size_device_record: u32 = cursor.read()?;
-        let records_byte_len = (num_records as usize)
-            .checked_mul(<DeviceRecord as ComputeSize>::compute_size(&(
-                num_glyphs,
-                size_device_record,
-            ))?)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(records_byte_len);
-        cursor.finish(HdmxMarker { num_glyphs })
+        let args = *args;
+        Ok(TableRef {
+            shape: HdmxMarker,
+            args,
+            data,
+        })
     }
 }
 
@@ -57,7 +48,7 @@ impl<'a> Hdmx<'a> {
 }
 
 /// The [Horizontal Device Metrics](https://learn.microsoft.com/en-us/typography/opentype/spec/hdmx) table.
-pub type Hdmx<'a> = TableRef<'a, HdmxMarker>;
+pub type Hdmx<'a> = TableRef<'a, HdmxMarker, u16>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Hdmx<'a> {
@@ -66,7 +57,7 @@ impl<'a> Hdmx<'a> {
         ((self.num_records()) as usize)
             .checked_mul(
                 <DeviceRecord as ComputeSize>::compute_size(&(
-                    self.shape.num_glyphs,
+                    self.args,
                     self.size_device_record(),
                 ))
                 .unwrap(),
@@ -121,7 +112,7 @@ impl<'a> Hdmx<'a> {
     }
 
     pub(crate) fn num_glyphs(&self) -> u16 {
-        self.shape.num_glyphs
+        self.args
     }
 }
 

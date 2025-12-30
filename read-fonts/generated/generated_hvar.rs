@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [HVAR (Horizontal Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/hvar) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct HvarMarker {}
+pub struct HvarMarker;
 
 impl<'a> MinByteRange for Hvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,18 +23,16 @@ impl TopLevelTable for Hvar<'_> {
 
 impl<'a> FontRead<'a> for Hvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.finish(HvarMarker {})
+        Ok(TableRef {
+            shape: HvarMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [HVAR (Horizontal Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/hvar) table
-pub type Hvar<'a> = TableRef<'a, HvarMarker>;
+pub type Hvar<'a> = TableRef<'a, HvarMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Hvar<'a> {

@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table header
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Cff2HeaderMarker {}
+pub struct Cff2HeaderMarker;
 
 impl<'a> MinByteRange for Cff2Header<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -18,27 +18,16 @@ impl<'a> MinByteRange for Cff2Header<'a> {
 
 impl<'a> FontRead<'a> for Cff2Header<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u8>();
-        let header_size: u8 = cursor.read()?;
-        let top_dict_length: u16 = cursor.read()?;
-        let _padding_byte_len = (transforms::subtract(header_size, 5_usize))
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(_padding_byte_len);
-        let top_dict_data_byte_len = (top_dict_length as usize)
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(top_dict_data_byte_len);
-        let trailing_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(trailing_data_byte_len);
-        cursor.finish(Cff2HeaderMarker {})
+        Ok(TableRef {
+            shape: Cff2HeaderMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table header
-pub type Cff2Header<'a> = TableRef<'a, Cff2HeaderMarker>;
+pub type Cff2Header<'a> = TableRef<'a, Cff2HeaderMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cff2Header<'a> {

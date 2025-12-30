@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [cvar](https://learn.microsoft.com/en-us/typography/opentype/spec/cvar) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CvarMarker {}
+pub struct CvarMarker;
 
 impl<'a> MinByteRange for Cvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,18 +23,16 @@ impl TopLevelTable for Cvar<'_> {
 
 impl<'a> FontRead<'a> for Cvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<TupleVariationCount>();
-        cursor.advance::<Offset16>();
-        let tuple_variation_headers_byte_len = cursor.remaining_bytes();
-        cursor.advance_by(tuple_variation_headers_byte_len);
-        cursor.finish(CvarMarker {})
+        Ok(TableRef {
+            shape: CvarMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [cvar](https://learn.microsoft.com/en-us/typography/opentype/spec/cvar) table.
-pub type Cvar<'a> = TableRef<'a, CvarMarker>;
+pub type Cvar<'a> = TableRef<'a, CvarMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cvar<'a> {

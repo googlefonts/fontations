@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table header
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CffHeaderMarker {}
+pub struct CffHeaderMarker;
 
 impl<'a> MinByteRange for CffHeader<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -18,23 +18,16 @@ impl<'a> MinByteRange for CffHeader<'a> {
 
 impl<'a> FontRead<'a> for CffHeader<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u8>();
-        let hdr_size: u8 = cursor.read()?;
-        cursor.advance::<u8>();
-        let _padding_byte_len = (transforms::subtract(hdr_size, 4_usize))
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(_padding_byte_len);
-        let trailing_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(trailing_data_byte_len);
-        cursor.finish(CffHeaderMarker {})
+        Ok(TableRef {
+            shape: CffHeaderMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table header
-pub type CffHeader<'a> = TableRef<'a, CffHeaderMarker>;
+pub type CffHeader<'a> = TableRef<'a, CffHeaderMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CffHeader<'a> {

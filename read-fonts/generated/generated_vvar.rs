@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [VVAR (Vertical Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/vvar) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct VvarMarker {}
+pub struct VvarMarker;
 
 impl<'a> MinByteRange for Vvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,19 +23,16 @@ impl TopLevelTable for Vvar<'_> {
 
 impl<'a> FontRead<'a> for Vvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.finish(VvarMarker {})
+        Ok(TableRef {
+            shape: VvarMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [VVAR (Vertical Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/vvar) table
-pub type Vvar<'a> = TableRef<'a, VvarMarker>;
+pub type Vvar<'a> = TableRef<'a, VvarMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vvar<'a> {

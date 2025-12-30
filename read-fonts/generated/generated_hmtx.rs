@@ -8,9 +8,7 @@ use crate::codegen_prelude::*;
 /// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct HmtxMarker {
-    number_of_h_metrics: u16,
-}
+pub struct HmtxMarker;
 
 impl<'a> MinByteRange for Hmtx<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -29,17 +27,11 @@ impl ReadArgs for Hmtx<'_> {
 
 impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let number_of_h_metrics = *args;
-        let mut cursor = data.cursor();
-        let h_metrics_byte_len = (number_of_h_metrics as usize)
-            .checked_mul(LongMetric::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(h_metrics_byte_len);
-        let left_side_bearings_byte_len =
-            cursor.remaining_bytes() / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN;
-        cursor.advance_by(left_side_bearings_byte_len);
-        cursor.finish(HmtxMarker {
-            number_of_h_metrics,
+        let args = *args;
+        Ok(TableRef {
+            shape: HmtxMarker,
+            args,
+            data,
         })
     }
 }
@@ -56,13 +48,13 @@ impl<'a> Hmtx<'a> {
 }
 
 /// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
-pub type Hmtx<'a> = TableRef<'a, HmtxMarker>;
+pub type Hmtx<'a> = TableRef<'a, HmtxMarker, u16>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Hmtx<'a> {
     fn h_metrics_byte_len(&self, start: usize) -> usize {
         let _ = start;
-        ((self.shape.number_of_h_metrics) as usize)
+        ((self.args) as usize)
             .checked_mul(LongMetric::RAW_BYTE_LEN)
             .unwrap()
     }
@@ -99,7 +91,7 @@ impl<'a> Hmtx<'a> {
     }
 
     pub(crate) fn number_of_h_metrics(&self) -> u16 {
-        self.shape.number_of_h_metrics
+        self.args
     }
 }
 

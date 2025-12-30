@@ -8,11 +8,7 @@ use crate::codegen_prelude::*;
 /// [post (PostScript)](https://docs.microsoft.com/en-us/typography/opentype/spec/post#header) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PostMarker {
-    num_glyphs_byte_start: Option<usize>,
-    glyph_name_index_byte_start: Option<usize>,
-    string_data_byte_start: Option<usize>,
-}
+pub struct PostMarker;
 
 impl<'a> MinByteRange for Post<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -27,57 +23,16 @@ impl TopLevelTable for Post<'_> {
 
 impl<'a> FontRead<'a> for Post<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: Version16Dot16 = cursor.read()?;
-        cursor.advance::<Fixed>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let num_glyphs_byte_start = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        let num_glyphs = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.read::<u16>())
-            .transpose()?
-            .unwrap_or_default();
-        let glyph_name_index_byte_start = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        let glyph_name_index_byte_len = version.compatible((2u16, 0u16)).then_some(
-            (num_glyphs as usize)
-                .checked_mul(u16::RAW_BYTE_LEN)
-                .ok_or(ReadError::OutOfBounds)?,
-        );
-        if let Some(value) = glyph_name_index_byte_len {
-            cursor.advance_by(value);
-        }
-        let string_data_byte_start = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        let string_data_byte_len = version
-            .compatible((2u16, 0u16))
-            .then_some(cursor.remaining_bytes());
-        if let Some(value) = string_data_byte_len {
-            cursor.advance_by(value);
-        }
-        cursor.finish(PostMarker {
-            num_glyphs_byte_start,
-            glyph_name_index_byte_start,
-            string_data_byte_start,
+        Ok(TableRef {
+            shape: PostMarker,
+            args: (),
+            data,
         })
     }
 }
 
 /// [post (PostScript)](https://docs.microsoft.com/en-us/typography/opentype/spec/post#header) table
-pub type Post<'a> = TableRef<'a, PostMarker>;
+pub type Post<'a> = TableRef<'a, PostMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Post<'a> {
@@ -138,18 +93,40 @@ impl<'a> Post<'a> {
     }
 
     pub fn num_glyphs_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.num_glyphs_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((2u16, 0u16)) {
+            let start = self.max_mem_type1_byte_range().end;
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn glyph_name_index_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.glyph_name_index_byte_start?;
-        Some(start..start + self.glyph_name_index_byte_len(start))
+        if self.version().compatible((2u16, 0u16)) {
+            let start = self
+                .num_glyphs_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.max_mem_type1_byte_range().end);
+            Some(start..start + self.glyph_name_index_byte_len(start))
+        } else {
+            None
+        }
     }
 
     pub fn string_data_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.string_data_byte_start?;
-        Some(start..start + self.string_data_byte_len(start))
+        if self.version().compatible((2u16, 0u16)) {
+            let start = self
+                .glyph_name_index_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.num_glyphs_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| self.max_mem_type1_byte_range().end)
+                });
+            Some(start..start + self.string_data_byte_len(start))
+        } else {
+            None
+        }
     }
 
     /// 0x00010000 for version 1.0 0x00020000 for version 2.0

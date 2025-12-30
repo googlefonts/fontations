@@ -8,9 +8,7 @@ use crate::codegen_prelude::*;
 /// [STAT](https://docs.microsoft.com/en-us/typography/opentype/spec/stat) (Style Attributes Table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct StatMarker {
-    elided_fallback_name_id_byte_start: Option<usize>,
-}
+pub struct StatMarker;
 
 impl<'a> MinByteRange for Stat<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -25,28 +23,16 @@ impl TopLevelTable for Stat<'_> {
 
 impl<'a> FontRead<'a> for Stat<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: MajorMinor = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        let elided_fallback_name_id_byte_start = version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.advance::<NameId>());
-        cursor.finish(StatMarker {
-            elided_fallback_name_id_byte_start,
+        Ok(TableRef {
+            shape: StatMarker,
+            args: (),
+            data,
         })
     }
 }
 
 /// [STAT](https://docs.microsoft.com/en-us/typography/opentype/spec/stat) (Style Attributes Table)
-pub type Stat<'a> = TableRef<'a, StatMarker>;
+pub type Stat<'a> = TableRef<'a, StatMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Stat<'a> {
@@ -81,8 +67,12 @@ impl<'a> Stat<'a> {
     }
 
     pub fn elided_fallback_name_id_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.elided_fallback_name_id_byte_start?;
-        Some(start..start + NameId::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 1u16)) {
+            let start = self.offset_to_axis_value_offsets_byte_range().end;
+            Some(start..start + NameId::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     /// Major/minor version number. Set to 1.2 for new fonts.
@@ -258,9 +248,7 @@ impl<'a> SomeRecord<'a> for AxisRecord {
 /// An array of [AxisValue] tables.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AxisValueArrayMarker {
-    axis_value_count: u16,
-}
+pub struct AxisValueArrayMarker;
 
 impl<'a> MinByteRange for AxisValueArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -274,13 +262,12 @@ impl ReadArgs for AxisValueArray<'_> {
 
 impl<'a> FontReadWithArgs<'a> for AxisValueArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let axis_value_count = *args;
-        let mut cursor = data.cursor();
-        let axis_value_offsets_byte_len = (axis_value_count as usize)
-            .checked_mul(Offset16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(axis_value_offsets_byte_len);
-        cursor.finish(AxisValueArrayMarker { axis_value_count })
+        let args = *args;
+        Ok(TableRef {
+            shape: AxisValueArrayMarker,
+            args,
+            data,
+        })
     }
 }
 
@@ -296,13 +283,13 @@ impl<'a> AxisValueArray<'a> {
 }
 
 /// An array of [AxisValue] tables.
-pub type AxisValueArray<'a> = TableRef<'a, AxisValueArrayMarker>;
+pub type AxisValueArray<'a> = TableRef<'a, AxisValueArrayMarker, u16>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueArray<'a> {
     fn axis_value_offsets_byte_len(&self, start: usize) -> usize {
         let _ = start;
-        ((self.shape.axis_value_count) as usize)
+        ((self.args) as usize)
             .checked_mul(Offset16::RAW_BYTE_LEN)
             .unwrap()
     }
@@ -327,7 +314,7 @@ impl<'a> AxisValueArray<'a> {
     }
 
     pub(crate) fn axis_value_count(&self) -> u16 {
-        self.shape.axis_value_count
+        self.args
     }
 }
 
@@ -477,7 +464,7 @@ impl Format<u16> for AxisValueFormat1Marker {
 /// [Axis value table format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-1)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AxisValueFormat1Marker {}
+pub struct AxisValueFormat1Marker;
 
 impl<'a> MinByteRange for AxisValueFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -487,18 +474,16 @@ impl<'a> MinByteRange for AxisValueFormat1<'a> {
 
 impl<'a> FontRead<'a> for AxisValueFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<AxisValueTableFlags>();
-        cursor.advance::<NameId>();
-        cursor.advance::<Fixed>();
-        cursor.finish(AxisValueFormat1Marker {})
+        Ok(TableRef {
+            shape: AxisValueFormat1Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [Axis value table format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-1)
-pub type AxisValueFormat1<'a> = TableRef<'a, AxisValueFormat1Marker>;
+pub type AxisValueFormat1<'a> = TableRef<'a, AxisValueFormat1Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat1<'a> {
@@ -593,7 +578,7 @@ impl Format<u16> for AxisValueFormat2Marker {
 /// [Axis value table format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-2)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AxisValueFormat2Marker {}
+pub struct AxisValueFormat2Marker;
 
 impl<'a> MinByteRange for AxisValueFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -603,20 +588,16 @@ impl<'a> MinByteRange for AxisValueFormat2<'a> {
 
 impl<'a> FontRead<'a> for AxisValueFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<AxisValueTableFlags>();
-        cursor.advance::<NameId>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.finish(AxisValueFormat2Marker {})
+        Ok(TableRef {
+            shape: AxisValueFormat2Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [Axis value table format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-2)
-pub type AxisValueFormat2<'a> = TableRef<'a, AxisValueFormat2Marker>;
+pub type AxisValueFormat2<'a> = TableRef<'a, AxisValueFormat2Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat2<'a> {
@@ -737,7 +718,7 @@ impl Format<u16> for AxisValueFormat3Marker {
 /// [Axis value table format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-3)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AxisValueFormat3Marker {}
+pub struct AxisValueFormat3Marker;
 
 impl<'a> MinByteRange for AxisValueFormat3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -747,19 +728,16 @@ impl<'a> MinByteRange for AxisValueFormat3<'a> {
 
 impl<'a> FontRead<'a> for AxisValueFormat3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<AxisValueTableFlags>();
-        cursor.advance::<NameId>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.finish(AxisValueFormat3Marker {})
+        Ok(TableRef {
+            shape: AxisValueFormat3Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [Axis value table format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-3)
-pub type AxisValueFormat3<'a> = TableRef<'a, AxisValueFormat3Marker>;
+pub type AxisValueFormat3<'a> = TableRef<'a, AxisValueFormat3Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat3<'a> {
@@ -866,7 +844,7 @@ impl Format<u16> for AxisValueFormat4Marker {
 /// [Axis value table format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-4)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AxisValueFormat4Marker {}
+pub struct AxisValueFormat4Marker;
 
 impl<'a> MinByteRange for AxisValueFormat4<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -876,21 +854,16 @@ impl<'a> MinByteRange for AxisValueFormat4<'a> {
 
 impl<'a> FontRead<'a> for AxisValueFormat4<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let axis_count: u16 = cursor.read()?;
-        cursor.advance::<AxisValueTableFlags>();
-        cursor.advance::<NameId>();
-        let axis_values_byte_len = (axis_count as usize)
-            .checked_mul(AxisValueRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(axis_values_byte_len);
-        cursor.finish(AxisValueFormat4Marker {})
+        Ok(TableRef {
+            shape: AxisValueFormat4Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [Axis value table format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-4)
-pub type AxisValueFormat4<'a> = TableRef<'a, AxisValueFormat4Marker>;
+pub type AxisValueFormat4<'a> = TableRef<'a, AxisValueFormat4Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisValueFormat4<'a> {

@@ -8,13 +8,7 @@ use crate::codegen_prelude::*;
 /// [COLR (Color)](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#colr-header) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct ColrMarker {
-    base_glyph_list_offset_byte_start: Option<usize>,
-    layer_list_offset_byte_start: Option<usize>,
-    clip_list_offset_byte_start: Option<usize>,
-    var_index_map_offset_byte_start: Option<usize>,
-    item_variation_store_offset_byte_start: Option<usize>,
-}
+pub struct ColrMarker;
 
 impl<'a> MinByteRange for Colr<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -29,59 +23,16 @@ impl TopLevelTable for Colr<'_> {
 
 impl<'a> FontRead<'a> for Colr<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<u16>();
-        let base_glyph_list_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        let layer_list_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        let clip_list_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        let var_index_map_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        let item_variation_store_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        cursor.finish(ColrMarker {
-            base_glyph_list_offset_byte_start,
-            layer_list_offset_byte_start,
-            clip_list_offset_byte_start,
-            var_index_map_offset_byte_start,
-            item_variation_store_offset_byte_start,
+        Ok(TableRef {
+            shape: ColrMarker,
+            args: (),
+            data,
         })
     }
 }
 
 /// [COLR (Color)](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#colr-header) table
-pub type Colr<'a> = TableRef<'a, ColrMarker>;
+pub type Colr<'a> = TableRef<'a, ColrMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Colr<'a> {
@@ -111,28 +62,84 @@ impl<'a> Colr<'a> {
     }
 
     pub fn base_glyph_list_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.base_glyph_list_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible(1u16) {
+            let start = self.num_layer_records_byte_range().end;
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn layer_list_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.layer_list_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible(1u16) {
+            let start = self
+                .base_glyph_list_offset_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.num_layer_records_byte_range().end);
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn clip_list_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.clip_list_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible(1u16) {
+            let start = self
+                .layer_list_offset_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.base_glyph_list_offset_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| self.num_layer_records_byte_range().end)
+                });
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn var_index_map_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.var_index_map_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible(1u16) {
+            let start = self
+                .clip_list_offset_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.layer_list_offset_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| {
+                            self.base_glyph_list_offset_byte_range()
+                                .map(|range| range.end)
+                                .unwrap_or_else(|| self.num_layer_records_byte_range().end)
+                        })
+                });
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn item_variation_store_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.item_variation_store_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible(1u16) {
+            let start = self
+                .var_index_map_offset_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.clip_list_offset_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| {
+                            self.layer_list_offset_byte_range()
+                                .map(|range| range.end)
+                                .unwrap_or_else(|| {
+                                    self.base_glyph_list_offset_byte_range()
+                                        .map(|range| range.end)
+                                        .unwrap_or_else(|| self.num_layer_records_byte_range().end)
+                                })
+                        })
+                });
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     /// Table version number - set to 0 or 1.
@@ -408,7 +415,7 @@ impl<'a> SomeRecord<'a> for Layer {
 /// [BaseGlyphList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct BaseGlyphListMarker {}
+pub struct BaseGlyphListMarker;
 
 impl<'a> MinByteRange for BaseGlyphList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -418,18 +425,16 @@ impl<'a> MinByteRange for BaseGlyphList<'a> {
 
 impl<'a> FontRead<'a> for BaseGlyphList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let num_base_glyph_paint_records: u32 = cursor.read()?;
-        let base_glyph_paint_records_byte_len = (num_base_glyph_paint_records as usize)
-            .checked_mul(BaseGlyphPaint::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(base_glyph_paint_records_byte_len);
-        cursor.finish(BaseGlyphListMarker {})
+        Ok(TableRef {
+            shape: BaseGlyphListMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [BaseGlyphList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
-pub type BaseGlyphList<'a> = TableRef<'a, BaseGlyphListMarker>;
+pub type BaseGlyphList<'a> = TableRef<'a, BaseGlyphListMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseGlyphList<'a> {
@@ -549,7 +554,7 @@ impl<'a> SomeRecord<'a> for BaseGlyphPaint {
 /// [LayerList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct LayerListMarker {}
+pub struct LayerListMarker;
 
 impl<'a> MinByteRange for LayerList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -559,18 +564,16 @@ impl<'a> MinByteRange for LayerList<'a> {
 
 impl<'a> FontRead<'a> for LayerList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let num_layers: u32 = cursor.read()?;
-        let paint_offsets_byte_len = (num_layers as usize)
-            .checked_mul(Offset32::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(paint_offsets_byte_len);
-        cursor.finish(LayerListMarker {})
+        Ok(TableRef {
+            shape: LayerListMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [LayerList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
-pub type LayerList<'a> = TableRef<'a, LayerListMarker>;
+pub type LayerList<'a> = TableRef<'a, LayerListMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LayerList<'a> {
@@ -648,7 +651,7 @@ impl<'a> std::fmt::Debug for LayerList<'a> {
 /// [ClipList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct ClipListMarker {}
+pub struct ClipListMarker;
 
 impl<'a> MinByteRange for ClipList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -658,19 +661,16 @@ impl<'a> MinByteRange for ClipList<'a> {
 
 impl<'a> FontRead<'a> for ClipList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        let num_clips: u32 = cursor.read()?;
-        let clips_byte_len = (num_clips as usize)
-            .checked_mul(Clip::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(clips_byte_len);
-        cursor.finish(ClipListMarker {})
+        Ok(TableRef {
+            shape: ClipListMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [ClipList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
-pub type ClipList<'a> = TableRef<'a, ClipListMarker>;
+pub type ClipList<'a> = TableRef<'a, ClipListMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClipList<'a> {
@@ -918,7 +918,7 @@ impl Format<u8> for ClipBoxFormat1Marker {
 /// [ClipBoxFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct ClipBoxFormat1Marker {}
+pub struct ClipBoxFormat1Marker;
 
 impl<'a> MinByteRange for ClipBoxFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -928,18 +928,16 @@ impl<'a> MinByteRange for ClipBoxFormat1<'a> {
 
 impl<'a> FontRead<'a> for ClipBoxFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(ClipBoxFormat1Marker {})
+        Ok(TableRef {
+            shape: ClipBoxFormat1Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [ClipBoxFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
-pub type ClipBoxFormat1<'a> = TableRef<'a, ClipBoxFormat1Marker>;
+pub type ClipBoxFormat1<'a> = TableRef<'a, ClipBoxFormat1Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClipBoxFormat1<'a> {
@@ -1031,7 +1029,7 @@ impl Format<u8> for ClipBoxFormat2Marker {
 /// [ClipBoxFormat2](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct ClipBoxFormat2Marker {}
+pub struct ClipBoxFormat2Marker;
 
 impl<'a> MinByteRange for ClipBoxFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1041,19 +1039,16 @@ impl<'a> MinByteRange for ClipBoxFormat2<'a> {
 
 impl<'a> FontRead<'a> for ClipBoxFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(ClipBoxFormat2Marker {})
+        Ok(TableRef {
+            shape: ClipBoxFormat2Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [ClipBoxFormat2](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
-pub type ClipBoxFormat2<'a> = TableRef<'a, ClipBoxFormat2Marker>;
+pub type ClipBoxFormat2<'a> = TableRef<'a, ClipBoxFormat2Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClipBoxFormat2<'a> {
@@ -1354,7 +1349,7 @@ impl<'a> SomeRecord<'a> for VarColorStop {
 /// [ColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct ColorLineMarker {}
+pub struct ColorLineMarker;
 
 impl<'a> MinByteRange for ColorLine<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1364,19 +1359,16 @@ impl<'a> MinByteRange for ColorLine<'a> {
 
 impl<'a> FontRead<'a> for ColorLine<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<Extend>();
-        let num_stops: u16 = cursor.read()?;
-        let color_stops_byte_len = (num_stops as usize)
-            .checked_mul(ColorStop::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(color_stops_byte_len);
-        cursor.finish(ColorLineMarker {})
+        Ok(TableRef {
+            shape: ColorLineMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [ColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
-pub type ColorLine<'a> = TableRef<'a, ColorLineMarker>;
+pub type ColorLine<'a> = TableRef<'a, ColorLineMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ColorLine<'a> {
@@ -1453,7 +1445,7 @@ impl<'a> std::fmt::Debug for ColorLine<'a> {
 /// [VarColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct VarColorLineMarker {}
+pub struct VarColorLineMarker;
 
 impl<'a> MinByteRange for VarColorLine<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1463,19 +1455,16 @@ impl<'a> MinByteRange for VarColorLine<'a> {
 
 impl<'a> FontRead<'a> for VarColorLine<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<Extend>();
-        let num_stops: u16 = cursor.read()?;
-        let color_stops_byte_len = (num_stops as usize)
-            .checked_mul(VarColorStop::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(color_stops_byte_len);
-        cursor.finish(VarColorLineMarker {})
+        Ok(TableRef {
+            shape: VarColorLineMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [VarColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
-pub type VarColorLine<'a> = TableRef<'a, VarColorLineMarker>;
+pub type VarColorLine<'a> = TableRef<'a, VarColorLineMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarColorLine<'a> {
@@ -1878,7 +1867,7 @@ impl Format<u8> for PaintColrLayersMarker {
 /// [PaintColrLayers](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-1-paintcolrlayers) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintColrLayersMarker {}
+pub struct PaintColrLayersMarker;
 
 impl<'a> MinByteRange for PaintColrLayers<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1888,16 +1877,16 @@ impl<'a> MinByteRange for PaintColrLayers<'a> {
 
 impl<'a> FontRead<'a> for PaintColrLayers<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u8>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintColrLayersMarker {})
+        Ok(TableRef {
+            shape: PaintColrLayersMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintColrLayers](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-1-paintcolrlayers) table
-pub type PaintColrLayers<'a> = TableRef<'a, PaintColrLayersMarker>;
+pub type PaintColrLayers<'a> = TableRef<'a, PaintColrLayersMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintColrLayers<'a> {
@@ -1965,7 +1954,7 @@ impl Format<u8> for PaintSolidMarker {
 /// [PaintSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintSolidMarker {}
+pub struct PaintSolidMarker;
 
 impl<'a> MinByteRange for PaintSolid<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1975,16 +1964,16 @@ impl<'a> MinByteRange for PaintSolid<'a> {
 
 impl<'a> FontRead<'a> for PaintSolid<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u16>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintSolidMarker {})
+        Ok(TableRef {
+            shape: PaintSolidMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
-pub type PaintSolid<'a> = TableRef<'a, PaintSolidMarker>;
+pub type PaintSolid<'a> = TableRef<'a, PaintSolidMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSolid<'a> {
@@ -2052,7 +2041,7 @@ impl Format<u8> for PaintVarSolidMarker {
 /// [PaintVarSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintVarSolidMarker {}
+pub struct PaintVarSolidMarker;
 
 impl<'a> MinByteRange for PaintVarSolid<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2062,17 +2051,16 @@ impl<'a> MinByteRange for PaintVarSolid<'a> {
 
 impl<'a> FontRead<'a> for PaintVarSolid<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u16>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarSolidMarker {})
+        Ok(TableRef {
+            shape: PaintVarSolidMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintVarSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
-pub type PaintVarSolid<'a> = TableRef<'a, PaintVarSolidMarker>;
+pub type PaintVarSolid<'a> = TableRef<'a, PaintVarSolidMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSolid<'a> {
@@ -2152,7 +2140,7 @@ impl Format<u8> for PaintLinearGradientMarker {
 /// [PaintLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintLinearGradientMarker {}
+pub struct PaintLinearGradientMarker;
 
 impl<'a> MinByteRange for PaintLinearGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2162,21 +2150,16 @@ impl<'a> MinByteRange for PaintLinearGradient<'a> {
 
 impl<'a> FontRead<'a> for PaintLinearGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintLinearGradientMarker {})
+        Ok(TableRef {
+            shape: PaintLinearGradientMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
-pub type PaintLinearGradient<'a> = TableRef<'a, PaintLinearGradientMarker>;
+pub type PaintLinearGradient<'a> = TableRef<'a, PaintLinearGradientMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintLinearGradient<'a> {
@@ -2313,7 +2296,7 @@ impl Format<u8> for PaintVarLinearGradientMarker {
 /// [PaintVarLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintVarLinearGradientMarker {}
+pub struct PaintVarLinearGradientMarker;
 
 impl<'a> MinByteRange for PaintVarLinearGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2323,22 +2306,16 @@ impl<'a> MinByteRange for PaintVarLinearGradient<'a> {
 
 impl<'a> FontRead<'a> for PaintVarLinearGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarLinearGradientMarker {})
+        Ok(TableRef {
+            shape: PaintVarLinearGradientMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintVarLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
-pub type PaintVarLinearGradient<'a> = TableRef<'a, PaintVarLinearGradientMarker>;
+pub type PaintVarLinearGradient<'a> = TableRef<'a, PaintVarLinearGradientMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarLinearGradient<'a> {
@@ -2493,7 +2470,7 @@ impl Format<u8> for PaintRadialGradientMarker {
 /// [PaintRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintRadialGradientMarker {}
+pub struct PaintRadialGradientMarker;
 
 impl<'a> MinByteRange for PaintRadialGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2503,21 +2480,16 @@ impl<'a> MinByteRange for PaintRadialGradient<'a> {
 
 impl<'a> FontRead<'a> for PaintRadialGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.finish(PaintRadialGradientMarker {})
+        Ok(TableRef {
+            shape: PaintRadialGradientMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
-pub type PaintRadialGradient<'a> = TableRef<'a, PaintRadialGradientMarker>;
+pub type PaintRadialGradient<'a> = TableRef<'a, PaintRadialGradientMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRadialGradient<'a> {
@@ -2654,7 +2626,7 @@ impl Format<u8> for PaintVarRadialGradientMarker {
 /// [PaintVarRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintVarRadialGradientMarker {}
+pub struct PaintVarRadialGradientMarker;
 
 impl<'a> MinByteRange for PaintVarRadialGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2664,22 +2636,16 @@ impl<'a> MinByteRange for PaintVarRadialGradient<'a> {
 
 impl<'a> FontRead<'a> for PaintVarRadialGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarRadialGradientMarker {})
+        Ok(TableRef {
+            shape: PaintVarRadialGradientMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintVarRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
-pub type PaintVarRadialGradient<'a> = TableRef<'a, PaintVarRadialGradientMarker>;
+pub type PaintVarRadialGradient<'a> = TableRef<'a, PaintVarRadialGradientMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRadialGradient<'a> {
@@ -2832,7 +2798,7 @@ impl Format<u8> for PaintSweepGradientMarker {
 /// [PaintSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintSweepGradientMarker {}
+pub struct PaintSweepGradientMarker;
 
 impl<'a> MinByteRange for PaintSweepGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2842,19 +2808,16 @@ impl<'a> MinByteRange for PaintSweepGradient<'a> {
 
 impl<'a> FontRead<'a> for PaintSweepGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintSweepGradientMarker {})
+        Ok(TableRef {
+            shape: PaintSweepGradientMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
-pub type PaintSweepGradient<'a> = TableRef<'a, PaintSweepGradientMarker>;
+pub type PaintSweepGradient<'a> = TableRef<'a, PaintSweepGradientMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSweepGradient<'a> {
@@ -2969,7 +2932,7 @@ impl Format<u8> for PaintVarSweepGradientMarker {
 /// [PaintVarSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintVarSweepGradientMarker {}
+pub struct PaintVarSweepGradientMarker;
 
 impl<'a> MinByteRange for PaintVarSweepGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2979,20 +2942,16 @@ impl<'a> MinByteRange for PaintVarSweepGradient<'a> {
 
 impl<'a> FontRead<'a> for PaintVarSweepGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarSweepGradientMarker {})
+        Ok(TableRef {
+            shape: PaintVarSweepGradientMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintVarSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
-pub type PaintVarSweepGradient<'a> = TableRef<'a, PaintVarSweepGradientMarker>;
+pub type PaintVarSweepGradient<'a> = TableRef<'a, PaintVarSweepGradientMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSweepGradient<'a> {
@@ -3121,7 +3080,7 @@ impl Format<u8> for PaintGlyphMarker {
 /// [PaintGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-10-paintglyph) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintGlyphMarker {}
+pub struct PaintGlyphMarker;
 
 impl<'a> MinByteRange for PaintGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3131,16 +3090,16 @@ impl<'a> MinByteRange for PaintGlyph<'a> {
 
 impl<'a> FontRead<'a> for PaintGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<GlyphId16>();
-        cursor.finish(PaintGlyphMarker {})
+        Ok(TableRef {
+            shape: PaintGlyphMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-10-paintglyph) table
-pub type PaintGlyph<'a> = TableRef<'a, PaintGlyphMarker>;
+pub type PaintGlyph<'a> = TableRef<'a, PaintGlyphMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintGlyph<'a> {
@@ -3217,7 +3176,7 @@ impl Format<u8> for PaintColrGlyphMarker {
 /// [PaintColrGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-11-paintcolrglyph) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintColrGlyphMarker {}
+pub struct PaintColrGlyphMarker;
 
 impl<'a> MinByteRange for PaintColrGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3227,15 +3186,16 @@ impl<'a> MinByteRange for PaintColrGlyph<'a> {
 
 impl<'a> FontRead<'a> for PaintColrGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<GlyphId16>();
-        cursor.finish(PaintColrGlyphMarker {})
+        Ok(TableRef {
+            shape: PaintColrGlyphMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintColrGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-11-paintcolrglyph) table
-pub type PaintColrGlyph<'a> = TableRef<'a, PaintColrGlyphMarker>;
+pub type PaintColrGlyph<'a> = TableRef<'a, PaintColrGlyphMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintColrGlyph<'a> {
@@ -3291,7 +3251,7 @@ impl Format<u8> for PaintTransformMarker {
 /// [PaintTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintTransformMarker {}
+pub struct PaintTransformMarker;
 
 impl<'a> MinByteRange for PaintTransform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3301,16 +3261,16 @@ impl<'a> MinByteRange for PaintTransform<'a> {
 
 impl<'a> FontRead<'a> for PaintTransform<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<Offset24>();
-        cursor.finish(PaintTransformMarker {})
+        Ok(TableRef {
+            shape: PaintTransformMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
-pub type PaintTransform<'a> = TableRef<'a, PaintTransformMarker>;
+pub type PaintTransform<'a> = TableRef<'a, PaintTransformMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintTransform<'a> {
@@ -3396,7 +3356,7 @@ impl Format<u8> for PaintVarTransformMarker {
 /// [PaintVarTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintVarTransformMarker {}
+pub struct PaintVarTransformMarker;
 
 impl<'a> MinByteRange for PaintVarTransform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3406,16 +3366,16 @@ impl<'a> MinByteRange for PaintVarTransform<'a> {
 
 impl<'a> FontRead<'a> for PaintVarTransform<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<Offset24>();
-        cursor.finish(PaintVarTransformMarker {})
+        Ok(TableRef {
+            shape: PaintVarTransformMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintVarTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
-pub type PaintVarTransform<'a> = TableRef<'a, PaintVarTransformMarker>;
+pub type PaintVarTransform<'a> = TableRef<'a, PaintVarTransformMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarTransform<'a> {
@@ -3497,7 +3457,7 @@ impl<'a> std::fmt::Debug for PaintVarTransform<'a> {
 /// [Affine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Affine2x3Marker {}
+pub struct Affine2x3Marker;
 
 impl<'a> MinByteRange for Affine2x3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3507,19 +3467,16 @@ impl<'a> MinByteRange for Affine2x3<'a> {
 
 impl<'a> FontRead<'a> for Affine2x3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.finish(Affine2x3Marker {})
+        Ok(TableRef {
+            shape: Affine2x3Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [Affine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
-pub type Affine2x3<'a> = TableRef<'a, Affine2x3Marker>;
+pub type Affine2x3<'a> = TableRef<'a, Affine2x3Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Affine2x3<'a> {
@@ -3619,7 +3576,7 @@ impl<'a> std::fmt::Debug for Affine2x3<'a> {
 /// [VarAffine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct VarAffine2x3Marker {}
+pub struct VarAffine2x3Marker;
 
 impl<'a> MinByteRange for VarAffine2x3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3629,20 +3586,16 @@ impl<'a> MinByteRange for VarAffine2x3<'a> {
 
 impl<'a> FontRead<'a> for VarAffine2x3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<u32>();
-        cursor.finish(VarAffine2x3Marker {})
+        Ok(TableRef {
+            shape: VarAffine2x3Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [VarAffine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
-pub type VarAffine2x3<'a> = TableRef<'a, VarAffine2x3Marker>;
+pub type VarAffine2x3<'a> = TableRef<'a, VarAffine2x3Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarAffine2x3<'a> {
@@ -3762,7 +3715,7 @@ impl Format<u8> for PaintTranslateMarker {
 /// [PaintTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintTranslateMarker {}
+pub struct PaintTranslateMarker;
 
 impl<'a> MinByteRange for PaintTranslate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3772,17 +3725,16 @@ impl<'a> MinByteRange for PaintTranslate<'a> {
 
 impl<'a> FontRead<'a> for PaintTranslate<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintTranslateMarker {})
+        Ok(TableRef {
+            shape: PaintTranslateMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
-pub type PaintTranslate<'a> = TableRef<'a, PaintTranslateMarker>;
+pub type PaintTranslate<'a> = TableRef<'a, PaintTranslateMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintTranslate<'a> {
@@ -3871,7 +3823,7 @@ impl Format<u8> for PaintVarTranslateMarker {
 /// [PaintVarTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintVarTranslateMarker {}
+pub struct PaintVarTranslateMarker;
 
 impl<'a> MinByteRange for PaintVarTranslate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3881,18 +3833,16 @@ impl<'a> MinByteRange for PaintVarTranslate<'a> {
 
 impl<'a> FontRead<'a> for PaintVarTranslate<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarTranslateMarker {})
+        Ok(TableRef {
+            shape: PaintVarTranslateMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintVarTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
-pub type PaintVarTranslate<'a> = TableRef<'a, PaintVarTranslateMarker>;
+pub type PaintVarTranslate<'a> = TableRef<'a, PaintVarTranslateMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarTranslate<'a> {
@@ -3993,7 +3943,7 @@ impl Format<u8> for PaintScaleMarker {
 /// [PaintScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintScaleMarker {}
+pub struct PaintScaleMarker;
 
 impl<'a> MinByteRange for PaintScale<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4003,17 +3953,16 @@ impl<'a> MinByteRange for PaintScale<'a> {
 
 impl<'a> FontRead<'a> for PaintScale<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintScaleMarker {})
+        Ok(TableRef {
+            shape: PaintScaleMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintScale<'a> = TableRef<'a, PaintScaleMarker>;
+pub type PaintScale<'a> = TableRef<'a, PaintScaleMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScale<'a> {
@@ -4102,7 +4051,7 @@ impl Format<u8> for PaintVarScaleMarker {
 /// [PaintVarScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintVarScaleMarker {}
+pub struct PaintVarScaleMarker;
 
 impl<'a> MinByteRange for PaintVarScale<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4112,18 +4061,16 @@ impl<'a> MinByteRange for PaintVarScale<'a> {
 
 impl<'a> FontRead<'a> for PaintVarScale<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarScaleMarker {})
+        Ok(TableRef {
+            shape: PaintVarScaleMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintVarScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintVarScale<'a> = TableRef<'a, PaintVarScaleMarker>;
+pub type PaintVarScale<'a> = TableRef<'a, PaintVarScaleMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScale<'a> {
@@ -4226,7 +4173,7 @@ impl Format<u8> for PaintScaleAroundCenterMarker {
 /// [PaintScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintScaleAroundCenterMarker {}
+pub struct PaintScaleAroundCenterMarker;
 
 impl<'a> MinByteRange for PaintScaleAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4236,19 +4183,16 @@ impl<'a> MinByteRange for PaintScaleAroundCenter<'a> {
 
 impl<'a> FontRead<'a> for PaintScaleAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintScaleAroundCenterMarker {})
+        Ok(TableRef {
+            shape: PaintScaleAroundCenterMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintScaleAroundCenter<'a> = TableRef<'a, PaintScaleAroundCenterMarker>;
+pub type PaintScaleAroundCenter<'a> = TableRef<'a, PaintScaleAroundCenterMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleAroundCenter<'a> {
@@ -4361,7 +4305,7 @@ impl Format<u8> for PaintVarScaleAroundCenterMarker {
 /// [PaintVarScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintVarScaleAroundCenterMarker {}
+pub struct PaintVarScaleAroundCenterMarker;
 
 impl<'a> MinByteRange for PaintVarScaleAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4371,20 +4315,16 @@ impl<'a> MinByteRange for PaintVarScaleAroundCenter<'a> {
 
 impl<'a> FontRead<'a> for PaintVarScaleAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarScaleAroundCenterMarker {})
+        Ok(TableRef {
+            shape: PaintVarScaleAroundCenterMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintVarScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintVarScaleAroundCenter<'a> = TableRef<'a, PaintVarScaleAroundCenterMarker>;
+pub type PaintVarScaleAroundCenter<'a> = TableRef<'a, PaintVarScaleAroundCenterMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleAroundCenter<'a> {
@@ -4513,7 +4453,7 @@ impl Format<u8> for PaintScaleUniformMarker {
 /// [PaintScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintScaleUniformMarker {}
+pub struct PaintScaleUniformMarker;
 
 impl<'a> MinByteRange for PaintScaleUniform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4523,16 +4463,16 @@ impl<'a> MinByteRange for PaintScaleUniform<'a> {
 
 impl<'a> FontRead<'a> for PaintScaleUniform<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintScaleUniformMarker {})
+        Ok(TableRef {
+            shape: PaintScaleUniformMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintScaleUniform<'a> = TableRef<'a, PaintScaleUniformMarker>;
+pub type PaintScaleUniform<'a> = TableRef<'a, PaintScaleUniformMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleUniform<'a> {
@@ -4609,7 +4549,7 @@ impl Format<u8> for PaintVarScaleUniformMarker {
 /// [PaintVarScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintVarScaleUniformMarker {}
+pub struct PaintVarScaleUniformMarker;
 
 impl<'a> MinByteRange for PaintVarScaleUniform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4619,17 +4559,16 @@ impl<'a> MinByteRange for PaintVarScaleUniform<'a> {
 
 impl<'a> FontRead<'a> for PaintVarScaleUniform<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarScaleUniformMarker {})
+        Ok(TableRef {
+            shape: PaintVarScaleUniformMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintVarScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintVarScaleUniform<'a> = TableRef<'a, PaintVarScaleUniformMarker>;
+pub type PaintVarScaleUniform<'a> = TableRef<'a, PaintVarScaleUniformMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleUniform<'a> {
@@ -4719,7 +4658,7 @@ impl Format<u8> for PaintScaleUniformAroundCenterMarker {
 /// [PaintScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintScaleUniformAroundCenterMarker {}
+pub struct PaintScaleUniformAroundCenterMarker;
 
 impl<'a> MinByteRange for PaintScaleUniformAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4729,18 +4668,16 @@ impl<'a> MinByteRange for PaintScaleUniformAroundCenter<'a> {
 
 impl<'a> FontRead<'a> for PaintScaleUniformAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintScaleUniformAroundCenterMarker {})
+        Ok(TableRef {
+            shape: PaintScaleUniformAroundCenterMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintScaleUniformAroundCenter<'a> = TableRef<'a, PaintScaleUniformAroundCenterMarker>;
+pub type PaintScaleUniformAroundCenter<'a> = TableRef<'a, PaintScaleUniformAroundCenterMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleUniformAroundCenter<'a> {
@@ -4841,7 +4778,7 @@ impl Format<u8> for PaintVarScaleUniformAroundCenterMarker {
 /// [PaintVarScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintVarScaleUniformAroundCenterMarker {}
+pub struct PaintVarScaleUniformAroundCenterMarker;
 
 impl<'a> MinByteRange for PaintVarScaleUniformAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4851,20 +4788,17 @@ impl<'a> MinByteRange for PaintVarScaleUniformAroundCenter<'a> {
 
 impl<'a> FontRead<'a> for PaintVarScaleUniformAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarScaleUniformAroundCenterMarker {})
+        Ok(TableRef {
+            shape: PaintVarScaleUniformAroundCenterMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintVarScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintVarScaleUniformAroundCenter<'a> =
-    TableRef<'a, PaintVarScaleUniformAroundCenterMarker>;
+    TableRef<'a, PaintVarScaleUniformAroundCenterMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleUniformAroundCenter<'a> {
@@ -4980,7 +4914,7 @@ impl Format<u8> for PaintRotateMarker {
 /// [PaintRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintRotateMarker {}
+pub struct PaintRotateMarker;
 
 impl<'a> MinByteRange for PaintRotate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4990,16 +4924,16 @@ impl<'a> MinByteRange for PaintRotate<'a> {
 
 impl<'a> FontRead<'a> for PaintRotate<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintRotateMarker {})
+        Ok(TableRef {
+            shape: PaintRotateMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-pub type PaintRotate<'a> = TableRef<'a, PaintRotateMarker>;
+pub type PaintRotate<'a> = TableRef<'a, PaintRotateMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRotate<'a> {
@@ -5077,7 +5011,7 @@ impl Format<u8> for PaintVarRotateMarker {
 /// [PaintVarRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintVarRotateMarker {}
+pub struct PaintVarRotateMarker;
 
 impl<'a> MinByteRange for PaintVarRotate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -5087,17 +5021,16 @@ impl<'a> MinByteRange for PaintVarRotate<'a> {
 
 impl<'a> FontRead<'a> for PaintVarRotate<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarRotateMarker {})
+        Ok(TableRef {
+            shape: PaintVarRotateMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintVarRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-pub type PaintVarRotate<'a> = TableRef<'a, PaintVarRotateMarker>;
+pub type PaintVarRotate<'a> = TableRef<'a, PaintVarRotateMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRotate<'a> {
@@ -5187,7 +5120,7 @@ impl Format<u8> for PaintRotateAroundCenterMarker {
 /// [PaintRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintRotateAroundCenterMarker {}
+pub struct PaintRotateAroundCenterMarker;
 
 impl<'a> MinByteRange for PaintRotateAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -5197,18 +5130,16 @@ impl<'a> MinByteRange for PaintRotateAroundCenter<'a> {
 
 impl<'a> FontRead<'a> for PaintRotateAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintRotateAroundCenterMarker {})
+        Ok(TableRef {
+            shape: PaintRotateAroundCenterMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-pub type PaintRotateAroundCenter<'a> = TableRef<'a, PaintRotateAroundCenterMarker>;
+pub type PaintRotateAroundCenter<'a> = TableRef<'a, PaintRotateAroundCenterMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRotateAroundCenter<'a> {
@@ -5310,7 +5241,7 @@ impl Format<u8> for PaintVarRotateAroundCenterMarker {
 /// [PaintVarRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintVarRotateAroundCenterMarker {}
+pub struct PaintVarRotateAroundCenterMarker;
 
 impl<'a> MinByteRange for PaintVarRotateAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -5320,19 +5251,16 @@ impl<'a> MinByteRange for PaintVarRotateAroundCenter<'a> {
 
 impl<'a> FontRead<'a> for PaintVarRotateAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarRotateAroundCenterMarker {})
+        Ok(TableRef {
+            shape: PaintVarRotateAroundCenterMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintVarRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-pub type PaintVarRotateAroundCenter<'a> = TableRef<'a, PaintVarRotateAroundCenterMarker>;
+pub type PaintVarRotateAroundCenter<'a> = TableRef<'a, PaintVarRotateAroundCenterMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRotateAroundCenter<'a> {
@@ -5448,7 +5376,7 @@ impl Format<u8> for PaintSkewMarker {
 /// [PaintSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintSkewMarker {}
+pub struct PaintSkewMarker;
 
 impl<'a> MinByteRange for PaintSkew<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -5458,17 +5386,16 @@ impl<'a> MinByteRange for PaintSkew<'a> {
 
 impl<'a> FontRead<'a> for PaintSkew<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintSkewMarker {})
+        Ok(TableRef {
+            shape: PaintSkewMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-pub type PaintSkew<'a> = TableRef<'a, PaintSkewMarker>;
+pub type PaintSkew<'a> = TableRef<'a, PaintSkewMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSkew<'a> {
@@ -5559,7 +5486,7 @@ impl Format<u8> for PaintVarSkewMarker {
 /// [PaintVarSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintVarSkewMarker {}
+pub struct PaintVarSkewMarker;
 
 impl<'a> MinByteRange for PaintVarSkew<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -5569,18 +5496,16 @@ impl<'a> MinByteRange for PaintVarSkew<'a> {
 
 impl<'a> FontRead<'a> for PaintVarSkew<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarSkewMarker {})
+        Ok(TableRef {
+            shape: PaintVarSkewMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintVarSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-pub type PaintVarSkew<'a> = TableRef<'a, PaintVarSkewMarker>;
+pub type PaintVarSkew<'a> = TableRef<'a, PaintVarSkewMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSkew<'a> {
@@ -5685,7 +5610,7 @@ impl Format<u8> for PaintSkewAroundCenterMarker {
 /// [PaintSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintSkewAroundCenterMarker {}
+pub struct PaintSkewAroundCenterMarker;
 
 impl<'a> MinByteRange for PaintSkewAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -5695,19 +5620,16 @@ impl<'a> MinByteRange for PaintSkewAroundCenter<'a> {
 
 impl<'a> FontRead<'a> for PaintSkewAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintSkewAroundCenterMarker {})
+        Ok(TableRef {
+            shape: PaintSkewAroundCenterMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-pub type PaintSkewAroundCenter<'a> = TableRef<'a, PaintSkewAroundCenterMarker>;
+pub type PaintSkewAroundCenter<'a> = TableRef<'a, PaintSkewAroundCenterMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSkewAroundCenter<'a> {
@@ -5822,7 +5744,7 @@ impl Format<u8> for PaintVarSkewAroundCenterMarker {
 /// [PaintVarSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintVarSkewAroundCenterMarker {}
+pub struct PaintVarSkewAroundCenterMarker;
 
 impl<'a> MinByteRange for PaintVarSkewAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -5832,20 +5754,16 @@ impl<'a> MinByteRange for PaintVarSkewAroundCenter<'a> {
 
 impl<'a> FontRead<'a> for PaintVarSkewAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarSkewAroundCenterMarker {})
+        Ok(TableRef {
+            shape: PaintVarSkewAroundCenterMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintVarSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-pub type PaintVarSkewAroundCenter<'a> = TableRef<'a, PaintVarSkewAroundCenterMarker>;
+pub type PaintVarSkewAroundCenter<'a> = TableRef<'a, PaintVarSkewAroundCenterMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSkewAroundCenter<'a> {
@@ -5976,7 +5894,7 @@ impl Format<u8> for PaintCompositeMarker {
 /// [PaintComposite](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PaintCompositeMarker {}
+pub struct PaintCompositeMarker;
 
 impl<'a> MinByteRange for PaintComposite<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -5986,17 +5904,16 @@ impl<'a> MinByteRange for PaintComposite<'a> {
 
 impl<'a> FontRead<'a> for PaintComposite<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<CompositeMode>();
-        cursor.advance::<Offset24>();
-        cursor.finish(PaintCompositeMarker {})
+        Ok(TableRef {
+            shape: PaintCompositeMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [PaintComposite](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite) table
-pub type PaintComposite<'a> = TableRef<'a, PaintCompositeMarker>;
+pub type PaintComposite<'a> = TableRef<'a, PaintCompositeMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintComposite<'a> {

@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct HheaMarker {}
+pub struct HheaMarker;
 
 impl<'a> MinByteRange for Hhea<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,30 +23,16 @@ impl TopLevelTable for Hhea<'_> {
 
 impl<'a> FontRead<'a> for Hhea<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<u16>();
-        cursor.finish(HheaMarker {})
+        Ok(TableRef {
+            shape: HheaMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
-pub type Hhea<'a> = TableRef<'a, HheaMarker>;
+pub type Hhea<'a> = TableRef<'a, HheaMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Hhea<'a> {

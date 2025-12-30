@@ -315,11 +315,23 @@ fn if_expression(xform: &IfTransform, add_self: bool) -> TokenStream {
 }
 
 impl Condition {
-    fn condition_tokens_for_read(&self) -> TokenStream {
+    pub(crate) fn condition_tokens_for_read(&self) -> TokenStream {
         match self {
             Condition::SinceVersion(version) => quote!(version.compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(#field.contains(#flag)),
             Condition::IfCond { xform } => if_expression(xform, false),
+        }
+    }
+
+    pub(crate) fn condition_tokens_for_access(&self) -> TokenStream {
+        match self {
+            Condition::SinceVersion(version) => quote!(self.version().compatible(#version)),
+            Condition::IfFlag { field, flag } => quote!(self.#field().contains(#flag)),
+            Condition::IfCond { xform } => match xform {
+                IfTransform::AnyFlag(field, flags) => {
+                    quote!(self.#field().intersects(#(#flags)|*))
+                }
+            },
         }
     }
 

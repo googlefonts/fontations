@@ -8,10 +8,7 @@ use crate::codegen_prelude::*;
 /// The [avar (Axis Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AvarMarker {
-    axis_index_map_offset_byte_start: Option<usize>,
-    var_store_offset_byte_start: Option<usize>,
-}
+pub struct AvarMarker;
 
 impl<'a> MinByteRange for Avar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -26,38 +23,16 @@ impl TopLevelTable for Avar<'_> {
 
 impl<'a> FontRead<'a> for Avar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: MajorMinor = cursor.read()?;
-        cursor.advance::<u16>();
-        let axis_count: u16 = cursor.read()?;
-        let axis_segment_maps_byte_len = {
-            let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
-            <SegmentMaps as VarSize>::total_len_for_count(data, axis_count as usize)?
-        };
-        cursor.advance_by(axis_segment_maps_byte_len);
-        let axis_index_map_offset_byte_start = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.advance::<Offset32>());
-        let var_store_offset_byte_start = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.advance::<Offset32>());
-        cursor.finish(AvarMarker {
-            axis_index_map_offset_byte_start,
-            var_store_offset_byte_start,
+        Ok(TableRef {
+            shape: AvarMarker,
+            args: (),
+            data,
         })
     }
 }
 
 /// The [avar (Axis Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
-pub type Avar<'a> = TableRef<'a, AvarMarker>;
+pub type Avar<'a> = TableRef<'a, AvarMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Avar<'a> {
@@ -91,13 +66,24 @@ impl<'a> Avar<'a> {
     }
 
     pub fn axis_index_map_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.axis_index_map_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible((2u16, 0u16)) {
+            let start = self.axis_segment_maps_byte_range().end;
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn var_store_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.var_store_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible((2u16, 0u16)) {
+            let start = self
+                .axis_index_map_offset_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.axis_segment_maps_byte_range().end);
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     /// Major version number of the axis variations table — set to 1 or 2.

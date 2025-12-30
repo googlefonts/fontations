@@ -8,10 +8,7 @@ use crate::codegen_prelude::*;
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct GdefMarker {
-    mark_glyph_sets_def_offset_byte_start: Option<usize>,
-    item_var_store_offset_byte_start: Option<usize>,
-}
+pub struct GdefMarker;
 
 impl<'a> MinByteRange for Gdef<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -26,35 +23,16 @@ impl TopLevelTable for Gdef<'_> {
 
 impl<'a> FontRead<'a> for Gdef<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: MajorMinor = cursor.read()?;
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        let mark_glyph_sets_def_offset_byte_start = version
-            .compatible((1u16, 2u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 2u16))
-            .then(|| cursor.advance::<Offset16>());
-        let item_var_store_offset_byte_start = version
-            .compatible((1u16, 3u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 3u16))
-            .then(|| cursor.advance::<Offset32>());
-        cursor.finish(GdefMarker {
-            mark_glyph_sets_def_offset_byte_start,
-            item_var_store_offset_byte_start,
+        Ok(TableRef {
+            shape: GdefMarker,
+            args: (),
+            data,
         })
     }
 }
 
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
-pub type Gdef<'a> = TableRef<'a, GdefMarker>;
+pub type Gdef<'a> = TableRef<'a, GdefMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Gdef<'a> {
@@ -84,13 +62,24 @@ impl<'a> Gdef<'a> {
     }
 
     pub fn mark_glyph_sets_def_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.mark_glyph_sets_def_offset_byte_start?;
-        Some(start..start + Offset16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 2u16)) {
+            let start = self.mark_attach_class_def_offset_byte_range().end;
+            Some(start..start + Offset16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn item_var_store_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.item_var_store_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 3u16)) {
+            let start = self
+                .mark_glyph_sets_def_offset_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.mark_attach_class_def_offset_byte_range().end);
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     /// The major/minor version of the GDEF table
@@ -282,7 +271,7 @@ impl<'a> From<GlyphClassDef> for FieldType<'a> {
 /// [Attachment Point List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#attachment-point-list-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AttachListMarker {}
+pub struct AttachListMarker;
 
 impl<'a> MinByteRange for AttachList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -292,19 +281,16 @@ impl<'a> MinByteRange for AttachList<'a> {
 
 impl<'a> FontRead<'a> for AttachList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<Offset16>();
-        let glyph_count: u16 = cursor.read()?;
-        let attach_point_offsets_byte_len = (glyph_count as usize)
-            .checked_mul(Offset16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(attach_point_offsets_byte_len);
-        cursor.finish(AttachListMarker {})
+        Ok(TableRef {
+            shape: AttachListMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [Attachment Point List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#attachment-point-list-table)
-pub type AttachList<'a> = TableRef<'a, AttachListMarker>;
+pub type AttachList<'a> = TableRef<'a, AttachListMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AttachList<'a> {
@@ -405,7 +391,7 @@ impl<'a> std::fmt::Debug for AttachList<'a> {
 /// Part of [AttachList]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AttachPointMarker {}
+pub struct AttachPointMarker;
 
 impl<'a> MinByteRange for AttachPoint<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -415,18 +401,16 @@ impl<'a> MinByteRange for AttachPoint<'a> {
 
 impl<'a> FontRead<'a> for AttachPoint<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let point_count: u16 = cursor.read()?;
-        let point_indices_byte_len = (point_count as usize)
-            .checked_mul(u16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(point_indices_byte_len);
-        cursor.finish(AttachPointMarker {})
+        Ok(TableRef {
+            shape: AttachPointMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// Part of [AttachList]
-pub type AttachPoint<'a> = TableRef<'a, AttachPointMarker>;
+pub type AttachPoint<'a> = TableRef<'a, AttachPointMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AttachPoint<'a> {
@@ -485,7 +469,7 @@ impl<'a> std::fmt::Debug for AttachPoint<'a> {
 /// [Ligature Caret List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-caret-list-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct LigCaretListMarker {}
+pub struct LigCaretListMarker;
 
 impl<'a> MinByteRange for LigCaretList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -495,19 +479,16 @@ impl<'a> MinByteRange for LigCaretList<'a> {
 
 impl<'a> FontRead<'a> for LigCaretList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<Offset16>();
-        let lig_glyph_count: u16 = cursor.read()?;
-        let lig_glyph_offsets_byte_len = (lig_glyph_count as usize)
-            .checked_mul(Offset16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(lig_glyph_offsets_byte_len);
-        cursor.finish(LigCaretListMarker {})
+        Ok(TableRef {
+            shape: LigCaretListMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [Ligature Caret List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-caret-list-table)
-pub type LigCaretList<'a> = TableRef<'a, LigCaretListMarker>;
+pub type LigCaretList<'a> = TableRef<'a, LigCaretListMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LigCaretList<'a> {
@@ -608,7 +589,7 @@ impl<'a> std::fmt::Debug for LigCaretList<'a> {
 /// [Ligature Glyph Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-glyph-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct LigGlyphMarker {}
+pub struct LigGlyphMarker;
 
 impl<'a> MinByteRange for LigGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -618,18 +599,16 @@ impl<'a> MinByteRange for LigGlyph<'a> {
 
 impl<'a> FontRead<'a> for LigGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let caret_count: u16 = cursor.read()?;
-        let caret_value_offsets_byte_len = (caret_count as usize)
-            .checked_mul(Offset16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(caret_value_offsets_byte_len);
-        cursor.finish(LigGlyphMarker {})
+        Ok(TableRef {
+            shape: LigGlyphMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [Ligature Glyph Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-glyph-table)
-pub type LigGlyph<'a> = TableRef<'a, LigGlyphMarker>;
+pub type LigGlyph<'a> = TableRef<'a, LigGlyphMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LigGlyph<'a> {
@@ -791,7 +770,7 @@ impl Format<u16> for CaretValueFormat1Marker {
 /// [CaretValue Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-1)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CaretValueFormat1Marker {}
+pub struct CaretValueFormat1Marker;
 
 impl<'a> MinByteRange for CaretValueFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -801,15 +780,16 @@ impl<'a> MinByteRange for CaretValueFormat1<'a> {
 
 impl<'a> FontRead<'a> for CaretValueFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<i16>();
-        cursor.finish(CaretValueFormat1Marker {})
+        Ok(TableRef {
+            shape: CaretValueFormat1Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [CaretValue Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-1)
-pub type CaretValueFormat1<'a> = TableRef<'a, CaretValueFormat1Marker>;
+pub type CaretValueFormat1<'a> = TableRef<'a, CaretValueFormat1Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CaretValueFormat1<'a> {
@@ -865,7 +845,7 @@ impl Format<u16> for CaretValueFormat2Marker {
 /// [CaretValue Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-2)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CaretValueFormat2Marker {}
+pub struct CaretValueFormat2Marker;
 
 impl<'a> MinByteRange for CaretValueFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -875,15 +855,16 @@ impl<'a> MinByteRange for CaretValueFormat2<'a> {
 
 impl<'a> FontRead<'a> for CaretValueFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.finish(CaretValueFormat2Marker {})
+        Ok(TableRef {
+            shape: CaretValueFormat2Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [CaretValue Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-2)
-pub type CaretValueFormat2<'a> = TableRef<'a, CaretValueFormat2Marker>;
+pub type CaretValueFormat2<'a> = TableRef<'a, CaretValueFormat2Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CaretValueFormat2<'a> {
@@ -942,7 +923,7 @@ impl Format<u16> for CaretValueFormat3Marker {
 /// [CaretValue Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-3)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CaretValueFormat3Marker {}
+pub struct CaretValueFormat3Marker;
 
 impl<'a> MinByteRange for CaretValueFormat3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -952,16 +933,16 @@ impl<'a> MinByteRange for CaretValueFormat3<'a> {
 
 impl<'a> FontRead<'a> for CaretValueFormat3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<i16>();
-        cursor.advance::<Offset16>();
-        cursor.finish(CaretValueFormat3Marker {})
+        Ok(TableRef {
+            shape: CaretValueFormat3Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [CaretValue Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-3)
-pub type CaretValueFormat3<'a> = TableRef<'a, CaretValueFormat3Marker>;
+pub type CaretValueFormat3<'a> = TableRef<'a, CaretValueFormat3Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CaretValueFormat3<'a> {
@@ -1040,7 +1021,7 @@ impl Format<u16> for MarkGlyphSetsMarker {
 /// [Mark Glyph Sets Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#mark-glyph-sets-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MarkGlyphSetsMarker {}
+pub struct MarkGlyphSetsMarker;
 
 impl<'a> MinByteRange for MarkGlyphSets<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1050,19 +1031,16 @@ impl<'a> MinByteRange for MarkGlyphSets<'a> {
 
 impl<'a> FontRead<'a> for MarkGlyphSets<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let mark_glyph_set_count: u16 = cursor.read()?;
-        let coverage_offsets_byte_len = (mark_glyph_set_count as usize)
-            .checked_mul(Offset32::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(coverage_offsets_byte_len);
-        cursor.finish(MarkGlyphSetsMarker {})
+        Ok(TableRef {
+            shape: MarkGlyphSetsMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [Mark Glyph Sets Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#mark-glyph-sets-table)
-pub type MarkGlyphSets<'a> = TableRef<'a, MarkGlyphSetsMarker>;
+pub type MarkGlyphSets<'a> = TableRef<'a, MarkGlyphSetsMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MarkGlyphSets<'a> {

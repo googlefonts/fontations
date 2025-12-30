@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// [DSIG (Digital Signature Table)](https://docs.microsoft.com/en-us/typography/opentype/spec/dsig#table-structure) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct DsigMarker {}
+pub struct DsigMarker;
 
 impl<'a> MinByteRange for Dsig<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,20 +23,16 @@ impl TopLevelTable for Dsig<'_> {
 
 impl<'a> FontRead<'a> for Dsig<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        let num_signatures: u16 = cursor.read()?;
-        cursor.advance::<PermissionFlags>();
-        let signature_records_byte_len = (num_signatures as usize)
-            .checked_mul(SignatureRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(signature_records_byte_len);
-        cursor.finish(DsigMarker {})
+        Ok(TableRef {
+            shape: DsigMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [DSIG (Digital Signature Table)](https://docs.microsoft.com/en-us/typography/opentype/spec/dsig#table-structure) table
-pub type Dsig<'a> = TableRef<'a, DsigMarker>;
+pub type Dsig<'a> = TableRef<'a, DsigMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Dsig<'a> {
@@ -483,7 +479,7 @@ impl<'a> SomeRecord<'a> for SignatureRecord {
 /// [Signature Block Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/dsig#table-structure)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SignatureBlockFormat1Marker {}
+pub struct SignatureBlockFormat1Marker;
 
 impl<'a> MinByteRange for SignatureBlockFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -493,20 +489,16 @@ impl<'a> MinByteRange for SignatureBlockFormat1<'a> {
 
 impl<'a> FontRead<'a> for SignatureBlockFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let signature_length: u32 = cursor.read()?;
-        let signature_byte_len = (signature_length as usize)
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(signature_byte_len);
-        cursor.finish(SignatureBlockFormat1Marker {})
+        Ok(TableRef {
+            shape: SignatureBlockFormat1Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [Signature Block Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/dsig#table-structure)
-pub type SignatureBlockFormat1<'a> = TableRef<'a, SignatureBlockFormat1Marker>;
+pub type SignatureBlockFormat1<'a> = TableRef<'a, SignatureBlockFormat1Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SignatureBlockFormat1<'a> {

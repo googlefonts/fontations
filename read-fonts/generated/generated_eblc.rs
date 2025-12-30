@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [Embedded Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct EblcMarker {}
+pub struct EblcMarker;
 
 impl<'a> MinByteRange for Eblc<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,20 +23,16 @@ impl TopLevelTable for Eblc<'_> {
 
 impl<'a> FontRead<'a> for Eblc<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let num_sizes: u32 = cursor.read()?;
-        let bitmap_sizes_byte_len = (num_sizes as usize)
-            .checked_mul(BitmapSize::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(bitmap_sizes_byte_len);
-        cursor.finish(EblcMarker {})
+        Ok(TableRef {
+            shape: EblcMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [Embedded Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc) table
-pub type Eblc<'a> = TableRef<'a, EblcMarker>;
+pub type Eblc<'a> = TableRef<'a, EblcMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Eblc<'a> {

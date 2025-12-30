@@ -11,7 +11,7 @@ impl Format<u16> for Table1Marker {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Table1Marker {}
+pub struct Table1Marker;
 
 impl<'a> MinByteRange for Table1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -21,15 +21,15 @@ impl<'a> MinByteRange for Table1<'a> {
 
 impl<'a> FontRead<'a> for Table1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        cursor.advance::<u16>();
-        cursor.finish(Table1Marker {})
+        Ok(TableRef {
+            shape: Table1Marker,
+            args: (),
+            data,
+        })
     }
 }
 
-pub type Table1<'a> = TableRef<'a, Table1Marker>;
+pub type Table1<'a> = TableRef<'a, Table1Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Table1<'a> {
@@ -93,7 +93,7 @@ impl Format<u16> for Table2Marker {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Table2Marker {}
+pub struct Table2Marker;
 
 impl<'a> MinByteRange for Table2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -103,18 +103,15 @@ impl<'a> MinByteRange for Table2<'a> {
 
 impl<'a> FontRead<'a> for Table2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let value_count: u16 = cursor.read()?;
-        let values_byte_len = (value_count as usize)
-            .checked_mul(u16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(values_byte_len);
-        cursor.finish(Table2Marker {})
+        Ok(TableRef {
+            shape: Table2Marker,
+            args: (),
+            data,
+        })
     }
 }
 
-pub type Table2<'a> = TableRef<'a, Table2Marker>;
+pub type Table2<'a> = TableRef<'a, Table2Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Table2<'a> {
@@ -185,7 +182,7 @@ impl Format<u16> for Table3Marker {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Table3Marker {}
+pub struct Table3Marker;
 
 impl<'a> MinByteRange for Table3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -195,14 +192,15 @@ impl<'a> MinByteRange for Table3<'a> {
 
 impl<'a> FontRead<'a> for Table3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.finish(Table3Marker {})
+        Ok(TableRef {
+            shape: Table3Marker,
+            args: (),
+            data,
+        })
     }
 }
 
-pub type Table3<'a> = TableRef<'a, Table3Marker>;
+pub type Table3<'a> = TableRef<'a, Table3Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Table3<'a> {

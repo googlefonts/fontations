@@ -7,7 +7,7 @@ use crate::codegen_prelude::*;
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct BasicTableMarker {}
+pub struct BasicTableMarker;
 
 impl<'a> MinByteRange for BasicTable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -17,25 +17,15 @@ impl<'a> MinByteRange for BasicTable<'a> {
 
 impl<'a> FontRead<'a> for BasicTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let simple_count: u16 = cursor.read()?;
-        let simple_records_byte_len = (simple_count as usize)
-            .checked_mul(SimpleRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(simple_records_byte_len);
-        let arrays_inner_count: u16 = cursor.read()?;
-        let array_records_count: u32 = cursor.read()?;
-        let array_records_byte_len = (array_records_count as usize)
-            .checked_mul(<ContainsArrays as ComputeSize>::compute_size(
-                &arrays_inner_count,
-            )?)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(array_records_byte_len);
-        cursor.finish(BasicTableMarker {})
+        Ok(TableRef {
+            shape: BasicTableMarker,
+            args: (),
+            data,
+        })
     }
 }
 
-pub type BasicTable<'a> = TableRef<'a, BasicTableMarker>;
+pub type BasicTable<'a> = TableRef<'a, BasicTableMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BasicTable<'a> {
@@ -345,7 +335,7 @@ impl<'a> SomeRecord<'a> for ContainsOffsets {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct VarLenItemMarker {}
+pub struct VarLenItemMarker;
 
 impl<'a> MinByteRange for VarLenItem<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -355,15 +345,15 @@ impl<'a> MinByteRange for VarLenItem<'a> {
 
 impl<'a> FontRead<'a> for VarLenItem<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(data_byte_len);
-        cursor.finish(VarLenItemMarker {})
+        Ok(TableRef {
+            shape: VarLenItemMarker,
+            args: (),
+            data,
+        })
     }
 }
 
-pub type VarLenItem<'a> = TableRef<'a, VarLenItemMarker>;
+pub type VarLenItem<'a> = TableRef<'a, VarLenItemMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarLenItem<'a> {

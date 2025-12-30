@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct GlyfMarker {}
+pub struct GlyfMarker;
 
 impl TopLevelTable for Glyf<'_> {
     /// `glyf`
@@ -17,13 +17,16 @@ impl TopLevelTable for Glyf<'_> {
 
 impl<'a> FontRead<'a> for Glyf<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let cursor = data.cursor();
-        cursor.finish(GlyfMarker {})
+        Ok(TableRef {
+            shape: GlyfMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
-pub type Glyf<'a> = TableRef<'a, GlyfMarker>;
+pub type Glyf<'a> = TableRef<'a, GlyfMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Glyf<'a> {}
@@ -54,7 +57,7 @@ impl<'a> std::fmt::Debug for Glyf<'a> {
 /// The [Glyph Header](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SimpleGlyphMarker {}
+pub struct SimpleGlyphMarker;
 
 impl<'a> MinByteRange for SimpleGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -64,29 +67,16 @@ impl<'a> MinByteRange for SimpleGlyph<'a> {
 
 impl<'a> FontRead<'a> for SimpleGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let number_of_contours: i16 = cursor.read()?;
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        let end_pts_of_contours_byte_len = (number_of_contours as usize)
-            .checked_mul(u16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(end_pts_of_contours_byte_len);
-        let instruction_length: u16 = cursor.read()?;
-        let instructions_byte_len = (instruction_length as usize)
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(instructions_byte_len);
-        let glyph_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(glyph_data_byte_len);
-        cursor.finish(SimpleGlyphMarker {})
+        Ok(TableRef {
+            shape: SimpleGlyphMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [Glyph Header](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
-pub type SimpleGlyph<'a> = TableRef<'a, SimpleGlyphMarker>;
+pub type SimpleGlyph<'a> = TableRef<'a, SimpleGlyphMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SimpleGlyph<'a> {
@@ -648,7 +638,7 @@ impl<'a> From<SimpleGlyphFlags> for FieldType<'a> {
 /// [CompositeGlyph](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CompositeGlyphMarker {}
+pub struct CompositeGlyphMarker;
 
 impl<'a> MinByteRange for CompositeGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -658,21 +648,16 @@ impl<'a> MinByteRange for CompositeGlyph<'a> {
 
 impl<'a> FontRead<'a> for CompositeGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        let component_data_byte_len =
-            cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(component_data_byte_len);
-        cursor.finish(CompositeGlyphMarker {})
+        Ok(TableRef {
+            shape: CompositeGlyphMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [CompositeGlyph](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
-pub type CompositeGlyph<'a> = TableRef<'a, CompositeGlyphMarker>;
+pub type CompositeGlyph<'a> = TableRef<'a, CompositeGlyphMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CompositeGlyph<'a> {

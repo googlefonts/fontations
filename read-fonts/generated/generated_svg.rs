@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SvgMarker {}
+pub struct SvgMarker;
 
 impl<'a> MinByteRange for Svg<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,16 +23,16 @@ impl TopLevelTable for Svg<'_> {
 
 impl<'a> FontRead<'a> for Svg<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<u16>();
-        cursor.finish(SvgMarker {})
+        Ok(TableRef {
+            shape: SvgMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg) table
-pub type Svg<'a> = TableRef<'a, SvgMarker>;
+pub type Svg<'a> = TableRef<'a, SvgMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Svg<'a> {
@@ -99,7 +99,7 @@ impl<'a> std::fmt::Debug for Svg<'a> {
 /// [SVGDocumentList](https://learn.microsoft.com/en-us/typography/opentype/spec/svg)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SVGDocumentListMarker {}
+pub struct SVGDocumentListMarker;
 
 impl<'a> MinByteRange for SVGDocumentList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -109,18 +109,16 @@ impl<'a> MinByteRange for SVGDocumentList<'a> {
 
 impl<'a> FontRead<'a> for SVGDocumentList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let num_entries: u16 = cursor.read()?;
-        let document_records_byte_len = (num_entries as usize)
-            .checked_mul(SVGDocumentRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(document_records_byte_len);
-        cursor.finish(SVGDocumentListMarker {})
+        Ok(TableRef {
+            shape: SVGDocumentListMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [SVGDocumentList](https://learn.microsoft.com/en-us/typography/opentype/spec/svg)
-pub type SVGDocumentList<'a> = TableRef<'a, SVGDocumentListMarker>;
+pub type SVGDocumentList<'a> = TableRef<'a, SVGDocumentListMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SVGDocumentList<'a> {
