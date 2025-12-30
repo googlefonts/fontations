@@ -24,9 +24,9 @@ impl TopLevelTable for Gvar<'_> {
 impl<'a> FontRead<'a> for Gvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: GvarMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -505,9 +505,9 @@ impl<'a> FontReadWithArgs<'a> for SharedTuples<'a> {
     fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: SharedTuplesMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -596,9 +596,9 @@ impl<'a> MinByteRange for GlyphVariationDataHeader<'a> {
 impl<'a> FontRead<'a> for GlyphVariationDataHeader<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: GlyphVariationDataHeaderMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

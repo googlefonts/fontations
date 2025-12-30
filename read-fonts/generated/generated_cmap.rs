@@ -24,9 +24,9 @@ impl TopLevelTable for Cmap<'_> {
 impl<'a> FontRead<'a> for Cmap<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CmapMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -354,9 +354,9 @@ impl<'a> MinByteRange for Cmap0<'a> {
 impl<'a> FontRead<'a> for Cmap0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Cmap0Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -459,9 +459,9 @@ impl<'a> MinByteRange for Cmap2<'a> {
 impl<'a> FontRead<'a> for Cmap2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Cmap2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -624,9 +624,9 @@ impl<'a> MinByteRange for Cmap4<'a> {
 impl<'a> FontRead<'a> for Cmap4<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Cmap4Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -861,9 +861,9 @@ impl<'a> MinByteRange for Cmap6<'a> {
 impl<'a> FontRead<'a> for Cmap6<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Cmap6Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -992,9 +992,9 @@ impl<'a> MinByteRange for Cmap8<'a> {
 impl<'a> FontRead<'a> for Cmap8<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Cmap8Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1199,9 +1199,9 @@ impl<'a> MinByteRange for Cmap10<'a> {
 impl<'a> FontRead<'a> for Cmap10<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Cmap10Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1335,9 +1335,9 @@ impl<'a> MinByteRange for Cmap12<'a> {
 impl<'a> FontRead<'a> for Cmap12<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Cmap12Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1466,9 +1466,9 @@ impl<'a> MinByteRange for Cmap13<'a> {
 impl<'a> FontRead<'a> for Cmap13<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Cmap13Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1649,9 +1649,9 @@ impl<'a> MinByteRange for Cmap14<'a> {
 impl<'a> FontRead<'a> for Cmap14<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Cmap14Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1843,9 +1843,9 @@ impl<'a> MinByteRange for DefaultUvs<'a> {
 impl<'a> FontRead<'a> for DefaultUvs<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: DefaultUvsMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1931,9 +1931,9 @@ impl<'a> MinByteRange for NonDefaultUvs<'a> {
 impl<'a> FontRead<'a> for NonDefaultUvs<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: NonDefaultUvsMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

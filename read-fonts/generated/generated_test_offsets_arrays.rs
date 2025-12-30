@@ -18,9 +18,9 @@ impl<'a> MinByteRange for KindsOfOffsets<'a> {
 impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: KindsOfOffsetsMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -277,9 +277,9 @@ impl<'a> MinByteRange for KindsOfArraysOfOffsets<'a> {
 impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: KindsOfArraysOfOffsetsMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -511,9 +511,9 @@ impl<'a> MinByteRange for KindsOfArrays<'a> {
 impl<'a> FontRead<'a> for KindsOfArrays<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: KindsOfArraysMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -681,9 +681,9 @@ impl<'a> MinByteRange for VarLenHaver<'a> {
 impl<'a> FontRead<'a> for VarLenHaver<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: VarLenHaverMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -767,9 +767,9 @@ impl<'a> MinByteRange for Dummy<'a> {
 impl<'a> FontRead<'a> for Dummy<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: DummyMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

@@ -712,9 +712,9 @@ impl TopLevelTable for Head<'_> {
 impl<'a> FontRead<'a> for Head<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: HeadMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

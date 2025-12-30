@@ -24,9 +24,9 @@ impl TopLevelTable for Cvar<'_> {
 impl<'a> FontRead<'a> for Cvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CvarMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

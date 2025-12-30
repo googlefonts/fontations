@@ -19,9 +19,9 @@ impl<'a> MinByteRange for Cff2Header<'a> {
 impl<'a> FontRead<'a> for Cff2Header<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Cff2HeaderMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

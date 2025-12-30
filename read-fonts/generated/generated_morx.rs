@@ -24,9 +24,9 @@ impl TopLevelTable for Morx<'_> {
 impl<'a> FontRead<'a> for Morx<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: MorxMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -122,9 +122,9 @@ impl<'a> MinByteRange for Chain<'a> {
 impl<'a> FontRead<'a> for Chain<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ChainMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -324,9 +324,9 @@ impl<'a> MinByteRange for Subtable<'a> {
 impl<'a> FontRead<'a> for Subtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SubtableMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

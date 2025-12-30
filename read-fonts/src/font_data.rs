@@ -292,10 +292,11 @@ impl<'a> Cursor<'a> {
     pub(crate) fn finish<T>(self, shape: T) -> Result<TableRef<'a, T>, ReadError> {
         let data = self.data;
         data.check_in_bounds(self.pos)?;
+        let _ = shape;
         Ok(TableRef {
             data,
-            shape,
             args: (),
+            _marker: std::marker::PhantomData,
         })
     }
 }

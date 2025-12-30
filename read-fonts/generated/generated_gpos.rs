@@ -25,9 +25,9 @@ impl TopLevelTable for Gpos<'_> {
 impl<'a> FontRead<'a> for Gpos<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: GposMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -705,9 +705,9 @@ impl<'a> MinByteRange for AnchorFormat1<'a> {
 impl<'a> FontRead<'a> for AnchorFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: AnchorFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -792,9 +792,9 @@ impl<'a> MinByteRange for AnchorFormat2<'a> {
 impl<'a> FontRead<'a> for AnchorFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: AnchorFormat2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -891,9 +891,9 @@ impl<'a> MinByteRange for AnchorFormat3<'a> {
 impl<'a> FontRead<'a> for AnchorFormat3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: AnchorFormat3Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1020,9 +1020,9 @@ impl<'a> MinByteRange for MarkArray<'a> {
 impl<'a> FontRead<'a> for MarkArray<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: MarkArrayMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1251,9 +1251,9 @@ impl<'a> MinByteRange for SinglePosFormat1<'a> {
 impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SinglePosFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1370,9 +1370,9 @@ impl<'a> MinByteRange for SinglePosFormat2<'a> {
 impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SinglePosFormat2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1605,9 +1605,9 @@ impl<'a> MinByteRange for PairPosFormat1<'a> {
 impl<'a> FontRead<'a> for PairPosFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PairPosFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1773,9 +1773,9 @@ impl<'a> FontReadWithArgs<'a> for PairSet<'a> {
     ) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: PairSetMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1996,9 +1996,9 @@ impl<'a> MinByteRange for PairPosFormat2<'a> {
 impl<'a> FontRead<'a> for PairPosFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PairPosFormat2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2390,9 +2390,9 @@ impl<'a> MinByteRange for CursivePosFormat1<'a> {
 impl<'a> FontRead<'a> for CursivePosFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CursivePosFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2588,9 +2588,9 @@ impl<'a> MinByteRange for MarkBasePosFormat1<'a> {
 impl<'a> FontRead<'a> for MarkBasePosFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: MarkBasePosFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2753,9 +2753,9 @@ impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: BaseArrayMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2953,9 +2953,9 @@ impl<'a> MinByteRange for MarkLigPosFormat1<'a> {
 impl<'a> FontRead<'a> for MarkLigPosFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: MarkLigPosFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3118,9 +3118,9 @@ impl<'a> FontReadWithArgs<'a> for LigatureArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: LigatureArrayMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3240,9 +3240,9 @@ impl<'a> FontReadWithArgs<'a> for LigatureAttach<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: LigatureAttachMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3440,9 +3440,9 @@ impl<'a> MinByteRange for MarkMarkPosFormat1<'a> {
 impl<'a> FontRead<'a> for MarkMarkPosFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: MarkMarkPosFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3605,9 +3605,9 @@ impl<'a> FontReadWithArgs<'a> for Mark2Array<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: Mark2ArrayMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3805,9 +3805,9 @@ impl<'a, T> MinByteRange for ExtensionPosFormat1<'a, T> {
 impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ExtensionPosFormat1Marker,
             args: std::marker::PhantomData,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3817,9 +3817,9 @@ impl<'a> ExtensionPosFormat1<'a, ()> {
     pub(crate) fn into_concrete<T>(self) -> ExtensionPosFormat1<'a, T> {
         let TableRef { data, .. } = self;
         TableRef {
-            shape: ExtensionPosFormat1Marker,
             args: std::marker::PhantomData,
             data,
+            _marker: std::marker::PhantomData,
         }
     }
 }
@@ -3830,9 +3830,9 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
     pub(crate) fn of_unit_type(&self) -> ExtensionPosFormat1<'a, ()> {
         let TableRef { data, .. } = self;
         TableRef {
-            shape: ExtensionPosFormat1Marker,
             args: std::marker::PhantomData,
             data: *data,
+            _marker: std::marker::PhantomData,
         }
     }
 }

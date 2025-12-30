@@ -24,9 +24,9 @@ impl TopLevelTable for Svg<'_> {
 impl<'a> FontRead<'a> for Svg<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SvgMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -110,9 +110,9 @@ impl<'a> MinByteRange for SVGDocumentList<'a> {
 impl<'a> FontRead<'a> for SVGDocumentList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SVGDocumentListMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

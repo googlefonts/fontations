@@ -24,9 +24,9 @@ impl TopLevelTable for Base<'_> {
 impl<'a> FontRead<'a> for Base<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: BaseMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -151,9 +151,9 @@ impl<'a> MinByteRange for Axis<'a> {
 impl<'a> FontRead<'a> for Axis<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: AxisMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -241,9 +241,9 @@ impl<'a> MinByteRange for BaseTagList<'a> {
 impl<'a> FontRead<'a> for BaseTagList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: BaseTagListMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -321,9 +321,9 @@ impl<'a> MinByteRange for BaseScriptList<'a> {
 impl<'a> FontRead<'a> for BaseScriptList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: BaseScriptListMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -460,9 +460,9 @@ impl<'a> MinByteRange for BaseScript<'a> {
 impl<'a> FontRead<'a> for BaseScript<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: BaseScriptMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -644,9 +644,9 @@ impl<'a> MinByteRange for BaseValues<'a> {
 impl<'a> FontRead<'a> for BaseValues<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: BaseValuesMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -762,9 +762,9 @@ impl<'a> MinByteRange for MinMax<'a> {
 impl<'a> FontRead<'a> for MinMax<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: MinMaxMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1062,9 +1062,9 @@ impl<'a> MinByteRange for BaseCoordFormat1<'a> {
 impl<'a> FontRead<'a> for BaseCoordFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: BaseCoordFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1137,9 +1137,9 @@ impl<'a> MinByteRange for BaseCoordFormat2<'a> {
 impl<'a> FontRead<'a> for BaseCoordFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: BaseCoordFormat2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1236,9 +1236,9 @@ impl<'a> MinByteRange for BaseCoordFormat3<'a> {
 impl<'a> FontRead<'a> for BaseCoordFormat3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: BaseCoordFormat3Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

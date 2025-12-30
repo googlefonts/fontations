@@ -24,9 +24,9 @@ impl TopLevelTable for Vorg<'_> {
 impl<'a> FontRead<'a> for Vorg<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: VorgMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

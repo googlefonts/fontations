@@ -24,9 +24,9 @@ impl TopLevelTable for Post<'_> {
 impl<'a> FontRead<'a> for Post<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PostMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

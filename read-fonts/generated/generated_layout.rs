@@ -19,9 +19,9 @@ impl<'a> MinByteRange for ScriptList<'a> {
 impl<'a> FontRead<'a> for ScriptList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ScriptListMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -157,9 +157,9 @@ impl<'a> MinByteRange for Script<'a> {
 impl<'a> FontRead<'a> for Script<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ScriptMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -317,9 +317,9 @@ impl<'a> MinByteRange for LangSys<'a> {
 impl<'a> FontRead<'a> for LangSys<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: LangSysMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -420,9 +420,9 @@ impl<'a> MinByteRange for FeatureList<'a> {
 impl<'a> FontRead<'a> for FeatureList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: FeatureListMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -565,9 +565,9 @@ impl<'a> FontReadWithArgs<'a> for Feature<'a> {
     fn read_with_args(data: FontData<'a>, args: &Tag) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: FeatureMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -684,9 +684,9 @@ impl<'a, T> MinByteRange for LookupList<'a, T> {
 impl<'a, T> FontRead<'a> for LookupList<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: LookupListMarker,
             args: std::marker::PhantomData,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -696,9 +696,9 @@ impl<'a> LookupList<'a, ()> {
     pub(crate) fn into_concrete<T>(self) -> LookupList<'a, T> {
         let TableRef { data, .. } = self;
         TableRef {
-            shape: LookupListMarker,
             args: std::marker::PhantomData,
             data,
+            _marker: std::marker::PhantomData,
         }
     }
 }
@@ -709,9 +709,9 @@ impl<'a, T> LookupList<'a, T> {
     pub(crate) fn of_unit_type(&self) -> LookupList<'a, ()> {
         let TableRef { data, .. } = self;
         TableRef {
-            shape: LookupListMarker,
             args: std::marker::PhantomData,
             data: *data,
+            _marker: std::marker::PhantomData,
         }
     }
 }
@@ -812,9 +812,9 @@ impl<'a, T> MinByteRange for Lookup<'a, T> {
 impl<'a, T> FontRead<'a> for Lookup<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: LookupMarker,
             args: std::marker::PhantomData,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -824,9 +824,9 @@ impl<'a> Lookup<'a, ()> {
     pub(crate) fn into_concrete<T>(self) -> Lookup<'a, T> {
         let TableRef { data, .. } = self;
         TableRef {
-            shape: LookupMarker,
             args: std::marker::PhantomData,
             data,
+            _marker: std::marker::PhantomData,
         }
     }
 }
@@ -837,9 +837,9 @@ impl<'a, T> Lookup<'a, T> {
     pub(crate) fn of_unit_type(&self) -> Lookup<'a, ()> {
         let TableRef { data, .. } = self;
         TableRef {
-            shape: LookupMarker,
             args: std::marker::PhantomData,
             data: *data,
+            _marker: std::marker::PhantomData,
         }
     }
 }
@@ -992,9 +992,9 @@ impl<'a> MinByteRange for CoverageFormat1<'a> {
 impl<'a> FontRead<'a> for CoverageFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CoverageFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1086,9 +1086,9 @@ impl<'a> MinByteRange for CoverageFormat2<'a> {
 impl<'a> FontRead<'a> for CoverageFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CoverageFormat2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1313,9 +1313,9 @@ impl<'a> MinByteRange for ClassDefFormat1<'a> {
 impl<'a> FontRead<'a> for ClassDefFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ClassDefFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1419,9 +1419,9 @@ impl<'a> MinByteRange for ClassDefFormat2<'a> {
 impl<'a> FontRead<'a> for ClassDefFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ClassDefFormat2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1685,9 +1685,9 @@ impl<'a> MinByteRange for SequenceContextFormat1<'a> {
 impl<'a> FontRead<'a> for SequenceContextFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SequenceContextFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1818,9 +1818,9 @@ impl<'a> MinByteRange for SequenceRuleSet<'a> {
 impl<'a> FontRead<'a> for SequenceRuleSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SequenceRuleSetMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1917,9 +1917,9 @@ impl<'a> MinByteRange for SequenceRule<'a> {
 impl<'a> FontRead<'a> for SequenceRule<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SequenceRuleMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2036,9 +2036,9 @@ impl<'a> MinByteRange for SequenceContextFormat2<'a> {
 impl<'a> FontRead<'a> for SequenceContextFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SequenceContextFormat2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2196,9 +2196,9 @@ impl<'a> MinByteRange for ClassSequenceRuleSet<'a> {
 impl<'a> FontRead<'a> for ClassSequenceRuleSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ClassSequenceRuleSetMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2298,9 +2298,9 @@ impl<'a> MinByteRange for ClassSequenceRule<'a> {
 impl<'a> FontRead<'a> for ClassSequenceRule<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ClassSequenceRuleMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2418,9 +2418,9 @@ impl<'a> MinByteRange for SequenceContextFormat3<'a> {
 impl<'a> FontRead<'a> for SequenceContextFormat3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SequenceContextFormat3Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2647,9 +2647,9 @@ impl<'a> MinByteRange for ChainedSequenceContextFormat1<'a> {
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ChainedSequenceContextFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2785,9 +2785,9 @@ impl<'a> MinByteRange for ChainedSequenceRuleSet<'a> {
 impl<'a> FontRead<'a> for ChainedSequenceRuleSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ChainedSequenceRuleSetMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2887,9 +2887,9 @@ impl<'a> MinByteRange for ChainedSequenceRule<'a> {
 impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ChainedSequenceRuleMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3072,9 +3072,9 @@ impl<'a> MinByteRange for ChainedSequenceContextFormat2<'a> {
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ChainedSequenceContextFormat2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3282,9 +3282,9 @@ impl<'a> MinByteRange for ChainedClassSequenceRuleSet<'a> {
 impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ChainedClassSequenceRuleSetMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3386,9 +3386,9 @@ impl<'a> MinByteRange for ChainedClassSequenceRule<'a> {
 impl<'a> FontRead<'a> for ChainedClassSequenceRule<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ChainedClassSequenceRuleMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3572,9 +3572,9 @@ impl<'a> MinByteRange for ChainedSequenceContextFormat3<'a> {
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ChainedSequenceContextFormat3Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3956,9 +3956,9 @@ impl<'a> MinByteRange for Device<'a> {
 impl<'a> FontRead<'a> for Device<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: DeviceMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -4058,9 +4058,9 @@ impl<'a> MinByteRange for VariationIndex<'a> {
 impl<'a> FontRead<'a> for VariationIndex<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: VariationIndexMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -4219,9 +4219,9 @@ impl<'a> MinByteRange for FeatureVariations<'a> {
 impl<'a> FontRead<'a> for FeatureVariations<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: FeatureVariationsMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -4397,9 +4397,9 @@ impl<'a> MinByteRange for ConditionSet<'a> {
 impl<'a> FontRead<'a> for ConditionSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ConditionSetMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -4593,9 +4593,9 @@ impl<'a> MinByteRange for ConditionFormat1<'a> {
 impl<'a> FontRead<'a> for ConditionFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ConditionFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -4701,9 +4701,9 @@ impl<'a> MinByteRange for ConditionFormat2<'a> {
 impl<'a> FontRead<'a> for ConditionFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ConditionFormat2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -4788,9 +4788,9 @@ impl<'a> MinByteRange for ConditionFormat3<'a> {
 impl<'a> FontRead<'a> for ConditionFormat3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ConditionFormat3Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -4902,9 +4902,9 @@ impl<'a> MinByteRange for ConditionFormat4<'a> {
 impl<'a> FontRead<'a> for ConditionFormat4<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ConditionFormat4Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -5016,9 +5016,9 @@ impl<'a> MinByteRange for ConditionFormat5<'a> {
 impl<'a> FontRead<'a> for ConditionFormat5<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ConditionFormat5Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -5096,9 +5096,9 @@ impl<'a> MinByteRange for FeatureTableSubstitution<'a> {
 impl<'a> FontRead<'a> for FeatureTableSubstitution<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: FeatureTableSubstitutionMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -5242,9 +5242,9 @@ impl<'a> MinByteRange for SizeParams<'a> {
 impl<'a> FontRead<'a> for SizeParams<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SizeParamsMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -5367,9 +5367,9 @@ impl<'a> MinByteRange for StylisticSetParams<'a> {
 impl<'a> FontRead<'a> for StylisticSetParams<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: StylisticSetParamsMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -5448,9 +5448,9 @@ impl<'a> MinByteRange for CharacterVariantParams<'a> {
 impl<'a> FontRead<'a> for CharacterVariantParams<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CharacterVariantParamsMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

@@ -18,9 +18,9 @@ impl<'a> MinByteRange for BasicTable<'a> {
 impl<'a> FontRead<'a> for BasicTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: BasicTableMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -346,9 +346,9 @@ impl<'a> MinByteRange for VarLenItem<'a> {
 impl<'a> FontRead<'a> for VarLenItem<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: VarLenItemMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

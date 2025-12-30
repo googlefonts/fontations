@@ -19,9 +19,9 @@ impl<'a> MinByteRange for Index1<'a> {
 impl<'a> FontRead<'a> for Index1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Index1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -128,9 +128,9 @@ impl<'a> MinByteRange for Index2<'a> {
 impl<'a> FontRead<'a> for Index2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Index2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -319,9 +319,9 @@ impl<'a> MinByteRange for FdSelectFormat0<'a> {
 impl<'a> FontRead<'a> for FdSelectFormat0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: FdSelectFormat0Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -402,9 +402,9 @@ impl<'a> MinByteRange for FdSelectFormat3<'a> {
 impl<'a> FontRead<'a> for FdSelectFormat3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: FdSelectFormat3Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -557,9 +557,9 @@ impl<'a> MinByteRange for FdSelectFormat4<'a> {
 impl<'a> FontRead<'a> for FdSelectFormat4<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: FdSelectFormat4Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -790,9 +790,9 @@ impl<'a> MinByteRange for CharsetFormat0<'a> {
 impl<'a> FontRead<'a> for CharsetFormat0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CharsetFormat0Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -873,9 +873,9 @@ impl<'a> MinByteRange for CharsetFormat1<'a> {
 impl<'a> FontRead<'a> for CharsetFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CharsetFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1005,9 +1005,9 @@ impl<'a> MinByteRange for CharsetFormat2<'a> {
 impl<'a> FontRead<'a> for CharsetFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CharsetFormat2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

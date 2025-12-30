@@ -24,9 +24,9 @@ impl TopLevelTable for Kerx<'_> {
 impl<'a> FontRead<'a> for Kerx<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: KerxMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -122,9 +122,9 @@ impl<'a> MinByteRange for Subtable<'a> {
 impl<'a> FontRead<'a> for Subtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SubtableMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -225,9 +225,9 @@ impl<'a> MinByteRange for Subtable0<'a> {
 impl<'a> FontRead<'a> for Subtable0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Subtable0Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

@@ -377,9 +377,9 @@ impl TopLevelTable for Os2<'_> {
 impl<'a> FontRead<'a> for Os2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Os2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

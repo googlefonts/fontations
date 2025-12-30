@@ -24,9 +24,9 @@ impl TopLevelTable for Mvar<'_> {
 impl<'a> FontRead<'a> for Mvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: MvarMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

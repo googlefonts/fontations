@@ -24,9 +24,9 @@ impl TopLevelTable for Gasp<'_> {
 impl<'a> FontRead<'a> for Gasp<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: GaspMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

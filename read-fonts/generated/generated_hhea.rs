@@ -24,9 +24,9 @@ impl TopLevelTable for Hhea<'_> {
 impl<'a> FontRead<'a> for Hhea<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: HheaMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

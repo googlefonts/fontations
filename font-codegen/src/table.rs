@@ -51,9 +51,9 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                    pub(crate) fn into_concrete<T>(self) -> #raw_name<'a, #t> {
                        let TableRef { data, #shape_name} = self;
                        TableRef {
-                           shape: #marker_name,
                            args: std::marker::PhantomData,
                            data,
+                           _marker: std::marker::PhantomData,
                        }
                    }
                }
@@ -66,9 +66,9 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                    pub(crate) fn of_unit_type(&self) -> #raw_name<'a, ()> {
                        let TableRef { data, #shape_name} = self;
                        TableRef {
-                           shape: #marker_name,
                            args: std::marker::PhantomData,
                            data: *data,
+                           _marker: std::marker::PhantomData,
                        }
                    }
                }
@@ -127,7 +127,6 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 }
 
 fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
-    let marker_name = item.marker_name();
     let name = item.raw_name();
     let generic = item.attrs.generic_offset.as_ref();
     let error_if_phantom_and_read_args = generic.map(|_| {
@@ -150,9 +149,9 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
                 fn read_with_args(data: FontData<'a>, args: &#args_type) -> Result<Self, ReadError> {
                     let args = *args;
                     Ok(TableRef {
-                        shape: #marker_name,
                         args,
                         data,
+                        _marker: std::marker::PhantomData,
                     })
                 }
             }
@@ -177,9 +176,9 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
             impl<'a, #generic> FontRead<'a> for #name<'a, #generic> {
             fn read(data: FontData<'a>) -> Result<Self, ReadError> {
                 Ok(TableRef {
-                    shape: #marker_name,
                     args: #args_value,
                     data,
+                    _marker: std::marker::PhantomData,
                 })
             }
         }

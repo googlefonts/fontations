@@ -18,9 +18,9 @@ impl<'a> MinByteRange for CountAll16<'a> {
 impl<'a> FontRead<'a> for CountAll16<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CountAll16Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -93,9 +93,9 @@ impl<'a> MinByteRange for CountAll32<'a> {
 impl<'a> FontRead<'a> for CountAll32<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CountAll32Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

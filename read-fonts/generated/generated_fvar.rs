@@ -24,9 +24,9 @@ impl TopLevelTable for Fvar<'_> {
 impl<'a> FontRead<'a> for Fvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: FvarMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -173,9 +173,9 @@ impl<'a> FontReadWithArgs<'a> for AxisInstanceArrays<'a> {
     fn read_with_args(data: FontData<'a>, args: &(u16, u16, u16)) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: AxisInstanceArraysMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

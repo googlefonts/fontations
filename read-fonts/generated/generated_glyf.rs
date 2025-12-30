@@ -18,9 +18,9 @@ impl TopLevelTable for Glyf<'_> {
 impl<'a> FontRead<'a> for Glyf<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: GlyfMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -68,9 +68,9 @@ impl<'a> MinByteRange for SimpleGlyph<'a> {
 impl<'a> FontRead<'a> for SimpleGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SimpleGlyphMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -649,9 +649,9 @@ impl<'a> MinByteRange for CompositeGlyph<'a> {
 impl<'a> FontRead<'a> for CompositeGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CompositeGlyphMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

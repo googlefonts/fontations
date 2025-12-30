@@ -19,9 +19,9 @@ impl<'a> MinByteRange for TableDirectory<'a> {
 impl<'a> FontRead<'a> for TableDirectory<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: TableDirectoryMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -208,9 +208,9 @@ impl<'a> MinByteRange for TTCHeader<'a> {
 impl<'a> FontRead<'a> for TTCHeader<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: TTCHeaderMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

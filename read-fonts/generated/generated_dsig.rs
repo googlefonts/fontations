@@ -24,9 +24,9 @@ impl TopLevelTable for Dsig<'_> {
 impl<'a> FontRead<'a> for Dsig<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: DsigMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -490,9 +490,9 @@ impl<'a> MinByteRange for SignatureBlockFormat1<'a> {
 impl<'a> FontRead<'a> for SignatureBlockFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SignatureBlockFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

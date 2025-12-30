@@ -22,9 +22,9 @@ impl<'a> MinByteRange for Table1<'a> {
 impl<'a> FontRead<'a> for Table1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Table1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -104,9 +104,9 @@ impl<'a> MinByteRange for Table2<'a> {
 impl<'a> FontRead<'a> for Table2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Table2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -193,9 +193,9 @@ impl<'a> MinByteRange for Table3<'a> {
 impl<'a> FontRead<'a> for Table3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Table3Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

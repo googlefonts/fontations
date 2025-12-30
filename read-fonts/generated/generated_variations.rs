@@ -24,9 +24,9 @@ impl<'a> FontReadWithArgs<'a> for TupleVariationHeader<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: TupleVariationHeaderMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -227,9 +227,9 @@ impl<'a> MinByteRange for DeltaSetIndexMapFormat0<'a> {
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: DeltaSetIndexMapFormat0Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -334,9 +334,9 @@ impl<'a> MinByteRange for DeltaSetIndexMapFormat1<'a> {
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: DeltaSetIndexMapFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -837,9 +837,9 @@ impl<'a> MinByteRange for VariationRegionList<'a> {
 impl<'a> FontRead<'a> for VariationRegionList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: VariationRegionListMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1062,9 +1062,9 @@ impl<'a> MinByteRange for ItemVariationStore<'a> {
 impl<'a> FontRead<'a> for ItemVariationStore<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ItemVariationStoreMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1203,9 +1203,9 @@ impl<'a> MinByteRange for ItemVariationData<'a> {
 impl<'a> FontRead<'a> for ItemVariationData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ItemVariationDataMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

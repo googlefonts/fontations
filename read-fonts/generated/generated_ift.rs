@@ -442,9 +442,9 @@ impl<'a> MinByteRange for PatchMapFormat1<'a> {
 impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PatchMapFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -744,9 +744,9 @@ impl<'a> FontReadWithArgs<'a> for GlyphMap<'a> {
     fn read_with_args(data: FontData<'a>, args: &(Uint24, u16)) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: GlyphMapMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -848,9 +848,9 @@ impl<'a> FontReadWithArgs<'a> for FeatureMap<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: FeatureMapMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1127,9 +1127,9 @@ impl<'a> MinByteRange for PatchMapFormat2<'a> {
 impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PatchMapFormat2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1379,9 +1379,9 @@ impl<'a> MinByteRange for MappingEntries<'a> {
 impl<'a> FontRead<'a> for MappingEntries<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: MappingEntriesMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1443,9 +1443,9 @@ impl<'a> MinByteRange for EntryData<'a> {
 impl<'a> FontRead<'a> for EntryData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: EntryDataMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2120,9 +2120,9 @@ impl<'a> MinByteRange for IdStringData<'a> {
 impl<'a> FontRead<'a> for IdStringData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: IdStringDataMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2185,9 +2185,9 @@ impl<'a> MinByteRange for TableKeyedPatch<'a> {
 impl<'a> FontRead<'a> for TableKeyedPatch<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: TableKeyedPatchMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2312,9 +2312,9 @@ impl<'a> MinByteRange for TablePatch<'a> {
 impl<'a> FontRead<'a> for TablePatch<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: TablePatchMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2719,9 +2719,9 @@ impl<'a> MinByteRange for GlyphKeyedPatch<'a> {
 impl<'a> FontRead<'a> for GlyphKeyedPatch<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: GlyphKeyedPatchMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3150,9 +3150,9 @@ impl<'a> FontReadWithArgs<'a> for GlyphPatches<'a> {
     fn read_with_args(data: FontData<'a>, args: &GlyphKeyedFlags) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: GlyphPatchesMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3305,9 +3305,9 @@ impl<'a> MinByteRange for GlyphData<'a> {
 impl<'a> FontRead<'a> for GlyphData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: GlyphDataMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
