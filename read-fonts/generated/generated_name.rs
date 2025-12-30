@@ -9,45 +9,11 @@ use crate::codegen_prelude::*;
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct NameMarker {
-    name_record_byte_len: usize,
     lang_tag_count_byte_start: Option<usize>,
     lang_tag_record_byte_start: Option<usize>,
-    lang_tag_record_byte_len: Option<usize>,
 }
 
-impl NameMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn count_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn storage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.count_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn name_record_byte_range(&self) -> Range<usize> {
-        let start = self.storage_offset_byte_range().end;
-        start..start + self.name_record_byte_len
-    }
-
-    pub fn lang_tag_count_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.lang_tag_count_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
-    }
-
-    pub fn lang_tag_record_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.lang_tag_record_byte_start?;
-        Some(start..start + self.lang_tag_record_byte_len?)
-    }
-}
-
-impl MinByteRange for NameMarker {
+impl<'a> MinByteRange for Name<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.name_record_byte_range().end
     }
@@ -90,10 +56,8 @@ impl<'a> FontRead<'a> for Name<'a> {
             cursor.advance_by(value);
         }
         cursor.finish(NameMarker {
-            name_record_byte_len,
             lang_tag_count_byte_start,
             lang_tag_record_byte_start,
-            lang_tag_record_byte_len,
         })
     }
 }
@@ -103,39 +67,82 @@ pub type Name<'a> = TableRef<'a, NameMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Name<'a> {
+    fn name_record_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.count()) as usize)
+            .checked_mul(NameRecord::RAW_BYTE_LEN)
+            .unwrap()
+    }
+    fn lang_tag_record_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.lang_tag_count().unwrap_or_default()) as usize)
+            .checked_mul(LangTagRecord::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn count_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn storage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.count_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn name_record_byte_range(&self) -> Range<usize> {
+        let start = self.storage_offset_byte_range().end;
+        start..start + self.name_record_byte_len(start)
+    }
+
+    pub fn lang_tag_count_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.shape.lang_tag_count_byte_start?;
+        Some(start..start + u16::RAW_BYTE_LEN)
+    }
+
+    pub fn lang_tag_record_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.shape.lang_tag_record_byte_start?;
+        Some(start..start + self.lang_tag_record_byte_len(start))
+    }
+
     /// Table version number (0 or 1)
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of name records.
     pub fn count(&self) -> u16 {
-        let range = self.shape.count_byte_range();
+        let range = self.count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to start of string storage (from start of table).
     pub fn storage_offset(&self) -> u16 {
-        let range = self.shape.storage_offset_byte_range();
+        let range = self.storage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The name records where count is the number of records.
     pub fn name_record(&self) -> &'a [NameRecord] {
-        let range = self.shape.name_record_byte_range();
+        let range = self.name_record_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Number of language-tag records.
     pub fn lang_tag_count(&self) -> Option<u16> {
-        let range = self.shape.lang_tag_count_byte_range()?;
+        let range = self.lang_tag_count_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// The language-tag records where langTagCount is the number of records.
     pub fn lang_tag_record(&self) -> Option<&'a [LangTagRecord]> {
-        let range = self.shape.lang_tag_record_byte_range()?;
+        let range = self.lang_tag_record_byte_range()?;
         Some(self.data.read_array(range).unwrap())
     }
 }

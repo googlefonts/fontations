@@ -80,7 +80,7 @@ fn serialize_name_records(
 ) -> Result<(), SubsetError> {
     let data = name.offset_data().as_bytes();
     let name_records = name.name_record();
-    let name_records_bytes = data.get(name.shape().name_record_byte_range()).unwrap();
+    let name_records_bytes = data.get(name.name_record_byte_range()).unwrap();
     let storage_start = name.storage_offset() as usize;
     for idx in retained_name_record_idxes.iter() {
         let len = s.length();

@@ -690,7 +690,7 @@ impl Field {
         self.attrs.skip_getter.is_none()
     }
 
-    pub(crate) fn shape_len_expr(&self) -> TokenStream {
+    pub(crate) fn shape_len_expr(&self, start_expr: TokenStream) -> TokenStream {
         // is this a scalar/offset? then it's just 'RAW_BYTE_LEN'
         // is this computed? then it is stored
         match &self.typ {
@@ -702,8 +702,7 @@ impl Field {
             | FieldType::ComputedArray { .. }
             | FieldType::VarLenArray(_) => {
                 let len_field = self.shape_byte_len_field_name();
-                let try_op = self.is_conditional().then(|| quote!(?));
-                quote!(self.#len_field #try_op)
+                quote!(self.#len_field(#start_expr))
             }
             FieldType::PendingResolution { .. } => panic!("Should have resolved {self:?}"),
         }
@@ -717,7 +716,7 @@ impl Field {
             result.extend(
                 count
                     .iter_referenced_fields()
-                    .map(|fld| (fld.clone(), NeededWhen::Parse)),
+                    .map(|fld| (fld.clone(), NeededWhen::Both)),
             );
         }
         if let Some(flds) = self.attrs.conditional.as_ref().map(|c| c.input_field()) {
@@ -887,7 +886,7 @@ impl Field {
     fn getter_range_stmt(&self) -> TokenStream {
         let shape_range_fn_name = self.shape_byte_range_fn_name();
         let try_op = self.is_conditional().then(|| quote!(?));
-        quote!( self.shape.#shape_range_fn_name() #try_op )
+        quote!( self.#shape_range_fn_name() #try_op )
     }
 
     fn typed_offset_getter_docs(&self, has_data_arg: bool) -> TokenStream {

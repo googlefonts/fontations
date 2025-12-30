@@ -8,11 +8,46 @@ use crate::codegen_prelude::*;
 /// The [feature name](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6feat.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct FeatMarker {
-    names_byte_len: usize,
+pub struct FeatMarker {}
+
+impl<'a> MinByteRange for Feat<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.names_byte_range().end
+    }
 }
 
-impl FeatMarker {
+impl TopLevelTable for Feat<'_> {
+    /// `feat`
+    const TAG: Tag = Tag::new(b"feat");
+}
+
+impl<'a> FontRead<'a> for Feat<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<MajorMinor>();
+        let feature_name_count: u16 = cursor.read()?;
+        cursor.advance::<u16>();
+        cursor.advance::<u32>();
+        let names_byte_len = (feature_name_count as usize)
+            .checked_mul(FeatureName::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        cursor.advance_by(names_byte_len);
+        cursor.finish(FeatMarker {})
+    }
+}
+
+/// The [feature name](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6feat.html) table.
+pub type Feat<'a> = TableRef<'a, FeatMarker>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Feat<'a> {
+    fn names_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.feature_name_count()) as usize)
+            .checked_mul(FeatureName::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
@@ -35,57 +70,25 @@ impl FeatMarker {
 
     pub fn names_byte_range(&self) -> Range<usize> {
         let start = self._reserved2_byte_range().end;
-        start..start + self.names_byte_len
+        start..start + self.names_byte_len(start)
     }
-}
 
-impl MinByteRange for FeatMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.names_byte_range().end
-    }
-}
-
-impl TopLevelTable for Feat<'_> {
-    /// `feat`
-    const TAG: Tag = Tag::new(b"feat");
-}
-
-impl<'a> FontRead<'a> for Feat<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        let feature_name_count: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        let names_byte_len = (feature_name_count as usize)
-            .checked_mul(FeatureName::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(names_byte_len);
-        cursor.finish(FeatMarker { names_byte_len })
-    }
-}
-
-/// The [feature name](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6feat.html) table.
-pub type Feat<'a> = TableRef<'a, FeatMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Feat<'a> {
     /// Version number of the feature name table (0x00010000 for the current
     /// version).
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of entries in the feature name array.
     pub fn feature_name_count(&self) -> u16 {
-        let range = self.shape.feature_name_count_byte_range();
+        let range = self.feature_name_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The feature name array, sorted by feature type.
     pub fn names(&self) -> &'a [FeatureName] {
-        let range = self.shape.names_byte_range();
+        let range = self.names_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -211,17 +214,10 @@ impl<'a> SomeRecord<'a> for FeatureName {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct SettingNameArrayMarker {
-    settings_byte_len: usize,
+    n_settings: u16,
 }
 
-impl SettingNameArrayMarker {
-    pub fn settings_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + self.settings_byte_len
-    }
-}
-
-impl MinByteRange for SettingNameArrayMarker {
+impl<'a> MinByteRange for SettingNameArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.settings_byte_range().end
     }
@@ -239,7 +235,7 @@ impl<'a> FontReadWithArgs<'a> for SettingNameArray<'a> {
             .checked_mul(SettingName::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(settings_byte_len);
-        cursor.finish(SettingNameArrayMarker { settings_byte_len })
+        cursor.finish(SettingNameArrayMarker { n_settings })
     }
 }
 
@@ -258,10 +254,26 @@ pub type SettingNameArray<'a> = TableRef<'a, SettingNameArrayMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SettingNameArray<'a> {
+    fn settings_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.shape.n_settings) as usize)
+            .checked_mul(SettingName::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
+    pub fn settings_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + self.settings_byte_len(start)
+    }
+
     /// List of setting names for a feature.
     pub fn settings(&self) -> &'a [SettingName] {
-        let range = self.shape.settings_byte_range();
+        let range = self.settings_byte_range();
         self.data.read_array(range).unwrap()
+    }
+
+    pub(crate) fn n_settings(&self) -> u16 {
+        self.shape.n_settings
     }
 }
 

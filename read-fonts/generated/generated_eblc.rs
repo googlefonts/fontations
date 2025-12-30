@@ -8,33 +8,9 @@ use crate::codegen_prelude::*;
 /// The [Embedded Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct EblcMarker {
-    bitmap_sizes_byte_len: usize,
-}
+pub struct EblcMarker {}
 
-impl EblcMarker {
-    pub fn major_version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn minor_version_byte_range(&self) -> Range<usize> {
-        let start = self.major_version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn num_sizes_byte_range(&self) -> Range<usize> {
-        let start = self.minor_version_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn bitmap_sizes_byte_range(&self) -> Range<usize> {
-        let start = self.num_sizes_byte_range().end;
-        start..start + self.bitmap_sizes_byte_len
-    }
-}
-
-impl MinByteRange for EblcMarker {
+impl<'a> MinByteRange for Eblc<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.bitmap_sizes_byte_range().end
     }
@@ -55,9 +31,7 @@ impl<'a> FontRead<'a> for Eblc<'a> {
             .checked_mul(BitmapSize::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(bitmap_sizes_byte_len);
-        cursor.finish(EblcMarker {
-            bitmap_sizes_byte_len,
-        })
+        cursor.finish(EblcMarker {})
     }
 }
 
@@ -66,27 +40,54 @@ pub type Eblc<'a> = TableRef<'a, EblcMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Eblc<'a> {
+    fn bitmap_sizes_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.num_sizes()) as usize)
+            .checked_mul(BitmapSize::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
+    pub fn major_version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn minor_version_byte_range(&self) -> Range<usize> {
+        let start = self.major_version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn num_sizes_byte_range(&self) -> Range<usize> {
+        let start = self.minor_version_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn bitmap_sizes_byte_range(&self) -> Range<usize> {
+        let start = self.num_sizes_byte_range().end;
+        start..start + self.bitmap_sizes_byte_len(start)
+    }
+
     /// Major version of the EBLC table, = 2.
     pub fn major_version(&self) -> u16 {
-        let range = self.shape.major_version_byte_range();
+        let range = self.major_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minor version of EBLC table, = 0.
     pub fn minor_version(&self) -> u16 {
-        let range = self.shape.minor_version_byte_range();
+        let range = self.minor_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of BitmapSize records.
     pub fn num_sizes(&self) -> u32 {
-        let range = self.shape.num_sizes_byte_range();
+        let range = self.num_sizes_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// BitmapSize records array.
     pub fn bitmap_sizes(&self) -> &'a [BitmapSize] {
-        let range = self.shape.bitmap_sizes_byte_range();
+        let range = self.bitmap_sizes_byte_range();
         self.data.read_array(range).unwrap()
     }
 }

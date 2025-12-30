@@ -7,39 +7,9 @@ use crate::codegen_prelude::*;
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct BasicTableMarker {
-    simple_records_byte_len: usize,
-    array_records_byte_len: usize,
-}
+pub struct BasicTableMarker {}
 
-impl BasicTableMarker {
-    pub fn simple_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn simple_records_byte_range(&self) -> Range<usize> {
-        let start = self.simple_count_byte_range().end;
-        start..start + self.simple_records_byte_len
-    }
-
-    pub fn arrays_inner_count_byte_range(&self) -> Range<usize> {
-        let start = self.simple_records_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn array_records_count_byte_range(&self) -> Range<usize> {
-        let start = self.arrays_inner_count_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn array_records_byte_range(&self) -> Range<usize> {
-        let start = self.array_records_count_byte_range().end;
-        start..start + self.array_records_byte_len
-    }
-}
-
-impl MinByteRange for BasicTableMarker {
+impl<'a> MinByteRange for BasicTable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.array_records_byte_range().end
     }
@@ -61,10 +31,7 @@ impl<'a> FontRead<'a> for BasicTable<'a> {
             )?)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(array_records_byte_len);
-        cursor.finish(BasicTableMarker {
-            simple_records_byte_len,
-            array_records_byte_len,
-        })
+        cursor.finish(BasicTableMarker {})
     }
 }
 
@@ -72,28 +39,68 @@ pub type BasicTable<'a> = TableRef<'a, BasicTableMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BasicTable<'a> {
+    fn simple_records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.simple_count()) as usize)
+            .checked_mul(SimpleRecord::RAW_BYTE_LEN)
+            .unwrap()
+    }
+    fn array_records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.array_records_count()) as usize)
+            .checked_mul(
+                <ContainsArrays as ComputeSize>::compute_size(&self.arrays_inner_count()).unwrap(),
+            )
+            .unwrap()
+    }
+
+    pub fn simple_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn simple_records_byte_range(&self) -> Range<usize> {
+        let start = self.simple_count_byte_range().end;
+        start..start + self.simple_records_byte_len(start)
+    }
+
+    pub fn arrays_inner_count_byte_range(&self) -> Range<usize> {
+        let start = self.simple_records_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn array_records_count_byte_range(&self) -> Range<usize> {
+        let start = self.arrays_inner_count_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn array_records_byte_range(&self) -> Range<usize> {
+        let start = self.array_records_count_byte_range().end;
+        start..start + self.array_records_byte_len(start)
+    }
+
     pub fn simple_count(&self) -> u16 {
-        let range = self.shape.simple_count_byte_range();
+        let range = self.simple_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn simple_records(&self) -> &'a [SimpleRecord] {
-        let range = self.shape.simple_records_byte_range();
+        let range = self.simple_records_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     pub fn arrays_inner_count(&self) -> u16 {
-        let range = self.shape.arrays_inner_count_byte_range();
+        let range = self.arrays_inner_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn array_records_count(&self) -> u32 {
-        let range = self.shape.array_records_count_byte_range();
+        let range = self.array_records_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn array_records(&self) -> ComputedArray<'a, ContainsArrays<'a>> {
-        let range = self.shape.array_records_byte_range();
+        let range = self.array_records_byte_range();
         self.data
             .read_with_args(range, &self.arrays_inner_count())
             .unwrap()
@@ -338,23 +345,9 @@ impl<'a> SomeRecord<'a> for ContainsOffsets {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct VarLenItemMarker {
-    data_byte_len: usize,
-}
+pub struct VarLenItemMarker {}
 
-impl VarLenItemMarker {
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + self.data_byte_len
-    }
-}
-
-impl MinByteRange for VarLenItemMarker {
+impl<'a> MinByteRange for VarLenItem<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
     }
@@ -366,7 +359,7 @@ impl<'a> FontRead<'a> for VarLenItem<'a> {
         cursor.advance::<u32>();
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(data_byte_len);
-        cursor.finish(VarLenItemMarker { data_byte_len })
+        cursor.finish(VarLenItemMarker {})
     }
 }
 
@@ -374,13 +367,31 @@ pub type VarLenItem<'a> = TableRef<'a, VarLenItemMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarLenItem<'a> {
+    fn data_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        {
+            let remaining = self.data.len().saturating_sub(start);
+            remaining / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        }
+    }
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn data_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + self.data_byte_len(start)
+    }
+
     pub fn length(&self) -> u32 {
-        let range = self.shape.length_byte_range();
+        let range = self.length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn data(&self) -> &'a [u8] {
-        let range = self.shape.data_byte_range();
+        let range = self.data_byte_range();
         self.data.read_array(range).unwrap()
     }
 }

@@ -8,33 +8,9 @@ use crate::codegen_prelude::*;
 /// The [VORG (Vertical Origin)](https://docs.microsoft.com/en-us/typography/opentype/spec/vorg) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct VorgMarker {
-    vert_origin_y_metrics_byte_len: usize,
-}
+pub struct VorgMarker {}
 
-impl VorgMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
-    }
-
-    pub fn default_vert_origin_y_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn num_vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
-        let start = self.default_vert_origin_y_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
-        let start = self.num_vert_origin_y_metrics_byte_range().end;
-        start..start + self.vert_origin_y_metrics_byte_len
-    }
-}
-
-impl MinByteRange for VorgMarker {
+impl<'a> MinByteRange for Vorg<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.vert_origin_y_metrics_byte_range().end
     }
@@ -55,9 +31,7 @@ impl<'a> FontRead<'a> for Vorg<'a> {
             .checked_mul(VertOriginYMetrics::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(vert_origin_y_metrics_byte_len);
-        cursor.finish(VorgMarker {
-            vert_origin_y_metrics_byte_len,
-        })
+        cursor.finish(VorgMarker {})
     }
 }
 
@@ -66,9 +40,36 @@ pub type Vorg<'a> = TableRef<'a, VorgMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vorg<'a> {
+    fn vert_origin_y_metrics_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.num_vert_origin_y_metrics()) as usize)
+            .checked_mul(VertOriginYMetrics::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + MajorMinor::RAW_BYTE_LEN
+    }
+
+    pub fn default_vert_origin_y_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn num_vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
+        let start = self.default_vert_origin_y_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
+        let start = self.num_vert_origin_y_metrics_byte_range().end;
+        start..start + self.vert_origin_y_metrics_byte_len(start)
+    }
+
     /// Major/minor version number. Set to 1.0.
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -76,19 +77,19 @@ impl<'a> Vorg<'a> {
     /// coordinate system, to be used if no entry is present for the glyph
     /// in the vertOriginYMetrics array.
     pub fn default_vert_origin_y(&self) -> i16 {
-        let range = self.shape.default_vert_origin_y_byte_range();
+        let range = self.default_vert_origin_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of elements in the vertOriginYMetrics array.
     pub fn num_vert_origin_y_metrics(&self) -> u16 {
-        let range = self.shape.num_vert_origin_y_metrics_byte_range();
+        let range = self.num_vert_origin_y_metrics_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of VertOriginYMetrics records, sorted by glyph ID.
     pub fn vert_origin_y_metrics(&self) -> &'a [VertOriginYMetrics] {
-        let range = self.shape.vert_origin_y_metrics_byte_range();
+        let range = self.vert_origin_y_metrics_byte_range();
         self.data.read_array(range).unwrap()
     }
 }

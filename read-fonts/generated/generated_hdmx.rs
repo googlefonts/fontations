@@ -10,32 +10,9 @@ use crate::codegen_prelude::*;
 #[doc(hidden)]
 pub struct HdmxMarker {
     num_glyphs: u16,
-    records_byte_len: usize,
 }
 
-impl HdmxMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn num_records_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn size_device_record_byte_range(&self) -> Range<usize> {
-        let start = self.num_records_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn records_byte_range(&self) -> Range<usize> {
-        let start = self.size_device_record_byte_range().end;
-        start..start + self.records_byte_len
-    }
-}
-
-impl MinByteRange for HdmxMarker {
+impl<'a> MinByteRange for Hdmx<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.records_byte_range().end
     }
@@ -64,10 +41,7 @@ impl<'a> FontReadWithArgs<'a> for Hdmx<'a> {
             ))?)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(records_byte_len);
-        cursor.finish(HdmxMarker {
-            num_glyphs,
-            records_byte_len,
-        })
+        cursor.finish(HdmxMarker { num_glyphs })
     }
 }
 
@@ -87,27 +61,60 @@ pub type Hdmx<'a> = TableRef<'a, HdmxMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Hdmx<'a> {
+    fn records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.num_records()) as usize)
+            .checked_mul(
+                <DeviceRecord as ComputeSize>::compute_size(&(
+                    self.shape.num_glyphs,
+                    self.size_device_record(),
+                ))
+                .unwrap(),
+            )
+            .unwrap()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn num_records_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn size_device_record_byte_range(&self) -> Range<usize> {
+        let start = self.num_records_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn records_byte_range(&self) -> Range<usize> {
+        let start = self.size_device_record_byte_range().end;
+        start..start + self.records_byte_len(start)
+    }
+
     /// Table version number (set to 0).
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of device records.
     pub fn num_records(&self) -> u16 {
-        let range = self.shape.num_records_byte_range();
+        let range = self.num_records_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Size of device record, 32-bit aligned.
     pub fn size_device_record(&self) -> u32 {
-        let range = self.shape.size_device_record_byte_range();
+        let range = self.size_device_record_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of device records.
     pub fn records(&self) -> ComputedArray<'a, DeviceRecord<'a>> {
-        let range = self.shape.records_byte_range();
+        let range = self.records_byte_range();
         self.data
             .read_with_args(range, &(self.num_glyphs(), self.size_device_record()))
             .unwrap()

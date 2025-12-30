@@ -9,7 +9,10 @@ use quote::{quote, ToTokens};
 
 use crate::parsing::{Attr, GenericGroup, Item, Items, Phase};
 
-use super::parsing::{Field, ReferencedFields, Table, TableFormat, TableReadArg, TableReadArgs};
+use super::parsing::{
+    Count, CountArg, CountTransform, Field, FieldReadArgs, FieldType, ReferencedFields, Table,
+    TableFormat, TableReadArg, TableReadArgs,
+};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     if item.attrs.write_only.is_some() {
@@ -21,6 +24,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     let phantom_decl = generic.map(|t| quote!(offset_type: std::marker::PhantomData<*const #t>));
     let marker_name = item.marker_name();
     let raw_name = item.raw_name();
+    let shape_byte_len_fns = item.iter_shape_len_fns();
     let shape_byte_range_fns = item.iter_shape_byte_fns();
     let optional_min_byte_range_trait_impl = item.impl_min_byte_range_trait();
     let shape_fields = item.iter_shape_fields();
@@ -113,10 +117,6 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
             #phantom_decl
         }
 
-        impl <#generic> #marker_name <#generic> {
-            #( #shape_byte_range_fns )*
-        }
-
         #optional_min_byte_range_trait_impl
 
         #top_level
@@ -132,6 +132,10 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 
         #[allow(clippy::needless_lifetimes)]
         impl<'a, #generic> #raw_name<'a, #generic> {
+
+            #( #shape_byte_len_fns )*
+
+            #( #shape_byte_range_fns )*
 
             #( #table_ref_getters )*
 
@@ -921,7 +925,7 @@ impl Table {
         std::iter::from_fn(move || {
             let field = iter.next()?;
             let fn_name = field.shape_byte_range_fn_name();
-            let len_expr = field.shape_len_expr();
+            let len_expr = field.shape_len_expr(quote!(start));
 
             // versioned fields have a different signature
             if field.attrs.conditional.is_some() {
@@ -932,7 +936,7 @@ impl Table {
                 let start_field_name = field.shape_byte_start_field_name();
                 return Some(quote! {
                     pub fn #fn_name(&self) -> Option<Range<usize>> {
-                        let start = self.#start_field_name?;
+                        let start = self.shape.#start_field_name?;
                         Some(start..start + #len_expr)
                     }
                 });
@@ -948,6 +952,191 @@ impl Table {
 
             Some(result)
         })
+    }
+
+    fn iter_shape_len_fns(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        self.fields.iter().filter_map(|field| {
+            if !field.has_computed_len() {
+                return None;
+            }
+            let fn_name = field.shape_byte_len_field_name();
+            let len_expr = self.byte_len_expr_for_field(field);
+            Some(quote! {
+                fn #fn_name(&self, start: usize) -> usize {
+                    let _ = start;
+                    #len_expr
+                }
+            })
+        })
+    }
+
+    fn byte_len_expr_for_field(&self, field: &Field) -> TokenStream {
+        let read_args = field
+            .attrs
+            .read_with_args
+            .as_deref()
+            .map(|args| self.field_read_args_expr(args));
+
+        if let FieldType::Struct { typ } = &field.typ {
+            let read_args = read_args.expect("ComputeSize requires read args");
+            return quote!(<#typ as ComputeSize>::compute_size(&#read_args).unwrap());
+        }
+        if let FieldType::PendingResolution { .. } = &field.typ {
+            panic!("Should have resolved {field:?}")
+        }
+
+        let count = field
+            .attrs
+            .count
+            .as_deref()
+            .expect("missing count attribute?");
+        match count {
+            Count::All(_) => {
+                let remaining = match &field.typ {
+                    FieldType::Array { inner_typ } => {
+                        let inner_typ = inner_typ.cooked_type_tokens();
+                        quote! {
+                            {
+                                let remaining = self.data.len().saturating_sub(start);
+                                remaining / #inner_typ::RAW_BYTE_LEN * #inner_typ::RAW_BYTE_LEN
+                            }
+                        }
+                    }
+                    _ => quote!(self.data.len().saturating_sub(start)),
+                };
+                remaining
+            }
+            other => {
+                let count_expr = self.count_expr_tokens(other);
+                let size_expr = match &field.typ {
+                    FieldType::Array { inner_typ } => {
+                        let inner_typ = inner_typ.cooked_type_tokens();
+                        quote!(#inner_typ::RAW_BYTE_LEN)
+                    }
+                    FieldType::ComputedArray(array) => {
+                        let inner = array.raw_inner_type();
+                        let read_args = read_args.expect("ComputedArray requires read args");
+                        quote!(<#inner as ComputeSize>::compute_size(&#read_args).unwrap())
+                    }
+                    FieldType::VarLenArray(array) => {
+                        let inner = array.raw_inner_type();
+                        return quote! {
+                            {
+                                let data = self.data.split_off(start).unwrap();
+                                <#inner as VarSize>::total_len_for_count(data, #count_expr).unwrap()
+                            }
+                        };
+                    }
+                    _ => unreachable!("count not valid here"),
+                };
+                if let Count::SingleArg(CountArg::Literal(lit)) = other {
+                    if lit.base10_digits() == "1" {
+                        return size_expr;
+                    }
+                }
+                quote!((#count_expr).checked_mul(#size_expr).unwrap())
+            }
+        }
+    }
+
+    fn field_read_args_expr(&self, args: &FieldReadArgs) -> TokenStream {
+        match args.inputs.as_slice() {
+            [arg] => self.read_arg_expr(arg),
+            args => {
+                let args = args.iter().map(|arg| self.read_arg_expr(arg));
+                quote!(( #( #args ),* ))
+            }
+        }
+    }
+
+    fn count_arg_expr(&self, arg: &CountArg) -> TokenStream {
+        match arg {
+            CountArg::Field(ident) => self.read_arg_expr(ident),
+            CountArg::Literal(lit) => quote!(#lit),
+        }
+    }
+
+    fn count_expr_tokens(&self, count: &Count) -> TokenStream {
+        match count {
+            Count::All(_) => unreachable!("'all' count handled separately"),
+            Count::SingleArg(CountArg::Field(arg)) => {
+                let arg = self.read_arg_expr(arg);
+                quote!((#arg) as usize)
+            }
+            Count::SingleArg(CountArg::Literal(arg)) => quote!(#arg),
+            Count::Complicated { args, xform } => {
+                let args = args
+                    .iter()
+                    .map(|arg| self.count_arg_expr(arg))
+                    .collect::<Vec<_>>();
+                match (xform, args.as_slice()) {
+                    (CountTransform::Sub, [a, b]) => {
+                        quote!(transforms::subtract(#a, #b))
+                    }
+                    (CountTransform::Add, [a, b]) => {
+                        quote!(transforms::add(#a, #b))
+                    }
+                    (CountTransform::AddMul, [a, b, c]) => {
+                        quote!(transforms::add_multiply(#a, #b, #c))
+                    }
+                    (CountTransform::MulAdd, [a, b, c]) => {
+                        quote!(transforms::multiply_add(#a, #b, #c))
+                    }
+                    (CountTransform::Half, [a]) => {
+                        quote!(transforms::half(#a))
+                    }
+                    (CountTransform::DeltaSetIndexData, [a, b]) => {
+                        quote!(EntryFormat::map_size(#a, #b))
+                    }
+                    (CountTransform::DeltaValueCount, [a, b, c]) => {
+                        quote!(DeltaFormat::value_count(#a, #b, #c))
+                    }
+                    (CountTransform::TupleLen, [a, b, c]) => {
+                        quote!(TupleIndex::tuple_len(#a, #b, #c))
+                    }
+                    (CountTransform::ItemVariationDataLen, [a, b, c]) => {
+                        quote!(ItemVariationData::delta_sets_len(#a, #b, #c))
+                    }
+                    (CountTransform::BitmapLen, [a]) => {
+                        quote!(transforms::bitmap_len(#a))
+                    }
+                    (CountTransform::MaxValueBitmapLen, [a]) => {
+                        quote!(transforms::max_value_bitmap_len(#a))
+                    }
+                    (CountTransform::SubAddTwo, [a, b]) => {
+                        quote!(transforms::subtract_add_two(#a, #b))
+                    }
+                    (CountTransform::TryInto, [a]) => {
+                        quote!(usize::try_from(#a).unwrap_or_default())
+                    }
+                    _ => unreachable!("unexpected count transform args"),
+                }
+            }
+        }
+    }
+
+    fn read_arg_expr(&self, ident: &syn::Ident) -> TokenStream {
+        if self.is_read_arg(ident) {
+            quote!(self.shape.#ident)
+        } else if self.is_conditional_field(ident) {
+            quote!(self.#ident().unwrap_or_default())
+        } else {
+            quote!(self.#ident())
+        }
+    }
+
+    fn is_read_arg(&self, ident: &syn::Ident) -> bool {
+        self.attrs
+            .read_args
+            .as_ref()
+            .map(|args| args.args.iter().any(|arg| arg.ident == *ident))
+            .unwrap_or(false)
+    }
+
+    fn is_conditional_field(&self, ident: &syn::Ident) -> bool {
+        self.fields
+            .iter()
+            .any(|field| field.name == *ident && field.attrs.conditional.is_some())
     }
 
     fn iter_shape_fields(&self) -> impl Iterator<Item = TokenStream> + '_ {
@@ -984,15 +1173,6 @@ impl Table {
                 let field_name = next.shape_byte_start_field_name();
                 result.push((field_name, quote!(Option<usize>)));
             }
-
-            if has_computed_len {
-                let field_name = next.shape_byte_len_field_name();
-                if is_versioned {
-                    result.push((field_name, quote!(Option<usize>)));
-                } else {
-                    result.push((field_name, quote!(usize)));
-                }
-            };
         }
         result
     }
@@ -1034,11 +1214,12 @@ impl Table {
             .iter()
             .filter(|fld| fld.attrs.conditional.is_none())
             .last()?;
-        let name = self.marker_name();
+        let name = self.raw_name();
+        let generic = self.attrs.generic_offset.as_ref().map(|attr| &attr.attr);
 
         let fn_name = field.shape_byte_range_fn_name();
         Some(quote! {
-            impl MinByteRange for #name {
+            impl<'a, #generic> MinByteRange for #name<'a, #generic> {
                 fn min_byte_range(&self) -> Range<usize> {
                     0..self.#fn_name().end
                 }

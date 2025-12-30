@@ -7,23 +7,9 @@ use crate::codegen_prelude::*;
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CountAll16Marker {
-    remainder_byte_len: usize,
-}
+pub struct CountAll16Marker {}
 
-impl CountAll16Marker {
-    pub fn some_field_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn remainder_byte_range(&self) -> Range<usize> {
-        let start = self.some_field_byte_range().end;
-        start..start + self.remainder_byte_len
-    }
-}
-
-impl MinByteRange for CountAll16Marker {
+impl<'a> MinByteRange for CountAll16<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.remainder_byte_range().end
     }
@@ -35,7 +21,7 @@ impl<'a> FontRead<'a> for CountAll16<'a> {
         cursor.advance::<u16>();
         let remainder_byte_len = cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
         cursor.advance_by(remainder_byte_len);
-        cursor.finish(CountAll16Marker { remainder_byte_len })
+        cursor.finish(CountAll16Marker {})
     }
 }
 
@@ -43,13 +29,31 @@ pub type CountAll16<'a> = TableRef<'a, CountAll16Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CountAll16<'a> {
+    fn remainder_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        {
+            let remaining = self.data.len().saturating_sub(start);
+            remaining / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN
+        }
+    }
+
+    pub fn some_field_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn remainder_byte_range(&self) -> Range<usize> {
+        let start = self.some_field_byte_range().end;
+        start..start + self.remainder_byte_len(start)
+    }
+
     pub fn some_field(&self) -> u16 {
-        let range = self.shape.some_field_byte_range();
+        let range = self.some_field_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn remainder(&self) -> &'a [BigEndian<u16>] {
-        let range = self.shape.remainder_byte_range();
+        let range = self.remainder_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -78,23 +82,9 @@ impl<'a> std::fmt::Debug for CountAll16<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CountAll32Marker {
-    remainder_byte_len: usize,
-}
+pub struct CountAll32Marker {}
 
-impl CountAll32Marker {
-    pub fn some_field_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn remainder_byte_range(&self) -> Range<usize> {
-        let start = self.some_field_byte_range().end;
-        start..start + self.remainder_byte_len
-    }
-}
-
-impl MinByteRange for CountAll32Marker {
+impl<'a> MinByteRange for CountAll32<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.remainder_byte_range().end
     }
@@ -106,7 +96,7 @@ impl<'a> FontRead<'a> for CountAll32<'a> {
         cursor.advance::<u16>();
         let remainder_byte_len = cursor.remaining_bytes() / u32::RAW_BYTE_LEN * u32::RAW_BYTE_LEN;
         cursor.advance_by(remainder_byte_len);
-        cursor.finish(CountAll32Marker { remainder_byte_len })
+        cursor.finish(CountAll32Marker {})
     }
 }
 
@@ -114,13 +104,31 @@ pub type CountAll32<'a> = TableRef<'a, CountAll32Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CountAll32<'a> {
+    fn remainder_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        {
+            let remaining = self.data.len().saturating_sub(start);
+            remaining / u32::RAW_BYTE_LEN * u32::RAW_BYTE_LEN
+        }
+    }
+
+    pub fn some_field_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn remainder_byte_range(&self) -> Range<usize> {
+        let start = self.some_field_byte_range().end;
+        start..start + self.remainder_byte_len(start)
+    }
+
     pub fn some_field(&self) -> u16 {
-        let range = self.shape.some_field_byte_range();
+        let range = self.some_field_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn remainder(&self) -> &'a [BigEndian<u32>] {
-        let range = self.shape.remainder_byte_range();
+        let range = self.remainder_byte_range();
         self.data.read_array(range).unwrap()
     }
 }

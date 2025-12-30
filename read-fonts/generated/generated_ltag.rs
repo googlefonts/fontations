@@ -8,33 +8,9 @@ use crate::codegen_prelude::*;
 /// The [language tag](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ltag.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct LtagMarker {
-    tag_ranges_byte_len: usize,
-}
+pub struct LtagMarker {}
 
-impl LtagMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn num_tags_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn tag_ranges_byte_range(&self) -> Range<usize> {
-        let start = self.num_tags_byte_range().end;
-        start..start + self.tag_ranges_byte_len
-    }
-}
-
-impl MinByteRange for LtagMarker {
+impl<'a> MinByteRange for Ltag<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.tag_ranges_byte_range().end
     }
@@ -55,9 +31,7 @@ impl<'a> FontRead<'a> for Ltag<'a> {
             .checked_mul(FTStringRange::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(tag_ranges_byte_len);
-        cursor.finish(LtagMarker {
-            tag_ranges_byte_len,
-        })
+        cursor.finish(LtagMarker {})
     }
 }
 
@@ -66,27 +40,54 @@ pub type Ltag<'a> = TableRef<'a, LtagMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ltag<'a> {
+    fn tag_ranges_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.num_tags()) as usize)
+            .checked_mul(FTStringRange::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn num_tags_byte_range(&self) -> Range<usize> {
+        let start = self.flags_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn tag_ranges_byte_range(&self) -> Range<usize> {
+        let start = self.num_tags_byte_range().end;
+        start..start + self.tag_ranges_byte_len(start)
+    }
+
     /// Table version; currently 1.
     pub fn version(&self) -> u32 {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Table flags; currently none defined.
     pub fn flags(&self) -> u32 {
-        let range = self.shape.flags_byte_range();
+        let range = self.flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of language tags which follow.
     pub fn num_tags(&self) -> u32 {
-        let range = self.shape.num_tags_byte_range();
+        let range = self.num_tags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Range of each tag's string.
     pub fn tag_ranges(&self) -> &'a [FTStringRange] {
-        let range = self.shape.tag_ranges_byte_range();
+        let range = self.tag_ranges_byte_range();
         self.data.read_array(range).unwrap()
     }
 }

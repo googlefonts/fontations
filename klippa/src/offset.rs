@@ -50,11 +50,13 @@ impl<O: Scalar> SerializeSubset for O {
 
 // this is trait is used to copy simple tables only which implemented MinByteRange trait
 pub(crate) trait SerializeCopy {
-    fn serialize_copy<T: MinByteRange>(
+    fn serialize_copy<T>(
         t: &TableRef<T>,
         s: &mut Serializer,
         pos: usize,
-    ) -> Result<(), SerializeErrorFlags>;
+    ) -> Result<(), SerializeErrorFlags>
+    where
+        for<'a> TableRef<'a, T>: MinByteRange;
 
     fn serialize_copy_from_bytes(
         src_bytes: &[u8],
@@ -64,11 +66,14 @@ pub(crate) trait SerializeCopy {
 }
 
 impl<O: Scalar> SerializeCopy for O {
-    fn serialize_copy<T: MinByteRange>(
+    fn serialize_copy<T>(
         t: &TableRef<T>,
         s: &mut Serializer,
         pos: usize,
-    ) -> Result<(), SerializeErrorFlags> {
+    ) -> Result<(), SerializeErrorFlags>
+    where
+        for<'a> TableRef<'a, T>: MinByteRange,
+    {
         s.push()?;
         s.embed_bytes(t.min_table_bytes())?;
 
