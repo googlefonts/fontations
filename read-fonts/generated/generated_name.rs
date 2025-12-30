@@ -8,10 +8,7 @@ use crate::codegen_prelude::*;
 /// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct NameMarker {
-    lang_tag_count_byte_start: Option<usize>,
-    lang_tag_record_byte_start: Option<usize>,
-}
+pub struct NameMarker;
 
 impl<'a> MinByteRange for Name<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -26,44 +23,16 @@ impl TopLevelTable for Name<'_> {
 
 impl<'a> FontRead<'a> for Name<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: u16 = cursor.read()?;
-        let count: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        let name_record_byte_len = (count as usize)
-            .checked_mul(NameRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(name_record_byte_len);
-        let lang_tag_count_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        let lang_tag_count = version
-            .compatible(1u16)
-            .then(|| cursor.read::<u16>())
-            .transpose()?
-            .unwrap_or_default();
-        let lang_tag_record_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        let lang_tag_record_byte_len = version.compatible(1u16).then_some(
-            (lang_tag_count as usize)
-                .checked_mul(LangTagRecord::RAW_BYTE_LEN)
-                .ok_or(ReadError::OutOfBounds)?,
-        );
-        if let Some(value) = lang_tag_record_byte_len {
-            cursor.advance_by(value);
-        }
-        cursor.finish(NameMarker {
-            lang_tag_count_byte_start,
-            lang_tag_record_byte_start,
+        Ok(TableRef {
+            shape: NameMarker,
+            args: (),
+            data,
         })
     }
 }
 
 /// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
-pub type Name<'a> = TableRef<'a, NameMarker>;
+pub type Name<'a> = TableRef<'a, NameMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Name<'a> {
@@ -101,13 +70,24 @@ impl<'a> Name<'a> {
     }
 
     pub fn lang_tag_count_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.lang_tag_count_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible(1u16) {
+            let start = self.name_record_byte_range().end;
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn lang_tag_record_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.lang_tag_record_byte_start?;
-        Some(start..start + self.lang_tag_record_byte_len(start))
+        if self.version().compatible(1u16) {
+            let start = self
+                .lang_tag_count_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.name_record_byte_range().end);
+            Some(start..start + self.lang_tag_record_byte_len(start))
+        } else {
+            None
+        }
     }
 
     /// Table version number (0 or 1)

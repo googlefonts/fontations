@@ -8,21 +8,7 @@ use crate::codegen_prelude::*;
 /// [`maxp`](https://docs.microsoft.com/en-us/typography/opentype/spec/maxp)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MaxpMarker {
-    max_points_byte_start: Option<usize>,
-    max_contours_byte_start: Option<usize>,
-    max_composite_points_byte_start: Option<usize>,
-    max_composite_contours_byte_start: Option<usize>,
-    max_zones_byte_start: Option<usize>,
-    max_twilight_points_byte_start: Option<usize>,
-    max_storage_byte_start: Option<usize>,
-    max_function_defs_byte_start: Option<usize>,
-    max_instruction_defs_byte_start: Option<usize>,
-    max_stack_elements_byte_start: Option<usize>,
-    max_size_of_instructions_byte_start: Option<usize>,
-    max_component_elements_byte_start: Option<usize>,
-    max_component_depth_byte_start: Option<usize>,
-}
+pub struct MaxpMarker;
 
 impl<'a> MinByteRange for Maxp<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -37,120 +23,16 @@ impl TopLevelTable for Maxp<'_> {
 
 impl<'a> FontRead<'a> for Maxp<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: Version16Dot16 = cursor.read()?;
-        cursor.advance::<u16>();
-        let max_points_byte_start = version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.advance::<u16>());
-        let max_contours_byte_start = version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.advance::<u16>());
-        let max_composite_points_byte_start = version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.advance::<u16>());
-        let max_composite_contours_byte_start = version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.advance::<u16>());
-        let max_zones_byte_start = version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.advance::<u16>());
-        let max_twilight_points_byte_start = version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.advance::<u16>());
-        let max_storage_byte_start = version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.advance::<u16>());
-        let max_function_defs_byte_start = version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.advance::<u16>());
-        let max_instruction_defs_byte_start = version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.advance::<u16>());
-        let max_stack_elements_byte_start = version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.advance::<u16>());
-        let max_size_of_instructions_byte_start = version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.advance::<u16>());
-        let max_component_elements_byte_start = version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.advance::<u16>());
-        let max_component_depth_byte_start = version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 0u16))
-            .then(|| cursor.advance::<u16>());
-        cursor.finish(MaxpMarker {
-            max_points_byte_start,
-            max_contours_byte_start,
-            max_composite_points_byte_start,
-            max_composite_contours_byte_start,
-            max_zones_byte_start,
-            max_twilight_points_byte_start,
-            max_storage_byte_start,
-            max_function_defs_byte_start,
-            max_instruction_defs_byte_start,
-            max_stack_elements_byte_start,
-            max_size_of_instructions_byte_start,
-            max_component_elements_byte_start,
-            max_component_depth_byte_start,
+        Ok(TableRef {
+            shape: MaxpMarker,
+            args: (),
+            data,
         })
     }
 }
 
 /// [`maxp`](https://docs.microsoft.com/en-us/typography/opentype/spec/maxp)
-pub type Maxp<'a> = TableRef<'a, MaxpMarker>;
+pub type Maxp<'a> = TableRef<'a, MaxpMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Maxp<'a> {
@@ -165,68 +47,229 @@ impl<'a> Maxp<'a> {
     }
 
     pub fn max_points_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.max_points_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 0u16)) {
+            let start = self.num_glyphs_byte_range().end;
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn max_contours_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.max_contours_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 0u16)) {
+            let start = self
+                .max_points_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.num_glyphs_byte_range().end);
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn max_composite_points_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.max_composite_points_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 0u16)) {
+            let start = self
+                .max_contours_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.max_points_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| self.num_glyphs_byte_range().end)
+                });
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn max_composite_contours_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.max_composite_contours_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 0u16)) {
+            let start = self
+                .max_composite_points_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.max_contours_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| {
+                            self.max_points_byte_range()
+                                .map(|range| range.end)
+                                .unwrap_or_else(|| self.num_glyphs_byte_range().end)
+                        })
+                });
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn max_zones_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.max_zones_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 0u16)) {
+            let start = self
+                .max_composite_contours_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.max_composite_points_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| {
+                            self.max_contours_byte_range()
+                                .map(|range| range.end)
+                                .unwrap_or_else(|| {
+                                    self.max_points_byte_range()
+                                        .map(|range| range.end)
+                                        .unwrap_or_else(|| self.num_glyphs_byte_range().end)
+                                })
+                        })
+                });
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn max_twilight_points_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.max_twilight_points_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 0u16)) {
+            let start = self
+                .max_zones_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.max_composite_contours_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| {
+                            self.max_composite_points_byte_range()
+                                .map(|range| range.end)
+                                .unwrap_or_else(|| {
+                                    self.max_contours_byte_range()
+                                        .map(|range| range.end)
+                                        .unwrap_or_else(|| {
+                                            self.max_points_byte_range()
+                                                .map(|range| range.end)
+                                                .unwrap_or_else(|| self.num_glyphs_byte_range().end)
+                                        })
+                                })
+                        })
+                });
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn max_storage_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.max_storage_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 0u16)) {
+            let start = self
+                .max_twilight_points_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.max_zones_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| {
+                            self.max_composite_contours_byte_range()
+                                .map(|range| range.end)
+                                .unwrap_or_else(|| {
+                                    self.max_composite_points_byte_range()
+                                        .map(|range| range.end)
+                                        .unwrap_or_else(|| {
+                                            self.max_contours_byte_range()
+                                                .map(|range| range.end)
+                                                .unwrap_or_else(|| {
+                                                    self.max_points_byte_range()
+                                                        .map(|range| range.end)
+                                                        .unwrap_or_else(|| {
+                                                            self.num_glyphs_byte_range().end
+                                                        })
+                                                })
+                                        })
+                                })
+                        })
+                });
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn max_function_defs_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.max_function_defs_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 0u16)) {
+            let start = self
+                .max_storage_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.max_twilight_points_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| {
+                            self.max_zones_byte_range()
+                                .map(|range| range.end)
+                                .unwrap_or_else(|| {
+                                    self.max_composite_contours_byte_range()
+                                        .map(|range| range.end)
+                                        .unwrap_or_else(|| {
+                                            self.max_composite_points_byte_range()
+                                                .map(|range| range.end)
+                                                .unwrap_or_else(|| {
+                                                    self.max_contours_byte_range()
+                                                        .map(|range| range.end)
+                                                        .unwrap_or_else(|| {
+                                                            self.max_points_byte_range()
+                                                                .map(|range| range.end)
+                                                                .unwrap_or_else(|| {
+                                                                    self.num_glyphs_byte_range().end
+                                                                })
+                                                        })
+                                                })
+                                        })
+                                })
+                        })
+                });
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn max_instruction_defs_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.max_instruction_defs_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 0u16)) {
+            let start = self . max_function_defs_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_storage_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_twilight_points_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_zones_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_composite_contours_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_composite_points_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_contours_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_points_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . num_glyphs_byte_range () . end)))))))) ;
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn max_stack_elements_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.max_stack_elements_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 0u16)) {
+            let start = self . max_instruction_defs_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_function_defs_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_storage_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_twilight_points_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_zones_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_composite_contours_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_composite_points_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_contours_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_points_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . num_glyphs_byte_range () . end))))))))) ;
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn max_size_of_instructions_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.max_size_of_instructions_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 0u16)) {
+            let start = self . max_stack_elements_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_instruction_defs_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_function_defs_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_storage_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_twilight_points_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_zones_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_composite_contours_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_composite_points_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_contours_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_points_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . num_glyphs_byte_range () . end)))))))))) ;
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn max_component_elements_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.max_component_elements_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 0u16)) {
+            let start = self . max_size_of_instructions_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_stack_elements_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_instruction_defs_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_function_defs_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_storage_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_twilight_points_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_zones_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_composite_contours_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_composite_points_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_contours_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_points_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . num_glyphs_byte_range () . end))))))))))) ;
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn max_component_depth_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.max_component_depth_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 0u16)) {
+            let start = self . max_component_elements_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_size_of_instructions_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_stack_elements_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_instruction_defs_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_function_defs_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_storage_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_twilight_points_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_zones_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_composite_contours_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_composite_points_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_contours_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . max_points_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . num_glyphs_byte_range () . end)))))))))))) ;
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     /// The version: 0x00005000 for version 0.5, 0x00010000 for version 1.0.

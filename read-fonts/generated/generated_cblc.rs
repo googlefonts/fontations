@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [Color Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/cblc) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CblcMarker {}
+pub struct CblcMarker;
 
 impl<'a> MinByteRange for Cblc<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,20 +23,16 @@ impl TopLevelTable for Cblc<'_> {
 
 impl<'a> FontRead<'a> for Cblc<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let num_sizes: u32 = cursor.read()?;
-        let bitmap_sizes_byte_len = (num_sizes as usize)
-            .checked_mul(BitmapSize::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(bitmap_sizes_byte_len);
-        cursor.finish(CblcMarker {})
+        Ok(TableRef {
+            shape: CblcMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [Color Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/cblc) table
-pub type Cblc<'a> = TableRef<'a, CblcMarker>;
+pub type Cblc<'a> = TableRef<'a, CblcMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cblc<'a> {

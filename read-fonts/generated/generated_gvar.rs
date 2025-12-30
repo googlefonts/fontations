@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The ['gvar' header](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#gvar-header)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct GvarMarker {}
+pub struct GvarMarker;
 
 impl<'a> MinByteRange for Gvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,24 +23,16 @@ impl TopLevelTable for Gvar<'_> {
 
 impl<'a> FontRead<'a> for Gvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        let glyph_count: u16 = cursor.read()?;
-        let flags: GvarFlags = cursor.read()?;
-        cursor.advance::<u32>();
-        let glyph_variation_data_offsets_byte_len = (transforms::add(glyph_count, 1_usize))
-            .checked_mul(<U16Or32 as ComputeSize>::compute_size(&flags)?)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(glyph_variation_data_offsets_byte_len);
-        cursor.finish(GvarMarker {})
+        Ok(TableRef {
+            shape: GvarMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The ['gvar' header](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#gvar-header)
-pub type Gvar<'a> = TableRef<'a, GvarMarker>;
+pub type Gvar<'a> = TableRef<'a, GvarMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Gvar<'a> {
@@ -497,10 +489,7 @@ impl<'a> From<GvarFlags> for FieldType<'a> {
 /// Array of tuple records shared across all glyph variation data tables.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SharedTuplesMarker {
-    shared_tuple_count: u16,
-    axis_count: u16,
-}
+pub struct SharedTuplesMarker;
 
 impl<'a> MinByteRange for SharedTuples<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -514,15 +503,11 @@ impl ReadArgs for SharedTuples<'_> {
 
 impl<'a> FontReadWithArgs<'a> for SharedTuples<'a> {
     fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
-        let (shared_tuple_count, axis_count) = *args;
-        let mut cursor = data.cursor();
-        let tuples_byte_len = (shared_tuple_count as usize)
-            .checked_mul(<Tuple as ComputeSize>::compute_size(&axis_count)?)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(tuples_byte_len);
-        cursor.finish(SharedTuplesMarker {
-            shared_tuple_count,
-            axis_count,
+        let args = *args;
+        Ok(TableRef {
+            shape: SharedTuplesMarker,
+            args,
+            data,
         })
     }
 }
@@ -543,14 +528,14 @@ impl<'a> SharedTuples<'a> {
 }
 
 /// Array of tuple records shared across all glyph variation data tables.
-pub type SharedTuples<'a> = TableRef<'a, SharedTuplesMarker>;
+pub type SharedTuples<'a> = TableRef<'a, SharedTuplesMarker, (u16, u16)>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SharedTuples<'a> {
     fn tuples_byte_len(&self, start: usize) -> usize {
         let _ = start;
-        ((self.shape.shared_tuple_count) as usize)
-            .checked_mul(<Tuple as ComputeSize>::compute_size(&self.shape.axis_count).unwrap())
+        ((self.args.0) as usize)
+            .checked_mul(<Tuple as ComputeSize>::compute_size(&self.args.1).unwrap())
             .unwrap()
     }
 
@@ -565,11 +550,11 @@ impl<'a> SharedTuples<'a> {
     }
 
     pub(crate) fn shared_tuple_count(&self) -> u16 {
-        self.shape.shared_tuple_count
+        self.args.0
     }
 
     pub(crate) fn axis_count(&self) -> u16 {
-        self.shape.axis_count
+        self.args.1
     }
 }
 
@@ -600,7 +585,7 @@ impl<'a> std::fmt::Debug for SharedTuples<'a> {
 /// The [GlyphVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#the-glyphvariationdata-table-array) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct GlyphVariationDataHeaderMarker {}
+pub struct GlyphVariationDataHeaderMarker;
 
 impl<'a> MinByteRange for GlyphVariationDataHeader<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -610,17 +595,16 @@ impl<'a> MinByteRange for GlyphVariationDataHeader<'a> {
 
 impl<'a> FontRead<'a> for GlyphVariationDataHeader<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<TupleVariationCount>();
-        cursor.advance::<Offset16>();
-        let tuple_variation_headers_byte_len = cursor.remaining_bytes();
-        cursor.advance_by(tuple_variation_headers_byte_len);
-        cursor.finish(GlyphVariationDataHeaderMarker {})
+        Ok(TableRef {
+            shape: GlyphVariationDataHeaderMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [GlyphVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#the-glyphvariationdata-table-array) table
-pub type GlyphVariationDataHeader<'a> = TableRef<'a, GlyphVariationDataHeaderMarker>;
+pub type GlyphVariationDataHeader<'a> = TableRef<'a, GlyphVariationDataHeaderMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphVariationDataHeader<'a> {

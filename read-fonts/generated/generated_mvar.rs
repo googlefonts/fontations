@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [MVAR (Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/mvar) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MvarMarker {}
+pub struct MvarMarker;
 
 impl<'a> MinByteRange for Mvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,22 +23,16 @@ impl TopLevelTable for Mvar<'_> {
 
 impl<'a> FontRead<'a> for Mvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let value_record_count: u16 = cursor.read()?;
-        cursor.advance::<Offset16>();
-        let value_records_byte_len = (value_record_count as usize)
-            .checked_mul(ValueRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(value_records_byte_len);
-        cursor.finish(MvarMarker {})
+        Ok(TableRef {
+            shape: MvarMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [MVAR (Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/mvar) table
-pub type Mvar<'a> = TableRef<'a, MvarMarker>;
+pub type Mvar<'a> = TableRef<'a, MvarMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Mvar<'a> {

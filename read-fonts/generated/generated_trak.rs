@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [tracking (trak)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6trak.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct TrakMarker {}
+pub struct TrakMarker;
 
 impl<'a> MinByteRange for Trak<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,18 +23,16 @@ impl TopLevelTable for Trak<'_> {
 
 impl<'a> FontRead<'a> for Trak<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<u16>();
-        cursor.finish(TrakMarker {})
+        Ok(TableRef {
+            shape: TrakMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [tracking (trak)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6trak.html) table.
-pub type Trak<'a> = TableRef<'a, TrakMarker>;
+pub type Trak<'a> = TableRef<'a, TrakMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Trak<'a> {
@@ -133,7 +131,7 @@ impl<'a> std::fmt::Debug for Trak<'a> {
 /// The tracking data table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct TrackDataMarker {}
+pub struct TrackDataMarker;
 
 impl<'a> MinByteRange for TrackData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -143,20 +141,16 @@ impl<'a> MinByteRange for TrackData<'a> {
 
 impl<'a> FontRead<'a> for TrackData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let n_tracks: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        let track_table_byte_len = (n_tracks as usize)
-            .checked_mul(TrackTableEntry::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(track_table_byte_len);
-        cursor.finish(TrackDataMarker {})
+        Ok(TableRef {
+            shape: TrackDataMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The tracking data table.
-pub type TrackData<'a> = TableRef<'a, TrackDataMarker>;
+pub type TrackData<'a> = TableRef<'a, TrackDataMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> TrackData<'a> {

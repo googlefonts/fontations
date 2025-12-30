@@ -10,7 +10,7 @@ use crate::codegen_prelude::*;
 /// [FontTools VARC](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3459-L3476)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct VarcMarker {}
+pub struct VarcMarker;
 
 impl<'a> MinByteRange for Varc<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -25,21 +25,18 @@ impl TopLevelTable for Varc<'_> {
 
 impl<'a> FontRead<'a> for Varc<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.finish(VarcMarker {})
+        Ok(TableRef {
+            shape: VarcMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [VARC](https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md) (Variable Composites / Components Table)
 ///
 /// [FontTools VARC](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3459-L3476)
-pub type Varc<'a> = TableRef<'a, VarcMarker>;
+pub type Varc<'a> = TableRef<'a, VarcMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Varc<'a> {
@@ -187,7 +184,7 @@ impl Format<u16> for MultiItemVariationStoreMarker {
 /// * <https://github.com/harfbuzz/harfbuzz/blob/7be12b33e3f07067c159d8f516eb31df58c75876/src/hb-ot-layout-common.hh#L3517-L3520C3>
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MultiItemVariationStoreMarker {}
+pub struct MultiItemVariationStoreMarker;
 
 impl<'a> MinByteRange for MultiItemVariationStore<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -197,21 +194,17 @@ impl<'a> MinByteRange for MultiItemVariationStore<'a> {
 
 impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        let variation_data_count: u16 = cursor.read()?;
-        let variation_data_offsets_byte_len = (variation_data_count as usize)
-            .checked_mul(Offset32::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(variation_data_offsets_byte_len);
-        cursor.finish(MultiItemVariationStoreMarker {})
+        Ok(TableRef {
+            shape: MultiItemVariationStoreMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// * <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3451-L3457>
 /// * <https://github.com/harfbuzz/harfbuzz/blob/7be12b33e3f07067c159d8f516eb31df58c75876/src/hb-ot-layout-common.hh#L3517-L3520C3>
-pub type MultiItemVariationStore<'a> = TableRef<'a, MultiItemVariationStoreMarker>;
+pub type MultiItemVariationStore<'a> = TableRef<'a, MultiItemVariationStoreMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MultiItemVariationStore<'a> {
@@ -321,7 +314,7 @@ impl<'a> std::fmt::Debug for MultiItemVariationStore<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SparseVariationRegionListMarker {}
+pub struct SparseVariationRegionListMarker;
 
 impl<'a> MinByteRange for SparseVariationRegionList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -331,17 +324,15 @@ impl<'a> MinByteRange for SparseVariationRegionList<'a> {
 
 impl<'a> FontRead<'a> for SparseVariationRegionList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let region_count: u16 = cursor.read()?;
-        let region_offsets_byte_len = (region_count as usize)
-            .checked_mul(Offset32::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(region_offsets_byte_len);
-        cursor.finish(SparseVariationRegionListMarker {})
+        Ok(TableRef {
+            shape: SparseVariationRegionListMarker,
+            args: (),
+            data,
+        })
     }
 }
 
-pub type SparseVariationRegionList<'a> = TableRef<'a, SparseVariationRegionListMarker>;
+pub type SparseVariationRegionList<'a> = TableRef<'a, SparseVariationRegionListMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SparseVariationRegionList<'a> {
@@ -417,7 +408,7 @@ impl<'a> std::fmt::Debug for SparseVariationRegionList<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SparseVariationRegionMarker {}
+pub struct SparseVariationRegionMarker;
 
 impl<'a> MinByteRange for SparseVariationRegion<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -427,17 +418,15 @@ impl<'a> MinByteRange for SparseVariationRegion<'a> {
 
 impl<'a> FontRead<'a> for SparseVariationRegion<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let region_axis_count: u16 = cursor.read()?;
-        let region_axis_offsets_byte_len = (region_axis_count as usize)
-            .checked_mul(SparseRegionAxisCoordinates::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(region_axis_offsets_byte_len);
-        cursor.finish(SparseVariationRegionMarker {})
+        Ok(TableRef {
+            shape: SparseVariationRegionMarker,
+            args: (),
+            data,
+        })
     }
 }
 
-pub type SparseVariationRegion<'a> = TableRef<'a, SparseVariationRegionMarker>;
+pub type SparseVariationRegion<'a> = TableRef<'a, SparseVariationRegionMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SparseVariationRegion<'a> {
@@ -554,7 +543,7 @@ impl Format<u8> for MultiItemVariationDataMarker {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MultiItemVariationDataMarker {}
+pub struct MultiItemVariationDataMarker;
 
 impl<'a> MinByteRange for MultiItemVariationData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -564,21 +553,15 @@ impl<'a> MinByteRange for MultiItemVariationData<'a> {
 
 impl<'a> FontRead<'a> for MultiItemVariationData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        let region_index_count: u16 = cursor.read()?;
-        let region_indices_byte_len = (region_index_count as usize)
-            .checked_mul(u16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(region_indices_byte_len);
-        let raw_delta_sets_byte_len =
-            cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(raw_delta_sets_byte_len);
-        cursor.finish(MultiItemVariationDataMarker {})
+        Ok(TableRef {
+            shape: MultiItemVariationDataMarker,
+            args: (),
+            data,
+        })
     }
 }
 
-pub type MultiItemVariationData<'a> = TableRef<'a, MultiItemVariationDataMarker>;
+pub type MultiItemVariationData<'a> = TableRef<'a, MultiItemVariationDataMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MultiItemVariationData<'a> {
@@ -663,7 +646,7 @@ impl<'a> std::fmt::Debug for MultiItemVariationData<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct ConditionListMarker {}
+pub struct ConditionListMarker;
 
 impl<'a> MinByteRange for ConditionList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -673,17 +656,15 @@ impl<'a> MinByteRange for ConditionList<'a> {
 
 impl<'a> FontRead<'a> for ConditionList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let condition_count: u32 = cursor.read()?;
-        let condition_offsets_byte_len = (condition_count as usize)
-            .checked_mul(Offset32::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(condition_offsets_byte_len);
-        cursor.finish(ConditionListMarker {})
+        Ok(TableRef {
+            shape: ConditionListMarker,
+            args: (),
+            data,
+        })
     }
 }
 
-pub type ConditionList<'a> = TableRef<'a, ConditionListMarker>;
+pub type ConditionList<'a> = TableRef<'a, ConditionListMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionList<'a> {

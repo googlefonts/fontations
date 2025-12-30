@@ -361,17 +361,7 @@ impl<'a> From<SelectionFlags> for FieldType<'a> {
 /// [`OS/2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Os2Marker {
-    ul_code_page_range_1_byte_start: Option<usize>,
-    ul_code_page_range_2_byte_start: Option<usize>,
-    sx_height_byte_start: Option<usize>,
-    s_cap_height_byte_start: Option<usize>,
-    us_default_char_byte_start: Option<usize>,
-    us_break_char_byte_start: Option<usize>,
-    us_max_context_byte_start: Option<usize>,
-    us_lower_optical_point_size_byte_start: Option<usize>,
-    us_upper_optical_point_size_byte_start: Option<usize>,
-}
+pub struct Os2Marker;
 
 impl<'a> MinByteRange for Os2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -386,101 +376,16 @@ impl TopLevelTable for Os2<'_> {
 
 impl<'a> FontRead<'a> for Os2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: u16 = cursor.read()?;
-        cursor.advance::<i16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        let panose_10_byte_len = (10_usize)
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(panose_10_byte_len);
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<Tag>();
-        cursor.advance::<SelectionFlags>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let ul_code_page_range_1_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version.compatible(1u16).then(|| cursor.advance::<u32>());
-        let ul_code_page_range_2_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version.compatible(1u16).then(|| cursor.advance::<u32>());
-        let sx_height_byte_start = version
-            .compatible(2u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version.compatible(2u16).then(|| cursor.advance::<i16>());
-        let s_cap_height_byte_start = version
-            .compatible(2u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version.compatible(2u16).then(|| cursor.advance::<i16>());
-        let us_default_char_byte_start = version
-            .compatible(2u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version.compatible(2u16).then(|| cursor.advance::<u16>());
-        let us_break_char_byte_start = version
-            .compatible(2u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version.compatible(2u16).then(|| cursor.advance::<u16>());
-        let us_max_context_byte_start = version
-            .compatible(2u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version.compatible(2u16).then(|| cursor.advance::<u16>());
-        let us_lower_optical_point_size_byte_start = version
-            .compatible(5u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version.compatible(5u16).then(|| cursor.advance::<u16>());
-        let us_upper_optical_point_size_byte_start = version
-            .compatible(5u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version.compatible(5u16).then(|| cursor.advance::<u16>());
-        cursor.finish(Os2Marker {
-            ul_code_page_range_1_byte_start,
-            ul_code_page_range_2_byte_start,
-            sx_height_byte_start,
-            s_cap_height_byte_start,
-            us_default_char_byte_start,
-            us_break_char_byte_start,
-            us_max_context_byte_start,
-            us_lower_optical_point_size_byte_start,
-            us_upper_optical_point_size_byte_start,
+        Ok(TableRef {
+            shape: Os2Marker,
+            args: (),
+            data,
         })
     }
 }
 
 /// [`OS/2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
-pub type Os2<'a> = TableRef<'a, Os2Marker>;
+pub type Os2<'a> = TableRef<'a, Os2Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Os2<'a> {
@@ -640,48 +545,196 @@ impl<'a> Os2<'a> {
     }
 
     pub fn ul_code_page_range_1_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.ul_code_page_range_1_byte_start?;
-        Some(start..start + u32::RAW_BYTE_LEN)
+        if self.version().compatible(1u16) {
+            let start = self.us_win_descent_byte_range().end;
+            Some(start..start + u32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn ul_code_page_range_2_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.ul_code_page_range_2_byte_start?;
-        Some(start..start + u32::RAW_BYTE_LEN)
+        if self.version().compatible(1u16) {
+            let start = self
+                .ul_code_page_range_1_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.us_win_descent_byte_range().end);
+            Some(start..start + u32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn sx_height_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.sx_height_byte_start?;
-        Some(start..start + i16::RAW_BYTE_LEN)
+        if self.version().compatible(2u16) {
+            let start = self
+                .ul_code_page_range_2_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.ul_code_page_range_1_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| self.us_win_descent_byte_range().end)
+                });
+            Some(start..start + i16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn s_cap_height_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.s_cap_height_byte_start?;
-        Some(start..start + i16::RAW_BYTE_LEN)
+        if self.version().compatible(2u16) {
+            let start = self
+                .sx_height_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.ul_code_page_range_2_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| {
+                            self.ul_code_page_range_1_byte_range()
+                                .map(|range| range.end)
+                                .unwrap_or_else(|| self.us_win_descent_byte_range().end)
+                        })
+                });
+            Some(start..start + i16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn us_default_char_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.us_default_char_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible(2u16) {
+            let start = self
+                .s_cap_height_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.sx_height_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| {
+                            self.ul_code_page_range_2_byte_range()
+                                .map(|range| range.end)
+                                .unwrap_or_else(|| {
+                                    self.ul_code_page_range_1_byte_range()
+                                        .map(|range| range.end)
+                                        .unwrap_or_else(|| self.us_win_descent_byte_range().end)
+                                })
+                        })
+                });
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn us_break_char_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.us_break_char_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible(2u16) {
+            let start = self
+                .us_default_char_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.s_cap_height_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| {
+                            self.sx_height_byte_range()
+                                .map(|range| range.end)
+                                .unwrap_or_else(|| {
+                                    self.ul_code_page_range_2_byte_range()
+                                        .map(|range| range.end)
+                                        .unwrap_or_else(|| {
+                                            self.ul_code_page_range_1_byte_range()
+                                                .map(|range| range.end)
+                                                .unwrap_or_else(|| {
+                                                    self.us_win_descent_byte_range().end
+                                                })
+                                        })
+                                })
+                        })
+                });
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn us_max_context_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.us_max_context_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible(2u16) {
+            let start = self
+                .us_break_char_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.us_default_char_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| {
+                            self.s_cap_height_byte_range()
+                                .map(|range| range.end)
+                                .unwrap_or_else(|| {
+                                    self.sx_height_byte_range()
+                                        .map(|range| range.end)
+                                        .unwrap_or_else(|| {
+                                            self.ul_code_page_range_2_byte_range()
+                                                .map(|range| range.end)
+                                                .unwrap_or_else(|| {
+                                                    self.ul_code_page_range_1_byte_range()
+                                                        .map(|range| range.end)
+                                                        .unwrap_or_else(|| {
+                                                            self.us_win_descent_byte_range().end
+                                                        })
+                                                })
+                                        })
+                                })
+                        })
+                });
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn us_lower_optical_point_size_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.us_lower_optical_point_size_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible(5u16) {
+            let start = self
+                .us_max_context_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.us_break_char_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| {
+                            self.us_default_char_byte_range()
+                                .map(|range| range.end)
+                                .unwrap_or_else(|| {
+                                    self.s_cap_height_byte_range()
+                                        .map(|range| range.end)
+                                        .unwrap_or_else(|| {
+                                            self.sx_height_byte_range()
+                                                .map(|range| range.end)
+                                                .unwrap_or_else(|| {
+                                                    self.ul_code_page_range_2_byte_range()
+                                                        .map(|range| range.end)
+                                                        .unwrap_or_else(|| {
+                                                            self.ul_code_page_range_1_byte_range()
+                                                                .map(|range| range.end)
+                                                                .unwrap_or_else(|| {
+                                                                    self.us_win_descent_byte_range()
+                                                                        .end
+                                                                })
+                                                        })
+                                                })
+                                        })
+                                })
+                        })
+                });
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn us_upper_optical_point_size_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.us_upper_optical_point_size_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible(5u16) {
+            let start = self . us_lower_optical_point_size_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . us_max_context_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . us_break_char_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . us_default_char_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . s_cap_height_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . sx_height_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . ul_code_page_range_2_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . ul_code_page_range_1_byte_range () . map (| range | range . end) . unwrap_or_else (|| self . us_win_descent_byte_range () . end)))))))) ;
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn version(&self) -> u16 {

@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct VheaMarker {}
+pub struct VheaMarker;
 
 impl<'a> MinByteRange for Vhea<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,30 +23,16 @@ impl TopLevelTable for Vhea<'_> {
 
 impl<'a> FontRead<'a> for Vhea<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<Version16Dot16>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<u16>();
-        cursor.finish(VheaMarker {})
+        Ok(TableRef {
+            shape: VheaMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
-pub type Vhea<'a> = TableRef<'a, VheaMarker>;
+pub type Vhea<'a> = TableRef<'a, VheaMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vhea<'a> {

@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// [`meta`](https://docs.microsoft.com/en-us/typography/opentype/spec/meta)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MetaMarker {}
+pub struct MetaMarker;
 
 impl<'a> MinByteRange for Meta<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,21 +23,16 @@ impl TopLevelTable for Meta<'_> {
 
 impl<'a> FontRead<'a> for Meta<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let data_maps_count: u32 = cursor.read()?;
-        let data_maps_byte_len = (data_maps_count as usize)
-            .checked_mul(DataMapRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(data_maps_byte_len);
-        cursor.finish(MetaMarker {})
+        Ok(TableRef {
+            shape: MetaMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [`meta`](https://docs.microsoft.com/en-us/typography/opentype/spec/meta)
-pub type Meta<'a> = TableRef<'a, MetaMarker>;
+pub type Meta<'a> = TableRef<'a, MetaMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Meta<'a> {

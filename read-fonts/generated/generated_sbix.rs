@@ -316,9 +316,7 @@ impl<'a> From<HeaderFlags> for FieldType<'a> {
 /// The [sbix (Standard Bitmap Graphics)](https://docs.microsoft.com/en-us/typography/opentype/spec/sbix) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SbixMarker {
-    num_glyphs: u16,
-}
+pub struct SbixMarker;
 
 impl<'a> MinByteRange for Sbix<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -337,16 +335,12 @@ impl ReadArgs for Sbix<'_> {
 
 impl<'a> FontReadWithArgs<'a> for Sbix<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let num_glyphs = *args;
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<HeaderFlags>();
-        let num_strikes: u32 = cursor.read()?;
-        let strike_offsets_byte_len = (num_strikes as usize)
-            .checked_mul(Offset32::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(strike_offsets_byte_len);
-        cursor.finish(SbixMarker { num_glyphs })
+        let args = *args;
+        Ok(TableRef {
+            shape: SbixMarker,
+            args,
+            data,
+        })
     }
 }
 
@@ -362,7 +356,7 @@ impl<'a> Sbix<'a> {
 }
 
 /// The [sbix (Standard Bitmap Graphics)](https://docs.microsoft.com/en-us/typography/opentype/spec/sbix) table
-pub type Sbix<'a> = TableRef<'a, SbixMarker>;
+pub type Sbix<'a> = TableRef<'a, SbixMarker, u16>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Sbix<'a> {
@@ -428,7 +422,7 @@ impl<'a> Sbix<'a> {
     }
 
     pub(crate) fn num_glyphs(&self) -> u16 {
-        self.shape.num_glyphs
+        self.args
     }
 }
 
@@ -473,9 +467,7 @@ impl<'a> std::fmt::Debug for Sbix<'a> {
 /// [Strike](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#strikes) header table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct StrikeMarker {
-    num_glyphs: u16,
-}
+pub struct StrikeMarker;
 
 impl<'a> MinByteRange for Strike<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -489,15 +481,12 @@ impl ReadArgs for Strike<'_> {
 
 impl<'a> FontReadWithArgs<'a> for Strike<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let num_glyphs = *args;
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let glyph_data_offsets_byte_len = (transforms::add(num_glyphs, 1_usize))
-            .checked_mul(u32::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(glyph_data_offsets_byte_len);
-        cursor.finish(StrikeMarker { num_glyphs })
+        let args = *args;
+        Ok(TableRef {
+            shape: StrikeMarker,
+            args,
+            data,
+        })
     }
 }
 
@@ -513,13 +502,13 @@ impl<'a> Strike<'a> {
 }
 
 /// [Strike](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#strikes) header table
-pub type Strike<'a> = TableRef<'a, StrikeMarker>;
+pub type Strike<'a> = TableRef<'a, StrikeMarker, u16>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Strike<'a> {
     fn glyph_data_offsets_byte_len(&self, start: usize) -> usize {
         let _ = start;
-        (transforms::add(self.shape.num_glyphs, 1_usize))
+        (transforms::add(self.args, 1_usize))
             .checked_mul(u32::RAW_BYTE_LEN)
             .unwrap()
     }
@@ -558,7 +547,7 @@ impl<'a> Strike<'a> {
     }
 
     pub(crate) fn num_glyphs(&self) -> u16 {
-        self.shape.num_glyphs
+        self.args
     }
 }
 
@@ -588,7 +577,7 @@ impl<'a> std::fmt::Debug for Strike<'a> {
 /// [Glyph data](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#glyph-data) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct GlyphDataMarker {}
+pub struct GlyphDataMarker;
 
 impl<'a> MinByteRange for GlyphData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -598,18 +587,16 @@ impl<'a> MinByteRange for GlyphData<'a> {
 
 impl<'a> FontRead<'a> for GlyphData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<Tag>();
-        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(data_byte_len);
-        cursor.finish(GlyphDataMarker {})
+        Ok(TableRef {
+            shape: GlyphDataMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// [Glyph data](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#glyph-data) table
-pub type GlyphData<'a> = TableRef<'a, GlyphDataMarker>;
+pub type GlyphData<'a> = TableRef<'a, GlyphDataMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphData<'a> {

@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [Embedded Bitmap Data](https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct EbdtMarker {}
+pub struct EbdtMarker;
 
 impl<'a> MinByteRange for Ebdt<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,15 +23,16 @@ impl TopLevelTable for Ebdt<'_> {
 
 impl<'a> FontRead<'a> for Ebdt<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.finish(EbdtMarker {})
+        Ok(TableRef {
+            shape: EbdtMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [Embedded Bitmap Data](https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt) table
-pub type Ebdt<'a> = TableRef<'a, EbdtMarker>;
+pub type Ebdt<'a> = TableRef<'a, EbdtMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ebdt<'a> {

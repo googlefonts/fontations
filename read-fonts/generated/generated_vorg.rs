@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [VORG (Vertical Origin)](https://docs.microsoft.com/en-us/typography/opentype/spec/vorg) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct VorgMarker {}
+pub struct VorgMarker;
 
 impl<'a> MinByteRange for Vorg<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,20 +23,16 @@ impl TopLevelTable for Vorg<'_> {
 
 impl<'a> FontRead<'a> for Vorg<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<i16>();
-        let num_vert_origin_y_metrics: u16 = cursor.read()?;
-        let vert_origin_y_metrics_byte_len = (num_vert_origin_y_metrics as usize)
-            .checked_mul(VertOriginYMetrics::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(vert_origin_y_metrics_byte_len);
-        cursor.finish(VorgMarker {})
+        Ok(TableRef {
+            shape: VorgMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [VORG (Vertical Origin)](https://docs.microsoft.com/en-us/typography/opentype/spec/vorg) table.
-pub type Vorg<'a> = TableRef<'a, VorgMarker>;
+pub type Vorg<'a> = TableRef<'a, VorgMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vorg<'a> {

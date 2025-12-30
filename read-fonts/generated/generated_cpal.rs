@@ -8,11 +8,7 @@ use crate::codegen_prelude::*;
 /// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CpalMarker {
-    palette_types_array_offset_byte_start: Option<usize>,
-    palette_labels_array_offset_byte_start: Option<usize>,
-    palette_entry_labels_array_offset_byte_start: Option<usize>,
-}
+pub struct CpalMarker;
 
 impl<'a> MinByteRange for Cpal<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -27,47 +23,16 @@ impl TopLevelTable for Cpal<'_> {
 
 impl<'a> FontRead<'a> for Cpal<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        let num_palettes: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        let color_record_indices_byte_len = (num_palettes as usize)
-            .checked_mul(u16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(color_record_indices_byte_len);
-        let palette_types_array_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        let palette_labels_array_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        let palette_entry_labels_array_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        cursor.finish(CpalMarker {
-            palette_types_array_offset_byte_start,
-            palette_labels_array_offset_byte_start,
-            palette_entry_labels_array_offset_byte_start,
+        Ok(TableRef {
+            shape: CpalMarker,
+            args: (),
+            data,
         })
     }
 }
 
 /// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
-pub type Cpal<'a> = TableRef<'a, CpalMarker>;
+pub type Cpal<'a> = TableRef<'a, CpalMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cpal<'a> {
@@ -109,18 +74,40 @@ impl<'a> Cpal<'a> {
     }
 
     pub fn palette_types_array_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.palette_types_array_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible(1u16) {
+            let start = self.color_record_indices_byte_range().end;
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn palette_labels_array_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.palette_labels_array_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible(1u16) {
+            let start = self
+                .palette_types_array_offset_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.color_record_indices_byte_range().end);
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn palette_entry_labels_array_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.palette_entry_labels_array_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible(1u16) {
+            let start = self
+                .palette_labels_array_offset_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.palette_types_array_offset_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| self.color_record_indices_byte_range().end)
+                });
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     /// Table version number (=0).

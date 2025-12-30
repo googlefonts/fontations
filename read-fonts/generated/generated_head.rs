@@ -696,7 +696,7 @@ impl<'a> From<Flags> for FieldType<'a> {
 /// (font header) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct HeadMarker {}
+pub struct HeadMarker;
 
 impl<'a> MinByteRange for Head<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -711,31 +711,17 @@ impl TopLevelTable for Head<'_> {
 
 impl<'a> FontRead<'a> for Head<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<Flags>();
-        cursor.advance::<u16>();
-        cursor.advance::<LongDateTime>();
-        cursor.advance::<LongDateTime>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<MacStyle>();
-        cursor.advance::<u16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.finish(HeadMarker {})
+        Ok(TableRef {
+            shape: HeadMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head)
 /// (font header) table.
-pub type Head<'a> = TableRef<'a, HeadMarker>;
+pub type Head<'a> = TableRef<'a, HeadMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Head<'a> {

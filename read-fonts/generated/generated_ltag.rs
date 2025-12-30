@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [language tag](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ltag.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct LtagMarker {}
+pub struct LtagMarker;
 
 impl<'a> MinByteRange for Ltag<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,20 +23,16 @@ impl TopLevelTable for Ltag<'_> {
 
 impl<'a> FontRead<'a> for Ltag<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let num_tags: u32 = cursor.read()?;
-        let tag_ranges_byte_len = (num_tags as usize)
-            .checked_mul(FTStringRange::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(tag_ranges_byte_len);
-        cursor.finish(LtagMarker {})
+        Ok(TableRef {
+            shape: LtagMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [language tag](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ltag.html) table.
-pub type Ltag<'a> = TableRef<'a, LtagMarker>;
+pub type Ltag<'a> = TableRef<'a, LtagMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ltag<'a> {

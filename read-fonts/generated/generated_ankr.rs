@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [anchor point](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ankr.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AnkrMarker {}
+pub struct AnkrMarker;
 
 impl<'a> MinByteRange for Ankr<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,17 +23,16 @@ impl TopLevelTable for Ankr<'_> {
 
 impl<'a> FontRead<'a> for Ankr<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<u32>();
-        cursor.finish(AnkrMarker {})
+        Ok(TableRef {
+            shape: AnkrMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [anchor point](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ankr.html) table.
-pub type Ankr<'a> = TableRef<'a, AnkrMarker>;
+pub type Ankr<'a> = TableRef<'a, AnkrMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ankr<'a> {
@@ -122,7 +121,7 @@ impl<'a> std::fmt::Debug for Ankr<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct GlyphDataEntryMarker {}
+pub struct GlyphDataEntryMarker;
 
 impl<'a> MinByteRange for GlyphDataEntry<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -132,17 +131,15 @@ impl<'a> MinByteRange for GlyphDataEntry<'a> {
 
 impl<'a> FontRead<'a> for GlyphDataEntry<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let num_points: u32 = cursor.read()?;
-        let anchor_points_byte_len = (num_points as usize)
-            .checked_mul(AnchorPoint::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(anchor_points_byte_len);
-        cursor.finish(GlyphDataEntryMarker {})
+        Ok(TableRef {
+            shape: GlyphDataEntryMarker,
+            args: (),
+            data,
+        })
     }
 }
 
-pub type GlyphDataEntry<'a> = TableRef<'a, GlyphDataEntryMarker>;
+pub type GlyphDataEntry<'a> = TableRef<'a, GlyphDataEntryMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphDataEntry<'a> {

@@ -7,7 +7,7 @@ use crate::codegen_prelude::*;
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CountAll16Marker {}
+pub struct CountAll16Marker;
 
 impl<'a> MinByteRange for CountAll16<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -17,15 +17,15 @@ impl<'a> MinByteRange for CountAll16<'a> {
 
 impl<'a> FontRead<'a> for CountAll16<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let remainder_byte_len = cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
-        cursor.advance_by(remainder_byte_len);
-        cursor.finish(CountAll16Marker {})
+        Ok(TableRef {
+            shape: CountAll16Marker,
+            args: (),
+            data,
+        })
     }
 }
 
-pub type CountAll16<'a> = TableRef<'a, CountAll16Marker>;
+pub type CountAll16<'a> = TableRef<'a, CountAll16Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CountAll16<'a> {
@@ -82,7 +82,7 @@ impl<'a> std::fmt::Debug for CountAll16<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CountAll32Marker {}
+pub struct CountAll32Marker;
 
 impl<'a> MinByteRange for CountAll32<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -92,15 +92,15 @@ impl<'a> MinByteRange for CountAll32<'a> {
 
 impl<'a> FontRead<'a> for CountAll32<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let remainder_byte_len = cursor.remaining_bytes() / u32::RAW_BYTE_LEN * u32::RAW_BYTE_LEN;
-        cursor.advance_by(remainder_byte_len);
-        cursor.finish(CountAll32Marker {})
+        Ok(TableRef {
+            shape: CountAll32Marker,
+            args: (),
+            data,
+        })
     }
 }
 
-pub type CountAll32<'a> = TableRef<'a, CountAll32Marker>;
+pub type CountAll32<'a> = TableRef<'a, CountAll32Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CountAll32<'a> {

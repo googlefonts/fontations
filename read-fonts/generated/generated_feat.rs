@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [feature name](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6feat.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct FeatMarker {}
+pub struct FeatMarker;
 
 impl<'a> MinByteRange for Feat<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,21 +23,16 @@ impl TopLevelTable for Feat<'_> {
 
 impl<'a> FontRead<'a> for Feat<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        let feature_name_count: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        let names_byte_len = (feature_name_count as usize)
-            .checked_mul(FeatureName::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(names_byte_len);
-        cursor.finish(FeatMarker {})
+        Ok(TableRef {
+            shape: FeatMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [feature name](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6feat.html) table.
-pub type Feat<'a> = TableRef<'a, FeatMarker>;
+pub type Feat<'a> = TableRef<'a, FeatMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Feat<'a> {
@@ -213,9 +208,7 @@ impl<'a> SomeRecord<'a> for FeatureName {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SettingNameArrayMarker {
-    n_settings: u16,
-}
+pub struct SettingNameArrayMarker;
 
 impl<'a> MinByteRange for SettingNameArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -229,13 +222,12 @@ impl ReadArgs for SettingNameArray<'_> {
 
 impl<'a> FontReadWithArgs<'a> for SettingNameArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let n_settings = *args;
-        let mut cursor = data.cursor();
-        let settings_byte_len = (n_settings as usize)
-            .checked_mul(SettingName::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(settings_byte_len);
-        cursor.finish(SettingNameArrayMarker { n_settings })
+        let args = *args;
+        Ok(TableRef {
+            shape: SettingNameArrayMarker,
+            args,
+            data,
+        })
     }
 }
 
@@ -250,13 +242,13 @@ impl<'a> SettingNameArray<'a> {
     }
 }
 
-pub type SettingNameArray<'a> = TableRef<'a, SettingNameArrayMarker>;
+pub type SettingNameArray<'a> = TableRef<'a, SettingNameArrayMarker, u16>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SettingNameArray<'a> {
     fn settings_byte_len(&self, start: usize) -> usize {
         let _ = start;
-        ((self.shape.n_settings) as usize)
+        ((self.args) as usize)
             .checked_mul(SettingName::RAW_BYTE_LEN)
             .unwrap()
     }
@@ -273,7 +265,7 @@ impl<'a> SettingNameArray<'a> {
     }
 
     pub(crate) fn n_settings(&self) -> u16 {
-        self.shape.n_settings
+        self.args
     }
 }
 

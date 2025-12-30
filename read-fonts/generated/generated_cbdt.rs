@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 /// The [Color Bitmap Data](https://learn.microsoft.com/en-us/typography/opentype/spec/cbdt) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CbdtMarker {}
+pub struct CbdtMarker;
 
 impl<'a> MinByteRange for Cbdt<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -23,15 +23,16 @@ impl TopLevelTable for Cbdt<'_> {
 
 impl<'a> FontRead<'a> for Cbdt<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.finish(CbdtMarker {})
+        Ok(TableRef {
+            shape: CbdtMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// The [Color Bitmap Data](https://learn.microsoft.com/en-us/typography/opentype/spec/cbdt) table
-pub type Cbdt<'a> = TableRef<'a, CbdtMarker>;
+pub type Cbdt<'a> = TableRef<'a, CbdtMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cbdt<'a> {

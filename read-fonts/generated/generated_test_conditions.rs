@@ -7,10 +7,7 @@ use crate::codegen_prelude::*;
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MajorMinorVersionMarker {
-    if_11_byte_start: Option<usize>,
-    if_20_byte_start: Option<usize>,
-}
+pub struct MajorMinorVersionMarker;
 
 impl<'a> MinByteRange for MajorMinorVersion<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -20,31 +17,15 @@ impl<'a> MinByteRange for MajorMinorVersion<'a> {
 
 impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: MajorMinor = cursor.read()?;
-        cursor.advance::<u16>();
-        let if_11_byte_start = version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.advance::<u16>());
-        let if_20_byte_start = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.advance::<u32>());
-        cursor.finish(MajorMinorVersionMarker {
-            if_11_byte_start,
-            if_20_byte_start,
+        Ok(TableRef {
+            shape: MajorMinorVersionMarker,
+            args: (),
+            data,
         })
     }
 }
 
-pub type MajorMinorVersion<'a> = TableRef<'a, MajorMinorVersionMarker>;
+pub type MajorMinorVersion<'a> = TableRef<'a, MajorMinorVersionMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MajorMinorVersion<'a> {
@@ -59,13 +40,24 @@ impl<'a> MajorMinorVersion<'a> {
     }
 
     pub fn if_11_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.if_11_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 1u16)) {
+            let start = self.always_present_byte_range().end;
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn if_20_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.if_20_byte_start?;
-        Some(start..start + u32::RAW_BYTE_LEN)
+        if self.version().compatible((2u16, 0u16)) {
+            let start = self
+                .if_11_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.always_present_byte_range().end);
+            Some(start..start + u32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn version(&self) -> MajorMinor {
@@ -425,11 +417,7 @@ impl<'a> From<GotFlags> for FieldType<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct FlagDayMarker {
-    foo_byte_start: Option<usize>,
-    bar_byte_start: Option<usize>,
-    baz_byte_start: Option<usize>,
-}
+pub struct FlagDayMarker;
 
 impl<'a> MinByteRange for FlagDay<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -439,39 +427,15 @@ impl<'a> MinByteRange for FlagDay<'a> {
 
 impl<'a> FontRead<'a> for FlagDay<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let flags: GotFlags = cursor.read()?;
-        let foo_byte_start = flags
-            .contains(GotFlags::FOO)
-            .then(|| cursor.position())
-            .transpose()?;
-        flags
-            .contains(GotFlags::FOO)
-            .then(|| cursor.advance::<u16>());
-        let bar_byte_start = flags
-            .contains(GotFlags::BAR)
-            .then(|| cursor.position())
-            .transpose()?;
-        flags
-            .contains(GotFlags::BAR)
-            .then(|| cursor.advance::<u16>());
-        let baz_byte_start = flags
-            .intersects(GotFlags::BAZ | GotFlags::FOO)
-            .then(|| cursor.position())
-            .transpose()?;
-        flags
-            .intersects(GotFlags::BAZ | GotFlags::FOO)
-            .then(|| cursor.advance::<u16>());
-        cursor.finish(FlagDayMarker {
-            foo_byte_start,
-            bar_byte_start,
-            baz_byte_start,
+        Ok(TableRef {
+            shape: FlagDayMarker,
+            args: (),
+            data,
         })
     }
 }
 
-pub type FlagDay<'a> = TableRef<'a, FlagDayMarker>;
+pub type FlagDay<'a> = TableRef<'a, FlagDayMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FlagDay<'a> {
@@ -486,18 +450,40 @@ impl<'a> FlagDay<'a> {
     }
 
     pub fn foo_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.foo_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.flags().contains(GotFlags::FOO) {
+            let start = self.flags_byte_range().end;
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn bar_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.bar_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.flags().contains(GotFlags::BAR) {
+            let start = self
+                .foo_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.flags_byte_range().end);
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn baz_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.baz_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.flags().intersects(GotFlags::BAZ | GotFlags::FOO) {
+            let start = self
+                .bar_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.foo_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| self.flags_byte_range().end)
+                });
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn volume(&self) -> u16 {
@@ -556,11 +542,7 @@ impl<'a> std::fmt::Debug for FlagDay<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct FieldsAfterConditionalsMarker {
-    foo_byte_start: Option<usize>,
-    bar_byte_start: Option<usize>,
-    baz_byte_start: Option<usize>,
-}
+pub struct FieldsAfterConditionalsMarker;
 
 impl<'a> MinByteRange for FieldsAfterConditionals<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -570,41 +552,15 @@ impl<'a> MinByteRange for FieldsAfterConditionals<'a> {
 
 impl<'a> FontRead<'a> for FieldsAfterConditionals<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let flags: GotFlags = cursor.read()?;
-        let foo_byte_start = flags
-            .contains(GotFlags::FOO)
-            .then(|| cursor.position())
-            .transpose()?;
-        flags
-            .contains(GotFlags::FOO)
-            .then(|| cursor.advance::<u16>());
-        cursor.advance::<u16>();
-        let bar_byte_start = flags
-            .contains(GotFlags::BAR)
-            .then(|| cursor.position())
-            .transpose()?;
-        flags
-            .contains(GotFlags::BAR)
-            .then(|| cursor.advance::<u16>());
-        let baz_byte_start = flags
-            .contains(GotFlags::BAZ)
-            .then(|| cursor.position())
-            .transpose()?;
-        flags
-            .contains(GotFlags::BAZ)
-            .then(|| cursor.advance::<u16>());
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.finish(FieldsAfterConditionalsMarker {
-            foo_byte_start,
-            bar_byte_start,
-            baz_byte_start,
+        Ok(TableRef {
+            shape: FieldsAfterConditionalsMarker,
+            args: (),
+            data,
         })
     }
 }
 
-pub type FieldsAfterConditionals<'a> = TableRef<'a, FieldsAfterConditionalsMarker>;
+pub type FieldsAfterConditionals<'a> = TableRef<'a, FieldsAfterConditionalsMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FieldsAfterConditionals<'a> {
@@ -614,8 +570,12 @@ impl<'a> FieldsAfterConditionals<'a> {
     }
 
     pub fn foo_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.foo_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.flags().contains(GotFlags::FOO) {
+            let start = self.flags_byte_range().end;
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn always_here_byte_range(&self) -> Range<usize> {
@@ -627,13 +587,24 @@ impl<'a> FieldsAfterConditionals<'a> {
     }
 
     pub fn bar_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.bar_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.flags().contains(GotFlags::BAR) {
+            let start = self.always_here_byte_range().end;
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn baz_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.shape.baz_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.flags().contains(GotFlags::BAZ) {
+            let start = self
+                .bar_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.always_here_byte_range().end);
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn also_always_here_byte_range(&self) -> Range<usize> {

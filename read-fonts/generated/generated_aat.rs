@@ -110,7 +110,7 @@ impl Format<u16> for Lookup0Marker {
 /// by glyph index.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Lookup0Marker {}
+pub struct Lookup0Marker;
 
 impl<'a> MinByteRange for Lookup0<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -120,17 +120,17 @@ impl<'a> MinByteRange for Lookup0<'a> {
 
 impl<'a> FontRead<'a> for Lookup0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let values_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(values_data_byte_len);
-        cursor.finish(Lookup0Marker {})
+        Ok(TableRef {
+            shape: Lookup0Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// Simple array format. The lookup data is an array of lookup values, indexed
 /// by glyph index.
-pub type Lookup0<'a> = TableRef<'a, Lookup0Marker>;
+pub type Lookup0<'a> = TableRef<'a, Lookup0Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup0<'a> {
@@ -196,7 +196,7 @@ impl Format<u16> for Lookup2Marker {
 /// a contiguous range of glyph indexes.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Lookup2Marker {}
+pub struct Lookup2Marker;
 
 impl<'a> MinByteRange for Lookup2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -206,25 +206,18 @@ impl<'a> MinByteRange for Lookup2<'a> {
 
 impl<'a> FontRead<'a> for Lookup2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let unit_size: u16 = cursor.read()?;
-        let n_units: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let segments_data_byte_len = (transforms::add_multiply(unit_size, 0_usize, n_units))
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(segments_data_byte_len);
-        cursor.finish(Lookup2Marker {})
+        Ok(TableRef {
+            shape: Lookup2Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// Segment single format. Each non-overlapping segment has a single lookup
 /// value that applies to all glyphs in the segment. A segment is defined as
 /// a contiguous range of glyph indexes.
-pub type Lookup2<'a> = TableRef<'a, Lookup2Marker>;
+pub type Lookup2<'a> = TableRef<'a, Lookup2Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup2<'a> {
@@ -349,7 +342,7 @@ impl Format<u16> for Lookup4Marker {
 /// each glyph in the segment gets its own separate lookup value.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Lookup4Marker {}
+pub struct Lookup4Marker;
 
 impl<'a> MinByteRange for Lookup4<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -359,25 +352,18 @@ impl<'a> MinByteRange for Lookup4<'a> {
 
 impl<'a> FontRead<'a> for Lookup4<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let n_units: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let segments_byte_len = (n_units as usize)
-            .checked_mul(LookupSegment4::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(segments_byte_len);
-        cursor.finish(Lookup4Marker {})
+        Ok(TableRef {
+            shape: Lookup4Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// Segment array format. A segment mapping is performed (as with Format 2),
 /// but instead of a single lookup value for all the glyphs in the segment,
 /// each glyph in the segment gets its own separate lookup value.
-pub type Lookup4<'a> = TableRef<'a, Lookup4Marker>;
+pub type Lookup4<'a> = TableRef<'a, Lookup4Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup4<'a> {
@@ -558,7 +544,7 @@ impl Format<u16> for Lookup6Marker {
 /// <glyph index,lookup value> pairs.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Lookup6Marker {}
+pub struct Lookup6Marker;
 
 impl<'a> MinByteRange for Lookup6<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -568,24 +554,17 @@ impl<'a> MinByteRange for Lookup6<'a> {
 
 impl<'a> FontRead<'a> for Lookup6<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let unit_size: u16 = cursor.read()?;
-        let n_units: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let entries_data_byte_len = (transforms::add_multiply(unit_size, 0_usize, n_units))
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(entries_data_byte_len);
-        cursor.finish(Lookup6Marker {})
+        Ok(TableRef {
+            shape: Lookup6Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// Single table format. The lookup data is a sorted list of
 /// <glyph index,lookup value> pairs.
-pub type Lookup6<'a> = TableRef<'a, Lookup6Marker>;
+pub type Lookup6<'a> = TableRef<'a, Lookup6Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup6<'a> {
@@ -709,7 +688,7 @@ impl Format<u16> for Lookup8Marker {
 /// indexed by glyph index.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Lookup8Marker {}
+pub struct Lookup8Marker;
 
 impl<'a> MinByteRange for Lookup8<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -719,21 +698,17 @@ impl<'a> MinByteRange for Lookup8<'a> {
 
 impl<'a> FontRead<'a> for Lookup8<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let glyph_count: u16 = cursor.read()?;
-        let value_array_byte_len = (glyph_count as usize)
-            .checked_mul(u16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(value_array_byte_len);
-        cursor.finish(Lookup8Marker {})
+        Ok(TableRef {
+            shape: Lookup8Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// Trimmed array format. The lookup data is a simple trimmed array
 /// indexed by glyph index.
-pub type Lookup8<'a> = TableRef<'a, Lookup8Marker>;
+pub type Lookup8<'a> = TableRef<'a, Lookup8Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup8<'a> {
@@ -823,7 +798,7 @@ impl Format<u16> for Lookup10Marker {
 /// indexed by glyph index.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Lookup10Marker {}
+pub struct Lookup10Marker;
 
 impl<'a> MinByteRange for Lookup10<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -833,22 +808,17 @@ impl<'a> MinByteRange for Lookup10<'a> {
 
 impl<'a> FontRead<'a> for Lookup10<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let unit_size: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        let glyph_count: u16 = cursor.read()?;
-        let values_data_byte_len = (transforms::add_multiply(glyph_count, 0_usize, unit_size))
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(values_data_byte_len);
-        cursor.finish(Lookup10Marker {})
+        Ok(TableRef {
+            shape: Lookup10Marker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// Trimmed array format. The lookup data is a simple trimmed array
 /// indexed by glyph index.
-pub type Lookup10<'a> = TableRef<'a, Lookup10Marker>;
+pub type Lookup10<'a> = TableRef<'a, Lookup10Marker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Lookup10<'a> {
@@ -946,7 +916,7 @@ impl<'a> std::fmt::Debug for Lookup10<'a> {
 /// Header for a state table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct StateHeaderMarker {}
+pub struct StateHeaderMarker;
 
 impl<'a> MinByteRange for StateHeader<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -956,17 +926,16 @@ impl<'a> MinByteRange for StateHeader<'a> {
 
 impl<'a> FontRead<'a> for StateHeader<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.finish(StateHeaderMarker {})
+        Ok(TableRef {
+            shape: StateHeaderMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// Header for a state table.
-pub type StateHeader<'a> = TableRef<'a, StateHeaderMarker>;
+pub type StateHeader<'a> = TableRef<'a, StateHeaderMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> StateHeader<'a> {
@@ -1070,7 +1039,7 @@ impl<'a> std::fmt::Debug for StateHeader<'a> {
 /// Maps the glyph indexes of your font into classes.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct ClassSubtableMarker {}
+pub struct ClassSubtableMarker;
 
 impl<'a> MinByteRange for ClassSubtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1080,19 +1049,16 @@ impl<'a> MinByteRange for ClassSubtable<'a> {
 
 impl<'a> FontRead<'a> for ClassSubtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let n_glyphs: u16 = cursor.read()?;
-        let class_array_byte_len = (n_glyphs as usize)
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(class_array_byte_len);
-        cursor.finish(ClassSubtableMarker {})
+        Ok(TableRef {
+            shape: ClassSubtableMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// Maps the glyph indexes of your font into classes.
-pub type ClassSubtable<'a> = TableRef<'a, ClassSubtableMarker>;
+pub type ClassSubtable<'a> = TableRef<'a, ClassSubtableMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClassSubtable<'a> {
@@ -1164,7 +1130,7 @@ impl<'a> std::fmt::Debug for ClassSubtable<'a> {
 /// Used for the `state_array` and `entry_table` fields in [`StateHeader`].
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct RawBytesMarker {}
+pub struct RawBytesMarker;
 
 impl<'a> MinByteRange for RawBytes<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1174,15 +1140,16 @@ impl<'a> MinByteRange for RawBytes<'a> {
 
 impl<'a> FontRead<'a> for RawBytes<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(data_byte_len);
-        cursor.finish(RawBytesMarker {})
+        Ok(TableRef {
+            shape: RawBytesMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// Used for the `state_array` and `entry_table` fields in [`StateHeader`].
-pub type RawBytes<'a> = TableRef<'a, RawBytesMarker>;
+pub type RawBytes<'a> = TableRef<'a, RawBytesMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> RawBytes<'a> {
@@ -1229,7 +1196,7 @@ impl<'a> std::fmt::Debug for RawBytes<'a> {
 /// Header for an extended state table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct StxHeaderMarker {}
+pub struct StxHeaderMarker;
 
 impl<'a> MinByteRange for StxHeader<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1239,17 +1206,16 @@ impl<'a> MinByteRange for StxHeader<'a> {
 
 impl<'a> FontRead<'a> for StxHeader<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.finish(StxHeaderMarker {})
+        Ok(TableRef {
+            shape: StxHeaderMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// Header for an extended state table.
-pub type StxHeader<'a> = TableRef<'a, StxHeaderMarker>;
+pub type StxHeader<'a> = TableRef<'a, StxHeaderMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> StxHeader<'a> {
@@ -1352,7 +1318,7 @@ impl<'a> std::fmt::Debug for StxHeader<'a> {
 /// Used for the `state_array` in [`StxHeader`].
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct RawWordsMarker {}
+pub struct RawWordsMarker;
 
 impl<'a> MinByteRange for RawWords<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1362,15 +1328,16 @@ impl<'a> MinByteRange for RawWords<'a> {
 
 impl<'a> FontRead<'a> for RawWords<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let data_byte_len = cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
-        cursor.advance_by(data_byte_len);
-        cursor.finish(RawWordsMarker {})
+        Ok(TableRef {
+            shape: RawWordsMarker,
+            args: (),
+            data,
+        })
     }
 }
 
 /// Used for the `state_array` in [`StxHeader`].
-pub type RawWords<'a> = TableRef<'a, RawWordsMarker>;
+pub type RawWords<'a> = TableRef<'a, RawWordsMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> RawWords<'a> {

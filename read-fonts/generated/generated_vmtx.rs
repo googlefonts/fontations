@@ -8,9 +8,7 @@ use crate::codegen_prelude::*;
 /// The [vmtx (Vertical Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/vmtx) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct VmtxMarker {
-    number_of_long_ver_metrics: u16,
-}
+pub struct VmtxMarker;
 
 impl<'a> MinByteRange for Vmtx<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -29,17 +27,11 @@ impl ReadArgs for Vmtx<'_> {
 
 impl<'a> FontReadWithArgs<'a> for Vmtx<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let number_of_long_ver_metrics = *args;
-        let mut cursor = data.cursor();
-        let v_metrics_byte_len = (number_of_long_ver_metrics as usize)
-            .checked_mul(LongMetric::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(v_metrics_byte_len);
-        let top_side_bearings_byte_len =
-            cursor.remaining_bytes() / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN;
-        cursor.advance_by(top_side_bearings_byte_len);
-        cursor.finish(VmtxMarker {
-            number_of_long_ver_metrics,
+        let args = *args;
+        Ok(TableRef {
+            shape: VmtxMarker,
+            args,
+            data,
         })
     }
 }
@@ -56,13 +48,13 @@ impl<'a> Vmtx<'a> {
 }
 
 /// The [vmtx (Vertical Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/vmtx) table
-pub type Vmtx<'a> = TableRef<'a, VmtxMarker>;
+pub type Vmtx<'a> = TableRef<'a, VmtxMarker, u16>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vmtx<'a> {
     fn v_metrics_byte_len(&self, start: usize) -> usize {
         let _ = start;
-        ((self.shape.number_of_long_ver_metrics) as usize)
+        ((self.args) as usize)
             .checked_mul(LongMetric::RAW_BYTE_LEN)
             .unwrap()
     }
@@ -98,7 +90,7 @@ impl<'a> Vmtx<'a> {
     }
 
     pub(crate) fn number_of_long_ver_metrics(&self) -> u16 {
-        self.shape.number_of_long_ver_metrics
+        self.args
     }
 }
 
