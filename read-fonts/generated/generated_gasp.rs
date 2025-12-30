@@ -8,28 +8,9 @@ use crate::codegen_prelude::*;
 /// [gasp](https://learn.microsoft.com/en-us/typography/opentype/spec/gasp#gasp-table-formats)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct GaspMarker {
-    gasp_ranges_byte_len: usize,
-}
+pub struct GaspMarker {}
 
-impl GaspMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn num_ranges_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn gasp_ranges_byte_range(&self) -> Range<usize> {
-        let start = self.num_ranges_byte_range().end;
-        start..start + self.gasp_ranges_byte_len
-    }
-}
-
-impl MinByteRange for GaspMarker {
+impl<'a> MinByteRange for Gasp<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.gasp_ranges_byte_range().end
     }
@@ -49,9 +30,7 @@ impl<'a> FontRead<'a> for Gasp<'a> {
             .checked_mul(GaspRange::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(gasp_ranges_byte_len);
-        cursor.finish(GaspMarker {
-            gasp_ranges_byte_len,
-        })
+        cursor.finish(GaspMarker {})
     }
 }
 
@@ -60,21 +39,43 @@ pub type Gasp<'a> = TableRef<'a, GaspMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Gasp<'a> {
+    fn gasp_ranges_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.num_ranges()) as usize)
+            .checked_mul(GaspRange::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn num_ranges_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn gasp_ranges_byte_range(&self) -> Range<usize> {
+        let start = self.num_ranges_byte_range().end;
+        start..start + self.gasp_ranges_byte_len(start)
+    }
+
     /// Version number (set to 1)
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of records to follow
     pub fn num_ranges(&self) -> u16 {
-        let range = self.shape.num_ranges_byte_range();
+        let range = self.num_ranges_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Sorted by ppem
     pub fn gasp_ranges(&self) -> &'a [GaspRange] {
-        let range = self.shape.gasp_ranges_byte_range();
+        let range = self.gasp_ranges_byte_range();
         self.data.read_array(range).unwrap()
     }
 }

@@ -11,74 +11,10 @@ use crate::codegen_prelude::*;
 pub struct PostMarker {
     num_glyphs_byte_start: Option<usize>,
     glyph_name_index_byte_start: Option<usize>,
-    glyph_name_index_byte_len: Option<usize>,
     string_data_byte_start: Option<usize>,
-    string_data_byte_len: Option<usize>,
 }
 
-impl PostMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + Version16Dot16::RAW_BYTE_LEN
-    }
-
-    pub fn italic_angle_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
-    }
-
-    pub fn underline_position_byte_range(&self) -> Range<usize> {
-        let start = self.italic_angle_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn underline_thickness_byte_range(&self) -> Range<usize> {
-        let start = self.underline_position_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn is_fixed_pitch_byte_range(&self) -> Range<usize> {
-        let start = self.underline_thickness_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn min_mem_type42_byte_range(&self) -> Range<usize> {
-        let start = self.is_fixed_pitch_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn max_mem_type42_byte_range(&self) -> Range<usize> {
-        let start = self.min_mem_type42_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn min_mem_type1_byte_range(&self) -> Range<usize> {
-        let start = self.max_mem_type42_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn max_mem_type1_byte_range(&self) -> Range<usize> {
-        let start = self.min_mem_type1_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn num_glyphs_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.num_glyphs_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
-    }
-
-    pub fn glyph_name_index_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.glyph_name_index_byte_start?;
-        Some(start..start + self.glyph_name_index_byte_len?)
-    }
-
-    pub fn string_data_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.string_data_byte_start?;
-        Some(start..start + self.string_data_byte_len?)
-    }
-}
-
-impl MinByteRange for PostMarker {
+impl<'a> MinByteRange for Post<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.max_mem_type1_byte_range().end
     }
@@ -135,9 +71,7 @@ impl<'a> FontRead<'a> for Post<'a> {
         cursor.finish(PostMarker {
             num_glyphs_byte_start,
             glyph_name_index_byte_start,
-            glyph_name_index_byte_len,
             string_data_byte_start,
-            string_data_byte_len,
         })
     }
 }
@@ -147,11 +81,82 @@ pub type Post<'a> = TableRef<'a, PostMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Post<'a> {
+    fn glyph_name_index_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.num_glyphs().unwrap_or_default()) as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .unwrap()
+    }
+    fn string_data_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        self.data.len().saturating_sub(start)
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + Version16Dot16::RAW_BYTE_LEN
+    }
+
+    pub fn italic_angle_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + Fixed::RAW_BYTE_LEN
+    }
+
+    pub fn underline_position_byte_range(&self) -> Range<usize> {
+        let start = self.italic_angle_byte_range().end;
+        start..start + FWord::RAW_BYTE_LEN
+    }
+
+    pub fn underline_thickness_byte_range(&self) -> Range<usize> {
+        let start = self.underline_position_byte_range().end;
+        start..start + FWord::RAW_BYTE_LEN
+    }
+
+    pub fn is_fixed_pitch_byte_range(&self) -> Range<usize> {
+        let start = self.underline_thickness_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn min_mem_type42_byte_range(&self) -> Range<usize> {
+        let start = self.is_fixed_pitch_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn max_mem_type42_byte_range(&self) -> Range<usize> {
+        let start = self.min_mem_type42_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn min_mem_type1_byte_range(&self) -> Range<usize> {
+        let start = self.max_mem_type42_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn max_mem_type1_byte_range(&self) -> Range<usize> {
+        let start = self.min_mem_type1_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn num_glyphs_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.shape.num_glyphs_byte_start?;
+        Some(start..start + u16::RAW_BYTE_LEN)
+    }
+
+    pub fn glyph_name_index_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.shape.glyph_name_index_byte_start?;
+        Some(start..start + self.glyph_name_index_byte_len(start))
+    }
+
+    pub fn string_data_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.shape.string_data_byte_start?;
+        Some(start..start + self.string_data_byte_len(start))
+    }
+
     /// 0x00010000 for version 1.0 0x00020000 for version 2.0
     /// 0x00025000 for version 2.5 (deprecated) 0x00030000 for version
     /// 3.0
     pub fn version(&self) -> Version16Dot16 {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -159,7 +164,7 @@ impl<'a> Post<'a> {
     /// Zero for upright text, negative for text that leans to the
     /// right (forward).
     pub fn italic_angle(&self) -> Fixed {
-        let range = self.shape.italic_angle_byte_range();
+        let range = self.italic_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -171,7 +176,7 @@ impl<'a> Post<'a> {
     /// calculated by subtracting half the underlineThickness from the
     /// value of this field.
     pub fn underline_position(&self) -> FWord {
-        let range = self.shape.underline_position_byte_range();
+        let range = self.underline_position_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -180,59 +185,59 @@ impl<'a> Post<'a> {
     /// underscore character (U+005F LOW LINE), and should also match
     /// the strikeout thickness, which is specified in the OS/2 table.
     pub fn underline_thickness(&self) -> FWord {
-        let range = self.shape.underline_thickness_byte_range();
+        let range = self.underline_thickness_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Set to 0 if the font is proportionally spaced, non-zero if the
     /// font is not proportionally spaced (i.e. monospaced).
     pub fn is_fixed_pitch(&self) -> u32 {
-        let range = self.shape.is_fixed_pitch_byte_range();
+        let range = self.is_fixed_pitch_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum memory usage when an OpenType font is downloaded.
     pub fn min_mem_type42(&self) -> u32 {
-        let range = self.shape.min_mem_type42_byte_range();
+        let range = self.min_mem_type42_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum memory usage when an OpenType font is downloaded.
     pub fn max_mem_type42(&self) -> u32 {
-        let range = self.shape.max_mem_type42_byte_range();
+        let range = self.max_mem_type42_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum memory usage when an OpenType font is downloaded as a
     /// Type 1 font.
     pub fn min_mem_type1(&self) -> u32 {
-        let range = self.shape.min_mem_type1_byte_range();
+        let range = self.min_mem_type1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum memory usage when an OpenType font is downloaded as a
     /// Type 1 font.
     pub fn max_mem_type1(&self) -> u32 {
-        let range = self.shape.max_mem_type1_byte_range();
+        let range = self.max_mem_type1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of glyphs (this should be the same as numGlyphs in
     /// 'maxp' table).
     pub fn num_glyphs(&self) -> Option<u16> {
-        let range = self.shape.num_glyphs_byte_range()?;
+        let range = self.num_glyphs_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// Array of indices into the string data. See below for details.
     pub fn glyph_name_index(&self) -> Option<&'a [BigEndian<u16>]> {
-        let range = self.shape.glyph_name_index_byte_range()?;
+        let range = self.glyph_name_index_byte_range()?;
         Some(self.data.read_array(range).unwrap())
     }
 
     /// Storage for the string data.
     pub fn string_data(&self) -> Option<VarLenArray<'a, PString<'a>>> {
-        let range = self.shape.string_data_byte_range()?;
+        let range = self.string_data_byte_range()?;
         Some(VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap())
     }
 }

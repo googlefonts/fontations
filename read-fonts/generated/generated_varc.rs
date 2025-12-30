@@ -12,39 +12,7 @@ use crate::codegen_prelude::*;
 #[doc(hidden)]
 pub struct VarcMarker {}
 
-impl VarcMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
-    }
-
-    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn multi_var_store_offset_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn condition_list_offset_byte_range(&self) -> Range<usize> {
-        let start = self.multi_var_store_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn axis_indices_list_offset_byte_range(&self) -> Range<usize> {
-        let start = self.condition_list_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn var_composite_glyphs_offset_byte_range(&self) -> Range<usize> {
-        let start = self.axis_indices_list_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for VarcMarker {
+impl<'a> MinByteRange for Varc<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_composite_glyphs_offset_byte_range().end
     }
@@ -75,14 +43,44 @@ pub type Varc<'a> = TableRef<'a, VarcMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Varc<'a> {
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + MajorMinor::RAW_BYTE_LEN
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+
+    pub fn multi_var_store_offset_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+
+    pub fn condition_list_offset_byte_range(&self) -> Range<usize> {
+        let start = self.multi_var_store_offset_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+
+    pub fn axis_indices_list_offset_byte_range(&self) -> Range<usize> {
+        let start = self.condition_list_offset_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+
+    pub fn var_composite_glyphs_offset_byte_range(&self) -> Range<usize> {
+        let start = self.axis_indices_list_offset_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+
     /// Major/minor version number. Set to 1.0.
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn coverage_offset(&self) -> Offset32 {
-        let range = self.shape.coverage_offset_byte_range();
+        let range = self.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -93,7 +91,7 @@ impl<'a> Varc<'a> {
     }
 
     pub fn multi_var_store_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.multi_var_store_offset_byte_range();
+        let range = self.multi_var_store_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -104,7 +102,7 @@ impl<'a> Varc<'a> {
     }
 
     pub fn condition_list_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.condition_list_offset_byte_range();
+        let range = self.condition_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -115,7 +113,7 @@ impl<'a> Varc<'a> {
     }
 
     pub fn axis_indices_list_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.axis_indices_list_offset_byte_range();
+        let range = self.axis_indices_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -126,7 +124,7 @@ impl<'a> Varc<'a> {
     }
 
     pub fn var_composite_glyphs_offset(&self) -> Offset32 {
-        let range = self.shape.var_composite_glyphs_offset_byte_range();
+        let range = self.var_composite_glyphs_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -189,11 +187,41 @@ impl Format<u16> for MultiItemVariationStoreMarker {
 /// * <https://github.com/harfbuzz/harfbuzz/blob/7be12b33e3f07067c159d8f516eb31df58c75876/src/hb-ot-layout-common.hh#L3517-L3520C3>
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MultiItemVariationStoreMarker {
-    variation_data_offsets_byte_len: usize,
+pub struct MultiItemVariationStoreMarker {}
+
+impl<'a> MinByteRange for MultiItemVariationStore<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.variation_data_offsets_byte_range().end
+    }
 }
 
-impl MultiItemVariationStoreMarker {
+impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset32>();
+        let variation_data_count: u16 = cursor.read()?;
+        let variation_data_offsets_byte_len = (variation_data_count as usize)
+            .checked_mul(Offset32::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        cursor.advance_by(variation_data_offsets_byte_len);
+        cursor.finish(MultiItemVariationStoreMarker {})
+    }
+}
+
+/// * <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3451-L3457>
+/// * <https://github.com/harfbuzz/harfbuzz/blob/7be12b33e3f07067c159d8f516eb31df58c75876/src/hb-ot-layout-common.hh#L3517-L3520C3>
+pub type MultiItemVariationStore<'a> = TableRef<'a, MultiItemVariationStoreMarker>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> MultiItemVariationStore<'a> {
+    fn variation_data_offsets_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.variation_data_count()) as usize)
+            .checked_mul(Offset32::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -211,45 +239,16 @@ impl MultiItemVariationStoreMarker {
 
     pub fn variation_data_offsets_byte_range(&self) -> Range<usize> {
         let start = self.variation_data_count_byte_range().end;
-        start..start + self.variation_data_offsets_byte_len
+        start..start + self.variation_data_offsets_byte_len(start)
     }
-}
 
-impl MinByteRange for MultiItemVariationStoreMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.variation_data_offsets_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        let variation_data_count: u16 = cursor.read()?;
-        let variation_data_offsets_byte_len = (variation_data_count as usize)
-            .checked_mul(Offset32::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(variation_data_offsets_byte_len);
-        cursor.finish(MultiItemVariationStoreMarker {
-            variation_data_offsets_byte_len,
-        })
-    }
-}
-
-/// * <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3451-L3457>
-/// * <https://github.com/harfbuzz/harfbuzz/blob/7be12b33e3f07067c159d8f516eb31df58c75876/src/hb-ot-layout-common.hh#L3517-L3520C3>
-pub type MultiItemVariationStore<'a> = TableRef<'a, MultiItemVariationStoreMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> MultiItemVariationStore<'a> {
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn region_list_offset(&self) -> Offset32 {
-        let range = self.shape.region_list_offset_byte_range();
+        let range = self.region_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -260,12 +259,12 @@ impl<'a> MultiItemVariationStore<'a> {
     }
 
     pub fn variation_data_count(&self) -> u16 {
-        let range = self.shape.variation_data_count_byte_range();
+        let range = self.variation_data_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn variation_data_offsets(&self) -> &'a [BigEndian<Offset32>] {
-        let range = self.shape.variation_data_offsets_byte_range();
+        let range = self.variation_data_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
@@ -322,23 +321,9 @@ impl<'a> std::fmt::Debug for MultiItemVariationStore<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SparseVariationRegionListMarker {
-    region_offsets_byte_len: usize,
-}
+pub struct SparseVariationRegionListMarker {}
 
-impl SparseVariationRegionListMarker {
-    pub fn region_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn region_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.region_count_byte_range().end;
-        start..start + self.region_offsets_byte_len
-    }
-}
-
-impl MinByteRange for SparseVariationRegionListMarker {
+impl<'a> MinByteRange for SparseVariationRegionList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.region_offsets_byte_range().end
     }
@@ -352,9 +337,7 @@ impl<'a> FontRead<'a> for SparseVariationRegionList<'a> {
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(region_offsets_byte_len);
-        cursor.finish(SparseVariationRegionListMarker {
-            region_offsets_byte_len,
-        })
+        cursor.finish(SparseVariationRegionListMarker {})
     }
 }
 
@@ -362,13 +345,30 @@ pub type SparseVariationRegionList<'a> = TableRef<'a, SparseVariationRegionListM
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SparseVariationRegionList<'a> {
+    fn region_offsets_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.region_count()) as usize)
+            .checked_mul(Offset32::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
+    pub fn region_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn region_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.region_count_byte_range().end;
+        start..start + self.region_offsets_byte_len(start)
+    }
+
     pub fn region_count(&self) -> u16 {
-        let range = self.shape.region_count_byte_range();
+        let range = self.region_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn region_offsets(&self) -> &'a [BigEndian<Offset32>] {
-        let range = self.shape.region_offsets_byte_range();
+        let range = self.region_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
@@ -417,23 +417,9 @@ impl<'a> std::fmt::Debug for SparseVariationRegionList<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SparseVariationRegionMarker {
-    region_axis_offsets_byte_len: usize,
-}
+pub struct SparseVariationRegionMarker {}
 
-impl SparseVariationRegionMarker {
-    pub fn region_axis_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn region_axis_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.region_axis_count_byte_range().end;
-        start..start + self.region_axis_offsets_byte_len
-    }
-}
-
-impl MinByteRange for SparseVariationRegionMarker {
+impl<'a> MinByteRange for SparseVariationRegion<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.region_axis_offsets_byte_range().end
     }
@@ -447,9 +433,7 @@ impl<'a> FontRead<'a> for SparseVariationRegion<'a> {
             .checked_mul(SparseRegionAxisCoordinates::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(region_axis_offsets_byte_len);
-        cursor.finish(SparseVariationRegionMarker {
-            region_axis_offsets_byte_len,
-        })
+        cursor.finish(SparseVariationRegionMarker {})
     }
 }
 
@@ -457,13 +441,30 @@ pub type SparseVariationRegion<'a> = TableRef<'a, SparseVariationRegionMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SparseVariationRegion<'a> {
+    fn region_axis_offsets_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.region_axis_count()) as usize)
+            .checked_mul(SparseRegionAxisCoordinates::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
+    pub fn region_axis_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn region_axis_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.region_axis_count_byte_range().end;
+        start..start + self.region_axis_offsets_byte_len(start)
+    }
+
     pub fn region_axis_count(&self) -> u16 {
-        let range = self.shape.region_axis_count_byte_range();
+        let range = self.region_axis_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn region_axis_offsets(&self) -> &'a [SparseRegionAxisCoordinates] {
-        let range = self.shape.region_axis_offsets_byte_range();
+        let range = self.region_axis_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -553,34 +554,9 @@ impl Format<u8> for MultiItemVariationDataMarker {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MultiItemVariationDataMarker {
-    region_indices_byte_len: usize,
-    raw_delta_sets_byte_len: usize,
-}
+pub struct MultiItemVariationDataMarker {}
 
-impl MultiItemVariationDataMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn region_index_count_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn region_indices_byte_range(&self) -> Range<usize> {
-        let start = self.region_index_count_byte_range().end;
-        start..start + self.region_indices_byte_len
-    }
-
-    pub fn raw_delta_sets_byte_range(&self) -> Range<usize> {
-        let start = self.region_indices_byte_range().end;
-        start..start + self.raw_delta_sets_byte_len
-    }
-}
-
-impl MinByteRange for MultiItemVariationDataMarker {
+impl<'a> MinByteRange for MultiItemVariationData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.raw_delta_sets_byte_range().end
     }
@@ -598,10 +574,7 @@ impl<'a> FontRead<'a> for MultiItemVariationData<'a> {
         let raw_delta_sets_byte_len =
             cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(raw_delta_sets_byte_len);
-        cursor.finish(MultiItemVariationDataMarker {
-            region_indices_byte_len,
-            raw_delta_sets_byte_len,
-        })
+        cursor.finish(MultiItemVariationDataMarker {})
     }
 }
 
@@ -609,23 +582,57 @@ pub type MultiItemVariationData<'a> = TableRef<'a, MultiItemVariationDataMarker>
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MultiItemVariationData<'a> {
+    fn region_indices_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.region_index_count()) as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .unwrap()
+    }
+    fn raw_delta_sets_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        {
+            let remaining = self.data.len().saturating_sub(start);
+            remaining / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        }
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn region_index_count_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn region_indices_byte_range(&self) -> Range<usize> {
+        let start = self.region_index_count_byte_range().end;
+        start..start + self.region_indices_byte_len(start)
+    }
+
+    pub fn raw_delta_sets_byte_range(&self) -> Range<usize> {
+        let start = self.region_indices_byte_range().end;
+        start..start + self.raw_delta_sets_byte_len(start)
+    }
+
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn region_index_count(&self) -> u16 {
-        let range = self.shape.region_index_count_byte_range();
+        let range = self.region_index_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn region_indices(&self) -> &'a [BigEndian<u16>] {
-        let range = self.shape.region_indices_byte_range();
+        let range = self.region_indices_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     pub fn raw_delta_sets(&self) -> &'a [u8] {
-        let range = self.shape.raw_delta_sets_byte_range();
+        let range = self.raw_delta_sets_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -656,23 +663,9 @@ impl<'a> std::fmt::Debug for MultiItemVariationData<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct ConditionListMarker {
-    condition_offsets_byte_len: usize,
-}
+pub struct ConditionListMarker {}
 
-impl ConditionListMarker {
-    pub fn condition_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn condition_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.condition_count_byte_range().end;
-        start..start + self.condition_offsets_byte_len
-    }
-}
-
-impl MinByteRange for ConditionListMarker {
+impl<'a> MinByteRange for ConditionList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.condition_offsets_byte_range().end
     }
@@ -686,9 +679,7 @@ impl<'a> FontRead<'a> for ConditionList<'a> {
             .checked_mul(Offset32::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(condition_offsets_byte_len);
-        cursor.finish(ConditionListMarker {
-            condition_offsets_byte_len,
-        })
+        cursor.finish(ConditionListMarker {})
     }
 }
 
@@ -696,13 +687,30 @@ pub type ConditionList<'a> = TableRef<'a, ConditionListMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ConditionList<'a> {
+    fn condition_offsets_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.condition_count()) as usize)
+            .checked_mul(Offset32::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
+    pub fn condition_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn condition_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.condition_count_byte_range().end;
+        start..start + self.condition_offsets_byte_len(start)
+    }
+
     pub fn condition_count(&self) -> u32 {
-        let range = self.shape.condition_count_byte_range();
+        let range = self.condition_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset32>] {
-        let range = self.shape.condition_offsets_byte_range();
+        let range = self.condition_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 

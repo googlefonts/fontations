@@ -656,7 +656,7 @@ impl CFFAndCharStrings<'_> {
         let charstrings = Index1::read(charstrings_data)?;
         let offset_type = Self::offset_type(charstrings.off_size())?;
 
-        let offset_base = charstrings.shape().data_byte_range().start;
+        let offset_base = charstrings.data_byte_range().start;
         let charstrings_object_data = charstrings_data
             .split_off(offset_base)
             .ok_or(ReadError::OutOfBounds)?
@@ -684,7 +684,7 @@ impl CFFAndCharStrings<'_> {
         let charstrings = Index2::read(charstrings_data)?;
         let offset_type = Self::offset_type(charstrings.off_size())?;
 
-        let offset_base = charstrings.shape().data_byte_range().start;
+        let offset_base = charstrings.data_byte_range().start;
         let charstrings_object_data = charstrings_data
             .split_off(offset_base)
             .ok_or(ReadError::OutOfBounds)?
@@ -883,7 +883,7 @@ impl GlyphDataOffsetArray for Gvar<'_> {
         let orig_bytes = self.as_bytes();
         let orig_size = orig_bytes.len();
 
-        let original_offsets_range = self.shape().glyph_variation_data_offsets_byte_range();
+        let original_offsets_range = self.glyph_variation_data_offsets_byte_range();
 
         if new_offset_type == self.offset_type()
             && offsets.offset_array.len()
@@ -940,7 +940,7 @@ impl GlyphDataOffsetArray for Gvar<'_> {
         let shared_tuples_bytes = shared_tuples
             .offset_data()
             .as_bytes()
-            .get(shared_tuples.shape().tuples_byte_range())
+            .get(shared_tuples.tuples_byte_range())
             .ok_or_else(|| PatchingError::SerializationError(serializer.error()))?;
 
         let shared_tuples_obj = if !shared_tuples_bytes.is_empty() {
@@ -965,14 +965,14 @@ impl GlyphDataOffsetArray for Gvar<'_> {
         // Set up offsets to shared tuples and glyph data.
         serializer
             .add_link(
-                self.shape().shared_tuples_offset_byte_range(),
+                self.shared_tuples_offset_byte_range(),
                 shared_tuples_obj,
                 OffsetWhence::Head,
                 0,
                 false,
             )
             .and(serializer.add_link(
-                self.shape().glyph_variation_data_array_offset_byte_range(),
+                self.glyph_variation_data_array_offset_byte_range(),
                 glyph_data_obj,
                 OffsetWhence::Head,
                 0,

@@ -48,17 +48,20 @@ impl<U, T: Format<U>> Format<U> for TableRef<'_, T> {
     const FORMAT: U = T::FORMAT;
 }
 
-impl<'a, T: MinByteRange> TableRef<'a, T> {
+impl<'a, T> TableRef<'a, T>
+where
+    TableRef<'a, T>: MinByteRange,
+{
     /// Return the minimum byte range of this table
     pub fn min_byte_range(&self) -> Range<usize> {
-        self.shape.min_byte_range()
+        MinByteRange::min_byte_range(self)
     }
 
     /// Return the minimum bytes of this table
     pub fn min_table_bytes(&self) -> &'a [u8] {
         self.offset_data()
             .as_bytes()
-            .get(self.shape.min_byte_range())
+            .get(self.min_byte_range())
             .unwrap_or_default()
     }
 }

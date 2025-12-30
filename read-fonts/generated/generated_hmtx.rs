@@ -9,23 +9,10 @@ use crate::codegen_prelude::*;
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct HmtxMarker {
-    h_metrics_byte_len: usize,
-    left_side_bearings_byte_len: usize,
+    number_of_h_metrics: u16,
 }
 
-impl HmtxMarker {
-    pub fn h_metrics_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + self.h_metrics_byte_len
-    }
-
-    pub fn left_side_bearings_byte_range(&self) -> Range<usize> {
-        let start = self.h_metrics_byte_range().end;
-        start..start + self.left_side_bearings_byte_len
-    }
-}
-
-impl MinByteRange for HmtxMarker {
+impl<'a> MinByteRange for Hmtx<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.left_side_bearings_byte_range().end
     }
@@ -52,8 +39,7 @@ impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
             cursor.remaining_bytes() / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN;
         cursor.advance_by(left_side_bearings_byte_len);
         cursor.finish(HmtxMarker {
-            h_metrics_byte_len,
-            left_side_bearings_byte_len,
+            number_of_h_metrics,
         })
     }
 }
@@ -74,18 +60,46 @@ pub type Hmtx<'a> = TableRef<'a, HmtxMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Hmtx<'a> {
+    fn h_metrics_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.shape.number_of_h_metrics) as usize)
+            .checked_mul(LongMetric::RAW_BYTE_LEN)
+            .unwrap()
+    }
+    fn left_side_bearings_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        {
+            let remaining = self.data.len().saturating_sub(start);
+            remaining / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN
+        }
+    }
+
+    pub fn h_metrics_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + self.h_metrics_byte_len(start)
+    }
+
+    pub fn left_side_bearings_byte_range(&self) -> Range<usize> {
+        let start = self.h_metrics_byte_range().end;
+        start..start + self.left_side_bearings_byte_len(start)
+    }
+
     /// Paired advance width/height and left/top side bearing values for each
     /// glyph. Records are indexed by glyph ID.
     pub fn h_metrics(&self) -> &'a [LongMetric] {
-        let range = self.shape.h_metrics_byte_range();
+        let range = self.h_metrics_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Leading (left/top) side bearings for glyph IDs greater than or equal to
     /// numberOfLongMetrics.
     pub fn left_side_bearings(&self) -> &'a [BigEndian<i16>] {
-        let range = self.shape.left_side_bearings_byte_range();
+        let range = self.left_side_bearings_byte_range();
         self.data.read_array(range).unwrap()
+    }
+
+    pub(crate) fn number_of_h_metrics(&self) -> u16 {
+        self.shape.number_of_h_metrics
     }
 }
 

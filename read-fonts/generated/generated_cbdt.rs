@@ -10,19 +10,7 @@ use crate::codegen_prelude::*;
 #[doc(hidden)]
 pub struct CbdtMarker {}
 
-impl CbdtMarker {
-    pub fn major_version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn minor_version_byte_range(&self) -> Range<usize> {
-        let start = self.major_version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for CbdtMarker {
+impl<'a> MinByteRange for Cbdt<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.minor_version_byte_range().end
     }
@@ -47,15 +35,25 @@ pub type Cbdt<'a> = TableRef<'a, CbdtMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cbdt<'a> {
+    pub fn major_version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn minor_version_byte_range(&self) -> Range<usize> {
+        let start = self.major_version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
     /// Major version of the CBDT table, = 3.
     pub fn major_version(&self) -> u16 {
-        let range = self.shape.major_version_byte_range();
+        let range = self.major_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minor version of CBDT table, = 0.
     pub fn minor_version(&self) -> u16 {
-        let range = self.shape.minor_version_byte_range();
+        let range = self.minor_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }

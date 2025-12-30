@@ -9,23 +9,10 @@ use crate::codegen_prelude::*;
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct VmtxMarker {
-    v_metrics_byte_len: usize,
-    top_side_bearings_byte_len: usize,
+    number_of_long_ver_metrics: u16,
 }
 
-impl VmtxMarker {
-    pub fn v_metrics_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + self.v_metrics_byte_len
-    }
-
-    pub fn top_side_bearings_byte_range(&self) -> Range<usize> {
-        let start = self.v_metrics_byte_range().end;
-        start..start + self.top_side_bearings_byte_len
-    }
-}
-
-impl MinByteRange for VmtxMarker {
+impl<'a> MinByteRange for Vmtx<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.top_side_bearings_byte_range().end
     }
@@ -52,8 +39,7 @@ impl<'a> FontReadWithArgs<'a> for Vmtx<'a> {
             cursor.remaining_bytes() / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN;
         cursor.advance_by(top_side_bearings_byte_len);
         cursor.finish(VmtxMarker {
-            v_metrics_byte_len,
-            top_side_bearings_byte_len,
+            number_of_long_ver_metrics,
         })
     }
 }
@@ -74,17 +60,45 @@ pub type Vmtx<'a> = TableRef<'a, VmtxMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vmtx<'a> {
+    fn v_metrics_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.shape.number_of_long_ver_metrics) as usize)
+            .checked_mul(LongMetric::RAW_BYTE_LEN)
+            .unwrap()
+    }
+    fn top_side_bearings_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        {
+            let remaining = self.data.len().saturating_sub(start);
+            remaining / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN
+        }
+    }
+
+    pub fn v_metrics_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + self.v_metrics_byte_len(start)
+    }
+
+    pub fn top_side_bearings_byte_range(&self) -> Range<usize> {
+        let start = self.v_metrics_byte_range().end;
+        start..start + self.top_side_bearings_byte_len(start)
+    }
+
     /// Paired advance height and top side bearing values for each
     /// glyph. Records are indexed by glyph ID.
     pub fn v_metrics(&self) -> &'a [LongMetric] {
-        let range = self.shape.v_metrics_byte_range();
+        let range = self.v_metrics_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Top side bearings for glyph IDs greater than or equal to numberOfLongMetrics.
     pub fn top_side_bearings(&self) -> &'a [BigEndian<i16>] {
-        let range = self.shape.top_side_bearings_byte_range();
+        let range = self.top_side_bearings_byte_range();
         self.data.read_array(range).unwrap()
+    }
+
+    pub(crate) fn number_of_long_ver_metrics(&self) -> u16 {
+        self.shape.number_of_long_ver_metrics
     }
 }
 
