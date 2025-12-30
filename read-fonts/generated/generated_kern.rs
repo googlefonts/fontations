@@ -19,9 +19,9 @@ impl<'a> MinByteRange for OtKern<'a> {
 impl<'a> FontRead<'a> for OtKern<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: OtKernMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -110,9 +110,9 @@ impl<'a> MinByteRange for AatKern<'a> {
 impl<'a> FontRead<'a> for AatKern<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: AatKernMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -201,9 +201,9 @@ impl<'a> MinByteRange for OtSubtable<'a> {
 impl<'a> FontRead<'a> for OtSubtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: OtSubtableMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -304,9 +304,9 @@ impl<'a> MinByteRange for AatSubtable<'a> {
 impl<'a> FontRead<'a> for AatSubtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: AatSubtableMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -407,9 +407,9 @@ impl<'a> MinByteRange for Subtable0<'a> {
 impl<'a> FontRead<'a> for Subtable0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Subtable0Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -528,9 +528,9 @@ impl<'a> MinByteRange for Subtable2ClassTable<'a> {
 impl<'a> FontRead<'a> for Subtable2ClassTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Subtable2ClassTableMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -618,9 +618,9 @@ impl<'a> MinByteRange for Subtable3<'a> {
 impl<'a> FontRead<'a> for Subtable3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Subtable3Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

@@ -5,6 +5,7 @@ use crate::{
     font_data::FontData,
     offset::{Offset, ResolveOffset},
 };
+use std::marker::PhantomData;
 use std::ops::Range;
 /// Return the minimum range of the table bytes
 ///
@@ -16,9 +17,9 @@ pub trait MinByteRange {
 #[derive(Clone)]
 /// Typed access to raw table data.
 pub struct TableRef<'a, T, A = ()> {
-    pub(crate) shape: T,
     pub(crate) args: A,
     pub(crate) data: FontData<'a>,
+    pub(crate) _marker: PhantomData<T>,
 }
 
 impl<'a, T, A> TableRef<'a, T, A> {
@@ -34,14 +35,6 @@ impl<'a, T, A> TableRef<'a, T, A> {
         self.data
     }
 
-    /// Return a reference to the table's 'Shape' struct.
-    ///
-    /// This is a low level implementation detail, but it can be useful in
-    /// some cases where you want to know things about a table's layout, such
-    /// as the byte offsets of specific fields.
-    pub fn shape(&self) -> &T {
-        &self.shape
-    }
 }
 
 // a blanket impl so that the format is available through a TableRef

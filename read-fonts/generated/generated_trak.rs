@@ -24,9 +24,9 @@ impl TopLevelTable for Trak<'_> {
 impl<'a> FontRead<'a> for Trak<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: TrakMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -142,9 +142,9 @@ impl<'a> MinByteRange for TrackData<'a> {
 impl<'a> FontRead<'a> for TrackData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: TrackDataMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

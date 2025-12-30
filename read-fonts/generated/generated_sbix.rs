@@ -337,9 +337,9 @@ impl<'a> FontReadWithArgs<'a> for Sbix<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: SbixMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -483,9 +483,9 @@ impl<'a> FontReadWithArgs<'a> for Strike<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: StrikeMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -588,9 +588,9 @@ impl<'a> MinByteRange for GlyphData<'a> {
 impl<'a> FontRead<'a> for GlyphData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: GlyphDataMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

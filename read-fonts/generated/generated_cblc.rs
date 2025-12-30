@@ -24,9 +24,9 @@ impl TopLevelTable for Cblc<'_> {
 impl<'a> FontRead<'a> for Cblc<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CblcMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

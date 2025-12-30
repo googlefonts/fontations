@@ -24,9 +24,9 @@ impl TopLevelTable for Stat<'_> {
 impl<'a> FontRead<'a> for Stat<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: StatMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -264,9 +264,9 @@ impl<'a> FontReadWithArgs<'a> for AxisValueArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: AxisValueArrayMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -475,9 +475,9 @@ impl<'a> MinByteRange for AxisValueFormat1<'a> {
 impl<'a> FontRead<'a> for AxisValueFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: AxisValueFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -589,9 +589,9 @@ impl<'a> MinByteRange for AxisValueFormat2<'a> {
 impl<'a> FontRead<'a> for AxisValueFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: AxisValueFormat2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -729,9 +729,9 @@ impl<'a> MinByteRange for AxisValueFormat3<'a> {
 impl<'a> FontRead<'a> for AxisValueFormat3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: AxisValueFormat3Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -855,9 +855,9 @@ impl<'a> MinByteRange for AxisValueFormat4<'a> {
 impl<'a> FontRead<'a> for AxisValueFormat4<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: AxisValueFormat4Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

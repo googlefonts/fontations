@@ -18,9 +18,9 @@ impl<'a> MinByteRange for MajorMinorVersion<'a> {
 impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: MajorMinorVersionMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -428,9 +428,9 @@ impl<'a> MinByteRange for FlagDay<'a> {
 impl<'a> FontRead<'a> for FlagDay<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: FlagDayMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -553,9 +553,9 @@ impl<'a> MinByteRange for FieldsAfterConditionals<'a> {
 impl<'a> FontRead<'a> for FieldsAfterConditionals<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: FieldsAfterConditionalsMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

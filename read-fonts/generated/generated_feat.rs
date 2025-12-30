@@ -24,9 +24,9 @@ impl TopLevelTable for Feat<'_> {
 impl<'a> FontRead<'a> for Feat<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: FeatMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -224,9 +224,9 @@ impl<'a> FontReadWithArgs<'a> for SettingNameArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: SettingNameArrayMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

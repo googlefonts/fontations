@@ -24,9 +24,9 @@ impl TopLevelTable for Gdef<'_> {
 impl<'a> FontRead<'a> for Gdef<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: GdefMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -282,9 +282,9 @@ impl<'a> MinByteRange for AttachList<'a> {
 impl<'a> FontRead<'a> for AttachList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: AttachListMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -402,9 +402,9 @@ impl<'a> MinByteRange for AttachPoint<'a> {
 impl<'a> FontRead<'a> for AttachPoint<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: AttachPointMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -480,9 +480,9 @@ impl<'a> MinByteRange for LigCaretList<'a> {
 impl<'a> FontRead<'a> for LigCaretList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: LigCaretListMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -600,9 +600,9 @@ impl<'a> MinByteRange for LigGlyph<'a> {
 impl<'a> FontRead<'a> for LigGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: LigGlyphMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -781,9 +781,9 @@ impl<'a> MinByteRange for CaretValueFormat1<'a> {
 impl<'a> FontRead<'a> for CaretValueFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CaretValueFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -856,9 +856,9 @@ impl<'a> MinByteRange for CaretValueFormat2<'a> {
 impl<'a> FontRead<'a> for CaretValueFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CaretValueFormat2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -934,9 +934,9 @@ impl<'a> MinByteRange for CaretValueFormat3<'a> {
 impl<'a> FontRead<'a> for CaretValueFormat3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CaretValueFormat3Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1032,9 +1032,9 @@ impl<'a> MinByteRange for MarkGlyphSets<'a> {
 impl<'a> FontRead<'a> for MarkGlyphSets<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: MarkGlyphSetsMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

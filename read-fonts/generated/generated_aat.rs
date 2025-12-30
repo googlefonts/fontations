@@ -121,9 +121,9 @@ impl<'a> MinByteRange for Lookup0<'a> {
 impl<'a> FontRead<'a> for Lookup0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Lookup0Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -207,9 +207,9 @@ impl<'a> MinByteRange for Lookup2<'a> {
 impl<'a> FontRead<'a> for Lookup2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Lookup2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -353,9 +353,9 @@ impl<'a> MinByteRange for Lookup4<'a> {
 impl<'a> FontRead<'a> for Lookup4<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Lookup4Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -555,9 +555,9 @@ impl<'a> MinByteRange for Lookup6<'a> {
 impl<'a> FontRead<'a> for Lookup6<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Lookup6Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -699,9 +699,9 @@ impl<'a> MinByteRange for Lookup8<'a> {
 impl<'a> FontRead<'a> for Lookup8<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Lookup8Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -809,9 +809,9 @@ impl<'a> MinByteRange for Lookup10<'a> {
 impl<'a> FontRead<'a> for Lookup10<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Lookup10Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -927,9 +927,9 @@ impl<'a> MinByteRange for StateHeader<'a> {
 impl<'a> FontRead<'a> for StateHeader<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: StateHeaderMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1050,9 +1050,9 @@ impl<'a> MinByteRange for ClassSubtable<'a> {
 impl<'a> FontRead<'a> for ClassSubtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ClassSubtableMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1141,9 +1141,9 @@ impl<'a> MinByteRange for RawBytes<'a> {
 impl<'a> FontRead<'a> for RawBytes<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: RawBytesMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1207,9 +1207,9 @@ impl<'a> MinByteRange for StxHeader<'a> {
 impl<'a> FontRead<'a> for StxHeader<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: StxHeaderMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1329,9 +1329,9 @@ impl<'a> MinByteRange for RawWords<'a> {
 impl<'a> FontRead<'a> for RawWords<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: RawWordsMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

@@ -24,9 +24,9 @@ impl TopLevelTable for Gsub<'_> {
 impl<'a> FontRead<'a> for Gsub<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: GsubMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -342,9 +342,9 @@ impl<'a> MinByteRange for SingleSubstFormat1<'a> {
 impl<'a> FontRead<'a> for SingleSubstFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SingleSubstFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -439,9 +439,9 @@ impl<'a> MinByteRange for SingleSubstFormat2<'a> {
 impl<'a> FontRead<'a> for SingleSubstFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SingleSubstFormat2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -558,9 +558,9 @@ impl<'a> MinByteRange for MultipleSubstFormat1<'a> {
 impl<'a> FontRead<'a> for MultipleSubstFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: MultipleSubstFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -691,9 +691,9 @@ impl<'a> MinByteRange for Sequence<'a> {
 impl<'a> FontRead<'a> for Sequence<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SequenceMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -777,9 +777,9 @@ impl<'a> MinByteRange for AlternateSubstFormat1<'a> {
 impl<'a> FontRead<'a> for AlternateSubstFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: AlternateSubstFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -913,9 +913,9 @@ impl<'a> MinByteRange for AlternateSet<'a> {
 impl<'a> FontRead<'a> for AlternateSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: AlternateSetMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -998,9 +998,9 @@ impl<'a> MinByteRange for LigatureSubstFormat1<'a> {
 impl<'a> FontRead<'a> for LigatureSubstFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: LigatureSubstFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1131,9 +1131,9 @@ impl<'a> MinByteRange for LigatureSet<'a> {
 impl<'a> FontRead<'a> for LigatureSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: LigatureSetMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1230,9 +1230,9 @@ impl<'a> MinByteRange for Ligature<'a> {
 impl<'a> FontRead<'a> for Ligature<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: LigatureMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1328,9 +1328,9 @@ impl<'a, T> MinByteRange for ExtensionSubstFormat1<'a, T> {
 impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ExtensionSubstFormat1Marker,
             args: std::marker::PhantomData,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1340,9 +1340,9 @@ impl<'a> ExtensionSubstFormat1<'a, ()> {
     pub(crate) fn into_concrete<T>(self) -> ExtensionSubstFormat1<'a, T> {
         let TableRef { data, .. } = self;
         TableRef {
-            shape: ExtensionSubstFormat1Marker,
             args: std::marker::PhantomData,
             data,
+            _marker: std::marker::PhantomData,
         }
     }
 }
@@ -1353,9 +1353,9 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
     pub(crate) fn of_unit_type(&self) -> ExtensionSubstFormat1<'a, ()> {
         let TableRef { data, .. } = self;
         TableRef {
-            shape: ExtensionSubstFormat1Marker,
             args: std::marker::PhantomData,
             data: *data,
+            _marker: std::marker::PhantomData,
         }
     }
 }
@@ -1536,9 +1536,9 @@ impl<'a> MinByteRange for ReverseChainSingleSubstFormat1<'a> {
 impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ReverseChainSingleSubstFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

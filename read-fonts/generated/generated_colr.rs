@@ -24,9 +24,9 @@ impl TopLevelTable for Colr<'_> {
 impl<'a> FontRead<'a> for Colr<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ColrMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -426,9 +426,9 @@ impl<'a> MinByteRange for BaseGlyphList<'a> {
 impl<'a> FontRead<'a> for BaseGlyphList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: BaseGlyphListMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -565,9 +565,9 @@ impl<'a> MinByteRange for LayerList<'a> {
 impl<'a> FontRead<'a> for LayerList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: LayerListMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -662,9 +662,9 @@ impl<'a> MinByteRange for ClipList<'a> {
 impl<'a> FontRead<'a> for ClipList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ClipListMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -929,9 +929,9 @@ impl<'a> MinByteRange for ClipBoxFormat1<'a> {
 impl<'a> FontRead<'a> for ClipBoxFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ClipBoxFormat1Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1040,9 +1040,9 @@ impl<'a> MinByteRange for ClipBoxFormat2<'a> {
 impl<'a> FontRead<'a> for ClipBoxFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ClipBoxFormat2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1360,9 +1360,9 @@ impl<'a> MinByteRange for ColorLine<'a> {
 impl<'a> FontRead<'a> for ColorLine<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ColorLineMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1456,9 +1456,9 @@ impl<'a> MinByteRange for VarColorLine<'a> {
 impl<'a> FontRead<'a> for VarColorLine<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: VarColorLineMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1878,9 +1878,9 @@ impl<'a> MinByteRange for PaintColrLayers<'a> {
 impl<'a> FontRead<'a> for PaintColrLayers<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintColrLayersMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1965,9 +1965,9 @@ impl<'a> MinByteRange for PaintSolid<'a> {
 impl<'a> FontRead<'a> for PaintSolid<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintSolidMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2052,9 +2052,9 @@ impl<'a> MinByteRange for PaintVarSolid<'a> {
 impl<'a> FontRead<'a> for PaintVarSolid<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintVarSolidMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2151,9 +2151,9 @@ impl<'a> MinByteRange for PaintLinearGradient<'a> {
 impl<'a> FontRead<'a> for PaintLinearGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintLinearGradientMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2307,9 +2307,9 @@ impl<'a> MinByteRange for PaintVarLinearGradient<'a> {
 impl<'a> FontRead<'a> for PaintVarLinearGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintVarLinearGradientMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2481,9 +2481,9 @@ impl<'a> MinByteRange for PaintRadialGradient<'a> {
 impl<'a> FontRead<'a> for PaintRadialGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintRadialGradientMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2637,9 +2637,9 @@ impl<'a> MinByteRange for PaintVarRadialGradient<'a> {
 impl<'a> FontRead<'a> for PaintVarRadialGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintVarRadialGradientMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2809,9 +2809,9 @@ impl<'a> MinByteRange for PaintSweepGradient<'a> {
 impl<'a> FontRead<'a> for PaintSweepGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintSweepGradientMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2943,9 +2943,9 @@ impl<'a> MinByteRange for PaintVarSweepGradient<'a> {
 impl<'a> FontRead<'a> for PaintVarSweepGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintVarSweepGradientMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3091,9 +3091,9 @@ impl<'a> MinByteRange for PaintGlyph<'a> {
 impl<'a> FontRead<'a> for PaintGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintGlyphMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3187,9 +3187,9 @@ impl<'a> MinByteRange for PaintColrGlyph<'a> {
 impl<'a> FontRead<'a> for PaintColrGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintColrGlyphMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3262,9 +3262,9 @@ impl<'a> MinByteRange for PaintTransform<'a> {
 impl<'a> FontRead<'a> for PaintTransform<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintTransformMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3367,9 +3367,9 @@ impl<'a> MinByteRange for PaintVarTransform<'a> {
 impl<'a> FontRead<'a> for PaintVarTransform<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintVarTransformMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3468,9 +3468,9 @@ impl<'a> MinByteRange for Affine2x3<'a> {
 impl<'a> FontRead<'a> for Affine2x3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: Affine2x3Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3587,9 +3587,9 @@ impl<'a> MinByteRange for VarAffine2x3<'a> {
 impl<'a> FontRead<'a> for VarAffine2x3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: VarAffine2x3Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3726,9 +3726,9 @@ impl<'a> MinByteRange for PaintTranslate<'a> {
 impl<'a> FontRead<'a> for PaintTranslate<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintTranslateMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3834,9 +3834,9 @@ impl<'a> MinByteRange for PaintVarTranslate<'a> {
 impl<'a> FontRead<'a> for PaintVarTranslate<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintVarTranslateMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3954,9 +3954,9 @@ impl<'a> MinByteRange for PaintScale<'a> {
 impl<'a> FontRead<'a> for PaintScale<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintScaleMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -4062,9 +4062,9 @@ impl<'a> MinByteRange for PaintVarScale<'a> {
 impl<'a> FontRead<'a> for PaintVarScale<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintVarScaleMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -4184,9 +4184,9 @@ impl<'a> MinByteRange for PaintScaleAroundCenter<'a> {
 impl<'a> FontRead<'a> for PaintScaleAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintScaleAroundCenterMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -4316,9 +4316,9 @@ impl<'a> MinByteRange for PaintVarScaleAroundCenter<'a> {
 impl<'a> FontRead<'a> for PaintVarScaleAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintVarScaleAroundCenterMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -4464,9 +4464,9 @@ impl<'a> MinByteRange for PaintScaleUniform<'a> {
 impl<'a> FontRead<'a> for PaintScaleUniform<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintScaleUniformMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -4560,9 +4560,9 @@ impl<'a> MinByteRange for PaintVarScaleUniform<'a> {
 impl<'a> FontRead<'a> for PaintVarScaleUniform<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintVarScaleUniformMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -4669,9 +4669,9 @@ impl<'a> MinByteRange for PaintScaleUniformAroundCenter<'a> {
 impl<'a> FontRead<'a> for PaintScaleUniformAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintScaleUniformAroundCenterMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -4789,9 +4789,9 @@ impl<'a> MinByteRange for PaintVarScaleUniformAroundCenter<'a> {
 impl<'a> FontRead<'a> for PaintVarScaleUniformAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintVarScaleUniformAroundCenterMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -4925,9 +4925,9 @@ impl<'a> MinByteRange for PaintRotate<'a> {
 impl<'a> FontRead<'a> for PaintRotate<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintRotateMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -5022,9 +5022,9 @@ impl<'a> MinByteRange for PaintVarRotate<'a> {
 impl<'a> FontRead<'a> for PaintVarRotate<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintVarRotateMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -5131,9 +5131,9 @@ impl<'a> MinByteRange for PaintRotateAroundCenter<'a> {
 impl<'a> FontRead<'a> for PaintRotateAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintRotateAroundCenterMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -5252,9 +5252,9 @@ impl<'a> MinByteRange for PaintVarRotateAroundCenter<'a> {
 impl<'a> FontRead<'a> for PaintVarRotateAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintVarRotateAroundCenterMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -5387,9 +5387,9 @@ impl<'a> MinByteRange for PaintSkew<'a> {
 impl<'a> FontRead<'a> for PaintSkew<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintSkewMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -5497,9 +5497,9 @@ impl<'a> MinByteRange for PaintVarSkew<'a> {
 impl<'a> FontRead<'a> for PaintVarSkew<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintVarSkewMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -5621,9 +5621,9 @@ impl<'a> MinByteRange for PaintSkewAroundCenter<'a> {
 impl<'a> FontRead<'a> for PaintSkewAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintSkewAroundCenterMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -5755,9 +5755,9 @@ impl<'a> MinByteRange for PaintVarSkewAroundCenter<'a> {
 impl<'a> FontRead<'a> for PaintVarSkewAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintVarSkewAroundCenterMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -5905,9 +5905,9 @@ impl<'a> MinByteRange for PaintComposite<'a> {
 impl<'a> FontRead<'a> for PaintComposite<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: PaintCompositeMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

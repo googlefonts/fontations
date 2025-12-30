@@ -24,9 +24,9 @@ impl TopLevelTable for Cpal<'_> {
 impl<'a> FontRead<'a> for Cpal<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: CpalMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

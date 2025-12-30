@@ -24,9 +24,9 @@ impl TopLevelTable for Ebdt<'_> {
 impl<'a> FontRead<'a> for Ebdt<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: EbdtMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

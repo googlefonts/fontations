@@ -24,9 +24,9 @@ impl TopLevelTable for Maxp<'_> {
 impl<'a> FontRead<'a> for Maxp<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: MaxpMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

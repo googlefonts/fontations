@@ -758,9 +758,9 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtableList<'a> {
     fn read_with_args(data: FontData<'a>, args: &u32) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: IndexSubtableListMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -920,9 +920,9 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable1<'a> {
     ) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: IndexSubtable1Marker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1048,9 +1048,9 @@ impl<'a> MinByteRange for IndexSubtable2<'a> {
 impl<'a> FontRead<'a> for IndexSubtable2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: IndexSubtable2Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1179,9 +1179,9 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable3<'a> {
     ) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: IndexSubtable3Marker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1307,9 +1307,9 @@ impl<'a> MinByteRange for IndexSubtable4<'a> {
 impl<'a> FontRead<'a> for IndexSubtable4<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: IndexSubtable4Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1474,9 +1474,9 @@ impl<'a> MinByteRange for IndexSubtable5<'a> {
 impl<'a> FontRead<'a> for IndexSubtable5<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: IndexSubtable5Marker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

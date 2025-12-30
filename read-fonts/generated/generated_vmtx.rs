@@ -29,9 +29,9 @@ impl<'a> FontReadWithArgs<'a> for Vmtx<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let args = *args;
         Ok(TableRef {
-            shape: VmtxMarker,
             args,
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

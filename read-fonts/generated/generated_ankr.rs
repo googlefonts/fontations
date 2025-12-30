@@ -24,9 +24,9 @@ impl TopLevelTable for Ankr<'_> {
 impl<'a> FontRead<'a> for Ankr<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: AnkrMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -132,9 +132,9 @@ impl<'a> MinByteRange for GlyphDataEntry<'a> {
 impl<'a> FontRead<'a> for GlyphDataEntry<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: GlyphDataEntryMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

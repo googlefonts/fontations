@@ -26,9 +26,9 @@ impl TopLevelTable for Varc<'_> {
 impl<'a> FontRead<'a> for Varc<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: VarcMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -195,9 +195,9 @@ impl<'a> MinByteRange for MultiItemVariationStore<'a> {
 impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: MultiItemVariationStoreMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -325,9 +325,9 @@ impl<'a> MinByteRange for SparseVariationRegionList<'a> {
 impl<'a> FontRead<'a> for SparseVariationRegionList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SparseVariationRegionListMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -419,9 +419,9 @@ impl<'a> MinByteRange for SparseVariationRegion<'a> {
 impl<'a> FontRead<'a> for SparseVariationRegion<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: SparseVariationRegionMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -554,9 +554,9 @@ impl<'a> MinByteRange for MultiItemVariationData<'a> {
 impl<'a> FontRead<'a> for MultiItemVariationData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: MultiItemVariationDataMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -657,9 +657,9 @@ impl<'a> MinByteRange for ConditionList<'a> {
 impl<'a> FontRead<'a> for ConditionList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: ConditionListMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }

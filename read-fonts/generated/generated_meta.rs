@@ -24,9 +24,9 @@ impl TopLevelTable for Meta<'_> {
 impl<'a> FontRead<'a> for Meta<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(TableRef {
-            shape: MetaMarker,
             args: (),
             data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
