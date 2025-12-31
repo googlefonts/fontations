@@ -78,37 +78,37 @@ impl<'a> CffHeader<'a> {
     /// Format major version (starting at 1).
     pub fn major(&self) -> u8 {
         let range = self.major_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Format minor version (starting at 0).
     pub fn minor(&self) -> u8 {
         let range = self.minor_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Header size (bytes).
     pub fn hdr_size(&self) -> u8 {
         let range = self.hdr_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Absolute offset size.
     pub fn off_size(&self) -> u8 {
         let range = self.off_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Padding bytes before the start of the Name INDEX.
     pub fn _padding(&self) -> &'a [u8] {
         let range = self._padding_byte_range();
-        self.data.read_array(range).unwrap()
+        unchecked::read_array(self.data, range)
     }
 
     /// Remaining table data.
     pub fn trailing_data(&self) -> &'a [u8] {
         let range = self.trailing_data_byte_range();
-        self.data.read_array(range).unwrap()
+        unchecked::read_array(self.data, range)
     }
 }
 

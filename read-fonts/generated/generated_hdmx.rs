@@ -88,27 +88,29 @@ impl<'a> Hdmx<'a> {
     /// Table version number (set to 0).
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of device records.
     pub fn num_records(&self) -> u16 {
         let range = self.num_records_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Size of device record, 32-bit aligned.
     pub fn size_device_record(&self) -> u32 {
         let range = self.size_device_record_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of device records.
     pub fn records(&self) -> ComputedArray<'a, DeviceRecord<'a>> {
         let range = self.records_byte_range();
-        self.data
-            .read_with_args(range, &(self.num_glyphs(), self.size_device_record()))
-            .unwrap()
+        unchecked::read_with_args(
+            self.data,
+            range,
+            &(self.num_glyphs(), self.size_device_record()),
+        )
     }
 
     pub(crate) fn num_glyphs(&self) -> u16 {

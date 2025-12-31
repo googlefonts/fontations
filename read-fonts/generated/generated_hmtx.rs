@@ -80,14 +80,14 @@ impl<'a> Hmtx<'a> {
     /// glyph. Records are indexed by glyph ID.
     pub fn h_metrics(&self) -> &'a [LongMetric] {
         let range = self.h_metrics_byte_range();
-        self.data.read_array(range).unwrap()
+        unchecked::read_array(self.data, range)
     }
 
     /// Leading (left/top) side bearings for glyph IDs greater than or equal to
     /// numberOfLongMetrics.
     pub fn left_side_bearings(&self) -> &'a [BigEndian<i16>] {
         let range = self.left_side_bearings_byte_range();
-        self.data.read_array(range).unwrap()
+        unchecked::read_array(self.data, range)
     }
 
     pub(crate) fn number_of_h_metrics(&self) -> u16 {
