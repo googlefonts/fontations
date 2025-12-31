@@ -70,13 +70,13 @@ impl<'a> Gpos<'a> {
     /// The major and minor version of the GPOS table, as a tuple (u16, u16)
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to ScriptList table, from beginning of GPOS table
     pub fn script_list_offset(&self) -> Offset16 {
         let range = self.script_list_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`script_list_offset`][Self::script_list_offset].
@@ -88,7 +88,7 @@ impl<'a> Gpos<'a> {
     /// Offset to FeatureList table, from beginning of GPOS table
     pub fn feature_list_offset(&self) -> Offset16 {
         let range = self.feature_list_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`feature_list_offset`][Self::feature_list_offset].
@@ -100,7 +100,7 @@ impl<'a> Gpos<'a> {
     /// Offset to LookupList table, from beginning of GPOS table
     pub fn lookup_list_offset(&self) -> Offset16 {
         let range = self.lookup_list_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
@@ -111,7 +111,7 @@ impl<'a> Gpos<'a> {
 
     pub fn feature_variations_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.feature_variations_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unchecked::read_at(self.data, range.start))
     }
 
     /// Attempt to resolve [`feature_variations_offset`][Self::feature_variations_offset].
@@ -735,19 +735,19 @@ impl<'a> AnchorFormat1<'a> {
     /// Format identifier, = 1
     pub fn anchor_format(&self) -> u16 {
         let range = self.anchor_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Horizontal value, in design units
     pub fn x_coordinate(&self) -> i16 {
         let range = self.x_coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Vertical value, in design units
     pub fn y_coordinate(&self) -> i16 {
         let range = self.y_coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 }
 
@@ -827,25 +827,25 @@ impl<'a> AnchorFormat2<'a> {
     /// Format identifier, = 2
     pub fn anchor_format(&self) -> u16 {
         let range = self.anchor_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Horizontal value, in design units
     pub fn x_coordinate(&self) -> i16 {
         let range = self.x_coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Vertical value, in design units
     pub fn y_coordinate(&self) -> i16 {
         let range = self.y_coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Index to glyph contour point
     pub fn anchor_point(&self) -> u16 {
         let range = self.anchor_point_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 }
 
@@ -931,19 +931,19 @@ impl<'a> AnchorFormat3<'a> {
     /// Format identifier, = 3
     pub fn anchor_format(&self) -> u16 {
         let range = self.anchor_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Horizontal value, in design units
     pub fn x_coordinate(&self) -> i16 {
         let range = self.x_coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Vertical value, in design units
     pub fn y_coordinate(&self) -> i16 {
         let range = self.y_coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to Device table (non-variable font) / VariationIndex
@@ -951,7 +951,7 @@ impl<'a> AnchorFormat3<'a> {
     /// Anchor table (may be NULL)
     pub fn x_device_offset(&self) -> Nullable<Offset16> {
         let range = self.x_device_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`x_device_offset`][Self::x_device_offset].
@@ -965,7 +965,7 @@ impl<'a> AnchorFormat3<'a> {
     /// Anchor table (may be NULL)
     pub fn y_device_offset(&self) -> Nullable<Offset16> {
         let range = self.y_device_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`y_device_offset`][Self::y_device_offset].
@@ -1052,14 +1052,14 @@ impl<'a> MarkArray<'a> {
     /// Number of MarkRecords
     pub fn mark_count(&self) -> u16 {
         let range = self.mark_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of MarkRecords, ordered by corresponding glyphs in the
     /// associated mark Coverage table.
     pub fn mark_records(&self) -> &'a [MarkRecord] {
         let range = self.mark_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unchecked::read_array(self.data, range)
     }
 }
 
@@ -1291,13 +1291,13 @@ impl<'a> SinglePosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
         let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to Coverage table, from beginning of SinglePos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -1309,16 +1309,14 @@ impl<'a> SinglePosFormat1<'a> {
     /// Defines the types of data in the ValueRecord.
     pub fn value_format(&self) -> ValueFormat {
         let range = self.value_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Defines positioning value(s) — applied to all glyphs in the
     /// Coverage table.
     pub fn value_record(&self) -> ValueRecord {
         let range = self.value_record_byte_range();
-        self.data
-            .read_with_args(range, &self.value_format())
-            .unwrap()
+        unchecked::read_with_args(self.data, range, &self.value_format())
     }
 }
 
@@ -1417,13 +1415,13 @@ impl<'a> SinglePosFormat2<'a> {
     /// Format identifier: format = 2
     pub fn pos_format(&self) -> u16 {
         let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to Coverage table, from beginning of SinglePos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -1435,22 +1433,20 @@ impl<'a> SinglePosFormat2<'a> {
     /// Defines the types of data in the ValueRecords.
     pub fn value_format(&self) -> ValueFormat {
         let range = self.value_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of ValueRecords — must equal glyphCount in the
     /// Coverage table.
     pub fn value_count(&self) -> u16 {
         let range = self.value_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of ValueRecords — positioning values applied to glyphs.
     pub fn value_records(&self) -> ComputedArray<'a, ValueRecord> {
         let range = self.value_records_byte_range();
-        self.data
-            .read_with_args(range, &self.value_format())
-            .unwrap()
+        unchecked::read_with_args(self.data, range, &self.value_format())
     }
 }
 
@@ -1657,13 +1653,13 @@ impl<'a> PairPosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
         let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to Coverage table, from beginning of PairPos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -1676,27 +1672,27 @@ impl<'a> PairPosFormat1<'a> {
     /// glyph in the pair (may be zero).
     pub fn value_format1(&self) -> ValueFormat {
         let range = self.value_format1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Defines the types of data in valueRecord2 — for the second
     /// glyph in the pair (may be zero).
     pub fn value_format2(&self) -> ValueFormat {
         let range = self.value_format2_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of PairSet tables
     pub fn pair_set_count(&self) -> u16 {
         let range = self.pair_set_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of offsets to PairSet tables. Offsets are from beginning
     /// of PairPos subtable, ordered by Coverage Index.
     pub fn pair_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.pair_set_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unchecked::read_array(self.data, range)
     }
 
     /// A dynamically resolving wrapper for [`pair_set_offsets`][Self::pair_set_offsets].
@@ -1823,16 +1819,18 @@ impl<'a> PairSet<'a> {
     /// Number of PairValueRecords
     pub fn pair_value_count(&self) -> u16 {
         let range = self.pair_value_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of PairValueRecords, ordered by glyph ID of the second
     /// glyph.
     pub fn pair_value_records(&self) -> ComputedArray<'a, PairValueRecord> {
         let range = self.pair_value_records_byte_range();
-        self.data
-            .read_with_args(range, &(self.value_format1(), self.value_format2()))
-            .unwrap()
+        unchecked::read_with_args(
+            self.data,
+            range,
+            &(self.value_format1(), self.value_format2()),
+        )
     }
 
     pub(crate) fn value_format1(&self) -> ValueFormat {
@@ -2070,13 +2068,13 @@ impl<'a> PairPosFormat2<'a> {
     /// Format identifier: format = 2
     pub fn pos_format(&self) -> u16 {
         let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to Coverage table, from beginning of PairPos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -2089,21 +2087,21 @@ impl<'a> PairPosFormat2<'a> {
     /// be zero).
     pub fn value_format1(&self) -> ValueFormat {
         let range = self.value_format1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// ValueRecord definition — for the second glyph of the pair
     /// (may be zero).
     pub fn value_format2(&self) -> ValueFormat {
         let range = self.value_format2_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the first glyph of the pair.
     pub fn class_def1_offset(&self) -> Offset16 {
         let range = self.class_def1_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`class_def1_offset`][Self::class_def1_offset].
@@ -2116,7 +2114,7 @@ impl<'a> PairPosFormat2<'a> {
     /// — for the second glyph of the pair.
     pub fn class_def2_offset(&self) -> Offset16 {
         let range = self.class_def2_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`class_def2_offset`][Self::class_def2_offset].
@@ -2128,28 +2126,27 @@ impl<'a> PairPosFormat2<'a> {
     /// Number of classes in classDef1 table — includes Class 0.
     pub fn class1_count(&self) -> u16 {
         let range = self.class1_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of classes in classDef2 table — includes Class 0.
     pub fn class2_count(&self) -> u16 {
         let range = self.class2_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of Class1 records, ordered by classes in classDef1.
     pub fn class1_records(&self) -> ComputedArray<'a, Class1Record<'a>> {
         let range = self.class1_records_byte_range();
-        self.data
-            .read_with_args(
-                range,
-                &(
-                    self.class2_count(),
-                    self.value_format1(),
-                    self.value_format2(),
-                ),
-            )
-            .unwrap()
+        unchecked::read_with_args(
+            self.data,
+            range,
+            &(
+                self.class2_count(),
+                self.value_format1(),
+                self.value_format2(),
+            ),
+        )
     }
 }
 
@@ -2432,13 +2429,13 @@ impl<'a> CursivePosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
         let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to Coverage table, from beginning of CursivePos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -2450,13 +2447,13 @@ impl<'a> CursivePosFormat1<'a> {
     /// Number of EntryExit records
     pub fn entry_exit_count(&self) -> u16 {
         let range = self.entry_exit_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of EntryExit records, in Coverage index order.
     pub fn entry_exit_record(&self) -> &'a [EntryExitRecord] {
         let range = self.entry_exit_record_byte_range();
-        self.data.read_array(range).unwrap()
+        unchecked::read_array(self.data, range)
     }
 }
 
@@ -2633,14 +2630,14 @@ impl<'a> MarkBasePosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
         let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to markCoverage table, from beginning of MarkBasePos
     /// subtable.
     pub fn mark_coverage_offset(&self) -> Offset16 {
         let range = self.mark_coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
@@ -2653,7 +2650,7 @@ impl<'a> MarkBasePosFormat1<'a> {
     /// subtable.
     pub fn base_coverage_offset(&self) -> Offset16 {
         let range = self.base_coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`base_coverage_offset`][Self::base_coverage_offset].
@@ -2665,14 +2662,14 @@ impl<'a> MarkBasePosFormat1<'a> {
     /// Number of classes defined for marks
     pub fn mark_class_count(&self) -> u16 {
         let range = self.mark_class_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to MarkArray table, from beginning of MarkBasePos
     /// subtable.
     pub fn mark_array_offset(&self) -> Offset16 {
         let range = self.mark_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
@@ -2685,7 +2682,7 @@ impl<'a> MarkBasePosFormat1<'a> {
     /// subtable.
     pub fn base_array_offset(&self) -> Offset16 {
         let range = self.base_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`base_array_offset`][Self::base_array_offset].
@@ -2796,15 +2793,13 @@ impl<'a> BaseArray<'a> {
     /// Number of BaseRecords
     pub fn base_count(&self) -> u16 {
         let range = self.base_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of BaseRecords, in order of baseCoverage Index.
     pub fn base_records(&self) -> ComputedArray<'a, BaseRecord<'a>> {
         let range = self.base_records_byte_range();
-        self.data
-            .read_with_args(range, &self.mark_class_count())
-            .unwrap()
+        unchecked::read_with_args(self.data, range, &self.mark_class_count())
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
@@ -2998,14 +2993,14 @@ impl<'a> MarkLigPosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
         let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to markCoverage table, from beginning of MarkLigPos
     /// subtable.
     pub fn mark_coverage_offset(&self) -> Offset16 {
         let range = self.mark_coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
@@ -3018,7 +3013,7 @@ impl<'a> MarkLigPosFormat1<'a> {
     /// subtable.
     pub fn ligature_coverage_offset(&self) -> Offset16 {
         let range = self.ligature_coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`ligature_coverage_offset`][Self::ligature_coverage_offset].
@@ -3030,14 +3025,14 @@ impl<'a> MarkLigPosFormat1<'a> {
     /// Number of defined mark classes
     pub fn mark_class_count(&self) -> u16 {
         let range = self.mark_class_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to MarkArray table, from beginning of MarkLigPos
     /// subtable.
     pub fn mark_array_offset(&self) -> Offset16 {
         let range = self.mark_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
@@ -3050,7 +3045,7 @@ impl<'a> MarkLigPosFormat1<'a> {
     /// subtable.
     pub fn ligature_array_offset(&self) -> Offset16 {
         let range = self.ligature_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`ligature_array_offset`][Self::ligature_array_offset].
@@ -3161,7 +3156,7 @@ impl<'a> LigatureArray<'a> {
     /// Number of LigatureAttach table offsets
     pub fn ligature_count(&self) -> u16 {
         let range = self.ligature_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of offsets to LigatureAttach tables. Offsets are from
@@ -3169,7 +3164,7 @@ impl<'a> LigatureArray<'a> {
     /// index.
     pub fn ligature_attach_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.ligature_attach_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unchecked::read_array(self.data, range)
     }
 
     /// A dynamically resolving wrapper for [`ligature_attach_offsets`][Self::ligature_attach_offsets].
@@ -3283,15 +3278,13 @@ impl<'a> LigatureAttach<'a> {
     /// Number of ComponentRecords in this ligature
     pub fn component_count(&self) -> u16 {
         let range = self.component_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of Component records, ordered in writing direction.
     pub fn component_records(&self) -> ComputedArray<'a, ComponentRecord<'a>> {
         let range = self.component_records_byte_range();
-        self.data
-            .read_with_args(range, &self.mark_class_count())
-            .unwrap()
+        unchecked::read_with_args(self.data, range, &self.mark_class_count())
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
@@ -3485,14 +3478,14 @@ impl<'a> MarkMarkPosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
         let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to Combining Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
     pub fn mark1_coverage_offset(&self) -> Offset16 {
         let range = self.mark1_coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark1_coverage_offset`][Self::mark1_coverage_offset].
@@ -3505,7 +3498,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
     /// MarkMarkPos subtable.
     pub fn mark2_coverage_offset(&self) -> Offset16 {
         let range = self.mark2_coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark2_coverage_offset`][Self::mark2_coverage_offset].
@@ -3517,14 +3510,14 @@ impl<'a> MarkMarkPosFormat1<'a> {
     /// Number of Combining Mark classes defined
     pub fn mark_class_count(&self) -> u16 {
         let range = self.mark_class_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to MarkArray table for mark1, from beginning of
     /// MarkMarkPos subtable.
     pub fn mark1_array_offset(&self) -> Offset16 {
         let range = self.mark1_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark1_array_offset`][Self::mark1_array_offset].
@@ -3537,7 +3530,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
     /// MarkMarkPos subtable.
     pub fn mark2_array_offset(&self) -> Offset16 {
         let range = self.mark2_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark2_array_offset`][Self::mark2_array_offset].
@@ -3648,15 +3641,13 @@ impl<'a> Mark2Array<'a> {
     /// Number of Mark2 records
     pub fn mark2_count(&self) -> u16 {
         let range = self.mark2_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of Mark2Records, in Coverage order.
     pub fn mark2_records(&self) -> ComputedArray<'a, Mark2Record<'a>> {
         let range = self.mark2_records_byte_range();
-        self.data
-            .read_with_args(range, &self.mark_class_count())
-            .unwrap()
+        unchecked::read_with_args(self.data, range, &self.mark_class_count())
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
@@ -3861,14 +3852,14 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
         let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Lookup type of subtable referenced by extensionOffset (i.e. the
     /// extension subtable).
     pub fn extension_lookup_type(&self) -> u16 {
         let range = self.extension_lookup_type_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to the extension subtable, of lookup type
@@ -3876,7 +3867,7 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
     /// ExtensionPosFormat1 subtable.
     pub fn extension_offset(&self) -> Offset32 {
         let range = self.extension_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`extension_offset`][Self::extension_offset].

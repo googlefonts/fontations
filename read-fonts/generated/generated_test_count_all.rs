@@ -49,12 +49,12 @@ impl<'a> CountAll16<'a> {
 
     pub fn some_field(&self) -> u16 {
         let range = self.some_field_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     pub fn remainder(&self) -> &'a [BigEndian<u16>] {
         let range = self.remainder_byte_range();
-        self.data.read_array(range).unwrap()
+        unchecked::read_array(self.data, range)
     }
 }
 
@@ -124,12 +124,12 @@ impl<'a> CountAll32<'a> {
 
     pub fn some_field(&self) -> u16 {
         let range = self.some_field_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     pub fn remainder(&self) -> &'a [BigEndian<u32>] {
         let range = self.remainder_byte_range();
-        self.data.read_array(range).unwrap()
+        unchecked::read_array(self.data, range)
     }
 }
 

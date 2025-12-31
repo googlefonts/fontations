@@ -66,7 +66,7 @@ impl<'a> Vorg<'a> {
     /// Major/minor version number. Set to 1.0.
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// The y coordinate of a glyph’s vertical origin, in the font’s design
@@ -74,19 +74,19 @@ impl<'a> Vorg<'a> {
     /// in the vertOriginYMetrics array.
     pub fn default_vert_origin_y(&self) -> i16 {
         let range = self.default_vert_origin_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of elements in the vertOriginYMetrics array.
     pub fn num_vert_origin_y_metrics(&self) -> u16 {
         let range = self.num_vert_origin_y_metrics_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of VertOriginYMetrics records, sorted by glyph ID.
     pub fn vert_origin_y_metrics(&self) -> &'a [VertOriginYMetrics] {
         let range = self.vert_origin_y_metrics_byte_range();
-        self.data.read_array(range).unwrap()
+        unchecked::read_array(self.data, range)
     }
 }
 

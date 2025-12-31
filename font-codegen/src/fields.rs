@@ -825,13 +825,13 @@ impl Field {
         let range_stmt = self.getter_range_stmt();
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
             let get_args = args.to_tokens_for_table_getter();
-            quote!( self.data.read_with_args(range, &#get_args).unwrap() )
+            quote!(unchecked::read_with_args(self.data, range, &#get_args))
         } else if is_var_array {
-            quote!(VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap())
+            quote!(VarLenArray::read(unchecked::split_off(self.data, range.start)).unwrap())
         } else if is_array {
-            quote!(self.data.read_array(range).unwrap())
+            quote!(unchecked::read_array(self.data, range))
         } else {
-            quote!(self.data.read_at(range.start).unwrap())
+            quote!(unchecked::read_at(self.data, range.start))
         };
         if is_versioned {
             read_stmt = quote!(Some(#read_stmt));

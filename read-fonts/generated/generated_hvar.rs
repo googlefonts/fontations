@@ -65,13 +65,13 @@ impl<'a> Hvar<'a> {
     /// Minor version number of the horizontal metrics variations table — set to 0.
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset in bytes from the start of this table to the item variation store table.
     pub fn item_variation_store_offset(&self) -> Offset32 {
         let range = self.item_variation_store_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
@@ -83,7 +83,7 @@ impl<'a> Hvar<'a> {
     /// Offset in bytes from the start of this table to the delta-set index mapping for advance widths (may be NULL).
     pub fn advance_width_mapping_offset(&self) -> Nullable<Offset32> {
         let range = self.advance_width_mapping_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`advance_width_mapping_offset`][Self::advance_width_mapping_offset].
@@ -95,7 +95,7 @@ impl<'a> Hvar<'a> {
     /// Offset in bytes from the start of this table to the delta-set index mapping for left side bearings (may be NULL).
     pub fn lsb_mapping_offset(&self) -> Nullable<Offset32> {
         let range = self.lsb_mapping_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`lsb_mapping_offset`][Self::lsb_mapping_offset].
@@ -107,7 +107,7 @@ impl<'a> Hvar<'a> {
     /// Offset in bytes from the start of this table to the delta-set index mapping for right side bearings (may be NULL).
     pub fn rsb_mapping_offset(&self) -> Nullable<Offset32> {
         let range = self.rsb_mapping_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`rsb_mapping_offset`][Self::rsb_mapping_offset].

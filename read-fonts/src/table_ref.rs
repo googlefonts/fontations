@@ -34,7 +34,6 @@ impl<'a, T, A> TableRef<'a, T, A> {
     pub fn offset_data(&self) -> FontData<'a> {
         self.data
     }
-
 }
 
 // a blanket impl so that the format is available through a TableRef

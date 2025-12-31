@@ -90,25 +90,25 @@ impl<'a> Avar<'a> {
     /// Minor version number of the axis variations table — set to 0.
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// The number of variation axes for this font. This must be the same number as axisCount in the 'fvar' table.
     pub fn axis_count(&self) -> u16 {
         let range = self.axis_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// The segment maps array — one segment map for each axis, in the order of axes specified in the 'fvar' table.
     pub fn axis_segment_maps(&self) -> VarLenArray<'a, SegmentMaps<'a>> {
         let range = self.axis_segment_maps_byte_range();
-        VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
+        VarLenArray::read(unchecked::split_off(self.data, range.start)).unwrap()
     }
 
     /// Offset to DeltaSetIndexMap table (may be NULL).
     pub fn axis_index_map_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.axis_index_map_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unchecked::read_at(self.data, range.start))
     }
 
     /// Attempt to resolve [`axis_index_map_offset`][Self::axis_index_map_offset].
@@ -120,7 +120,7 @@ impl<'a> Avar<'a> {
     /// Offset to ItemVariationStore (may be NULL).
     pub fn var_store_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.var_store_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unchecked::read_at(self.data, range.start))
     }
 
     /// Attempt to resolve [`var_store_offset`][Self::var_store_offset].

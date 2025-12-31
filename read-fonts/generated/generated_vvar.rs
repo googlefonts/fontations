@@ -70,13 +70,13 @@ impl<'a> Vvar<'a> {
     /// Minor version number of the horizontal metrics variations table — set to 0.
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset in bytes from the start of this table to the item variation store table.
     pub fn item_variation_store_offset(&self) -> Offset32 {
         let range = self.item_variation_store_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
@@ -88,7 +88,7 @@ impl<'a> Vvar<'a> {
     /// Offset in bytes from the start of this table to the delta-set index mapping for advance heights (may be NULL).
     pub fn advance_height_mapping_offset(&self) -> Nullable<Offset32> {
         let range = self.advance_height_mapping_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`advance_height_mapping_offset`][Self::advance_height_mapping_offset].
@@ -100,7 +100,7 @@ impl<'a> Vvar<'a> {
     /// Offset in bytes from the start of this table to the delta-set index mapping for top side bearings (may be NULL).
     pub fn tsb_mapping_offset(&self) -> Nullable<Offset32> {
         let range = self.tsb_mapping_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`tsb_mapping_offset`][Self::tsb_mapping_offset].
@@ -112,7 +112,7 @@ impl<'a> Vvar<'a> {
     /// Offset in bytes from the start of this table to the delta-set index mapping for bottom side bearings (may be NULL).
     pub fn bsb_mapping_offset(&self) -> Nullable<Offset32> {
         let range = self.bsb_mapping_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`bsb_mapping_offset`][Self::bsb_mapping_offset].
@@ -124,7 +124,7 @@ impl<'a> Vvar<'a> {
     /// Offset in bytes from the start of this table to the delta-set index mapping for Y coordinates of vertical origins (may be NULL).
     pub fn v_org_mapping_offset(&self) -> Nullable<Offset32> {
         let range = self.v_org_mapping_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`v_org_mapping_offset`][Self::v_org_mapping_offset].
