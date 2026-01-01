@@ -9,11 +9,35 @@ use crate::codegen_prelude::*;
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct GposMarker {
-    feature_variations_offset_byte_start: Option<usize>,
+pub struct GposMarker;
+
+impl<'a> MinByteRange for Gpos<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.lookup_list_offset_byte_range().end
+    }
 }
 
-impl GposMarker {
+impl TopLevelTable for Gpos<'_> {
+    /// `GPOS`
+    const TAG: Tag = Tag::new(b"GPOS");
+}
+
+impl<'a> FontRead<'a> for Gpos<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
+/// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
+pub type Gpos<'a> = TableRef<'a, GposMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Gpos<'a> {
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
@@ -35,58 +59,24 @@ impl GposMarker {
     }
 
     pub fn feature_variations_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.feature_variations_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 1u16)) {
+            let start = self.lookup_list_offset_byte_range().end;
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
-}
 
-impl MinByteRange for GposMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.lookup_list_offset_byte_range().end
-    }
-}
-
-impl TopLevelTable for Gpos<'_> {
-    /// `GPOS`
-    const TAG: Tag = Tag::new(b"GPOS");
-}
-
-impl<'a> FontRead<'a> for Gpos<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: MajorMinor = cursor.read()?;
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        let feature_variations_offset_byte_start = version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.advance::<Offset32>());
-        cursor.finish(GposMarker {
-            feature_variations_offset_byte_start,
-        })
-    }
-}
-
-/// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
-/// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
-pub type Gpos<'a> = TableRef<'a, GposMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Gpos<'a> {
     /// The major and minor version of the GPOS table, as a tuple (u16, u16)
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.version_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to ScriptList table, from beginning of GPOS table
     pub fn script_list_offset(&self) -> Offset16 {
-        let range = self.shape.script_list_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.script_list_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`script_list_offset`][Self::script_list_offset].
@@ -97,8 +87,8 @@ impl<'a> Gpos<'a> {
 
     /// Offset to FeatureList table, from beginning of GPOS table
     pub fn feature_list_offset(&self) -> Offset16 {
-        let range = self.shape.feature_list_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.feature_list_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`feature_list_offset`][Self::feature_list_offset].
@@ -109,8 +99,8 @@ impl<'a> Gpos<'a> {
 
     /// Offset to LookupList table, from beginning of GPOS table
     pub fn lookup_list_offset(&self) -> Offset16 {
-        let range = self.shape.lookup_list_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.lookup_list_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
@@ -120,8 +110,8 @@ impl<'a> Gpos<'a> {
     }
 
     pub fn feature_variations_offset(&self) -> Option<Nullable<Offset32>> {
-        let range = self.shape.feature_variations_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.feature_variations_offset_byte_range()?;
+        Some(unchecked::read_at(self.data, range.start))
     }
 
     /// Attempt to resolve [`feature_variations_offset`][Self::feature_variations_offset].
@@ -704,9 +694,29 @@ impl Format<u16> for AnchorFormat1Marker {
 /// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AnchorFormat1Marker {}
+pub struct AnchorFormat1Marker;
 
-impl AnchorFormat1Marker {
+impl<'a> MinByteRange for AnchorFormat1<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.y_coordinate_byte_range().end
+    }
+}
+
+impl<'a> FontRead<'a> for AnchorFormat1<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
+pub type AnchorFormat1<'a> = TableRef<'a, AnchorFormat1Marker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> AnchorFormat1<'a> {
     pub fn anchor_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -721,45 +731,23 @@ impl AnchorFormat1Marker {
         let start = self.x_coordinate_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-}
 
-impl MinByteRange for AnchorFormat1Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.y_coordinate_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for AnchorFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.finish(AnchorFormat1Marker {})
-    }
-}
-
-/// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
-pub type AnchorFormat1<'a> = TableRef<'a, AnchorFormat1Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> AnchorFormat1<'a> {
     /// Format identifier, = 1
     pub fn anchor_format(&self) -> u16 {
-        let range = self.shape.anchor_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.anchor_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Horizontal value, in design units
     pub fn x_coordinate(&self) -> i16 {
-        let range = self.shape.x_coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.x_coordinate_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Vertical value, in design units
     pub fn y_coordinate(&self) -> i16 {
-        let range = self.shape.y_coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.y_coordinate_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 }
 
@@ -793,9 +781,29 @@ impl Format<u16> for AnchorFormat2Marker {
 /// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AnchorFormat2Marker {}
+pub struct AnchorFormat2Marker;
 
-impl AnchorFormat2Marker {
+impl<'a> MinByteRange for AnchorFormat2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.anchor_point_byte_range().end
+    }
+}
+
+impl<'a> FontRead<'a> for AnchorFormat2<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
+pub type AnchorFormat2<'a> = TableRef<'a, AnchorFormat2Marker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> AnchorFormat2<'a> {
     pub fn anchor_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -815,52 +823,29 @@ impl AnchorFormat2Marker {
         let start = self.y_coordinate_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-}
 
-impl MinByteRange for AnchorFormat2Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.anchor_point_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for AnchorFormat2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<u16>();
-        cursor.finish(AnchorFormat2Marker {})
-    }
-}
-
-/// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
-pub type AnchorFormat2<'a> = TableRef<'a, AnchorFormat2Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> AnchorFormat2<'a> {
     /// Format identifier, = 2
     pub fn anchor_format(&self) -> u16 {
-        let range = self.shape.anchor_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.anchor_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Horizontal value, in design units
     pub fn x_coordinate(&self) -> i16 {
-        let range = self.shape.x_coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.x_coordinate_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Vertical value, in design units
     pub fn y_coordinate(&self) -> i16 {
-        let range = self.shape.y_coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.y_coordinate_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Index to glyph contour point
     pub fn anchor_point(&self) -> u16 {
-        let range = self.shape.anchor_point_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.anchor_point_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 }
 
@@ -895,9 +880,29 @@ impl Format<u16> for AnchorFormat3Marker {
 /// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AnchorFormat3Marker {}
+pub struct AnchorFormat3Marker;
 
-impl AnchorFormat3Marker {
+impl<'a> MinByteRange for AnchorFormat3<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.y_device_offset_byte_range().end
+    }
+}
+
+impl<'a> FontRead<'a> for AnchorFormat3<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
+pub type AnchorFormat3<'a> = TableRef<'a, AnchorFormat3Marker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> AnchorFormat3<'a> {
     pub fn anchor_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -922,55 +927,31 @@ impl AnchorFormat3Marker {
         let start = self.x_device_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-}
 
-impl MinByteRange for AnchorFormat3Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.y_device_offset_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for AnchorFormat3<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.finish(AnchorFormat3Marker {})
-    }
-}
-
-/// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
-pub type AnchorFormat3<'a> = TableRef<'a, AnchorFormat3Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> AnchorFormat3<'a> {
     /// Format identifier, = 3
     pub fn anchor_format(&self) -> u16 {
-        let range = self.shape.anchor_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.anchor_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Horizontal value, in design units
     pub fn x_coordinate(&self) -> i16 {
-        let range = self.shape.x_coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.x_coordinate_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Vertical value, in design units
     pub fn y_coordinate(&self) -> i16 {
-        let range = self.shape.y_coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.y_coordinate_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for X coordinate, from beginning of
     /// Anchor table (may be NULL)
     pub fn x_device_offset(&self) -> Nullable<Offset16> {
-        let range = self.shape.x_device_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.x_device_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`x_device_offset`][Self::x_device_offset].
@@ -983,8 +964,8 @@ impl<'a> AnchorFormat3<'a> {
     /// table (variable font) for Y coordinate, from beginning of
     /// Anchor table (may be NULL)
     pub fn y_device_offset(&self) -> Nullable<Offset16> {
-        let range = self.shape.y_device_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.y_device_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`y_device_offset`][Self::y_device_offset].
@@ -1028,23 +1009,9 @@ impl<'a> std::fmt::Debug for AnchorFormat3<'a> {
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MarkArrayMarker {
-    mark_records_byte_len: usize,
-}
+pub struct MarkArrayMarker;
 
-impl MarkArrayMarker {
-    pub fn mark_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn mark_records_byte_range(&self) -> Range<usize> {
-        let start = self.mark_count_byte_range().end;
-        start..start + self.mark_records_byte_len
-    }
-}
-
-impl MinByteRange for MarkArrayMarker {
+impl<'a> MinByteRange for MarkArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.mark_records_byte_range().end
     }
@@ -1052,34 +1019,47 @@ impl MinByteRange for MarkArrayMarker {
 
 impl<'a> FontRead<'a> for MarkArray<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let mark_count: u16 = cursor.read()?;
-        let mark_records_byte_len = (mark_count as usize)
-            .checked_mul(MarkRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(mark_records_byte_len);
-        cursor.finish(MarkArrayMarker {
-            mark_records_byte_len,
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
 
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
-pub type MarkArray<'a> = TableRef<'a, MarkArrayMarker>;
+pub type MarkArray<'a> = TableRef<'a, MarkArrayMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MarkArray<'a> {
+    fn mark_records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.mark_count()) as usize)
+            .checked_mul(MarkRecord::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
+    pub fn mark_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn mark_records_byte_range(&self) -> Range<usize> {
+        let start = self.mark_count_byte_range().end;
+        start..start + self.mark_records_byte_len(start)
+    }
+
     /// Number of MarkRecords
     pub fn mark_count(&self) -> u16 {
-        let range = self.shape.mark_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.mark_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of MarkRecords, ordered by corresponding glyphs in the
     /// associated mark Coverage table.
     pub fn mark_records(&self) -> &'a [MarkRecord] {
-        let range = self.shape.mark_records_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.mark_records_byte_range();
+        unchecked::read_array(self.data, range)
     }
 }
 
@@ -1260,11 +1240,34 @@ impl Format<u16> for SinglePosFormat1Marker {
 /// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SinglePosFormat1Marker {
-    value_record_byte_len: usize,
+pub struct SinglePosFormat1Marker;
+
+impl<'a> MinByteRange for SinglePosFormat1<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.value_record_byte_range().end
+    }
 }
 
-impl SinglePosFormat1Marker {
+impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
+pub type SinglePosFormat1<'a> = TableRef<'a, SinglePosFormat1Marker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> SinglePosFormat1<'a> {
+    fn value_record_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        <ValueRecord as ComputeSize>::compute_size(&self.value_format()).unwrap()
+    }
+
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -1282,45 +1285,19 @@ impl SinglePosFormat1Marker {
 
     pub fn value_record_byte_range(&self) -> Range<usize> {
         let start = self.value_format_byte_range().end;
-        start..start + self.value_record_byte_len
+        start..start + self.value_record_byte_len(start)
     }
-}
 
-impl MinByteRange for SinglePosFormat1Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.value_record_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        let value_format: ValueFormat = cursor.read()?;
-        let value_record_byte_len = <ValueRecord as ComputeSize>::compute_size(&value_format)?;
-        cursor.advance_by(value_record_byte_len);
-        cursor.finish(SinglePosFormat1Marker {
-            value_record_byte_len,
-        })
-    }
-}
-
-/// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
-pub type SinglePosFormat1<'a> = TableRef<'a, SinglePosFormat1Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> SinglePosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
-        let range = self.shape.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.pos_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to Coverage table, from beginning of SinglePos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.coverage_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -1331,17 +1308,15 @@ impl<'a> SinglePosFormat1<'a> {
 
     /// Defines the types of data in the ValueRecord.
     pub fn value_format(&self) -> ValueFormat {
-        let range = self.shape.value_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.value_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Defines positioning value(s) — applied to all glyphs in the
     /// Coverage table.
     pub fn value_record(&self) -> ValueRecord {
-        let range = self.shape.value_record_byte_range();
-        self.data
-            .read_with_args(range, &self.value_format())
-            .unwrap()
+        let range = self.value_record_byte_range();
+        unchecked::read_with_args(self.data, range, &self.value_format())
     }
 }
 
@@ -1382,11 +1357,36 @@ impl Format<u16> for SinglePosFormat2Marker {
 /// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SinglePosFormat2Marker {
-    value_records_byte_len: usize,
+pub struct SinglePosFormat2Marker;
+
+impl<'a> MinByteRange for SinglePosFormat2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.value_records_byte_range().end
+    }
 }
 
-impl SinglePosFormat2Marker {
+impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
+pub type SinglePosFormat2<'a> = TableRef<'a, SinglePosFormat2Marker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> SinglePosFormat2<'a> {
+    fn value_records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.value_count()) as usize)
+            .checked_mul(<ValueRecord as ComputeSize>::compute_size(&self.value_format()).unwrap())
+            .unwrap()
+    }
+
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -1409,48 +1409,19 @@ impl SinglePosFormat2Marker {
 
     pub fn value_records_byte_range(&self) -> Range<usize> {
         let start = self.value_count_byte_range().end;
-        start..start + self.value_records_byte_len
+        start..start + self.value_records_byte_len(start)
     }
-}
 
-impl MinByteRange for SinglePosFormat2Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.value_records_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        let value_format: ValueFormat = cursor.read()?;
-        let value_count: u16 = cursor.read()?;
-        let value_records_byte_len = (value_count as usize)
-            .checked_mul(<ValueRecord as ComputeSize>::compute_size(&value_format)?)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(value_records_byte_len);
-        cursor.finish(SinglePosFormat2Marker {
-            value_records_byte_len,
-        })
-    }
-}
-
-/// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
-pub type SinglePosFormat2<'a> = TableRef<'a, SinglePosFormat2Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> SinglePosFormat2<'a> {
     /// Format identifier: format = 2
     pub fn pos_format(&self) -> u16 {
-        let range = self.shape.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.pos_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to Coverage table, from beginning of SinglePos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.coverage_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -1461,23 +1432,21 @@ impl<'a> SinglePosFormat2<'a> {
 
     /// Defines the types of data in the ValueRecords.
     pub fn value_format(&self) -> ValueFormat {
-        let range = self.shape.value_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.value_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of ValueRecords — must equal glyphCount in the
     /// Coverage table.
     pub fn value_count(&self) -> u16 {
-        let range = self.shape.value_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.value_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of ValueRecords — positioning values applied to glyphs.
     pub fn value_records(&self) -> ComputedArray<'a, ValueRecord> {
-        let range = self.shape.value_records_byte_range();
-        self.data
-            .read_with_args(range, &self.value_format())
-            .unwrap()
+        let range = self.value_records_byte_range();
+        unchecked::read_with_args(self.data, range, &self.value_format())
     }
 }
 
@@ -1621,11 +1590,36 @@ impl Format<u16> for PairPosFormat1Marker {
 /// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PairPosFormat1Marker {
-    pair_set_offsets_byte_len: usize,
+pub struct PairPosFormat1Marker;
+
+impl<'a> MinByteRange for PairPosFormat1<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.pair_set_offsets_byte_range().end
+    }
 }
 
-impl PairPosFormat1Marker {
+impl<'a> FontRead<'a> for PairPosFormat1<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
+pub type PairPosFormat1<'a> = TableRef<'a, PairPosFormat1Marker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> PairPosFormat1<'a> {
+    fn pair_set_offsets_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.pair_set_count()) as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -1653,49 +1647,19 @@ impl PairPosFormat1Marker {
 
     pub fn pair_set_offsets_byte_range(&self) -> Range<usize> {
         let start = self.pair_set_count_byte_range().end;
-        start..start + self.pair_set_offsets_byte_len
+        start..start + self.pair_set_offsets_byte_len(start)
     }
-}
 
-impl MinByteRange for PairPosFormat1Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.pair_set_offsets_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for PairPosFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<ValueFormat>();
-        cursor.advance::<ValueFormat>();
-        let pair_set_count: u16 = cursor.read()?;
-        let pair_set_offsets_byte_len = (pair_set_count as usize)
-            .checked_mul(Offset16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(pair_set_offsets_byte_len);
-        cursor.finish(PairPosFormat1Marker {
-            pair_set_offsets_byte_len,
-        })
-    }
-}
-
-/// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
-pub type PairPosFormat1<'a> = TableRef<'a, PairPosFormat1Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> PairPosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
-        let range = self.shape.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.pos_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to Coverage table, from beginning of PairPos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.coverage_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -1707,28 +1671,28 @@ impl<'a> PairPosFormat1<'a> {
     /// Defines the types of data in valueRecord1 — for the first
     /// glyph in the pair (may be zero).
     pub fn value_format1(&self) -> ValueFormat {
-        let range = self.shape.value_format1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.value_format1_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Defines the types of data in valueRecord2 — for the second
     /// glyph in the pair (may be zero).
     pub fn value_format2(&self) -> ValueFormat {
-        let range = self.shape.value_format2_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.value_format2_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of PairSet tables
     pub fn pair_set_count(&self) -> u16 {
-        let range = self.shape.pair_set_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.pair_set_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of offsets to PairSet tables. Offsets are from beginning
     /// of PairPos subtable, ordered by Coverage Index.
     pub fn pair_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
-        let range = self.shape.pair_set_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.pair_set_offsets_byte_range();
+        unchecked::read_array(self.data, range)
     }
 
     /// A dynamically resolving wrapper for [`pair_set_offsets`][Self::pair_set_offsets].
@@ -1786,25 +1750,9 @@ impl<'a> std::fmt::Debug for PairPosFormat1<'a> {
 /// Part of [PairPosFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PairSetMarker {
-    value_format1: ValueFormat,
-    value_format2: ValueFormat,
-    pair_value_records_byte_len: usize,
-}
+pub struct PairSetMarker;
 
-impl PairSetMarker {
-    pub fn pair_value_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn pair_value_records_byte_range(&self) -> Range<usize> {
-        let start = self.pair_value_count_byte_range().end;
-        start..start + self.pair_value_records_byte_len
-    }
-}
-
-impl MinByteRange for PairSetMarker {
+impl<'a> MinByteRange for PairSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.pair_value_records_byte_range().end
     }
@@ -1819,20 +1767,11 @@ impl<'a> FontReadWithArgs<'a> for PairSet<'a> {
         data: FontData<'a>,
         args: &(ValueFormat, ValueFormat),
     ) -> Result<Self, ReadError> {
-        let (value_format1, value_format2) = *args;
-        let mut cursor = data.cursor();
-        let pair_value_count: u16 = cursor.read()?;
-        let pair_value_records_byte_len = (pair_value_count as usize)
-            .checked_mul(<PairValueRecord as ComputeSize>::compute_size(&(
-                value_format1,
-                value_format2,
-            ))?)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(pair_value_records_byte_len);
-        cursor.finish(PairSetMarker {
-            value_format1,
-            value_format2,
-            pair_value_records_byte_len,
+        let args = *args;
+        Ok(TableRef {
+            args,
+            data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1853,31 +1792,53 @@ impl<'a> PairSet<'a> {
 }
 
 /// Part of [PairPosFormat1]
-pub type PairSet<'a> = TableRef<'a, PairSetMarker>;
+pub type PairSet<'a> = TableRef<'a, PairSetMarker, (ValueFormat, ValueFormat)>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PairSet<'a> {
+    fn pair_value_records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.pair_value_count()) as usize)
+            .checked_mul(
+                <PairValueRecord as ComputeSize>::compute_size(&(self.args.0, self.args.1))
+                    .unwrap(),
+            )
+            .unwrap()
+    }
+
+    pub fn pair_value_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn pair_value_records_byte_range(&self) -> Range<usize> {
+        let start = self.pair_value_count_byte_range().end;
+        start..start + self.pair_value_records_byte_len(start)
+    }
+
     /// Number of PairValueRecords
     pub fn pair_value_count(&self) -> u16 {
-        let range = self.shape.pair_value_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.pair_value_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of PairValueRecords, ordered by glyph ID of the second
     /// glyph.
     pub fn pair_value_records(&self) -> ComputedArray<'a, PairValueRecord> {
-        let range = self.shape.pair_value_records_byte_range();
-        self.data
-            .read_with_args(range, &(self.value_format1(), self.value_format2()))
-            .unwrap()
+        let range = self.pair_value_records_byte_range();
+        unchecked::read_with_args(
+            self.data,
+            range,
+            &(self.value_format1(), self.value_format2()),
+        )
     }
 
     pub(crate) fn value_format1(&self) -> ValueFormat {
-        self.shape.value_format1
+        self.args.0
     }
 
     pub(crate) fn value_format2(&self) -> ValueFormat {
-        self.shape.value_format2
+        self.args.1
     }
 }
 
@@ -2022,11 +1983,43 @@ impl Format<u16> for PairPosFormat2Marker {
 /// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PairPosFormat2Marker {
-    class1_records_byte_len: usize,
+pub struct PairPosFormat2Marker;
+
+impl<'a> MinByteRange for PairPosFormat2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.class1_records_byte_range().end
+    }
 }
 
-impl PairPosFormat2Marker {
+impl<'a> FontRead<'a> for PairPosFormat2<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
+pub type PairPosFormat2<'a> = TableRef<'a, PairPosFormat2Marker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> PairPosFormat2<'a> {
+    fn class1_records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.class1_count()) as usize)
+            .checked_mul(
+                <Class1Record as ComputeSize>::compute_size(&(
+                    self.class2_count(),
+                    self.value_format1(),
+                    self.value_format2(),
+                ))
+                .unwrap(),
+            )
+            .unwrap()
+    }
+
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -2069,56 +2062,19 @@ impl PairPosFormat2Marker {
 
     pub fn class1_records_byte_range(&self) -> Range<usize> {
         let start = self.class2_count_byte_range().end;
-        start..start + self.class1_records_byte_len
+        start..start + self.class1_records_byte_len(start)
     }
-}
 
-impl MinByteRange for PairPosFormat2Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.class1_records_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for PairPosFormat2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        let value_format1: ValueFormat = cursor.read()?;
-        let value_format2: ValueFormat = cursor.read()?;
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        let class1_count: u16 = cursor.read()?;
-        let class2_count: u16 = cursor.read()?;
-        let class1_records_byte_len = (class1_count as usize)
-            .checked_mul(<Class1Record as ComputeSize>::compute_size(&(
-                class2_count,
-                value_format1,
-                value_format2,
-            ))?)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(class1_records_byte_len);
-        cursor.finish(PairPosFormat2Marker {
-            class1_records_byte_len,
-        })
-    }
-}
-
-/// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
-pub type PairPosFormat2<'a> = TableRef<'a, PairPosFormat2Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> PairPosFormat2<'a> {
     /// Format identifier: format = 2
     pub fn pos_format(&self) -> u16 {
-        let range = self.shape.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.pos_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to Coverage table, from beginning of PairPos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.coverage_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -2130,22 +2086,22 @@ impl<'a> PairPosFormat2<'a> {
     /// ValueRecord definition — for the first glyph of the pair (may
     /// be zero).
     pub fn value_format1(&self) -> ValueFormat {
-        let range = self.shape.value_format1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.value_format1_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// ValueRecord definition — for the second glyph of the pair
     /// (may be zero).
     pub fn value_format2(&self) -> ValueFormat {
-        let range = self.shape.value_format2_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.value_format2_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the first glyph of the pair.
     pub fn class_def1_offset(&self) -> Offset16 {
-        let range = self.shape.class_def1_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.class_def1_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`class_def1_offset`][Self::class_def1_offset].
@@ -2157,8 +2113,8 @@ impl<'a> PairPosFormat2<'a> {
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the second glyph of the pair.
     pub fn class_def2_offset(&self) -> Offset16 {
-        let range = self.shape.class_def2_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.class_def2_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`class_def2_offset`][Self::class_def2_offset].
@@ -2169,29 +2125,28 @@ impl<'a> PairPosFormat2<'a> {
 
     /// Number of classes in classDef1 table — includes Class 0.
     pub fn class1_count(&self) -> u16 {
-        let range = self.shape.class1_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.class1_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of classes in classDef2 table — includes Class 0.
     pub fn class2_count(&self) -> u16 {
-        let range = self.shape.class2_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.class2_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of Class1 records, ordered by classes in classDef1.
     pub fn class1_records(&self) -> ComputedArray<'a, Class1Record<'a>> {
-        let range = self.shape.class1_records_byte_range();
-        self.data
-            .read_with_args(
-                range,
-                &(
-                    self.class2_count(),
-                    self.value_format1(),
-                    self.value_format2(),
-                ),
-            )
-            .unwrap()
+        let range = self.class1_records_byte_range();
+        unchecked::read_with_args(
+            self.data,
+            range,
+            &(
+                self.class2_count(),
+                self.value_format1(),
+                self.value_format2(),
+            ),
+        )
     }
 }
 
@@ -2421,11 +2376,36 @@ impl Format<u16> for CursivePosFormat1Marker {
 /// [Cursive Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#cursive-attachment-positioning-format1-cursive-attachment): Cursvie attachment
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CursivePosFormat1Marker {
-    entry_exit_record_byte_len: usize,
+pub struct CursivePosFormat1Marker;
+
+impl<'a> MinByteRange for CursivePosFormat1<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.entry_exit_record_byte_range().end
+    }
 }
 
-impl CursivePosFormat1Marker {
+impl<'a> FontRead<'a> for CursivePosFormat1<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [Cursive Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#cursive-attachment-positioning-format1-cursive-attachment): Cursvie attachment
+pub type CursivePosFormat1<'a> = TableRef<'a, CursivePosFormat1Marker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> CursivePosFormat1<'a> {
+    fn entry_exit_record_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.entry_exit_count()) as usize)
+            .checked_mul(EntryExitRecord::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -2443,47 +2423,19 @@ impl CursivePosFormat1Marker {
 
     pub fn entry_exit_record_byte_range(&self) -> Range<usize> {
         let start = self.entry_exit_count_byte_range().end;
-        start..start + self.entry_exit_record_byte_len
+        start..start + self.entry_exit_record_byte_len(start)
     }
-}
 
-impl MinByteRange for CursivePosFormat1Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.entry_exit_record_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for CursivePosFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        let entry_exit_count: u16 = cursor.read()?;
-        let entry_exit_record_byte_len = (entry_exit_count as usize)
-            .checked_mul(EntryExitRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(entry_exit_record_byte_len);
-        cursor.finish(CursivePosFormat1Marker {
-            entry_exit_record_byte_len,
-        })
-    }
-}
-
-/// [Cursive Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#cursive-attachment-positioning-format1-cursive-attachment): Cursvie attachment
-pub type CursivePosFormat1<'a> = TableRef<'a, CursivePosFormat1Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> CursivePosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
-        let range = self.shape.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.pos_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to Coverage table, from beginning of CursivePos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.coverage_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -2494,14 +2446,14 @@ impl<'a> CursivePosFormat1<'a> {
 
     /// Number of EntryExit records
     pub fn entry_exit_count(&self) -> u16 {
-        let range = self.shape.entry_exit_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.entry_exit_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of EntryExit records, in Coverage index order.
     pub fn entry_exit_record(&self) -> &'a [EntryExitRecord] {
-        let range = self.shape.entry_exit_record_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.entry_exit_record_byte_range();
+        unchecked::read_array(self.data, range)
     }
 }
 
@@ -2622,9 +2574,29 @@ impl Format<u16> for MarkBasePosFormat1Marker {
 /// [Mark-to-Base Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-base-attachment-positioning-format-1-mark-to-base-attachment-point): Mark-to-base Attachment Point
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MarkBasePosFormat1Marker {}
+pub struct MarkBasePosFormat1Marker;
 
-impl MarkBasePosFormat1Marker {
+impl<'a> MinByteRange for MarkBasePosFormat1<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.base_array_offset_byte_range().end
+    }
+}
+
+impl<'a> FontRead<'a> for MarkBasePosFormat1<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [Mark-to-Base Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-base-attachment-positioning-format-1-mark-to-base-attachment-point): Mark-to-base Attachment Point
+pub type MarkBasePosFormat1<'a> = TableRef<'a, MarkBasePosFormat1Marker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> MarkBasePosFormat1<'a> {
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -2654,43 +2626,18 @@ impl MarkBasePosFormat1Marker {
         let start = self.mark_array_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-}
 
-impl MinByteRange for MarkBasePosFormat1Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.base_array_offset_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for MarkBasePosFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.finish(MarkBasePosFormat1Marker {})
-    }
-}
-
-/// [Mark-to-Base Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-base-attachment-positioning-format-1-mark-to-base-attachment-point): Mark-to-base Attachment Point
-pub type MarkBasePosFormat1<'a> = TableRef<'a, MarkBasePosFormat1Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> MarkBasePosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
-        let range = self.shape.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.pos_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to markCoverage table, from beginning of MarkBasePos
     /// subtable.
     pub fn mark_coverage_offset(&self) -> Offset16 {
-        let range = self.shape.mark_coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.mark_coverage_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
@@ -2702,8 +2649,8 @@ impl<'a> MarkBasePosFormat1<'a> {
     /// Offset to baseCoverage table, from beginning of MarkBasePos
     /// subtable.
     pub fn base_coverage_offset(&self) -> Offset16 {
-        let range = self.shape.base_coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.base_coverage_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`base_coverage_offset`][Self::base_coverage_offset].
@@ -2714,15 +2661,15 @@ impl<'a> MarkBasePosFormat1<'a> {
 
     /// Number of classes defined for marks
     pub fn mark_class_count(&self) -> u16 {
-        let range = self.shape.mark_class_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.mark_class_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to MarkArray table, from beginning of MarkBasePos
     /// subtable.
     pub fn mark_array_offset(&self) -> Offset16 {
-        let range = self.shape.mark_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.mark_array_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
@@ -2734,8 +2681,8 @@ impl<'a> MarkBasePosFormat1<'a> {
     /// Offset to BaseArray table, from beginning of MarkBasePos
     /// subtable.
     pub fn base_array_offset(&self) -> Offset16 {
-        let range = self.shape.base_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.base_array_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`base_array_offset`][Self::base_array_offset].
@@ -2787,24 +2734,9 @@ impl<'a> std::fmt::Debug for MarkBasePosFormat1<'a> {
 /// Part of [MarkBasePosFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct BaseArrayMarker {
-    mark_class_count: u16,
-    base_records_byte_len: usize,
-}
+pub struct BaseArrayMarker;
 
-impl BaseArrayMarker {
-    pub fn base_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn base_records_byte_range(&self) -> Range<usize> {
-        let start = self.base_count_byte_range().end;
-        start..start + self.base_records_byte_len
-    }
-}
-
-impl MinByteRange for BaseArrayMarker {
+impl<'a> MinByteRange for BaseArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_records_byte_range().end
     }
@@ -2816,18 +2748,11 @@ impl ReadArgs for BaseArray<'_> {
 
 impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mark_class_count = *args;
-        let mut cursor = data.cursor();
-        let base_count: u16 = cursor.read()?;
-        let base_records_byte_len = (base_count as usize)
-            .checked_mul(<BaseRecord as ComputeSize>::compute_size(
-                &mark_class_count,
-            )?)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(base_records_byte_len);
-        cursor.finish(BaseArrayMarker {
-            mark_class_count,
-            base_records_byte_len,
+        let args = *args;
+        Ok(TableRef {
+            args,
+            data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -2844,26 +2769,41 @@ impl<'a> BaseArray<'a> {
 }
 
 /// Part of [MarkBasePosFormat1]
-pub type BaseArray<'a> = TableRef<'a, BaseArrayMarker>;
+pub type BaseArray<'a> = TableRef<'a, BaseArrayMarker, u16>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseArray<'a> {
+    fn base_records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.base_count()) as usize)
+            .checked_mul(<BaseRecord as ComputeSize>::compute_size(&self.args).unwrap())
+            .unwrap()
+    }
+
+    pub fn base_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn base_records_byte_range(&self) -> Range<usize> {
+        let start = self.base_count_byte_range().end;
+        start..start + self.base_records_byte_len(start)
+    }
+
     /// Number of BaseRecords
     pub fn base_count(&self) -> u16 {
-        let range = self.shape.base_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.base_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of BaseRecords, in order of baseCoverage Index.
     pub fn base_records(&self) -> ComputedArray<'a, BaseRecord<'a>> {
-        let range = self.shape.base_records_byte_range();
-        self.data
-            .read_with_args(range, &self.mark_class_count())
-            .unwrap()
+        let range = self.base_records_byte_range();
+        unchecked::read_with_args(self.data, range, &self.mark_class_count())
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
-        self.shape.mark_class_count
+        self.args
     }
 }
 
@@ -2997,9 +2937,29 @@ impl Format<u16> for MarkLigPosFormat1Marker {
 /// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MarkLigPosFormat1Marker {}
+pub struct MarkLigPosFormat1Marker;
 
-impl MarkLigPosFormat1Marker {
+impl<'a> MinByteRange for MarkLigPosFormat1<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.ligature_array_offset_byte_range().end
+    }
+}
+
+impl<'a> FontRead<'a> for MarkLigPosFormat1<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
+pub type MarkLigPosFormat1<'a> = TableRef<'a, MarkLigPosFormat1Marker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> MarkLigPosFormat1<'a> {
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -3029,43 +2989,18 @@ impl MarkLigPosFormat1Marker {
         let start = self.mark_array_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-}
 
-impl MinByteRange for MarkLigPosFormat1Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.ligature_array_offset_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for MarkLigPosFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.finish(MarkLigPosFormat1Marker {})
-    }
-}
-
-/// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
-pub type MarkLigPosFormat1<'a> = TableRef<'a, MarkLigPosFormat1Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> MarkLigPosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
-        let range = self.shape.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.pos_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to markCoverage table, from beginning of MarkLigPos
     /// subtable.
     pub fn mark_coverage_offset(&self) -> Offset16 {
-        let range = self.shape.mark_coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.mark_coverage_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
@@ -3077,8 +3012,8 @@ impl<'a> MarkLigPosFormat1<'a> {
     /// Offset to ligatureCoverage table, from beginning of MarkLigPos
     /// subtable.
     pub fn ligature_coverage_offset(&self) -> Offset16 {
-        let range = self.shape.ligature_coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.ligature_coverage_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`ligature_coverage_offset`][Self::ligature_coverage_offset].
@@ -3089,15 +3024,15 @@ impl<'a> MarkLigPosFormat1<'a> {
 
     /// Number of defined mark classes
     pub fn mark_class_count(&self) -> u16 {
-        let range = self.shape.mark_class_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.mark_class_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to MarkArray table, from beginning of MarkLigPos
     /// subtable.
     pub fn mark_array_offset(&self) -> Offset16 {
-        let range = self.shape.mark_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.mark_array_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
@@ -3109,8 +3044,8 @@ impl<'a> MarkLigPosFormat1<'a> {
     /// Offset to LigatureArray table, from beginning of MarkLigPos
     /// subtable.
     pub fn ligature_array_offset(&self) -> Offset16 {
-        let range = self.shape.ligature_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.ligature_array_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`ligature_array_offset`][Self::ligature_array_offset].
@@ -3162,24 +3097,9 @@ impl<'a> std::fmt::Debug for MarkLigPosFormat1<'a> {
 /// Part of [MarkLigPosFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct LigatureArrayMarker {
-    mark_class_count: u16,
-    ligature_attach_offsets_byte_len: usize,
-}
+pub struct LigatureArrayMarker;
 
-impl LigatureArrayMarker {
-    pub fn ligature_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn ligature_attach_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.ligature_count_byte_range().end;
-        start..start + self.ligature_attach_offsets_byte_len
-    }
-}
-
-impl MinByteRange for LigatureArrayMarker {
+impl<'a> MinByteRange for LigatureArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ligature_attach_offsets_byte_range().end
     }
@@ -3191,16 +3111,11 @@ impl ReadArgs for LigatureArray<'_> {
 
 impl<'a> FontReadWithArgs<'a> for LigatureArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mark_class_count = *args;
-        let mut cursor = data.cursor();
-        let ligature_count: u16 = cursor.read()?;
-        let ligature_attach_offsets_byte_len = (ligature_count as usize)
-            .checked_mul(Offset16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(ligature_attach_offsets_byte_len);
-        cursor.finish(LigatureArrayMarker {
-            mark_class_count,
-            ligature_attach_offsets_byte_len,
+        let args = *args;
+        Ok(TableRef {
+            args,
+            data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3217,22 +3132,39 @@ impl<'a> LigatureArray<'a> {
 }
 
 /// Part of [MarkLigPosFormat1]
-pub type LigatureArray<'a> = TableRef<'a, LigatureArrayMarker>;
+pub type LigatureArray<'a> = TableRef<'a, LigatureArrayMarker, u16>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LigatureArray<'a> {
+    fn ligature_attach_offsets_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.ligature_count()) as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
+    pub fn ligature_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn ligature_attach_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.ligature_count_byte_range().end;
+        start..start + self.ligature_attach_offsets_byte_len(start)
+    }
+
     /// Number of LigatureAttach table offsets
     pub fn ligature_count(&self) -> u16 {
-        let range = self.shape.ligature_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.ligature_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of offsets to LigatureAttach tables. Offsets are from
     /// beginning of LigatureArray table, ordered by ligatureCoverage
     /// index.
     pub fn ligature_attach_offsets(&self) -> &'a [BigEndian<Offset16>] {
-        let range = self.shape.ligature_attach_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.ligature_attach_offsets_byte_range();
+        unchecked::read_array(self.data, range)
     }
 
     /// A dynamically resolving wrapper for [`ligature_attach_offsets`][Self::ligature_attach_offsets].
@@ -3244,7 +3176,7 @@ impl<'a> LigatureArray<'a> {
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
-        self.shape.mark_class_count
+        self.args
     }
 }
 
@@ -3287,24 +3219,9 @@ impl<'a> std::fmt::Debug for LigatureArray<'a> {
 /// Part of [MarkLigPosFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct LigatureAttachMarker {
-    mark_class_count: u16,
-    component_records_byte_len: usize,
-}
+pub struct LigatureAttachMarker;
 
-impl LigatureAttachMarker {
-    pub fn component_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn component_records_byte_range(&self) -> Range<usize> {
-        let start = self.component_count_byte_range().end;
-        start..start + self.component_records_byte_len
-    }
-}
-
-impl MinByteRange for LigatureAttachMarker {
+impl<'a> MinByteRange for LigatureAttach<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.component_records_byte_range().end
     }
@@ -3316,18 +3233,11 @@ impl ReadArgs for LigatureAttach<'_> {
 
 impl<'a> FontReadWithArgs<'a> for LigatureAttach<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mark_class_count = *args;
-        let mut cursor = data.cursor();
-        let component_count: u16 = cursor.read()?;
-        let component_records_byte_len = (component_count as usize)
-            .checked_mul(<ComponentRecord as ComputeSize>::compute_size(
-                &mark_class_count,
-            )?)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(component_records_byte_len);
-        cursor.finish(LigatureAttachMarker {
-            mark_class_count,
-            component_records_byte_len,
+        let args = *args;
+        Ok(TableRef {
+            args,
+            data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3344,26 +3254,41 @@ impl<'a> LigatureAttach<'a> {
 }
 
 /// Part of [MarkLigPosFormat1]
-pub type LigatureAttach<'a> = TableRef<'a, LigatureAttachMarker>;
+pub type LigatureAttach<'a> = TableRef<'a, LigatureAttachMarker, u16>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LigatureAttach<'a> {
+    fn component_records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.component_count()) as usize)
+            .checked_mul(<ComponentRecord as ComputeSize>::compute_size(&self.args).unwrap())
+            .unwrap()
+    }
+
+    pub fn component_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn component_records_byte_range(&self) -> Range<usize> {
+        let start = self.component_count_byte_range().end;
+        start..start + self.component_records_byte_len(start)
+    }
+
     /// Number of ComponentRecords in this ligature
     pub fn component_count(&self) -> u16 {
-        let range = self.shape.component_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.component_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of Component records, ordered in writing direction.
     pub fn component_records(&self) -> ComputedArray<'a, ComponentRecord<'a>> {
-        let range = self.shape.component_records_byte_range();
-        self.data
-            .read_with_args(range, &self.mark_class_count())
-            .unwrap()
+        let range = self.component_records_byte_range();
+        unchecked::read_with_args(self.data, range, &self.mark_class_count())
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
-        self.shape.mark_class_count
+        self.args
     }
 }
 
@@ -3497,9 +3422,29 @@ impl Format<u16> for MarkMarkPosFormat1Marker {
 /// [Mark-to-Mark Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-mark-attachment-positioning-format-1-mark-to-mark-attachment): Mark-to-Mark Attachment
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MarkMarkPosFormat1Marker {}
+pub struct MarkMarkPosFormat1Marker;
 
-impl MarkMarkPosFormat1Marker {
+impl<'a> MinByteRange for MarkMarkPosFormat1<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.mark2_array_offset_byte_range().end
+    }
+}
+
+impl<'a> FontRead<'a> for MarkMarkPosFormat1<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [Mark-to-Mark Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-mark-attachment-positioning-format-1-mark-to-mark-attachment): Mark-to-Mark Attachment
+pub type MarkMarkPosFormat1<'a> = TableRef<'a, MarkMarkPosFormat1Marker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> MarkMarkPosFormat1<'a> {
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -3529,43 +3474,18 @@ impl MarkMarkPosFormat1Marker {
         let start = self.mark1_array_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-}
 
-impl MinByteRange for MarkMarkPosFormat1Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.mark2_array_offset_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for MarkMarkPosFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.finish(MarkMarkPosFormat1Marker {})
-    }
-}
-
-/// [Mark-to-Mark Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-mark-attachment-positioning-format-1-mark-to-mark-attachment): Mark-to-Mark Attachment
-pub type MarkMarkPosFormat1<'a> = TableRef<'a, MarkMarkPosFormat1Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> MarkMarkPosFormat1<'a> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
-        let range = self.shape.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.pos_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to Combining Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
     pub fn mark1_coverage_offset(&self) -> Offset16 {
-        let range = self.shape.mark1_coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.mark1_coverage_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark1_coverage_offset`][Self::mark1_coverage_offset].
@@ -3577,8 +3497,8 @@ impl<'a> MarkMarkPosFormat1<'a> {
     /// Offset to Base Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
     pub fn mark2_coverage_offset(&self) -> Offset16 {
-        let range = self.shape.mark2_coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.mark2_coverage_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark2_coverage_offset`][Self::mark2_coverage_offset].
@@ -3589,15 +3509,15 @@ impl<'a> MarkMarkPosFormat1<'a> {
 
     /// Number of Combining Mark classes defined
     pub fn mark_class_count(&self) -> u16 {
-        let range = self.shape.mark_class_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.mark_class_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to MarkArray table for mark1, from beginning of
     /// MarkMarkPos subtable.
     pub fn mark1_array_offset(&self) -> Offset16 {
-        let range = self.shape.mark1_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.mark1_array_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark1_array_offset`][Self::mark1_array_offset].
@@ -3609,8 +3529,8 @@ impl<'a> MarkMarkPosFormat1<'a> {
     /// Offset to Mark2Array table for mark2, from beginning of
     /// MarkMarkPos subtable.
     pub fn mark2_array_offset(&self) -> Offset16 {
-        let range = self.shape.mark2_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.mark2_array_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`mark2_array_offset`][Self::mark2_array_offset].
@@ -3662,24 +3582,9 @@ impl<'a> std::fmt::Debug for MarkMarkPosFormat1<'a> {
 /// Part of [MarkMarkPosFormat1]Class2Record
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Mark2ArrayMarker {
-    mark_class_count: u16,
-    mark2_records_byte_len: usize,
-}
+pub struct Mark2ArrayMarker;
 
-impl Mark2ArrayMarker {
-    pub fn mark2_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn mark2_records_byte_range(&self) -> Range<usize> {
-        let start = self.mark2_count_byte_range().end;
-        start..start + self.mark2_records_byte_len
-    }
-}
-
-impl MinByteRange for Mark2ArrayMarker {
+impl<'a> MinByteRange for Mark2Array<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.mark2_records_byte_range().end
     }
@@ -3691,18 +3596,11 @@ impl ReadArgs for Mark2Array<'_> {
 
 impl<'a> FontReadWithArgs<'a> for Mark2Array<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mark_class_count = *args;
-        let mut cursor = data.cursor();
-        let mark2_count: u16 = cursor.read()?;
-        let mark2_records_byte_len = (mark2_count as usize)
-            .checked_mul(<Mark2Record as ComputeSize>::compute_size(
-                &mark_class_count,
-            )?)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(mark2_records_byte_len);
-        cursor.finish(Mark2ArrayMarker {
-            mark_class_count,
-            mark2_records_byte_len,
+        let args = *args;
+        Ok(TableRef {
+            args,
+            data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -3719,26 +3617,41 @@ impl<'a> Mark2Array<'a> {
 }
 
 /// Part of [MarkMarkPosFormat1]Class2Record
-pub type Mark2Array<'a> = TableRef<'a, Mark2ArrayMarker>;
+pub type Mark2Array<'a> = TableRef<'a, Mark2ArrayMarker, u16>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Mark2Array<'a> {
+    fn mark2_records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.mark2_count()) as usize)
+            .checked_mul(<Mark2Record as ComputeSize>::compute_size(&self.args).unwrap())
+            .unwrap()
+    }
+
+    pub fn mark2_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn mark2_records_byte_range(&self) -> Range<usize> {
+        let start = self.mark2_count_byte_range().end;
+        start..start + self.mark2_records_byte_len(start)
+    }
+
     /// Number of Mark2 records
     pub fn mark2_count(&self) -> u16 {
-        let range = self.shape.mark2_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.mark2_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of Mark2Records, in Coverage order.
     pub fn mark2_records(&self) -> ComputedArray<'a, Mark2Record<'a>> {
-        let range = self.shape.mark2_records_byte_range();
-        self.data
-            .read_with_args(range, &self.mark_class_count())
-            .unwrap()
+        let range = self.mark2_records_byte_range();
+        unchecked::read_with_args(self.data, range, &self.mark_class_count())
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
-        self.shape.mark_class_count
+        self.args
     }
 }
 
@@ -3870,13 +3783,57 @@ impl Format<u16> for ExtensionPosFormat1Marker {
 }
 
 /// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct ExtensionPosFormat1Marker<T = ()> {
-    offset_type: std::marker::PhantomData<*const T>,
+pub struct ExtensionPosFormat1Marker;
+
+impl<'a, T> MinByteRange for ExtensionPosFormat1<'a, T> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.extension_offset_byte_range().end
+    }
 }
 
-impl<T> ExtensionPosFormat1Marker<T> {
+impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: std::marker::PhantomData,
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+impl<'a> ExtensionPosFormat1<'a, ()> {
+    #[allow(dead_code)]
+    pub(crate) fn into_concrete<T>(self) -> ExtensionPosFormat1<'a, T> {
+        let TableRef { data, .. } = self;
+        TableRef {
+            args: std::marker::PhantomData,
+            data,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a, T> ExtensionPosFormat1<'a, T> {
+    #[allow(dead_code)]
+    /// Replace the specific generic type on this implementation with `()`
+    pub(crate) fn of_unit_type(&self) -> ExtensionPosFormat1<'a, ()> {
+        let TableRef { data, .. } = self;
+        TableRef {
+            args: std::marker::PhantomData,
+            data: *data,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+/// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
+pub type ExtensionPosFormat1<'a, T = ()> =
+    TableRef<'a, ExtensionPosFormat1Marker, std::marker::PhantomData<*const T>>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a, T> ExtensionPosFormat1<'a, T> {
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -3891,85 +3848,26 @@ impl<T> ExtensionPosFormat1Marker<T> {
         let start = self.extension_lookup_type_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
-}
 
-impl MinByteRange for ExtensionPosFormat1Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.extension_offset_byte_range().end
-    }
-}
-
-impl<T> Clone for ExtensionPosFormat1Marker<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Copy for ExtensionPosFormat1Marker<T> {}
-
-impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        cursor.finish(ExtensionPosFormat1Marker {
-            offset_type: std::marker::PhantomData,
-        })
-    }
-}
-
-impl<'a> ExtensionPosFormat1<'a, ()> {
-    #[allow(dead_code)]
-    pub(crate) fn into_concrete<T>(self) -> ExtensionPosFormat1<'a, T> {
-        let TableRef { data, .. } = self;
-        TableRef {
-            shape: ExtensionPosFormat1Marker {
-                offset_type: std::marker::PhantomData,
-            },
-            data,
-        }
-    }
-}
-
-impl<'a, T> ExtensionPosFormat1<'a, T> {
-    #[allow(dead_code)]
-    /// Replace the specific generic type on this implementation with `()`
-    pub(crate) fn of_unit_type(&self) -> ExtensionPosFormat1<'a, ()> {
-        let TableRef { data, .. } = self;
-        TableRef {
-            shape: ExtensionPosFormat1Marker {
-                offset_type: std::marker::PhantomData,
-            },
-            data: *data,
-        }
-    }
-}
-
-/// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
-pub type ExtensionPosFormat1<'a, T> = TableRef<'a, ExtensionPosFormat1Marker<T>>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a, T> ExtensionPosFormat1<'a, T> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
-        let range = self.shape.pos_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.pos_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Lookup type of subtable referenced by extensionOffset (i.e. the
     /// extension subtable).
     pub fn extension_lookup_type(&self) -> u16 {
-        let range = self.shape.extension_lookup_type_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.extension_lookup_type_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to the extension subtable, of lookup type
     /// extensionLookupType, relative to the start of the
     /// ExtensionPosFormat1 subtable.
     pub fn extension_offset(&self) -> Offset32 {
-        let range = self.shape.extension_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.extension_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`extension_offset`][Self::extension_offset].

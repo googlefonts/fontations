@@ -88,7 +88,7 @@ fn subset_with_offset_type<OffsetType: GvarOffset>(
 
     //update sharedTuplesOffset, which is of Offset32 type and byte position in gvar is 8..12
     s.copy_assign(
-        gvar.shape().shared_tuples_offset_byte_range().start,
+        gvar.shared_tuples_offset_byte_range().start,
         shared_tuples_offset,
     );
 

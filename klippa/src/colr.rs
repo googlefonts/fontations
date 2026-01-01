@@ -534,7 +534,7 @@ impl SubsetTable<'_> for ClipBoxFormat2<'_> {
             };
             // update VarIdxBase
             s.copy_assign(
-                start_pos + self.shape().var_index_base_byte_range().start,
+                start_pos + self.var_index_base_byte_range().start,
                 *new_varidx,
             );
         }
@@ -833,7 +833,7 @@ impl SubsetTable<'_> for PaintVarLinearGradient<'_> {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             // update VarIdxBase
-            let pos = start_pos + self.shape().var_index_base_byte_range().start;
+            let pos = start_pos + self.var_index_base_byte_range().start;
             s.copy_assign(pos, *new_varidx);
         }
         Ok(())
@@ -884,7 +884,7 @@ impl SubsetTable<'_> for PaintVarRadialGradient<'_> {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             // update VarIdxBase
-            let pos = start_pos + self.shape().var_index_base_byte_range().start;
+            let pos = start_pos + self.var_index_base_byte_range().start;
             s.copy_assign(pos, *new_varidx);
         }
         Ok(())
@@ -935,7 +935,7 @@ impl SubsetTable<'_> for PaintVarSweepGradient<'_> {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             // update VarIdxBase
-            let pos = start_pos + self.shape().var_index_base_byte_range().start;
+            let pos = start_pos + self.var_index_base_byte_range().start;
             s.copy_assign(pos, *new_varidx);
         }
         Ok(())
@@ -1019,7 +1019,7 @@ impl SubsetTable<'_> for VarAffine2x3<'_> {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             // update VarIdxBase
-            let pos = start_pos + self.shape().var_index_base_byte_range().start;
+            let pos = start_pos + self.var_index_base_byte_range().start;
             s.copy_assign(pos, *new_varidx);
         }
         Ok(())
@@ -1120,7 +1120,7 @@ impl SubsetTable<'_> for PaintVarTranslate<'_> {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             // update VarIdxBase
-            let pos = start_pos + self.shape().var_index_base_byte_range().start;
+            let pos = start_pos + self.var_index_base_byte_range().start;
             s.copy_assign(pos, *new_varidx);
         }
         Ok(())
@@ -1167,7 +1167,7 @@ impl SubsetTable<'_> for PaintVarScale<'_> {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             // update VarIdxBase
-            let pos = start_pos + self.shape().var_index_base_byte_range().start;
+            let pos = start_pos + self.var_index_base_byte_range().start;
             s.copy_assign(pos, *new_varidx);
         }
         Ok(())
@@ -1214,7 +1214,7 @@ impl SubsetTable<'_> for PaintVarScaleAroundCenter<'_> {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             // update VarIdxBase
-            let pos = start_pos + self.shape().var_index_base_byte_range().start;
+            let pos = start_pos + self.var_index_base_byte_range().start;
             s.copy_assign(pos, *new_varidx);
         }
         Ok(())
@@ -1261,7 +1261,7 @@ impl SubsetTable<'_> for PaintVarScaleUniform<'_> {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             // update VarIdxBase
-            let pos = start_pos + self.shape().var_index_base_byte_range().start;
+            let pos = start_pos + self.var_index_base_byte_range().start;
             s.copy_assign(pos, *new_varidx);
         }
         Ok(())
@@ -1308,7 +1308,7 @@ impl SubsetTable<'_> for PaintVarScaleUniformAroundCenter<'_> {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             // update VarIdxBase
-            let pos = start_pos + self.shape().var_index_base_byte_range().start;
+            let pos = start_pos + self.var_index_base_byte_range().start;
             s.copy_assign(pos, *new_varidx);
         }
         Ok(())
@@ -1355,7 +1355,7 @@ impl SubsetTable<'_> for PaintVarRotate<'_> {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             // update VarIdxBase
-            let pos = start_pos + self.shape().var_index_base_byte_range().start;
+            let pos = start_pos + self.var_index_base_byte_range().start;
             s.copy_assign(pos, *new_varidx);
         }
         Ok(())
@@ -1402,7 +1402,7 @@ impl SubsetTable<'_> for PaintVarRotateAroundCenter<'_> {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             // update VarIdxBase
-            let pos = start_pos + self.shape().var_index_base_byte_range().start;
+            let pos = start_pos + self.var_index_base_byte_range().start;
             s.copy_assign(pos, *new_varidx);
         }
         Ok(())
@@ -1449,7 +1449,7 @@ impl SubsetTable<'_> for PaintVarSkew<'_> {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             // update VarIdxBase
-            let pos = start_pos + self.shape().var_index_base_byte_range().start;
+            let pos = start_pos + self.var_index_base_byte_range().start;
             s.copy_assign(pos, *new_varidx);
         }
         Ok(())
@@ -1496,7 +1496,7 @@ impl SubsetTable<'_> for PaintVarSkewAroundCenter<'_> {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             // update VarIdxBase
-            let pos = start_pos + self.shape().var_index_base_byte_range().start;
+            let pos = start_pos + self.var_index_base_byte_range().start;
             s.copy_assign(pos, *new_varidx);
         }
         Ok(())

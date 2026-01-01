@@ -7,13 +7,28 @@ use crate::codegen_prelude::*;
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct KindsOfOffsetsMarker {
-    versioned_nullable_record_array_offset_byte_start: Option<usize>,
-    versioned_nonnullable_offset_byte_start: Option<usize>,
-    versioned_nullable_offset_byte_start: Option<usize>,
+pub struct KindsOfOffsetsMarker;
+
+impl<'a> MinByteRange for KindsOfOffsets<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.record_array_offset_byte_range().end
+    }
 }
 
-impl KindsOfOffsetsMarker {
+impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+pub type KindsOfOffsets<'a> = TableRef<'a, KindsOfOffsetsMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> KindsOfOffsets<'a> {
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
@@ -45,79 +60,52 @@ impl KindsOfOffsetsMarker {
     }
 
     pub fn versioned_nullable_record_array_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.versioned_nullable_record_array_offset_byte_start?;
-        Some(start..start + Offset16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 1u16)) {
+            let start = self.record_array_offset_byte_range().end;
+            Some(start..start + Offset16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn versioned_nonnullable_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.versioned_nonnullable_offset_byte_start?;
-        Some(start..start + Offset16::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 1u16)) {
+            let start = self
+                .versioned_nullable_record_array_offset_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.record_array_offset_byte_range().end);
+            Some(start..start + Offset16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn versioned_nullable_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.versioned_nullable_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible((1u16, 1u16)) {
+            let start = self
+                .versioned_nonnullable_offset_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.versioned_nullable_record_array_offset_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| self.record_array_offset_byte_range().end)
+                });
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
-}
 
-impl MinByteRange for KindsOfOffsetsMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.record_array_offset_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: MajorMinor = cursor.read()?;
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        let versioned_nullable_record_array_offset_byte_start = version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.advance::<Offset16>());
-        let versioned_nonnullable_offset_byte_start = version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.advance::<Offset16>());
-        let versioned_nullable_offset_byte_start = version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.advance::<Offset32>());
-        cursor.finish(KindsOfOffsetsMarker {
-            versioned_nullable_record_array_offset_byte_start,
-            versioned_nonnullable_offset_byte_start,
-            versioned_nullable_offset_byte_start,
-        })
-    }
-}
-
-pub type KindsOfOffsets<'a> = TableRef<'a, KindsOfOffsetsMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> KindsOfOffsets<'a> {
     /// The major/minor version of the GDEF table
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.version_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// A normal offset
     pub fn nonnullable_offset(&self) -> Offset16 {
-        let range = self.shape.nonnullable_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.nonnullable_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`nonnullable_offset`][Self::nonnullable_offset].
@@ -128,8 +116,8 @@ impl<'a> KindsOfOffsets<'a> {
 
     /// An offset that is nullable, but always present
     pub fn nullable_offset(&self) -> Nullable<Offset16> {
-        let range = self.shape.nullable_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.nullable_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`nullable_offset`][Self::nullable_offset].
@@ -140,14 +128,14 @@ impl<'a> KindsOfOffsets<'a> {
 
     /// count of the array at array_offset
     pub fn array_offset_count(&self) -> u16 {
-        let range = self.shape.array_offset_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.array_offset_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// An offset to an array:
     pub fn array_offset(&self) -> Offset16 {
-        let range = self.shape.array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.array_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`array_offset`][Self::array_offset].
@@ -159,8 +147,8 @@ impl<'a> KindsOfOffsets<'a> {
 
     /// An offset to an array of records
     pub fn record_array_offset(&self) -> Offset16 {
-        let range = self.shape.record_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.record_array_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`record_array_offset`][Self::record_array_offset].
@@ -172,10 +160,8 @@ impl<'a> KindsOfOffsets<'a> {
 
     /// A nullable, versioned offset to an array of records
     pub fn versioned_nullable_record_array_offset(&self) -> Option<Nullable<Offset16>> {
-        let range = self
-            .shape
-            .versioned_nullable_record_array_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.versioned_nullable_record_array_offset_byte_range()?;
+        Some(unchecked::read_at(self.data, range.start))
     }
 
     /// Attempt to resolve [`versioned_nullable_record_array_offset`][Self::versioned_nullable_record_array_offset].
@@ -188,8 +174,8 @@ impl<'a> KindsOfOffsets<'a> {
 
     /// A normal offset that is versioned
     pub fn versioned_nonnullable_offset(&self) -> Option<Offset16> {
-        let range = self.shape.versioned_nonnullable_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.versioned_nonnullable_offset_byte_range()?;
+        Some(unchecked::read_at(self.data, range.start))
     }
 
     /// Attempt to resolve [`versioned_nonnullable_offset`][Self::versioned_nonnullable_offset].
@@ -200,8 +186,8 @@ impl<'a> KindsOfOffsets<'a> {
 
     /// An offset that is nullable and versioned
     pub fn versioned_nullable_offset(&self) -> Option<Nullable<Offset32>> {
-        let range = self.shape.versioned_nullable_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.versioned_nullable_offset_byte_range()?;
+        Some(unchecked::read_at(self.data, range.start))
     }
 
     /// Attempt to resolve [`versioned_nullable_offset`][Self::versioned_nullable_offset].
@@ -280,16 +266,53 @@ impl<'a> std::fmt::Debug for KindsOfOffsets<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct KindsOfArraysOfOffsetsMarker {
-    nonnullable_offsets_byte_len: usize,
-    nullable_offsets_byte_len: usize,
-    versioned_nonnullable_offsets_byte_start: Option<usize>,
-    versioned_nonnullable_offsets_byte_len: Option<usize>,
-    versioned_nullable_offsets_byte_start: Option<usize>,
-    versioned_nullable_offsets_byte_len: Option<usize>,
+pub struct KindsOfArraysOfOffsetsMarker;
+
+impl<'a> MinByteRange for KindsOfArraysOfOffsets<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.nullable_offsets_byte_range().end
+    }
 }
 
-impl KindsOfArraysOfOffsetsMarker {
+impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+pub type KindsOfArraysOfOffsets<'a> = TableRef<'a, KindsOfArraysOfOffsetsMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> KindsOfArraysOfOffsets<'a> {
+    fn nonnullable_offsets_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.count()) as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .unwrap()
+    }
+    fn nullable_offsets_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.count()) as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .unwrap()
+    }
+    fn versioned_nonnullable_offsets_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.count()) as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .unwrap()
+    }
+    fn versioned_nullable_offsets_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.count()) as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
@@ -302,99 +325,51 @@ impl KindsOfArraysOfOffsetsMarker {
 
     pub fn nonnullable_offsets_byte_range(&self) -> Range<usize> {
         let start = self.count_byte_range().end;
-        start..start + self.nonnullable_offsets_byte_len
+        start..start + self.nonnullable_offsets_byte_len(start)
     }
 
     pub fn nullable_offsets_byte_range(&self) -> Range<usize> {
         let start = self.nonnullable_offsets_byte_range().end;
-        start..start + self.nullable_offsets_byte_len
+        start..start + self.nullable_offsets_byte_len(start)
     }
 
     pub fn versioned_nonnullable_offsets_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.versioned_nonnullable_offsets_byte_start?;
-        Some(start..start + self.versioned_nonnullable_offsets_byte_len?)
+        if self.version().compatible((1u16, 1u16)) {
+            let start = self.nullable_offsets_byte_range().end;
+            Some(start..start + self.versioned_nonnullable_offsets_byte_len(start))
+        } else {
+            None
+        }
     }
 
     pub fn versioned_nullable_offsets_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.versioned_nullable_offsets_byte_start?;
-        Some(start..start + self.versioned_nullable_offsets_byte_len?)
-    }
-}
-
-impl MinByteRange for KindsOfArraysOfOffsetsMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.nullable_offsets_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: MajorMinor = cursor.read()?;
-        let count: u16 = cursor.read()?;
-        let nonnullable_offsets_byte_len = (count as usize)
-            .checked_mul(Offset16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(nonnullable_offsets_byte_len);
-        let nullable_offsets_byte_len = (count as usize)
-            .checked_mul(Offset16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(nullable_offsets_byte_len);
-        let versioned_nonnullable_offsets_byte_start = version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        let versioned_nonnullable_offsets_byte_len = version.compatible((1u16, 1u16)).then_some(
-            (count as usize)
-                .checked_mul(Offset16::RAW_BYTE_LEN)
-                .ok_or(ReadError::OutOfBounds)?,
-        );
-        if let Some(value) = versioned_nonnullable_offsets_byte_len {
-            cursor.advance_by(value);
+        if self.version().compatible((1u16, 1u16)) {
+            let start = self
+                .versioned_nonnullable_offsets_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.nullable_offsets_byte_range().end);
+            Some(start..start + self.versioned_nullable_offsets_byte_len(start))
+        } else {
+            None
         }
-        let versioned_nullable_offsets_byte_start = version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        let versioned_nullable_offsets_byte_len = version.compatible((1u16, 1u16)).then_some(
-            (count as usize)
-                .checked_mul(Offset16::RAW_BYTE_LEN)
-                .ok_or(ReadError::OutOfBounds)?,
-        );
-        if let Some(value) = versioned_nullable_offsets_byte_len {
-            cursor.advance_by(value);
-        }
-        cursor.finish(KindsOfArraysOfOffsetsMarker {
-            nonnullable_offsets_byte_len,
-            nullable_offsets_byte_len,
-            versioned_nonnullable_offsets_byte_start,
-            versioned_nonnullable_offsets_byte_len,
-            versioned_nullable_offsets_byte_start,
-            versioned_nullable_offsets_byte_len,
-        })
     }
-}
 
-pub type KindsOfArraysOfOffsets<'a> = TableRef<'a, KindsOfArraysOfOffsetsMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> KindsOfArraysOfOffsets<'a> {
     /// The version
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.version_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// The number of items in each array
     pub fn count(&self) -> u16 {
-        let range = self.shape.count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// A normal array offset
     pub fn nonnullable_offsets(&self) -> &'a [BigEndian<Offset16>] {
-        let range = self.shape.nonnullable_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.nonnullable_offsets_byte_range();
+        unchecked::read_array(self.data, range)
     }
 
     /// A dynamically resolving wrapper for [`nonnullable_offsets`][Self::nonnullable_offsets].
@@ -406,8 +381,8 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
 
     /// An offset that is nullable, but always present
     pub fn nullable_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
-        let range = self.shape.nullable_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.nullable_offsets_byte_range();
+        unchecked::read_array(self.data, range)
     }
 
     /// A dynamically resolving wrapper for [`nullable_offsets`][Self::nullable_offsets].
@@ -419,8 +394,8 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
 
     /// A normal offset that is versioned
     pub fn versioned_nonnullable_offsets(&self) -> Option<&'a [BigEndian<Offset16>]> {
-        let range = self.shape.versioned_nonnullable_offsets_byte_range()?;
-        Some(self.data.read_array(range).unwrap())
+        let range = self.versioned_nonnullable_offsets_byte_range()?;
+        Some(unchecked::read_array(self.data, range))
     }
 
     /// A dynamically resolving wrapper for [`versioned_nonnullable_offsets`][Self::versioned_nonnullable_offsets].
@@ -432,8 +407,8 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
 
     /// An offset that is nullable and versioned
     pub fn versioned_nullable_offsets(&self) -> Option<&'a [BigEndian<Nullable<Offset16>>]> {
-        let range = self.shape.versioned_nullable_offsets_byte_range()?;
-        Some(self.data.read_array(range).unwrap())
+        let range = self.versioned_nullable_offsets_byte_range()?;
+        Some(unchecked::read_array(self.data, range))
     }
 
     /// A dynamically resolving wrapper for [`versioned_nullable_offsets`][Self::versioned_nullable_offsets].
@@ -525,16 +500,53 @@ impl<'a> std::fmt::Debug for KindsOfArraysOfOffsets<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct KindsOfArraysMarker {
-    scalars_byte_len: usize,
-    records_byte_len: usize,
-    versioned_scalars_byte_start: Option<usize>,
-    versioned_scalars_byte_len: Option<usize>,
-    versioned_records_byte_start: Option<usize>,
-    versioned_records_byte_len: Option<usize>,
+pub struct KindsOfArraysMarker;
+
+impl<'a> MinByteRange for KindsOfArrays<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.records_byte_range().end
+    }
 }
 
-impl KindsOfArraysMarker {
+impl<'a> FontRead<'a> for KindsOfArrays<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+pub type KindsOfArrays<'a> = TableRef<'a, KindsOfArraysMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> KindsOfArrays<'a> {
+    fn scalars_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.count()) as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .unwrap()
+    }
+    fn records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.count()) as usize)
+            .checked_mul(Shmecord::RAW_BYTE_LEN)
+            .unwrap()
+    }
+    fn versioned_scalars_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.count()) as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .unwrap()
+    }
+    fn versioned_records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.count()) as usize)
+            .checked_mul(Shmecord::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -547,116 +559,68 @@ impl KindsOfArraysMarker {
 
     pub fn scalars_byte_range(&self) -> Range<usize> {
         let start = self.count_byte_range().end;
-        start..start + self.scalars_byte_len
+        start..start + self.scalars_byte_len(start)
     }
 
     pub fn records_byte_range(&self) -> Range<usize> {
         let start = self.scalars_byte_range().end;
-        start..start + self.records_byte_len
+        start..start + self.records_byte_len(start)
     }
 
     pub fn versioned_scalars_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.versioned_scalars_byte_start?;
-        Some(start..start + self.versioned_scalars_byte_len?)
+        if self.version().compatible(1u16) {
+            let start = self.records_byte_range().end;
+            Some(start..start + self.versioned_scalars_byte_len(start))
+        } else {
+            None
+        }
     }
 
     pub fn versioned_records_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.versioned_records_byte_start?;
-        Some(start..start + self.versioned_records_byte_len?)
-    }
-}
-
-impl MinByteRange for KindsOfArraysMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.records_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for KindsOfArrays<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: u16 = cursor.read()?;
-        let count: u16 = cursor.read()?;
-        let scalars_byte_len = (count as usize)
-            .checked_mul(u16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(scalars_byte_len);
-        let records_byte_len = (count as usize)
-            .checked_mul(Shmecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(records_byte_len);
-        let versioned_scalars_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        let versioned_scalars_byte_len = version.compatible(1u16).then_some(
-            (count as usize)
-                .checked_mul(u16::RAW_BYTE_LEN)
-                .ok_or(ReadError::OutOfBounds)?,
-        );
-        if let Some(value) = versioned_scalars_byte_len {
-            cursor.advance_by(value);
+        if self.version().compatible(1u16) {
+            let start = self
+                .versioned_scalars_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.records_byte_range().end);
+            Some(start..start + self.versioned_records_byte_len(start))
+        } else {
+            None
         }
-        let versioned_records_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        let versioned_records_byte_len = version.compatible(1u16).then_some(
-            (count as usize)
-                .checked_mul(Shmecord::RAW_BYTE_LEN)
-                .ok_or(ReadError::OutOfBounds)?,
-        );
-        if let Some(value) = versioned_records_byte_len {
-            cursor.advance_by(value);
-        }
-        cursor.finish(KindsOfArraysMarker {
-            scalars_byte_len,
-            records_byte_len,
-            versioned_scalars_byte_start,
-            versioned_scalars_byte_len,
-            versioned_records_byte_start,
-            versioned_records_byte_len,
-        })
     }
-}
 
-pub type KindsOfArrays<'a> = TableRef<'a, KindsOfArraysMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> KindsOfArrays<'a> {
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.version_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// the number of items in each array
     pub fn count(&self) -> u16 {
-        let range = self.shape.count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// an array of scalars
     pub fn scalars(&self) -> &'a [BigEndian<u16>] {
-        let range = self.shape.scalars_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.scalars_byte_range();
+        unchecked::read_array(self.data, range)
     }
 
     /// an array of records
     pub fn records(&self) -> &'a [Shmecord] {
-        let range = self.shape.records_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.records_byte_range();
+        unchecked::read_array(self.data, range)
     }
 
     /// a versioned array of scalars
     pub fn versioned_scalars(&self) -> Option<&'a [BigEndian<u16>]> {
-        let range = self.shape.versioned_scalars_byte_range()?;
-        Some(self.data.read_array(range).unwrap())
+        let range = self.versioned_scalars_byte_range()?;
+        Some(unchecked::read_array(self.data, range))
     }
 
     /// a versioned array of scalars
     pub fn versioned_records(&self) -> Option<&'a [Shmecord]> {
-        let range = self.shape.versioned_records_byte_range()?;
-        Some(self.data.read_array(range).unwrap())
+        let range = self.versioned_records_byte_range()?;
+        Some(unchecked::read_array(self.data, range))
     }
 }
 
@@ -706,28 +670,9 @@ impl<'a> std::fmt::Debug for KindsOfArrays<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct VarLenHaverMarker {
-    var_len_byte_len: usize,
-}
+pub struct VarLenHaverMarker;
 
-impl VarLenHaverMarker {
-    pub fn count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn var_len_byte_range(&self) -> Range<usize> {
-        let start = self.count_byte_range().end;
-        start..start + self.var_len_byte_len
-    }
-
-    pub fn other_field_byte_range(&self) -> Range<usize> {
-        let start = self.var_len_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for VarLenHaverMarker {
+impl<'a> MinByteRange for VarLenHaver<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.other_field_byte_range().end
     }
@@ -735,35 +680,54 @@ impl MinByteRange for VarLenHaverMarker {
 
 impl<'a> FontRead<'a> for VarLenHaver<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let count: u16 = cursor.read()?;
-        let var_len_byte_len = {
-            let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
-            <VarSizeDummy as VarSize>::total_len_for_count(data, count as usize)?
-        };
-        cursor.advance_by(var_len_byte_len);
-        cursor.advance::<u32>();
-        cursor.finish(VarLenHaverMarker { var_len_byte_len })
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
     }
 }
 
-pub type VarLenHaver<'a> = TableRef<'a, VarLenHaverMarker>;
+pub type VarLenHaver<'a> = TableRef<'a, VarLenHaverMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarLenHaver<'a> {
+    fn var_len_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        {
+            let data = self.data.split_off(start).unwrap();
+            <VarSizeDummy as VarSize>::total_len_for_count(data, (self.count()) as usize).unwrap()
+        }
+    }
+
+    pub fn count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn var_len_byte_range(&self) -> Range<usize> {
+        let start = self.count_byte_range().end;
+        start..start + self.var_len_byte_len(start)
+    }
+
+    pub fn other_field_byte_range(&self) -> Range<usize> {
+        let start = self.var_len_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
     pub fn count(&self) -> u16 {
-        let range = self.shape.count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     pub fn var_len(&self) -> VarLenArray<'a, VarSizeDummy> {
-        let range = self.shape.var_len_byte_range();
-        VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
+        let range = self.var_len_byte_range();
+        VarLenArray::read(unchecked::split_off(self.data, range.start)).unwrap()
     }
 
     pub fn other_field(&self) -> u32 {
-        let range = self.shape.other_field_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.other_field_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 }
 
@@ -792,9 +756,28 @@ impl<'a> std::fmt::Debug for VarLenHaver<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct DummyMarker {}
+pub struct DummyMarker;
 
-impl DummyMarker {
+impl<'a> MinByteRange for Dummy<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self._reserved_byte_range().end
+    }
+}
+
+impl<'a> FontRead<'a> for Dummy<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+pub type Dummy<'a> = TableRef<'a, DummyMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Dummy<'a> {
     pub fn value_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -804,30 +787,10 @@ impl DummyMarker {
         let start = self.value_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-}
 
-impl MinByteRange for DummyMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self._reserved_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for Dummy<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.finish(DummyMarker {})
-    }
-}
-
-pub type Dummy<'a> = TableRef<'a, DummyMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Dummy<'a> {
     pub fn value(&self) -> u16 {
-        let range = self.shape.value_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.value_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 }
 

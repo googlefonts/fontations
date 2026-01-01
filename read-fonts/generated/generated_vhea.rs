@@ -8,9 +8,34 @@ use crate::codegen_prelude::*;
 /// The [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct VheaMarker {}
+pub struct VheaMarker;
 
-impl VheaMarker {
+impl<'a> MinByteRange for Vhea<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.number_of_long_ver_metrics_byte_range().end
+    }
+}
+
+impl TopLevelTable for Vhea<'_> {
+    /// `vhea`
+    const TAG: Tag = Tag::new(b"vhea");
+}
+
+impl<'a> FontRead<'a> for Vhea<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// The [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
+pub type Vhea<'a> = TableRef<'a, VheaMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Vhea<'a> {
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + Version16Dot16::RAW_BYTE_LEN
@@ -95,129 +120,88 @@ impl VheaMarker {
         let start = self.metric_data_format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-}
 
-impl MinByteRange for VheaMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.number_of_long_ver_metrics_byte_range().end
-    }
-}
-
-impl TopLevelTable for Vhea<'_> {
-    /// `vhea`
-    const TAG: Tag = Tag::new(b"vhea");
-}
-
-impl<'a> FontRead<'a> for Vhea<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<Version16Dot16>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<u16>();
-        cursor.finish(VheaMarker {})
-    }
-}
-
-/// The [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
-pub type Vhea<'a> = TableRef<'a, VheaMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Vhea<'a> {
     /// The major/minor version (1, 1)
     pub fn version(&self) -> Version16Dot16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.version_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Typographic ascent.
     pub fn ascender(&self) -> FWord {
-        let range = self.shape.ascender_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.ascender_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Typographic descent.
     pub fn descender(&self) -> FWord {
-        let range = self.shape.descender_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.descender_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Typographic line gap. Negative LineGap values are treated as
     /// zero in some legacy platform implementations.
     pub fn line_gap(&self) -> FWord {
-        let range = self.shape.line_gap_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.line_gap_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Maximum advance height value in 'vmtx' table.
     pub fn advance_height_max(&self) -> UfWord {
-        let range = self.shape.advance_height_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.advance_height_max_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Minimum top sidebearing value in 'vmtx' table for glyphs with
     /// contours (empty glyphs should be ignored).
     pub fn min_top_side_bearing(&self) -> FWord {
-        let range = self.shape.min_top_side_bearing_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.min_top_side_bearing_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Minimum bottom sidebearing value
     pub fn min_bottom_side_bearing(&self) -> FWord {
-        let range = self.shape.min_bottom_side_bearing_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.min_bottom_side_bearing_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Defined as max( tsb + (yMax-yMin)).
     pub fn y_max_extent(&self) -> FWord {
-        let range = self.shape.y_max_extent_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.y_max_extent_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Used to calculate the slope of the cursor (rise/run); 1 for
     /// vertical caret, 0 for horizontal.
     pub fn caret_slope_rise(&self) -> i16 {
-        let range = self.shape.caret_slope_rise_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.caret_slope_rise_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// 0 for vertical caret, 1 for horizontal.
     pub fn caret_slope_run(&self) -> i16 {
-        let range = self.shape.caret_slope_run_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.caret_slope_run_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// The amount by which a slanted highlight on a glyph needs to be
     /// shifted to produce the best appearance. Set to 0 for
     /// non-slanted fonts
     pub fn caret_offset(&self) -> i16 {
-        let range = self.shape.caret_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.caret_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// 0 for current format.
     pub fn metric_data_format(&self) -> i16 {
-        let range = self.shape.metric_data_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.metric_data_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of advance heights in the vertical metrics (`vmtx`) table.
     pub fn number_of_long_ver_metrics(&self) -> u16 {
-        let range = self.shape.number_of_long_ver_metrics_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.number_of_long_ver_metrics_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 }
 

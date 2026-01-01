@@ -8,14 +8,41 @@ use crate::codegen_prelude::*;
 /// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CpalMarker {
-    color_record_indices_byte_len: usize,
-    palette_types_array_offset_byte_start: Option<usize>,
-    palette_labels_array_offset_byte_start: Option<usize>,
-    palette_entry_labels_array_offset_byte_start: Option<usize>,
+pub struct CpalMarker;
+
+impl<'a> MinByteRange for Cpal<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.color_record_indices_byte_range().end
+    }
 }
 
-impl CpalMarker {
+impl TopLevelTable for Cpal<'_> {
+    /// `CPAL`
+    const TAG: Tag = Tag::new(b"CPAL");
+}
+
+impl<'a> FontRead<'a> for Cpal<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
+pub type Cpal<'a> = TableRef<'a, CpalMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Cpal<'a> {
+    fn color_record_indices_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.num_palettes()) as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -43,112 +70,75 @@ impl CpalMarker {
 
     pub fn color_record_indices_byte_range(&self) -> Range<usize> {
         let start = self.color_records_array_offset_byte_range().end;
-        start..start + self.color_record_indices_byte_len
+        start..start + self.color_record_indices_byte_len(start)
     }
 
     pub fn palette_types_array_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.palette_types_array_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible(1u16) {
+            let start = self.color_record_indices_byte_range().end;
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn palette_labels_array_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.palette_labels_array_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible(1u16) {
+            let start = self
+                .palette_types_array_offset_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.color_record_indices_byte_range().end);
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn palette_entry_labels_array_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.palette_entry_labels_array_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible(1u16) {
+            let start = self
+                .palette_labels_array_offset_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.palette_types_array_offset_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| self.color_record_indices_byte_range().end)
+                });
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
-}
 
-impl MinByteRange for CpalMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.color_record_indices_byte_range().end
-    }
-}
-
-impl TopLevelTable for Cpal<'_> {
-    /// `CPAL`
-    const TAG: Tag = Tag::new(b"CPAL");
-}
-
-impl<'a> FontRead<'a> for Cpal<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        let num_palettes: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        let color_record_indices_byte_len = (num_palettes as usize)
-            .checked_mul(u16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(color_record_indices_byte_len);
-        let palette_types_array_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        let palette_labels_array_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        let palette_entry_labels_array_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        cursor.finish(CpalMarker {
-            color_record_indices_byte_len,
-            palette_types_array_offset_byte_start,
-            palette_labels_array_offset_byte_start,
-            palette_entry_labels_array_offset_byte_start,
-        })
-    }
-}
-
-/// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
-pub type Cpal<'a> = TableRef<'a, CpalMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Cpal<'a> {
     /// Table version number (=0).
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.version_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of palette entries in each palette.
     pub fn num_palette_entries(&self) -> u16 {
-        let range = self.shape.num_palette_entries_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.num_palette_entries_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of palettes in the table.
     pub fn num_palettes(&self) -> u16 {
-        let range = self.shape.num_palettes_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.num_palettes_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Total number of color records, combined for all palettes.
     pub fn num_color_records(&self) -> u16 {
-        let range = self.shape.num_color_records_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.num_color_records_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset from the beginning of CPAL table to the first
     /// ColorRecord.
     pub fn color_records_array_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.color_records_array_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.color_records_array_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`color_records_array_offset`][Self::color_records_array_offset].
@@ -162,8 +152,8 @@ impl<'a> Cpal<'a> {
     /// Index of each palette’s first color record in the combined
     /// color record array.
     pub fn color_record_indices(&self) -> &'a [BigEndian<u16>] {
-        let range = self.shape.color_record_indices_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.color_record_indices_byte_range();
+        unchecked::read_array(self.data, range)
     }
 
     /// Offset from the beginning of CPAL table to the [Palette Types Array][].
@@ -172,8 +162,8 @@ impl<'a> Cpal<'a> {
     ///
     /// [Palette Types Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array
     pub fn palette_types_array_offset(&self) -> Option<Nullable<Offset32>> {
-        let range = self.shape.palette_types_array_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.palette_types_array_offset_byte_range()?;
+        Some(unchecked::read_at(self.data, range.start))
     }
 
     /// Attempt to resolve [`palette_types_array_offset`][Self::palette_types_array_offset].
@@ -192,8 +182,8 @@ impl<'a> Cpal<'a> {
     ///
     /// [Palette Labels Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-labels-array
     pub fn palette_labels_array_offset(&self) -> Option<Nullable<Offset32>> {
-        let range = self.shape.palette_labels_array_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.palette_labels_array_offset_byte_range()?;
+        Some(unchecked::read_at(self.data, range.start))
     }
 
     /// Attempt to resolve [`palette_labels_array_offset`][Self::palette_labels_array_offset].
@@ -214,8 +204,8 @@ impl<'a> Cpal<'a> {
     ///
     /// [Palette Entry Labels Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entry-label-array
     pub fn palette_entry_labels_array_offset(&self) -> Option<Nullable<Offset32>> {
-        let range = self.shape.palette_entry_labels_array_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.palette_entry_labels_array_offset_byte_range()?;
+        Some(unchecked::read_at(self.data, range.start))
     }
 
     /// Attempt to resolve [`palette_entry_labels_array_offset`][Self::palette_entry_labels_array_offset].
