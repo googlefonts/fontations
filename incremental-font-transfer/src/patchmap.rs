@@ -234,7 +234,11 @@ fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
 
     let max_entry_index = map.max_entry_index();
     let max_glyph_map_entry_index = map.max_glyph_map_entry_index();
-    let field_width = if max_entry_index < 256 { 1u16 } else { 2u16 };
+    let entry_map_record_size = if max_entry_index < 256 {
+        2usize
+    } else {
+        4usize
+    };
 
     // We need to check up front there is enough data for all of the listed entry records, this
     // isn't checked by the read_fonts generated code. Specification requires the operation to fail
@@ -249,7 +253,7 @@ fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
     };
     let mut record_it = feature_map.feature_records().iter().peekable();
 
-    let mut cumulative_entry_map_count = 0;
+    let mut cumulative_entry_map_count: usize = 0;
     let mut largest_tag: Option<Tag> = None;
     loop {
         let record = if let Some(tag_it) = &mut maybe_tag_it {
@@ -259,7 +263,9 @@ fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
             let record = record?;
 
             if *tag > record.feature_tag() {
-                cumulative_entry_map_count += record.entry_map_count().get();
+                cumulative_entry_map_count = cumulative_entry_map_count
+                    .checked_add(record.entry_map_count().get() as usize)
+                    .ok_or(ReadError::OutOfBounds)?;
                 record_it.next();
                 continue;
             }
@@ -293,7 +299,9 @@ fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
             if let Some(largest_tag) = largest_tag {
                 if record.feature_tag() <= largest_tag {
                     // Out of order or duplicate tag, skip this record.
-                    cumulative_entry_map_count += record.entry_map_count().get();
+                    cumulative_entry_map_count = cumulative_entry_map_count
+                        .checked_add(record.entry_map_count().get() as usize)
+                        .ok_or(ReadError::OutOfBounds)?;
                     continue;
                 }
             }
@@ -305,8 +313,8 @@ fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
         let entry_count = record.entry_map_count().get();
 
         for i in 0..entry_count {
-            let index = i as usize + cumulative_entry_map_count as usize;
-            let byte_index = index * field_width as usize * 2;
+            let index = i as usize + cumulative_entry_map_count;
+            let byte_index = index * entry_map_record_size;
             let data = FontData::new(&feature_map.entry_map_data()[byte_index..]);
             let mapped_entry_index = record.first_new_entry_index().get() as u32 + i as u32;
             let entry_record = EntryMapRecord::read(data, max_entry_index)?;
@@ -332,7 +340,9 @@ fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
             );
         }
 
-        cumulative_entry_map_count += entry_count;
+        cumulative_entry_map_count = cumulative_entry_map_count
+            .checked_add(entry_count as usize)
+            .ok_or(ReadError::OutOfBounds)?;
     }
 
     Ok(())

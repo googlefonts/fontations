@@ -195,10 +195,13 @@ impl<'a> PatchMapFormat1<'a> {
 
 impl FeatureMap<'_> {
     pub fn entry_records_size(&self, max_entry_index: u16) -> Result<usize, ReadError> {
-        let field_width = if max_entry_index < 256 { 1 } else { 2 };
+        let entry_width = if max_entry_index < 256 { 2 } else { 4 };
         let mut num_bytes = 0usize;
         for record in self.feature_records().iter() {
-            num_bytes += record?.entry_map_count().get() as usize * field_width * 2;
+            let entries_size = record?.entry_map_count().get() as usize * entry_width;
+            num_bytes = num_bytes
+                .checked_add(entries_size)
+                .ok_or(ReadError::OutOfBounds)?;
         }
         Ok(num_bytes)
     }
