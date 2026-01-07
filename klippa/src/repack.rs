@@ -317,6 +317,8 @@ fn find_lookup_indices(graph: &Graph) -> Result<(ObjIdx, Vec<ObjIdx>), RepackErr
 
 #[cfg(test)]
 pub(crate) mod test {
+    use core::num;
+
     use super::*;
     use crate::graph::test::{
         add_24_offset, add_object, add_offset, add_virtual_offset, add_wide_offset,
@@ -1065,6 +1067,100 @@ pub(crate) mod test {
         s.end_serialize();
     }
 
+    fn populate_serializer_with_large_mark_base_pos_1(
+        s: &mut Serializer,
+        mark_count: usize,
+        class_count: usize,
+        base_count: usize,
+        table_count: usize,
+    ) {
+        struct MarkBasePosBuffers {
+            base_anchors: Vec<usize>,
+            mark_anchors: Vec<usize>,
+            anchor_buffers: Vec<u8>,
+        }
+
+        fn populate_mark_base_pos_buffers(
+            mark_count: usize,
+            class_count: usize,
+            base_count: usize,
+            s: &mut Serializer,
+        ) -> MarkBasePosBuffers {
+            let num_base_anchors = base_count * class_count;
+            let mut base_anchors = Vec::with_capacity(num_base_anchors);
+            let mut mark_anchors = Vec::with_capacity(mark_count);
+            let mut anchor_buffers = Vec::with_capacity(num_base_anchors + 100);
+
+            for i in 0..(num_base_anchors / 2 + 50) as u16 {
+                anchor_buffers.extend_from_slice(&i.to_be_bytes());
+            }
+
+            for i in 0..num_base_anchors {
+                let anchor_idx = add_object(s, &anchor_buffers[i..], 100, false);
+                base_anchors.push(anchor_idx);
+            }
+
+            for i in 0..mark_count {
+                let anchor_idx = add_object(s, &anchor_buffers[i..], 4, false);
+                mark_anchors.push(anchor_idx);
+            }
+            MarkBasePosBuffers {
+                base_anchors,
+                mark_anchors,
+                anchor_buffers,
+            }
+        }
+
+        fn create_mark_base_pos_1(
+            s: &mut Serializer,
+            table_index: usize,
+            mark_base_buffers: &MarkBasePosBuffers,
+            class_per_table: usize,
+            class_count: usize,
+        ) {
+            let mark_anchors = &mark_base_buffers.mark_anchors;
+            let mark_count = mark_anchors.len();
+
+            let base_anchors = &mark_base_buffers.base_anchors;
+            let base_count = base_anchors.len() / class_count;
+
+            let mark_per_class = mark_count / class_count;
+            let start_class = class_per_table * table_index;
+            let end_class = class_per_table * (table_index + 1) - 1;
+
+            // baseArray
+            start_object(s, &(base_count as u16).to_be_bytes(), 2);
+
+            for base in 0..base_count {
+                for class in start_class..=end_class {
+                    let i = base * class_count + class;
+                    add_offset(s, base_anchors[i]);
+                }
+            }
+
+            let base_array = s.pop_pack(false).unwrap();
+
+            //markArray
+            let num_marks = class_per_table * mark_per_class;
+            start_object(s, &(num_marks as u16).to_be_bytes(), 2);
+
+            for mark in 0..mark_count {
+                let mut class = mark % class_count;
+                if class < start_class || class > end_class {
+                    continue;
+                }
+                class -= start_class;
+                s.embed(class as u16).unwrap();
+                add_offset(s, mark_anchors[mark]);
+            }
+            let mark_array = s.pop_pack(false).unwrap();
+
+            //mark Coverage
+        }
+
+        s.start_serialize().unwrap();
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn populate_serializer_with_large_ligsubst(
         s: &mut Serializer,
@@ -1615,6 +1711,18 @@ pub(crate) mod test {
 
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_extension_promotion(&mut expected, 3, true);
+
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false);
+    }
+
+    #[test]
+    fn test_resolve_with_basic_mark_base_pos_1_split() {
+        let buf_size = 200000;
+        let mut overflowing = Serializer::new(buf_size);
+        populate_serializer_with_large_mark_base_pos_1(&mut overflowing, 40, 10, 110, 1);
+
+        let mut expected = Serializer::new(buf_size);
+        populate_serializer_with_large_mark_base_pos_1(&mut expected, 40, 10, 110, 2);
 
         run_resolve_overflow_test(&overflowing, &expected, 20, true, false);
     }

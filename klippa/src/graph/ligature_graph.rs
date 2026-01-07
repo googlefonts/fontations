@@ -188,13 +188,15 @@ fn clone_range(
                 new_ligset_table_idx
             } else {
                 // move the entire ligature set to the new ligature table
-                let lig_set_idx = graph.move_child(
-                    this_index,
-                    ligset_pos,
-                    new_lig_subst_idx,
-                    LigatureSubstFormat1::MIN_SIZE as u32 + new_lig_set_count * 2,
-                    Offset16::RAW_BYTE_LEN,
-                )?;
+                let lig_set_idx = graph
+                    .move_child(
+                        this_index,
+                        ligset_pos,
+                        new_lig_subst_idx,
+                        LigatureSubstFormat1::MIN_SIZE as u32 + new_lig_set_count * 2,
+                        Offset16::RAW_BYTE_LEN,
+                    )?
+                    .ok_or(RepackError::GraphErrorInvalidLinkPosition)?;
                 compact_lig_set(graph, lig_set_idx)?;
                 lig_set_idx
             }
@@ -227,13 +229,15 @@ fn clone_range(
         } else {
             // This liga set is fully contained within [start, end)
             // We can move the entire ligaset to the new liga subset object.
-            graph.move_child(
-                this_index,
-                ligset_pos,
-                new_lig_subst_idx,
-                LigatureSubstFormat1::MIN_SIZE as u32 + new_lig_set_count * 2,
-                Offset16::RAW_BYTE_LEN,
-            )?
+            graph
+                .move_child(
+                    this_index,
+                    ligset_pos,
+                    new_lig_subst_idx,
+                    LigatureSubstFormat1::MIN_SIZE as u32 + new_lig_set_count * 2,
+                    Offset16::RAW_BYTE_LEN,
+                )?
+                .ok_or(RepackError::GraphErrorInvalidLinkPosition)?
         };
         new_lig_set_count += 1;
 
