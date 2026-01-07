@@ -11,6 +11,7 @@ use write_fonts::{read::collections::IntSet, types::Uint24};
 mod coverage_graph;
 pub(crate) mod layout;
 pub(crate) mod ligature_graph;
+pub(crate) mod markbasepos_graph;
 
 #[derive(Debug)]
 pub(crate) enum RepackError {
@@ -234,6 +235,10 @@ impl Vertex {
         self.real_links
             .entry(pos)
             .and_modify(|l| l.update_obj_idx(new_child_idx));
+    }
+
+    fn real_links(&self) -> &FnvHashMap<u32, Link>{
+        &self.real_links
     }
 }
 
