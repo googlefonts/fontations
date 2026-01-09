@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::{borrow::Cow, fmt::Display};
 
 use read_fonts::{FontRef, TableProvider};
-use types::{Tag, TT_SFNT_VERSION};
+use types::{Tag, CFF_SFNT_VERSION, TT_SFNT_VERSION};
 
 use crate::util::SearchRange;
 
@@ -34,11 +34,20 @@ pub struct BuilderError {
 impl TableDirectory {
     pub fn from_table_records(table_records: Vec<TableRecord>) -> TableDirectory {
         assert!(table_records.len() <= u16::MAX as usize);
+        let is_cff = table_records.iter().any(|record| {
+            let tag_bytes = &record.tag.to_be_bytes();
+            tag_bytes == b"CFF " || tag_bytes == b"CFF2"
+        });
+
+        let sfnt_version = is_cff
+            .then_some(CFF_SFNT_VERSION)
+            .unwrap_or(TT_SFNT_VERSION);
+
         // See https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-directory
         let computed = SearchRange::compute(table_records.len(), TABLE_RECORD_LEN);
 
         TableDirectory::new(
-            TT_SFNT_VERSION,
+            sfnt_version,
             computed.search_range,
             computed.entry_selector,
             computed.range_shift,
