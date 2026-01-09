@@ -9,7 +9,10 @@ use quote::{quote, ToTokens};
 
 use crate::parsing::{Attr, GenericGroup, Item, Items, Phase};
 
-use super::parsing::{Field, ReferencedFields, Table, TableFormat, TableReadArg, TableReadArgs};
+use super::parsing::{
+    Count, CountArg, CountTransform, Field, FieldReadArgs, FieldType, ReferencedFields, Table,
+    TableFormat, TableReadArg, TableReadArgs,
+};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     if item.attrs.write_only.is_some() {
@@ -18,40 +21,29 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     let docs = &item.attrs.docs;
     let generic = item.attrs.generic_offset.as_ref();
     let generic_with_default = generic.map(|t| quote!(#t = ()));
-    let phantom_decl = generic.map(|t| quote!(offset_type: std::marker::PhantomData<*const #t>));
     let marker_name = item.marker_name();
     let raw_name = item.raw_name();
+    let shape_byte_len_fns = item.iter_shape_len_fns();
     let shape_byte_range_fns = item.iter_shape_byte_fns();
     let optional_min_byte_range_trait_impl = item.impl_min_byte_range_trait();
-    let shape_fields = item.iter_shape_fields();
-    let derive_clone_copy = generic.is_none().then(|| quote!(Clone, Copy));
-    let impl_clone_copy = generic.is_some().then(|| {
-        quote! {
-            impl<#generic> Clone for #marker_name<#generic> {
-                fn clone(&self) -> Self {
-                    *self
-                }
-            }
-
-            impl<#generic> Copy for #marker_name<#generic> {}
-        }
-    });
+    let table_ref_args = item
+        .attrs
+        .read_args
+        .as_ref()
+        .map(|args| args.args_type())
+        .unwrap_or_else(|| {
+            generic
+                .as_ref()
+                .map(|t| quote!(std::marker::PhantomData<*const #t>))
+                .unwrap_or_else(|| quote!(()))
+        });
 
     let of_unit_docs = " Replace the specific generic type on this implementation with `()`";
 
     // In the presence of a generic param we only impl FontRead for Name<()>,
     // and then use into() to convert it to the concrete generic type.
     let impl_into_generic = generic.as_ref().map(|t| {
-        let shape_fields = item
-            .iter_shape_field_names()
-            .map(|name| quote!(#name: shape.#name))
-            .collect::<Vec<_>>();
-
-        let shape_name = if shape_fields.is_empty() {
-            quote!(..)
-        } else {
-            quote!(shape)
-        };
+        let shape_name = quote!(..);
 
         quote! {
                impl<'a> #raw_name<'a, ()> {
@@ -59,10 +51,9 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                    pub(crate) fn into_concrete<T>(self) -> #raw_name<'a, #t> {
                        let TableRef { data, #shape_name} = self;
                        TableRef {
-                           shape: #marker_name {
-                               #( #shape_fields, )*
-                               offset_type: std::marker::PhantomData,
-                           }, data
+                           args: std::marker::PhantomData,
+                           data,
+                           _marker: std::marker::PhantomData,
                        }
                    }
                }
@@ -75,10 +66,9 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                    pub(crate) fn of_unit_type(&self) -> #raw_name<'a, ()> {
                        let TableRef { data, #shape_name} = self;
                        TableRef {
-                           shape: #marker_name {
-                               #( #shape_fields, )*
-                               offset_type: std::marker::PhantomData,
-                           }, data: *data,
+                           args: std::marker::PhantomData,
+                           data: *data,
+                           _marker: std::marker::PhantomData,
                        }
                    }
                }
@@ -106,32 +96,27 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         #optional_format_trait_impl
 
         #( #docs )*
-        #[derive(Debug, #derive_clone_copy)]
+        #[derive(Debug, Clone, Copy)]
         #[doc(hidden)]
-        pub struct #marker_name <#generic_with_default> {
-            #( #shape_fields, )*
-            #phantom_decl
-        }
-
-        impl <#generic> #marker_name <#generic> {
-            #( #shape_byte_range_fns )*
-        }
-
+        pub struct #marker_name;
         #optional_min_byte_range_trait_impl
 
         #top_level
-
-        #impl_clone_copy
 
         #font_read
 
         #impl_into_generic
 
         #( #docs )*
-        pub type #raw_name<'a, #generic> = TableRef<'a, #marker_name<#generic>>;
+        pub type #raw_name<'a, #generic_with_default> =
+            TableRef<'a, #marker_name, #table_ref_args>;
 
         #[allow(clippy::needless_lifetimes)]
         impl<'a, #generic> #raw_name<'a, #generic> {
+
+            #( #shape_byte_len_fns )*
+
+            #( #shape_byte_range_fns )*
 
             #( #table_ref_getters )*
 
@@ -142,25 +127,16 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 }
 
 fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
-    let marker_name = item.marker_name();
     let name = item.raw_name();
-    let field_validation_stmts = item.iter_field_validation_stmts();
-    let shape_field_names = item.iter_shape_field_names();
     let generic = item.attrs.generic_offset.as_ref();
-    let phantom = generic.map(|_| quote!(offset_type: std::marker::PhantomData,));
     let error_if_phantom_and_read_args = generic.map(|_| {
         quote!(compile_error!(
             "ReadWithArgs not implemented for tables with phantom params."
         );)
     });
 
-    // the cursor doesn't need to be mut if there are no fields,
-    // which happens at least once (in glyf)?
-    let maybe_mut_kw = (!item.fields.fields.is_empty()).then(|| quote!(mut));
-
     if let Some(read_args) = &item.attrs.read_args {
         let args_type = read_args.args_type();
-        let destructure_pattern = read_args.destructure_pattern();
         let constructor_args = read_args.constructor_args();
         let args_from_constructor_args = read_args.read_args_from_constructor_args();
         Ok(quote! {
@@ -171,11 +147,11 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
 
             impl<'a> FontReadWithArgs<'a> for #name<'a> {
                 fn read_with_args(data: FontData<'a>, args: &#args_type) -> Result<Self, ReadError> {
-                    let #destructure_pattern = *args;
-                    let #maybe_mut_kw cursor = data.cursor();
-                    #( #field_validation_stmts )*
-                    cursor.finish( #marker_name {
-                        #( #shape_field_names, )*
+                    let args = *args;
+                    Ok(TableRef {
+                        args,
+                        data,
+                        _marker: std::marker::PhantomData,
                     })
                 }
             }
@@ -192,14 +168,17 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
             }
         })
     } else {
+        let args_value = generic
+            .as_ref()
+            .map(|_| quote!(std::marker::PhantomData))
+            .unwrap_or_else(|| quote!(()));
         Ok(quote! {
             impl<'a, #generic> FontRead<'a> for #name<'a, #generic> {
             fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-                let #maybe_mut_kw cursor = data.cursor();
-                #( #field_validation_stmts )*
-                cursor.finish( #marker_name {
-                    #( #shape_field_names, )*
-                    #phantom
+                Ok(TableRef {
+                    args: #args_value,
+                    data,
+                    _marker: std::marker::PhantomData,
                 })
             }
         }
@@ -921,19 +900,24 @@ impl Table {
         std::iter::from_fn(move || {
             let field = iter.next()?;
             let fn_name = field.shape_byte_range_fn_name();
-            let len_expr = field.shape_len_expr();
+            let len_expr = field.shape_len_expr(quote!(start));
 
             // versioned fields have a different signature
-            if field.attrs.conditional.is_some() {
+            if let Some(condition) = field.attrs.conditional.as_ref() {
+                let condition = condition.condition_tokens_for_access();
+                let start_expr = prev_field_end_expr.clone();
                 prev_field_end_expr = quote! {
                     self.#fn_name().map(|range| range.end)
                         .unwrap_or_else(|| #prev_field_end_expr)
                 };
-                let start_field_name = field.shape_byte_start_field_name();
                 return Some(quote! {
                     pub fn #fn_name(&self) -> Option<Range<usize>> {
-                        let start = self.#start_field_name?;
-                        Some(start..start + #len_expr)
+                        if #condition {
+                            let start = #start_expr;
+                            Some(start..start + #len_expr)
+                        } else {
+                            None
+                        }
                     }
                 });
             }
@@ -950,51 +934,213 @@ impl Table {
         })
     }
 
+    fn iter_shape_len_fns(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        self.fields.iter().filter_map(|field| {
+            if !field.has_computed_len() {
+                return None;
+            }
+            let fn_name = field.shape_byte_len_field_name();
+            let len_expr = self.byte_len_expr_for_field(field);
+            Some(quote! {
+                fn #fn_name(&self, start: usize) -> usize {
+                    let _ = start;
+                    #len_expr
+                }
+            })
+        })
+    }
+
+    fn byte_len_expr_for_field(&self, field: &Field) -> TokenStream {
+        let read_args = field
+            .attrs
+            .read_with_args
+            .as_deref()
+            .map(|args| self.field_read_args_expr(args));
+
+        if let FieldType::Struct { typ } = &field.typ {
+            let read_args = read_args.expect("ComputeSize requires read args");
+            return quote!(<#typ as ComputeSize>::compute_size(&#read_args).unwrap());
+        }
+        if let FieldType::PendingResolution { .. } = &field.typ {
+            panic!("Should have resolved {field:?}")
+        }
+
+        let count = field
+            .attrs
+            .count
+            .as_deref()
+            .expect("missing count attribute?");
+        match count {
+            Count::All(_) => {
+                let remaining = match &field.typ {
+                    FieldType::Array { inner_typ } => {
+                        let inner_typ = inner_typ.cooked_type_tokens();
+                        quote! {
+                            {
+                                let remaining = self.data.len().saturating_sub(start);
+                                remaining / #inner_typ::RAW_BYTE_LEN * #inner_typ::RAW_BYTE_LEN
+                            }
+                        }
+                    }
+                    _ => quote!(self.data.len().saturating_sub(start)),
+                };
+                remaining
+            }
+            other => {
+                let count_expr = self.count_expr_tokens(other);
+                let size_expr = match &field.typ {
+                    FieldType::Array { inner_typ } => {
+                        let inner_typ = inner_typ.cooked_type_tokens();
+                        quote!(#inner_typ::RAW_BYTE_LEN)
+                    }
+                    FieldType::ComputedArray(array) => {
+                        let inner = array.raw_inner_type();
+                        let read_args = read_args.expect("ComputedArray requires read args");
+                        quote!(<#inner as ComputeSize>::compute_size(&#read_args).unwrap())
+                    }
+                    FieldType::VarLenArray(array) => {
+                        let inner = array.raw_inner_type();
+                        return quote! {
+                            {
+                                let data = self.data.split_off(start).unwrap();
+                                <#inner as VarSize>::total_len_for_count(data, #count_expr).unwrap()
+                            }
+                        };
+                    }
+                    _ => unreachable!("count not valid here"),
+                };
+                if let Count::SingleArg(CountArg::Literal(lit)) = other {
+                    if lit.base10_digits() == "1" {
+                        return size_expr;
+                    }
+                }
+                quote!((#count_expr).checked_mul(#size_expr).unwrap())
+            }
+        }
+    }
+
+    fn field_read_args_expr(&self, args: &FieldReadArgs) -> TokenStream {
+        match args.inputs.as_slice() {
+            [arg] => self.read_arg_expr(arg),
+            args => {
+                let args = args.iter().map(|arg| self.read_arg_expr(arg));
+                quote!(( #( #args ),* ))
+            }
+        }
+    }
+
+    fn count_arg_expr(&self, arg: &CountArg) -> TokenStream {
+        match arg {
+            CountArg::Field(ident) => self.read_arg_expr(ident),
+            CountArg::Literal(lit) => quote!(#lit),
+        }
+    }
+
+    fn count_expr_tokens(&self, count: &Count) -> TokenStream {
+        match count {
+            Count::All(_) => unreachable!("'all' count handled separately"),
+            Count::SingleArg(CountArg::Field(arg)) => {
+                let arg = self.read_arg_expr(arg);
+                quote!((#arg) as usize)
+            }
+            Count::SingleArg(CountArg::Literal(arg)) => quote!(#arg),
+            Count::Complicated { args, xform } => {
+                let args = args
+                    .iter()
+                    .map(|arg| self.count_arg_expr(arg))
+                    .collect::<Vec<_>>();
+                match (xform, args.as_slice()) {
+                    (CountTransform::Sub, [a, b]) => {
+                        quote!(transforms::subtract(#a, #b))
+                    }
+                    (CountTransform::Add, [a, b]) => {
+                        quote!(transforms::add(#a, #b))
+                    }
+                    (CountTransform::AddMul, [a, b, c]) => {
+                        quote!(transforms::add_multiply(#a, #b, #c))
+                    }
+                    (CountTransform::MulAdd, [a, b, c]) => {
+                        quote!(transforms::multiply_add(#a, #b, #c))
+                    }
+                    (CountTransform::Half, [a]) => {
+                        quote!(transforms::half(#a))
+                    }
+                    (CountTransform::DeltaSetIndexData, [a, b]) => {
+                        quote!(EntryFormat::map_size(#a, #b))
+                    }
+                    (CountTransform::DeltaValueCount, [a, b, c]) => {
+                        quote!(DeltaFormat::value_count(#a, #b, #c))
+                    }
+                    (CountTransform::TupleLen, [a, b, c]) => {
+                        quote!(TupleIndex::tuple_len(#a, #b, #c))
+                    }
+                    (CountTransform::ItemVariationDataLen, [a, b, c]) => {
+                        quote!(ItemVariationData::delta_sets_len(#a, #b, #c))
+                    }
+                    (CountTransform::BitmapLen, [a]) => {
+                        quote!(transforms::bitmap_len(#a))
+                    }
+                    (CountTransform::MaxValueBitmapLen, [a]) => {
+                        quote!(transforms::max_value_bitmap_len(#a))
+                    }
+                    (CountTransform::SubAddTwo, [a, b]) => {
+                        quote!(transforms::subtract_add_two(#a, #b))
+                    }
+                    (CountTransform::TryInto, [a]) => {
+                        quote!(usize::try_from(#a).unwrap_or_default())
+                    }
+                    _ => unreachable!("unexpected count transform args"),
+                }
+            }
+        }
+    }
+
+    fn read_arg_expr(&self, ident: &syn::Ident) -> TokenStream {
+        if let Some(idx) = self.read_arg_index(ident) {
+            if self.read_args_len() == 1 {
+                quote!(self.args)
+            } else {
+                let idx = syn::Index::from(idx);
+                quote!(self.args.#idx)
+            }
+        } else if self.is_conditional_field(ident) {
+            quote!(self.#ident().unwrap_or_default())
+        } else {
+            quote!(self.#ident())
+        }
+    }
+
+    fn read_arg_index(&self, ident: &syn::Ident) -> Option<usize> {
+        self.attrs
+            .read_args
+            .as_ref()
+            .and_then(|args| args.args.iter().position(|arg| arg.ident == *ident))
+    }
+
+    fn read_args_len(&self) -> usize {
+        self.attrs
+            .read_args
+            .as_ref()
+            .map(|args| args.args.len())
+            .unwrap_or(0)
+    }
+
+    fn is_conditional_field(&self, ident: &syn::Ident) -> bool {
+        self.fields
+            .iter()
+            .any(|field| field.name == *ident && field.attrs.conditional.is_some())
+    }
+
     fn iter_shape_fields(&self) -> impl Iterator<Item = TokenStream> + '_ {
-        self.iter_shape_field_names_and_types()
-            .into_iter()
-            .map(|(ident, typ)| quote!( #ident: #typ ))
+        std::iter::empty()
     }
 
     fn iter_shape_field_names(&self) -> impl Iterator<Item = syn::Ident> + '_ {
-        self.iter_shape_field_names_and_types()
-            .into_iter()
-            .map(|(name, _)| name)
+        std::iter::empty()
     }
 
     fn iter_shape_field_names_and_types(&self) -> Vec<(syn::Ident, TokenStream)> {
-        let mut result = Vec::new();
-        // if an input arg is needed later, save it in the shape.
-        if let Some(args) = &self.attrs.read_args {
-            result.extend(
-                args.args
-                    .iter()
-                    .filter(|arg| self.fields.referenced_fields.needs_at_runtime(&arg.ident))
-                    .map(|arg| (arg.ident.clone(), arg.typ.to_token_stream())),
-            );
-        }
-
-        for next in self.fields.iter() {
-            let is_versioned = next.attrs.conditional.is_some();
-            let has_computed_len = next.has_computed_len();
-            if !(is_versioned || has_computed_len) {
-                continue;
-            }
-            if is_versioned {
-                let field_name = next.shape_byte_start_field_name();
-                result.push((field_name, quote!(Option<usize>)));
-            }
-
-            if has_computed_len {
-                let field_name = next.shape_byte_len_field_name();
-                if is_versioned {
-                    result.push((field_name, quote!(Option<usize>)));
-                } else {
-                    result.push((field_name, quote!(usize)));
-                }
-            };
-        }
-        result
+        Vec::new()
     }
 
     fn iter_field_validation_stmts(&self) -> impl Iterator<Item = TokenStream> + '_ {
@@ -1034,11 +1180,12 @@ impl Table {
             .iter()
             .filter(|fld| fld.attrs.conditional.is_none())
             .last()?;
-        let name = self.marker_name();
+        let name = self.raw_name();
+        let generic = self.attrs.generic_offset.as_ref().map(|attr| &attr.attr);
 
         let fn_name = field.shape_byte_range_fn_name();
         Some(quote! {
-            impl MinByteRange for #name {
+            impl<'a, #generic> MinByteRange for #name<'a, #generic> {
                 fn min_byte_range(&self) -> Range<usize> {
                     0..self.#fn_name().end
                 }
@@ -1089,13 +1236,21 @@ impl TableReadArgs {
         &'a self,
         referenced_fields: &'a ReferencedFields,
     ) -> impl Iterator<Item = TokenStream> + 'a {
+        let is_single = self.args.len() == 1;
         self.args
             .iter()
-            .filter(|arg| referenced_fields.needs_at_runtime(&arg.ident))
-            .map(|TableReadArg { ident, typ }| {
+            .enumerate()
+            .filter(|(_, arg)| referenced_fields.needs_at_runtime(&arg.ident))
+            .map(move |(idx, TableReadArg { ident, typ })| {
+                let value_expr = if is_single {
+                    quote!(self.args)
+                } else {
+                    let idx = syn::Index::from(idx);
+                    quote!(self.args.#idx)
+                };
                 quote! {
                     pub(crate) fn #ident(&self) -> #typ {
-                        self.shape.#ident
+                        #value_expr
                     }
                 }
             })

@@ -8,9 +8,34 @@ use crate::codegen_prelude::*;
 /// The [tracking (trak)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6trak.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct TrakMarker {}
+pub struct TrakMarker;
 
-impl TrakMarker {
+impl<'a> MinByteRange for Trak<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.reserved_byte_range().end
+    }
+}
+
+impl TopLevelTable for Trak<'_> {
+    /// `trak`
+    const TAG: Tag = Tag::new(b"trak");
+}
+
+impl<'a> FontRead<'a> for Trak<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// The [tracking (trak)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6trak.html) table.
+pub type Trak<'a> = TableRef<'a, TrakMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Trak<'a> {
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
@@ -35,52 +60,23 @@ impl TrakMarker {
         let start = self.vert_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-}
 
-impl MinByteRange for TrakMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.reserved_byte_range().end
-    }
-}
-
-impl TopLevelTable for Trak<'_> {
-    /// `trak`
-    const TAG: Tag = Tag::new(b"trak");
-}
-
-impl<'a> FontRead<'a> for Trak<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<Offset16>();
-        cursor.advance::<u16>();
-        cursor.finish(TrakMarker {})
-    }
-}
-
-/// The [tracking (trak)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6trak.html) table.
-pub type Trak<'a> = TableRef<'a, TrakMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Trak<'a> {
     /// Version number of the tracking table (0x00010000 for the current version).
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.version_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Format of the tracking table (set to 0).
     pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset from start of tracking table to TrackData for horizontal text (or 0 if none).
     pub fn horiz_offset(&self) -> Nullable<Offset16> {
-        let range = self.shape.horiz_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.horiz_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`horiz_offset`][Self::horiz_offset].
@@ -91,8 +87,8 @@ impl<'a> Trak<'a> {
 
     /// Offset from start of tracking table to TrackData for vertical text (or 0 if none).
     pub fn vert_offset(&self) -> Nullable<Offset16> {
-        let range = self.shape.vert_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.vert_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`vert_offset`][Self::vert_offset].
@@ -135,11 +131,36 @@ impl<'a> std::fmt::Debug for Trak<'a> {
 /// The tracking data table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct TrackDataMarker {
-    track_table_byte_len: usize,
+pub struct TrackDataMarker;
+
+impl<'a> MinByteRange for TrackData<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.track_table_byte_range().end
+    }
 }
 
-impl TrackDataMarker {
+impl<'a> FontRead<'a> for TrackData<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// The tracking data table.
+pub type TrackData<'a> = TableRef<'a, TrackDataMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> TrackData<'a> {
+    fn track_table_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.n_tracks()) as usize)
+            .checked_mul(TrackTableEntry::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
     pub fn n_tracks_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -157,59 +178,31 @@ impl TrackDataMarker {
 
     pub fn track_table_byte_range(&self) -> Range<usize> {
         let start = self.size_table_offset_byte_range().end;
-        start..start + self.track_table_byte_len
+        start..start + self.track_table_byte_len(start)
     }
-}
 
-impl MinByteRange for TrackDataMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.track_table_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for TrackData<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let n_tracks: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        let track_table_byte_len = (n_tracks as usize)
-            .checked_mul(TrackTableEntry::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(track_table_byte_len);
-        cursor.finish(TrackDataMarker {
-            track_table_byte_len,
-        })
-    }
-}
-
-/// The tracking data table.
-pub type TrackData<'a> = TableRef<'a, TrackDataMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> TrackData<'a> {
     /// Number of separate tracks included in this table.
     pub fn n_tracks(&self) -> u16 {
-        let range = self.shape.n_tracks_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.n_tracks_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of point sizes included in this table.
     pub fn n_sizes(&self) -> u16 {
-        let range = self.shape.n_sizes_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.n_sizes_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset from the start of the tracking table to the start of the size subtable.
     pub fn size_table_offset(&self) -> u32 {
-        let range = self.shape.size_table_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.size_table_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of TrackTableEntry records.
     pub fn track_table(&self) -> &'a [TrackTableEntry] {
-        let range = self.shape.track_table_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.track_table_byte_range();
+        unchecked::read_array(self.data, range)
     }
 }
 

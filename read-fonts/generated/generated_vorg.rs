@@ -8,11 +8,41 @@ use crate::codegen_prelude::*;
 /// The [VORG (Vertical Origin)](https://docs.microsoft.com/en-us/typography/opentype/spec/vorg) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct VorgMarker {
-    vert_origin_y_metrics_byte_len: usize,
+pub struct VorgMarker;
+
+impl<'a> MinByteRange for Vorg<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.vert_origin_y_metrics_byte_range().end
+    }
 }
 
-impl VorgMarker {
+impl TopLevelTable for Vorg<'_> {
+    /// `VORG`
+    const TAG: Tag = Tag::new(b"VORG");
+}
+
+impl<'a> FontRead<'a> for Vorg<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// The [VORG (Vertical Origin)](https://docs.microsoft.com/en-us/typography/opentype/spec/vorg) table.
+pub type Vorg<'a> = TableRef<'a, VorgMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Vorg<'a> {
+    fn vert_origin_y_metrics_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.num_vert_origin_y_metrics()) as usize)
+            .checked_mul(VertOriginYMetrics::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
@@ -30,66 +60,33 @@ impl VorgMarker {
 
     pub fn vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
         let start = self.num_vert_origin_y_metrics_byte_range().end;
-        start..start + self.vert_origin_y_metrics_byte_len
+        start..start + self.vert_origin_y_metrics_byte_len(start)
     }
-}
 
-impl MinByteRange for VorgMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.vert_origin_y_metrics_byte_range().end
-    }
-}
-
-impl TopLevelTable for Vorg<'_> {
-    /// `VORG`
-    const TAG: Tag = Tag::new(b"VORG");
-}
-
-impl<'a> FontRead<'a> for Vorg<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<i16>();
-        let num_vert_origin_y_metrics: u16 = cursor.read()?;
-        let vert_origin_y_metrics_byte_len = (num_vert_origin_y_metrics as usize)
-            .checked_mul(VertOriginYMetrics::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(vert_origin_y_metrics_byte_len);
-        cursor.finish(VorgMarker {
-            vert_origin_y_metrics_byte_len,
-        })
-    }
-}
-
-/// The [VORG (Vertical Origin)](https://docs.microsoft.com/en-us/typography/opentype/spec/vorg) table.
-pub type Vorg<'a> = TableRef<'a, VorgMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Vorg<'a> {
     /// Major/minor version number. Set to 1.0.
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.version_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// The y coordinate of a glyph’s vertical origin, in the font’s design
     /// coordinate system, to be used if no entry is present for the glyph
     /// in the vertOriginYMetrics array.
     pub fn default_vert_origin_y(&self) -> i16 {
-        let range = self.shape.default_vert_origin_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.default_vert_origin_y_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of elements in the vertOriginYMetrics array.
     pub fn num_vert_origin_y_metrics(&self) -> u16 {
-        let range = self.shape.num_vert_origin_y_metrics_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.num_vert_origin_y_metrics_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of VertOriginYMetrics records, sorted by glyph ID.
     pub fn vert_origin_y_metrics(&self) -> &'a [VertOriginYMetrics] {
-        let range = self.shape.vert_origin_y_metrics_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.vert_origin_y_metrics_byte_range();
+        unchecked::read_array(self.data, range)
     }
 }
 
