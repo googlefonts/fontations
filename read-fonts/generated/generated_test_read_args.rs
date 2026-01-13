@@ -70,7 +70,7 @@ impl<'a> BaseArray<'a> {
     /// Number of BaseRecords
     pub fn base_count(&self) -> u16 {
         let range = self.base_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of BaseRecords, in order of baseCoverage Index.

@@ -85,37 +85,37 @@ impl<'a> Name<'a> {
     /// Table version number (0 or 1)
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of name records.
     pub fn count(&self) -> u16 {
         let range = self.count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to start of string storage (from start of table).
     pub fn storage_offset(&self) -> u16 {
         let range = self.storage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The name records where count is the number of records.
     pub fn name_record(&self) -> &'a [NameRecord] {
         let range = self.name_record_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Number of language-tag records.
     pub fn lang_tag_count(&self) -> Option<u16> {
         let range = self.lang_tag_count_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty()).then(|| unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     /// The language-tag records where langTagCount is the number of records.
     pub fn lang_tag_record(&self) -> Option<&'a [LangTagRecord]> {
         let range = self.lang_tag_record_byte_range();
-        (!range.is_empty()).then(|| self.data.read_array(range).unwrap())
+        (!range.is_empty()).then(|| unsafe { self.data.read_array_unchecked(range) })
     }
 }
 

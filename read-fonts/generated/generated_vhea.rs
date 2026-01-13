@@ -161,64 +161,64 @@ impl<'a> Vhea<'a> {
     /// The major/minor version (1, 1)
     pub fn version(&self) -> Version16Dot16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Typographic ascent.
     pub fn ascender(&self) -> FWord {
         let range = self.ascender_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Typographic descent.
     pub fn descender(&self) -> FWord {
         let range = self.descender_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Typographic line gap. Negative LineGap values are treated as
     /// zero in some legacy platform implementations.
     pub fn line_gap(&self) -> FWord {
         let range = self.line_gap_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Maximum advance height value in 'vmtx' table.
     pub fn advance_height_max(&self) -> UfWord {
         let range = self.advance_height_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Minimum top sidebearing value in 'vmtx' table for glyphs with
     /// contours (empty glyphs should be ignored).
     pub fn min_top_side_bearing(&self) -> FWord {
         let range = self.min_top_side_bearing_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Minimum bottom sidebearing value
     pub fn min_bottom_side_bearing(&self) -> FWord {
         let range = self.min_bottom_side_bearing_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Defined as max( tsb + (yMax-yMin)).
     pub fn y_max_extent(&self) -> FWord {
         let range = self.y_max_extent_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Used to calculate the slope of the cursor (rise/run); 1 for
     /// vertical caret, 0 for horizontal.
     pub fn caret_slope_rise(&self) -> i16 {
         let range = self.caret_slope_rise_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// 0 for vertical caret, 1 for horizontal.
     pub fn caret_slope_run(&self) -> i16 {
         let range = self.caret_slope_run_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The amount by which a slanted highlight on a glyph needs to be
@@ -226,19 +226,19 @@ impl<'a> Vhea<'a> {
     /// non-slanted fonts
     pub fn caret_offset(&self) -> i16 {
         let range = self.caret_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// 0 for current format.
     pub fn metric_data_format(&self) -> i16 {
         let range = self.metric_data_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of advance heights in the vertical metrics (`vmtx`) table.
     pub fn number_of_long_ver_metrics(&self) -> u16 {
         let range = self.number_of_long_ver_metrics_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 

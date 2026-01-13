@@ -71,13 +71,13 @@ impl<'a> Morx<'a> {
     /// Version number of the extended glyph metamorphosis table (either 2 or 3).
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of metamorphosis chains contained in this table.
     pub fn n_chains(&self) -> u32 {
         let range = self.n_chains_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn chains(&self) -> VarLenArray<'a, Chain<'a>> {
@@ -187,31 +187,31 @@ impl<'a> Chain<'a> {
     /// The default specification for subtables.
     pub fn default_flags(&self) -> u32 {
         let range = self.default_flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Total byte count, including this header; must be a multiple of 4.
     pub fn chain_length(&self) -> u32 {
         let range = self.chain_length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of feature subtable entries.
     pub fn n_feature_entries(&self) -> u32 {
         let range = self.n_feature_entries_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The number of subtables in the chain.
     pub fn n_subtables(&self) -> u32 {
         let range = self.n_subtables_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Feature entries for this chain.
     pub fn features(&self) -> &'a [Feature] {
         let range = self.features_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Array of chain subtables.
@@ -374,25 +374,25 @@ impl<'a> Subtable<'a> {
     /// Total subtable length, including this header.
     pub fn length(&self) -> u32 {
         let range = self.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Coverage flags and subtable type.
     pub fn coverage(&self) -> u32 {
         let range = self.coverage_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The 32-bit mask identifying which subtable this is (the subtable being executed if the AND of this value and the processed defaultFlags is nonzero).
     pub fn sub_feature_flags(&self) -> u32 {
         let range = self.sub_feature_flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Data for specific subtable.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 

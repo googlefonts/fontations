@@ -790,9 +790,9 @@ impl Field {
         } else if is_var_array {
             quote!(VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap())
         } else if is_array {
-            quote!(self.data.read_array(range).unwrap())
+            quote!(unsafe { self.data.read_array_unchecked(range) })
         } else {
-            quote!(self.data.read_at(range.start).unwrap())
+            quote!(unsafe { self.data.read_at_unchecked(range.start) })
         };
         if is_versioned {
             read_stmt = quote! { (!range.is_empty()).then(||#read_stmt) };

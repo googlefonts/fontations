@@ -68,25 +68,25 @@ impl<'a> Cblc<'a> {
     /// Major version of the CBLC table, = 3.
     pub fn major_version(&self) -> u16 {
         let range = self.major_version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Minor version of CBLC table, = 0.
     pub fn minor_version(&self) -> u16 {
         let range = self.minor_version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of BitmapSize records.
     pub fn num_sizes(&self) -> u32 {
         let range = self.num_sizes_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// BitmapSize records array.
     pub fn bitmap_sizes(&self) -> &'a [BitmapSize] {
         let range = self.bitmap_sizes_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 

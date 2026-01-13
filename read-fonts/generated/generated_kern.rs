@@ -57,19 +57,19 @@ impl<'a> OtKern<'a> {
     /// Table version number—set to 0.
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of subtables in the kerning table.
     pub fn n_tables(&self) -> u16 {
         let range = self.n_tables_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Data for subtables, immediately following the header.
     pub fn subtable_data(&self) -> &'a [u8] {
         let range = self.subtable_data_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -148,19 +148,19 @@ impl<'a> AatKern<'a> {
     /// The version number of the kerning table (0x00010000 for the current version).
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The number of subtables included in the kerning table.
     pub fn n_tables(&self) -> u32 {
         let range = self.n_tables_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Data for subtables, immediately following the header.    
     pub fn subtable_data(&self) -> &'a [u8] {
         let range = self.subtable_data_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -245,25 +245,25 @@ impl<'a> OtSubtable<'a> {
     /// Kern subtable version number-- set to 0.
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The length of this subtable in bytes, including this header.
     pub fn length(&self) -> u16 {
         let range = self.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Circumstances under which this table is used.
     pub fn coverage(&self) -> u16 {
         let range = self.coverage_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Subtable specific data.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -349,25 +349,25 @@ impl<'a> AatSubtable<'a> {
     /// The length of this subtable in bytes, including this header.
     pub fn length(&self) -> u32 {
         let range = self.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Circumstances under which this table is used.
     pub fn coverage(&self) -> u16 {
         let range = self.coverage_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The tuple index (used for variations fonts). This value specifies which tuple this subtable covers.
     pub fn tuple_index(&self) -> u16 {
         let range = self.tuple_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Subtable specific data.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -460,31 +460,31 @@ impl<'a> Subtable0<'a> {
     /// The number of kerning pairs in this subtable.
     pub fn n_pairs(&self) -> u16 {
         let range = self.n_pairs_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The largest power of two less than or equal to the value of nPairs, multiplied by the size in bytes of an entry in the subtable.
     pub fn search_range(&self) -> u16 {
         let range = self.search_range_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// This is calculated as log2 of the largest power of two less than or equal to the value of nPairs. This value indicates how many iterations of the search loop have to be made. For example, in a list of eight items, there would be three iterations of the loop.
     pub fn entry_selector(&self) -> u16 {
         let range = self.entry_selector_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The value of nPairs minus the largest power of two less than or equal to nPairs. This is multiplied by the size in bytes of an entry in the table.
     pub fn range_shift(&self) -> u16 {
         let range = self.range_shift_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Kerning records.
     pub fn pairs(&self) -> &'a [Subtable0Pair] {
         let range = self.pairs_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -572,19 +572,19 @@ impl<'a> Subtable2ClassTable<'a> {
     /// First glyph in class range.
     pub fn first_glyph(&self) -> GlyphId16 {
         let range = self.first_glyph_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of glyph in class range.
     pub fn n_glyphs(&self) -> u16 {
         let range = self.n_glyphs_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The offsets array for all of the glyphs in the range.
     pub fn offsets(&self) -> &'a [BigEndian<u16>] {
         let range = self.offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -709,55 +709,55 @@ impl<'a> Subtable3<'a> {
     /// The number of glyphs in this font.
     pub fn glyph_count(&self) -> u16 {
         let range = self.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The number of kerning values.
     pub fn kern_value_count(&self) -> u8 {
         let range = self.kern_value_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The number of left-hand classes.
     pub fn left_class_count(&self) -> u8 {
         let range = self.left_class_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The number of right-hand classes.
     pub fn right_class_count(&self) -> u8 {
         let range = self.right_class_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Set to zero (reserved for future use).
     pub fn flags(&self) -> u8 {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The kerning values.
     pub fn kern_value(&self) -> &'a [BigEndian<i16>] {
         let range = self.kern_value_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// The left-hand classes.
     pub fn left_class(&self) -> &'a [u8] {
         let range = self.left_class_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// The right-hand classes.
     pub fn right_class(&self) -> &'a [u8] {
         let range = self.right_class_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// The indices into the kernValue array.
     pub fn kern_index(&self) -> &'a [u8] {
         let range = self.kern_index_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 

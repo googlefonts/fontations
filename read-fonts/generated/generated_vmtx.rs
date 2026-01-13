@@ -79,13 +79,13 @@ impl<'a> Vmtx<'a> {
     /// glyph. Records are indexed by glyph ID.
     pub fn v_metrics(&self) -> &'a [LongMetric] {
         let range = self.v_metrics_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Top side bearings for glyph IDs greater than or equal to numberOfLongMetrics.
     pub fn top_side_bearings(&self) -> &'a [BigEndian<i16>] {
         let range = self.top_side_bearings_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     pub(crate) fn number_of_long_ver_metrics(&self) -> u16 {
