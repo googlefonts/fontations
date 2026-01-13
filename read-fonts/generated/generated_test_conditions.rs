@@ -72,22 +72,22 @@ pub type MajorMinorVersion<'a> = TableRef<'a, MajorMinorVersionMarker>;
 impl<'a> MajorMinorVersion<'a> {
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn always_present(&self) -> u16 {
         let range = self.shape.always_present_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn if_11(&self) -> Option<u16> {
         let range = self.shape.if_11_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     pub fn if_20(&self) -> Option<u32> {
         let range = self.shape.if_20_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 }
 
@@ -506,27 +506,27 @@ pub type FlagDay<'a> = TableRef<'a, FlagDayMarker>;
 impl<'a> FlagDay<'a> {
     pub fn volume(&self) -> u16 {
         let range = self.shape.volume_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn flags(&self) -> GotFlags {
         let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn foo(&self) -> Option<u16> {
         let range = self.shape.foo_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     pub fn bar(&self) -> Option<u16> {
         let range = self.shape.bar_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     pub fn baz(&self) -> Option<u16> {
         let range = self.shape.baz_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 }
 
@@ -661,37 +661,37 @@ pub type FieldsAfterConditionals<'a> = TableRef<'a, FieldsAfterConditionalsMarke
 impl<'a> FieldsAfterConditionals<'a> {
     pub fn flags(&self) -> GotFlags {
         let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn foo(&self) -> Option<u16> {
         let range = self.shape.foo_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     pub fn always_here(&self) -> u16 {
         let range = self.shape.always_here_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn bar(&self) -> Option<u16> {
         let range = self.shape.bar_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     pub fn baz(&self) -> Option<u16> {
         let range = self.shape.baz_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     pub fn also_always_here(&self) -> u16 {
         let range = self.shape.also_always_here_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn and_me_too(&self) -> u16 {
         let range = self.shape.and_me_too_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
