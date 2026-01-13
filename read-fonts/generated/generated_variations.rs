@@ -99,14 +99,14 @@ impl<'a> TupleVariationHeader<'a> {
     /// variation table.
     pub fn variation_data_size(&self) -> u16 {
         let range = self.shape.variation_data_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// A packed field. The high 4 bits are flags (see below). The low
     /// 12 bits are an index into a shared tuple records array.
     pub fn tuple_index(&self) -> TupleIndex {
         let range = self.shape.tuple_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -270,26 +270,26 @@ impl<'a> DeltaSetIndexMapFormat0<'a> {
     /// DeltaSetIndexMap format: set to 0.
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// A packed field that describes the compressed representation of
     /// delta-set indices. See details below.
     pub fn entry_format(&self) -> EntryFormat {
         let range = self.shape.entry_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The number of mapping entries.
     pub fn map_count(&self) -> u16 {
         let range = self.shape.map_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The delta-set index mapping data. See details below.
     pub fn map_data(&self) -> &'a [u8] {
         let range = self.shape.map_data_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -378,26 +378,26 @@ impl<'a> DeltaSetIndexMapFormat1<'a> {
     /// DeltaSetIndexMap format: set to 1.
     pub fn format(&self) -> u8 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// A packed field that describes the compressed representation of
     /// delta-set indices. See details below.
     pub fn entry_format(&self) -> EntryFormat {
         let range = self.shape.entry_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The number of mapping entries.
     pub fn map_count(&self) -> u32 {
         let range = self.shape.map_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The delta-set index mapping data. See details below.
     pub fn map_data(&self) -> &'a [u8] {
         let range = self.shape.map_data_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -879,14 +879,14 @@ impl<'a> VariationRegionList<'a> {
     /// same number as axisCount in the 'fvar' table.
     pub fn axis_count(&self) -> u16 {
         let range = self.shape.axis_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The number of variation region tables in the variation region
     /// list. Must be less than 32,768.
     pub fn region_count(&self) -> u16 {
         let range = self.shape.region_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of variation regions.
@@ -1109,14 +1109,14 @@ impl<'a> ItemVariationStore<'a> {
     /// Format— set to 1
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset in bytes from the start of the item variation store to
     /// the variation region list.
     pub fn variation_region_list_offset(&self) -> Offset32 {
         let range = self.shape.variation_region_list_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`variation_region_list_offset`][Self::variation_region_list_offset].
@@ -1128,14 +1128,14 @@ impl<'a> ItemVariationStore<'a> {
     /// The number of item variation data subtables.
     pub fn item_variation_data_count(&self) -> u16 {
         let range = self.shape.item_variation_data_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offsets in bytes from the start of the item variation store to
     /// each item variation data subtable.
     pub fn item_variation_data_offsets(&self) -> &'a [BigEndian<Nullable<Offset32>>] {
         let range = self.shape.item_variation_data_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`item_variation_data_offsets`][Self::item_variation_data_offsets].
@@ -1265,32 +1265,32 @@ impl<'a> ItemVariationData<'a> {
     /// The number of delta sets for distinct items.
     pub fn item_count(&self) -> u16 {
         let range = self.shape.item_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// A packed field: the high bit is a flag—see details below.
     pub fn word_delta_count(&self) -> u16 {
         let range = self.shape.word_delta_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The number of variation regions referenced.
     pub fn region_index_count(&self) -> u16 {
         let range = self.shape.region_index_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of indices into the variation region list for the regions
     /// referenced by this item variation data table.
     pub fn region_indexes(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.region_indexes_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Delta-set rows.
     pub fn delta_sets(&self) -> &'a [u8] {
         let range = self.shape.delta_sets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 

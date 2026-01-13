@@ -50,13 +50,13 @@ impl<'a> Ebdt<'a> {
     /// Major version of the EBDT table, = 2.
     pub fn major_version(&self) -> u16 {
         let range = self.shape.major_version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Minor version of EBDT table, = 0.
     pub fn minor_version(&self) -> u16 {
         let range = self.shape.minor_version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
