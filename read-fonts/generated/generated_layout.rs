@@ -52,13 +52,13 @@ impl<'a> ScriptList<'a> {
     /// Number of ScriptRecords
     pub fn script_count(&self) -> u16 {
         let range = self.shape.script_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of ScriptRecords, listed alphabetically by script tag
     pub fn script_records(&self) -> &'a [ScriptRecord] {
         let range = self.shape.script_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -198,7 +198,7 @@ impl<'a> Script<'a> {
     /// — may be NULL
     pub fn default_lang_sys_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.default_lang_sys_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`default_lang_sys_offset`][Self::default_lang_sys_offset].
@@ -211,13 +211,13 @@ impl<'a> Script<'a> {
     /// default LangSys
     pub fn lang_sys_count(&self) -> u16 {
         let range = self.shape.lang_sys_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of LangSysRecords, listed alphabetically by LangSys tag
     pub fn lang_sys_records(&self) -> &'a [LangSysRecord] {
         let range = self.shape.lang_sys_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -366,20 +366,20 @@ impl<'a> LangSys<'a> {
     /// required features = 0xFFFF
     pub fn required_feature_index(&self) -> u16 {
         let range = self.shape.required_feature_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of feature index values for this language system —
     /// excludes the required feature
     pub fn feature_index_count(&self) -> u16 {
         let range = self.shape.feature_index_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of indices into the FeatureList, in arbitrary order
     pub fn feature_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.feature_indices_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -459,14 +459,14 @@ impl<'a> FeatureList<'a> {
     /// Number of FeatureRecords in this table
     pub fn feature_count(&self) -> u16 {
         let range = self.shape.feature_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of FeatureRecords — zero-based (first feature has
     /// FeatureIndex = 0), listed alphabetically by feature tag
     pub fn feature_records(&self) -> &'a [FeatureRecord] {
         let range = self.shape.feature_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -624,7 +624,7 @@ impl<'a> Feature<'a> {
     /// Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
     pub fn feature_params_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.feature_params_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`feature_params_offset`][Self::feature_params_offset].
@@ -637,14 +637,14 @@ impl<'a> Feature<'a> {
     /// Number of LookupList indices for this feature
     pub fn lookup_index_count(&self) -> u16 {
         let range = self.shape.lookup_index_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of indices into the LookupList — zero-based (first
     /// lookup is LookupListIndex = 0)
     pub fn lookup_list_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.lookup_list_indices_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     pub(crate) fn feature_tag(&self) -> Tag {
@@ -767,14 +767,14 @@ impl<'a, T> LookupList<'a, T> {
     /// Number of lookups in this table
     pub fn lookup_count(&self) -> u16 {
         let range = self.shape.lookup_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to Lookup tables, from beginning of LookupList
     /// — zero based (first lookup is Lookup index = 0)
     pub fn lookup_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lookup_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`lookup_offsets`][Self::lookup_offsets].
@@ -937,26 +937,26 @@ impl<'a, T> Lookup<'a, T> {
     /// Different enumerations for GSUB and GPOS
     pub fn lookup_type(&self) -> u16 {
         let range = self.shape.lookup_type_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Lookup qualifiers
     pub fn lookup_flag(&self) -> LookupFlag {
         let range = self.shape.lookup_flag_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of subtables for this lookup
     pub fn sub_table_count(&self) -> u16 {
         let range = self.shape.sub_table_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to lookup subtables, from beginning of Lookup
     /// table
     pub fn subtable_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.subtable_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`subtable_offsets`][Self::subtable_offsets].
@@ -974,7 +974,7 @@ impl<'a, T> Lookup<'a, T> {
     /// set.
     pub fn mark_filtering_set(&self) -> Option<u16> {
         let range = self.shape.mark_filtering_set_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 }
 
@@ -1077,19 +1077,19 @@ impl<'a> CoverageFormat1<'a> {
     /// Format identifier — format = 1
     pub fn coverage_format(&self) -> u16 {
         let range = self.shape.coverage_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of glyphs in the glyph array
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of glyph IDs — in numerical order
     pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.glyph_array_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -1173,19 +1173,19 @@ impl<'a> CoverageFormat2<'a> {
     /// Format identifier — format = 2
     pub fn coverage_format(&self) -> u16 {
         let range = self.shape.coverage_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of RangeRecords
     pub fn range_count(&self) -> u16 {
         let range = self.shape.range_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of glyph ranges — ordered by startGlyphID.
     pub fn range_records(&self) -> &'a [RangeRecord] {
         let range = self.shape.range_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -1408,25 +1408,25 @@ impl<'a> ClassDefFormat1<'a> {
     /// Format identifier — format = 1
     pub fn class_format(&self) -> u16 {
         let range = self.shape.class_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// First glyph ID of the classValueArray
     pub fn start_glyph_id(&self) -> GlyphId16 {
         let range = self.shape.start_glyph_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Size of the classValueArray
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of Class Values — one per glyph ID
     pub fn class_value_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.class_value_array_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -1511,19 +1511,19 @@ impl<'a> ClassDefFormat2<'a> {
     /// Format identifier — format = 2
     pub fn class_format(&self) -> u16 {
         let range = self.shape.class_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of ClassRangeRecords
     pub fn class_range_count(&self) -> u16 {
         let range = self.shape.class_range_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of ClassRangeRecords — ordered by startGlyphID
     pub fn class_range_records(&self) -> &'a [ClassRangeRecord] {
         let range = self.shape.class_range_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -1785,14 +1785,14 @@ impl<'a> SequenceContextFormat1<'a> {
     /// Format identifier: format = 1
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat1 table
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -1804,14 +1804,14 @@ impl<'a> SequenceContextFormat1<'a> {
     /// Number of SequenceRuleSet tables
     pub fn seq_rule_set_count(&self) -> u16 {
         let range = self.shape.seq_rule_set_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to SequenceRuleSet tables, from beginning of
     /// SequenceContextFormat1 table (offsets may be NULL)
     pub fn seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.seq_rule_set_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`seq_rule_set_offsets`][Self::seq_rule_set_offsets].
@@ -1909,14 +1909,14 @@ impl<'a> SequenceRuleSet<'a> {
     /// Number of SequenceRule tables
     pub fn seq_rule_count(&self) -> u16 {
         let range = self.shape.seq_rule_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to SequenceRule tables, from beginning of the
     /// SequenceRuleSet table
     pub fn seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.seq_rule_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`seq_rule_offsets`][Self::seq_rule_offsets].
@@ -2026,25 +2026,25 @@ impl<'a> SequenceRule<'a> {
     /// Number of glyphs in the input glyph sequence
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of input glyph IDs—starting with the second glyph
     pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.input_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Array of Sequence lookup records
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -2148,14 +2148,14 @@ impl<'a> SequenceContextFormat2<'a> {
     /// Format identifier: format = 2
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat2 table
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -2168,7 +2168,7 @@ impl<'a> SequenceContextFormat2<'a> {
     /// SequenceContextFormat2 table
     pub fn class_def_offset(&self) -> Offset16 {
         let range = self.shape.class_def_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`class_def_offset`][Self::class_def_offset].
@@ -2180,14 +2180,14 @@ impl<'a> SequenceContextFormat2<'a> {
     /// Number of ClassSequenceRuleSet tables
     pub fn class_seq_rule_set_count(&self) -> u16 {
         let range = self.shape.class_seq_rule_set_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to ClassSequenceRuleSet tables, from beginning
     /// of SequenceContextFormat2 table (may be NULL)
     pub fn class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.class_seq_rule_set_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`class_seq_rule_set_offsets`][Self::class_seq_rule_set_offsets].
@@ -2294,14 +2294,14 @@ impl<'a> ClassSequenceRuleSet<'a> {
     /// Number of ClassSequenceRule tables
     pub fn class_seq_rule_count(&self) -> u16 {
         let range = self.shape.class_seq_rule_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to ClassSequenceRule tables, from beginning of
     /// ClassSequenceRuleSet table
     pub fn class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.class_seq_rule_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`class_seq_rule_offsets`][Self::class_seq_rule_offsets].
@@ -2414,26 +2414,26 @@ impl<'a> ClassSequenceRule<'a> {
     /// Number of glyphs to be matched
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Sequence of classes to be matched to the input glyph sequence,
     /// beginning with the second glyph position
     pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.input_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -2542,26 +2542,26 @@ impl<'a> SequenceContextFormat3<'a> {
     /// Format identifier: format = 3
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of glyphs in the input sequence
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to Coverage tables, from beginning of
     /// SequenceContextFormat3 subtable
     pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.coverage_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].
@@ -2574,7 +2574,7 @@ impl<'a> SequenceContextFormat3<'a> {
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -2763,14 +2763,14 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     /// Format identifier: format = 1
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to Coverage table, from beginning of
     /// ChainSequenceContextFormat1 table
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -2782,14 +2782,14 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     /// Number of ChainedSequenceRuleSet tables
     pub fn chained_seq_rule_set_count(&self) -> u16 {
         let range = self.shape.chained_seq_rule_set_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
     /// ChainedSequenceContextFormat1 table (may be NULL)
     pub fn chained_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.chained_seq_rule_set_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`chained_seq_rule_set_offsets`][Self::chained_seq_rule_set_offsets].
@@ -2892,14 +2892,14 @@ impl<'a> ChainedSequenceRuleSet<'a> {
     /// Number of ChainedSequenceRule tables
     pub fn chained_seq_rule_count(&self) -> u16 {
         let range = self.shape.chained_seq_rule_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to ChainedSequenceRule tables, from beginning
     /// of ChainedSequenceRuleSet table
     pub fn chained_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.chained_seq_rule_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`chained_seq_rule_offsets`][Self::chained_seq_rule_offsets].
@@ -3046,49 +3046,49 @@ impl<'a> ChainedSequenceRule<'a> {
     /// Number of glyphs in the backtrack sequence
     pub fn backtrack_glyph_count(&self) -> u16 {
         let range = self.shape.backtrack_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of backtrack glyph IDs
     pub fn backtrack_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.backtrack_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Number of glyphs in the input sequence
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.shape.input_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of input glyph IDs—start with second glyph
     pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.input_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Number of glyphs in the lookahead sequence
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of lookahead glyph IDs
     pub fn lookahead_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.lookahead_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -3215,14 +3215,14 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Format identifier: format = 2
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to Coverage table, from beginning of
     /// ChainedSequenceContextFormat2 table
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -3235,7 +3235,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// from beginning of ChainedSequenceContextFormat2 table
     pub fn backtrack_class_def_offset(&self) -> Offset16 {
         let range = self.shape.backtrack_class_def_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`backtrack_class_def_offset`][Self::backtrack_class_def_offset].
@@ -3248,7 +3248,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// from beginning of ChainedSequenceContextFormat2 table
     pub fn input_class_def_offset(&self) -> Offset16 {
         let range = self.shape.input_class_def_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`input_class_def_offset`][Self::input_class_def_offset].
@@ -3261,7 +3261,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// from beginning of ChainedSequenceContextFormat2 table
     pub fn lookahead_class_def_offset(&self) -> Offset16 {
         let range = self.shape.lookahead_class_def_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`lookahead_class_def_offset`][Self::lookahead_class_def_offset].
@@ -3273,14 +3273,14 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Number of ChainedClassSequenceRuleSet tables
     pub fn chained_class_seq_rule_set_count(&self) -> u16 {
         let range = self.shape.chained_class_seq_rule_set_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to ChainedClassSequenceRuleSet tables, from
     /// beginning of ChainedSequenceContextFormat2 table (may be NULL)
     pub fn chained_class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.shape.chained_class_seq_rule_set_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`chained_class_seq_rule_set_offsets`][Self::chained_class_seq_rule_set_offsets].
@@ -3401,14 +3401,14 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
     /// Number of ChainedClassSequenceRule tables
     pub fn chained_class_seq_rule_count(&self) -> u16 {
         let range = self.shape.chained_class_seq_rule_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to ChainedClassSequenceRule tables, from
     /// beginning of ChainedClassSequenceRuleSet
     pub fn chained_class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.chained_class_seq_rule_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`chained_class_seq_rule_offsets`][Self::chained_class_seq_rule_offsets].
@@ -3557,50 +3557,50 @@ impl<'a> ChainedClassSequenceRule<'a> {
     /// Number of glyphs in the backtrack sequence
     pub fn backtrack_glyph_count(&self) -> u16 {
         let range = self.shape.backtrack_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of backtrack-sequence classes
     pub fn backtrack_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.backtrack_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Total number of glyphs in the input sequence
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.shape.input_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of input sequence classes, beginning with the second
     /// glyph position
     pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.input_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Number of glyphs in the lookahead sequence
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of lookahead-sequence classes
     pub fn lookahead_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.lookahead_sequence_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -3753,19 +3753,19 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Format identifier: format = 3
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of glyphs in the backtrack sequence
     pub fn backtrack_glyph_count(&self) -> u16 {
         let range = self.shape.backtrack_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to coverage tables for the backtrack sequence
     pub fn backtrack_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.backtrack_coverage_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
@@ -3778,13 +3778,13 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Number of glyphs in the input sequence
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.shape.input_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to coverage tables for the input sequence
     pub fn input_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.input_coverage_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`input_coverage_offsets`][Self::input_coverage_offsets].
@@ -3797,13 +3797,13 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Number of glyphs in the lookahead sequence
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to coverage tables for the lookahead sequence
     pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lookahead_coverage_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
@@ -3816,13 +3816,13 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.shape.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -4097,25 +4097,25 @@ impl<'a> Device<'a> {
     /// Smallest size to correct, in ppem
     pub fn start_size(&self) -> u16 {
         let range = self.shape.start_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Largest size to correct, in ppem
     pub fn end_size(&self) -> u16 {
         let range = self.shape.end_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Format of deltaValue array data: 0x0001, 0x0002, or 0x0003
     pub fn delta_format(&self) -> DeltaFormat {
         let range = self.shape.delta_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of compressed data
     pub fn delta_value(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.delta_value_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -4190,20 +4190,20 @@ impl<'a> VariationIndex<'a> {
     /// data subtable within the item variation store.
     pub fn delta_set_outer_index(&self) -> u16 {
         let range = self.shape.delta_set_outer_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// A delta-set inner index — used to select a delta-set row
     /// within an item variation data subtable.
     pub fn delta_set_inner_index(&self) -> u16 {
         let range = self.shape.delta_set_inner_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Format, = 0x8000
     pub fn delta_format(&self) -> DeltaFormat {
         let range = self.shape.delta_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -4358,19 +4358,19 @@ pub type FeatureVariations<'a> = TableRef<'a, FeatureVariationsMarker>;
 impl<'a> FeatureVariations<'a> {
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of feature variation records.
     pub fn feature_variation_record_count(&self) -> u32 {
         let range = self.shape.feature_variation_record_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of feature variation records.
     pub fn feature_variation_records(&self) -> &'a [FeatureVariationRecord] {
         let range = self.shape.feature_variation_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -4533,14 +4533,14 @@ impl<'a> ConditionSet<'a> {
     /// Number of conditions for this condition set.
     pub fn condition_count(&self) -> u16 {
         let range = self.shape.condition_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to condition tables, from beginning of the
     /// ConditionSet table.
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.condition_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
@@ -4735,28 +4735,28 @@ impl<'a> ConditionFormat1<'a> {
     /// Format, = 1
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Index (zero-based) for the variation axis within the 'fvar'
     /// table.
     pub fn axis_index(&self) -> u16 {
         let range = self.shape.axis_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Minimum value of the font variation instances that satisfy this
     /// condition.
     pub fn filter_range_min_value(&self) -> F2Dot14 {
         let range = self.shape.filter_range_min_value_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Maximum value of the font variation instances that satisfy this
     /// condition.
     pub fn filter_range_max_value(&self) -> F2Dot14 {
         let range = self.shape.filter_range_max_value_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -4840,19 +4840,19 @@ impl<'a> ConditionFormat2<'a> {
     /// Format, = 2
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Value at default instance.
     pub fn default_value(&self) -> i16 {
         let range = self.shape.default_value_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Variation index to vary the value based on current designspace location.
     pub fn var_index(&self) -> u32 {
         let range = self.shape.var_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -4936,19 +4936,19 @@ impl<'a> ConditionFormat3<'a> {
     /// Format, = 3
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of conditions.
     pub fn condition_count(&self) -> u8 {
         let range = self.shape.condition_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of condition tables for this conjunction (AND) expression.
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
         let range = self.shape.condition_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
@@ -5052,19 +5052,19 @@ impl<'a> ConditionFormat4<'a> {
     /// Format, = 4
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of conditions.
     pub fn condition_count(&self) -> u8 {
         let range = self.shape.condition_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of condition tables for this disjunction (OR) expression.
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
         let range = self.shape.condition_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
@@ -5155,13 +5155,13 @@ impl<'a> ConditionFormat5<'a> {
     /// Format, = 5
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Condition to negate.
     pub fn condition_offset(&self) -> Offset24 {
         let range = self.shape.condition_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`condition_offset`][Self::condition_offset].
@@ -5249,19 +5249,19 @@ impl<'a> FeatureTableSubstitution<'a> {
     /// Major & minor version of the table: (1, 0)
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of feature table substitution records.
     pub fn substitution_count(&self) -> u16 {
         let range = self.shape.substitution_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of feature table substitution records.
     pub fn substitutions(&self) -> &'a [FeatureTableSubstitutionRecord] {
         let range = self.shape.substitutions_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -5404,7 +5404,7 @@ impl<'a> SizeParams<'a> {
     /// no recommended size range, the rest of the array will consist of zeros.
     pub fn design_size(&self) -> u16 {
         let range = self.shape.design_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The second value has no independent meaning, but serves as an identifier that associates fonts in a subfamily.
@@ -5415,7 +5415,7 @@ impl<'a> SizeParams<'a> {
     /// If this value is zero, the remaining fields in the array will be ignored.
     pub fn identifier(&self) -> u16 {
         let range = self.shape.identifier_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The third value enables applications to use a single name for the subfamily identified by the second value.
@@ -5430,7 +5430,7 @@ impl<'a> SizeParams<'a> {
     /// appropriate version based on their selection criteria.
     pub fn name_entry(&self) -> u16 {
         let range = self.shape.name_entry_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The fourth and fifth values represent the small end of the recommended
@@ -5440,12 +5440,12 @@ impl<'a> SizeParams<'a> {
     /// Ranges must not overlap, and should generally be contiguous.
     pub fn range_start(&self) -> u16 {
         let range = self.shape.range_start_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn range_end(&self) -> u16 {
         let range = self.shape.range_end_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -5511,7 +5511,7 @@ pub type StylisticSetParams<'a> = TableRef<'a, StylisticSetParamsMarker>;
 impl<'a> StylisticSetParams<'a> {
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The 'name' table name ID that specifies a string (or strings, for
@@ -5525,7 +5525,7 @@ impl<'a> StylisticSetParams<'a> {
     /// comfortably with different application interfaces.
     pub fn ui_name_id(&self) -> NameId {
         let range = self.shape.ui_name_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -5636,7 +5636,7 @@ impl<'a> CharacterVariantParams<'a> {
     /// Format number is set to 0.
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The 'name' table name ID that specifies a string (or strings,
@@ -5644,7 +5644,7 @@ impl<'a> CharacterVariantParams<'a> {
     /// feature. (May be NULL.)
     pub fn feat_ui_label_name_id(&self) -> NameId {
         let range = self.shape.feat_ui_label_name_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The 'name' table name ID that specifies a string (or strings,
@@ -5652,20 +5652,20 @@ impl<'a> CharacterVariantParams<'a> {
     /// text for this feature. (May be NULL.)
     pub fn feat_ui_tooltip_text_name_id(&self) -> NameId {
         let range = self.shape.feat_ui_tooltip_text_name_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The 'name' table name ID that specifies sample text that
     /// illustrates the effect of this feature. (May be NULL.)
     pub fn sample_text_name_id(&self) -> NameId {
         let range = self.shape.sample_text_name_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of named parameters. (May be zero.)
     pub fn num_named_parameters(&self) -> u16 {
         let range = self.shape.num_named_parameters_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The first 'name' table name ID used to specify strings for
@@ -5673,21 +5673,21 @@ impl<'a> CharacterVariantParams<'a> {
     /// if numParameters is zero.)
     pub fn first_param_ui_label_name_id(&self) -> NameId {
         let range = self.shape.first_param_ui_label_name_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The count of characters for which this feature provides glyph
     /// variants. (May be zero.)
     pub fn char_count(&self) -> u16 {
         let range = self.shape.char_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The Unicode Scalar Value of the characters for which this
     /// feature provides glyph variants.
     pub fn character(&self) -> &'a [BigEndian<Uint24>] {
         let range = self.shape.character_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
