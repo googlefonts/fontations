@@ -30,6 +30,7 @@ pub mod os2;
 pub mod post;
 pub mod sbix;
 pub mod stat;
+pub mod varc;
 pub mod variations;
 pub mod vhea;
 pub mod vmtx;
