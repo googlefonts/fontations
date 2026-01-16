@@ -98,14 +98,14 @@ impl<'a> Gdef<'a> {
     /// The major/minor version of the GDEF table
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
     pub fn glyph_class_def_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.glyph_class_def_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`glyph_class_def_offset`][Self::glyph_class_def_offset].
@@ -118,7 +118,7 @@ impl<'a> Gdef<'a> {
     /// header (may be NULL)
     pub fn attach_list_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.attach_list_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`attach_list_offset`][Self::attach_list_offset].
@@ -131,7 +131,7 @@ impl<'a> Gdef<'a> {
     /// header (may be NULL)
     pub fn lig_caret_list_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.lig_caret_list_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`lig_caret_list_offset`][Self::lig_caret_list_offset].
@@ -144,7 +144,7 @@ impl<'a> Gdef<'a> {
     /// beginning of GDEF header (may be NULL)
     pub fn mark_attach_class_def_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.mark_attach_class_def_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`mark_attach_class_def_offset`][Self::mark_attach_class_def_offset].
@@ -157,7 +157,7 @@ impl<'a> Gdef<'a> {
     /// beginning of GDEF header (may be NULL)
     pub fn mark_glyph_sets_def_offset(&self) -> Option<Nullable<Offset16>> {
         let range = self.shape.mark_glyph_sets_def_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     /// Attempt to resolve [`mark_glyph_sets_def_offset`][Self::mark_glyph_sets_def_offset].
@@ -170,7 +170,7 @@ impl<'a> Gdef<'a> {
     /// GDEF header (may be NULL)
     pub fn item_var_store_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.item_var_store_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     /// Attempt to resolve [`item_var_store_offset`][Self::item_var_store_offset].
@@ -334,7 +334,7 @@ impl<'a> AttachList<'a> {
     /// Offset to Coverage table - from beginning of AttachList table
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -346,14 +346,14 @@ impl<'a> AttachList<'a> {
     /// Number of glyphs with attachment points
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to AttachPoint tables-from beginning of
     /// AttachList table-in Coverage Index order
     pub fn attach_point_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.attach_point_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`attach_point_offsets`][Self::attach_point_offsets].
@@ -450,13 +450,13 @@ impl<'a> AttachPoint<'a> {
     /// Number of attachment points on this glyph
     pub fn point_count(&self) -> u16 {
         let range = self.shape.point_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of contour point indices -in increasing numerical order
     pub fn point_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.point_indices_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -535,7 +535,7 @@ impl<'a> LigCaretList<'a> {
     /// Offset to Coverage table - from beginning of LigCaretList table
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -547,14 +547,14 @@ impl<'a> LigCaretList<'a> {
     /// Number of ligature glyphs
     pub fn lig_glyph_count(&self) -> u16 {
         let range = self.shape.lig_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to LigGlyph tables, from beginning of
     /// LigCaretList table —in Coverage Index order
     pub fn lig_glyph_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lig_glyph_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`lig_glyph_offsets`][Self::lig_glyph_offsets].
@@ -651,14 +651,14 @@ impl<'a> LigGlyph<'a> {
     /// Number of CaretValue tables for this ligature (components - 1)
     pub fn caret_count(&self) -> u16 {
         let range = self.shape.caret_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to CaretValue tables, from beginning of
     /// LigGlyph table — in increasing coordinate order
     pub fn caret_value_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.caret_value_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`caret_value_offsets`][Self::caret_value_offsets].
@@ -826,13 +826,13 @@ impl<'a> CaretValueFormat1<'a> {
     /// Format identifier: format = 1
     pub fn caret_value_format(&self) -> u16 {
         let range = self.shape.caret_value_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// X or Y value, in design units
     pub fn coordinate(&self) -> i16 {
         let range = self.shape.coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -902,13 +902,13 @@ impl<'a> CaretValueFormat2<'a> {
     /// Format identifier: format = 2
     pub fn caret_value_format(&self) -> u16 {
         let range = self.shape.caret_value_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Contour point index on glyph
     pub fn caret_value_point_index(&self) -> u16 {
         let range = self.shape.caret_value_point_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -987,13 +987,13 @@ impl<'a> CaretValueFormat3<'a> {
     /// Format identifier-format = 3
     pub fn caret_value_format(&self) -> u16 {
         let range = self.shape.caret_value_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// X or Y value, in design units
     pub fn coordinate(&self) -> i16 {
         let range = self.shape.coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to Device table (non-variable font) / Variation Index
@@ -1001,7 +1001,7 @@ impl<'a> CaretValueFormat3<'a> {
     /// CaretValue table
     pub fn device_offset(&self) -> Offset16 {
         let range = self.shape.device_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`device_offset`][Self::device_offset].
@@ -1094,20 +1094,20 @@ impl<'a> MarkGlyphSets<'a> {
     /// Format identifier == 1
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of mark glyph sets defined
     pub fn mark_glyph_set_count(&self) -> u16 {
         let range = self.shape.mark_glyph_set_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to mark glyph set coverage tables, from the
     /// start of the MarkGlyphSets table.
     pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.coverage_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].

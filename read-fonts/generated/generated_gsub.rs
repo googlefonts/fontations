@@ -78,13 +78,13 @@ impl<'a> Gsub<'a> {
     /// The major and minor version of the GSUB table, as a tuple (u16, u16)
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to ScriptList table, from beginning of GSUB table
     pub fn script_list_offset(&self) -> Offset16 {
         let range = self.shape.script_list_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`script_list_offset`][Self::script_list_offset].
@@ -96,7 +96,7 @@ impl<'a> Gsub<'a> {
     /// Offset to FeatureList table, from beginning of GSUB table
     pub fn feature_list_offset(&self) -> Offset16 {
         let range = self.shape.feature_list_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`feature_list_offset`][Self::feature_list_offset].
@@ -108,7 +108,7 @@ impl<'a> Gsub<'a> {
     /// Offset to LookupList table, from beginning of GSUB table
     pub fn lookup_list_offset(&self) -> Offset16 {
         let range = self.shape.lookup_list_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
@@ -121,7 +121,7 @@ impl<'a> Gsub<'a> {
     /// table (may be NULL)
     pub fn feature_variations_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.feature_variations_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     /// Attempt to resolve [`feature_variations_offset`][Self::feature_variations_offset].
@@ -384,14 +384,14 @@ impl<'a> SingleSubstFormat1<'a> {
     /// Format identifier: format = 1
     pub fn subst_format(&self) -> u16 {
         let range = self.shape.subst_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -403,7 +403,7 @@ impl<'a> SingleSubstFormat1<'a> {
     /// Add to original glyph ID to get substitute glyph ID
     pub fn delta_glyph_id(&self) -> i16 {
         let range = self.shape.delta_glyph_id_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -496,14 +496,14 @@ impl<'a> SingleSubstFormat2<'a> {
     /// Format identifier: format = 2
     pub fn subst_format(&self) -> u16 {
         let range = self.shape.subst_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -515,13 +515,13 @@ impl<'a> SingleSubstFormat2<'a> {
     /// Number of glyph IDs in the substituteGlyphIDs array
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of substitute glyph IDs — ordered by Coverage index
     pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.substitute_glyph_ids_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -618,14 +618,14 @@ impl<'a> MultipleSubstFormat1<'a> {
     /// Format identifier: format = 1
     pub fn subst_format(&self) -> u16 {
         let range = self.shape.subst_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -637,14 +637,14 @@ impl<'a> MultipleSubstFormat1<'a> {
     /// Number of Sequence table offsets in the sequenceOffsets array
     pub fn sequence_count(&self) -> u16 {
         let range = self.shape.sequence_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to Sequence tables. Offsets are from beginning
     /// of substitution subtable, ordered by Coverage index
     pub fn sequence_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.sequence_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`sequence_offsets`][Self::sequence_offsets].
@@ -743,13 +743,13 @@ impl<'a> Sequence<'a> {
     /// always be greater than 0.
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// String of glyph IDs to substitute
     pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.substitute_glyph_ids_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -841,14 +841,14 @@ impl<'a> AlternateSubstFormat1<'a> {
     /// Format identifier: format = 1
     pub fn subst_format(&self) -> u16 {
         let range = self.shape.subst_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -860,14 +860,14 @@ impl<'a> AlternateSubstFormat1<'a> {
     /// Number of AlternateSet tables
     pub fn alternate_set_count(&self) -> u16 {
         let range = self.shape.alternate_set_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to AlternateSet tables. Offsets are from
     /// beginning of substitution subtable, ordered by Coverage index
     pub fn alternate_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.alternate_set_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`alternate_set_offsets`][Self::alternate_set_offsets].
@@ -968,13 +968,13 @@ impl<'a> AlternateSet<'a> {
     /// Number of glyph IDs in the alternateGlyphIDs array
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of alternate glyph IDs, in arbitrary order
     pub fn alternate_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.alternate_glyph_ids_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -1066,14 +1066,14 @@ impl<'a> LigatureSubstFormat1<'a> {
     /// Format identifier: format = 1
     pub fn subst_format(&self) -> u16 {
         let range = self.shape.subst_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -1085,14 +1085,14 @@ impl<'a> LigatureSubstFormat1<'a> {
     /// Number of LigatureSet tables
     pub fn ligature_set_count(&self) -> u16 {
         let range = self.shape.ligature_set_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to LigatureSet tables. Offsets are from
     /// beginning of substitution subtable, ordered by Coverage index
     pub fn ligature_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.ligature_set_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`ligature_set_offsets`][Self::ligature_set_offsets].
@@ -1190,14 +1190,14 @@ impl<'a> LigatureSet<'a> {
     /// Number of Ligature tables
     pub fn ligature_count(&self) -> u16 {
         let range = self.shape.ligature_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to Ligature tables. Offsets are from beginning
     /// of LigatureSet table, ordered by preference.
     pub fn ligature_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.ligature_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`ligature_offsets`][Self::ligature_offsets].
@@ -1296,20 +1296,20 @@ impl<'a> Ligature<'a> {
     /// glyph ID of ligature to substitute
     pub fn ligature_glyph(&self) -> GlyphId16 {
         let range = self.shape.ligature_glyph_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of components in the ligature
     pub fn component_count(&self) -> u16 {
         let range = self.shape.component_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of component glyph IDs — start with the second
     /// component, ordered in writing direction
     pub fn component_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.component_glyph_ids_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -1428,14 +1428,14 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
     /// Format identifier. Set to 1.
     pub fn subst_format(&self) -> u16 {
         let range = self.shape.subst_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Lookup type of subtable referenced by extensionOffset (that is,
     /// the extension subtable).
     pub fn extension_lookup_type(&self) -> u16 {
         let range = self.shape.extension_lookup_type_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to the extension subtable, of lookup type
@@ -1443,7 +1443,7 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
     /// ExtensionSubstFormat1 subtable.
     pub fn extension_offset(&self) -> Offset32 {
         let range = self.shape.extension_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`extension_offset`][Self::extension_offset].
@@ -1659,14 +1659,14 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     /// Format identifier: format = 1
     pub fn subst_format(&self) -> u16 {
         let range = self.shape.subst_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to Coverage table, from beginning of substitution
     /// subtable.
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -1678,14 +1678,14 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     /// Number of glyphs in the backtrack sequence.
     pub fn backtrack_glyph_count(&self) -> u16 {
         let range = self.shape.backtrack_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to coverage tables in backtrack sequence, in
     /// glyph sequence order.
     pub fn backtrack_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.backtrack_coverage_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
@@ -1698,14 +1698,14 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     /// Number of glyphs in lookahead sequence.
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to coverage tables in lookahead sequence, in
     /// glyph sequence order.
     pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lookahead_coverage_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
@@ -1718,13 +1718,13 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     /// Number of glyph IDs in the substituteGlyphIDs array.
     pub fn glyph_count(&self) -> u16 {
         let range = self.shape.glyph_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of substitute glyph IDs — ordered by Coverage index.
     pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.shape.substitute_glyph_ids_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
