@@ -8,6 +8,7 @@ default-run = "codegen"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 
 [[bin]]
 name = "codegen"
@@ -16,6 +17,9 @@ path = "src/main.rs"
 [dependencies]
 font-types = { workspace = true }
 rustfmt-wrapper = "0.2"
+# this is not a direct dependecy of ours, but we specify it because the latest
+# version, 0.5.12, doesn't work under our current MSRV
+home = "=0.5.11"
 regex = "1.5"
 miette = { version =  "5.0", features = ["fancy"] }
 syn =  { version = "2.0", features = ["parsing",  "extra-traits", "full"] }
