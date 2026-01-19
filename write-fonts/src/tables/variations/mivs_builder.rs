@@ -16,14 +16,13 @@ use crate::tables::{
         MultiItemVariationData, MultiItemVariationStore, SparseRegionAxisCoordinates,
         SparseVariationRegion, SparseVariationRegionList,
     },
-    variations::PackedDeltas,
+    variations::{
+        common_builder::{TemporaryDeltaSetId, VarStoreRemapping, NO_VARIATION_INDEX},
+        PackedDeltas,
+    },
 };
 
-/// The special index indicating no variation.
-pub const NO_VARIATION_INDEX: u32 = 0xFFFFFFFF;
-
-/// Temporary identifier for a multi-delta set before final VarIdx assignment.
-type TemporaryDeltaSetId = u32;
+pub type MultiVariationIndexRemapping = VarStoreRemapping<u32>;
 
 /// A sparse region definition, containing only axes with non-zero peaks.
 ///
@@ -109,16 +108,7 @@ pub struct MultiItemVariationStoreBuilder {
     next_id: TemporaryDeltaSetId,
 }
 
-/// A map from temporary delta set identifiers to final VarIdx values.
-///
-/// This is generated when the [`MultiItemVariationStore`] is built; afterwards
-/// any tables or records that contain VariationIndex values need to be remapped.
-#[derive(Clone, Debug, Default)]
-pub struct MultiVariationIndexRemapping {
-    map: HashMap<TemporaryDeltaSetId, u32>,
-}
-
-impl MultiVariationStoreBuilder {
+impl MultiItemVariationStoreBuilder {
     /// Create a new builder.
     pub fn new() -> Self {
         Self::default()
@@ -318,23 +308,6 @@ impl MultiVariationStoreBuilder {
         }
 
         result
-    }
-}
-
-impl MultiVariationIndexRemapping {
-    fn set(&mut self, from: TemporaryDeltaSetId, to: u32) {
-        self.map.insert(from, to);
-    }
-
-    /// Get the final VarIdx for a temporary ID.
-    ///
-    /// Returns `None` if the ID was not found (should not happen in normal use).
-    pub fn get(&self, from: TemporaryDeltaSetId) -> Option<u32> {
-        // Handle NO_VARIATION_INDEX specially
-        if from == NO_VARIATION_INDEX {
-            return Some(NO_VARIATION_INDEX);
-        }
-        self.map.get(&from).copied()
     }
 }
 

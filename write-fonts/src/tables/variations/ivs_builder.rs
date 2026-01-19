@@ -8,11 +8,14 @@ use std::{
 
 use crate::tables::{
     layout::VariationIndex,
-    variations::{ItemVariationData, ItemVariationStore, VariationRegion, VariationRegionList},
+    variations::{
+        common_builder::{TemporaryDeltaSetId, VarStoreRemapping},
+        ItemVariationData, ItemVariationStore, VariationRegion, VariationRegionList,
+    },
 };
 use indexmap::IndexMap;
 
-type TemporaryDeltaSetId = u32;
+pub type VariationIndexRemapping = VarStoreRemapping<VariationIndex>;
 
 /// A builder for the [ItemVariationStore].
 ///
@@ -35,29 +38,6 @@ enum DeltaSetStorage {
     Direct(Vec<DeltaSet>),
     // the general case, where each delta gets a unique id
     Deduplicated(IndexMap<DeltaSet, TemporaryDeltaSetId>),
-}
-
-/// A map from the temporary delta set identifiers to the final values.
-///
-/// This is generated when the [ItemVariationStore] is built; afterwards
-/// any tables or records that contain VariationIndex tables need to be remapped.
-#[derive(Clone, Debug, Default)]
-pub struct VariationIndexRemapping {
-    map: HashMap<TemporaryDeltaSetId, VariationIndex>,
-}
-
-/// Remapping temporary delta set identifiers to the final values.
-///
-/// This is called after the [`ItemVariationStore`] has been built, at which
-/// point any table containing a delta set index needs to be updated to point
-/// to the final value.
-///
-/// This trait should be implemented by any table that contains delta set indices,
-/// as well as for any of table containing such a table, which should recursively
-/// call it on the relevant subtables.
-pub trait RemapVariationIndices {
-    /// Remap any `TemporaryDeltaSetId`s to their final `VariationIndex` values
-    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping);
 }
 
 /// Always sorted, so we can ensure equality
@@ -790,14 +770,6 @@ impl RegionMap {
 }
 
 impl VariationIndexRemapping {
-    fn set(&mut self, from: TemporaryDeltaSetId, to: VariationIndex) {
-        self.map.insert(from, to);
-    }
-
-    pub fn get(&self, from: TemporaryDeltaSetId) -> Option<VariationIndex> {
-        self.map.get(&from).cloned()
-    }
-
     /// convert to tuple for easier comparisons in tests
     #[cfg(test)]
     fn get_raw(&self, from: TemporaryDeltaSetId) -> Option<(u16, u16)> {
@@ -1471,8 +1443,7 @@ mod tests {
 
     #[test]
     fn we_match_fonttools_stable_order() {
-        use rand::seq::SliceRandom;
-        use rand::thread_rng;
+        use rand::{seq::SliceRandom, thread_rng};
 
         let mut builder = VariationStoreBuilder::new(1);
         let r1 = VariationRegion::new(vec![reg_coords(-1.0, -1.0, 0.0)]);
