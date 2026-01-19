@@ -4,7 +4,7 @@ mod hint;
 
 use super::{GlyphHMetrics, OutlinePen};
 use hint::{HintParams, HintState, HintingSink};
-use raw::{tables::postscript::dict::normalize_font_matrix, FontRef};
+use raw::tables::postscript::dict::{FontMatrix, ScaledFontMatrix};
 use read_fonts::{
     tables::{
         postscript::{
@@ -14,7 +14,7 @@ use read_fonts::{
         variations::ItemVariationStore,
     },
     types::{F2Dot14, Fixed, GlyphId},
-    FontData, FontRead, ReadError, TableProvider,
+    FontData, FontRead, FontRef, ReadError, TableProvider,
 };
 use std::ops::Range;
 
@@ -164,58 +164,59 @@ impl<'a> Outlines<'a> {
         let scale_requested = size.is_some();
         // Compute our font matrix and adjusted UPEM
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffobjs.c#L746>
-        let font_matrix = if let Some((top_matrix, top_upem)) = self.top_dict.font_matrix {
+        let font_matrix = if let Some(top_matrix) = self.top_dict.font_matrix {
             // We have a top dict matrix. Now check for a font dict matrix.
-            if let Some((sub_matrix, sub_upem)) = font_dict.font_matrix {
-                let scaling = if top_upem > 1 && sub_upem > 1 {
-                    top_upem.min(sub_upem)
+            if let Some(sub_matrix) = font_dict.font_matrix {
+                let scaling = if top_matrix.scale > 1 && sub_matrix.scale > 1 {
+                    top_matrix.scale.min(sub_matrix.scale)
                 } else {
                     1
                 };
                 // Concatenate and scale
-                let matrix = matrix_mul_scaled(&top_matrix, &sub_matrix, scaling);
-                let upem = Fixed::from_bits(sub_upem)
-                    .mul_div(Fixed::from_bits(top_upem), Fixed::from_bits(scaling));
+                let matrix = top_matrix
+                    .matrix
+                    .combine_scaled(&sub_matrix.matrix, scaling);
+                let upem = Fixed::from_bits(sub_matrix.scale).mul_div(
+                    Fixed::from_bits(top_matrix.scale),
+                    Fixed::from_bits(scaling),
+                );
                 // Then normalize
-                Some(normalize_font_matrix(matrix, upem.to_bits()))
+                Some(
+                    ScaledFontMatrix {
+                        matrix,
+                        scale: upem.to_bits(),
+                    }
+                    .normalize(),
+                )
             } else {
                 // Top matrix was already normalized on load
-                Some((top_matrix, top_upem))
+                Some(top_matrix)
             }
-        } else if let Some((matrix, upem)) = font_dict.font_matrix {
+        } else if let Some(matrix) = font_dict.font_matrix {
             // Just normalize
-            Some(normalize_font_matrix(matrix, upem))
+            Some(matrix.normalize())
         } else {
             None
         };
         // Now adjust our scale factor if necessary
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffgload.c#L450>
-        let mut font_matrix = if let Some((matrix, matrix_upem)) = font_matrix {
+        let mut font_matrix = if let Some(matrix) = font_matrix {
             // If the scaling factor from our matrix does not equal the nominal
             // UPEM of the font then adjust the scale.
-            if matrix_upem != upem {
+            if matrix.scale != upem {
                 // In this case, we need to force a scale for "unscaled"
                 // requests in order to apply the adjusted UPEM from the
                 // font matrix.
                 let original_scale = scale.unwrap_or(Fixed::from_i32(64));
                 scale = Some(
-                    original_scale.mul_div(Fixed::from_bits(upem), Fixed::from_bits(matrix_upem)),
+                    original_scale.mul_div(Fixed::from_bits(upem), Fixed::from_bits(matrix.scale)),
                 );
             }
-            Some(matrix)
+            Some(matrix.matrix)
         } else {
             None
         };
-        if font_matrix
-            == Some([
-                Fixed::ONE,
-                Fixed::ZERO,
-                Fixed::ZERO,
-                Fixed::ONE,
-                Fixed::ZERO,
-                Fixed::ZERO,
-            ])
-        {
+        if font_matrix == Some(FontMatrix::IDENTITY) {
             // Let's not waste time applying an identity matrix. This occurs
             // fairly often after normalization.
             font_matrix = None;
@@ -364,7 +365,7 @@ pub(crate) struct Subfont {
     subrs_offset: Option<usize>,
     pub(crate) hint_state: HintState,
     store_index: u16,
-    font_matrix: Option<[Fixed; 6]>,
+    font_matrix: Option<FontMatrix>,
 }
 
 impl Subfont {
@@ -443,7 +444,7 @@ impl PrivateDict {
 #[derive(Clone, Default)]
 struct FontDict {
     private_dict_range: Range<usize>,
-    font_matrix: Option<([Fixed; 6], i32)>,
+    font_matrix: Option<ScaledFontMatrix>,
 }
 
 impl FontDict {
@@ -458,7 +459,7 @@ impl FontDict {
                 // We store this matrix unnormalized since FreeType
                 // concatenates this with the top dict matrix (if present)
                 // before normalizing
-                dict::Entry::FontMatrix(matrix, upem) => font_matrix = Some((matrix, upem)),
+                dict::Entry::FontMatrix(matrix) => font_matrix = Some(matrix),
                 _ => {}
             }
         }
@@ -477,7 +478,7 @@ struct TopDict<'a> {
     font_dicts: Index<'a>,
     fd_select: Option<FdSelect<'a>>,
     private_dict_range: Range<u32>,
-    font_matrix: Option<([Fixed; 6], i32)>,
+    font_matrix: Option<ScaledFontMatrix>,
     var_store: Option<ItemVariationStore<'a>>,
 }
 
@@ -502,9 +503,9 @@ impl<'a> TopDict<'a> {
                 dict::Entry::PrivateDictRange(range) => {
                     items.private_dict_range = range.start as u32..range.end as u32;
                 }
-                dict::Entry::FontMatrix(matrix, upem) => {
+                dict::Entry::FontMatrix(matrix) => {
                     // Store this matrix normalized since FT always applies normalization
-                    items.font_matrix = Some(normalize_font_matrix(matrix, upem));
+                    items.font_matrix = Some(matrix.normalize());
                 }
                 dict::Entry::VariationStoreOffset(offset) if is_cff2 => {
                     // IVS is preceded by a 2 byte length, but ensure that
@@ -560,21 +561,14 @@ where
     }
 }
 
-fn transform(matrix: &[Fixed; 6], x: Fixed, y: Fixed) -> (Fixed, Fixed) {
-    (
-        matrix[0] * x + matrix[2] * y + matrix[4],
-        matrix[1] * x + matrix[3] * y + matrix[5],
-    )
-}
-
 /// Command sink adapter that applies a transform to hinted coordinates.
 struct HintedTransformingSink<'a, S> {
     inner: &'a mut S,
-    matrix: [Fixed; 6],
+    matrix: FontMatrix,
 }
 
 impl<'a, S> HintedTransformingSink<'a, S> {
-    fn new(sink: &'a mut S, matrix: [Fixed; 6]) -> Self {
+    fn new(sink: &'a mut S, matrix: FontMatrix) -> Self {
         Self {
             inner: sink,
             matrix,
@@ -584,8 +578,7 @@ impl<'a, S> HintedTransformingSink<'a, S> {
     fn transform(&self, x: Fixed, y: Fixed) -> (Fixed, Fixed) {
         // FreeType applies the transform to 26.6 values but we maintain
         // values in 16.16 so convert, transform and then convert back
-        let (x, y) = transform(
-            &self.matrix,
+        let (x, y) = self.matrix.transform(
             Fixed::from_bits(x.to_bits() >> 10),
             Fixed::from_bits(y.to_bits() >> 10),
         );
@@ -646,12 +639,12 @@ const ONE_OVER_64: Fixed = Fixed::from_bits(0x400);
 /// factor.
 struct ScalingTransformingSink<'a, S> {
     inner: &'a mut S,
-    matrix: [Fixed; 6],
+    matrix: FontMatrix,
     scale: Option<Fixed>,
 }
 
 impl<'a, S> ScalingTransformingSink<'a, S> {
-    fn new(sink: &'a mut S, matrix: [Fixed; 6], scale: Option<Fixed>) -> Self {
+    fn new(sink: &'a mut S, matrix: FontMatrix, scale: Option<Fixed>) -> Self {
         Self {
             inner: sink,
             matrix,
@@ -677,7 +670,7 @@ impl<'a, S> ScalingTransformingSink<'a, S> {
         let bx = Fixed::from_bits(ax.to_bits() >> 10);
         let by = Fixed::from_bits(ay.to_bits() >> 10);
         // 3. Apply the transform. It must be done here to match FreeType.
-        let (cx, cy) = transform(&self.matrix, bx, by);
+        let (cx, cy) = self.matrix.transform(bx, by);
         if let Some(scale) = self.scale {
             // Scaled case:
             // 4. Multiply by the original scale factor (to 26.6)
@@ -957,26 +950,6 @@ where
             self.is_open = false;
         }
     }
-}
-
-/// Simple fixed point matrix multiplication with a scaling factor.
-///
-/// Note: this transforms the translation component of `b` by the upper 2x2 of
-/// `a`. This matches the offset transform FreeType uses when concatenating
-/// the matrices from the top and font dicts.
-///
-/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/base/ftcalc.c#L719>
-fn matrix_mul_scaled(a: &[Fixed; 6], b: &[Fixed; 6], scaling: i32) -> [Fixed; 6] {
-    let val = Fixed::from_i32(scaling);
-    let xx = a[0].mul_div(b[0], val) + a[2].mul_div(b[1], val);
-    let yx = a[1].mul_div(b[0], val) + a[3].mul_div(b[1], val);
-    let xy = a[0].mul_div(b[2], val) + a[2].mul_div(b[3], val);
-    let yy = a[1].mul_div(b[2], val) + a[3].mul_div(b[3], val);
-    let x = b[4];
-    let y = b[5];
-    let dx = x.mul_div(a[0], val) + y.mul_div(a[2], val);
-    let dy = x.mul_div(a[1], val) + y.mul_div(a[3], val);
-    [xx, yx, xy, yy, dx, dy]
 }
 
 #[cfg(test)]
@@ -1295,7 +1268,7 @@ mod tests {
         assert_eq!(sink.0, 2);
     }
 
-    const TRANSFORM: [Fixed; 6] = [
+    const TRANSFORM: FontMatrix = FontMatrix([
         Fixed::ONE,
         Fixed::ZERO,
         // 0.167007446289062
@@ -1303,7 +1276,7 @@ mod tests {
         Fixed::ONE,
         Fixed::ZERO,
         Fixed::ZERO,
-    ];
+    ]);
 
     #[test]
     fn hinted_transform_sink() {
@@ -1348,15 +1321,6 @@ mod tests {
         assert_eq!(transformed, expected);
     }
 
-    #[test]
-    fn fixed_matrix_mul() {
-        let a = [0.5, 0.75, -1.0, 2.0, 0.0, 0.0].map(Fixed::from_f64);
-        let b = [1.5, -1.0, 0.25, -1.0, 1.0, 2.0].map(Fixed::from_f64);
-        let expected = [1.75, -0.875, 1.125, -1.8125, -1.5, 4.75].map(Fixed::from_f64);
-        let result = matrix_mul_scaled(&a, &b, 1);
-        assert_eq!(result, expected);
-    }
-
     /// See <https://github.com/googlefonts/fontations/issues/1638>
     #[test]
     fn nested_font_matrices() {
@@ -1364,19 +1328,19 @@ mod tests {
         let font = FontRef::new(font_test_data::MATERIAL_ICONS_SUBSET_MATRIX).unwrap();
         let outlines = Outlines::from_cff(&font, 512).unwrap();
         // Check the normalized top dict matrix
-        let (top_matrix, top_upem) = outlines.top_dict.font_matrix.unwrap();
+        let top_matrix = outlines.top_dict.font_matrix.unwrap();
         let expected_top_matrix = [65536, 0, 5604, 65536, 0, 0].map(Fixed::from_bits);
-        assert_eq!(top_matrix, expected_top_matrix);
-        assert_eq!(top_upem, 512);
+        assert_eq!(top_matrix.matrix.0, expected_top_matrix);
+        assert_eq!(top_matrix.scale, 512);
         // Check the unnormalized font dict matrix
-        let (sub_matrix, sub_upem) = outlines.parse_font_dict(0).unwrap().font_matrix.unwrap();
+        let sub_matrix = outlines.parse_font_dict(0).unwrap().font_matrix.unwrap();
         let expected_sub_matrix = [327680, 0, 0, 327680, 0, 0].map(Fixed::from_bits);
-        assert_eq!(sub_matrix, expected_sub_matrix);
-        assert_eq!(sub_upem, 10);
+        assert_eq!(sub_matrix.matrix.0, expected_sub_matrix);
+        assert_eq!(sub_matrix.scale, 10);
         // Check the normalized combined matrix
         let subfont = outlines.subfont(0, Some(24.0), &[]).unwrap();
         let expected_combined_matrix = [65536, 0, 5604, 65536, 0, 0].map(Fixed::from_bits);
-        assert_eq!(subfont.font_matrix.unwrap(), expected_combined_matrix);
+        assert_eq!(subfont.font_matrix.unwrap().0, expected_combined_matrix);
         // Check the final scale
         assert_eq!(subfont.scale.unwrap().to_bits(), 98304);
     }
