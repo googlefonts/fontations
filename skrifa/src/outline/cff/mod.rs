@@ -192,11 +192,9 @@ impl<'a> Outlines<'a> {
                 // Top matrix was already normalized on load
                 Some(top_matrix)
             }
-        } else if let Some(matrix) = font_dict.font_matrix {
-            // Just normalize
-            Some(matrix.normalize())
         } else {
-            None
+            // Just normalize if we have a subfont matrix
+            font_dict.font_matrix.map(|matrix| matrix.normalize())
         };
         // Now adjust our scale factor if necessary
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffgload.c#L450>
