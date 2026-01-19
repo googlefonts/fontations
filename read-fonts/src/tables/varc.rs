@@ -191,6 +191,31 @@ impl<'a> VarcComponent<'a> {
             transform,
         })
     }
+
+    pub fn flags(&self) -> VarcFlags {
+        self.flags
+    }
+    pub fn gid(&self) -> GlyphId {
+        self.gid
+    }
+    pub fn condition_index(&self) -> Option<u32> {
+        self.condition_index
+    }
+    pub fn transform(&self) -> &DecomposedTransform {
+        &self.transform
+    }
+    pub fn axis_indices_index(&self) -> Option<u32> {
+        self.axis_indices_index
+    }
+    pub fn axis_values(&self) -> Option<&PackedDeltas<'a>> {
+        self.axis_values.as_ref()
+    }
+    pub fn axis_values_var_index(&self) -> Option<u32> {
+        self.axis_values_var_index
+    }
+    pub fn transform_var_index(&self) -> Option<u32> {
+        self.transform_var_index
+    }
 }
 
 /// <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/misc/transform.py#L410>
