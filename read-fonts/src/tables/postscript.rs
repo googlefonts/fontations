@@ -12,6 +12,7 @@ mod string;
 
 pub mod charstring;
 pub mod dict;
+pub mod font;
 
 include!("../../generated/generated_postscript.rs");
 
@@ -37,6 +38,7 @@ pub enum Error {
     CharstringNestingDepthLimitExceeded,
     MissingSubroutines,
     MissingBlendState,
+    MissingFdArray,
     MissingPrivateDict,
     MissingCharstrings,
     MissingCharset,
@@ -104,6 +106,9 @@ impl fmt::Display for Error {
                     f,
                     "encountered a blend operator but no blend state was provided"
                 )
+            }
+            Self::MissingFdArray => {
+                write!(f, "CFF table does not contain a font dictionary index")
             }
             Self::MissingPrivateDict => {
                 write!(f, "CFF table does not contain a private dictionary")
