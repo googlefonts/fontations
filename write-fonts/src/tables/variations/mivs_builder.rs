@@ -1,9 +1,11 @@
 //! Building the MultiItemVariationStore for VARC
 //!
-//! See also [VariationStoreBuilder](crate::tables::variations::ivs_builder::VariationStoreBuilder). Where Item Variation Stores stores a
+//! See also [`VariationStoreBuilder`]. Where Item Variation Stores stores a
 //! single scalar delta per region, [`MultiItemVariationStore`] stores a tuple
 //! of deltas per region, and uses a sparse representation of regions
 //! (only active axes are stored).
+//!
+//! [`VariationStoreBuilder`]: crate::tables::variations::ivs_builder::VariationStoreBuilder
 
 use std::collections::HashMap;
 
