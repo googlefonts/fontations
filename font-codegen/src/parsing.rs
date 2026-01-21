@@ -1516,7 +1516,7 @@ impl CountTransform {
 impl ToTokens for CountArg {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
-            CountArg::Field(fld) => fld.to_tokens(tokens),
+            CountArg::Field(fld) => tokens.extend(quote!(self.#fld())),
             CountArg::Literal(lit) => lit.to_tokens(tokens),
         }
     }
@@ -1884,9 +1884,9 @@ impl IfTransform {
         Ok(IfTransform::AnyFlag(field.clone(), flags))
     }
 
-    pub(crate) fn input_field(&self) -> Vec<syn::Ident> {
+    pub(crate) fn input_field(&self) -> syn::Ident {
         match self {
-            IfTransform::AnyFlag(field, _) => vec![field.clone()],
+            IfTransform::AnyFlag(field, _) => field.clone(),
         }
     }
 }
