@@ -69,6 +69,10 @@ mod formats {
     }
 }
 
+pub mod read_args {
+    include!("../generated/generated_test_read_args.rs");
+}
+
 mod offsets_arrays {
     include!("../generated/generated_test_offsets_arrays.rs");
     #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
