@@ -12,15 +12,18 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 use types::F2Dot14;
 
-use crate::tables::{
-    postscript::Index2,
-    varc::{
-        MultiItemVariationData, MultiItemVariationStore, SparseRegionAxisCoordinates,
-        SparseVariationRegion, SparseVariationRegionList,
-    },
-    variations::{
-        common_builder::{TemporaryDeltaSetId, VarStoreRemapping, NO_VARIATION_INDEX},
-        PackedDeltas,
+use crate::{
+    error::Error,
+    tables::{
+        postscript::Index2,
+        varc::{
+            MultiItemVariationData, MultiItemVariationStore, SparseRegionAxisCoordinates,
+            SparseVariationRegion, SparseVariationRegionList,
+        },
+        variations::{
+            common_builder::{TemporaryDeltaSetId, VarStoreRemapping, NO_VARIATION_INDEX},
+            PackedDeltas,
+        },
     },
 };
 
@@ -77,17 +80,18 @@ struct MultiDeltaSet {
 }
 
 impl MultiDeltaSet {
-    fn new(tuple_len: usize, mut deltas: Vec<(u16, Vec<i32>)>) -> Self {
+    fn new(tuple_len: usize, mut deltas: Vec<(u16, Vec<i32>)>) -> Result<Self, Error> {
         // Sort by region index
         deltas.sort_by_key(|(idx, _)| *idx);
         // Verify all tuples have the expected length
-        debug_assert!(
-            deltas.iter().all(|(_, tuple)| tuple.len() == tuple_len),
-            "all delta tuples must have the same length"
-        );
+        if !deltas.iter().all(|(_, tuple)| tuple.len() == tuple_len) {
+            return Err(Error::InvalidInput(
+                "all delta tuples in MultiDeltaSet must have the same length",
+            ));
+        };
         // Filter out all-zero tuples
         deltas.retain(|(_, tuple)| tuple.iter().any(|v| *v != 0));
-        Self { tuple_len, deltas }
+        Ok(Self { tuple_len, deltas })
     }
 
     fn is_empty(&self) -> bool {
@@ -133,13 +137,11 @@ impl MultiItemVariationStoreBuilder {
     /// A temporary ID that can be used to retrieve the final VarIdx after
     /// calling [`build`](Self::build).
     ///
-    /// # Panics
-    ///
-    /// Panics if the delta tuples have inconsistent lengths.
+    /// Returns an error if the delta tuples have inconsistent lengths.
     pub fn add_deltas<T: Into<i32>>(
         &mut self,
         deltas: Vec<(SparseRegion, Vec<T>)>,
-    ) -> TemporaryDeltaSetId {
+    ) -> Result<TemporaryDeltaSetId, Error> {
         // Determine tuple length from first non-empty entry
         let tuple_len = deltas
             .iter()
@@ -163,22 +165,22 @@ impl MultiItemVariationStoreBuilder {
             indexed_deltas.push((region_idx, converted_tuple));
         }
 
-        let delta_set = MultiDeltaSet::new(tuple_len, indexed_deltas);
+        let delta_set = MultiDeltaSet::new(tuple_len, indexed_deltas)?;
 
         // Return NO_VARIATION_INDEX for empty delta sets
         if delta_set.is_empty() {
-            return NO_VARIATION_INDEX;
+            return Ok(NO_VARIATION_INDEX);
         }
 
         // Deduplicate
         if let Some(&existing_id) = self.delta_sets.get(&delta_set) {
-            return existing_id;
+            return Ok(existing_id);
         }
 
         let id = self.next_id;
         self.next_id += 1;
         self.delta_sets.insert(delta_set, id);
-        id
+        Ok(id)
     }
 
     fn canonical_index_for_region(&mut self, region: SparseRegion) -> usize {
@@ -352,7 +354,7 @@ mod tests {
         let region = SparseRegion::new(vec![(0, f2dot14(0.0), f2dot14(1.0), f2dot14(1.0))]);
 
         // Add a 2-tuple delta
-        let temp_id = builder.add_deltas(vec![(region, vec![10, 20])]);
+        let temp_id = builder.add_deltas(vec![(region, vec![10, 20])]).unwrap();
 
         assert!(temp_id != NO_VARIATION_INDEX);
         assert!(!builder.is_empty());
@@ -378,8 +380,10 @@ mod tests {
         let region = SparseRegion::new(vec![(0, f2dot14(0.0), f2dot14(1.0), f2dot14(1.0))]);
 
         // Add the same delta set twice
-        let id1 = builder.add_deltas(vec![(region.clone(), vec![10, 20])]);
-        let id2 = builder.add_deltas(vec![(region, vec![10, 20])]);
+        let id1 = builder
+            .add_deltas(vec![(region.clone(), vec![10, 20])])
+            .unwrap();
+        let id2 = builder.add_deltas(vec![(region, vec![10, 20])]).unwrap();
 
         // Should get the same ID
         assert_eq!(id1, id2);
@@ -390,12 +394,12 @@ mod tests {
         let mut builder = MultiItemVariationStoreBuilder::new();
 
         // Empty deltas
-        let id = builder.add_deltas::<i32>(vec![]);
+        let id = builder.add_deltas::<i32>(vec![]).unwrap();
         assert_eq!(id, NO_VARIATION_INDEX);
 
         // All-zero deltas
         let region = SparseRegion::new(vec![(0, f2dot14(0.0), f2dot14(1.0), f2dot14(1.0))]);
-        let id = builder.add_deltas(vec![(region, vec![0, 0])]);
+        let id = builder.add_deltas(vec![(region, vec![0, 0])]).unwrap();
         assert_eq!(id, NO_VARIATION_INDEX);
     }
 
@@ -406,7 +410,9 @@ mod tests {
         let region1 = SparseRegion::new(vec![(0, f2dot14(0.0), f2dot14(1.0), f2dot14(1.0))]);
         let region2 = SparseRegion::new(vec![(1, f2dot14(0.0), f2dot14(1.0), f2dot14(1.0))]);
 
-        let temp_id = builder.add_deltas(vec![(region1, vec![10, 20]), (region2, vec![30, 40])]);
+        let temp_id = builder
+            .add_deltas(vec![(region1, vec![10, 20]), (region2, vec![30, 40])])
+            .unwrap();
 
         assert!(temp_id != NO_VARIATION_INDEX);
 

@@ -32,6 +32,8 @@ pub enum Error {
     /// tables to be reachable from their parents. See [`PackingError`] for
     /// more details.
     PackingFailed(PackingError),
+    /// Invalid input provided to a builder
+    InvalidInput(&'static str),
 }
 
 impl PackingError {
@@ -49,6 +51,7 @@ impl std::fmt::Display for Error {
         match self {
             Error::ValidationFailed(report) => report.fmt(f),
             Error::PackingFailed(error) => error.fmt(f),
+            Error::InvalidInput(msg) => write!(f, "Invalid input: {}", msg),
         }
     }
 }

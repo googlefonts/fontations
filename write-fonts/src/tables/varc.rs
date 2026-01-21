@@ -533,12 +533,14 @@ mod tests {
             F2Dot14::from_f32(0.0),
         )]);
 
-        let delta_set_id = storebuilder.add_deltas(vec![
-            // weight. Increase translate_x by 500 at region1 peak
-            (region1, vec![500, 0]),
-            // width. Increate translate_y by 500 at region2 peak
-            (region2, vec![0, 500]),
-        ]);
+        let delta_set_id = storebuilder
+            .add_deltas(vec![
+                // weight. Increase translate_x by 500 at region1 peak
+                (region1, vec![500, 0]),
+                // width. Increate translate_y by 500 at region2 peak
+                (region2, vec![0, 500]),
+            ])
+            .unwrap();
         let component = VarComponent {
             reset_unspecified_axes: true,
             gid: GlyphId::new(150),
