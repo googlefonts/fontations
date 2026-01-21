@@ -8,67 +8,9 @@ use crate::codegen_prelude::*;
 /// [COLR (Color)](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#colr-header) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct ColrMarker {
-    base_glyph_list_offset_byte_start: Option<usize>,
-    layer_list_offset_byte_start: Option<usize>,
-    clip_list_offset_byte_start: Option<usize>,
-    var_index_map_offset_byte_start: Option<usize>,
-    item_variation_store_offset_byte_start: Option<usize>,
-}
+pub struct ColrMarker {}
 
-impl ColrMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn num_base_glyph_records_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn base_glyph_records_offset_byte_range(&self) -> Range<usize> {
-        let start = self.num_base_glyph_records_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn layer_records_offset_byte_range(&self) -> Range<usize> {
-        let start = self.base_glyph_records_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn num_layer_records_byte_range(&self) -> Range<usize> {
-        let start = self.layer_records_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn base_glyph_list_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.base_glyph_list_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
-    }
-
-    pub fn layer_list_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.layer_list_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
-    }
-
-    pub fn clip_list_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.clip_list_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
-    }
-
-    pub fn var_index_map_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.var_index_map_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
-    }
-
-    pub fn item_variation_store_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.item_variation_store_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
-    }
-}
-
-impl MinByteRange for ColrMarker {
+impl<'a> MinByteRange for Colr<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.num_layer_records_byte_range().end
     }
@@ -81,53 +23,12 @@ impl TopLevelTable for Colr<'_> {
 
 impl<'a> FontRead<'a> for Colr<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: u16 = cursor.read()?;
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<u16>();
-        let base_glyph_list_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        let layer_list_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        let clip_list_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        let var_index_map_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        let item_variation_store_offset_byte_start = version
-            .compatible(1u16)
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible(1u16)
-            .then(|| cursor.advance::<Offset32>());
-        cursor.finish(ColrMarker {
-            base_glyph_list_offset_byte_start,
-            layer_list_offset_byte_start,
-            clip_list_offset_byte_start,
-            var_index_map_offset_byte_start,
-            item_variation_store_offset_byte_start,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: ColrMarker {},
         })
     }
 }
@@ -137,21 +38,97 @@ pub type Colr<'a> = TableRef<'a, ColrMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Colr<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN);
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn num_base_glyph_records_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn base_glyph_records_offset_byte_range(&self) -> Range<usize> {
+        let start = self.num_base_glyph_records_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn layer_records_offset_byte_range(&self) -> Range<usize> {
+        let start = self.base_glyph_records_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn num_layer_records_byte_range(&self) -> Range<usize> {
+        let start = self.layer_records_offset_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn base_glyph_list_offset_byte_range(&self) -> Range<usize> {
+        let start = self.num_layer_records_byte_range().end;
+        let end = (self.version().compatible(1u16))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
+        start..end
+    }
+
+    pub fn layer_list_offset_byte_range(&self) -> Range<usize> {
+        let start = self.base_glyph_list_offset_byte_range().end;
+        let end = (self.version().compatible(1u16))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
+        start..end
+    }
+
+    pub fn clip_list_offset_byte_range(&self) -> Range<usize> {
+        let start = self.layer_list_offset_byte_range().end;
+        let end = (self.version().compatible(1u16))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
+        start..end
+    }
+
+    pub fn var_index_map_offset_byte_range(&self) -> Range<usize> {
+        let start = self.clip_list_offset_byte_range().end;
+        let end = (self.version().compatible(1u16))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
+        start..end
+    }
+
+    pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
+        let start = self.var_index_map_offset_byte_range().end;
+        let end = (self.version().compatible(1u16))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
+        start..end
+    }
+
     /// Table version number - set to 0 or 1.
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of BaseGlyph records; may be 0 in a version 1 table.
     pub fn num_base_glyph_records(&self) -> u16 {
-        let range = self.shape.num_base_glyph_records_byte_range();
+        let range = self.num_base_glyph_records_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to baseGlyphRecords array (may be NULL).
     pub fn base_glyph_records_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.base_glyph_records_offset_byte_range();
+        let range = self.base_glyph_records_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -165,7 +142,7 @@ impl<'a> Colr<'a> {
 
     /// Offset to layerRecords array (may be NULL).
     pub fn layer_records_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.layer_records_offset_byte_range();
+        let range = self.layer_records_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -178,14 +155,14 @@ impl<'a> Colr<'a> {
 
     /// Number of Layer records; may be 0 in a version 1 table.
     pub fn num_layer_records(&self) -> u16 {
-        let range = self.shape.num_layer_records_byte_range();
+        let range = self.num_layer_records_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to BaseGlyphList table.
     pub fn base_glyph_list_offset(&self) -> Option<Nullable<Offset32>> {
-        let range = self.shape.base_glyph_list_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.base_glyph_list_offset_byte_range();
+        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`base_glyph_list_offset`][Self::base_glyph_list_offset].
@@ -196,8 +173,8 @@ impl<'a> Colr<'a> {
 
     /// Offset to LayerList table (may be NULL).
     pub fn layer_list_offset(&self) -> Option<Nullable<Offset32>> {
-        let range = self.shape.layer_list_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.layer_list_offset_byte_range();
+        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`layer_list_offset`][Self::layer_list_offset].
@@ -208,8 +185,8 @@ impl<'a> Colr<'a> {
 
     /// Offset to ClipList table (may be NULL).
     pub fn clip_list_offset(&self) -> Option<Nullable<Offset32>> {
-        let range = self.shape.clip_list_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.clip_list_offset_byte_range();
+        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`clip_list_offset`][Self::clip_list_offset].
@@ -220,8 +197,8 @@ impl<'a> Colr<'a> {
 
     /// Offset to DeltaSetIndexMap table (may be NULL).
     pub fn var_index_map_offset(&self) -> Option<Nullable<Offset32>> {
-        let range = self.shape.var_index_map_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.var_index_map_offset_byte_range();
+        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`var_index_map_offset`][Self::var_index_map_offset].
@@ -232,8 +209,8 @@ impl<'a> Colr<'a> {
 
     /// Offset to ItemVariationStore (may be NULL).
     pub fn item_variation_store_offset(&self) -> Option<Nullable<Offset32>> {
-        let range = self.shape.item_variation_store_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.item_variation_store_offset_byte_range();
+        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
@@ -250,7 +227,6 @@ impl<'a> SomeTable<'a> for Colr<'a> {
         "Colr"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        let version = self.version();
         match idx {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new(
@@ -276,26 +252,26 @@ impl<'a> SomeTable<'a> for Colr<'a> {
                 ),
             )),
             4usize => Some(Field::new("num_layer_records", self.num_layer_records())),
-            5usize if version.compatible(1u16) => Some(Field::new(
+            5usize if self.version().compatible(1u16) => Some(Field::new(
                 "base_glyph_list_offset",
                 FieldType::offset(
                     self.base_glyph_list_offset().unwrap(),
                     self.base_glyph_list(),
                 ),
             )),
-            6usize if version.compatible(1u16) => Some(Field::new(
+            6usize if self.version().compatible(1u16) => Some(Field::new(
                 "layer_list_offset",
                 FieldType::offset(self.layer_list_offset().unwrap(), self.layer_list()),
             )),
-            7usize if version.compatible(1u16) => Some(Field::new(
+            7usize if self.version().compatible(1u16) => Some(Field::new(
                 "clip_list_offset",
                 FieldType::offset(self.clip_list_offset().unwrap(), self.clip_list()),
             )),
-            8usize if version.compatible(1u16) => Some(Field::new(
+            8usize if self.version().compatible(1u16) => Some(Field::new(
                 "var_index_map_offset",
                 FieldType::offset(self.var_index_map_offset().unwrap(), self.var_index_map()),
             )),
-            9usize if version.compatible(1u16) => Some(Field::new(
+            9usize if self.version().compatible(1u16) => Some(Field::new(
                 "item_variation_store_offset",
                 FieldType::offset(
                     self.item_variation_store_offset().unwrap(),
@@ -410,23 +386,9 @@ impl<'a> SomeRecord<'a> for Layer {
 /// [BaseGlyphList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct BaseGlyphListMarker {
-    base_glyph_paint_records_byte_len: usize,
-}
+pub struct BaseGlyphListMarker {}
 
-impl BaseGlyphListMarker {
-    pub fn num_base_glyph_paint_records_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn base_glyph_paint_records_byte_range(&self) -> Range<usize> {
-        let start = self.num_base_glyph_paint_records_byte_range().end;
-        start..start + self.base_glyph_paint_records_byte_len
-    }
-}
-
-impl MinByteRange for BaseGlyphListMarker {
+impl<'a> MinByteRange for BaseGlyphList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_glyph_paint_records_byte_range().end
     }
@@ -434,14 +396,12 @@ impl MinByteRange for BaseGlyphListMarker {
 
 impl<'a> FontRead<'a> for BaseGlyphList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let num_base_glyph_paint_records: u32 = cursor.read()?;
-        let base_glyph_paint_records_byte_len = (num_base_glyph_paint_records as usize)
-            .checked_mul(BaseGlyphPaint::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(base_glyph_paint_records_byte_len);
-        cursor.finish(BaseGlyphListMarker {
-            base_glyph_paint_records_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: BaseGlyphListMarker {},
         })
     }
 }
@@ -451,13 +411,29 @@ pub type BaseGlyphList<'a> = TableRef<'a, BaseGlyphListMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseGlyphList<'a> {
+    pub const MIN_SIZE: usize = u32::RAW_BYTE_LEN;
+
+    pub fn num_base_glyph_paint_records_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn base_glyph_paint_records_byte_range(&self) -> Range<usize> {
+        let num_base_glyph_paint_records = self.num_base_glyph_paint_records();
+        let start = self.num_base_glyph_paint_records_byte_range().end;
+        let end = start
+            + (num_base_glyph_paint_records as usize).saturating_mul(BaseGlyphPaint::RAW_BYTE_LEN);
+        start..end
+    }
+
     pub fn num_base_glyph_paint_records(&self) -> u32 {
-        let range = self.shape.num_base_glyph_paint_records_byte_range();
+        let range = self.num_base_glyph_paint_records_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn base_glyph_paint_records(&self) -> &'a [BaseGlyphPaint] {
-        let range = self.shape.base_glyph_paint_records_byte_range();
+        let range = self.base_glyph_paint_records_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -550,23 +526,9 @@ impl<'a> SomeRecord<'a> for BaseGlyphPaint {
 /// [LayerList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct LayerListMarker {
-    paint_offsets_byte_len: usize,
-}
+pub struct LayerListMarker {}
 
-impl LayerListMarker {
-    pub fn num_layers_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.num_layers_byte_range().end;
-        start..start + self.paint_offsets_byte_len
-    }
-}
-
-impl MinByteRange for LayerListMarker {
+impl<'a> MinByteRange for LayerList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.paint_offsets_byte_range().end
     }
@@ -574,14 +536,12 @@ impl MinByteRange for LayerListMarker {
 
 impl<'a> FontRead<'a> for LayerList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let num_layers: u32 = cursor.read()?;
-        let paint_offsets_byte_len = (num_layers as usize)
-            .checked_mul(Offset32::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(paint_offsets_byte_len);
-        cursor.finish(LayerListMarker {
-            paint_offsets_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: LayerListMarker {},
         })
     }
 }
@@ -591,14 +551,29 @@ pub type LayerList<'a> = TableRef<'a, LayerListMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LayerList<'a> {
+    pub const MIN_SIZE: usize = u32::RAW_BYTE_LEN;
+
+    pub fn num_layers_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offsets_byte_range(&self) -> Range<usize> {
+        let num_layers = self.num_layers();
+        let start = self.num_layers_byte_range().end;
+        let end = start + (num_layers as usize).saturating_mul(Offset32::RAW_BYTE_LEN);
+        start..end
+    }
+
     pub fn num_layers(&self) -> u32 {
-        let range = self.shape.num_layers_byte_range();
+        let range = self.num_layers_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offsets to Paint tables.
     pub fn paint_offsets(&self) -> &'a [BigEndian<Offset32>] {
-        let range = self.shape.paint_offsets_byte_range();
+        let range = self.paint_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
@@ -648,28 +623,9 @@ impl<'a> std::fmt::Debug for LayerList<'a> {
 /// [ClipList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct ClipListMarker {
-    clips_byte_len: usize,
-}
+pub struct ClipListMarker {}
 
-impl ClipListMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn num_clips_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn clips_byte_range(&self) -> Range<usize> {
-        let start = self.num_clips_byte_range().end;
-        start..start + self.clips_byte_len
-    }
-}
-
-impl MinByteRange for ClipListMarker {
+impl<'a> MinByteRange for ClipList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.clips_byte_range().end
     }
@@ -677,14 +633,13 @@ impl MinByteRange for ClipListMarker {
 
 impl<'a> FontRead<'a> for ClipList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        let num_clips: u32 = cursor.read()?;
-        let clips_byte_len = (num_clips as usize)
-            .checked_mul(Clip::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(clips_byte_len);
-        cursor.finish(ClipListMarker { clips_byte_len })
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: ClipListMarker {},
+        })
     }
 }
 
@@ -693,21 +648,42 @@ pub type ClipList<'a> = TableRef<'a, ClipListMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClipList<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn num_clips_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn clips_byte_range(&self) -> Range<usize> {
+        let num_clips = self.num_clips();
+        let start = self.num_clips_byte_range().end;
+        let end = start + (num_clips as usize).saturating_mul(Clip::RAW_BYTE_LEN);
+        start..end
+    }
+
     /// Set to 1.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of Clip records.
     pub fn num_clips(&self) -> u32 {
-        let range = self.shape.num_clips_byte_range();
+        let range = self.num_clips_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Clip records. Sorted by startGlyphID.
     pub fn clips(&self) -> &'a [Clip] {
-        let range = self.shape.clips_byte_range();
+        let range = self.clips_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -917,34 +893,7 @@ impl Format<u8> for ClipBoxFormat1Marker {
 #[doc(hidden)]
 pub struct ClipBoxFormat1Marker {}
 
-impl ClipBoxFormat1Marker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn x_min_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn y_min_byte_range(&self) -> Range<usize> {
-        let start = self.x_min_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn x_max_byte_range(&self) -> Range<usize> {
-        let start = self.y_min_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn y_max_byte_range(&self) -> Range<usize> {
-        let start = self.x_max_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for ClipBoxFormat1Marker {
+impl<'a> MinByteRange for ClipBoxFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.y_max_byte_range().end
     }
@@ -952,13 +901,13 @@ impl MinByteRange for ClipBoxFormat1Marker {
 
 impl<'a> FontRead<'a> for ClipBoxFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(ClipBoxFormat1Marker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: ClipBoxFormat1Marker {},
+        })
     }
 }
 
@@ -967,33 +916,69 @@ pub type ClipBoxFormat1<'a> = TableRef<'a, ClipBoxFormat1Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClipBoxFormat1<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x_min_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y_min_byte_range(&self) -> Range<usize> {
+        let start = self.x_min_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x_max_byte_range(&self) -> Range<usize> {
+        let start = self.y_min_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y_max_byte_range(&self) -> Range<usize> {
+        let start = self.x_max_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 1.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum x of clip box.
     pub fn x_min(&self) -> FWord {
-        let range = self.shape.x_min_byte_range();
+        let range = self.x_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum y of clip box.
     pub fn y_min(&self) -> FWord {
-        let range = self.shape.y_min_byte_range();
+        let range = self.y_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum x of clip box.
     pub fn x_max(&self) -> FWord {
-        let range = self.shape.x_max_byte_range();
+        let range = self.x_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum y of clip box.
     pub fn y_max(&self) -> FWord {
-        let range = self.shape.y_max_byte_range();
+        let range = self.y_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -1032,39 +1017,7 @@ impl Format<u8> for ClipBoxFormat2Marker {
 #[doc(hidden)]
 pub struct ClipBoxFormat2Marker {}
 
-impl ClipBoxFormat2Marker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn x_min_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn y_min_byte_range(&self) -> Range<usize> {
-        let start = self.x_min_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn x_max_byte_range(&self) -> Range<usize> {
-        let start = self.y_min_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn y_max_byte_range(&self) -> Range<usize> {
-        let start = self.x_max_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn var_index_base_byte_range(&self) -> Range<usize> {
-        let start = self.y_max_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for ClipBoxFormat2Marker {
+impl<'a> MinByteRange for ClipBoxFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
     }
@@ -1072,14 +1025,13 @@ impl MinByteRange for ClipBoxFormat2Marker {
 
 impl<'a> FontRead<'a> for ClipBoxFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(ClipBoxFormat2Marker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: ClipBoxFormat2Marker {},
+        })
     }
 }
 
@@ -1088,39 +1040,82 @@ pub type ClipBoxFormat2<'a> = TableRef<'a, ClipBoxFormat2Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClipBoxFormat2<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x_min_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y_min_byte_range(&self) -> Range<usize> {
+        let start = self.x_min_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x_max_byte_range(&self) -> Range<usize> {
+        let start = self.y_min_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y_max_byte_range(&self) -> Range<usize> {
+        let start = self.x_max_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn var_index_base_byte_range(&self) -> Range<usize> {
+        let start = self.y_max_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 2.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum x of clip box. For variation, use varIndexBase + 0.
     pub fn x_min(&self) -> FWord {
-        let range = self.shape.x_min_byte_range();
+        let range = self.x_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum y of clip box. For variation, use varIndexBase + 1.
     pub fn y_min(&self) -> FWord {
-        let range = self.shape.y_min_byte_range();
+        let range = self.y_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum x of clip box. For variation, use varIndexBase + 2.
     pub fn x_max(&self) -> FWord {
-        let range = self.shape.x_max_byte_range();
+        let range = self.x_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum y of clip box. For variation, use varIndexBase + 3.
     pub fn y_max(&self) -> FWord {
-        let range = self.shape.y_max_byte_range();
+        let range = self.y_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
+        let range = self.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -1355,28 +1350,9 @@ impl<'a> SomeRecord<'a> for VarColorStop {
 /// [ColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct ColorLineMarker {
-    color_stops_byte_len: usize,
-}
+pub struct ColorLineMarker {}
 
-impl ColorLineMarker {
-    pub fn extend_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + Extend::RAW_BYTE_LEN
-    }
-
-    pub fn num_stops_byte_range(&self) -> Range<usize> {
-        let start = self.extend_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn color_stops_byte_range(&self) -> Range<usize> {
-        let start = self.num_stops_byte_range().end;
-        start..start + self.color_stops_byte_len
-    }
-}
-
-impl MinByteRange for ColorLineMarker {
+impl<'a> MinByteRange for ColorLine<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.color_stops_byte_range().end
     }
@@ -1384,15 +1360,12 @@ impl MinByteRange for ColorLineMarker {
 
 impl<'a> FontRead<'a> for ColorLine<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<Extend>();
-        let num_stops: u16 = cursor.read()?;
-        let color_stops_byte_len = (num_stops as usize)
-            .checked_mul(ColorStop::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(color_stops_byte_len);
-        cursor.finish(ColorLineMarker {
-            color_stops_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: ColorLineMarker {},
         })
     }
 }
@@ -1402,20 +1375,41 @@ pub type ColorLine<'a> = TableRef<'a, ColorLineMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ColorLine<'a> {
+    pub const MIN_SIZE: usize = (Extend::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+
+    pub fn extend_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + Extend::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn num_stops_byte_range(&self) -> Range<usize> {
+        let start = self.extend_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn color_stops_byte_range(&self) -> Range<usize> {
+        let num_stops = self.num_stops();
+        let start = self.num_stops_byte_range().end;
+        let end = start + (num_stops as usize).saturating_mul(ColorStop::RAW_BYTE_LEN);
+        start..end
+    }
+
     /// An Extend enum value.
     pub fn extend(&self) -> Extend {
-        let range = self.shape.extend_byte_range();
+        let range = self.extend_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of ColorStop records.
     pub fn num_stops(&self) -> u16 {
-        let range = self.shape.num_stops_byte_range();
+        let range = self.num_stops_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn color_stops(&self) -> &'a [ColorStop] {
-        let range = self.shape.color_stops_byte_range();
+        let range = self.color_stops_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -1453,28 +1447,9 @@ impl<'a> std::fmt::Debug for ColorLine<'a> {
 /// [VarColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct VarColorLineMarker {
-    color_stops_byte_len: usize,
-}
+pub struct VarColorLineMarker {}
 
-impl VarColorLineMarker {
-    pub fn extend_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + Extend::RAW_BYTE_LEN
-    }
-
-    pub fn num_stops_byte_range(&self) -> Range<usize> {
-        let start = self.extend_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn color_stops_byte_range(&self) -> Range<usize> {
-        let start = self.num_stops_byte_range().end;
-        start..start + self.color_stops_byte_len
-    }
-}
-
-impl MinByteRange for VarColorLineMarker {
+impl<'a> MinByteRange for VarColorLine<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.color_stops_byte_range().end
     }
@@ -1482,15 +1457,12 @@ impl MinByteRange for VarColorLineMarker {
 
 impl<'a> FontRead<'a> for VarColorLine<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<Extend>();
-        let num_stops: u16 = cursor.read()?;
-        let color_stops_byte_len = (num_stops as usize)
-            .checked_mul(VarColorStop::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(color_stops_byte_len);
-        cursor.finish(VarColorLineMarker {
-            color_stops_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: VarColorLineMarker {},
         })
     }
 }
@@ -1500,21 +1472,42 @@ pub type VarColorLine<'a> = TableRef<'a, VarColorLineMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarColorLine<'a> {
+    pub const MIN_SIZE: usize = (Extend::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+
+    pub fn extend_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + Extend::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn num_stops_byte_range(&self) -> Range<usize> {
+        let start = self.extend_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn color_stops_byte_range(&self) -> Range<usize> {
+        let num_stops = self.num_stops();
+        let start = self.num_stops_byte_range().end;
+        let end = start + (num_stops as usize).saturating_mul(VarColorStop::RAW_BYTE_LEN);
+        start..end
+    }
+
     /// An Extend enum value.
     pub fn extend(&self) -> Extend {
-        let range = self.shape.extend_byte_range();
+        let range = self.extend_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of ColorStop records.
     pub fn num_stops(&self) -> u16 {
-        let range = self.shape.num_stops_byte_range();
+        let range = self.num_stops_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Allows for variations.
     pub fn color_stops(&self) -> &'a [VarColorStop] {
-        let range = self.shape.color_stops_byte_range();
+        let range = self.color_stops_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -1879,24 +1872,7 @@ impl Format<u8> for PaintColrLayersMarker {
 #[doc(hidden)]
 pub struct PaintColrLayersMarker {}
 
-impl PaintColrLayersMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn num_layers_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn first_layer_index_byte_range(&self) -> Range<usize> {
-        let start = self.num_layers_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintColrLayersMarker {
+impl<'a> MinByteRange for PaintColrLayers<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.first_layer_index_byte_range().end
     }
@@ -1904,11 +1880,13 @@ impl MinByteRange for PaintColrLayersMarker {
 
 impl<'a> FontRead<'a> for PaintColrLayers<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u8>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintColrLayersMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintColrLayersMarker {},
+        })
     }
 }
 
@@ -1917,21 +1895,41 @@ pub type PaintColrLayers<'a> = TableRef<'a, PaintColrLayersMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintColrLayers<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn num_layers_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn first_layer_index_byte_range(&self) -> Range<usize> {
+        let start = self.num_layers_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 1.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of offsets to paint tables to read from LayerList.
     pub fn num_layers(&self) -> u8 {
-        let range = self.shape.num_layers_byte_range();
+        let range = self.num_layers_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Index (base 0) into the LayerList.
     pub fn first_layer_index(&self) -> u32 {
-        let range = self.shape.first_layer_index_byte_range();
+        let range = self.first_layer_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -1968,24 +1966,7 @@ impl Format<u8> for PaintSolidMarker {
 #[doc(hidden)]
 pub struct PaintSolidMarker {}
 
-impl PaintSolidMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn palette_index_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn alpha_byte_range(&self) -> Range<usize> {
-        let start = self.palette_index_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintSolidMarker {
+impl<'a> MinByteRange for PaintSolid<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.alpha_byte_range().end
     }
@@ -1993,11 +1974,13 @@ impl MinByteRange for PaintSolidMarker {
 
 impl<'a> FontRead<'a> for PaintSolid<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u16>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintSolidMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintSolidMarker {},
+        })
     }
 }
 
@@ -2006,21 +1989,41 @@ pub type PaintSolid<'a> = TableRef<'a, PaintSolidMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSolid<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn palette_index_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn alpha_byte_range(&self) -> Range<usize> {
+        let start = self.palette_index_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 2.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Index for a CPAL palette entry.
     pub fn palette_index(&self) -> u16 {
-        let range = self.shape.palette_index_byte_range();
+        let range = self.palette_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Alpha value.
     pub fn alpha(&self) -> F2Dot14 {
-        let range = self.shape.alpha_byte_range();
+        let range = self.alpha_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -2057,29 +2060,7 @@ impl Format<u8> for PaintVarSolidMarker {
 #[doc(hidden)]
 pub struct PaintVarSolidMarker {}
 
-impl PaintVarSolidMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn palette_index_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn alpha_byte_range(&self) -> Range<usize> {
-        let start = self.palette_index_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn var_index_base_byte_range(&self) -> Range<usize> {
-        let start = self.alpha_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintVarSolidMarker {
+impl<'a> MinByteRange for PaintVarSolid<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
     }
@@ -2087,12 +2068,13 @@ impl MinByteRange for PaintVarSolidMarker {
 
 impl<'a> FontRead<'a> for PaintVarSolid<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u16>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarSolidMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintVarSolidMarker {},
+        })
     }
 }
 
@@ -2101,27 +2083,54 @@ pub type PaintVarSolid<'a> = TableRef<'a, PaintVarSolidMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSolid<'a> {
+    pub const MIN_SIZE: usize =
+        (u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn palette_index_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn alpha_byte_range(&self) -> Range<usize> {
+        let start = self.palette_index_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn var_index_base_byte_range(&self) -> Range<usize> {
+        let start = self.alpha_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 3.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Index for a CPAL palette entry.
     pub fn palette_index(&self) -> u16 {
-        let range = self.shape.palette_index_byte_range();
+        let range = self.palette_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Alpha value. For variation, use varIndexBase + 0.
     pub fn alpha(&self) -> F2Dot14 {
-        let range = self.shape.alpha_byte_range();
+        let range = self.alpha_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
+        let range = self.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -2159,49 +2168,7 @@ impl Format<u8> for PaintLinearGradientMarker {
 #[doc(hidden)]
 pub struct PaintLinearGradientMarker {}
 
-impl PaintLinearGradientMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn color_line_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn x0_byte_range(&self) -> Range<usize> {
-        let start = self.color_line_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn y0_byte_range(&self) -> Range<usize> {
-        let start = self.x0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn x1_byte_range(&self) -> Range<usize> {
-        let start = self.y0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn y1_byte_range(&self) -> Range<usize> {
-        let start = self.x1_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn x2_byte_range(&self) -> Range<usize> {
-        let start = self.y1_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn y2_byte_range(&self) -> Range<usize> {
-        let start = self.x2_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintLinearGradientMarker {
+impl<'a> MinByteRange for PaintLinearGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.y2_byte_range().end
     }
@@ -2209,16 +2176,13 @@ impl MinByteRange for PaintLinearGradientMarker {
 
 impl<'a> FontRead<'a> for PaintLinearGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintLinearGradientMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintLinearGradientMarker {},
+        })
     }
 }
 
@@ -2227,15 +2191,72 @@ pub type PaintLinearGradient<'a> = TableRef<'a, PaintLinearGradientMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintLinearGradient<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn color_line_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x0_byte_range(&self) -> Range<usize> {
+        let start = self.color_line_offset_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y0_byte_range(&self) -> Range<usize> {
+        let start = self.x0_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x1_byte_range(&self) -> Range<usize> {
+        let start = self.y0_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y1_byte_range(&self) -> Range<usize> {
+        let start = self.x1_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x2_byte_range(&self) -> Range<usize> {
+        let start = self.y1_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y2_byte_range(&self) -> Range<usize> {
+        let start = self.x2_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 4.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to ColorLine table.
     pub fn color_line_offset(&self) -> Offset24 {
-        let range = self.shape.color_line_offset_byte_range();
+        let range = self.color_line_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -2247,37 +2268,37 @@ impl<'a> PaintLinearGradient<'a> {
 
     /// Start point (p₀) x coordinate.
     pub fn x0(&self) -> FWord {
-        let range = self.shape.x0_byte_range();
+        let range = self.x0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Start point (p₀) y coordinate.
     pub fn y0(&self) -> FWord {
-        let range = self.shape.y0_byte_range();
+        let range = self.y0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End point (p₁) x coordinate.
     pub fn x1(&self) -> FWord {
-        let range = self.shape.x1_byte_range();
+        let range = self.x1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End point (p₁) y coordinate.
     pub fn y1(&self) -> FWord {
-        let range = self.shape.y1_byte_range();
+        let range = self.y1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Rotation point (p₂) x coordinate.
     pub fn x2(&self) -> FWord {
-        let range = self.shape.x2_byte_range();
+        let range = self.x2_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Rotation point (p₂) y coordinate.
     pub fn y2(&self) -> FWord {
-        let range = self.shape.y2_byte_range();
+        let range = self.y2_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -2322,54 +2343,7 @@ impl Format<u8> for PaintVarLinearGradientMarker {
 #[doc(hidden)]
 pub struct PaintVarLinearGradientMarker {}
 
-impl PaintVarLinearGradientMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn color_line_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn x0_byte_range(&self) -> Range<usize> {
-        let start = self.color_line_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn y0_byte_range(&self) -> Range<usize> {
-        let start = self.x0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn x1_byte_range(&self) -> Range<usize> {
-        let start = self.y0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn y1_byte_range(&self) -> Range<usize> {
-        let start = self.x1_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn x2_byte_range(&self) -> Range<usize> {
-        let start = self.y1_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn y2_byte_range(&self) -> Range<usize> {
-        let start = self.x2_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn var_index_base_byte_range(&self) -> Range<usize> {
-        let start = self.y2_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintVarLinearGradientMarker {
+impl<'a> MinByteRange for PaintVarLinearGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
     }
@@ -2377,17 +2351,13 @@ impl MinByteRange for PaintVarLinearGradientMarker {
 
 impl<'a> FontRead<'a> for PaintVarLinearGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarLinearGradientMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintVarLinearGradientMarker {},
+        })
     }
 }
 
@@ -2396,15 +2366,79 @@ pub type PaintVarLinearGradient<'a> = TableRef<'a, PaintVarLinearGradientMarker>
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarLinearGradient<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn color_line_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x0_byte_range(&self) -> Range<usize> {
+        let start = self.color_line_offset_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y0_byte_range(&self) -> Range<usize> {
+        let start = self.x0_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x1_byte_range(&self) -> Range<usize> {
+        let start = self.y0_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y1_byte_range(&self) -> Range<usize> {
+        let start = self.x1_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x2_byte_range(&self) -> Range<usize> {
+        let start = self.y1_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y2_byte_range(&self) -> Range<usize> {
+        let start = self.x2_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn var_index_base_byte_range(&self) -> Range<usize> {
+        let start = self.y2_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 5.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to VarColorLine table.
     pub fn color_line_offset(&self) -> Offset24 {
-        let range = self.shape.color_line_offset_byte_range();
+        let range = self.color_line_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -2417,48 +2451,48 @@ impl<'a> PaintVarLinearGradient<'a> {
     /// Start point (p₀) x coordinate. For variation, use
     /// varIndexBase + 0.
     pub fn x0(&self) -> FWord {
-        let range = self.shape.x0_byte_range();
+        let range = self.x0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Start point (p₀) y coordinate. For variation, use
     /// varIndexBase + 1.
     pub fn y0(&self) -> FWord {
-        let range = self.shape.y0_byte_range();
+        let range = self.y0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End point (p₁) x coordinate. For variation, use varIndexBase
     /// + 2.
     pub fn x1(&self) -> FWord {
-        let range = self.shape.x1_byte_range();
+        let range = self.x1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End point (p₁) y coordinate. For variation, use varIndexBase
     /// + 3.
     pub fn y1(&self) -> FWord {
-        let range = self.shape.y1_byte_range();
+        let range = self.y1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Rotation point (p₂) x coordinate. For variation, use
     /// varIndexBase + 4.
     pub fn x2(&self) -> FWord {
-        let range = self.shape.x2_byte_range();
+        let range = self.x2_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Rotation point (p₂) y coordinate. For variation, use
     /// varIndexBase + 5.
     pub fn y2(&self) -> FWord {
-        let range = self.shape.y2_byte_range();
+        let range = self.y2_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
+        let range = self.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -2504,49 +2538,7 @@ impl Format<u8> for PaintRadialGradientMarker {
 #[doc(hidden)]
 pub struct PaintRadialGradientMarker {}
 
-impl PaintRadialGradientMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn color_line_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn x0_byte_range(&self) -> Range<usize> {
-        let start = self.color_line_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn y0_byte_range(&self) -> Range<usize> {
-        let start = self.x0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn radius0_byte_range(&self) -> Range<usize> {
-        let start = self.y0_byte_range().end;
-        start..start + UfWord::RAW_BYTE_LEN
-    }
-
-    pub fn x1_byte_range(&self) -> Range<usize> {
-        let start = self.radius0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn y1_byte_range(&self) -> Range<usize> {
-        let start = self.x1_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn radius1_byte_range(&self) -> Range<usize> {
-        let start = self.y1_byte_range().end;
-        start..start + UfWord::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintRadialGradientMarker {
+impl<'a> MinByteRange for PaintRadialGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.radius1_byte_range().end
     }
@@ -2554,16 +2546,13 @@ impl MinByteRange for PaintRadialGradientMarker {
 
 impl<'a> FontRead<'a> for PaintRadialGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.finish(PaintRadialGradientMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintRadialGradientMarker {},
+        })
     }
 }
 
@@ -2572,15 +2561,72 @@ pub type PaintRadialGradient<'a> = TableRef<'a, PaintRadialGradientMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRadialGradient<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + UfWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + UfWord::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn color_line_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x0_byte_range(&self) -> Range<usize> {
+        let start = self.color_line_offset_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y0_byte_range(&self) -> Range<usize> {
+        let start = self.x0_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn radius0_byte_range(&self) -> Range<usize> {
+        let start = self.y0_byte_range().end;
+        let end = start + UfWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x1_byte_range(&self) -> Range<usize> {
+        let start = self.radius0_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y1_byte_range(&self) -> Range<usize> {
+        let start = self.x1_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn radius1_byte_range(&self) -> Range<usize> {
+        let start = self.y1_byte_range().end;
+        let end = start + UfWord::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 6.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to ColorLine table.
     pub fn color_line_offset(&self) -> Offset24 {
-        let range = self.shape.color_line_offset_byte_range();
+        let range = self.color_line_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -2592,37 +2638,37 @@ impl<'a> PaintRadialGradient<'a> {
 
     /// Start circle center x coordinate.
     pub fn x0(&self) -> FWord {
-        let range = self.shape.x0_byte_range();
+        let range = self.x0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Start circle center y coordinate.
     pub fn y0(&self) -> FWord {
-        let range = self.shape.y0_byte_range();
+        let range = self.y0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Start circle radius.
     pub fn radius0(&self) -> UfWord {
-        let range = self.shape.radius0_byte_range();
+        let range = self.radius0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End circle center x coordinate.
     pub fn x1(&self) -> FWord {
-        let range = self.shape.x1_byte_range();
+        let range = self.x1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End circle center y coordinate.
     pub fn y1(&self) -> FWord {
-        let range = self.shape.y1_byte_range();
+        let range = self.y1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End circle radius.
     pub fn radius1(&self) -> UfWord {
-        let range = self.shape.radius1_byte_range();
+        let range = self.radius1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -2667,54 +2713,7 @@ impl Format<u8> for PaintVarRadialGradientMarker {
 #[doc(hidden)]
 pub struct PaintVarRadialGradientMarker {}
 
-impl PaintVarRadialGradientMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn color_line_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn x0_byte_range(&self) -> Range<usize> {
-        let start = self.color_line_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn y0_byte_range(&self) -> Range<usize> {
-        let start = self.x0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn radius0_byte_range(&self) -> Range<usize> {
-        let start = self.y0_byte_range().end;
-        start..start + UfWord::RAW_BYTE_LEN
-    }
-
-    pub fn x1_byte_range(&self) -> Range<usize> {
-        let start = self.radius0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn y1_byte_range(&self) -> Range<usize> {
-        let start = self.x1_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn radius1_byte_range(&self) -> Range<usize> {
-        let start = self.y1_byte_range().end;
-        start..start + UfWord::RAW_BYTE_LEN
-    }
-
-    pub fn var_index_base_byte_range(&self) -> Range<usize> {
-        let start = self.radius1_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintVarRadialGradientMarker {
+impl<'a> MinByteRange for PaintVarRadialGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
     }
@@ -2722,17 +2721,13 @@ impl MinByteRange for PaintVarRadialGradientMarker {
 
 impl<'a> FontRead<'a> for PaintVarRadialGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarRadialGradientMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintVarRadialGradientMarker {},
+        })
     }
 }
 
@@ -2741,15 +2736,79 @@ pub type PaintVarRadialGradient<'a> = TableRef<'a, PaintVarRadialGradientMarker>
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRadialGradient<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + UfWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + UfWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn color_line_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x0_byte_range(&self) -> Range<usize> {
+        let start = self.color_line_offset_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y0_byte_range(&self) -> Range<usize> {
+        let start = self.x0_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn radius0_byte_range(&self) -> Range<usize> {
+        let start = self.y0_byte_range().end;
+        let end = start + UfWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x1_byte_range(&self) -> Range<usize> {
+        let start = self.radius0_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y1_byte_range(&self) -> Range<usize> {
+        let start = self.x1_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn radius1_byte_range(&self) -> Range<usize> {
+        let start = self.y1_byte_range().end;
+        let end = start + UfWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn var_index_base_byte_range(&self) -> Range<usize> {
+        let start = self.radius1_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 7.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to VarColorLine table.
     pub fn color_line_offset(&self) -> Offset24 {
-        let range = self.shape.color_line_offset_byte_range();
+        let range = self.color_line_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -2762,46 +2821,46 @@ impl<'a> PaintVarRadialGradient<'a> {
     /// Start circle center x coordinate. For variation, use
     /// varIndexBase + 0.
     pub fn x0(&self) -> FWord {
-        let range = self.shape.x0_byte_range();
+        let range = self.x0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Start circle center y coordinate. For variation, use
     /// varIndexBase + 1.
     pub fn y0(&self) -> FWord {
-        let range = self.shape.y0_byte_range();
+        let range = self.y0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Start circle radius. For variation, use varIndexBase + 2.
     pub fn radius0(&self) -> UfWord {
-        let range = self.shape.radius0_byte_range();
+        let range = self.radius0_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End circle center x coordinate. For variation, use varIndexBase
     /// + 3.
     pub fn x1(&self) -> FWord {
-        let range = self.shape.x1_byte_range();
+        let range = self.x1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End circle center y coordinate. For variation, use varIndexBase
     /// + 4.
     pub fn y1(&self) -> FWord {
-        let range = self.shape.y1_byte_range();
+        let range = self.y1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End circle radius. For variation, use varIndexBase + 5.
     pub fn radius1(&self) -> UfWord {
-        let range = self.shape.radius1_byte_range();
+        let range = self.radius1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
+        let range = self.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -2847,39 +2906,7 @@ impl Format<u8> for PaintSweepGradientMarker {
 #[doc(hidden)]
 pub struct PaintSweepGradientMarker {}
 
-impl PaintSweepGradientMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn color_line_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn center_x_byte_range(&self) -> Range<usize> {
-        let start = self.color_line_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn center_y_byte_range(&self) -> Range<usize> {
-        let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn start_angle_byte_range(&self) -> Range<usize> {
-        let start = self.center_y_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn end_angle_byte_range(&self) -> Range<usize> {
-        let start = self.start_angle_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintSweepGradientMarker {
+impl<'a> MinByteRange for PaintSweepGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.end_angle_byte_range().end
     }
@@ -2887,14 +2914,13 @@ impl MinByteRange for PaintSweepGradientMarker {
 
 impl<'a> FontRead<'a> for PaintSweepGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintSweepGradientMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintSweepGradientMarker {},
+        })
     }
 }
 
@@ -2903,15 +2929,58 @@ pub type PaintSweepGradient<'a> = TableRef<'a, PaintSweepGradientMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSweepGradient<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn color_line_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_x_byte_range(&self) -> Range<usize> {
+        let start = self.color_line_offset_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_y_byte_range(&self) -> Range<usize> {
+        let start = self.center_x_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn start_angle_byte_range(&self) -> Range<usize> {
+        let start = self.center_y_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn end_angle_byte_range(&self) -> Range<usize> {
+        let start = self.start_angle_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 8.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to ColorLine table.
     pub fn color_line_offset(&self) -> Offset24 {
-        let range = self.shape.color_line_offset_byte_range();
+        let range = self.color_line_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -2923,27 +2992,27 @@ impl<'a> PaintSweepGradient<'a> {
 
     /// Center x coordinate.
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
+        let range = self.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Center y coordinate.
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
+        let range = self.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Start of the angular range of the gradient, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     pub fn start_angle(&self) -> F2Dot14 {
-        let range = self.shape.start_angle_byte_range();
+        let range = self.start_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// End of the angular range of the gradient, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     pub fn end_angle(&self) -> F2Dot14 {
-        let range = self.shape.end_angle_byte_range();
+        let range = self.end_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -2986,44 +3055,7 @@ impl Format<u8> for PaintVarSweepGradientMarker {
 #[doc(hidden)]
 pub struct PaintVarSweepGradientMarker {}
 
-impl PaintVarSweepGradientMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn color_line_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn center_x_byte_range(&self) -> Range<usize> {
-        let start = self.color_line_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn center_y_byte_range(&self) -> Range<usize> {
-        let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn start_angle_byte_range(&self) -> Range<usize> {
-        let start = self.center_y_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn end_angle_byte_range(&self) -> Range<usize> {
-        let start = self.start_angle_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn var_index_base_byte_range(&self) -> Range<usize> {
-        let start = self.end_angle_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintVarSweepGradientMarker {
+impl<'a> MinByteRange for PaintVarSweepGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
     }
@@ -3031,15 +3063,13 @@ impl MinByteRange for PaintVarSweepGradientMarker {
 
 impl<'a> FontRead<'a> for PaintVarSweepGradient<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarSweepGradientMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintVarSweepGradientMarker {},
+        })
     }
 }
 
@@ -3048,15 +3078,65 @@ pub type PaintVarSweepGradient<'a> = TableRef<'a, PaintVarSweepGradientMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSweepGradient<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn color_line_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_x_byte_range(&self) -> Range<usize> {
+        let start = self.color_line_offset_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_y_byte_range(&self) -> Range<usize> {
+        let start = self.center_x_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn start_angle_byte_range(&self) -> Range<usize> {
+        let start = self.center_y_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn end_angle_byte_range(&self) -> Range<usize> {
+        let start = self.start_angle_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn var_index_base_byte_range(&self) -> Range<usize> {
+        let start = self.end_angle_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 9.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to VarColorLine table.
     pub fn color_line_offset(&self) -> Offset24 {
-        let range = self.shape.color_line_offset_byte_range();
+        let range = self.color_line_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -3068,13 +3148,13 @@ impl<'a> PaintVarSweepGradient<'a> {
 
     /// Center x coordinate. For variation, use varIndexBase + 0.
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
+        let range = self.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Center y coordinate. For variation, use varIndexBase + 1.
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
+        let range = self.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -3082,7 +3162,7 @@ impl<'a> PaintVarSweepGradient<'a> {
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 2.
     pub fn start_angle(&self) -> F2Dot14 {
-        let range = self.shape.start_angle_byte_range();
+        let range = self.start_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -3090,13 +3170,13 @@ impl<'a> PaintVarSweepGradient<'a> {
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 3.
     pub fn end_angle(&self) -> F2Dot14 {
-        let range = self.shape.end_angle_byte_range();
+        let range = self.end_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
+        let range = self.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -3140,24 +3220,7 @@ impl Format<u8> for PaintGlyphMarker {
 #[doc(hidden)]
 pub struct PaintGlyphMarker {}
 
-impl PaintGlyphMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn glyph_id_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + GlyphId16::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintGlyphMarker {
+impl<'a> MinByteRange for PaintGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_id_byte_range().end
     }
@@ -3165,11 +3228,13 @@ impl MinByteRange for PaintGlyphMarker {
 
 impl<'a> FontRead<'a> for PaintGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<GlyphId16>();
-        cursor.finish(PaintGlyphMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintGlyphMarker {},
+        })
     }
 }
 
@@ -3178,15 +3243,36 @@ pub type PaintGlyph<'a> = TableRef<'a, PaintGlyphMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintGlyph<'a> {
+    pub const MIN_SIZE: usize =
+        (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn glyph_id_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + GlyphId16::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 10.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint table.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -3198,7 +3284,7 @@ impl<'a> PaintGlyph<'a> {
 
     /// Glyph ID for the source outline.
     pub fn glyph_id(&self) -> GlyphId16 {
-        let range = self.shape.glyph_id_byte_range();
+        let range = self.glyph_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -3238,19 +3324,7 @@ impl Format<u8> for PaintColrGlyphMarker {
 #[doc(hidden)]
 pub struct PaintColrGlyphMarker {}
 
-impl PaintColrGlyphMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn glyph_id_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + GlyphId16::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintColrGlyphMarker {
+impl<'a> MinByteRange for PaintColrGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_id_byte_range().end
     }
@@ -3258,10 +3332,13 @@ impl MinByteRange for PaintColrGlyphMarker {
 
 impl<'a> FontRead<'a> for PaintColrGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<GlyphId16>();
-        cursor.finish(PaintColrGlyphMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintColrGlyphMarker {},
+        })
     }
 }
 
@@ -3270,15 +3347,29 @@ pub type PaintColrGlyph<'a> = TableRef<'a, PaintColrGlyphMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintColrGlyph<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn glyph_id_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + GlyphId16::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 11.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Glyph ID for a BaseGlyphList base glyph.
     pub fn glyph_id(&self) -> GlyphId16 {
-        let range = self.shape.glyph_id_byte_range();
+        let range = self.glyph_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -3314,24 +3405,7 @@ impl Format<u8> for PaintTransformMarker {
 #[doc(hidden)]
 pub struct PaintTransformMarker {}
 
-impl PaintTransformMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn transform_offset_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintTransformMarker {
+impl<'a> MinByteRange for PaintTransform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.transform_offset_byte_range().end
     }
@@ -3339,11 +3413,13 @@ impl MinByteRange for PaintTransformMarker {
 
 impl<'a> FontRead<'a> for PaintTransform<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<Offset24>();
-        cursor.finish(PaintTransformMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintTransformMarker {},
+        })
     }
 }
 
@@ -3352,15 +3428,36 @@ pub type PaintTransform<'a> = TableRef<'a, PaintTransformMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintTransform<'a> {
+    pub const MIN_SIZE: usize =
+        (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn transform_offset_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 12.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -3372,7 +3469,7 @@ impl<'a> PaintTransform<'a> {
 
     /// Offset to an Affine2x3 table.
     pub fn transform_offset(&self) -> Offset24 {
-        let range = self.shape.transform_offset_byte_range();
+        let range = self.transform_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -3421,24 +3518,7 @@ impl Format<u8> for PaintVarTransformMarker {
 #[doc(hidden)]
 pub struct PaintVarTransformMarker {}
 
-impl PaintVarTransformMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn transform_offset_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintVarTransformMarker {
+impl<'a> MinByteRange for PaintVarTransform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.transform_offset_byte_range().end
     }
@@ -3446,11 +3526,13 @@ impl MinByteRange for PaintVarTransformMarker {
 
 impl<'a> FontRead<'a> for PaintVarTransform<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<Offset24>();
-        cursor.finish(PaintVarTransformMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintVarTransformMarker {},
+        })
     }
 }
 
@@ -3459,15 +3541,36 @@ pub type PaintVarTransform<'a> = TableRef<'a, PaintVarTransformMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarTransform<'a> {
+    pub const MIN_SIZE: usize =
+        (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn transform_offset_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 13.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -3479,7 +3582,7 @@ impl<'a> PaintVarTransform<'a> {
 
     /// Offset to a VarAffine2x3 table.
     pub fn transform_offset(&self) -> Offset24 {
-        let range = self.shape.transform_offset_byte_range();
+        let range = self.transform_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -3524,39 +3627,7 @@ impl<'a> std::fmt::Debug for PaintVarTransform<'a> {
 #[doc(hidden)]
 pub struct Affine2x3Marker {}
 
-impl Affine2x3Marker {
-    pub fn xx_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + Fixed::RAW_BYTE_LEN
-    }
-
-    pub fn yx_byte_range(&self) -> Range<usize> {
-        let start = self.xx_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
-    }
-
-    pub fn xy_byte_range(&self) -> Range<usize> {
-        let start = self.yx_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
-    }
-
-    pub fn yy_byte_range(&self) -> Range<usize> {
-        let start = self.xy_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
-    }
-
-    pub fn dx_byte_range(&self) -> Range<usize> {
-        let start = self.yy_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
-    }
-
-    pub fn dy_byte_range(&self) -> Range<usize> {
-        let start = self.dx_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for Affine2x3Marker {
+impl<'a> MinByteRange for Affine2x3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.dy_byte_range().end
     }
@@ -3564,14 +3635,13 @@ impl MinByteRange for Affine2x3Marker {
 
 impl<'a> FontRead<'a> for Affine2x3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.finish(Affine2x3Marker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: Affine2x3Marker {},
+        })
     }
 }
 
@@ -3580,39 +3650,82 @@ pub type Affine2x3<'a> = TableRef<'a, Affine2x3Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Affine2x3<'a> {
+    pub const MIN_SIZE: usize = (Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN);
+
+    pub fn xx_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn yx_byte_range(&self) -> Range<usize> {
+        let start = self.xx_byte_range().end;
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn xy_byte_range(&self) -> Range<usize> {
+        let start = self.yx_byte_range().end;
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn yy_byte_range(&self) -> Range<usize> {
+        let start = self.xy_byte_range().end;
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn dx_byte_range(&self) -> Range<usize> {
+        let start = self.yy_byte_range().end;
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn dy_byte_range(&self) -> Range<usize> {
+        let start = self.dx_byte_range().end;
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// x-component of transformed x-basis vector.
     pub fn xx(&self) -> Fixed {
-        let range = self.shape.xx_byte_range();
+        let range = self.xx_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y-component of transformed x-basis vector.
     pub fn yx(&self) -> Fixed {
-        let range = self.shape.yx_byte_range();
+        let range = self.yx_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// x-component of transformed y-basis vector.
     pub fn xy(&self) -> Fixed {
-        let range = self.shape.xy_byte_range();
+        let range = self.xy_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y-component of transformed y-basis vector.
     pub fn yy(&self) -> Fixed {
-        let range = self.shape.yy_byte_range();
+        let range = self.yy_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Translation in x direction.
     pub fn dx(&self) -> Fixed {
-        let range = self.shape.dx_byte_range();
+        let range = self.dx_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Translation in y direction.
     pub fn dy(&self) -> Fixed {
-        let range = self.shape.dy_byte_range();
+        let range = self.dy_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -3648,44 +3761,7 @@ impl<'a> std::fmt::Debug for Affine2x3<'a> {
 #[doc(hidden)]
 pub struct VarAffine2x3Marker {}
 
-impl VarAffine2x3Marker {
-    pub fn xx_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + Fixed::RAW_BYTE_LEN
-    }
-
-    pub fn yx_byte_range(&self) -> Range<usize> {
-        let start = self.xx_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
-    }
-
-    pub fn xy_byte_range(&self) -> Range<usize> {
-        let start = self.yx_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
-    }
-
-    pub fn yy_byte_range(&self) -> Range<usize> {
-        let start = self.xy_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
-    }
-
-    pub fn dx_byte_range(&self) -> Range<usize> {
-        let start = self.yy_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
-    }
-
-    pub fn dy_byte_range(&self) -> Range<usize> {
-        let start = self.dx_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
-    }
-
-    pub fn var_index_base_byte_range(&self) -> Range<usize> {
-        let start = self.dy_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for VarAffine2x3Marker {
+impl<'a> MinByteRange for VarAffine2x3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
     }
@@ -3693,15 +3769,13 @@ impl MinByteRange for VarAffine2x3Marker {
 
 impl<'a> FontRead<'a> for VarAffine2x3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<u32>();
-        cursor.finish(VarAffine2x3Marker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: VarAffine2x3Marker {},
+        })
     }
 }
 
@@ -3710,49 +3784,99 @@ pub type VarAffine2x3<'a> = TableRef<'a, VarAffine2x3Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarAffine2x3<'a> {
+    pub const MIN_SIZE: usize = (Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + Fixed::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN);
+
+    pub fn xx_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn yx_byte_range(&self) -> Range<usize> {
+        let start = self.xx_byte_range().end;
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn xy_byte_range(&self) -> Range<usize> {
+        let start = self.yx_byte_range().end;
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn yy_byte_range(&self) -> Range<usize> {
+        let start = self.xy_byte_range().end;
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn dx_byte_range(&self) -> Range<usize> {
+        let start = self.yy_byte_range().end;
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn dy_byte_range(&self) -> Range<usize> {
+        let start = self.dx_byte_range().end;
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn var_index_base_byte_range(&self) -> Range<usize> {
+        let start = self.dy_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// x-component of transformed x-basis vector. For variation, use
     /// varIndexBase + 0.
     pub fn xx(&self) -> Fixed {
-        let range = self.shape.xx_byte_range();
+        let range = self.xx_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y-component of transformed x-basis vector. For variation, use
     /// varIndexBase + 1.
     pub fn yx(&self) -> Fixed {
-        let range = self.shape.yx_byte_range();
+        let range = self.yx_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// x-component of transformed y-basis vector. For variation, use
     /// varIndexBase + 2.
     pub fn xy(&self) -> Fixed {
-        let range = self.shape.xy_byte_range();
+        let range = self.xy_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y-component of transformed y-basis vector. For variation, use
     /// varIndexBase + 3.
     pub fn yy(&self) -> Fixed {
-        let range = self.shape.yy_byte_range();
+        let range = self.yy_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Translation in x direction. For variation, use varIndexBase + 4.
     pub fn dx(&self) -> Fixed {
-        let range = self.shape.dx_byte_range();
+        let range = self.dx_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Translation in y direction. For variation, use varIndexBase + 5.
     pub fn dy(&self) -> Fixed {
-        let range = self.shape.dy_byte_range();
+        let range = self.dy_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
+        let range = self.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -3793,29 +3917,7 @@ impl Format<u8> for PaintTranslateMarker {
 #[doc(hidden)]
 pub struct PaintTranslateMarker {}
 
-impl PaintTranslateMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn dx_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn dy_byte_range(&self) -> Range<usize> {
-        let start = self.dx_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintTranslateMarker {
+impl<'a> MinByteRange for PaintTranslate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.dy_byte_range().end
     }
@@ -3823,12 +3925,13 @@ impl MinByteRange for PaintTranslateMarker {
 
 impl<'a> FontRead<'a> for PaintTranslate<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintTranslateMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintTranslateMarker {},
+        })
     }
 }
 
@@ -3837,15 +3940,42 @@ pub type PaintTranslate<'a> = TableRef<'a, PaintTranslateMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintTranslate<'a> {
+    pub const MIN_SIZE: usize =
+        (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + FWord::RAW_BYTE_LEN + FWord::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn dx_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn dy_byte_range(&self) -> Range<usize> {
+        let start = self.dx_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 14.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -3857,13 +3987,13 @@ impl<'a> PaintTranslate<'a> {
 
     /// Translation in x direction.
     pub fn dx(&self) -> FWord {
-        let range = self.shape.dx_byte_range();
+        let range = self.dx_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Translation in y direction.
     pub fn dy(&self) -> FWord {
-        let range = self.shape.dy_byte_range();
+        let range = self.dy_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -3904,34 +4034,7 @@ impl Format<u8> for PaintVarTranslateMarker {
 #[doc(hidden)]
 pub struct PaintVarTranslateMarker {}
 
-impl PaintVarTranslateMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn dx_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn dy_byte_range(&self) -> Range<usize> {
-        let start = self.dx_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn var_index_base_byte_range(&self) -> Range<usize> {
-        let start = self.dy_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintVarTranslateMarker {
+impl<'a> MinByteRange for PaintVarTranslate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
     }
@@ -3939,13 +4042,13 @@ impl MinByteRange for PaintVarTranslateMarker {
 
 impl<'a> FontRead<'a> for PaintVarTranslate<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarTranslateMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintVarTranslateMarker {},
+        })
     }
 }
 
@@ -3954,15 +4057,51 @@ pub type PaintVarTranslate<'a> = TableRef<'a, PaintVarTranslateMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarTranslate<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn dx_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn dy_byte_range(&self) -> Range<usize> {
+        let start = self.dx_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn var_index_base_byte_range(&self) -> Range<usize> {
+        let start = self.dy_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 15.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -3974,19 +4113,19 @@ impl<'a> PaintVarTranslate<'a> {
 
     /// Translation in x direction. For variation, use varIndexBase + 0.
     pub fn dx(&self) -> FWord {
-        let range = self.shape.dx_byte_range();
+        let range = self.dx_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Translation in y direction. For variation, use varIndexBase + 1.
     pub fn dy(&self) -> FWord {
-        let range = self.shape.dy_byte_range();
+        let range = self.dy_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
+        let range = self.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -4028,29 +4167,7 @@ impl Format<u8> for PaintScaleMarker {
 #[doc(hidden)]
 pub struct PaintScaleMarker {}
 
-impl PaintScaleMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn scale_x_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn scale_y_byte_range(&self) -> Range<usize> {
-        let start = self.scale_x_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintScaleMarker {
+impl<'a> MinByteRange for PaintScale<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.scale_y_byte_range().end
     }
@@ -4058,12 +4175,13 @@ impl MinByteRange for PaintScaleMarker {
 
 impl<'a> FontRead<'a> for PaintScale<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintScaleMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintScaleMarker {},
+        })
     }
 }
 
@@ -4072,15 +4190,42 @@ pub type PaintScale<'a> = TableRef<'a, PaintScaleMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScale<'a> {
+    pub const MIN_SIZE: usize =
+        (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn scale_x_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn scale_y_byte_range(&self) -> Range<usize> {
+        let start = self.scale_x_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 16.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -4092,13 +4237,13 @@ impl<'a> PaintScale<'a> {
 
     /// Scale factor in x direction.
     pub fn scale_x(&self) -> F2Dot14 {
-        let range = self.shape.scale_x_byte_range();
+        let range = self.scale_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Scale factor in y direction.
     pub fn scale_y(&self) -> F2Dot14 {
-        let range = self.shape.scale_y_byte_range();
+        let range = self.scale_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -4139,34 +4284,7 @@ impl Format<u8> for PaintVarScaleMarker {
 #[doc(hidden)]
 pub struct PaintVarScaleMarker {}
 
-impl PaintVarScaleMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn scale_x_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn scale_y_byte_range(&self) -> Range<usize> {
-        let start = self.scale_x_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn var_index_base_byte_range(&self) -> Range<usize> {
-        let start = self.scale_y_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintVarScaleMarker {
+impl<'a> MinByteRange for PaintVarScale<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
     }
@@ -4174,13 +4292,13 @@ impl MinByteRange for PaintVarScaleMarker {
 
 impl<'a> FontRead<'a> for PaintVarScale<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarScaleMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintVarScaleMarker {},
+        })
     }
 }
 
@@ -4189,15 +4307,51 @@ pub type PaintVarScale<'a> = TableRef<'a, PaintVarScaleMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScale<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn scale_x_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn scale_y_byte_range(&self) -> Range<usize> {
+        let start = self.scale_x_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn var_index_base_byte_range(&self) -> Range<usize> {
+        let start = self.scale_y_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 17.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -4210,20 +4364,20 @@ impl<'a> PaintVarScale<'a> {
     /// Scale factor in x direction. For variation, use varIndexBase +
     /// 0.
     pub fn scale_x(&self) -> F2Dot14 {
-        let range = self.shape.scale_x_byte_range();
+        let range = self.scale_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Scale factor in y direction. For variation, use varIndexBase +
     /// 1.
     pub fn scale_y(&self) -> F2Dot14 {
-        let range = self.shape.scale_y_byte_range();
+        let range = self.scale_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
+        let range = self.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -4265,39 +4419,7 @@ impl Format<u8> for PaintScaleAroundCenterMarker {
 #[doc(hidden)]
 pub struct PaintScaleAroundCenterMarker {}
 
-impl PaintScaleAroundCenterMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn scale_x_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn scale_y_byte_range(&self) -> Range<usize> {
-        let start = self.scale_x_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn center_x_byte_range(&self) -> Range<usize> {
-        let start = self.scale_y_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn center_y_byte_range(&self) -> Range<usize> {
-        let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintScaleAroundCenterMarker {
+impl<'a> MinByteRange for PaintScaleAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.center_y_byte_range().end
     }
@@ -4305,14 +4427,13 @@ impl MinByteRange for PaintScaleAroundCenterMarker {
 
 impl<'a> FontRead<'a> for PaintScaleAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintScaleAroundCenterMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintScaleAroundCenterMarker {},
+        })
     }
 }
 
@@ -4321,15 +4442,58 @@ pub type PaintScaleAroundCenter<'a> = TableRef<'a, PaintScaleAroundCenterMarker>
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleAroundCenter<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn scale_x_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn scale_y_byte_range(&self) -> Range<usize> {
+        let start = self.scale_x_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_x_byte_range(&self) -> Range<usize> {
+        let start = self.scale_y_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_y_byte_range(&self) -> Range<usize> {
+        let start = self.center_x_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 18.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -4341,25 +4505,25 @@ impl<'a> PaintScaleAroundCenter<'a> {
 
     /// Scale factor in x direction.
     pub fn scale_x(&self) -> F2Dot14 {
-        let range = self.shape.scale_x_byte_range();
+        let range = self.scale_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Scale factor in y direction.
     pub fn scale_y(&self) -> F2Dot14 {
-        let range = self.shape.scale_y_byte_range();
+        let range = self.scale_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// x coordinate for the center of scaling.
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
+        let range = self.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y coordinate for the center of scaling.
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
+        let range = self.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -4402,44 +4566,7 @@ impl Format<u8> for PaintVarScaleAroundCenterMarker {
 #[doc(hidden)]
 pub struct PaintVarScaleAroundCenterMarker {}
 
-impl PaintVarScaleAroundCenterMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn scale_x_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn scale_y_byte_range(&self) -> Range<usize> {
-        let start = self.scale_x_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn center_x_byte_range(&self) -> Range<usize> {
-        let start = self.scale_y_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn center_y_byte_range(&self) -> Range<usize> {
-        let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn var_index_base_byte_range(&self) -> Range<usize> {
-        let start = self.center_y_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintVarScaleAroundCenterMarker {
+impl<'a> MinByteRange for PaintVarScaleAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
     }
@@ -4447,15 +4574,13 @@ impl MinByteRange for PaintVarScaleAroundCenterMarker {
 
 impl<'a> FontRead<'a> for PaintVarScaleAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarScaleAroundCenterMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintVarScaleAroundCenterMarker {},
+        })
     }
 }
 
@@ -4464,15 +4589,65 @@ pub type PaintVarScaleAroundCenter<'a> = TableRef<'a, PaintVarScaleAroundCenterM
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleAroundCenter<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn scale_x_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn scale_y_byte_range(&self) -> Range<usize> {
+        let start = self.scale_x_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_x_byte_range(&self) -> Range<usize> {
+        let start = self.scale_y_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_y_byte_range(&self) -> Range<usize> {
+        let start = self.center_x_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn var_index_base_byte_range(&self) -> Range<usize> {
+        let start = self.center_y_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 19.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -4485,34 +4660,34 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
     /// Scale factor in x direction. For variation, use varIndexBase +
     /// 0.
     pub fn scale_x(&self) -> F2Dot14 {
-        let range = self.shape.scale_x_byte_range();
+        let range = self.scale_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Scale factor in y direction. For variation, use varIndexBase +
     /// 1.
     pub fn scale_y(&self) -> F2Dot14 {
-        let range = self.shape.scale_y_byte_range();
+        let range = self.scale_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// x coordinate for the center of scaling. For variation, use
     /// varIndexBase + 2.
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
+        let range = self.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y coordinate for the center of scaling. For variation, use
     /// varIndexBase + 3.
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
+        let range = self.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
+        let range = self.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -4556,24 +4731,7 @@ impl Format<u8> for PaintScaleUniformMarker {
 #[doc(hidden)]
 pub struct PaintScaleUniformMarker {}
 
-impl PaintScaleUniformMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn scale_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintScaleUniformMarker {
+impl<'a> MinByteRange for PaintScaleUniform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.scale_byte_range().end
     }
@@ -4581,11 +4739,13 @@ impl MinByteRange for PaintScaleUniformMarker {
 
 impl<'a> FontRead<'a> for PaintScaleUniform<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintScaleUniformMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintScaleUniformMarker {},
+        })
     }
 }
 
@@ -4594,15 +4754,35 @@ pub type PaintScaleUniform<'a> = TableRef<'a, PaintScaleUniformMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleUniform<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn scale_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 20.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -4614,7 +4794,7 @@ impl<'a> PaintScaleUniform<'a> {
 
     /// Scale factor in x and y directions.
     pub fn scale(&self) -> F2Dot14 {
-        let range = self.shape.scale_byte_range();
+        let range = self.scale_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -4654,29 +4834,7 @@ impl Format<u8> for PaintVarScaleUniformMarker {
 #[doc(hidden)]
 pub struct PaintVarScaleUniformMarker {}
 
-impl PaintVarScaleUniformMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn scale_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn var_index_base_byte_range(&self) -> Range<usize> {
-        let start = self.scale_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintVarScaleUniformMarker {
+impl<'a> MinByteRange for PaintVarScaleUniform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
     }
@@ -4684,12 +4842,13 @@ impl MinByteRange for PaintVarScaleUniformMarker {
 
 impl<'a> FontRead<'a> for PaintVarScaleUniform<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarScaleUniformMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintVarScaleUniformMarker {},
+        })
     }
 }
 
@@ -4698,15 +4857,42 @@ pub type PaintVarScaleUniform<'a> = TableRef<'a, PaintVarScaleUniformMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleUniform<'a> {
+    pub const MIN_SIZE: usize =
+        (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn scale_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn var_index_base_byte_range(&self) -> Range<usize> {
+        let start = self.scale_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 21.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -4719,13 +4905,13 @@ impl<'a> PaintVarScaleUniform<'a> {
     /// Scale factor in x and y directions. For variation, use
     /// varIndexBase + 0.
     pub fn scale(&self) -> F2Dot14 {
-        let range = self.shape.scale_byte_range();
+        let range = self.scale_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
+        let range = self.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -4766,34 +4952,7 @@ impl Format<u8> for PaintScaleUniformAroundCenterMarker {
 #[doc(hidden)]
 pub struct PaintScaleUniformAroundCenterMarker {}
 
-impl PaintScaleUniformAroundCenterMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn scale_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn center_x_byte_range(&self) -> Range<usize> {
-        let start = self.scale_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn center_y_byte_range(&self) -> Range<usize> {
-        let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintScaleUniformAroundCenterMarker {
+impl<'a> MinByteRange for PaintScaleUniformAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.center_y_byte_range().end
     }
@@ -4801,13 +4960,13 @@ impl MinByteRange for PaintScaleUniformAroundCenterMarker {
 
 impl<'a> FontRead<'a> for PaintScaleUniformAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintScaleUniformAroundCenterMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintScaleUniformAroundCenterMarker {},
+        })
     }
 }
 
@@ -4816,15 +4975,51 @@ pub type PaintScaleUniformAroundCenter<'a> = TableRef<'a, PaintScaleUniformAroun
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleUniformAroundCenter<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn scale_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_x_byte_range(&self) -> Range<usize> {
+        let start = self.scale_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_y_byte_range(&self) -> Range<usize> {
+        let start = self.center_x_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 22.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -4836,19 +5031,19 @@ impl<'a> PaintScaleUniformAroundCenter<'a> {
 
     /// Scale factor in x and y directions.
     pub fn scale(&self) -> F2Dot14 {
-        let range = self.shape.scale_byte_range();
+        let range = self.scale_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// x coordinate for the center of scaling.
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
+        let range = self.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y coordinate for the center of scaling.
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
+        let range = self.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -4890,39 +5085,7 @@ impl Format<u8> for PaintVarScaleUniformAroundCenterMarker {
 #[doc(hidden)]
 pub struct PaintVarScaleUniformAroundCenterMarker {}
 
-impl PaintVarScaleUniformAroundCenterMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn scale_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn center_x_byte_range(&self) -> Range<usize> {
-        let start = self.scale_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn center_y_byte_range(&self) -> Range<usize> {
-        let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn var_index_base_byte_range(&self) -> Range<usize> {
-        let start = self.center_y_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintVarScaleUniformAroundCenterMarker {
+impl<'a> MinByteRange for PaintVarScaleUniformAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
     }
@@ -4930,14 +5093,13 @@ impl MinByteRange for PaintVarScaleUniformAroundCenterMarker {
 
 impl<'a> FontRead<'a> for PaintVarScaleUniformAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarScaleUniformAroundCenterMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintVarScaleUniformAroundCenterMarker {},
+        })
     }
 }
 
@@ -4947,15 +5109,58 @@ pub type PaintVarScaleUniformAroundCenter<'a> =
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleUniformAroundCenter<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn scale_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_x_byte_range(&self) -> Range<usize> {
+        let start = self.scale_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_y_byte_range(&self) -> Range<usize> {
+        let start = self.center_x_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn var_index_base_byte_range(&self) -> Range<usize> {
+        let start = self.center_y_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 23.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -4968,27 +5173,27 @@ impl<'a> PaintVarScaleUniformAroundCenter<'a> {
     /// Scale factor in x and y directions. For variation, use
     /// varIndexBase + 0.
     pub fn scale(&self) -> F2Dot14 {
-        let range = self.shape.scale_byte_range();
+        let range = self.scale_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// x coordinate for the center of scaling. For variation, use
     /// varIndexBase + 1.
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
+        let range = self.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y coordinate for the center of scaling. For variation, use
     /// varIndexBase + 2.
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
+        let range = self.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
+        let range = self.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -5031,24 +5236,7 @@ impl Format<u8> for PaintRotateMarker {
 #[doc(hidden)]
 pub struct PaintRotateMarker {}
 
-impl PaintRotateMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn angle_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintRotateMarker {
+impl<'a> MinByteRange for PaintRotate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.angle_byte_range().end
     }
@@ -5056,11 +5244,13 @@ impl MinByteRange for PaintRotateMarker {
 
 impl<'a> FontRead<'a> for PaintRotate<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintRotateMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintRotateMarker {},
+        })
     }
 }
 
@@ -5069,15 +5259,35 @@ pub type PaintRotate<'a> = TableRef<'a, PaintRotateMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRotate<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn angle_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 24.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -5090,7 +5300,7 @@ impl<'a> PaintRotate<'a> {
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value.
     pub fn angle(&self) -> F2Dot14 {
-        let range = self.shape.angle_byte_range();
+        let range = self.angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -5130,29 +5340,7 @@ impl Format<u8> for PaintVarRotateMarker {
 #[doc(hidden)]
 pub struct PaintVarRotateMarker {}
 
-impl PaintVarRotateMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn angle_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn var_index_base_byte_range(&self) -> Range<usize> {
-        let start = self.angle_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintVarRotateMarker {
+impl<'a> MinByteRange for PaintVarRotate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
     }
@@ -5160,12 +5348,13 @@ impl MinByteRange for PaintVarRotateMarker {
 
 impl<'a> FontRead<'a> for PaintVarRotate<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarRotateMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintVarRotateMarker {},
+        })
     }
 }
 
@@ -5174,15 +5363,42 @@ pub type PaintVarRotate<'a> = TableRef<'a, PaintVarRotateMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRotate<'a> {
+    pub const MIN_SIZE: usize =
+        (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn angle_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn var_index_base_byte_range(&self) -> Range<usize> {
+        let start = self.angle_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 25.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -5195,13 +5411,13 @@ impl<'a> PaintVarRotate<'a> {
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value. For variation, use varIndexBase + 0.
     pub fn angle(&self) -> F2Dot14 {
-        let range = self.shape.angle_byte_range();
+        let range = self.angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
+        let range = self.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -5242,34 +5458,7 @@ impl Format<u8> for PaintRotateAroundCenterMarker {
 #[doc(hidden)]
 pub struct PaintRotateAroundCenterMarker {}
 
-impl PaintRotateAroundCenterMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn angle_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn center_x_byte_range(&self) -> Range<usize> {
-        let start = self.angle_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn center_y_byte_range(&self) -> Range<usize> {
-        let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintRotateAroundCenterMarker {
+impl<'a> MinByteRange for PaintRotateAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.center_y_byte_range().end
     }
@@ -5277,13 +5466,13 @@ impl MinByteRange for PaintRotateAroundCenterMarker {
 
 impl<'a> FontRead<'a> for PaintRotateAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintRotateAroundCenterMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintRotateAroundCenterMarker {},
+        })
     }
 }
 
@@ -5292,15 +5481,51 @@ pub type PaintRotateAroundCenter<'a> = TableRef<'a, PaintRotateAroundCenterMarke
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRotateAroundCenter<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn angle_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_x_byte_range(&self) -> Range<usize> {
+        let start = self.angle_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_y_byte_range(&self) -> Range<usize> {
+        let start = self.center_x_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 26.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -5313,19 +5538,19 @@ impl<'a> PaintRotateAroundCenter<'a> {
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value.
     pub fn angle(&self) -> F2Dot14 {
-        let range = self.shape.angle_byte_range();
+        let range = self.angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// x coordinate for the center of rotation.
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
+        let range = self.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y coordinate for the center of rotation.
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
+        let range = self.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -5367,39 +5592,7 @@ impl Format<u8> for PaintVarRotateAroundCenterMarker {
 #[doc(hidden)]
 pub struct PaintVarRotateAroundCenterMarker {}
 
-impl PaintVarRotateAroundCenterMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn angle_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn center_x_byte_range(&self) -> Range<usize> {
-        let start = self.angle_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn center_y_byte_range(&self) -> Range<usize> {
-        let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn var_index_base_byte_range(&self) -> Range<usize> {
-        let start = self.center_y_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintVarRotateAroundCenterMarker {
+impl<'a> MinByteRange for PaintVarRotateAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
     }
@@ -5407,14 +5600,13 @@ impl MinByteRange for PaintVarRotateAroundCenterMarker {
 
 impl<'a> FontRead<'a> for PaintVarRotateAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarRotateAroundCenterMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintVarRotateAroundCenterMarker {},
+        })
     }
 }
 
@@ -5423,15 +5615,58 @@ pub type PaintVarRotateAroundCenter<'a> = TableRef<'a, PaintVarRotateAroundCente
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRotateAroundCenter<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn angle_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_x_byte_range(&self) -> Range<usize> {
+        let start = self.angle_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_y_byte_range(&self) -> Range<usize> {
+        let start = self.center_x_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn var_index_base_byte_range(&self) -> Range<usize> {
+        let start = self.center_y_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 27.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -5444,27 +5679,27 @@ impl<'a> PaintVarRotateAroundCenter<'a> {
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value. For variation, use varIndexBase + 0.
     pub fn angle(&self) -> F2Dot14 {
-        let range = self.shape.angle_byte_range();
+        let range = self.angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// x coordinate for the center of rotation. For variation, use
     /// varIndexBase + 1.
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
+        let range = self.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y coordinate for the center of rotation. For variation, use
     /// varIndexBase + 2.
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
+        let range = self.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
+        let range = self.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -5507,29 +5742,7 @@ impl Format<u8> for PaintSkewMarker {
 #[doc(hidden)]
 pub struct PaintSkewMarker {}
 
-impl PaintSkewMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
-        let start = self.x_skew_angle_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintSkewMarker {
+impl<'a> MinByteRange for PaintSkew<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.y_skew_angle_byte_range().end
     }
@@ -5537,12 +5750,13 @@ impl MinByteRange for PaintSkewMarker {
 
 impl<'a> FontRead<'a> for PaintSkew<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(PaintSkewMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintSkewMarker {},
+        })
     }
 }
 
@@ -5551,15 +5765,42 @@ pub type PaintSkew<'a> = TableRef<'a, PaintSkewMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSkew<'a> {
+    pub const MIN_SIZE: usize =
+        (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
+        let start = self.x_skew_angle_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 28.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -5572,14 +5813,14 @@ impl<'a> PaintSkew<'a> {
     /// Angle of skew in the direction of the x-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     pub fn x_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.x_skew_angle_byte_range();
+        let range = self.x_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Angle of skew in the direction of the y-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     pub fn y_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.y_skew_angle_byte_range();
+        let range = self.y_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -5620,34 +5861,7 @@ impl Format<u8> for PaintVarSkewMarker {
 #[doc(hidden)]
 pub struct PaintVarSkewMarker {}
 
-impl PaintVarSkewMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
-        let start = self.x_skew_angle_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn var_index_base_byte_range(&self) -> Range<usize> {
-        let start = self.y_skew_angle_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintVarSkewMarker {
+impl<'a> MinByteRange for PaintVarSkew<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
     }
@@ -5655,13 +5869,13 @@ impl MinByteRange for PaintVarSkewMarker {
 
 impl<'a> FontRead<'a> for PaintVarSkew<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarSkewMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintVarSkewMarker {},
+        })
     }
 }
 
@@ -5670,15 +5884,51 @@ pub type PaintVarSkew<'a> = TableRef<'a, PaintVarSkewMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSkew<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
+        let start = self.x_skew_angle_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn var_index_base_byte_range(&self) -> Range<usize> {
+        let start = self.y_skew_angle_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 29.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -5692,7 +5942,7 @@ impl<'a> PaintVarSkew<'a> {
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 0.
     pub fn x_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.x_skew_angle_byte_range();
+        let range = self.x_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -5700,13 +5950,13 @@ impl<'a> PaintVarSkew<'a> {
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 1.
     pub fn y_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.y_skew_angle_byte_range();
+        let range = self.y_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
+        let range = self.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -5748,39 +5998,7 @@ impl Format<u8> for PaintSkewAroundCenterMarker {
 #[doc(hidden)]
 pub struct PaintSkewAroundCenterMarker {}
 
-impl PaintSkewAroundCenterMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
-        let start = self.x_skew_angle_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn center_x_byte_range(&self) -> Range<usize> {
-        let start = self.y_skew_angle_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn center_y_byte_range(&self) -> Range<usize> {
-        let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintSkewAroundCenterMarker {
+impl<'a> MinByteRange for PaintSkewAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.center_y_byte_range().end
     }
@@ -5788,14 +6006,13 @@ impl MinByteRange for PaintSkewAroundCenterMarker {
 
 impl<'a> FontRead<'a> for PaintSkewAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.finish(PaintSkewAroundCenterMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintSkewAroundCenterMarker {},
+        })
     }
 }
 
@@ -5804,15 +6021,58 @@ pub type PaintSkewAroundCenter<'a> = TableRef<'a, PaintSkewAroundCenterMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSkewAroundCenter<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
+        let start = self.x_skew_angle_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_x_byte_range(&self) -> Range<usize> {
+        let start = self.y_skew_angle_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_y_byte_range(&self) -> Range<usize> {
+        let start = self.center_x_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 30.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -5825,26 +6085,26 @@ impl<'a> PaintSkewAroundCenter<'a> {
     /// Angle of skew in the direction of the x-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     pub fn x_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.x_skew_angle_byte_range();
+        let range = self.x_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Angle of skew in the direction of the y-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     pub fn y_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.y_skew_angle_byte_range();
+        let range = self.y_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// x coordinate for the center of rotation.
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
+        let range = self.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y coordinate for the center of rotation.
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
+        let range = self.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -5887,44 +6147,7 @@ impl Format<u8> for PaintVarSkewAroundCenterMarker {
 #[doc(hidden)]
 pub struct PaintVarSkewAroundCenterMarker {}
 
-impl PaintVarSkewAroundCenterMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
-        let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
-        let start = self.x_skew_angle_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-
-    pub fn center_x_byte_range(&self) -> Range<usize> {
-        let start = self.y_skew_angle_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn center_y_byte_range(&self) -> Range<usize> {
-        let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
-    }
-
-    pub fn var_index_base_byte_range(&self) -> Range<usize> {
-        let start = self.center_y_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintVarSkewAroundCenterMarker {
+impl<'a> MinByteRange for PaintVarSkewAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
     }
@@ -5932,15 +6155,13 @@ impl MinByteRange for PaintVarSkewAroundCenterMarker {
 
 impl<'a> FontRead<'a> for PaintVarSkewAroundCenter<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.finish(PaintVarSkewAroundCenterMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintVarSkewAroundCenterMarker {},
+        })
     }
 }
 
@@ -5949,15 +6170,65 @@ pub type PaintVarSkewAroundCenter<'a> = TableRef<'a, PaintVarSkewAroundCenterMar
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSkewAroundCenter<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + F2Dot14::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
+        let start = self.x_skew_angle_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_x_byte_range(&self) -> Range<usize> {
+        let start = self.y_skew_angle_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn center_y_byte_range(&self) -> Range<usize> {
+        let start = self.center_x_byte_range().end;
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn var_index_base_byte_range(&self) -> Range<usize> {
+        let start = self.center_y_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 31.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
-        let range = self.shape.paint_offset_byte_range();
+        let range = self.paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -5971,7 +6242,7 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 0.
     pub fn x_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.x_skew_angle_byte_range();
+        let range = self.x_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -5979,27 +6250,27 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
     /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 1.
     pub fn y_skew_angle(&self) -> F2Dot14 {
-        let range = self.shape.y_skew_angle_byte_range();
+        let range = self.y_skew_angle_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// x coordinate for the center of rotation. For variation, use
     /// varIndexBase + 2.
     pub fn center_x(&self) -> FWord {
-        let range = self.shape.center_x_byte_range();
+        let range = self.center_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// y coordinate for the center of rotation. For variation, use
     /// varIndexBase + 3.
     pub fn center_y(&self) -> FWord {
-        let range = self.shape.center_y_byte_range();
+        let range = self.center_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
-        let range = self.shape.var_index_base_byte_range();
+        let range = self.var_index_base_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -6043,29 +6314,7 @@ impl Format<u8> for PaintCompositeMarker {
 #[doc(hidden)]
 pub struct PaintCompositeMarker {}
 
-impl PaintCompositeMarker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn source_paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-
-    pub fn composite_mode_byte_range(&self) -> Range<usize> {
-        let start = self.source_paint_offset_byte_range().end;
-        start..start + CompositeMode::RAW_BYTE_LEN
-    }
-
-    pub fn backdrop_paint_offset_byte_range(&self) -> Range<usize> {
-        let start = self.composite_mode_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for PaintCompositeMarker {
+impl<'a> MinByteRange for PaintComposite<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.backdrop_paint_offset_byte_range().end
     }
@@ -6073,12 +6322,13 @@ impl MinByteRange for PaintCompositeMarker {
 
 impl<'a> FontRead<'a> for PaintComposite<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<Offset24>();
-        cursor.advance::<CompositeMode>();
-        cursor.advance::<Offset24>();
-        cursor.finish(PaintCompositeMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: PaintCompositeMarker {},
+        })
     }
 }
 
@@ -6087,15 +6337,44 @@ pub type PaintComposite<'a> = TableRef<'a, PaintCompositeMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintComposite<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN
+        + CompositeMode::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn source_paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn composite_mode_byte_range(&self) -> Range<usize> {
+        let start = self.source_paint_offset_byte_range().end;
+        let end = start + CompositeMode::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn backdrop_paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.composite_mode_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Set to 32.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a source Paint table.
     pub fn source_paint_offset(&self) -> Offset24 {
-        let range = self.shape.source_paint_offset_byte_range();
+        let range = self.source_paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -6107,13 +6386,13 @@ impl<'a> PaintComposite<'a> {
 
     /// A CompositeMode enumeration value.
     pub fn composite_mode(&self) -> CompositeMode {
-        let range = self.shape.composite_mode_byte_range();
+        let range = self.composite_mode_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to a backdrop Paint table.
     pub fn backdrop_paint_offset(&self) -> Offset24 {
-        let range = self.shape.backdrop_paint_offset_byte_range();
+        let range = self.backdrop_paint_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 

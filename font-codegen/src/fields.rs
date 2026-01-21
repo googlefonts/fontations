@@ -193,7 +193,7 @@ impl Fields {
                 .as_ref()
                 .filter(|_| !is_single_nullable_offset)
                 .map(|attr| {
-                    let condition = attr.condition_tokens_for_read();
+                    let condition = attr.condition_tokens_for_write();
                     match &attr.attr {
                         Condition::SinceVersion(_) => quote! {
                             if #condition && self.#name.is_none() {
@@ -534,12 +534,14 @@ impl Field {
     pub(crate) fn known_min_size_stmt(&self) -> Option<TokenStream> {
         match &self.typ {
             _ if self.is_conditional() => None,
-            FieldType::Offset { typ, .. }
-            | FieldType::Struct { typ }
-            | FieldType::Scalar { typ } => Some(quote!(#typ :: RAW_BYTE_LEN)),
+            FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
+                Some(quote!(#typ :: RAW_BYTE_LEN))
+            }
             FieldType::Array { .. } | FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
                 None
             }
+            //FIXME: NO MERGE: what do we do with structs?
+            FieldType::Struct { .. } => None,
             FieldType::PendingResolution { .. } => panic!("resolved before now"),
         }
     }
@@ -666,14 +668,6 @@ impl Field {
                     .iter_referenced_fields()
                     .map(|fld| (fld.clone(), NeededWhen::Parse)),
             );
-        }
-        if let Some(fld) = self
-            .attrs
-            .conditional
-            .as_ref()
-            .and_then(|c| c.input_field())
-        {
-            result.push((fld, NeededWhen::Parse))
         }
 
         if let Some(read_with) = self.attrs.read_with_args.as_ref() {
@@ -1038,7 +1032,7 @@ impl Field {
         };
 
         if let FieldType::Struct { typ } = &self.typ {
-            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args)? ));
+            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args).unwrap_or(0) ));
         }
         if let FieldType::PendingResolution { .. } = &self.typ {
             panic!("Should have resolved {self:?}")
