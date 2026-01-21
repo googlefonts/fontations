@@ -1498,7 +1498,7 @@ impl CountTransform {
 impl ToTokens for CountArg {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
-            CountArg::Field(fld) => fld.to_tokens(tokens),
+            CountArg::Field(fld) => tokens.extend(quote!(self.#fld())),
             CountArg::Literal(lit) => lit.to_tokens(tokens),
         }
     }
