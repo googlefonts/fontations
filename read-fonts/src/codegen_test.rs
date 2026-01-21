@@ -16,6 +16,10 @@ pub mod formats {
     include!("../generated/generated_test_formats.rs");
 }
 
+pub mod read_args {
+    include!("../generated/generated_test_read_args.rs");
+}
+
 pub mod offsets_arrays {
 
     include!("../generated/generated_test_offsets_arrays.rs");
