@@ -13,6 +13,12 @@ impl Format<u16> for Table1Marker {
 #[doc(hidden)]
 pub struct Table1Marker {}
 
+impl<'a> MinByteRange for Table1<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.flex_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for Table1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         if data.len() < Self::MIN_SIZE {
@@ -95,6 +101,12 @@ impl Format<u16> for Table2Marker {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct Table2Marker {}
+
+impl<'a> MinByteRange for Table2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.values_byte_range().end
+    }
+}
 
 impl<'a> FontRead<'a> for Table2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
@@ -179,6 +191,12 @@ impl Format<u16> for Table3Marker {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct Table3Marker {}
+
+impl<'a> MinByteRange for Table3<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.something_byte_range().end
+    }
+}
 
 impl<'a> FontRead<'a> for Table3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
@@ -277,6 +295,16 @@ impl<'a> FontRead<'a> for MyTable<'a> {
             Table2Marker::FORMAT => Ok(Self::MyFormat22(FontRead::read(data)?)),
             Table3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl MinByteRange for MyTable<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::MyFormat22(item) => item.min_byte_range(),
+            Self::Format3(item) => item.min_byte_range(),
         }
     }
 }

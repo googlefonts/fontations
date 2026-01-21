@@ -562,12 +562,14 @@ impl Field {
     pub(crate) fn known_min_size_stmt(&self) -> Option<TokenStream> {
         match &self.typ {
             _ if self.is_conditional() => None,
-            FieldType::Offset { typ, .. }
-            | FieldType::Struct { typ }
-            | FieldType::Scalar { typ } => Some(quote!(#typ :: RAW_BYTE_LEN)),
+            FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
+                Some(quote!(#typ :: RAW_BYTE_LEN))
+            }
             FieldType::Array { .. } | FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
                 None
             }
+            //FIXME: NO MERGE: what do we do with structs?
+            FieldType::Struct { .. } => None,
             FieldType::PendingResolution { .. } => panic!("resolved before now"),
         }
     }
@@ -1066,7 +1068,7 @@ impl Field {
         };
 
         if let FieldType::Struct { typ } = &self.typ {
-            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args)? ));
+            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args).unwrap_or(0) ));
         }
         if let FieldType::PendingResolution { .. } = &self.typ {
             panic!("Should have resolved {self:?}")

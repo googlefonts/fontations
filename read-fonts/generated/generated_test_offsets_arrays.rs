@@ -9,6 +9,12 @@ use crate::codegen_prelude::*;
 #[doc(hidden)]
 pub struct KindsOfOffsetsMarker {}
 
+impl<'a> MinByteRange for KindsOfOffsets<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.record_array_offset_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         if data.len() < Self::MIN_SIZE {
@@ -269,6 +275,12 @@ impl<'a> std::fmt::Debug for KindsOfOffsets<'a> {
 #[doc(hidden)]
 pub struct KindsOfArraysOfOffsetsMarker {}
 
+impl<'a> MinByteRange for KindsOfArraysOfOffsets<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.nullable_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         if data.len() < Self::MIN_SIZE {
@@ -482,6 +494,12 @@ impl<'a> std::fmt::Debug for KindsOfArraysOfOffsets<'a> {
 #[doc(hidden)]
 pub struct KindsOfArraysMarker {}
 
+impl<'a> MinByteRange for KindsOfArrays<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.records_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for KindsOfArrays<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         if data.len() < Self::MIN_SIZE {
@@ -631,6 +649,12 @@ impl<'a> std::fmt::Debug for KindsOfArrays<'a> {
 #[doc(hidden)]
 pub struct VarLenHaverMarker {}
 
+impl<'a> MinByteRange for VarLenHaver<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.other_field_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for VarLenHaver<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         if data.len() < Self::MIN_SIZE {
@@ -713,6 +737,12 @@ impl<'a> std::fmt::Debug for VarLenHaver<'a> {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct DummyMarker {}
+
+impl<'a> MinByteRange for Dummy<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self._reserved_byte_range().end
+    }
+}
 
 impl<'a> FontRead<'a> for Dummy<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
