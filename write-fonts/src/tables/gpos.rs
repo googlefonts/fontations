@@ -6,14 +6,12 @@ include!("../../generated/generated_gpos.rs");
 
 use std::collections::HashSet;
 
-use crate::tables::layout::VariationIndex;
-
 //use super::layout::value_record::ValueRecord;
 use super::{
     layout::{
         ChainedSequenceContext, ClassDef, CoverageTable, DeviceOrVariationIndex, FeatureList,
         FeatureVariations, Lookup, LookupList, LookupSubtable, LookupType, ScriptList,
-        SequenceContext,
+        SequenceContext, VariationIndex,
     },
     variations::{common_builder::RemapVarStore, ivs_builder::VariationIndexRemapping},
 };
