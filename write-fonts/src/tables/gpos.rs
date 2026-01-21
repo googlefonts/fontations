@@ -11,9 +11,9 @@ use super::{
     layout::{
         ChainedSequenceContext, ClassDef, CoverageTable, DeviceOrVariationIndex, FeatureList,
         FeatureVariations, Lookup, LookupList, LookupSubtable, LookupType, ScriptList,
-        SequenceContext,
+        SequenceContext, VariationIndex,
     },
-    variations::ivs_builder::{RemapVariationIndices, VariationIndexRemapping},
+    variations::{common_builder::RemapVarStore, ivs_builder::VariationIndexRemapping},
 };
 
 #[cfg(test)]
@@ -202,7 +202,7 @@ impl MarkArray {
     }
 }
 
-impl RemapVariationIndices for ValueRecord {
+impl RemapVarStore<VariationIndex> for ValueRecord {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         for table in [
             self.x_placement_device.as_mut(),
@@ -218,7 +218,7 @@ impl RemapVariationIndices for ValueRecord {
     }
 }
 
-impl RemapVariationIndices for DeviceOrVariationIndex {
+impl RemapVarStore<VariationIndex> for DeviceOrVariationIndex {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         if let DeviceOrVariationIndex::PendingVariationIndex(table) = self {
             *self = key_map.get(table.delta_set_id).unwrap().into();
@@ -226,7 +226,7 @@ impl RemapVariationIndices for DeviceOrVariationIndex {
     }
 }
 
-impl RemapVariationIndices for AnchorTable {
+impl RemapVarStore<VariationIndex> for AnchorTable {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         if let AnchorTable::Format3(table) = self {
             table
@@ -239,13 +239,13 @@ impl RemapVariationIndices for AnchorTable {
     }
 }
 
-impl RemapVariationIndices for Gpos {
+impl RemapVarStore<VariationIndex> for Gpos {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         self.lookup_list.as_mut().remap_variation_indices(key_map)
     }
 }
 
-impl RemapVariationIndices for PositionLookupList {
+impl RemapVarStore<VariationIndex> for PositionLookupList {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         for lookup in &mut self.lookups {
             lookup.remap_variation_indices(key_map)
@@ -253,7 +253,7 @@ impl RemapVariationIndices for PositionLookupList {
     }
 }
 
-impl RemapVariationIndices for PositionLookup {
+impl RemapVarStore<VariationIndex> for PositionLookup {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         match self {
             PositionLookup::Single(lookup) => lookup.remap_variation_indices(key_map),
@@ -271,7 +271,7 @@ impl RemapVariationIndices for PositionLookup {
     }
 }
 
-impl<T: RemapVariationIndices> RemapVariationIndices for Lookup<T> {
+impl<T: RemapVarStore<VariationIndex>> RemapVarStore<VariationIndex> for Lookup<T> {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         for subtable in &mut self.subtables {
             subtable.remap_variation_indices(key_map)
@@ -279,7 +279,7 @@ impl<T: RemapVariationIndices> RemapVariationIndices for Lookup<T> {
     }
 }
 
-impl RemapVariationIndices for SinglePos {
+impl RemapVarStore<VariationIndex> for SinglePos {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         match self {
             SinglePos::Format1(table) => table.remap_variation_indices(key_map),
@@ -288,13 +288,13 @@ impl RemapVariationIndices for SinglePos {
     }
 }
 
-impl RemapVariationIndices for SinglePosFormat1 {
+impl RemapVarStore<VariationIndex> for SinglePosFormat1 {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         self.value_record.remap_variation_indices(key_map);
     }
 }
 
-impl RemapVariationIndices for SinglePosFormat2 {
+impl RemapVarStore<VariationIndex> for SinglePosFormat2 {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         for rec in &mut self.value_records {
             rec.remap_variation_indices(key_map);
@@ -302,7 +302,7 @@ impl RemapVariationIndices for SinglePosFormat2 {
     }
 }
 
-impl RemapVariationIndices for PairPosFormat1 {
+impl RemapVarStore<VariationIndex> for PairPosFormat1 {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         for pairset in &mut self.pair_sets {
             for pairrec in &mut pairset.pair_value_records {
@@ -313,7 +313,7 @@ impl RemapVariationIndices for PairPosFormat1 {
     }
 }
 
-impl RemapVariationIndices for PairPosFormat2 {
+impl RemapVarStore<VariationIndex> for PairPosFormat2 {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         for class1rec in &mut self.class1_records {
             for class2rec in &mut class1rec.class2_records {
@@ -324,7 +324,7 @@ impl RemapVariationIndices for PairPosFormat2 {
     }
 }
 
-impl RemapVariationIndices for PairPos {
+impl RemapVarStore<VariationIndex> for PairPos {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         match self {
             PairPos::Format1(table) => table.remap_variation_indices(key_map),
@@ -333,7 +333,7 @@ impl RemapVariationIndices for PairPos {
     }
 }
 
-impl RemapVariationIndices for MarkBasePosFormat1 {
+impl RemapVarStore<VariationIndex> for MarkBasePosFormat1 {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         self.mark_array.as_mut().remap_variation_indices(key_map);
         for rec in &mut self.base_array.as_mut().base_records {
@@ -346,7 +346,7 @@ impl RemapVariationIndices for MarkBasePosFormat1 {
     }
 }
 
-impl RemapVariationIndices for MarkMarkPosFormat1 {
+impl RemapVarStore<VariationIndex> for MarkMarkPosFormat1 {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         self.mark1_array.as_mut().remap_variation_indices(key_map);
         for rec in &mut self.mark2_array.as_mut().mark2_records {
@@ -359,7 +359,7 @@ impl RemapVariationIndices for MarkMarkPosFormat1 {
     }
 }
 
-impl RemapVariationIndices for MarkLigPosFormat1 {
+impl RemapVarStore<VariationIndex> for MarkLigPosFormat1 {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         self.mark_array.as_mut().remap_variation_indices(key_map);
         for lig in &mut self.ligature_array.as_mut().ligature_attaches {
@@ -374,7 +374,7 @@ impl RemapVariationIndices for MarkLigPosFormat1 {
     }
 }
 
-impl RemapVariationIndices for CursivePosFormat1 {
+impl RemapVarStore<VariationIndex> for CursivePosFormat1 {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         for rec in &mut self.entry_exit_record {
             for anchor in [rec.entry_anchor.as_mut(), rec.exit_anchor.as_mut()]
@@ -387,7 +387,7 @@ impl RemapVariationIndices for CursivePosFormat1 {
     }
 }
 
-impl RemapVariationIndices for MarkArray {
+impl RemapVarStore<VariationIndex> for MarkArray {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         for rec in &mut self.mark_records {
             rec.mark_anchor.remap_variation_indices(key_map);

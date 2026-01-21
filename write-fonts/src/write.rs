@@ -300,6 +300,8 @@ write_be_bytes!(i64);
 write_be_bytes!(types::Uint24);
 write_be_bytes!(types::Int24);
 write_be_bytes!(types::F2Dot14);
+write_be_bytes!(types::F4Dot12);
+write_be_bytes!(types::F6Dot10);
 write_be_bytes!(types::Fixed);
 write_be_bytes!(types::FWord);
 write_be_bytes!(types::UfWord);
