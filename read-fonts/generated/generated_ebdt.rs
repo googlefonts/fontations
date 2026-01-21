@@ -10,19 +10,7 @@ use crate::codegen_prelude::*;
 #[doc(hidden)]
 pub struct EbdtMarker {}
 
-impl EbdtMarker {
-    pub fn major_version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn minor_version_byte_range(&self) -> Range<usize> {
-        let start = self.major_version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for EbdtMarker {
+impl<'a> MinByteRange for Ebdt<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.minor_version_byte_range().end
     }
@@ -35,10 +23,13 @@ impl TopLevelTable for Ebdt<'_> {
 
 impl<'a> FontRead<'a> for Ebdt<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.finish(EbdtMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: EbdtMarker {},
+        })
     }
 }
 
@@ -47,15 +38,29 @@ pub type Ebdt<'a> = TableRef<'a, EbdtMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ebdt<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+
+    pub fn major_version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn minor_version_byte_range(&self) -> Range<usize> {
+        let start = self.major_version_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Major version of the EBDT table, = 2.
     pub fn major_version(&self) -> u16 {
-        let range = self.shape.major_version_byte_range();
+        let range = self.major_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minor version of EBDT table, = 0.
     pub fn minor_version(&self) -> u16 {
-        let range = self.shape.minor_version_byte_range();
+        let range = self.minor_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }

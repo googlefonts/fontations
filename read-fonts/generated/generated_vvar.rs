@@ -10,39 +10,7 @@ use crate::codegen_prelude::*;
 #[doc(hidden)]
 pub struct VvarMarker {}
 
-impl VvarMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
-    }
-
-    pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn advance_height_mapping_offset_byte_range(&self) -> Range<usize> {
-        let start = self.item_variation_store_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn tsb_mapping_offset_byte_range(&self) -> Range<usize> {
-        let start = self.advance_height_mapping_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn bsb_mapping_offset_byte_range(&self) -> Range<usize> {
-        let start = self.tsb_mapping_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn v_org_mapping_offset_byte_range(&self) -> Range<usize> {
-        let start = self.bsb_mapping_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for VvarMarker {
+impl<'a> MinByteRange for Vvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.v_org_mapping_offset_byte_range().end
     }
@@ -55,14 +23,13 @@ impl TopLevelTable for Vvar<'_> {
 
 impl<'a> FontRead<'a> for Vvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.finish(VvarMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: VvarMarker {},
+        })
     }
 }
 
@@ -71,16 +38,59 @@ pub type Vvar<'a> = TableRef<'a, VvarMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vvar<'a> {
+    pub const MIN_SIZE: usize = (MajorMinor::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN);
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn advance_height_mapping_offset_byte_range(&self) -> Range<usize> {
+        let start = self.item_variation_store_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn tsb_mapping_offset_byte_range(&self) -> Range<usize> {
+        let start = self.advance_height_mapping_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn bsb_mapping_offset_byte_range(&self) -> Range<usize> {
+        let start = self.tsb_mapping_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn v_org_mapping_offset_byte_range(&self) -> Range<usize> {
+        let start = self.bsb_mapping_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Major version number of the horizontal metrics variations table — set to 1.
     /// Minor version number of the horizontal metrics variations table — set to 0.
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset in bytes from the start of this table to the item variation store table.
     pub fn item_variation_store_offset(&self) -> Offset32 {
-        let range = self.shape.item_variation_store_offset_byte_range();
+        let range = self.item_variation_store_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -92,7 +102,7 @@ impl<'a> Vvar<'a> {
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for advance heights (may be NULL).
     pub fn advance_height_mapping_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.advance_height_mapping_offset_byte_range();
+        let range = self.advance_height_mapping_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -104,7 +114,7 @@ impl<'a> Vvar<'a> {
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for top side bearings (may be NULL).
     pub fn tsb_mapping_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.tsb_mapping_offset_byte_range();
+        let range = self.tsb_mapping_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -116,7 +126,7 @@ impl<'a> Vvar<'a> {
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for bottom side bearings (may be NULL).
     pub fn bsb_mapping_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.bsb_mapping_offset_byte_range();
+        let range = self.bsb_mapping_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -128,7 +138,7 @@ impl<'a> Vvar<'a> {
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for Y coordinates of vertical origins (may be NULL).
     pub fn v_org_mapping_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.v_org_mapping_offset_byte_range();
+        let range = self.v_org_mapping_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 

@@ -8,33 +8,9 @@ use crate::codegen_prelude::*;
 /// The [cvar](https://learn.microsoft.com/en-us/typography/opentype/spec/cvar) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CvarMarker {
-    tuple_variation_headers_byte_len: usize,
-}
+pub struct CvarMarker {}
 
-impl CvarMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
-    }
-
-    pub fn tuple_variation_count_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + TupleVariationCount::RAW_BYTE_LEN
-    }
-
-    pub fn data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.tuple_variation_count_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
-    }
-
-    pub fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
-        let start = self.data_offset_byte_range().end;
-        start..start + self.tuple_variation_headers_byte_len
-    }
-}
-
-impl MinByteRange for CvarMarker {
+impl<'a> MinByteRange for Cvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.tuple_variation_headers_byte_range().end
     }
@@ -47,14 +23,12 @@ impl TopLevelTable for Cvar<'_> {
 
 impl<'a> FontRead<'a> for Cvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<TupleVariationCount>();
-        cursor.advance::<Offset16>();
-        let tuple_variation_headers_byte_len = cursor.remaining_bytes();
-        cursor.advance_by(tuple_variation_headers_byte_len);
-        cursor.finish(CvarMarker {
-            tuple_variation_headers_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: CvarMarker {},
         })
     }
 }
@@ -64,9 +38,36 @@ pub type Cvar<'a> = TableRef<'a, CvarMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cvar<'a> {
+    pub const MIN_SIZE: usize =
+        (MajorMinor::RAW_BYTE_LEN + TupleVariationCount::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN);
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn tuple_variation_count_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        let end = start + TupleVariationCount::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn data_offset_byte_range(&self) -> Range<usize> {
+        let start = self.tuple_variation_count_byte_range().end;
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
+        let start = self.data_offset_byte_range().end;
+        let end = start + self.data.len().saturating_sub(start);
+        start..end
+    }
+
     /// Major/minor version number of the CVT variations table — set to (1,0).
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -75,13 +76,13 @@ impl<'a> Cvar<'a> {
     /// number of tuple variation tables can be any number between 1
     /// and 4095.
     pub fn tuple_variation_count(&self) -> TupleVariationCount {
-        let range = self.shape.tuple_variation_count_byte_range();
+        let range = self.tuple_variation_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset from the start of the 'cvar' table to the serialized data.
     pub fn data_offset(&self) -> Offset16 {
-        let range = self.shape.data_offset_byte_range();
+        let range = self.data_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -93,7 +94,7 @@ impl<'a> Cvar<'a> {
 
     /// Array of tuple variation headers.
     pub fn tuple_variation_headers(&self) -> VarLenArray<'a, TupleVariationHeader<'a>> {
-        let range = self.shape.tuple_variation_headers_byte_range();
+        let range = self.tuple_variation_headers_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
     }
 }
