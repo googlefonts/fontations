@@ -237,6 +237,9 @@ impl FontWrite for RawVarComponent {
     }
 }
 
+/// A variable Uint32
+///
+/// See <https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md#uint32var>.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Uint32Var(u32);
 
