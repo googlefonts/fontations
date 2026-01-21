@@ -8,38 +8,9 @@ use crate::codegen_prelude::*;
 /// [`meta`](https://docs.microsoft.com/en-us/typography/opentype/spec/meta)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MetaMarker {
-    data_maps_byte_len: usize,
-}
+pub struct MetaMarker {}
 
-impl MetaMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn reserved_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn data_maps_count_byte_range(&self) -> Range<usize> {
-        let start = self.reserved_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn data_maps_byte_range(&self) -> Range<usize> {
-        let start = self.data_maps_count_byte_range().end;
-        start..start + self.data_maps_byte_len
-    }
-}
-
-impl MinByteRange for MetaMarker {
+impl<'a> MinByteRange for Meta<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_maps_byte_range().end
     }
@@ -52,16 +23,13 @@ impl TopLevelTable for Meta<'_> {
 
 impl<'a> FontRead<'a> for Meta<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let data_maps_count: u32 = cursor.read()?;
-        let data_maps_byte_len = (data_maps_count as usize)
-            .checked_mul(DataMapRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(data_maps_byte_len);
-        cursor.finish(MetaMarker { data_maps_byte_len })
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: MetaMarker {},
+        })
     }
 }
 
@@ -70,27 +38,61 @@ pub type Meta<'a> = TableRef<'a, MetaMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Meta<'a> {
+    pub const MIN_SIZE: usize =
+        (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn reserved_byte_range(&self) -> Range<usize> {
+        let start = self.flags_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn data_maps_count_byte_range(&self) -> Range<usize> {
+        let start = self.reserved_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn data_maps_byte_range(&self) -> Range<usize> {
+        let data_maps_count = self.data_maps_count();
+        let start = self.data_maps_count_byte_range().end;
+        let end = start + (data_maps_count as usize).saturating_mul(DataMapRecord::RAW_BYTE_LEN);
+        start..end
+    }
+
     /// Version number of the metadata table — set to 1.
     pub fn version(&self) -> u32 {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Flags — currently unused; set to 0.
     pub fn flags(&self) -> u32 {
-        let range = self.shape.flags_byte_range();
+        let range = self.flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of data maps in the table.
     pub fn data_maps_count(&self) -> u32 {
-        let range = self.shape.data_maps_count_byte_range();
+        let range = self.data_maps_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of data map records.
     pub fn data_maps(&self) -> &'a [DataMapRecord] {
-        let range = self.shape.data_maps_byte_range();
+        let range = self.data_maps_byte_range();
         self.data.read_array(range).unwrap()
     }
 }

@@ -55,12 +55,12 @@ impl Validate for MajorMinorVersion {
         ctx.in_table("MajorMinorVersion", |ctx| {
             let version = self.version;
             ctx.in_field("if_11", |ctx| {
-                if self.version().compatible((1u16, 1u16)) && self.if_11.is_none() {
+                if version.compatible((1u16, 1u16)) && self.if_11.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("if_20", |ctx| {
-                if self.version().compatible((2u16, 0u16)) && self.if_20.is_none() {
+                if version.compatible((2u16, 0u16)) && self.if_20.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
@@ -150,18 +150,18 @@ impl Validate for FlagDay {
         ctx.in_table("FlagDay", |ctx| {
             let flags = self.flags;
             ctx.in_field("foo", |ctx| {
-                if !(self.flags().contains(GotFlags::FOO)) && self.foo.is_some() {
+                if !(self.flags.contains(GotFlags::FOO)) && self.foo.is_some() {
                     ctx.report("'foo' is present but FOO not set")
                 }
-                if (self.flags().contains(GotFlags::FOO)) && self.foo.is_none() {
+                if (self.flags.contains(GotFlags::FOO)) && self.foo.is_none() {
                     ctx.report("FOO is set but 'foo' is None")
                 }
             });
             ctx.in_field("bar", |ctx| {
-                if !(self.flags().contains(GotFlags::BAR)) && self.bar.is_some() {
+                if !(self.flags.contains(GotFlags::BAR)) && self.bar.is_some() {
                     ctx.report("'bar' is present but BAR not set")
                 }
-                if (self.flags().contains(GotFlags::BAR)) && self.bar.is_none() {
+                if (self.flags.contains(GotFlags::BAR)) && self.bar.is_none() {
                     ctx.report("BAR is set but 'bar' is None")
                 }
             });
@@ -250,26 +250,26 @@ impl Validate for FieldsAfterConditionals {
         ctx.in_table("FieldsAfterConditionals", |ctx| {
             let flags = self.flags;
             ctx.in_field("foo", |ctx| {
-                if !(self.flags().contains(GotFlags::FOO)) && self.foo.is_some() {
+                if !(self.flags.contains(GotFlags::FOO)) && self.foo.is_some() {
                     ctx.report("'foo' is present but FOO not set")
                 }
-                if (self.flags().contains(GotFlags::FOO)) && self.foo.is_none() {
+                if (self.flags.contains(GotFlags::FOO)) && self.foo.is_none() {
                     ctx.report("FOO is set but 'foo' is None")
                 }
             });
             ctx.in_field("bar", |ctx| {
-                if !(self.flags().contains(GotFlags::BAR)) && self.bar.is_some() {
+                if !(self.flags.contains(GotFlags::BAR)) && self.bar.is_some() {
                     ctx.report("'bar' is present but BAR not set")
                 }
-                if (self.flags().contains(GotFlags::BAR)) && self.bar.is_none() {
+                if (self.flags.contains(GotFlags::BAR)) && self.bar.is_none() {
                     ctx.report("BAR is set but 'bar' is None")
                 }
             });
             ctx.in_field("baz", |ctx| {
-                if !(self.flags().contains(GotFlags::BAZ)) && self.baz.is_some() {
+                if !(self.flags.contains(GotFlags::BAZ)) && self.baz.is_some() {
                     ctx.report("'baz' is present but BAZ not set")
                 }
-                if (self.flags().contains(GotFlags::BAZ)) && self.baz.is_none() {
+                if (self.flags.contains(GotFlags::BAZ)) && self.baz.is_none() {
                     ctx.report("BAZ is set but 'baz' is None")
                 }
             });

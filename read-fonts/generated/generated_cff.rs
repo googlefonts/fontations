@@ -8,44 +8,9 @@ use crate::codegen_prelude::*;
 /// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table header
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CffHeaderMarker {
-    _padding_byte_len: usize,
-    trailing_data_byte_len: usize,
-}
+pub struct CffHeaderMarker {}
 
-impl CffHeaderMarker {
-    pub fn major_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn minor_byte_range(&self) -> Range<usize> {
-        let start = self.major_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn hdr_size_byte_range(&self) -> Range<usize> {
-        let start = self.minor_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn off_size_byte_range(&self) -> Range<usize> {
-        let start = self.hdr_size_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn _padding_byte_range(&self) -> Range<usize> {
-        let start = self.off_size_byte_range().end;
-        start..start + self._padding_byte_len
-    }
-
-    pub fn trailing_data_byte_range(&self) -> Range<usize> {
-        let start = self._padding_byte_range().end;
-        start..start + self.trailing_data_byte_len
-    }
-}
-
-impl MinByteRange for CffHeaderMarker {
+impl<'a> MinByteRange for CffHeader<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.trailing_data_byte_range().end
     }
@@ -53,20 +18,12 @@ impl MinByteRange for CffHeaderMarker {
 
 impl<'a> FontRead<'a> for CffHeader<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u8>();
-        let hdr_size: u8 = cursor.read()?;
-        cursor.advance::<u8>();
-        let _padding_byte_len = (transforms::subtract(hdr_size, 4_usize))
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(_padding_byte_len);
-        let trailing_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(trailing_data_byte_len);
-        cursor.finish(CffHeaderMarker {
-            _padding_byte_len,
-            trailing_data_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: CffHeaderMarker {},
         })
     }
 }
@@ -76,39 +33,81 @@ pub type CffHeader<'a> = TableRef<'a, CffHeaderMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CffHeader<'a> {
+    pub const MIN_SIZE: usize =
+        (u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN);
+
+    pub fn major_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn minor_byte_range(&self) -> Range<usize> {
+        let start = self.major_byte_range().end;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn hdr_size_byte_range(&self) -> Range<usize> {
+        let start = self.minor_byte_range().end;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn off_size_byte_range(&self) -> Range<usize> {
+        let start = self.hdr_size_byte_range().end;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn _padding_byte_range(&self) -> Range<usize> {
+        let hdr_size = self.hdr_size();
+        let start = self.off_size_byte_range().end;
+        let end =
+            start + (transforms::subtract(hdr_size, 4_usize)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn trailing_data_byte_range(&self) -> Range<usize> {
+        let start = self._padding_byte_range().end;
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Format major version (starting at 1).
     pub fn major(&self) -> u8 {
-        let range = self.shape.major_byte_range();
+        let range = self.major_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Format minor version (starting at 0).
     pub fn minor(&self) -> u8 {
-        let range = self.shape.minor_byte_range();
+        let range = self.minor_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Header size (bytes).
     pub fn hdr_size(&self) -> u8 {
-        let range = self.shape.hdr_size_byte_range();
+        let range = self.hdr_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Absolute offset size.
     pub fn off_size(&self) -> u8 {
-        let range = self.shape.off_size_byte_range();
+        let range = self.off_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Padding bytes before the start of the Name INDEX.
     pub fn _padding(&self) -> &'a [u8] {
-        let range = self.shape._padding_byte_range();
+        let range = self._padding_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Remaining table data.
     pub fn trailing_data(&self) -> &'a [u8] {
-        let range = self.shape.trailing_data_byte_range();
+        let range = self.trailing_data_byte_range();
         self.data.read_array(range).unwrap()
     }
 }

@@ -8,34 +8,9 @@ use crate::codegen_prelude::*;
 /// An array of variable-sized objects in a `CFF` table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Index1Marker {
-    offsets_byte_len: usize,
-    data_byte_len: usize,
-}
+pub struct Index1Marker {}
 
-impl Index1Marker {
-    pub fn count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn off_size_byte_range(&self) -> Range<usize> {
-        let start = self.count_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn offsets_byte_range(&self) -> Range<usize> {
-        let start = self.off_size_byte_range().end;
-        start..start + self.offsets_byte_len
-    }
-
-    pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.offsets_byte_range().end;
-        start..start + self.data_byte_len
-    }
-}
-
-impl MinByteRange for Index1Marker {
+impl<'a> MinByteRange for Index1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
     }
@@ -43,18 +18,12 @@ impl MinByteRange for Index1Marker {
 
 impl<'a> FontRead<'a> for Index1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let count: u16 = cursor.read()?;
-        let off_size: u8 = cursor.read()?;
-        let offsets_byte_len = (transforms::add_multiply(count, 1_usize, off_size))
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(offsets_byte_len);
-        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(data_byte_len);
-        cursor.finish(Index1Marker {
-            offsets_byte_len,
-            data_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: Index1Marker {},
         })
     }
 }
@@ -64,27 +33,57 @@ pub type Index1<'a> = TableRef<'a, Index1Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Index1<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN);
+
+    pub fn count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn off_size_byte_range(&self) -> Range<usize> {
+        let start = self.count_byte_range().end;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn offsets_byte_range(&self) -> Range<usize> {
+        let count = self.count();
+        let off_size = self.off_size();
+        let start = self.off_size_byte_range().end;
+        let end = start
+            + (transforms::add_multiply(count, 1_usize, off_size)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn data_byte_range(&self) -> Range<usize> {
+        let start = self.offsets_byte_range().end;
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Number of objects stored in INDEX.
     pub fn count(&self) -> u16 {
-        let range = self.shape.count_byte_range();
+        let range = self.count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Object array element size.
     pub fn off_size(&self) -> u8 {
-        let range = self.shape.off_size_byte_range();
+        let range = self.off_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Bytes containing `count + 1` offsets each of `off_size`.
     pub fn offsets(&self) -> &'a [u8] {
-        let range = self.shape.offsets_byte_range();
+        let range = self.offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Array containing the object data.
     pub fn data(&self) -> &'a [u8] {
-        let range = self.shape.data_byte_range();
+        let range = self.data_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -116,34 +115,9 @@ impl<'a> std::fmt::Debug for Index1<'a> {
 /// An array of variable-sized objects in a `CFF2` table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Index2Marker {
-    offsets_byte_len: usize,
-    data_byte_len: usize,
-}
+pub struct Index2Marker {}
 
-impl Index2Marker {
-    pub fn count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn off_size_byte_range(&self) -> Range<usize> {
-        let start = self.count_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn offsets_byte_range(&self) -> Range<usize> {
-        let start = self.off_size_byte_range().end;
-        start..start + self.offsets_byte_len
-    }
-
-    pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.offsets_byte_range().end;
-        start..start + self.data_byte_len
-    }
-}
-
-impl MinByteRange for Index2Marker {
+impl<'a> MinByteRange for Index2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
     }
@@ -151,18 +125,12 @@ impl MinByteRange for Index2Marker {
 
 impl<'a> FontRead<'a> for Index2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let count: u32 = cursor.read()?;
-        let off_size: u8 = cursor.read()?;
-        let offsets_byte_len = (transforms::add_multiply(count, 1_usize, off_size))
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(offsets_byte_len);
-        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(data_byte_len);
-        cursor.finish(Index2Marker {
-            offsets_byte_len,
-            data_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: Index2Marker {},
         })
     }
 }
@@ -172,27 +140,57 @@ pub type Index2<'a> = TableRef<'a, Index2Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Index2<'a> {
+    pub const MIN_SIZE: usize = (u32::RAW_BYTE_LEN + u8::RAW_BYTE_LEN);
+
+    pub fn count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn off_size_byte_range(&self) -> Range<usize> {
+        let start = self.count_byte_range().end;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn offsets_byte_range(&self) -> Range<usize> {
+        let count = self.count();
+        let off_size = self.off_size();
+        let start = self.off_size_byte_range().end;
+        let end = start
+            + (transforms::add_multiply(count, 1_usize, off_size)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn data_byte_range(&self) -> Range<usize> {
+        let start = self.offsets_byte_range().end;
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Number of objects stored in INDEX.
     pub fn count(&self) -> u32 {
-        let range = self.shape.count_byte_range();
+        let range = self.count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Object array element size.
     pub fn off_size(&self) -> u8 {
-        let range = self.shape.off_size_byte_range();
+        let range = self.off_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Bytes containing `count + 1` offsets each of `off_size`.
     pub fn offsets(&self) -> &'a [u8] {
-        let range = self.shape.offsets_byte_range();
+        let range = self.offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Array containing the object data.
     pub fn data(&self) -> &'a [u8] {
-        let range = self.shape.data_byte_range();
+        let range = self.data_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -306,23 +304,9 @@ impl Format<u8> for FdSelectFormat0Marker {
 /// FdSelect format 0.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct FdSelectFormat0Marker {
-    fds_byte_len: usize,
-}
+pub struct FdSelectFormat0Marker {}
 
-impl FdSelectFormat0Marker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn fds_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + self.fds_byte_len
-    }
-}
-
-impl MinByteRange for FdSelectFormat0Marker {
+impl<'a> MinByteRange for FdSelectFormat0<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.fds_byte_range().end
     }
@@ -330,11 +314,13 @@ impl MinByteRange for FdSelectFormat0Marker {
 
 impl<'a> FontRead<'a> for FdSelectFormat0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        let fds_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(fds_byte_len);
-        cursor.finish(FdSelectFormat0Marker { fds_byte_len })
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: FdSelectFormat0Marker {},
+        })
     }
 }
 
@@ -343,15 +329,30 @@ pub type FdSelectFormat0<'a> = TableRef<'a, FdSelectFormat0Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FdSelectFormat0<'a> {
+    pub const MIN_SIZE: usize = u8::RAW_BYTE_LEN;
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn fds_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Format = 0.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// FD selector array (one entry for each glyph).
     pub fn fds(&self) -> &'a [u8] {
-        let range = self.shape.fds_byte_range();
+        let range = self.fds_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -385,33 +386,9 @@ impl Format<u8> for FdSelectFormat3Marker {
 /// FdSelect format 3.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct FdSelectFormat3Marker {
-    ranges_byte_len: usize,
-}
+pub struct FdSelectFormat3Marker {}
 
-impl FdSelectFormat3Marker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn n_ranges_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn ranges_byte_range(&self) -> Range<usize> {
-        let start = self.n_ranges_byte_range().end;
-        start..start + self.ranges_byte_len
-    }
-
-    pub fn sentinel_byte_range(&self) -> Range<usize> {
-        let start = self.ranges_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for FdSelectFormat3Marker {
+impl<'a> MinByteRange for FdSelectFormat3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.sentinel_byte_range().end
     }
@@ -419,15 +396,13 @@ impl MinByteRange for FdSelectFormat3Marker {
 
 impl<'a> FontRead<'a> for FdSelectFormat3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        let n_ranges: u16 = cursor.read()?;
-        let ranges_byte_len = (n_ranges as usize)
-            .checked_mul(FdSelectRange3::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(ranges_byte_len);
-        cursor.advance::<u16>();
-        cursor.finish(FdSelectFormat3Marker { ranges_byte_len })
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: FdSelectFormat3Marker {},
+        })
     }
 }
 
@@ -436,27 +411,54 @@ pub type FdSelectFormat3<'a> = TableRef<'a, FdSelectFormat3Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FdSelectFormat3<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn n_ranges_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn ranges_byte_range(&self) -> Range<usize> {
+        let n_ranges = self.n_ranges();
+        let start = self.n_ranges_byte_range().end;
+        let end = start + (n_ranges as usize).saturating_mul(FdSelectRange3::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn sentinel_byte_range(&self) -> Range<usize> {
+        let start = self.ranges_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Format = 3.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of ranges.
     pub fn n_ranges(&self) -> u16 {
-        let range = self.shape.n_ranges_byte_range();
+        let range = self.n_ranges_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Range3 array.
     pub fn ranges(&self) -> &'a [FdSelectRange3] {
-        let range = self.shape.ranges_byte_range();
+        let range = self.ranges_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Sentinel GID. Set equal to the number of glyphs in the font.
     pub fn sentinel(&self) -> u16 {
-        let range = self.shape.sentinel_byte_range();
+        let range = self.sentinel_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -541,33 +543,9 @@ impl Format<u8> for FdSelectFormat4Marker {
 /// FdSelect format 4.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct FdSelectFormat4Marker {
-    ranges_byte_len: usize,
-}
+pub struct FdSelectFormat4Marker {}
 
-impl FdSelectFormat4Marker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn n_ranges_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn ranges_byte_range(&self) -> Range<usize> {
-        let start = self.n_ranges_byte_range().end;
-        start..start + self.ranges_byte_len
-    }
-
-    pub fn sentinel_byte_range(&self) -> Range<usize> {
-        let start = self.ranges_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for FdSelectFormat4Marker {
+impl<'a> MinByteRange for FdSelectFormat4<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.sentinel_byte_range().end
     }
@@ -575,15 +553,13 @@ impl MinByteRange for FdSelectFormat4Marker {
 
 impl<'a> FontRead<'a> for FdSelectFormat4<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        let n_ranges: u32 = cursor.read()?;
-        let ranges_byte_len = (n_ranges as usize)
-            .checked_mul(FdSelectRange4::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(ranges_byte_len);
-        cursor.advance::<u32>();
-        cursor.finish(FdSelectFormat4Marker { ranges_byte_len })
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: FdSelectFormat4Marker {},
+        })
     }
 }
 
@@ -592,27 +568,54 @@ pub type FdSelectFormat4<'a> = TableRef<'a, FdSelectFormat4Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FdSelectFormat4<'a> {
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn n_ranges_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn ranges_byte_range(&self) -> Range<usize> {
+        let n_ranges = self.n_ranges();
+        let start = self.n_ranges_byte_range().end;
+        let end = start + (n_ranges as usize).saturating_mul(FdSelectRange4::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn sentinel_byte_range(&self) -> Range<usize> {
+        let start = self.ranges_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Format = 4.
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of ranges.
     pub fn n_ranges(&self) -> u32 {
-        let range = self.shape.n_ranges_byte_range();
+        let range = self.n_ranges_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Range4 array.
     pub fn ranges(&self) -> &'a [FdSelectRange4] {
-        let range = self.shape.ranges_byte_range();
+        let range = self.ranges_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Sentinel GID. Set equal to the number of glyphs in the font.
     pub fn sentinel(&self) -> u32 {
-        let range = self.shape.sentinel_byte_range();
+        let range = self.sentinel_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -775,23 +778,9 @@ impl Format<u8> for CharsetFormat0Marker {
 /// Charset format 0.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CharsetFormat0Marker {
-    glyph_byte_len: usize,
-}
+pub struct CharsetFormat0Marker {}
 
-impl CharsetFormat0Marker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn glyph_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + self.glyph_byte_len
-    }
-}
-
-impl MinByteRange for CharsetFormat0Marker {
+impl<'a> MinByteRange for CharsetFormat0<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_byte_range().end
     }
@@ -799,11 +788,13 @@ impl MinByteRange for CharsetFormat0Marker {
 
 impl<'a> FontRead<'a> for CharsetFormat0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        let glyph_byte_len = cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
-        cursor.advance_by(glyph_byte_len);
-        cursor.finish(CharsetFormat0Marker { glyph_byte_len })
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: CharsetFormat0Marker {},
+        })
     }
 }
 
@@ -812,15 +803,30 @@ pub type CharsetFormat0<'a> = TableRef<'a, CharsetFormat0Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CharsetFormat0<'a> {
+    pub const MIN_SIZE: usize = u8::RAW_BYTE_LEN;
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn glyph_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end =
+            start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Format; =0
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Glyph name array.
     pub fn glyph(&self) -> &'a [BigEndian<u16>] {
-        let range = self.shape.glyph_byte_range();
+        let range = self.glyph_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -854,23 +860,9 @@ impl Format<u8> for CharsetFormat1Marker {
 /// Charset format 1.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CharsetFormat1Marker {
-    ranges_byte_len: usize,
-}
+pub struct CharsetFormat1Marker {}
 
-impl CharsetFormat1Marker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn ranges_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + self.ranges_byte_len
-    }
-}
-
-impl MinByteRange for CharsetFormat1Marker {
+impl<'a> MinByteRange for CharsetFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ranges_byte_range().end
     }
@@ -878,12 +870,13 @@ impl MinByteRange for CharsetFormat1Marker {
 
 impl<'a> FontRead<'a> for CharsetFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        let ranges_byte_len =
-            cursor.remaining_bytes() / CharsetRange1::RAW_BYTE_LEN * CharsetRange1::RAW_BYTE_LEN;
-        cursor.advance_by(ranges_byte_len);
-        cursor.finish(CharsetFormat1Marker { ranges_byte_len })
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: CharsetFormat1Marker {},
+        })
     }
 }
 
@@ -892,15 +885,31 @@ pub type CharsetFormat1<'a> = TableRef<'a, CharsetFormat1Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CharsetFormat1<'a> {
+    pub const MIN_SIZE: usize = u8::RAW_BYTE_LEN;
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn ranges_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start
+            + self.data.len().saturating_sub(start) / CharsetRange1::RAW_BYTE_LEN
+                * CharsetRange1::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Format; =1
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Range1 array.
     pub fn ranges(&self) -> &'a [CharsetRange1] {
-        let range = self.shape.ranges_byte_range();
+        let range = self.ranges_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -983,23 +992,9 @@ impl Format<u8> for CharsetFormat2Marker {
 /// Charset format 2.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CharsetFormat2Marker {
-    ranges_byte_len: usize,
-}
+pub struct CharsetFormat2Marker {}
 
-impl CharsetFormat2Marker {
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn ranges_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + self.ranges_byte_len
-    }
-}
-
-impl MinByteRange for CharsetFormat2Marker {
+impl<'a> MinByteRange for CharsetFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ranges_byte_range().end
     }
@@ -1007,12 +1002,13 @@ impl MinByteRange for CharsetFormat2Marker {
 
 impl<'a> FontRead<'a> for CharsetFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        let ranges_byte_len =
-            cursor.remaining_bytes() / CharsetRange2::RAW_BYTE_LEN * CharsetRange2::RAW_BYTE_LEN;
-        cursor.advance_by(ranges_byte_len);
-        cursor.finish(CharsetFormat2Marker { ranges_byte_len })
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: CharsetFormat2Marker {},
+        })
     }
 }
 
@@ -1021,15 +1017,31 @@ pub type CharsetFormat2<'a> = TableRef<'a, CharsetFormat2Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CharsetFormat2<'a> {
+    pub const MIN_SIZE: usize = u8::RAW_BYTE_LEN;
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn ranges_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start
+            + self.data.len().saturating_sub(start) / CharsetRange2::RAW_BYTE_LEN
+                * CharsetRange2::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Format; =2
     pub fn format(&self) -> u8 {
-        let range = self.shape.format_byte_range();
+        let range = self.format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Range2 array.
     pub fn ranges(&self) -> &'a [CharsetRange2] {
-        let range = self.shape.ranges_byte_range();
+        let range = self.ranges_byte_range();
         self.data.read_array(range).unwrap()
     }
 }

@@ -9,6 +9,12 @@ use crate::codegen_prelude::*;
 #[doc(hidden)]
 pub struct KindsOfOffsetsMarker {}
 
+impl<'a> MinByteRange for KindsOfOffsets<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.record_array_offset_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         if data.len() < Self::MIN_SIZE {
@@ -70,31 +76,25 @@ impl<'a> KindsOfOffsets<'a> {
 
     pub fn versioned_nullable_record_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.record_array_offset_byte_range().end;
-        let end = if self.version().compatible((1u16, 1u16)) {
-            start + Offset16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible((1u16, 1u16)))
+            .then(|| start + Offset16::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn versioned_nonnullable_offset_byte_range(&self) -> Range<usize> {
         let start = self.versioned_nullable_record_array_offset_byte_range().end;
-        let end = if self.version().compatible((1u16, 1u16)) {
-            start + Offset16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible((1u16, 1u16)))
+            .then(|| start + Offset16::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn versioned_nullable_offset_byte_range(&self) -> Range<usize> {
         let start = self.versioned_nonnullable_offset_byte_range().end;
-        let end = if self.version().compatible((1u16, 1u16)) {
-            start + Offset32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible((1u16, 1u16)))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
@@ -269,6 +269,12 @@ impl<'a> std::fmt::Debug for KindsOfOffsets<'a> {
 #[doc(hidden)]
 pub struct KindsOfArraysOfOffsetsMarker {}
 
+impl<'a> MinByteRange for KindsOfArraysOfOffsets<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.nullable_offsets_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         if data.len() < Self::MIN_SIZE {
@@ -316,22 +322,18 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     pub fn versioned_nonnullable_offsets_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.nullable_offsets_byte_range().end;
-        let end = if self.version().compatible((1u16, 1u16)) {
-            start + (count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
-        } else {
-            start
-        };
+        let end = (self.version().compatible((1u16, 1u16)))
+            .then(|| start + (count as usize).saturating_mul(Offset16::RAW_BYTE_LEN))
+            .unwrap_or(start);
         start..end
     }
 
     pub fn versioned_nullable_offsets_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.versioned_nonnullable_offsets_byte_range().end;
-        let end = if self.version().compatible((1u16, 1u16)) {
-            start + (count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
-        } else {
-            start
-        };
+        let end = (self.version().compatible((1u16, 1u16)))
+            .then(|| start + (count as usize).saturating_mul(Offset16::RAW_BYTE_LEN))
+            .unwrap_or(start);
         start..end
     }
 
@@ -482,6 +484,12 @@ impl<'a> std::fmt::Debug for KindsOfArraysOfOffsets<'a> {
 #[doc(hidden)]
 pub struct KindsOfArraysMarker {}
 
+impl<'a> MinByteRange for KindsOfArrays<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.records_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for KindsOfArrays<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         if data.len() < Self::MIN_SIZE {
@@ -529,22 +537,18 @@ impl<'a> KindsOfArrays<'a> {
     pub fn versioned_scalars_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.records_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + (count as usize).saturating_mul(u16::RAW_BYTE_LEN)
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + (count as usize).saturating_mul(u16::RAW_BYTE_LEN))
+            .unwrap_or(start);
         start..end
     }
 
     pub fn versioned_records_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.versioned_scalars_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + (count as usize).saturating_mul(Shmecord::RAW_BYTE_LEN)
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + (count as usize).saturating_mul(Shmecord::RAW_BYTE_LEN))
+            .unwrap_or(start);
         start..end
     }
 
@@ -631,6 +635,12 @@ impl<'a> std::fmt::Debug for KindsOfArrays<'a> {
 #[doc(hidden)]
 pub struct VarLenHaverMarker {}
 
+impl<'a> MinByteRange for VarLenHaver<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.other_field_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for VarLenHaver<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         if data.len() < Self::MIN_SIZE {
@@ -713,6 +723,12 @@ impl<'a> std::fmt::Debug for VarLenHaver<'a> {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct DummyMarker {}
+
+impl<'a> MinByteRange for Dummy<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self._reserved_byte_range().end
+    }
+}
 
 impl<'a> FontRead<'a> for Dummy<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {

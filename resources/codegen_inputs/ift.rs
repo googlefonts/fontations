@@ -160,7 +160,7 @@ table PatchMapFormat2 {
 
   #[nullable]
   entry_id_string_data_offset: Offset32<IdStringData>,
-  
+
   // URI Template String (UTF-8 Encoded)
   url_template_length: u16,
   #[count($url_template_length)]

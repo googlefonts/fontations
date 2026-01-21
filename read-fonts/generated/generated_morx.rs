@@ -8,33 +8,9 @@ use crate::codegen_prelude::*;
 /// The [morx (Extended Glyph Metamorphosis)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MorxMarker {
-    chains_byte_len: usize,
-}
+pub struct MorxMarker {}
 
-impl MorxMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn unused_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn n_chains_byte_range(&self) -> Range<usize> {
-        let start = self.unused_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn chains_byte_range(&self) -> Range<usize> {
-        let start = self.n_chains_byte_range().end;
-        start..start + self.chains_byte_len
-    }
-}
-
-impl MinByteRange for MorxMarker {
+impl<'a> MinByteRange for Morx<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.chains_byte_range().end
     }
@@ -47,16 +23,13 @@ impl TopLevelTable for Morx<'_> {
 
 impl<'a> FontRead<'a> for Morx<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let n_chains: u32 = cursor.read()?;
-        let chains_byte_len = {
-            let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
-            <Chain as VarSize>::total_len_for_count(data, n_chains as usize)?
-        };
-        cursor.advance_by(chains_byte_len);
-        cursor.finish(MorxMarker { chains_byte_len })
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: MorxMarker {},
+        })
     }
 }
 
@@ -65,20 +38,50 @@ pub type Morx<'a> = TableRef<'a, MorxMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Morx<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn unused_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn n_chains_byte_range(&self) -> Range<usize> {
+        let start = self.unused_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn chains_byte_range(&self) -> Range<usize> {
+        let n_chains = self.n_chains();
+        let start = self.n_chains_byte_range().end;
+        let end = start + {
+            let data = self.data.split_off(start).unwrap_or_default();
+            <Chain as VarSize>::total_len_for_count(data, n_chains as usize).unwrap_or(0)
+        };
+        start..end
+    }
+
     /// Version number of the extended glyph metamorphosis table (either 2 or 3).
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of metamorphosis chains contained in this table.
     pub fn n_chains(&self) -> u32 {
-        let range = self.shape.n_chains_byte_range();
+        let range = self.n_chains_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn chains(&self) -> VarLenArray<'a, Chain<'a>> {
-        let range = self.shape.chains_byte_range();
+        let range = self.chains_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
     }
 }
@@ -112,44 +115,9 @@ impl<'a> std::fmt::Debug for Morx<'a> {
 /// A chain in a `morx` table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct ChainMarker {
-    features_byte_len: usize,
-    subtables_byte_len: usize,
-}
+pub struct ChainMarker {}
 
-impl ChainMarker {
-    pub fn default_flags_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn chain_length_byte_range(&self) -> Range<usize> {
-        let start = self.default_flags_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn n_feature_entries_byte_range(&self) -> Range<usize> {
-        let start = self.chain_length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn n_subtables_byte_range(&self) -> Range<usize> {
-        let start = self.n_feature_entries_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn features_byte_range(&self) -> Range<usize> {
-        let start = self.n_subtables_byte_range().end;
-        start..start + self.features_byte_len
-    }
-
-    pub fn subtables_byte_range(&self) -> Range<usize> {
-        let start = self.features_byte_range().end;
-        start..start + self.subtables_byte_len
-    }
-}
-
-impl MinByteRange for ChainMarker {
+impl<'a> MinByteRange for Chain<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.subtables_byte_range().end
     }
@@ -157,23 +125,12 @@ impl MinByteRange for ChainMarker {
 
 impl<'a> FontRead<'a> for Chain<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let n_feature_entries: u32 = cursor.read()?;
-        let n_subtables: u32 = cursor.read()?;
-        let features_byte_len = (n_feature_entries as usize)
-            .checked_mul(Feature::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(features_byte_len);
-        let subtables_byte_len = {
-            let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
-            <Subtable as VarSize>::total_len_for_count(data, n_subtables as usize)?
-        };
-        cursor.advance_by(subtables_byte_len);
-        cursor.finish(ChainMarker {
-            features_byte_len,
-            subtables_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: ChainMarker {},
         })
     }
 }
@@ -183,39 +140,83 @@ pub type Chain<'a> = TableRef<'a, ChainMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Chain<'a> {
+    pub const MIN_SIZE: usize =
+        (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+
+    pub fn default_flags_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn chain_length_byte_range(&self) -> Range<usize> {
+        let start = self.default_flags_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn n_feature_entries_byte_range(&self) -> Range<usize> {
+        let start = self.chain_length_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn n_subtables_byte_range(&self) -> Range<usize> {
+        let start = self.n_feature_entries_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn features_byte_range(&self) -> Range<usize> {
+        let n_feature_entries = self.n_feature_entries();
+        let start = self.n_subtables_byte_range().end;
+        let end = start + (n_feature_entries as usize).saturating_mul(Feature::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn subtables_byte_range(&self) -> Range<usize> {
+        let n_subtables = self.n_subtables();
+        let start = self.features_byte_range().end;
+        let end = start + {
+            let data = self.data.split_off(start).unwrap_or_default();
+            <Subtable as VarSize>::total_len_for_count(data, n_subtables as usize).unwrap_or(0)
+        };
+        start..end
+    }
+
     /// The default specification for subtables.
     pub fn default_flags(&self) -> u32 {
-        let range = self.shape.default_flags_byte_range();
+        let range = self.default_flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Total byte count, including this header; must be a multiple of 4.
     pub fn chain_length(&self) -> u32 {
-        let range = self.shape.chain_length_byte_range();
+        let range = self.chain_length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of feature subtable entries.
     pub fn n_feature_entries(&self) -> u32 {
-        let range = self.shape.n_feature_entries_byte_range();
+        let range = self.n_feature_entries_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of subtables in the chain.
     pub fn n_subtables(&self) -> u32 {
-        let range = self.shape.n_subtables_byte_range();
+        let range = self.n_subtables_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Feature entries for this chain.
     pub fn features(&self) -> &'a [Feature] {
-        let range = self.shape.features_byte_range();
+        let range = self.features_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Array of chain subtables.
     pub fn subtables(&self) -> VarLenArray<'a, Subtable<'a>> {
-        let range = self.shape.subtables_byte_range();
+        let range = self.subtables_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
     }
 }
@@ -318,33 +319,9 @@ impl<'a> SomeRecord<'a> for Feature {
 /// A subtable in a `morx` chain.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SubtableMarker {
-    data_byte_len: usize,
-}
+pub struct SubtableMarker {}
 
-impl SubtableMarker {
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn coverage_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn sub_feature_flags_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.sub_feature_flags_byte_range().end;
-        start..start + self.data_byte_len
-    }
-}
-
-impl MinByteRange for SubtableMarker {
+impl<'a> MinByteRange for Subtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
     }
@@ -352,13 +329,13 @@ impl MinByteRange for SubtableMarker {
 
 impl<'a> FontRead<'a> for Subtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(data_byte_len);
-        cursor.finish(SubtableMarker { data_byte_len })
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: SubtableMarker {},
+        })
     }
 }
 
@@ -367,27 +344,54 @@ pub type Subtable<'a> = TableRef<'a, SubtableMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable<'a> {
+    pub const MIN_SIZE: usize = (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn sub_feature_flags_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn data_byte_range(&self) -> Range<usize> {
+        let start = self.sub_feature_flags_byte_range().end;
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Total subtable length, including this header.
     pub fn length(&self) -> u32 {
-        let range = self.shape.length_byte_range();
+        let range = self.length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Coverage flags and subtable type.
     pub fn coverage(&self) -> u32 {
-        let range = self.shape.coverage_byte_range();
+        let range = self.coverage_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The 32-bit mask identifying which subtable this is (the subtable being executed if the AND of this value and the processed defaultFlags is nonzero).
     pub fn sub_feature_flags(&self) -> u32 {
-        let range = self.shape.sub_feature_flags_byte_range();
+        let range = self.sub_feature_flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Data for specific subtable.
     pub fn data(&self) -> &'a [u8] {
-        let range = self.shape.data_byte_range();
+        let range = self.data_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
