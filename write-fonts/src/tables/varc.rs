@@ -368,18 +368,6 @@ mod tests {
 
     use super::*;
 
-    // fn dump_test_ttf(varc: &Varc) {
-    //     let mut fontbuilder = crate::FontBuilder::new();
-    //     fontbuilder
-    //         .add_table(&crate::tables::maxp::Maxp {
-    //             num_glyphs: 255,
-    //             ..Default::default()
-    //         })
-    //         .unwrap();
-    //     fontbuilder.add_table(varc);
-    //     std::fs::write("debug.ttf", fontbuilder.build()).unwrap()
-    // }
-
     #[test]
     fn test_write_uint32var() {
         let mut writer = TableWriter::default();
