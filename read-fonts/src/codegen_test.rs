@@ -289,6 +289,7 @@ pub mod conditions {
 
     #[test]
     #[should_panic(expected = "OutOfBounds")]
+    //NOTE: after my refactor this is broken, need to figure out how this should work
     fn fields_after_conditions_wrong_len() {
         let data = BeBuffer::new().push(GotFlags::FOO).extend([1u16, 2, 3]);
 

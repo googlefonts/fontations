@@ -7,61 +7,16 @@ use crate::codegen_prelude::*;
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MajorMinorVersionMarker {
-    if_11_byte_start: Option<usize>,
-    if_20_byte_start: Option<usize>,
-}
-
-impl MajorMinorVersionMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
-    }
-
-    pub fn always_present_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn if_11_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.if_11_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
-    }
-
-    pub fn if_20_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.if_20_byte_start?;
-        Some(start..start + u32::RAW_BYTE_LEN)
-    }
-}
-
-impl MinByteRange for MajorMinorVersionMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.always_present_byte_range().end
-    }
-}
+pub struct MajorMinorVersionMarker {}
 
 impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: MajorMinor = cursor.read()?;
-        cursor.advance::<u16>();
-        let if_11_byte_start = version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((1u16, 1u16))
-            .then(|| cursor.advance::<u16>());
-        let if_20_byte_start = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.advance::<u32>());
-        cursor.finish(MajorMinorVersionMarker {
-            if_11_byte_start,
-            if_20_byte_start,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: MajorMinorVersionMarker {},
         })
     }
 }
@@ -70,24 +25,58 @@ pub type MajorMinorVersion<'a> = TableRef<'a, MajorMinorVersionMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MajorMinorVersion<'a> {
+    pub const MIN_SIZE: usize = (MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn always_present_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn if_11_byte_range(&self) -> Range<usize> {
+        let start = self.always_present_byte_range().end;
+        let end = if self.version().compatible((1u16, 1u16)) {
+            start + u16::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn if_20_byte_range(&self) -> Range<usize> {
+        let start = self.if_11_byte_range().end;
+        let end = if self.version().compatible((2u16, 0u16)) {
+            start + u32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn always_present(&self) -> u16 {
-        let range = self.shape.always_present_byte_range();
+        let range = self.always_present_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn if_11(&self) -> Option<u16> {
-        let range = self.shape.if_11_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.if_11_byte_range();
+        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
     }
 
     pub fn if_20(&self) -> Option<u32> {
-        let range = self.shape.if_20_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.if_20_byte_range();
+        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
     }
 }
 
@@ -97,14 +86,13 @@ impl<'a> SomeTable<'a> for MajorMinorVersion<'a> {
         "MajorMinorVersion"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        let version = self.version();
         match idx {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new("always_present", self.always_present())),
-            2usize if version.compatible((1u16, 1u16)) => {
+            2usize if self.version().compatible((1u16, 1u16)) => {
                 Some(Field::new("if_11", self.if_11().unwrap()))
             }
-            3usize if version.compatible((2u16, 0u16)) => {
+            3usize if self.version().compatible((2u16, 0u16)) => {
                 Some(Field::new("if_20", self.if_20().unwrap()))
             }
             _ => None,
@@ -427,61 +415,16 @@ impl<'a> From<GotFlags> for FieldType<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct FlagDayMarker {
-    foo_byte_start: Option<usize>,
-    bar_byte_start: Option<usize>,
-}
-
-impl FlagDayMarker {
-    pub fn volume_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.volume_byte_range().end;
-        start..start + GotFlags::RAW_BYTE_LEN
-    }
-
-    pub fn foo_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.foo_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
-    }
-
-    pub fn bar_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.bar_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
-    }
-}
-
-impl MinByteRange for FlagDayMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.flags_byte_range().end
-    }
-}
+pub struct FlagDayMarker {}
 
 impl<'a> FontRead<'a> for FlagDay<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let flags: GotFlags = cursor.read()?;
-        let foo_byte_start = flags
-            .contains(GotFlags::FOO)
-            .then(|| cursor.position())
-            .transpose()?;
-        flags
-            .contains(GotFlags::FOO)
-            .then(|| cursor.advance::<u16>());
-        let bar_byte_start = flags
-            .contains(GotFlags::BAR)
-            .then(|| cursor.position())
-            .transpose()?;
-        flags
-            .contains(GotFlags::BAR)
-            .then(|| cursor.advance::<u16>());
-        cursor.finish(FlagDayMarker {
-            foo_byte_start,
-            bar_byte_start,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: FlagDayMarker {},
         })
     }
 }
@@ -490,24 +433,60 @@ pub type FlagDay<'a> = TableRef<'a, FlagDayMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FlagDay<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + GotFlags::RAW_BYTE_LEN);
+
+    pub fn volume_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
+        let start = self.volume_byte_range().end;
+        let end = start + GotFlags::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn foo_byte_range(&self) -> Range<usize> {
+        let flags = self.flags();
+        let start = self.flags_byte_range().end;
+        let end = if self.flags().contains(GotFlags::FOO) {
+            start + u16::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn bar_byte_range(&self) -> Range<usize> {
+        let flags = self.flags();
+        let start = self.foo_byte_range().end;
+        let end = if self.flags().contains(GotFlags::BAR) {
+            start + u16::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
     pub fn volume(&self) -> u16 {
-        let range = self.shape.volume_byte_range();
+        let range = self.volume_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn flags(&self) -> GotFlags {
-        let range = self.shape.flags_byte_range();
+        let range = self.flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn foo(&self) -> Option<u16> {
-        let range = self.shape.foo_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.foo_byte_range();
+        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
     }
 
     pub fn bar(&self) -> Option<u16> {
-        let range = self.shape.bar_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.bar_byte_range();
+        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
     }
 }
 
@@ -517,12 +496,15 @@ impl<'a> SomeTable<'a> for FlagDay<'a> {
         "FlagDay"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        let flags = self.flags();
         match idx {
             0usize => Some(Field::new("volume", self.volume())),
             1usize => Some(Field::new("flags", self.flags())),
-            2usize if flags.contains(GotFlags::FOO) => Some(Field::new("foo", self.foo().unwrap())),
-            3usize if flags.contains(GotFlags::BAR) => Some(Field::new("bar", self.bar().unwrap())),
+            2usize if self.flags().contains(GotFlags::FOO) => {
+                Some(Field::new("foo", self.foo().unwrap()))
+            }
+            3usize if self.flags().contains(GotFlags::BAR) => {
+                Some(Field::new("bar", self.bar().unwrap()))
+            }
             _ => None,
         }
     }
@@ -538,97 +520,16 @@ impl<'a> std::fmt::Debug for FlagDay<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct FieldsAfterConditionalsMarker {
-    foo_byte_start: Option<usize>,
-    bar_byte_start: Option<usize>,
-    baz_byte_start: Option<usize>,
-}
-
-impl FieldsAfterConditionalsMarker {
-    pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + GotFlags::RAW_BYTE_LEN
-    }
-
-    pub fn foo_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.foo_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
-    }
-
-    pub fn always_here_byte_range(&self) -> Range<usize> {
-        let start = self
-            .foo_byte_range()
-            .map(|range| range.end)
-            .unwrap_or_else(|| self.flags_byte_range().end);
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn bar_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.bar_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
-    }
-
-    pub fn baz_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.baz_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
-    }
-
-    pub fn also_always_here_byte_range(&self) -> Range<usize> {
-        let start = self
-            .baz_byte_range()
-            .map(|range| range.end)
-            .unwrap_or_else(|| {
-                self.bar_byte_range()
-                    .map(|range| range.end)
-                    .unwrap_or_else(|| self.always_here_byte_range().end)
-            });
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn and_me_too_byte_range(&self) -> Range<usize> {
-        let start = self.also_always_here_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for FieldsAfterConditionalsMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.and_me_too_byte_range().end
-    }
-}
+pub struct FieldsAfterConditionalsMarker {}
 
 impl<'a> FontRead<'a> for FieldsAfterConditionals<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let flags: GotFlags = cursor.read()?;
-        let foo_byte_start = flags
-            .contains(GotFlags::FOO)
-            .then(|| cursor.position())
-            .transpose()?;
-        flags
-            .contains(GotFlags::FOO)
-            .then(|| cursor.advance::<u16>());
-        cursor.advance::<u16>();
-        let bar_byte_start = flags
-            .contains(GotFlags::BAR)
-            .then(|| cursor.position())
-            .transpose()?;
-        flags
-            .contains(GotFlags::BAR)
-            .then(|| cursor.advance::<u16>());
-        let baz_byte_start = flags
-            .contains(GotFlags::BAZ)
-            .then(|| cursor.position())
-            .transpose()?;
-        flags
-            .contains(GotFlags::BAZ)
-            .then(|| cursor.advance::<u16>());
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.finish(FieldsAfterConditionalsMarker {
-            foo_byte_start,
-            bar_byte_start,
-            baz_byte_start,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: FieldsAfterConditionalsMarker {},
         })
     }
 }
@@ -637,38 +538,98 @@ pub type FieldsAfterConditionals<'a> = TableRef<'a, FieldsAfterConditionalsMarke
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FieldsAfterConditionals<'a> {
+    pub const MIN_SIZE: usize =
+        (GotFlags::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + GotFlags::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn foo_byte_range(&self) -> Range<usize> {
+        let flags = self.flags();
+        let start = self.flags_byte_range().end;
+        let end = if self.flags().contains(GotFlags::FOO) {
+            start + u16::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn always_here_byte_range(&self) -> Range<usize> {
+        let start = self.foo_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn bar_byte_range(&self) -> Range<usize> {
+        let flags = self.flags();
+        let start = self.always_here_byte_range().end;
+        let end = if self.flags().contains(GotFlags::BAR) {
+            start + u16::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn baz_byte_range(&self) -> Range<usize> {
+        let flags = self.flags();
+        let start = self.bar_byte_range().end;
+        let end = if self.flags().contains(GotFlags::BAZ) {
+            start + u16::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn also_always_here_byte_range(&self) -> Range<usize> {
+        let start = self.baz_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn and_me_too_byte_range(&self) -> Range<usize> {
+        let start = self.also_always_here_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
     pub fn flags(&self) -> GotFlags {
-        let range = self.shape.flags_byte_range();
+        let range = self.flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn foo(&self) -> Option<u16> {
-        let range = self.shape.foo_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.foo_byte_range();
+        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
     }
 
     pub fn always_here(&self) -> u16 {
-        let range = self.shape.always_here_byte_range();
+        let range = self.always_here_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn bar(&self) -> Option<u16> {
-        let range = self.shape.bar_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.bar_byte_range();
+        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
     }
 
     pub fn baz(&self) -> Option<u16> {
-        let range = self.shape.baz_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.baz_byte_range();
+        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
     }
 
     pub fn also_always_here(&self) -> u16 {
-        let range = self.shape.also_always_here_byte_range();
+        let range = self.also_always_here_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn and_me_too(&self) -> u16 {
-        let range = self.shape.and_me_too_byte_range();
+        let range = self.and_me_too_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
@@ -679,13 +640,18 @@ impl<'a> SomeTable<'a> for FieldsAfterConditionals<'a> {
         "FieldsAfterConditionals"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        let flags = self.flags();
         match idx {
             0usize => Some(Field::new("flags", self.flags())),
-            1usize if flags.contains(GotFlags::FOO) => Some(Field::new("foo", self.foo().unwrap())),
+            1usize if self.flags().contains(GotFlags::FOO) => {
+                Some(Field::new("foo", self.foo().unwrap()))
+            }
             2usize => Some(Field::new("always_here", self.always_here())),
-            3usize if flags.contains(GotFlags::BAR) => Some(Field::new("bar", self.bar().unwrap())),
-            4usize if flags.contains(GotFlags::BAZ) => Some(Field::new("baz", self.baz().unwrap())),
+            3usize if self.flags().contains(GotFlags::BAR) => {
+                Some(Field::new("bar", self.bar().unwrap()))
+            }
+            4usize if self.flags().contains(GotFlags::BAZ) => {
+                Some(Field::new("baz", self.baz().unwrap()))
+            }
             5usize => Some(Field::new("also_always_here", self.also_always_here())),
             6usize => Some(Field::new("and_me_too", self.and_me_too())),
             _ => None,
