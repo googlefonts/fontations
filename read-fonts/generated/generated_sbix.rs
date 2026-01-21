@@ -318,32 +318,9 @@ impl<'a> From<HeaderFlags> for FieldType<'a> {
 #[doc(hidden)]
 pub struct SbixMarker {
     num_glyphs: u16,
-    strike_offsets_byte_len: usize,
 }
 
-impl SbixMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + HeaderFlags::RAW_BYTE_LEN
-    }
-
-    pub fn num_strikes_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn strike_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.num_strikes_byte_range().end;
-        start..start + self.strike_offsets_byte_len
-    }
-}
-
-impl MinByteRange for SbixMarker {
+impl<'a> MinByteRange for Sbix<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.strike_offsets_byte_range().end
     }
@@ -361,17 +338,12 @@ impl ReadArgs for Sbix<'_> {
 impl<'a> FontReadWithArgs<'a> for Sbix<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let num_glyphs = *args;
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<HeaderFlags>();
-        let num_strikes: u32 = cursor.read()?;
-        let strike_offsets_byte_len = (num_strikes as usize)
-            .checked_mul(Offset32::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(strike_offsets_byte_len);
-        cursor.finish(SbixMarker {
-            num_glyphs,
-            strike_offsets_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: SbixMarker { num_glyphs },
         })
     }
 }
@@ -392,9 +364,36 @@ pub type Sbix<'a> = TableRef<'a, SbixMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Sbix<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + HeaderFlags::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        let end = start + HeaderFlags::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn num_strikes_byte_range(&self) -> Range<usize> {
+        let start = self.flags_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn strike_offsets_byte_range(&self) -> Range<usize> {
+        let num_strikes = self.num_strikes();
+        let start = self.num_strikes_byte_range().end;
+        let end = start + (num_strikes as usize).saturating_mul(Offset32::RAW_BYTE_LEN);
+        start..end
+    }
+
     /// Table version number — set to 1.
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -402,19 +401,19 @@ impl<'a> Sbix<'a> {
     /// Bit 1: Draw outlines.
     /// Bits 2 to 15: reserved (set to 0).
     pub fn flags(&self) -> HeaderFlags {
-        let range = self.shape.flags_byte_range();
+        let range = self.flags_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of bitmap strikes.
     pub fn num_strikes(&self) -> u32 {
-        let range = self.shape.num_strikes_byte_range();
+        let range = self.num_strikes_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offsets from the beginning of the 'sbix' table to data for each individual bitmap strike.
     pub fn strike_offsets(&self) -> &'a [BigEndian<Offset32>] {
-        let range = self.shape.strike_offsets_byte_range();
+        let range = self.strike_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
@@ -473,27 +472,10 @@ impl<'a> std::fmt::Debug for Sbix<'a> {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct StrikeMarker {
-    glyph_data_offsets_byte_len: usize,
+    num_glyphs: u16,
 }
 
-impl StrikeMarker {
-    pub fn ppem_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn ppi_byte_range(&self) -> Range<usize> {
-        let start = self.ppem_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn glyph_data_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.ppi_byte_range().end;
-        start..start + self.glyph_data_offsets_byte_len
-    }
-}
-
-impl MinByteRange for StrikeMarker {
+impl<'a> MinByteRange for Strike<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_offsets_byte_range().end
     }
@@ -506,15 +488,12 @@ impl ReadArgs for Strike<'_> {
 impl<'a> FontReadWithArgs<'a> for Strike<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let num_glyphs = *args;
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let glyph_data_offsets_byte_len = (transforms::add(num_glyphs, 1_usize))
-            .checked_mul(u32::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(glyph_data_offsets_byte_len);
-        cursor.finish(StrikeMarker {
-            glyph_data_offsets_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: StrikeMarker { num_glyphs },
         })
     }
 }
@@ -535,22 +514,47 @@ pub type Strike<'a> = TableRef<'a, StrikeMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Strike<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+
+    pub fn ppem_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn ppi_byte_range(&self) -> Range<usize> {
+        let start = self.ppem_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn glyph_data_offsets_byte_range(&self) -> Range<usize> {
+        let num_glyphs = self.num_glyphs();
+        let start = self.ppi_byte_range().end;
+        let end = start + (transforms::add(num_glyphs, 1_usize)).saturating_mul(u32::RAW_BYTE_LEN);
+        start..end
+    }
+
     /// The PPEM size for which this strike was designed.
     pub fn ppem(&self) -> u16 {
-        let range = self.shape.ppem_byte_range();
+        let range = self.ppem_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The device pixel density (in PPI) for which this strike was designed. (E.g., 96 PPI, 192 PPI.)
     pub fn ppi(&self) -> u16 {
-        let range = self.shape.ppi_byte_range();
+        let range = self.ppi_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset from the beginning of the strike data header to bitmap data for an individual glyph ID.
     pub fn glyph_data_offsets(&self) -> &'a [BigEndian<u32>] {
-        let range = self.shape.glyph_data_offsets_byte_range();
+        let range = self.glyph_data_offsets_byte_range();
         self.data.read_array(range).unwrap()
+    }
+
+    pub(crate) fn num_glyphs(&self) -> u16 {
+        self.shape.num_glyphs
     }
 }
 
@@ -580,33 +584,9 @@ impl<'a> std::fmt::Debug for Strike<'a> {
 /// [Glyph data](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#glyph-data) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct GlyphDataMarker {
-    data_byte_len: usize,
-}
+pub struct GlyphDataMarker {}
 
-impl GlyphDataMarker {
-    pub fn origin_offset_x_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn origin_offset_y_byte_range(&self) -> Range<usize> {
-        let start = self.origin_offset_x_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn graphic_type_byte_range(&self) -> Range<usize> {
-        let start = self.origin_offset_y_byte_range().end;
-        start..start + Tag::RAW_BYTE_LEN
-    }
-
-    pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.graphic_type_byte_range().end;
-        start..start + self.data_byte_len
-    }
-}
-
-impl MinByteRange for GlyphDataMarker {
+impl<'a> MinByteRange for GlyphData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
     }
@@ -614,13 +594,13 @@ impl MinByteRange for GlyphDataMarker {
 
 impl<'a> FontRead<'a> for GlyphData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<Tag>();
-        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(data_byte_len);
-        cursor.finish(GlyphDataMarker { data_byte_len })
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: GlyphDataMarker {},
+        })
     }
 }
 
@@ -629,27 +609,54 @@ pub type GlyphData<'a> = TableRef<'a, GlyphDataMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphData<'a> {
+    pub const MIN_SIZE: usize = (i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + Tag::RAW_BYTE_LEN);
+
+    pub fn origin_offset_x_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn origin_offset_y_byte_range(&self) -> Range<usize> {
+        let start = self.origin_offset_x_byte_range().end;
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn graphic_type_byte_range(&self) -> Range<usize> {
+        let start = self.origin_offset_y_byte_range().end;
+        let end = start + Tag::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn data_byte_range(&self) -> Range<usize> {
+        let start = self.graphic_type_byte_range().end;
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// The horizontal (x-axis) position of the left edge of the bitmap graphic in relation to the glyph design space origin.
     pub fn origin_offset_x(&self) -> i16 {
-        let range = self.shape.origin_offset_x_byte_range();
+        let range = self.origin_offset_x_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The vertical (y-axis) position of the bottom edge of the bitmap graphic in relation to the glyph design space origin.
     pub fn origin_offset_y(&self) -> i16 {
-        let range = self.shape.origin_offset_y_byte_range();
+        let range = self.origin_offset_y_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Indicates the format of the embedded graphic data: one of 'jpg ', 'png ' or 'tiff', or the special format 'dupe'.
     pub fn graphic_type(&self) -> Tag {
-        let range = self.shape.graphic_type_byte_range();
+        let range = self.graphic_type_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The actual embedded graphic data. The total length is inferred from sequential entries in the glyphDataOffsets array and the fixed size (8 bytes) of the preceding fields.
     pub fn data(&self) -> &'a [u8] {
-        let range = self.shape.data_byte_range();
+        let range = self.data_byte_range();
         self.data.read_array(range).unwrap()
     }
 }

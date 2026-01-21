@@ -8,33 +8,9 @@ use crate::codegen_prelude::*;
 /// The [kerx (Extended Kerning)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct KerxMarker {
-    subtables_byte_len: usize,
-}
+pub struct KerxMarker {}
 
-impl KerxMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn padding_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn n_tables_byte_range(&self) -> Range<usize> {
-        let start = self.padding_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn subtables_byte_range(&self) -> Range<usize> {
-        let start = self.n_tables_byte_range().end;
-        start..start + self.subtables_byte_len
-    }
-}
-
-impl MinByteRange for KerxMarker {
+impl<'a> MinByteRange for Kerx<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.subtables_byte_range().end
     }
@@ -47,16 +23,13 @@ impl TopLevelTable for Kerx<'_> {
 
 impl<'a> FontRead<'a> for Kerx<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let n_tables: u32 = cursor.read()?;
-        let subtables_byte_len = {
-            let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
-            <Subtable as VarSize>::total_len_for_count(data, n_tables as usize)?
-        };
-        cursor.advance_by(subtables_byte_len);
-        cursor.finish(KerxMarker { subtables_byte_len })
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: KerxMarker {},
+        })
     }
 }
 
@@ -65,20 +38,50 @@ pub type Kerx<'a> = TableRef<'a, KerxMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Kerx<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn padding_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn n_tables_byte_range(&self) -> Range<usize> {
+        let start = self.padding_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn subtables_byte_range(&self) -> Range<usize> {
+        let n_tables = self.n_tables();
+        let start = self.n_tables_byte_range().end;
+        let end = start + {
+            let data = self.data.split_off(start).unwrap_or_default();
+            <Subtable as VarSize>::total_len_for_count(data, n_tables as usize).unwrap_or(0)
+        };
+        start..end
+    }
+
     /// The version number of the extended kerning table (currently 2, 3, or 4)
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The number of subtables included in the extended kerning table.
     pub fn n_tables(&self) -> u32 {
-        let range = self.shape.n_tables_byte_range();
+        let range = self.n_tables_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     pub fn subtables(&self) -> VarLenArray<'a, Subtable<'a>> {
-        let range = self.shape.subtables_byte_range();
+        let range = self.subtables_byte_range();
         VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
     }
 }
@@ -112,33 +115,9 @@ impl<'a> std::fmt::Debug for Kerx<'a> {
 /// A subtable in a `kerx` table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SubtableMarker {
-    data_byte_len: usize,
-}
+pub struct SubtableMarker {}
 
-impl SubtableMarker {
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn coverage_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn tuple_count_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.tuple_count_byte_range().end;
-        start..start + self.data_byte_len
-    }
-}
-
-impl MinByteRange for SubtableMarker {
+impl<'a> MinByteRange for Subtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
     }
@@ -146,13 +125,13 @@ impl MinByteRange for SubtableMarker {
 
 impl<'a> FontRead<'a> for Subtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(data_byte_len);
-        cursor.finish(SubtableMarker { data_byte_len })
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: SubtableMarker {},
+        })
     }
 }
 
@@ -161,27 +140,54 @@ pub type Subtable<'a> = TableRef<'a, SubtableMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable<'a> {
+    pub const MIN_SIZE: usize = (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn tuple_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn data_byte_range(&self) -> Range<usize> {
+        let start = self.tuple_count_byte_range().end;
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// The length of this subtable in bytes, including this header.
     pub fn length(&self) -> u32 {
-        let range = self.shape.length_byte_range();
+        let range = self.length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Circumstances under which this table is used.
     pub fn coverage(&self) -> u32 {
-        let range = self.shape.coverage_byte_range();
+        let range = self.coverage_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The tuple count. This value is only used with variation fonts and should be 0 for all other fonts. The subtable's tupleCount will be ignored if the 'kerx' table version is less than 4.
     pub fn tuple_count(&self) -> u32 {
-        let range = self.shape.tuple_count_byte_range();
+        let range = self.tuple_count_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Subtable specific data.
     pub fn data(&self) -> &'a [u8] {
-        let range = self.shape.data_byte_range();
+        let range = self.data_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -213,38 +219,9 @@ impl<'a> std::fmt::Debug for Subtable<'a> {
 /// The type 0 `kerx` subtable.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Subtable0Marker {
-    pairs_byte_len: usize,
-}
+pub struct Subtable0Marker {}
 
-impl Subtable0Marker {
-    pub fn n_pairs_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn search_range_byte_range(&self) -> Range<usize> {
-        let start = self.n_pairs_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn entry_selector_byte_range(&self) -> Range<usize> {
-        let start = self.search_range_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn range_shift_byte_range(&self) -> Range<usize> {
-        let start = self.entry_selector_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn pairs_byte_range(&self) -> Range<usize> {
-        let start = self.range_shift_byte_range().end;
-        start..start + self.pairs_byte_len
-    }
-}
-
-impl MinByteRange for Subtable0Marker {
+impl<'a> MinByteRange for Subtable0<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.pairs_byte_range().end
     }
@@ -252,16 +229,13 @@ impl MinByteRange for Subtable0Marker {
 
 impl<'a> FontRead<'a> for Subtable0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let n_pairs: u32 = cursor.read()?;
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let pairs_byte_len = (n_pairs as usize)
-            .checked_mul(Subtable0Pair::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(pairs_byte_len);
-        cursor.finish(Subtable0Marker { pairs_byte_len })
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: Subtable0Marker {},
+        })
     }
 }
 
@@ -270,33 +244,67 @@ pub type Subtable0<'a> = TableRef<'a, Subtable0Marker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable0<'a> {
+    pub const MIN_SIZE: usize =
+        (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+
+    pub fn n_pairs_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn search_range_byte_range(&self) -> Range<usize> {
+        let start = self.n_pairs_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn entry_selector_byte_range(&self) -> Range<usize> {
+        let start = self.search_range_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn range_shift_byte_range(&self) -> Range<usize> {
+        let start = self.entry_selector_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn pairs_byte_range(&self) -> Range<usize> {
+        let n_pairs = self.n_pairs();
+        let start = self.range_shift_byte_range().end;
+        let end = start + (n_pairs as usize).saturating_mul(Subtable0Pair::RAW_BYTE_LEN);
+        start..end
+    }
+
     /// The number of kerning pairs in this subtable.
     pub fn n_pairs(&self) -> u32 {
-        let range = self.shape.n_pairs_byte_range();
+        let range = self.n_pairs_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The largest power of two less than or equal to the value of nPairs, multiplied by the size in bytes of an entry in the subtable.
     pub fn search_range(&self) -> u32 {
-        let range = self.shape.search_range_byte_range();
+        let range = self.search_range_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// This is calculated as log2 of the largest power of two less than or equal to the value of nPairs. This value indicates how many iterations of the search loop have to be made. For example, in a list of eight items, there would be three iterations of the loop.
     pub fn entry_selector(&self) -> u32 {
-        let range = self.shape.entry_selector_byte_range();
+        let range = self.entry_selector_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The value of nPairs minus the largest power of two less than or equal to nPairs. This is multiplied by the size in bytes of an entry in the table.
     pub fn range_shift(&self) -> u32 {
-        let range = self.shape.range_shift_byte_range();
+        let range = self.range_shift_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Kerning records.
     pub fn pairs(&self) -> &'a [Subtable0Pair] {
-        let range = self.shape.pairs_byte_range();
+        let range = self.pairs_byte_range();
         self.data.read_array(range).unwrap()
     }
 }

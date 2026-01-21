@@ -10,8 +10,6 @@ use crate::codegen_prelude::*;
 #[doc(hidden)]
 pub struct GlyfMarker {}
 
-impl GlyfMarker {}
-
 impl TopLevelTable for Glyf<'_> {
     /// `glyf`
     const TAG: Tag = Tag::new(b"glyf");
@@ -19,8 +17,13 @@ impl TopLevelTable for Glyf<'_> {
 
 impl<'a> FontRead<'a> for Glyf<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let cursor = data.cursor();
-        cursor.finish(GlyfMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: GlyfMarker {},
+        })
     }
 }
 
@@ -28,7 +31,9 @@ impl<'a> FontRead<'a> for Glyf<'a> {
 pub type Glyf<'a> = TableRef<'a, GlyfMarker>;
 
 #[allow(clippy::needless_lifetimes)]
-impl<'a> Glyf<'a> {}
+impl<'a> Glyf<'a> {
+    pub const MIN_SIZE: usize = 0;
+}
 
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Glyf<'a> {
@@ -56,60 +61,9 @@ impl<'a> std::fmt::Debug for Glyf<'a> {
 /// The [Glyph Header](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SimpleGlyphMarker {
-    end_pts_of_contours_byte_len: usize,
-    instructions_byte_len: usize,
-    glyph_data_byte_len: usize,
-}
+pub struct SimpleGlyphMarker {}
 
-impl SimpleGlyphMarker {
-    pub fn number_of_contours_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn x_min_byte_range(&self) -> Range<usize> {
-        let start = self.number_of_contours_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn y_min_byte_range(&self) -> Range<usize> {
-        let start = self.x_min_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn x_max_byte_range(&self) -> Range<usize> {
-        let start = self.y_min_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn y_max_byte_range(&self) -> Range<usize> {
-        let start = self.x_max_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn end_pts_of_contours_byte_range(&self) -> Range<usize> {
-        let start = self.y_max_byte_range().end;
-        start..start + self.end_pts_of_contours_byte_len
-    }
-
-    pub fn instruction_length_byte_range(&self) -> Range<usize> {
-        let start = self.end_pts_of_contours_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn instructions_byte_range(&self) -> Range<usize> {
-        let start = self.instruction_length_byte_range().end;
-        start..start + self.instructions_byte_len
-    }
-
-    pub fn glyph_data_byte_range(&self) -> Range<usize> {
-        let start = self.instructions_byte_range().end;
-        start..start + self.glyph_data_byte_len
-    }
-}
-
-impl MinByteRange for SimpleGlyphMarker {
+impl<'a> MinByteRange for SimpleGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_byte_range().end
     }
@@ -117,27 +71,12 @@ impl MinByteRange for SimpleGlyphMarker {
 
 impl<'a> FontRead<'a> for SimpleGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let number_of_contours: i16 = cursor.read()?;
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        let end_pts_of_contours_byte_len = (number_of_contours as usize)
-            .checked_mul(u16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(end_pts_of_contours_byte_len);
-        let instruction_length: u16 = cursor.read()?;
-        let instructions_byte_len = (instruction_length as usize)
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(instructions_byte_len);
-        let glyph_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(glyph_data_byte_len);
-        cursor.finish(SimpleGlyphMarker {
-            end_pts_of_contours_byte_len,
-            instructions_byte_len,
-            glyph_data_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: SimpleGlyphMarker {},
         })
     }
 }
@@ -147,42 +86,106 @@ pub type SimpleGlyph<'a> = TableRef<'a, SimpleGlyphMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SimpleGlyph<'a> {
+    pub const MIN_SIZE: usize = (i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN);
+
+    pub fn number_of_contours_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x_min_byte_range(&self) -> Range<usize> {
+        let start = self.number_of_contours_byte_range().end;
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y_min_byte_range(&self) -> Range<usize> {
+        let start = self.x_min_byte_range().end;
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x_max_byte_range(&self) -> Range<usize> {
+        let start = self.y_min_byte_range().end;
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y_max_byte_range(&self) -> Range<usize> {
+        let start = self.x_max_byte_range().end;
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn end_pts_of_contours_byte_range(&self) -> Range<usize> {
+        let number_of_contours = self.number_of_contours();
+        let start = self.y_max_byte_range().end;
+        let end = start + (number_of_contours as usize).saturating_mul(u16::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn instruction_length_byte_range(&self) -> Range<usize> {
+        let start = self.end_pts_of_contours_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn instructions_byte_range(&self) -> Range<usize> {
+        let instruction_length = self.instruction_length();
+        let start = self.instruction_length_byte_range().end;
+        let end = start + (instruction_length as usize).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn glyph_data_byte_range(&self) -> Range<usize> {
+        let start = self.instructions_byte_range().end;
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// If the number of contours is greater than or equal to zero,
     /// this is a simple glyph. If negative, this is a composite glyph
     /// — the value -1 should be used for composite glyphs.
     pub fn number_of_contours(&self) -> i16 {
-        let range = self.shape.number_of_contours_byte_range();
+        let range = self.number_of_contours_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum x for coordinate data.
     pub fn x_min(&self) -> i16 {
-        let range = self.shape.x_min_byte_range();
+        let range = self.x_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum y for coordinate data.
     pub fn y_min(&self) -> i16 {
-        let range = self.shape.y_min_byte_range();
+        let range = self.y_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum x for coordinate data.
     pub fn x_max(&self) -> i16 {
-        let range = self.shape.x_max_byte_range();
+        let range = self.x_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum y for coordinate data.
     pub fn y_max(&self) -> i16 {
-        let range = self.shape.y_max_byte_range();
+        let range = self.y_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of point indices for the last point of each contour,
     /// in increasing numeric order
     pub fn end_pts_of_contours(&self) -> &'a [BigEndian<u16>] {
-        let range = self.shape.end_pts_of_contours_byte_range();
+        let range = self.end_pts_of_contours_byte_range();
         self.data.read_array(range).unwrap()
     }
 
@@ -190,19 +193,19 @@ impl<'a> SimpleGlyph<'a> {
     /// zero, no instructions are present for this glyph, and this
     /// field is followed directly by the flags field.
     pub fn instruction_length(&self) -> u16 {
-        let range = self.shape.instruction_length_byte_range();
+        let range = self.instruction_length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of instruction byte code for the glyph.
     pub fn instructions(&self) -> &'a [u8] {
-        let range = self.shape.instructions_byte_range();
+        let range = self.instructions_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// the raw data for flags & x/y coordinates
     pub fn glyph_data(&self) -> &'a [u8] {
-        let range = self.shape.glyph_data_byte_range();
+        let range = self.glyph_data_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -640,43 +643,9 @@ impl<'a> From<SimpleGlyphFlags> for FieldType<'a> {
 /// [CompositeGlyph](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CompositeGlyphMarker {
-    component_data_byte_len: usize,
-}
+pub struct CompositeGlyphMarker {}
 
-impl CompositeGlyphMarker {
-    pub fn number_of_contours_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn x_min_byte_range(&self) -> Range<usize> {
-        let start = self.number_of_contours_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn y_min_byte_range(&self) -> Range<usize> {
-        let start = self.x_min_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn x_max_byte_range(&self) -> Range<usize> {
-        let start = self.y_min_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn y_max_byte_range(&self) -> Range<usize> {
-        let start = self.x_max_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn component_data_byte_range(&self) -> Range<usize> {
-        let start = self.y_max_byte_range().end;
-        start..start + self.component_data_byte_len
-    }
-}
-
-impl MinByteRange for CompositeGlyphMarker {
+impl<'a> MinByteRange for CompositeGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.component_data_byte_range().end
     }
@@ -684,17 +653,12 @@ impl MinByteRange for CompositeGlyphMarker {
 
 impl<'a> FontRead<'a> for CompositeGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        let component_data_byte_len =
-            cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(component_data_byte_len);
-        cursor.finish(CompositeGlyphMarker {
-            component_data_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: CompositeGlyphMarker {},
         })
     }
 }
@@ -704,42 +668,85 @@ pub type CompositeGlyph<'a> = TableRef<'a, CompositeGlyphMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CompositeGlyph<'a> {
+    pub const MIN_SIZE: usize = (i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN);
+
+    pub fn number_of_contours_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x_min_byte_range(&self) -> Range<usize> {
+        let start = self.number_of_contours_byte_range().end;
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y_min_byte_range(&self) -> Range<usize> {
+        let start = self.x_min_byte_range().end;
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn x_max_byte_range(&self) -> Range<usize> {
+        let start = self.y_min_byte_range().end;
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn y_max_byte_range(&self) -> Range<usize> {
+        let start = self.x_max_byte_range().end;
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn component_data_byte_range(&self) -> Range<usize> {
+        let start = self.y_max_byte_range().end;
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// If the number of contours is greater than or equal to zero,
     /// this is a simple glyph. If negative, this is a composite glyph
     /// — the value -1 should be used for composite glyphs.
     pub fn number_of_contours(&self) -> i16 {
-        let range = self.shape.number_of_contours_byte_range();
+        let range = self.number_of_contours_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum x for coordinate data.
     pub fn x_min(&self) -> i16 {
-        let range = self.shape.x_min_byte_range();
+        let range = self.x_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum y for coordinate data.
     pub fn y_min(&self) -> i16 {
-        let range = self.shape.y_min_byte_range();
+        let range = self.y_min_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum x for coordinate data.
     pub fn x_max(&self) -> i16 {
-        let range = self.shape.x_max_byte_range();
+        let range = self.x_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum y for coordinate data.
     pub fn y_max(&self) -> i16 {
-        let range = self.shape.y_max_byte_range();
+        let range = self.y_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// component flag
     /// glyph index of component
     pub fn component_data(&self) -> &'a [u8] {
-        let range = self.shape.component_data_byte_range();
+        let range = self.component_data_byte_range();
         self.data.read_array(range).unwrap()
     }
 }

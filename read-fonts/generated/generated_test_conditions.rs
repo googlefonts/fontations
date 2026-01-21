@@ -9,6 +9,12 @@ use crate::codegen_prelude::*;
 #[doc(hidden)]
 pub struct MajorMinorVersionMarker {}
 
+impl<'a> MinByteRange for MajorMinorVersion<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.always_present_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         if data.len() < Self::MIN_SIZE {
@@ -417,6 +423,12 @@ impl<'a> From<GotFlags> for FieldType<'a> {
 #[doc(hidden)]
 pub struct FlagDayMarker {}
 
+impl<'a> MinByteRange for FlagDay<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.flags_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for FlagDay<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         if data.len() < Self::MIN_SIZE {
@@ -540,6 +552,12 @@ impl<'a> std::fmt::Debug for FlagDay<'a> {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct FieldsAfterConditionalsMarker {}
+
+impl<'a> MinByteRange for FieldsAfterConditionals<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.and_me_too_byte_range().end
+    }
+}
 
 impl<'a> FontRead<'a> for FieldsAfterConditionals<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
