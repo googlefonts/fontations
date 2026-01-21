@@ -998,8 +998,13 @@ impl Table {
         let field_sizes = self
             .fields
             .iter()
-            .filter_map(|fld| fld.known_min_size_stmt());
-        quote!( (#(#field_sizes)+*) )
+            .filter_map(|fld| fld.known_min_size_stmt())
+            .collect::<Vec<_>>();
+        match field_sizes.as_slice() {
+            [] => quote!(0),
+            [one] => one.to_owned(),
+            more => quote!( (#(#more)+*) ),
+        }
     }
 }
 
