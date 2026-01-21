@@ -339,7 +339,7 @@ pub type VarLenItem<'a> = TableRef<'a, VarLenItemMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarLenItem<'a> {
-    pub const MIN_SIZE: usize = (u32::RAW_BYTE_LEN);
+    pub const MIN_SIZE: usize = u32::RAW_BYTE_LEN;
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = 0;
