@@ -11,6 +11,12 @@ pub struct BaseArrayMarker {
     mark_class_count: u16,
 }
 
+impl<'a> MinByteRange for BaseArray<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.base_records_byte_range().end
+    }
+}
+
 impl ReadArgs for BaseArray<'_> {
     type Args = u16;
 }

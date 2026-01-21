@@ -9,6 +9,12 @@ use crate::codegen_prelude::*;
 #[doc(hidden)]
 pub struct BasicTableMarker {}
 
+impl<'a> MinByteRange for BasicTable<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.array_records_byte_range().end
+    }
+}
+
 impl<'a> FontRead<'a> for BasicTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         if data.len() < Self::MIN_SIZE {
@@ -322,6 +328,12 @@ impl<'a> SomeRecord<'a> for ContainsOffsets {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct VarLenItemMarker {}
+
+impl<'a> MinByteRange for VarLenItem<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.data_byte_range().end
+    }
+}
 
 impl<'a> FontRead<'a> for VarLenItem<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {

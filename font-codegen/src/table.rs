@@ -24,8 +24,8 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     let phantom_decl = generic.map(|t| quote!(offset_type: std::marker::PhantomData<*const #t>));
     let marker_name = item.marker_name();
     let raw_name = item.raw_name();
-    let shape_byte_range_fns = item.iter_field_byte_range_fns();
-    //let optional_min_byte_range_trait_impl = item.impl_min_byte_range_trait();
+    let field_byte_range_fns = item.iter_field_byte_range_fns();
+    let optional_min_byte_range_trait_impl = item.impl_min_byte_range_trait();
     let min_valid_size = item.min_valid_size_expr();
     let shape_fields = item
         .attrs
@@ -84,6 +84,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         }
     });
 
+    //let stashed_read_arg_getters = item.read_arg_getters();
     let table_ref_getters = item.iter_table_ref_getters();
 
     let optional_format_trait_impl = item.impl_format_trait();
@@ -112,7 +113,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
             #phantom_decl
         }
 
-        //#optional_min_byte_range_trait_impl
+        #optional_min_byte_range_trait_impl
 
         #top_level
 
@@ -129,7 +130,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         impl<'a, #generic> #raw_name<'a, #generic> {
             pub const MIN_SIZE: usize = #min_valid_size;
 
-            #( #shape_byte_range_fns )*
+            #( #field_byte_range_fns )*
             #( #table_ref_getters )*
 
         }
@@ -829,14 +830,14 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
         }
     });
 
-    //let min_byte_arms = item
-    //.variants
-    //.iter()
-    //.filter(|variant| variant.attrs.write_only.is_none())
-    //.map(|variant| {
-    //let var_name: &syn::Ident = &variant.name;
-    //quote!(Self::#var_name(item) => item.min_byte_range(), )
-    //});
+    let min_byte_arms = item
+        .variants
+        .iter()
+        .filter(|variant| variant.attrs.write_only.is_none())
+        .map(|variant| {
+            let var_name: &syn::Ident = &variant.name;
+            quote!(Self::#var_name(item) => item.min_byte_range(), )
+        });
 
     Ok(quote! {
         #( #docs )*
@@ -858,13 +859,13 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
             }
         }
 
-        //impl MinByteRange for #name<'_> {
-            //fn min_byte_range(&self) -> Range<usize> {
-                //match self {
-                    //#( #min_byte_arms )*
-                //}
-            //}
-        //}
+        impl MinByteRange for #name<'_> {
+            fn min_byte_range(&self) -> Range<usize> {
+                match self {
+                    #( #min_byte_arms )*
+                }
+            }
+        }
 
         #[cfg(feature = "experimental_traverse")]
         impl<'a> #name<'a> {
@@ -916,6 +917,17 @@ impl Table {
                 .input_fields()
                 .into_iter()
                 .filter_map(|(ident, when)| matches!(when, NeededWhen::Parse).then_some(ident));
+            let required_field_decls = required_fields.map(|fld| {
+                let is_opt = self
+                    .fields
+                    .fields
+                    .iter()
+                    .find(|x| x.name == fld)
+                    .map(|x| x.is_conditional())
+                    .unwrap_or(false);
+                let maybe_unwrap_or_default = (is_opt).then(|| quote!(.unwrap_or_default()));
+                quote!(let #fld = self.#fld() #maybe_unwrap_or_default ;)
+            });
 
             // okay so for conditions, how do we evaluate them?
             let condition = field
@@ -937,7 +949,7 @@ impl Table {
             };
             let result = quote! {
                 pub fn #fn_name(&self) -> Range<usize> {
-                    #( let #required_fields = self.#required_fields(); )*
+                    #( #required_field_decls )*
                     let start = #prev_field_end_expr;
                     let end = #end_expr;
                     start..end
@@ -976,23 +988,24 @@ impl Table {
         })
     }
 
-    //pub(crate) fn impl_min_byte_range_trait(&self) -> Option<TokenStream> {
-    //let field = self
-    //.fields
-    //.iter()
-    //.filter(|fld| fld.attrs.conditional.is_none())
-    //.last()?;
-    //let name = self.marker_name();
+    pub(crate) fn impl_min_byte_range_trait(&self) -> Option<TokenStream> {
+        let field = self
+            .fields
+            .iter()
+            .filter(|fld| fld.attrs.conditional.is_none())
+            .last()?;
+        let name = self.raw_name();
+        let generic = self.attrs.generic_offset.as_ref();
 
-    //let fn_name = field.shape_byte_range_fn_name();
-    //Some(quote! {
-    //impl MinByteRange for #name {
-    //fn min_byte_range(&self) -> Range<usize> {
-    //0..self.#fn_name().end
-    //}
-    //}
-    //})
-    //}
+        let fn_name = field.shape_byte_range_fn_name();
+        Some(quote! {
+            impl<'a, #generic> MinByteRange for #name<'a, #generic> {
+                fn min_byte_range(&self) -> Range<usize> {
+                    0..self.#fn_name().end
+                }
+            }
+        })
+    }
 
     pub(crate) fn min_valid_size_expr(&self) -> TokenStream {
         let field_sizes = self
@@ -1052,11 +1065,11 @@ impl TableReadArgs {
 
     fn iter_table_ref_getters<'a>(
         &'a self,
-        referenced_fields: &'a ReferencedFields,
+        _referenced_fields: &'a ReferencedFields,
     ) -> impl Iterator<Item = TokenStream> + 'a {
         self.args
             .iter()
-            .filter(|arg| referenced_fields.needs_at_runtime(&arg.ident))
+            //.filter(|arg| referenced_fields.needs_at_runtime(&arg.ident))
             .map(|TableReadArg { ident, typ }| {
                 quote! {
                     pub(crate) fn #ident(&self) -> #typ {

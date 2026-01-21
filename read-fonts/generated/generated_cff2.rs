@@ -8,50 +8,9 @@ use crate::codegen_prelude::*;
 /// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table header
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Cff2HeaderMarker {
-    _padding_byte_len: usize,
-    top_dict_data_byte_len: usize,
-    trailing_data_byte_len: usize,
-}
+pub struct Cff2HeaderMarker {}
 
-impl Cff2HeaderMarker {
-    pub fn major_version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn minor_version_byte_range(&self) -> Range<usize> {
-        let start = self.major_version_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn header_size_byte_range(&self) -> Range<usize> {
-        let start = self.minor_version_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn top_dict_length_byte_range(&self) -> Range<usize> {
-        let start = self.header_size_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn _padding_byte_range(&self) -> Range<usize> {
-        let start = self.top_dict_length_byte_range().end;
-        start..start + self._padding_byte_len
-    }
-
-    pub fn top_dict_data_byte_range(&self) -> Range<usize> {
-        let start = self._padding_byte_range().end;
-        start..start + self.top_dict_data_byte_len
-    }
-
-    pub fn trailing_data_byte_range(&self) -> Range<usize> {
-        let start = self.top_dict_data_byte_range().end;
-        start..start + self.trailing_data_byte_len
-    }
-}
-
-impl MinByteRange for Cff2HeaderMarker {
+impl<'a> MinByteRange for Cff2Header<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.trailing_data_byte_range().end
     }
@@ -59,25 +18,12 @@ impl MinByteRange for Cff2HeaderMarker {
 
 impl<'a> FontRead<'a> for Cff2Header<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u8>();
-        let header_size: u8 = cursor.read()?;
-        let top_dict_length: u16 = cursor.read()?;
-        let _padding_byte_len = (transforms::subtract(header_size, 5_usize))
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(_padding_byte_len);
-        let top_dict_data_byte_len = (top_dict_length as usize)
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(top_dict_data_byte_len);
-        let trailing_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(trailing_data_byte_len);
-        cursor.finish(Cff2HeaderMarker {
-            _padding_byte_len,
-            top_dict_data_byte_len,
-            trailing_data_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: Cff2HeaderMarker {},
         })
     }
 }
@@ -87,45 +33,94 @@ pub type Cff2Header<'a> = TableRef<'a, Cff2HeaderMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cff2Header<'a> {
+    pub const MIN_SIZE: usize =
+        (u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+
+    pub fn major_version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn minor_version_byte_range(&self) -> Range<usize> {
+        let start = self.major_version_byte_range().end;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn header_size_byte_range(&self) -> Range<usize> {
+        let start = self.minor_version_byte_range().end;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn top_dict_length_byte_range(&self) -> Range<usize> {
+        let start = self.header_size_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn _padding_byte_range(&self) -> Range<usize> {
+        let header_size = self.header_size();
+        let start = self.top_dict_length_byte_range().end;
+        let end =
+            start + (transforms::subtract(header_size, 5_usize)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn top_dict_data_byte_range(&self) -> Range<usize> {
+        let top_dict_length = self.top_dict_length();
+        let start = self._padding_byte_range().end;
+        let end = start + (top_dict_length as usize).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn trailing_data_byte_range(&self) -> Range<usize> {
+        let start = self.top_dict_data_byte_range().end;
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Format major version (set to 2).
     pub fn major_version(&self) -> u8 {
-        let range = self.shape.major_version_byte_range();
+        let range = self.major_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Format minor version (set to 0).
     pub fn minor_version(&self) -> u8 {
-        let range = self.shape.minor_version_byte_range();
+        let range = self.minor_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Header size (bytes).
     pub fn header_size(&self) -> u8 {
-        let range = self.shape.header_size_byte_range();
+        let range = self.header_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Length of Top DICT structure in bytes.
     pub fn top_dict_length(&self) -> u16 {
-        let range = self.shape.top_dict_length_byte_range();
+        let range = self.top_dict_length_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Padding bytes before the start of the Top DICT.
     pub fn _padding(&self) -> &'a [u8] {
-        let range = self.shape._padding_byte_range();
+        let range = self._padding_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Data containing the Top DICT.
     pub fn top_dict_data(&self) -> &'a [u8] {
-        let range = self.shape.top_dict_data_byte_range();
+        let range = self.top_dict_data_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Remaining table data.
     pub fn trailing_data(&self) -> &'a [u8] {
-        let range = self.shape.trailing_data_byte_range();
+        let range = self.trailing_data_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
