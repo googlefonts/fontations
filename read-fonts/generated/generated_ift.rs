@@ -564,30 +564,22 @@ impl<'a> PatchMapFormat1<'a> {
     }
 
     pub fn cff_charstrings_offset_byte_range(&self) -> Range<usize> {
-        let field_flags = self.field_flags();
         let start = self.patch_format_byte_range().end;
-        let end = if self
+        let end = (self
             .field_flags()
-            .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
-        {
-            start + u32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+            .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
+        .then(|| start + u32::RAW_BYTE_LEN)
+        .unwrap_or(start);
         start..end
     }
 
     pub fn cff2_charstrings_offset_byte_range(&self) -> Range<usize> {
-        let field_flags = self.field_flags();
         let start = self.cff_charstrings_offset_byte_range().end;
-        let end = if self
+        let end = (self
             .field_flags()
-            .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)
-        {
-            start + u32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+            .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
+        .then(|| start + u32::RAW_BYTE_LEN)
+        .unwrap_or(start);
         start..end
     }
 
@@ -1264,30 +1256,22 @@ impl<'a> PatchMapFormat2<'a> {
     }
 
     pub fn cff_charstrings_offset_byte_range(&self) -> Range<usize> {
-        let field_flags = self.field_flags();
         let start = self.url_template_byte_range().end;
-        let end = if self
+        let end = (self
             .field_flags()
-            .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
-        {
-            start + u32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+            .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
+        .then(|| start + u32::RAW_BYTE_LEN)
+        .unwrap_or(start);
         start..end
     }
 
     pub fn cff2_charstrings_offset_byte_range(&self) -> Range<usize> {
-        let field_flags = self.field_flags();
         let start = self.cff_charstrings_offset_byte_range().end;
-        let end = if self
+        let end = (self
             .field_flags()
-            .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)
-        {
-            start + u32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+            .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
+        .then(|| start + u32::RAW_BYTE_LEN)
+        .unwrap_or(start);
         start..end
     }
 
@@ -1526,91 +1510,71 @@ impl<'a> EntryData<'a> {
     }
 
     pub fn feature_count_byte_range(&self) -> Range<usize> {
-        let format_flags = self.format_flags();
         let start = self.format_flags_byte_range().end;
-        let end = if self
+        let end = (self
             .format_flags()
-            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
-        {
-            start + u8::RAW_BYTE_LEN
-        } else {
-            start
-        };
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+        .then(|| start + u8::RAW_BYTE_LEN)
+        .unwrap_or(start);
         start..end
     }
 
     pub fn feature_tags_byte_range(&self) -> Range<usize> {
         let feature_count = self.feature_count().unwrap_or_default();
-        let format_flags = self.format_flags();
         let start = self.feature_count_byte_range().end;
-        let end = if self
+        let end = (self
             .format_flags()
-            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
-        {
-            start + (feature_count as usize).saturating_mul(Tag::RAW_BYTE_LEN)
-        } else {
-            start
-        };
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+        .then(|| start + (feature_count as usize).saturating_mul(Tag::RAW_BYTE_LEN))
+        .unwrap_or(start);
         start..end
     }
 
     pub fn design_space_count_byte_range(&self) -> Range<usize> {
-        let format_flags = self.format_flags();
         let start = self.feature_tags_byte_range().end;
-        let end = if self
+        let end = (self
             .format_flags()
-            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
-        {
-            start + u16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+        .then(|| start + u16::RAW_BYTE_LEN)
+        .unwrap_or(start);
         start..end
     }
 
     pub fn design_space_segments_byte_range(&self) -> Range<usize> {
         let design_space_count = self.design_space_count().unwrap_or_default();
-        let format_flags = self.format_flags();
         let start = self.design_space_count_byte_range().end;
-        let end = if self
+        let end = (self
             .format_flags()
-            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
-        {
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+        .then(|| {
             start + (design_space_count as usize).saturating_mul(DesignSpaceSegment::RAW_BYTE_LEN)
-        } else {
-            start
-        };
+        })
+        .unwrap_or(start);
         start..end
     }
 
     pub fn match_mode_and_count_byte_range(&self) -> Range<usize> {
-        let format_flags = self.format_flags();
         let start = self.design_space_segments_byte_range().end;
-        let end = if self
+        let end = (self
             .format_flags()
-            .contains(EntryFormatFlags::CHILD_INDICES)
-        {
-            start + MatchModeAndCount::RAW_BYTE_LEN
-        } else {
-            start
-        };
+            .contains(EntryFormatFlags::CHILD_INDICES))
+        .then(|| start + MatchModeAndCount::RAW_BYTE_LEN)
+        .unwrap_or(start);
         start..end
     }
 
     pub fn child_indices_byte_range(&self) -> Range<usize> {
         let match_mode_and_count = self.match_mode_and_count().unwrap_or_default();
-        let format_flags = self.format_flags();
         let start = self.match_mode_and_count_byte_range().end;
-        let end = if self
+        let end = (self
             .format_flags()
-            .contains(EntryFormatFlags::CHILD_INDICES)
-        {
+            .contains(EntryFormatFlags::CHILD_INDICES))
+        .then(|| {
             start
                 + (usize::try_from(match_mode_and_count).unwrap_or_default())
                     .saturating_mul(Uint24::RAW_BYTE_LEN)
-        } else {
-            start
-        };
+        })
+        .unwrap_or(start);
         start..end
     }
 

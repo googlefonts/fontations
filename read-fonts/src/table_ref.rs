@@ -38,8 +38,9 @@ impl<'a, T> TableRef<'a, T> {
     /// This is a low level implementation detail, but it can be useful in
     /// some cases where you want to know things about a table's layout, such
     /// as the byte offsets of specific fields.
-    pub fn shape(&self) -> &T {
-        &self.shape
+    #[deprecated(note = "just use the base type directly")]
+    pub fn shape(&self) -> &Self {
+        &self
     }
 }
 

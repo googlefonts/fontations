@@ -104,32 +104,26 @@ impl<'a> Post<'a> {
 
     pub fn num_glyphs_byte_range(&self) -> Range<usize> {
         let start = self.max_mem_type1_byte_range().end;
-        let end = if self.version().compatible((2u16, 0u16)) {
-            start + u16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible((2u16, 0u16)))
+            .then(|| start + u16::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn glyph_name_index_byte_range(&self) -> Range<usize> {
         let num_glyphs = self.num_glyphs().unwrap_or_default();
         let start = self.num_glyphs_byte_range().end;
-        let end = if self.version().compatible((2u16, 0u16)) {
-            start + (num_glyphs as usize).saturating_mul(u16::RAW_BYTE_LEN)
-        } else {
-            start
-        };
+        let end = (self.version().compatible((2u16, 0u16)))
+            .then(|| start + (num_glyphs as usize).saturating_mul(u16::RAW_BYTE_LEN))
+            .unwrap_or(start);
         start..end
     }
 
     pub fn string_data_byte_range(&self) -> Range<usize> {
         let start = self.glyph_name_index_byte_range().end;
-        let end = if self.version().compatible((2u16, 0u16)) {
-            start + self.data.len().saturating_sub(start)
-        } else {
-            start
-        };
+        let end = (self.version().compatible((2u16, 0u16)))
+            .then(|| start + self.data.len().saturating_sub(start))
+            .unwrap_or(start);
         start..end
     }
 
